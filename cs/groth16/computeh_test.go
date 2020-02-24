@@ -67,22 +67,9 @@ func TestComputeH(t *testing.T) {
 		}
 	}
 
-	copyA := make([]curve.Element, n)
-	copyB := make([]curve.Element, n)
-	copyC := make([]curve.Element, n)
-	copy(copyA, A)
-	copy(copyB, B)
-	copy(copyC, C)
-	newH := <-computeH(copyA, copyB, copyC, n+3)
-	for i := 0; i < len(newH); i++ {
-		if !newH[i].Equal(&expectedH[i]) {
-			t.Fatal("incorrect result")
-		}
-	}
 }
 
 func BenchmarkComputeH(b *testing.B) {
-	// circuit, good, _ := referenceCircuit(nbBenchmarkedConstraints)
 	const n = 100000
 	A := make([]curve.Element, n)
 	B := make([]curve.Element, n)
@@ -93,23 +80,11 @@ func BenchmarkComputeH(b *testing.B) {
 		C[i].SetRandom()
 	}
 
-	copyA := make([]curve.Element, n)
-	copyB := make([]curve.Element, n)
-	copyC := make([]curve.Element, n)
-	copy(copyA, A)
-	copy(copyB, B)
-	copy(copyC, C)
-
 	b.ResetTimer()
 	b.Run("currentH", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			<-computeH(A, B, C, n+3)
 		}
 	})
-	b.ResetTimer()
-	b.Run("newH", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			<-computeH(copyA, copyB, copyC, n+3)
-		}
-	})
+
 }

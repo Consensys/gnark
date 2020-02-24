@@ -205,7 +205,6 @@ func computeH(a, b, c []ecc.Element, nbConstraints int) <-chan []ecc.Element {
 
 		FFT := func(s []ecc.Element) {
 			fft.Inv(s, gateGroup.GeneratorInv)
-			fft.BitReverse(s)
 			fft.Coset(s, gateGroup.Generator, gateGroup.GeneratorSqRt)
 		}
 		var wg sync.WaitGroup

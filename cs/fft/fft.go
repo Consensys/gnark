@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/cs/internal/curve"
+	"github.com/consensys/gnark/internal/debug"
 	"github.com/consensys/gnark/internal/pool"
 )
 
@@ -32,6 +33,43 @@ func FFT(a []curve.Element, w curve.Element) {
 	var wg sync.WaitGroup
 	asyncFFT(a, w, &wg)
 	wg.Wait()
+	BitReverse(a)
+}
+
+func FFTs(a, b, c []curve.Element, w curve.Element) {
+	n := len(a)
+
+	debug.Assert(bits.OnesCount(uint(n)) == 1)
+	ln := bits.TrailingZeros(uint(n))
+	var wm, wPow curve.Element
+	var t, u curve.Element
+	for s := 1; s <= ln; s++ {
+		m := 1 << s
+
+		wm.Exp(w, uint64((n)/(m)))
+		for k := 0; k < n; k += m {
+			wPow.SetOne()
+			for j := 0; j < m/2; j++ {
+
+				t.Mul(&wPow, &a[k+j+m/2])
+				u = a[k+j]
+				a[k+j+m/2].Sub(&u, &t)
+				a[k+j].AddAssign(&t)
+
+				t.Mul(&wPow, &b[k+j+m/2])
+				u = b[k+j]
+				b[k+j+m/2].Sub(&u, &t)
+				b[k+j].AddAssign(&t)
+
+				t.Mul(&wPow, &c[k+j+m/2])
+				u = c[k+j]
+				c[k+j+m/2].Sub(&u, &t)
+				c[k+j].AddAssign(&t)
+
+				wPow.MulAssign(&wm)
+			}
+		}
+	}
 }
 
 // Coset Evaluation on ker(X^n+1)
@@ -43,7 +81,7 @@ func Coset(a []curve.Element, w curve.Element, wSqrt curve.Element) {
 	}
 
 	FFT(a, w)
-	BitReverse(a)
+
 }
 
 // InvCoset Get back polynomial from its values on ker X^n+1
@@ -55,7 +93,6 @@ func InvCoset(a []curve.Element, w curve.Element, wSqrt curve.Element) {
 	wsqrtInvCpy := wSqrtInv
 
 	Inv(a, wInv)
-	BitReverse(a)
 
 	for i := 1; i < len(a); i++ {
 		a[i].MulAssign(&wSqrtInv)
@@ -111,9 +148,7 @@ func asyncFFT(a []curve.Element, w curve.Element, wg *sync.WaitGroup) {
 // Inv computes the inverse discrete Fourier transform of a and stores the result in a.
 // See FFT for more info.
 func Inv(a []curve.Element, wInv curve.Element) {
-	var wg sync.WaitGroup
-	asyncFFT(a, wInv, &wg)
-	wg.Wait()
+	FFT(a, wInv)
 
 	// scale by inverse of n
 	var nInv curve.Element

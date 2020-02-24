@@ -49,7 +49,6 @@ func TestFFT(t *testing.T) {
 	fftExpected[2].SetString("8444461749428370424248824938781546531375899335154063827935233455917408882477")
 	fftExpected[3].SetString("8444461749428193732362745809358310391547622204027831664851124434067521319365")
 	FFT(poly, w)
-	BitReverse(poly)
 
 	for i := 0; i < 4; i++ {
 		if !poly[i].Equal(&fftExpected[i]) {
@@ -58,7 +57,6 @@ func TestFFT(t *testing.T) {
 	}
 
 	Inv(fftExpected, winv)
-	BitReverse(fftExpected)
 	for i := 0; i < 4; i++ {
 		if !polyCpy[i].Equal(&fftExpected[i]) {
 			t.Fatal("Error inv fft")
