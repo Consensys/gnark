@@ -1,5 +1,5 @@
 # gnark
-[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark)
 
 
 `gnark` is a framework execute (and verify) algorithms in zero-knowledge. It offers a high-level API to easily design circuits and fast implementation of state of the art ZKP schemes. 
