@@ -1,0 +1,21 @@
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:latest
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: if [[ -n $(gofmt -l .) ]]; then echo "Please run gofmt"; exit 1; fi
+      - run: go vet -tags bls377 -v ./...
+      - run: go vet -tags bls381 -v ./...
+      - run: go vet -tags bn256 -v ./...
+      - run: go test -v -tags bls377,debug ./cs/... ./ecc/bls377/... .
+      - run: go test -v -tags bls381,debug ./cs/... ./ecc/bls381/... .
+      - run: go test -v -tags bn256,debug ./cs/... ./ecc/bn256/... .
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
