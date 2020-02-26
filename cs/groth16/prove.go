@@ -77,7 +77,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 
 	// H (witness reduction / FFT part)
 	chH := computeH(a, b, c, r1cs.NbConstraints())
-	h := <-chH
 
 	// these tokens ensure multiExp tasks are enqueue in order in the pool
 	// so that bs2 doesn't compete with ar1 and bs1 for resources
@@ -95,7 +94,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 	chBs2 := computeBs2(pk, _s, wireValues, chTokenB)
 
 	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-
+	h := <-chH
 	proof.Ar = <-chAr1
 	bs := <-chBs1
 	proof.Krs = <-computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs, h, r1cs.PublicInputsStartIndex, chTokenB)
