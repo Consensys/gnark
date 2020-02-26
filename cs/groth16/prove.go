@@ -17,10 +17,12 @@ limitations under the License.
 package groth16
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/consensys/gnark/cs"
 	"github.com/consensys/gnark/cs/fft"
+	"github.com/consensys/gnark/cs/internal/curve"
 	ecc "github.com/consensys/gnark/cs/internal/curve"
 	"github.com/consensys/gnark/internal/debug"
 	"github.com/consensys/gnark/internal/pool"
@@ -75,6 +77,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 
 	// H (witness reduction / FFT part)
 	chH := computeH(a, b, c, r1cs.NbConstraints())
+	h := <-chH
 
 	// these tokens ensure multiExp tasks are enqueue in order in the pool
 	// so that bs2 doesn't compete with ar1 and bs1 for resources
@@ -92,7 +95,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 	chBs2 := computeBs2(pk, _s, wireValues, chTokenB)
 
 	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-	h := <-chH
+
 	proof.Ar = <-chAr1
 	bs := <-chBs1
 	proof.Krs = <-computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs, h, r1cs.PublicInputsStartIndex, chTokenB)
@@ -192,48 +195,131 @@ func computeH(a, b, c []ecc.Element, nbConstraints int) <-chan []ecc.Element {
 		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
 		// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
 		// 	3 - h = ifft_coset(ca o cb - cc)
-		gateGroup := fft.NewSubGroup(root, ecc.MaxOrder, nbConstraints)
+		fftDomain := fft.NewSubGroup(root, ecc.MaxOrder, nbConstraints)
 
 		n := len(a)
 		debug.Assert((n == len(b)) && (n == len(c)))
+
 		// add padding
-		padding := make([]ecc.Element, gateGroup.Cardinality-n)
+		padding := make([]ecc.Element, fftDomain.Cardinality-n)
 		a = append(a, padding...)
 		b = append(b, padding...)
 		c = append(c, padding...)
 		n = len(a)
 
-		FFT := func(s []ecc.Element) {
-			fft.Inv(s, gateGroup.GeneratorInv)
-			fft.Coset(s, gateGroup.Generator, gateGroup.GeneratorSqRt)
-		}
+		// exptable = scale by inverse of n + coset
+		// ifft(a) would normaly do FFT(a, wInv) then scale by CardinalityInv
+		// fft_coset(a) would normaly mutliply a with expTable of fftDomain.GeneratorSqRt
+		// this pre-computed expTable do both in one pass --> it contains
+		// expTable[0] = fftDomain.CardinalityInv
+		// expTable[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
+		// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
+		// ...
+		expTable := make([]curve.Element, n)
+		expTable[0] = fftDomain.CardinalityInv
+
+		var wgExpTable sync.WaitGroup
+
+		// to ensure the pool is busy while the FFT splits, we schedule precomputation of the exp table
+		// before the FFTs
+		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable, &wgExpTable)
+
 		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			FFT(a)
+		FFT := func(s []curve.Element) {
+			// FFT inverse
+			fft.FFT(s, fftDomain.GeneratorInv)
+
+			// wait for the expTable to be pre-computed
+			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
+			wgExpTable.Wait()
+			pool.Execute(0, n, func(start, end int) {
+				for i := start; i < end; i++ {
+					s[i].MulAssign(&expTable[i])
+				}
+			}, true)
+
+			// FFT coset
+			fft.FFT(s, fftDomain.Generator)
 			wg.Done()
-		}()
-		go func() {
-			FFT(b)
-			wg.Done()
-		}()
+		}
+		wg.Add(3)
+		go FFT(a)
+		go FFT(b)
 		FFT(c)
+
+		// wait for first step (ifft + fft_coset) to be done
 		wg.Wait()
 
-		for i := 0; i < n; i++ {
-			a[i].MulAssign(&b[i]).
-				SubAssign(&c[i]).
-				MulAssign(&minusTwoInv)
-		}
-		fft.InvCoset(a, gateGroup.Generator, gateGroup.GeneratorSqRt)
+		// h = ifft_coset(ca o cb - cc)
+		// reusing a to avoid unecessary memalloc
+		pool.Execute(0, n, func(start, end int) {
+			for i := start; i < end; i++ {
+				a[i].Mul(&a[i], &b[i]).
+					SubAssign(&c[i]).
+					MulAssign(&minusTwoInv)
+			}
+		}, true)
 
-		// convert a from montgomery to regular form
-		for i := 0; i < n; i++ {
-			a[i].FromMont()
-		}
+		// before computing the ifft_coset, we schedule the expTable precompute of the ifft_coset
+		// to ensure the pool is busy while the FFT splits
+		// similar reasoning as in ifft pass -->
+		// expTable[0] = fftDomain.CardinalityInv
+		// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
+		// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
+		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
+
+		// ifft_coset
+		fft.FFT(a, fftDomain.GeneratorInv)
+
+		wgExpTable.Wait() // wait for pre-computation of exp table to be done
+		pool.Execute(0, n, func(start, end int) {
+			for i := start; i < end; i++ {
+				a[i].MulAssign(&expTable[i]).FromMont()
+			}
+		}, true)
+
 		chResult <- a
 		close(chResult)
 	}()
 
 	return chResult
+}
+
+func asyncExpTable(scale, w curve.Element, table []curve.Element, wg *sync.WaitGroup) {
+	n := len(table)
+
+	// see if it makes sense to parallelize exp tables pre-computation
+	interval := (n - 1) / runtime.NumCPU()
+	// this ratio roughly correspond to the number of multiplication one can do in place of a Exp operation
+	const ratioExpMul = 2400 / 26
+
+	if interval < ratioExpMul {
+		wg.Add(1)
+		pool.Push(func() {
+			precomputeExpTableChunk(scale, w, 1, table[1:])
+			wg.Done()
+		}, true)
+	} else {
+		// we parallelize
+		for i := 1; i < n; i += interval {
+			start := i
+			end := i + interval
+			if end > n {
+				end = n
+			}
+			wg.Add(1)
+			pool.Push(func() {
+				precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
+				wg.Done()
+			}, true)
+		}
+	}
+}
+
+func precomputeExpTableChunk(scale, w curve.Element, power uint64, table []curve.Element) {
+	table[0].Exp(w, power)
+	table[0].MulAssign(&scale)
+	for i := 1; i < len(table); i++ {
+		table[i].Mul(&table[i-1], &w)
+	}
 }

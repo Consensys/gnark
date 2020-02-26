@@ -55,68 +55,6 @@ func TestFFT(t *testing.T) {
 			t.Fatal("Error fft")
 		}
 	}
-
-	Inv(fftExpected, winv)
-	for i := 0; i < 4; i++ {
-		if !polyCpy[i].Equal(&fftExpected[i]) {
-			t.Fatal("Error inv fft")
-		}
-	}
-
-}
-
-func TestFFTCoset(t *testing.T) {
-
-	var wsqrt, w Element
-	// primitive 8-th root of 1
-	wsqrt.SetString("3279917132858342911831074864712036382710139745724269329239664300762234227201")
-
-	// primitive 4-th root of 1
-	w.SetString("880904806456922042258150504921383618666682042621506879489")
-
-	poly := make([]Element, 4)
-	poly[0].SetString("1223")
-	poly[1].SetString("9283")
-	poly[2].SetString("2323")
-	poly[3].SetString("29832")
-	polyCpy := make([]Element, 4)
-	copy(polyCpy[:], poly[:])
-
-	polyCoset := make([]Element, 4)
-	polyCoset[0].SetString("6744231264996566884193988396561893970787357999391009292610442572606065589798")
-	polyCoset[1].SetString("117515726529979382411741906321656162865657092943595752906312217939318191217")
-	polyCoset[2].SetString("1700230484431807632738567341079460891955787200511346860729560902832305757583")
-	polyCoset[3].SetString("8326946022898386949153352233600082037142996377462175749624151218457128944376")
-
-	Coset(poly, w, wsqrt)
-
-	for i := 0; i < 4; i++ {
-		if !poly[i].Equal(&polyCoset[i]) {
-			t.Fatal("Error FFT coset")
-		}
-	}
-
-	InvCoset(polyCoset, w, wsqrt)
-
-	for i := 0; i < 4; i++ {
-		if !polyCoset[i].Equal(&polyCpy[i]) {
-			t.Fatal("Error Inv FFT coset")
-		}
-	}
-}
-
-func TestReverse(t *testing.T) {
-
-	got := [8]int{0, 1, 2, 3, 4, 5, 6, 7}
-	want := [8]int{0, 4, 2, 6, 1, 5, 3, 7}
-
-	for i := range got {
-		got[i] = reverse(got[i], 3)
-	}
-
-	if got != want {
-		t.Error("expected:", want, "received:", got)
-	}
 }
 
 func TestBitReverse(t *testing.T) {
@@ -131,7 +69,7 @@ func TestBitReverse(t *testing.T) {
 	got[6].SetUint64(7)
 	got[7].SetUint64(8)
 
-	BitReverse(got[:])
+	bitReverse(got[:])
 
 	var want [8]Element // not in Mongomery form
 	want[0].SetUint64(1)

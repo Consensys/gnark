@@ -70,7 +70,7 @@ func TestComputeH(t *testing.T) {
 }
 
 func BenchmarkComputeH(b *testing.B) {
-	const n = 100000
+	const n = 1000000
 	A := make([]curve.Element, n)
 	B := make([]curve.Element, n)
 	C := make([]curve.Element, n)
@@ -81,10 +81,8 @@ func BenchmarkComputeH(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	b.Run("currentH", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			<-computeH(A, B, C, n+3)
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		<-computeH(A, B, C, n+3)
+	}
 
 }
