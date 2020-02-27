@@ -134,114 +134,76 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{ .Name}}Affine, scalars
 	}()
 	return chRes
 }
+
 // MultiExp set p = scalars[0]*points[0] + ... + scalars[n]*points[n]
 // see: https://eprint.iacr.org/2012/549.pdf
 // if maxGoRoutine is not provided, uses all available CPUs
-func (p *{{.Name}}Jac) MultiExpNew(curve *Curve, points []{{ .Name}}Affine, scalars []fr.Element) chan {{.Name}}Jac  {
+func (p *{{.Name}}Jac) MultiExpNew(curve *Curve, points []{{.Name}}Affine, scalars []fr.Element) chan {{.Name}}Jac {
+
 	debug.Assert(len(scalars) == len(points))
+
+	// final result
+	var res {{.Name}}Jac
+	res.Set(&curve.{{toLower .Name}}Infinity)
+
+	// res channel
 	chRes := make(chan {{.Name}}Jac, 1)
-	// call windowed multi exp if input not large enough
-	// we may want to force the API user to call the proper method in the first place
-	const minPoints = 50 				// under 50 points, the windowed multi exp performs better
-	if len(scalars) <= minPoints {
-		_points := make([]{{ .Name}}Jac, len(points))
-		for i := 0; i < len(points); i++ {
-			points[i].ToJacobian(&_points[i])
-		}
-		go func() {
-			p.WindowedMultiExp(curve, _points, scalars)
-			chRes <- *p
-		}()
-		return chRes
-	}
-	// if we have m points and n cpus, m/n points per cpu
-	nbCpus := runtime.NumCPU()
-	// nb points processed by one cpu
-	pointsPerCPU := len(scalars) / nbCpus
-	// each cpu has its own bucket
-	sharedBuckets := make([][32][255]{{.Name}}Jac, nbCpus)
-	// bucket to gather cpus work
-	var commonBucket [32][255]{{.Name}}Jac
-	var emptyBucket [255]{{.Name}}Jac
-	var almostThere [32]{{.Name}}Jac
-	for i := 0; i < 255; i++ {
-		emptyBucket[i].Set(&curve.{{toLower .Name}}Infinity)
-	}
-	
-	const mask = 255
-	// id: cpu id, start, end: point nb start to point nb end, chunk: i-th digit (in corresponding basis)
-	worker := func(id, start, end int) {
-		// ...[chunk*8..(chunk+1)*8-1]... -th bits
-		for chunk := 0; chunk < 32; chunk++ {
-			limb := chunk / 8
-			offset := (chunk % 8) * 8
-			sharedBuckets[id][chunk] = emptyBucket
-			var index uint64
-			for i := start; i < end; i++ {
-				index = (scalars[i][limb] >> offset)
-				index &= mask
-				if index != 0 {
-					sharedBuckets[id][chunk][index-1].AddMixed(&points[i])
-				}
-			}
-		}
-	}
-	var wg sync.WaitGroup
-	
-	// each cpu works on a small part of the bucket
-	for j := 0; j < nbCpus; j++ {
-		var nextStart, nextEnd int
-		nextStart = j * pointsPerCPU
-		if j < nbCpus-1 {
-			nextEnd = nextStart + pointsPerCPU
-		} else {
-			nextEnd = len(scalars)
-		}
-		_j := j
-		wg.Add(1)
-		pool.Push(func() {
-			worker(_j, nextStart, nextEnd)
-			wg.Done()
-		}, false)
-	}
-	go func() {
+
+	var lock sync.Mutex
+
+	// each cpu works on a subset of scalars/points
+	work := func(start, end int) {
+
+		// create buckets
+		var buckets [255]{{.Name}}Jac
+
+		var _res {{.Name}}Jac
+		_res.Set(&curve.{{toLower .Name}}Infinity)
+
+		const mask = 255
+
+		// for all the 32 chunks of 8 bits
 		for i := 0; i < 32; i++ {
-			// initialize the common bucket for the current chunk
-			commonBucket[i] = emptyBucket
-		}
-		copy(almostThere[:], emptyBucket[:])
-		wg.Wait()
-		// ...[chunk*8..(chunk+1)*8-1]... -th bits
-		for i := 0; i < 32; i++ {
-			// fill the i-th chunk of the common bucket by gathering cpus work
 			for j := 0; j < 255; j++ {
-				for k := 0; k < nbCpus; k++ {
-					commonBucket[i][j].Add(curve, &sharedBuckets[k][i][j])
+				buckets[j].Set(&curve.{{toLower .Name}}Infinity)
+			}
+			//for all scalars in the range of this worker
+			for j := start; j < end; j++ {
+				chunk := i / 8
+				offset := i % 8
+				val := (scalars[j][3-chunk] >> ((7 - offset) * 8)) & mask
+				if val != 0 {
+					buckets[val-1].AddMixed(&points[j])
 				}
 			}
-		}
-	
-		// ...[chunk*8..(chunk+1)*8-1]... -th bits
-		var acc {{.Name}}Jac
-		for i := 0; i < 32; i++ {
+			//accumulate the values from the buckets
+			var acc {{.Name}}Jac
+			var almostThere {{.Name}}Jac
 			acc.Set(&curve.{{toLower .Name}}Infinity)
-			for j := 254; j >= 0; j-- {
-				acc.Add(curve, &commonBucket[i][j])
-				almostThere[i].Add(curve, &acc)
+			almostThere.Set(&curve.{{toLower .Name}}Infinity)
+			for j := 0; j < 255; j++ {
+				acc.Add(curve, &buckets[254-j])
+				almostThere.Add(curve, &acc)
 			}
-		}
-	
-		// double and add to compute p
-		p.Set(&curve.{{toLower .Name}}Infinity)
-		for i := 31; i >= 0; i-- {
+
+			// double & add (we use the i counter) to set _res
 			for j := 0; j < 8; j++ {
-				p.Double()
+				_res.Double()
 			}
-			p.Add(curve, &almostThere[i])
+			_res.Add(curve, &almostThere)
+
 		}
+		// add contribution of the worker to the final result
+		lock.Lock()
+		res.Add(curve, &_res)
+		lock.Unlock()
+	}
+	chDone := pool.ExecuteAsync(0, len(scalars), work, false)
+	go func() {
+		<-chDone
+		p.Set(&res)
 		chRes <- *p
 	}()
-	
 	return chRes
 }
 `
