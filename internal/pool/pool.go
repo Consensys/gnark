@@ -89,9 +89,6 @@ func worker(pool *pool) {
 	}
 }
 
-// TODO is this enough or can this block the FFT in some settings?
-const fftBuffer = 30
-
 func init() {
 	_ = getPool()
 }
@@ -100,9 +97,9 @@ func getPool() *pool {
 	initOnce.Do(func() {
 		nbCpus := runtime.NumCPU()
 		globalPool = &pool{
-			chLow:  make(chan func(), nbCpus*2), // TODO nbCpus only?
-			chHigh: make(chan func(), fftBuffer),
-			chJob:  make(chan struct{}, 2*(nbCpus*2+fftBuffer)),
+			chLow:  make(chan func(), nbCpus*10), // TODO nbCpus only?
+			chHigh: make(chan func(), nbCpus*10),
+			chJob:  make(chan struct{}, 20*(nbCpus)),
 		}
 
 		for i := 0; i < nbCpus; i++ {

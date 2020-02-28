@@ -483,6 +483,8 @@ func (r r1c) solveR1c(wireTracker []wire) {
 	// in the case the r1c is solved by directly computing the binary decomposition
 	// of the variable
 	case binaryDec:
+
+		// the binary decomposition must be called on the non Mont form of the number
 		n := wireTracker[r.O[0].ID].Value.ToRegular()
 		nbBits := len(r.L)
 
@@ -490,7 +492,7 @@ func (r r1c) solveR1c(wireTracker []wire) {
 		var i, j int
 		for i*64 < nbBits {
 			j = 0
-			for i*64+j < nbBits {
+			for j < 64 && i*64+j < len(r.L) {
 				ithbit := (n[i] >> uint(j)) & 1
 				if !wireTracker[r.L[i*64+j].ID].IsInstantiated {
 					wireTracker[r.L[i*64+j].ID].Value.SetUint64(ithbit)

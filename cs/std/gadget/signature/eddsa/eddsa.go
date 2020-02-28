@@ -55,6 +55,7 @@ func Verify(circuit *cs.CS, pubKey eddsa.PublicKey, sig eddsa.Signature, message
 		pubKeyAllocated.Y,
 		message,
 	}
+
 	hramAllocated := mimc.NewMiMC("seed").Hash(circuit, data...)
 
 	// lhs = cofactor*SB

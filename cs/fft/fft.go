@@ -18,6 +18,7 @@ package fft
 
 import (
 	"math/bits"
+	"runtime"
 	"sync"
 
 	"github.com/consensys/gnark/cs/internal/curve"
@@ -28,120 +29,79 @@ import (
 // The result is in bit-reversed order.
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
 // The algorithm is recursive, decimation-in-frequency. [cite]
-func FFT(a []curve.Element, w curve.Element) {
+func FFT(a []curve.Element, w curve.Element, numCPU ...uint) {
 	var wg sync.WaitGroup
-	asyncFFT(a, w, &wg)
+	asyncFFT(a, w, &wg, 1)
 	wg.Wait()
+	bitReverse(a)
 }
 
-// Coset Evaluation on ker(X^n+1)
-func Coset(a []curve.Element, w curve.Element, wSqrt curve.Element) {
-	wSqrtCopy := wSqrt
-	for i := 1; i < len(a); i++ {
-		a[i].MulAssign(&wSqrtCopy)
-		wSqrtCopy.MulAssign(&wSqrt)
-	}
-
-	FFT(a, w)
-	BitReverse(a)
-}
-
-// InvCoset Get back polynomial from its values on ker X^n+1
-func InvCoset(a []curve.Element, w curve.Element, wSqrt curve.Element) {
-
-	var wInv, wSqrtInv curve.Element
-	wInv.Inverse(&w)
-	wSqrtInv.Inverse(&wSqrt)
-	wsqrtInvCpy := wSqrtInv
-
-	Inv(a, wInv)
-	BitReverse(a)
-
-	for i := 1; i < len(a); i++ {
-		a[i].MulAssign(&wSqrtInv)
-		wSqrtInv.MulAssign(&wsqrtInvCpy)
-	}
-}
-
-func asyncFFT(a []curve.Element, w curve.Element, wg *sync.WaitGroup) {
+func asyncFFT(a []curve.Element, w curve.Element, wg *sync.WaitGroup, splits uint) {
 	n := len(a)
 	if n == 1 {
 		return
 	}
-	m := n / 2
+	m := n >> 1
 
 	// wPow == w^1
 	wPow := w
 
 	// i == 0
-	tmp := a[0]
+	t := a[0]
 	a[0].AddAssign(&a[m])
-	a[m].Sub(&tmp, &a[m])
+	a[m].Sub(&t, &a[m])
 
 	for i := 1; i < m; i++ {
-		tmp = a[i]
+		t = a[i]
 		a[i].AddAssign(&a[i+m])
+
 		a[i+m].
-			Sub(&tmp, &a[i+m]).
+			Sub(&t, &a[i+m]).
 			MulAssign(&wPow)
 
 		wPow.MulAssign(&w)
+	}
 
+	// if m == 1, then next iteration ends, no need to call 2 extra functions for that
+	if m == 1 {
+		return
 	}
 
 	// note: w is passed by value
 	w.Square(&w)
 
-	if m < 20 {
-		asyncFFT(a[0:m], w, nil)
-		asyncFFT(a[m:n], w, nil)
+	const parallelThreshold = 64
+	serial := splits > uint(runtime.NumCPU()) || m <= parallelThreshold
+
+	if serial {
+		asyncFFT(a[0:m], w, nil, splits)
+		asyncFFT(a[m:n], w, nil, splits)
 	} else {
-		wg.Add(2)
+		splits <<= 1
+		wg.Add(1)
 		pool.Push(func() {
-			asyncFFT(a[0:m], w, wg)
+			asyncFFT(a[m:n], w, wg, splits)
 			wg.Done()
 		}, true)
-		pool.Push(func() {
-			asyncFFT(a[m:n], w, wg)
-			wg.Done()
-		}, true)
+		// TODO fixme that seems risky behavior and could starve the thread pool
+		// we may want to push that as a taks in the pool too?.
+		asyncFFT(a[0:m], w, wg, splits)
 	}
 }
 
-// Inv computes the inverse discrete Fourier transform of a and stores the result in a.
-// See FFT for more info.
-func Inv(a []curve.Element, wInv curve.Element) {
-	var wg sync.WaitGroup
-	asyncFFT(a, wInv, &wg)
-	wg.Wait()
-
-	// scale by inverse of n
-	var nInv curve.Element
-	nInv.SetUint64(uint64(len(a)))
-	nInv.Inverse(&nInv)
-
-	for i := 0; i < len(a); i++ {
-		a[i].MulAssign(&nInv)
-	}
-}
-
-// BitReverse applies the bit-reversal permutation to a.
+// bitReverse applies the bit-reversal permutation to a.
 // len(a) must be a power of 2 (as in every single function in this file)
-func BitReverse(a []curve.Element) {
-	l := uint(len(a))
-	n := uint(bits.UintSize - bits.TrailingZeros(l))
+func bitReverse(a []curve.Element) {
+	n := uint(len(a))
+	nn := uint(bits.UintSize - bits.TrailingZeros(n))
 
-	var tmp curve.Element
-	for i := uint(0); i < l; i++ {
-		irev := bits.Reverse(i) >> n
+	var tReverse curve.Element
+	for i := uint(0); i < n; i++ {
+		irev := bits.Reverse(i) >> nn
 		if irev > i {
-			tmp = a[i]
+			tReverse = a[i]
 			a[i] = a[irev]
-			a[irev] = tmp
+			a[irev] = tReverse
 		}
 	}
-}
-
-func reverse(x, n int) int {
-	return int(bits.Reverse(uint(x)) >> (bits.UintSize - uint(n)))
 }
