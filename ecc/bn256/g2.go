@@ -5,8 +5,10 @@
 package bn256
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/consensys/gnark/ecc/bn256/fr"
 	"github.com/consensys/gnark/internal/debug"
@@ -495,68 +497,79 @@ func (p *G2Jac) MultiExpNew(curve *Curve, points []G2Affine, scalars []fr.Elemen
 
 	debug.Assert(len(scalars) == len(points))
 
-	// final result
-	var res G2Jac
-	res.Set(&curve.g2Infinity)
-
 	// res channel
 	chRes := make(chan G2Jac, 1)
 
 	var lock sync.Mutex
 
-	// each cpu works on a subset of scalars/points
-	work := func(start, end int) {
+	// create buckets
+	var buckets [32][255]G2Jac
+	for i := 0; i < 32; i++ {
+		for j := 0; j < 0; j++ {
+			buckets[i][j].Set(&curve.g2Infinity)
+		}
+	}
 
-		// create buckets
-		var buckets [255]G2Jac
+	// each cpu works on a subset of scalars/points, on the chunk-th pack of 8 bits
+	work := func(chunk int) func(start, end int) {
 
-		var _res G2Jac
-		_res.Set(&curve.g2Infinity)
+		resWork := func(_start, _end int) {
+			beginning := time.Now()
+			var _res G2Jac
+			_res.Set(&curve.g2Infinity)
 
-		const mask = 255
+			const mask = 255
 
-		// for all the 32 chunks of 8 bits
-		for i := 0; i < 32; i++ {
-			for j := 0; j < 255; j++ {
-				buckets[j].Set(&curve.g2Infinity)
-			}
 			//for all scalars in the range of this worker
-			for j := start; j < end; j++ {
-				chunk := i / 8
-				offset := i % 8
-				val := (scalars[j][3-chunk] >> ((7 - offset) * 8)) & mask
+			for j := _start; j < _end; j++ {
+				limb := chunk / 8
+				offset := chunk % 8
+				val := (scalars[j][3-limb] >> ((7 - offset) * 8)) & mask
 				if val != 0 {
-					buckets[val-1].AddMixed(&points[j])
+					lock.Lock()
+					buckets[chunk][val-1].AddMixed(&points[j])
+					lock.Unlock()
 				}
 			}
-			//accumulate the values from the buckets
-			var acc G2Jac
-			var almostThere G2Jac
+			elapsed := time.Since(beginning)
+			fmt.Printf("job %d took %s, for %d iterations\n", chunk, elapsed, _end-_start)
+		}
+		return resWork
+	}
+
+	chunkChans := make([]chan bool, 32)
+	for i := 0; i < 32; i++ {
+		chunkChans[i] = pool.ExecuteAsync(0, len(scalars), work(i), false)
+	}
+
+	go func() {
+
+		var acc G2Jac
+
+		// final result
+		var res, almostThere G2Jac
+		res.Set(&curve.g2Infinity)
+
+		for i := 0; i < 32; i++ {
+			for j := 0; j < 8; j++ {
+				res.Double()
+			}
+
+			<-chunkChans[i]
+
 			acc.Set(&curve.g2Infinity)
 			almostThere.Set(&curve.g2Infinity)
 			for j := 0; j < 255; j++ {
-				acc.Add(curve, &buckets[254-j])
+				acc.Add(curve, &buckets[i][254-j])
 				almostThere.Add(curve, &acc)
 			}
-
-			// double & add (we use the i counter) to set _res
-			for j := 0; j < 8; j++ {
-				_res.Double()
-			}
-			_res.Add(curve, &almostThere)
-
+			res.Add(curve, &almostThere)
 		}
-		// add contribution of the worker to the final result
-		lock.Lock()
-		res.Add(curve, &_res)
-		lock.Unlock()
-	}
-	chDone := pool.ExecuteAsync(0, len(scalars), work, false)
-	go func() {
-		<-chDone
 		p.Set(&res)
-		chRes <- *p
+
+		chRes <- res
 	}()
+
 	return chRes
 }
 

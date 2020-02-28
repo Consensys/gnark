@@ -21,6 +21,9 @@ import (
 	"sync"
 )
 
+// NbCpus nb cpus we play with
+var NbCpus int
+
 // Push schedules a function to be executed.
 // if it's high priority and the job queue is full, executes synchronously the call
 func Push(fn func(), highPriority bool) {
@@ -35,22 +38,30 @@ func Execute(iStart, iEnd int, work func(int, int), highPriority bool) {
 // ExecuteAsync process in parallel the work function and return a channel that notifies caller when
 // work is done
 func ExecuteAsync(iStart, iEnd int, work func(int, int), highPriority bool) chan bool {
+
 	pool := getPool()
 
-	interval := iEnd / runtime.NumCPU()
-	if interval >= iEnd {
-		interval = iEnd - 1
+	// total number of tasks to queue up
+	var nbTasks int
+
+	//NbCpus := runtime.NumCPU()
+	nbIterations := iEnd - iStart // not  +1 -> iEnd is not included
+	nbIterationsPerCpus := nbIterations / NbCpus
+	nbTasks = NbCpus
+
+	// more CPUs than tasks: a CPU will work on exactly one iteration
+	if nbIterationsPerCpus < 1 {
+		nbIterationsPerCpus = 1
+		nbTasks = nbIterations
 	}
-	if interval < 1 {
-		interval = 1
-	}
+
 	var wg sync.WaitGroup
-	start := 0
-	for start = iStart; start < iEnd; start += interval {
+
+	for i := 0; i < nbTasks; i++ {
 		wg.Add(1)
-		_start := start
-		_end := start + interval
-		if _end > iEnd {
+		_start := iStart + i*nbIterationsPerCpus
+		_end := _start + nbIterationsPerCpus
+		if i == nbTasks-1 {
 			_end = iEnd
 		}
 		pool.push(func() {
@@ -90,19 +101,20 @@ func worker(pool *pool) {
 }
 
 func init() {
+	NbCpus = runtime.NumCPU()
 	_ = getPool()
 }
 
 func getPool() *pool {
 	initOnce.Do(func() {
-		nbCpus := runtime.NumCPU()
+
 		globalPool = &pool{
-			chLow:  make(chan func(), nbCpus*10), // TODO nbCpus only?
-			chHigh: make(chan func(), nbCpus*10),
-			chJob:  make(chan struct{}, 20*(nbCpus)),
+			chLow:  make(chan func(), NbCpus), // TODO NbCpus only?
+			chHigh: make(chan func(), NbCpus),
+			chJob:  make(chan struct{}, 2*(NbCpus)),
 		}
 
-		for i := 0; i < nbCpus; i++ {
+		for i := 0; i < NbCpus; i++ {
 			go worker(globalPool)
 		}
 	})

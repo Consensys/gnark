@@ -72,13 +72,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 	pool.Execute(0, len(wireValues), work, false)
 
 	// compute proof elements
-	// 4 multiexp + 1 FFT
-	// G2 multiexp is likely the most compute intensive task here
+	// 4 MultiExpNew + 1 FFT
+	// G2 MultiExpNew is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
 	chH := computeH(a, b, c, r1cs.NbConstraints())
 
-	// these tokens ensure multiExp tasks are enqueue in order in the pool
+	// these tokens ensure MultiExpNew tasks are enqueue in order in the pool
 	// so that bs2 doesn't compete with ar1 and bs1 for resources
 	// hence delaying Krs compute longer than needed
 	chTokenA := make(chan struct{}, 1)
@@ -118,7 +118,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s ecc.Element, wireValues []ecc.Eleme
 		points = append(points, pk.G1.Delta, ar, bs)
 		scalars = append(scalars, r.ToRegular(), _s, _r)
 		<-chToken
-		chAsync := Krs.MultiExp(ecc.GetCurve(), points, scalars)
+		chAsync := Krs.MultiExpNew(ecc.GetCurve(), points, scalars)
 		<-chAsync
 		Krs.ToAffineFromJac(&KrsAffine)
 
@@ -136,7 +136,7 @@ func computeBs2(pk *ProvingKey, _s ecc.Element, wireValues []ecc.Element, chToke
 		points2 := append(pk.G2.B, pk.G2.Delta)
 		scalars2 := append(wireValues, _s)
 		<-chToken
-		chAsync := Bs.MultiExp(ecc.GetCurve(), points2, scalars2)
+		chAsync := Bs.MultiExpNew(ecc.GetCurve(), points2, scalars2)
 		chToken <- struct{}{}
 		<-chAsync
 		Bs.AddMixed(&pk.G2.Beta)
@@ -156,7 +156,7 @@ func computeBs1(pk *ProvingKey, _s ecc.Element, wireValues []ecc.Element, chToke
 		points := append(pk.G1.B, pk.G1.Delta)
 		scalars := append(wireValues, _s)
 		<-chTokenA
-		chAsync := bs1.MultiExp(ecc.GetCurve(), points, scalars)
+		chAsync := bs1.MultiExpNew(ecc.GetCurve(), points, scalars)
 		chTokenB <- struct{}{}
 		<-chAsync
 		bs1.AddMixed(&pk.G1.Beta)
@@ -175,7 +175,7 @@ func computeAr1(pk *ProvingKey, _r ecc.Element, wireValues []ecc.Element, chToke
 		var arAffine ecc.G1Affine
 		points := append(pk.G1.A, pk.G1.Delta)
 		scalars := append(wireValues, _r)
-		chAsync := ar.MultiExp(ecc.GetCurve(), points, scalars)
+		chAsync := ar.MultiExpNew(ecc.GetCurve(), points, scalars)
 		chToken <- struct{}{}
 		<-chAsync
 		ar.AddMixed(&pk.G1.Alpha)
