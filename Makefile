@@ -1,5 +1,5 @@
-# to bump version, git tag -a 1.X.X -m "version description" && git push origin --tags + modify following line
-VERSION=1.0.0-alpha
+# to bump version, git tag -a X.X.X -m "version description" && git push origin --tags + modify following line
+VERSION=0.1.0-alpha
 BUILD=`git rev-parse HEAD`
 BUILD_TIME=`date +%FT%T`
 
@@ -9,6 +9,7 @@ BLS381=-tags bls381
 BLS377=-tags bls377
 BN256=-tags bn256
 DISPATCHER=-tags dispatcher
+GOPATH=$(shell go env GOPATH)
 
 build:
 	go vet ${BLS381} -v && go build ${BLS381} ${LDFLAGS} ${GCFLAGS} -o gnark_bls381 && mv gnark_bls381 ${GOPATH}/bin/
