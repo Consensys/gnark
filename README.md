@@ -7,7 +7,7 @@
 `gnark` has not been audited and is provided as-is, use at your own risk. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.
 
 <img style="display: block;margin: auto;" width="80%"
-src="https://i.imgur.com/FvAjdSF.png">
+src="banner_gnark.png">
 
 ### Proving systems
 
