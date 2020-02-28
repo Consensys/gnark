@@ -302,13 +302,18 @@ func TestMultiExpG1LotOfPoints(t *testing.T) {
 
 	var G G1Jac
 
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
 	samplePoints := make([]G1Affine, 1000)
 	sampleScalars := make([]fr.Element, 1000)
 
 	G.Set(&curve.g1Gen)
 
 	for i := 1; i <= 1000; i++ {
-		sampleScalars[i-1].SetUint64(uint64(i)).FromMont()
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
 		G.ToAffineFromJac(&samplePoints[i-1])
 	}
 
@@ -317,7 +322,7 @@ func TestMultiExpG1LotOfPoints(t *testing.T) {
 	<-testPoint.MultiExp(curve, samplePoints, sampleScalars)
 
 	var finalScalar fr.Element
-	finalScalar.SetUint64(500500).FromMont()
+	finalScalar.SetString("3862277319353347780336072323924326950804323832466286647342286996721585329016743500").FromMont()
 	var finalPoint G1Jac
 	finalPoint.ScalarMul(curve, &G, finalScalar)
 

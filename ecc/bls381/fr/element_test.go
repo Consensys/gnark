@@ -9,7 +9,7 @@ import (
 )
 
 func TestELEMENTCorrectessAgainstBigInt(t *testing.T) {
-	modulus, _ := new(big.Int).SetString("8444461749428370424248824938781546531375899335154063827935233455917409239041", 10)
+	modulus, _ := new(big.Int).SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
 	cmpEandB := func(e *Element, b *big.Int, name string) {
 		var _e big.Int
 		if e.FromMont().ToBigInt(&_e).Cmp(b) != 0 {
@@ -221,10 +221,10 @@ func BenchmarkSquareELEMENT(b *testing.B) {
 
 func BenchmarkMulAssignELEMENT(b *testing.B) {
 	x := Element{
-		2726216793283724667,
-		14712177743343147295,
-		12091039717619697043,
-		81024008013859129,
+		14526898881837571181,
+		3129137299524312099,
+		419701826671360399,
+		524908885293268753,
 	}
 	benchResElement.SetOne()
 	b.ResetTimer()

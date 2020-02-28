@@ -2,7 +2,7 @@
 
 // Most algos for points operations are taken from http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html
 
-package bls377
+package bls381
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark/ecc/bls377/fr"
+	"github.com/consensys/gnark/ecc/bls381/fr"
 	"github.com/consensys/gnark/internal/debug"
 	"github.com/consensys/gnark/internal/pool"
 )
