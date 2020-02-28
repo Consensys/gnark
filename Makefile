@@ -1,5 +1,5 @@
-# to bump version, git tag -a 1.X.X -m "version description" && git push origin --tags + modify following line
-VERSION=1.0.0-alpha
+# to bump version, git tag -a X.X.X -m "version description" && git push origin --tags + modify following line
+VERSION=0.1.0-alpha
 BUILD=`git rev-parse HEAD`
 BUILD_TIME=`date +%FT%T`
 
