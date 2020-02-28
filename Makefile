@@ -9,6 +9,7 @@ BLS381=-tags bls381
 BLS377=-tags bls377
 BN256=-tags bn256
 DISPATCHER=-tags dispatcher
+GOPATH=`go env GOPATH`
 
 build:
 	go vet ${BLS381} -v && go build ${BLS381} ${LDFLAGS} ${GCFLAGS} -o gnark_bls381 && mv gnark_bls381 ${GOPATH}/bin/
