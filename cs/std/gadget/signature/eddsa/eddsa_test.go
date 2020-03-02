@@ -28,7 +28,7 @@ import (
 )
 
 func TestEddsaGadget(t *testing.T) {
-	t.Skip("wip")
+
 	assert := cs.NewAssert(t)
 
 	edcurve := twistededwards.GetEdwardsCurve()
@@ -65,6 +65,7 @@ func TestEddsaGadget(t *testing.T) {
 	// verification with the correct message
 	good := cs.NewAssignment()
 	good.Assign(cs.Secret, "message", "44717650746155748460101257525078853138837311576962212923649547644148297035978")
+
 	assert.Solved(circuit, good, nil)
 
 	// verification with incorrect message
