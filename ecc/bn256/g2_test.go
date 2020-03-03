@@ -8,8 +8,241 @@ import (
 	"github.com/consensys/gnark/ecc/bn256/fr"
 )
 
-func TestG2NotReallyHere(t *testing.T) {
-	t.Skip("testPointsG2() not available?")
+func TestG2JacToAffineFromJac(t *testing.T) {
+
+	p := testPointsG2()
+
+	_p := G2Affine{}
+	p[0].ToAffineFromJac(&_p)
+	if !_p.X.Equal(&p[1].X) || !_p.Y.Equal(&p[1].Y) {
+		t.Fatal("ToAffineFromJac failed")
+	}
+
+}
+
+func TestG2Conv(t *testing.T) {
+	p := testPointsG2()
+
+	for i := 0; i < len(p); i++ {
+		var pJac G2Jac
+		var pAff G2Affine
+		p[i].ToAffineFromJac(&pAff)
+		pAff.ToJacobian(&pJac)
+		if !pJac.Equal(&p[i]) {
+			t.Fatal("jacobian to affine to jacobian fails")
+		}
+	}
+}
+
+func TestG2JacAdd(t *testing.T) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	// p3 = p1 + p2
+	p1 := p[1].Clone()
+	_p2 := G2Affine{}
+	p[2].ToAffineFromJac(&_p2)
+	p[1].AddMixed(&_p2)
+	p[2].Add(curve, p1)
+
+	if !p[3].Equal(&p[1]) {
+		t.Fatal("Add failed")
+	}
+
+	// test commutativity
+	if !p[3].Equal(&p[2]) {
+		t.Fatal("Add failed")
+	}
+}
+
+func TestG2JacSub(t *testing.T) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	// p4 = p1 - p2
+	p[1].Sub(curve, p[2])
+
+	if !p[4].Equal(&p[1]) {
+		t.Fatal("Sub failed")
+	}
+}
+
+func TestG2JacDouble(t *testing.T) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	// p5 = 2 * p1
+	p[1].Double()
+	if !p[5].Equal(&p[1]) {
+		t.Fatal("Double failed")
+	}
+
+	G := curve.g2Infinity.Clone()
+	R := curve.g2Infinity.Clone()
+	G.Double()
+
+	if !G.Equal(R) {
+		t.Fatal("Double failed (infinity case)")
+	}
+}
+
+func TestG2JacScalarMul(t *testing.T) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	// p6 = [p1]32394 (scalar mul)
+	scalar := fr.Element{32394}
+	p[1].ScalarMul(curve, &p[1], scalar)
+
+	if !p[1].Equal(&p[6]) {
+		t.Error("ScalarMul failed")
+	}
+}
+
+func TestG2JacMultiExp(t *testing.T) {
+	curve := BN256()
+	// var points []G2Jac
+	var scalars []fr.Element
+	var got G2Jac
+
+	//
+	// Test 1: testPointsG2multiExp
+	//
+	// numPoints, wants := testPointsG2MultiExpResults()
+
+	// for i := range numPoints {
+	// 	if numPoints[i] > 10000 {
+	// 		continue
+	// 	}
+	// 	points, scalars = testPointsG2MultiExp(numPoints[i])
+
+	// 	got.multiExp(curve, points, scalars)
+	// 	if !got.Equal(&wants[i]) {
+	// 		t.Error("multiExp G2Jac fail for points:", numPoints[i])
+	// 	}
+	// }
+
+	//
+	// Test 2: testPointsG2()
+	//
+	p := testPointsG2()
+
+	// scalars
+	s1 := fr.Element{23872983, 238203802, 9827897384, 2372} // 14889285316340551032002176131108485811963550694615991316137431
+	s2 := fr.Element{128923, 2878236, 398478, 187970707}    // 1179911251111561301561648964820473185772012989930899737079831459739
+	s3 := fr.Element{9038947, 3947970, 29080823, 282739}    // 1774781467561494742381858548177178844765555009630735687022668899
+
+	scalars = []fr.Element{
+		s1,
+		s2,
+		s3,
+	}
+
+	got.multiExp(curve, p[17:20], scalars)
+	if !got.Equal(&p[20]) {
+		t.Error("multiExp G2Jac failed")
+	}
+
+	//
+	// Test 3: edge cases
+	//
+
+	// one input point p[1]
+	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
+	got.multiExp(curve, p[1:2], scalars[:1])
+	if !got.Equal(&p[6]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+
+	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
+	got.multiExp(curve, p[1:2], scalars[:1])
+	if !got.Equal(&p[5]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
+	got.multiExp(curve, p[1:2], scalars[:1])
+	if !got.Equal(&p[1]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
+	got.multiExp(curve, p[1:2], scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
+	got.multiExp(curve, p[1:2], scalars[:1])
+	if !got.Equal(&p[21]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+
+	// one input point curve.g2Infinity
+	infinity := []G2Jac{curve.g2Infinity}
+
+	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
+	got.multiExp(curve, infinity, scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
+	got.multiExp(curve, infinity, scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
+	got.multiExp(curve, infinity, scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
+	got.multiExp(curve, infinity, scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
+	got.multiExp(curve, infinity, scalars[:1])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+
+	// two input points: p[1], curve.g2Infinity
+	twoPoints := []G2Jac{p[1], curve.g2Infinity}
+
+	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
+	scalars[1] = fr.Element{2, 0, 0, 0}     // scalar = 2
+	got.multiExp(curve, twoPoints, scalars[:2])
+	if !got.Equal(&p[6]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
+	scalars[1] = fr.Element{1, 0, 0, 0} // scalar = 1
+	got.multiExp(curve, twoPoints, scalars[:2])
+	if !got.Equal(&p[5]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
+	scalars[1] = fr.Element{0, 0, 0, 0} // scalar = 0
+	got.multiExp(curve, twoPoints, scalars[:2])
+	if !got.Equal(&p[1]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{0, 0, 0, 0}                                     // scalar = 0
+	scalars[1] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
+	got.multiExp(curve, twoPoints, scalars[:2])
+	if !got.Equal(&curve.g2Infinity) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
+	scalars[1] = fr.Element{32394, 0, 0, 0}                                 // single-word scalar
+	got.multiExp(curve, twoPoints, scalars[:2])
+	if !got.Equal(&p[21]) {
+		t.Error("multiExp G2Jac failed, scalar:", scalars[0])
+	}
+
+	// TODO: Jacobian points with nontrivial Z coord?
 }
 
 func TestMultiExpG2(t *testing.T) {
@@ -113,19 +346,15 @@ func testPointsG2MultiExp(n int) (points []G2Jac, scalars []fr.Element) {
 
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
-	// 22 is a small generator of fr for bls377.
-	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
-	// generator in Montgomery form
 	var scalarGenMont fr.Element
-	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
-
+	scalarGenMont.SetString("18147194858733678592031140175294542593979808267792252765512745512101703194607")
 	scalars[0].Set(&scalarGenMont).FromMont()
 
 	var curScalarMont fr.Element // Montgomery form
 	curScalarMont.Set(&scalarGenMont)
 	for i := 1; i < len(scalars); i++ {
-		curScalarMont.MulAssign(&scalarGenMont)
-		scalars[i].Set(&curScalarMont).FromMont() // scalars[i] = scalars[0]^i
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
 	return points, scalars
@@ -136,6 +365,62 @@ func testPointsG2MultiExp(n int) (points []G2Jac, scalars []fr.Element) {
 //--------------------//
 
 var benchResG2 G2Jac
+
+func BenchmarkG2ScalarMul(b *testing.B) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	var scalar fr.Element
+	scalar.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		p[1].ScalarMul(curve, &p[1], scalar)
+		b.StopTimer()
+		scalar.SetRandom()
+		b.StartTimer()
+	}
+
+}
+
+func BenchmarkG2Add(b *testing.B) {
+
+	curve := BN256()
+	p := testPointsG2()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchResG2 = p[1]
+		benchResG2.Add(curve, &p[2])
+	}
+
+}
+
+func BenchmarkG2AddMixed(b *testing.B) {
+
+	p := testPointsG2()
+	_p2 := G2Affine{}
+	p[2].ToAffineFromJac(&_p2)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchResG2 = p[1]
+		benchResG2.AddMixed(&_p2)
+	}
+
+}
+
+func BenchmarkG2Double(b *testing.B) {
+
+	p := testPointsG2()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchResG2 = p[1]
+		benchResG2.Double()
+	}
+
+}
 
 func BenchmarkG2WindowedMultiExp(b *testing.B) {
 	curve := BN256()
