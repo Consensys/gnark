@@ -105,26 +105,26 @@ func TestG2JacScalarMul(t *testing.T) {
 
 func TestG2JacMultiExp(t *testing.T) {
 	curve := BN256()
-	// var points []G2Jac
+	var points []G2Jac
 	var scalars []fr.Element
 	var got G2Jac
 
 	//
 	// Test 1: testPointsG2multiExp
 	//
-	// numPoints, wants := testPointsG2MultiExpResults()
+	numPoints, wants := testPointsG2MultiExpResults()
 
-	// for i := range numPoints {
-	// 	if numPoints[i] > 10000 {
-	// 		continue
-	// 	}
-	// 	points, scalars = testPointsG2MultiExp(numPoints[i])
+	for i := range numPoints {
+		if numPoints[i] > 10000 {
+			continue
+		}
+		points, scalars = testPointsG2MultiExp(numPoints[i])
 
-	// 	got.multiExp(curve, points, scalars)
-	// 	if !got.Equal(&wants[i]) {
-	// 		t.Error("multiExp G2Jac fail for points:", numPoints[i])
-	// 	}
-	// }
+		got.multiExp(curve, points, scalars)
+		if !got.Equal(&wants[i]) {
+			t.Error("multiExp G2Jac fail for points:", numPoints[i])
+		}
+	}
 
 	//
 	// Test 2: testPointsG2()
