@@ -129,25 +129,25 @@ func main() {
 		})
 
 		// test points
-		// if fMakeTestPoints {
+		if fMakeTestPoints {
 
-		// 	testInputs := fp2.GenerateTestInputs(fFp)
-		// 	var err error
-		// 	fp2TemplateData.TestPoints, err = tower.GenerateTestOutputs(testInputs, "../internal/tower/fp2/testpoints.sage", fFp, fFp2)
-		// 	if err != nil {
-		// 		fmt.Fprintln(os.Stderr, "error:", err)
-		// 		os.Exit(-1)
-		// 	}
-		// 	if !sanityCheck(fp2TemplateData.TestPoints, fp2.Degree) {
-		// 		fmt.Fprintln(os.Stderr, "idiot!", err)
-		// 		os.Exit(-1)
-		// 	}
+			testInputs := fp2.GenerateTestInputs(fFp)
+			var err error
+			fp2TemplateData.TestPoints, err = tower.GenerateTestOutputs(testInputs, "../internal/tower/fp2/testpoints.sage", fFp, fFp2)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+				os.Exit(-1)
+			}
+			if !sanityCheck(fp2TemplateData.TestPoints, fp2.Degree) {
+				fmt.Fprintln(os.Stderr, "idiot!", err)
+				os.Exit(-1)
+			}
 
-		// 	fp2Data = append(fp2Data, codegenData{
-		// 		path:    filepath.Join(fOutputDir, strings.ToLower(fp2TemplateData.Name)+"testpoints_test.go"),
-		// 		sources: fp2.CodeTestPoints,
-		// 	})
-		// }
+			fp2Data = append(fp2Data, codegenData{
+				path:    filepath.Join(fOutputDir, strings.ToLower(fp2TemplateData.Name)+"testpoints_test.go"),
+				sources: fp2.CodeTestPoints,
+			})
+		}
 
 		if err := generateCode(fp2Data, fp2TemplateData); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -193,25 +193,25 @@ func main() {
 		})
 
 		// test points
-		// if fMakeTestPoints {
+		if fMakeTestPoints {
 
-		// 	testInputs := fp6.GenerateTestInputs(fFp)
-		// 	var err error
-		// 	fp6TemplateData.TestPoints, err = tower.GenerateTestOutputs(testInputs, "../internal/tower/fp6/testpoints.sage", fFp, fFp2, fFp6Split[0], fFp6Split[1])
-		// 	if err != nil {
-		// 		fmt.Fprintln(os.Stderr, "error:", err)
-		// 		os.Exit(-1)
-		// 	}
-		// 	if !sanityCheck(fp6TemplateData.TestPoints, fp6.Degree) {
-		// 		fmt.Fprintln(os.Stderr, "idiot!", err)
-		// 		os.Exit(-1)
-		// 	}
+			testInputs := fp6.GenerateTestInputs(fFp)
+			var err error
+			fp6TemplateData.TestPoints, err = tower.GenerateTestOutputs(testInputs, "../internal/tower/fp6/testpoints.sage", fFp, fFp2, fFp6Split[0], fFp6Split[1])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+				os.Exit(-1)
+			}
+			if !sanityCheck(fp6TemplateData.TestPoints, fp6.Degree) {
+				fmt.Fprintln(os.Stderr, "idiot!", err)
+				os.Exit(-1)
+			}
 
-		// 	fp6Data = append(fp6Data, codegenData{
-		// 		path:    filepath.Join(fOutputDir, strings.ToLower(fp6TemplateData.Name)+"testpoints_test.go"),
-		// 		sources: fp6.CodeTestPoints,
-		// 	})
-		// }
+			fp6Data = append(fp6Data, codegenData{
+				path:    filepath.Join(fOutputDir, strings.ToLower(fp6TemplateData.Name)+"testpoints_test.go"),
+				sources: fp6.CodeTestPoints,
+			})
+		}
 
 		if err := generateCode(fp6Data, fp6TemplateData); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -316,10 +316,12 @@ func main() {
 			PackageName string
 			Name        string
 			CType       string
+			Fr          string
 		}{
 			PackageName: fPackageName,
 			Name:        strings.ToUpper(g.structName),
 			CType:       g.coordType,
+			Fr:          fFr,
 		}
 
 		var gpointData []codegenData
