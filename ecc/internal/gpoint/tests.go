@@ -11,12 +11,6 @@ import (
 	"github.com/consensys/gnark/ecc/{{.PackageName}}/fr"
 )
 
-{{- if eq .Name "G2"}} 
-func Test{{.Name}}NotReallyHere(t *testing.T) {
-	t.Skip("testPoints{{.Name}}() not available?")
-}
-{{- else}}
-
 func Test{{.Name}}JacToAffineFromJac(t *testing.T) {
 
 	p := testPoints{{.Name}}()
@@ -117,27 +111,26 @@ func Test{{.Name}}JacScalarMul(t *testing.T) {
 
 func Test{{.Name}}JacMultiExp(t *testing.T) {
 	curve := {{toUpper .PackageName}}()
-	// var points []{{.Name}}Jac
+	var points []{{.Name}}Jac
 	var scalars []fr.Element
 	var got {{.Name}}Jac
 
 	//
 	// Test 1: testPoints{{.Name}}multiExp
 	// 
-	// TODO why is this commented?
-	// numPoints, wants := testPoints{{.Name}}MultiExpResults()
+	numPoints, wants := testPoints{{.Name}}MultiExpResults()
 
-	// for i := range numPoints {
-	// 	if numPoints[i] > 10000 {
-	// 		continue
-	// 	}
-	// 	points, scalars = testPoints{{.Name}}MultiExp(numPoints[i])
+	for i := range numPoints {
+		if numPoints[i] > 10000 {
+			continue
+		}
+		points, scalars = testPoints{{.Name}}MultiExp(numPoints[i])
 
-	// 	got.multiExp(curve, points, scalars)
-	// 	if !got.Equal(&wants[i]) {
-	// 		t.Error("multiExp {{.Name}}Jac fail for points:", numPoints[i])
-	// 	}
-	// }
+		got.multiExp(curve, points, scalars)
+		if !got.Equal(&wants[i]) {
+			t.Error("multiExp {{.Name}}Jac fail for points:", numPoints[i])
+		}
+	}
 
 	//
 	// Test 2: testPoints{{.Name}}()
@@ -258,8 +251,6 @@ func Test{{.Name}}JacMultiExp(t *testing.T) {
 	// TODO: Jacobian points with nontrivial Z coord?
 }
 
-{{- end}}
-
 func TestMultiExp{{ .Name}}(t *testing.T) {
 
 	curve := {{toUpper .PackageName}}()
@@ -363,6 +354,7 @@ func testPoints{{.Name}}MultiExp(n int) (points []{{.Name}}Jac, scalars []fr.Ele
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
 	// 22 is a small generator of fr for bls377.
+	// TODO extend this to other curves
 	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
 	// generator in Montgomery form
 	var scalarGenMont fr.Element

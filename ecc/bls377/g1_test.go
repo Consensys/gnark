@@ -105,27 +105,26 @@ func TestG1JacScalarMul(t *testing.T) {
 
 func TestG1JacMultiExp(t *testing.T) {
 	curve := BLS377()
-	// var points []G1Jac
+	var points []G1Jac
 	var scalars []fr.Element
 	var got G1Jac
 
 	//
 	// Test 1: testPointsG1multiExp
 	//
-	// TODO why is this commented?
-	// numPoints, wants := testPointsG1MultiExpResults()
+	numPoints, wants := testPointsG1MultiExpResults()
 
-	// for i := range numPoints {
-	// 	if numPoints[i] > 10000 {
-	// 		continue
-	// 	}
-	// 	points, scalars = testPointsG1MultiExp(numPoints[i])
+	for i := range numPoints {
+		if numPoints[i] > 10000 {
+			continue
+		}
+		points, scalars = testPointsG1MultiExp(numPoints[i])
 
-	// 	got.multiExp(curve, points, scalars)
-	// 	if !got.Equal(&wants[i]) {
-	// 		t.Error("multiExp G1Jac fail for points:", numPoints[i])
-	// 	}
-	// }
+		got.multiExp(curve, points, scalars)
+		if !got.Equal(&wants[i]) {
+			t.Error("multiExp G1Jac fail for points:", numPoints[i])
+		}
+	}
 
 	//
 	// Test 2: testPointsG1()
@@ -348,6 +347,7 @@ func testPointsG1MultiExp(n int) (points []G1Jac, scalars []fr.Element) {
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
 	// 22 is a small generator of fr for bls377.
+	// TODO extend this to other curves
 	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
 	// generator in Montgomery form
 	var scalarGenMont fr.Element

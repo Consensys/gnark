@@ -8,7 +8,6 @@ const benchmarks = `
 
 var benchRes{{.Name}} {{.Name}}Jac
 
-{{- if ne .Name "G2"}} 
 func Benchmark{{.Name}}ScalarMul(b *testing.B) {
 
 	curve := {{toUpper .PackageName}}()
@@ -65,7 +64,6 @@ func Benchmark{{.Name}}Double(b *testing.B) {
 	}
 
 }
-{{- end }}
 
 func Benchmark{{.Name}}WindowedMultiExp(b *testing.B) {
 	curve := {{toUpper .PackageName}}()
