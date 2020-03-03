@@ -332,7 +332,6 @@ func TestMultiExp{{.Name}}LotOfPoints(t *testing.T) {
 
 }
 
-
 func testPoints{{.Name}}MultiExp(n int) (points []{{.Name}}Jac, scalars []fr.Element) {
 
 	curve := {{toUpper .PackageName}}()
@@ -353,20 +352,25 @@ func testPoints{{.Name}}MultiExp(n int) (points []{{.Name}}Jac, scalars []fr.Ele
 
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
-	// 22 is a small generator of fr for bls377.
-	// TODO extend this to other curves
-	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
-	// generator in Montgomery form
 	var scalarGenMont fr.Element
-	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
-
+	scalarGenMont.SetString("
+	{{- if eq .Fr "8444461749428370424248824938781546531375899335154063827935233455917409239041" -}}
+		7716837800905789770901243404444209691916730933998574719964609384059111546487
+	{{- else if eq .Fr "52435875175126190479447740508185965837690552500527637822603658699938581184513" -}}
+		42033899646658082535995012643440421268349534540760060111646640675404812871419
+	{{- else if eq .Fr "21888242871839275222246405745257275088548364400416034343698204186575808495617" -}}
+		18147194858733678592031140175294542593979808267792252765512745512101703194607
+	{{- else -}}
+		not implemented
+	{{- end -}}
+	")
 	scalars[0].Set(&scalarGenMont).FromMont()
 
 	var curScalarMont fr.Element // Montgomery form
 	curScalarMont.Set(&scalarGenMont)
 	for i := 1; i < len(scalars); i++ {
-		curScalarMont.MulAssign(&scalarGenMont)
-		scalars[i].Set(&curScalarMont).FromMont() // scalars[i] = scalars[0]^i
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
 	return points, scalars

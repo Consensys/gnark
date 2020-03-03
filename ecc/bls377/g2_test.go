@@ -346,20 +346,15 @@ func testPointsG2MultiExp(n int) (points []G2Jac, scalars []fr.Element) {
 
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
-	// 22 is a small generator of fr for bls377.
-	// TODO extend this to other curves
-	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
-	// generator in Montgomery form
 	var scalarGenMont fr.Element
 	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
-
 	scalars[0].Set(&scalarGenMont).FromMont()
 
 	var curScalarMont fr.Element // Montgomery form
 	curScalarMont.Set(&scalarGenMont)
 	for i := 1; i < len(scalars); i++ {
-		curScalarMont.MulAssign(&scalarGenMont)
-		scalars[i].Set(&curScalarMont).FromMont() // scalars[i] = scalars[0]^i
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
 	return points, scalars

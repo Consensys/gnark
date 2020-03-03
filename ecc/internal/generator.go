@@ -316,10 +316,12 @@ func main() {
 			PackageName string
 			Name        string
 			CType       string
+			Fr          string
 		}{
 			PackageName: fPackageName,
 			Name:        strings.ToUpper(g.structName),
 			CType:       g.coordType,
+			Fr:          fFr,
 		}
 
 		var gpointData []codegenData
