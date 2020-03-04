@@ -21,7 +21,7 @@ func TestELEMENTCorrectessAgainstBigInt(t *testing.T) {
 
 	modulusMinusOne.Sub(modulus, &one)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 
 		// sample 2 random big int
 		b1, _ := rand.Int(rand.Reader, modulus)

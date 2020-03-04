@@ -73,7 +73,7 @@ func (z *{{.Name}}) Expt(x *{{.Name}}) *{{.Name}} {
 func (z *{{.Name}}) FinalExponentiation(x *{{.Name}}) *{{.Name}} {
 
 {{- /* TODO add a curve family parameter for BLS12, BN and use it here */}}
-{{- if (eq .Fp6NonResidue "9,1") and (eq .Fp "21888242871839275222246405745257275088696311157297823662689037894645226208583") }}
+{{- if and (eq .Fp6NonResidue "9,1") (eq .Fp "21888242871839275222246405745257275088696311157297823662689037894645226208583") }}
 	// For BN curves use Section 5 of https://eprint.iacr.org/2008/490.pdf; their x is our t
 
 	// TODO modify sage test points script to include a factor of 3 in the final exponent for BLS curves but not BN curves

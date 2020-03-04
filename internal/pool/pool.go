@@ -22,7 +22,7 @@ import (
 )
 
 // NbCpus nb cpus we play with
-var NbCpus int
+var nbCpus int
 
 // Push schedules a function to be executed.
 // if it's high priority and the job queue is full, executes synchronously the call
@@ -45,8 +45,8 @@ func ExecuteAsync(iStart, iEnd int, work func(int, int), highPriority bool) chan
 	var nbTasks int
 
 	nbIterations := iEnd - iStart // not  +1 -> iEnd is not included
-	nbIterationsPerCpus := nbIterations / NbCpus
-	nbTasks = NbCpus
+	nbIterationsPerCpus := nbIterations / nbCpus
+	nbTasks = nbCpus
 
 	// more CPUs than tasks: a CPU will work on exactly one iteration
 	if nbIterationsPerCpus < 1 {
@@ -100,8 +100,7 @@ func worker(pool *pool) {
 }
 
 func init() {
-	NbCpus = runtime.NumCPU()
-	//NbCpus = 2
+	nbCpus = runtime.NumCPU()
 	_ = getPool()
 }
 
@@ -109,12 +108,12 @@ func getPool() *pool {
 	initOnce.Do(func() {
 
 		globalPool = &pool{
-			chLow:  make(chan func(), NbCpus), // TODO NbCpus only?
-			chHigh: make(chan func(), NbCpus),
-			chJob:  make(chan struct{}, 2*NbCpus),
+			chLow:  make(chan func(), 10*nbCpus), // TODO NbCpus only?
+			chHigh: make(chan func(), 32*nbCpus),
+			chJob:  make(chan struct{}, 10*32*(nbCpus)),
 		}
 
-		for i := 0; i < NbCpus; i++ {
+		for i := 0; i < nbCpus; i++ {
 			go worker(globalPool)
 		}
 	})
