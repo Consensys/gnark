@@ -524,7 +524,6 @@ func (p *G1Jac) MultiExpNew(curve *Curve, points []G1Affine, scalars []fr.Elemen
 	work := func(chunk int) func(start, end int) {
 
 		return func(_start, _end int) {
-
 			var _res G1Jac
 			_res.Set(&curve.g1Infinity)
 
@@ -541,7 +540,6 @@ func (p *G1Jac) MultiExpNew(curve *Curve, points []G1Affine, scalars []fr.Elemen
 					buckets[chunk][val-1].addMixed(&points[j])
 				}
 			}
-
 		}
 	}
 
@@ -591,6 +589,7 @@ func (p *G1Jac) MultiExpNewNoPool(curve *Curve, points []G1Affine, scalars []fr.
 	res.Set(&curve.g1Infinity)
 
 	nbCpus := runtime.NumCPU()
+	//nbCpus := 2
 	nbTasksPerCpus := len(scalars) / nbCpus
 
 	// one work= scheduling the cpus for the chunk-th chunk of 8 bits
@@ -653,7 +652,7 @@ func (p *G1Jac) MultiExpNewNoPool(curve *Curve, points []G1Affine, scalars []fr.
 		return _res
 	}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 32; i++ {
 		tmp := work(i)
 		for j := 0; j < 8; j++ {
 			res.Double()

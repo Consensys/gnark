@@ -579,6 +579,90 @@ func (p *G1Jac) MultiExpNew(curve *Curve, points []G1Affine, scalars []fr.Elemen
 	return chRes
 }
 
+// MultiExpNewNoPool version without pool
+func (p *G1Jac) MultiExpNewNoPool(curve *Curve, points []G1Affine, scalars []fr.Element) *G1Jac {
+
+	debug.Assert(len(scalars) == len(points))
+
+	// res channel
+	var res G1Jac
+	res.Set(&curve.g1Infinity)
+
+	nbCpus := runtime.NumCPU()
+	//nbCpus := 2
+	nbTasksPerCpus := len(scalars) / nbCpus
+
+	// one work= scheduling the cpus for the chunk-th chunk of 8 bits
+	work := func(chunk int) G1Jac {
+
+		buckets := make([][255]G1Jac, nbCpus)
+		for i := 0; i < nbCpus; i++ {
+			for j := 0; j < 255; j++ {
+				buckets[i][j].Set(&curve.g1Infinity)
+			}
+		}
+
+		var wg sync.WaitGroup
+
+		//beginning := time.Now()
+		var _res G1Jac
+		_res.Set(&curve.g1Infinity)
+
+		const mask = 255
+
+		subWorker := func(id, _start, _end int) {
+
+			//for all scalars in the range of this worker
+			for j := _start; j < _end; j++ {
+				limb := chunk / 8
+				offset := chunk % 8
+				val := (scalars[j][3-limb] >> ((7 - offset) * 8)) & mask
+				if val != 0 {
+					buckets[id][val-1].AddMixed(&points[j])
+				}
+			}
+			wg.Done()
+		}
+
+		wg.Add(nbCpus)
+		for i := 0; i < nbCpus; i++ {
+			start := i * nbTasksPerCpus
+			var end int
+			if i < nbCpus-1 {
+				end = start + nbTasksPerCpus
+			} else {
+				end = len(scalars)
+			}
+			go subWorker(i, start, end)
+		}
+		wg.Wait()
+
+		var acc G1Jac
+		acc.Set(&curve.g1Infinity)
+
+		for i := 1; i < nbCpus; i++ {
+			for j := 0; j < 255; j++ {
+				buckets[0][j].Add(curve, &buckets[i][j])
+			}
+		}
+		for i := 0; i < 255; i++ {
+			acc.Add(curve, &buckets[0][254-i])
+			_res.Add(curve, &acc)
+		}
+		return _res
+	}
+
+	for i := 0; i < 32; i++ {
+		tmp := work(i)
+		for j := 0; j < 8; j++ {
+			res.Double()
+		}
+		res.Add(curve, &tmp)
+	}
+	p.Set(&res)
+	return p
+}
+
 // WindowedMultiExp set p = scalars[0]*points[0] + ... + scalars[n]*points[n]
 // assume: scalars in non-Montgomery form!
 // assume: len(points)==len(scalars)>0, len(scalars[i]) equal for all i
