@@ -24,7 +24,9 @@ r=sage_eval(sys.argv[3])
 # print "r:", r
 
 # final exponent: (p^12-1)/r
-exponent = (p^12 - 1)/r
+# for BLS381, BLS377 need to multiply by 3, but not BN256.
+# TODO: handle multiplication by 3 (or not) in this script
+exponent = 3*(p^12 - 1)/r
 # print "exponent:", exponent
 
 # fp2 field

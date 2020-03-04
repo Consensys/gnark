@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestELEMENTCorrectessAgainstBigInt(t *testing.T) {
+func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 	modulus, _ := new(big.Int).SetString("258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177", 10)
 	cmpEandB := func(e *Element, b *big.Int, name string) {
 		var _e big.Int
@@ -21,7 +21,7 @@ func TestELEMENTCorrectessAgainstBigInt(t *testing.T) {
 
 	modulusMinusOne.Sub(modulus, &one)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 
 		// sample 2 random big int
 		b1, _ := rand.Int(rand.Reader, modulus)
