@@ -473,3 +473,71 @@ func BenchmarkG1MultiExp(b *testing.B) {
 		})
 	}
 }
+
+// to delete
+
+func BenchmarkMultiExpG1NoPoolLotOfPoints(b *testing.B) {
+
+	curve := BN256()
+
+	var G G1Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 100000
+
+	samplePoints := make([]G1Affine, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g1Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
+	}
+
+	var testPoint G1Jac
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		testPoint.MultiExpNewNoPool(curve, samplePoints, sampleScalars)
+	}
+
+}
+
+func BenchmarkMultiExpG1LotOfPoints(b *testing.B) {
+
+	curve := BN256()
+
+	var G G1Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 100000
+
+	samplePoints := make([]G1Affine, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g1Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
+	}
+
+	var testPoint G1Jac
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		<-testPoint.MultiExp(curve, samplePoints, sampleScalars)
+	}
+
+}

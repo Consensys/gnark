@@ -44,7 +44,6 @@ func ExecuteAsync(iStart, iEnd int, work func(int, int), highPriority bool) chan
 	// total number of tasks to queue up
 	var nbTasks int
 
-	//NbCpus := runtime.NumCPU()
 	nbIterations := iEnd - iStart // not  +1 -> iEnd is not included
 	nbIterationsPerCpus := nbIterations / NbCpus
 	nbTasks = NbCpus
@@ -102,6 +101,7 @@ func worker(pool *pool) {
 
 func init() {
 	NbCpus = runtime.NumCPU()
+	//NbCpus = 2
 	_ = getPool()
 }
 
@@ -111,7 +111,7 @@ func getPool() *pool {
 		globalPool = &pool{
 			chLow:  make(chan func(), NbCpus), // TODO NbCpus only?
 			chHigh: make(chan func(), NbCpus),
-			chJob:  make(chan struct{}, 2*(NbCpus)),
+			chJob:  make(chan struct{}, 2*NbCpus),
 		}
 
 		for i := 0; i < NbCpus; i++ {
