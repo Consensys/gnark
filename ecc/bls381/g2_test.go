@@ -140,41 +140,71 @@ var benchResG2 G2Jac
 func BenchmarkG2WindowedMultiExp(b *testing.B) {
 	curve := BLS381()
 
-	var numPoints []int
-	for n := 5; n < 400000; n *= 2 {
-		numPoints = append(numPoints, n)
+	var G G2Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]G2Jac, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g2Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		samplePoints[i-1].Set(&curve.g2Gen)
 	}
 
-	for j := range numPoints {
-		points, scalars := testPointsG2MultiExp(numPoints[j])
+	var testPoint G2Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchResG2.WindowedMultiExp(curve, points, scalars)
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				testPoint.WindowedMultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
 }
 
-func BenchmarkG2MultiExp(b *testing.B) {
+func BenchmarkMultiExpG2(b *testing.B) {
+
 	curve := BLS381()
 
-	var numPoints []int
-	for n := 5; n < 400000; n *= 2 {
-		numPoints = append(numPoints, n)
+	var G G2Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]G2Affine, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g2Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
 	}
 
-	for j := range numPoints {
-		_points, scalars := testPointsG2MultiExp(numPoints[j])
-		points := make([]G2Affine, len(_points))
-		for i := 0; i < len(_points); i++ {
-			_points[i].ToAffineFromJac(&points[i])
-		}
+	var testPoint G2Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchResG2.MultiExp(curve, points, scalars)
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				<-testPoint.MultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
+
 }
