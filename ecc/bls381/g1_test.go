@@ -105,27 +105,26 @@ func TestG1JacScalarMul(t *testing.T) {
 
 func TestG1JacMultiExp(t *testing.T) {
 	curve := BLS381()
-	// var points []G1Jac
+	var points []G1Jac
 	var scalars []fr.Element
 	var got G1Jac
 
 	//
 	// Test 1: testPointsG1multiExp
 	//
-	// TODO why is this commented?
-	// numPoints, wants := testPointsG1MultiExpResults()
+	numPoints, wants := testPointsG1MultiExpResults()
 
-	// for i := range numPoints {
-	// 	if numPoints[i] > 10000 {
-	// 		continue
-	// 	}
-	// 	points, scalars = testPointsG1MultiExp(numPoints[i])
+	for i := range numPoints {
+		if numPoints[i] > 10000 {
+			continue
+		}
+		points, scalars = testPointsG1MultiExp(numPoints[i])
 
-	// 	got.multiExp(curve, points, scalars)
-	// 	if !got.Equal(&wants[i]) {
-	// 		t.Error("multiExp G1Jac fail for points:", numPoints[i])
-	// 	}
-	// }
+		got.multiExp(curve, points, scalars)
+		if !got.Equal(&wants[i]) {
+			t.Error("multiExp G1Jac fail for points:", numPoints[i])
+		}
+	}
 
 	//
 	// Test 2: testPointsG1()
@@ -133,9 +132,9 @@ func TestG1JacMultiExp(t *testing.T) {
 	p := testPointsG1()
 
 	// scalars
-	s1 := fr.Element{23872983, 238203802, 9827897384, 2372}
-	s2 := fr.Element{128923, 2878236, 398478, 187970707}
-	s3 := fr.Element{9038947, 3947970, 29080823, 282739}
+	s1 := fr.Element{23872983, 238203802, 9827897384, 2372} // 14889285316340551032002176131108485811963550694615991316137431
+	s2 := fr.Element{128923, 2878236, 398478, 187970707}    // 1179911251111561301561648964820473185772012989930899737079831459739
+	s3 := fr.Element{9038947, 3947970, 29080823, 282739}    // 1774781467561494742381858548177178844765555009630735687022668899
 
 	scalars = []fr.Element{
 		s1,
@@ -352,19 +351,15 @@ func testPointsG1MultiExp(n int) (points []G1Jac, scalars []fr.Element) {
 
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
-	// 22 is a small generator of fr for bls377.
-	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
-	// generator in Montgomery form
 	var scalarGenMont fr.Element
-	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
-
+	scalarGenMont.SetString("42033899646658082535995012643440421268349534540760060111646640675404812871419")
 	scalars[0].Set(&scalarGenMont).FromMont()
 
 	var curScalarMont fr.Element // Montgomery form
 	curScalarMont.Set(&scalarGenMont)
 	for i := 1; i < len(scalars); i++ {
-		curScalarMont.MulAssign(&scalarGenMont)
-		scalars[i].Set(&curScalarMont).FromMont() // scalars[i] = scalars[0]^i
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
 	return points, scalars
@@ -435,41 +430,71 @@ func BenchmarkG1Double(b *testing.B) {
 func BenchmarkG1WindowedMultiExp(b *testing.B) {
 	curve := BLS381()
 
-	var numPoints []int
-	for n := 5; n < 400000; n *= 2 {
-		numPoints = append(numPoints, n)
+	var G G1Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]G1Jac, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g1Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		samplePoints[i-1].Set(&curve.g1Gen)
 	}
 
-	for j := range numPoints {
-		points, scalars := testPointsG1MultiExp(numPoints[j])
+	var testPoint G1Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchResG1.WindowedMultiExp(curve, points, scalars)
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				testPoint.WindowedMultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
 }
 
-func BenchmarkG1MultiExp(b *testing.B) {
+func BenchmarkMultiExpG1(b *testing.B) {
+
 	curve := BLS381()
 
-	var numPoints []int
-	for n := 5; n < 400000; n *= 2 {
-		numPoints = append(numPoints, n)
+	var G G1Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]G1Affine, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.g1Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
 	}
 
-	for j := range numPoints {
-		_points, scalars := testPointsG1MultiExp(numPoints[j])
-		points := make([]G1Affine, len(_points))
-		for i := 0; i < len(_points); i++ {
-			_points[i].ToAffineFromJac(&points[i])
-		}
+	var testPoint G1Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchResG1.MultiExp(curve, points, scalars)
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				<-testPoint.MultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
+
 }

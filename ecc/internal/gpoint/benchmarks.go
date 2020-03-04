@@ -8,7 +8,6 @@ const benchmarks = `
 
 var benchRes{{.Name}} {{.Name}}Jac
 
-{{- if ne .Name "G2"}} 
 func Benchmark{{.Name}}ScalarMul(b *testing.B) {
 
 	curve := {{toUpper .PackageName}}()
@@ -65,48 +64,77 @@ func Benchmark{{.Name}}Double(b *testing.B) {
 	}
 
 }
-{{- end }}
 
 func Benchmark{{.Name}}WindowedMultiExp(b *testing.B) {
 	curve := {{toUpper .PackageName}}()
 
-	var numPoints []int
-	for n := 5; n < 400000; n*=2 {
-		numPoints = append(numPoints, n)
+	var G {{.Name}}Jac
+
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]{{.Name}}Jac, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.{{toLower .Name}}Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		samplePoints[i-1].Set(&curve.{{toLower .Name}}Gen)
 	}
 
-	for j := range numPoints {
-		points, scalars := testPoints{{.Name}}MultiExp(numPoints[j])
+	var testPoint {{.Name}}Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchRes{{.Name}}.WindowedMultiExp(curve, points, scalars)
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				testPoint.WindowedMultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
 }
 
-func Benchmark{{.Name}}MultiExp(b *testing.B) {
+func BenchmarkMultiExp{{.Name}}(b *testing.B) {
+
 	curve := {{toUpper .PackageName}}()
 
-	var numPoints []int
-	for n := 5; n < 400000; n*=2 {
-		numPoints = append(numPoints, n)
-	}
-	
-	for j := range numPoints {
-		_points, scalars := testPoints{{.Name}}MultiExp(numPoints[j])
-		points := make([]{{.Name}}Affine, len(_points))
-		for i := 0; i < len(_points); i++ {
-			_points[i].ToAffineFromJac(&points[i])
-		}
+	var G {{.Name}}Jac
 
-		b.Run(fmt.Sprintf("%d points", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				benchRes{{.Name}}.MultiExp(curve, points, scalars)
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+
+	var nbSamples int
+	nbSamples = 400000
+
+	samplePoints := make([]{{.Name}}Affine, nbSamples)
+	sampleScalars := make([]fr.Element, nbSamples)
+
+	G.Set(&curve.{{toLower .Name}}Gen)
+
+	for i := 1; i <= nbSamples; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			Mul(&sampleScalars[i-1], &mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
+	}
+
+	var testPoint {{.Name}}Jac
+
+	for i := 0; i < 8; i++ {
+		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				<-testPoint.MultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
+
 }
 
 		

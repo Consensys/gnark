@@ -1,7 +1,12 @@
+#!/usr/bin/env sage
+
+import sys
+from sage.all import *
+
 # Compute the result of a multi-exponentiation in the G1, G2 torsion groups of bls377
 
 # set numPoints as desired
-numPoints=1
+numPoints=100
 
 # bls377 fp modulus
 p=258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177

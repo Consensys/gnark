@@ -11,12 +11,6 @@ import (
 	"github.com/consensys/gnark/ecc/{{.PackageName}}/fr"
 )
 
-{{- if eq .Name "G2"}} 
-func Test{{.Name}}NotReallyHere(t *testing.T) {
-	t.Skip("testPoints{{.Name}}() not available?")
-}
-{{- else}}
-
 func Test{{.Name}}JacToAffineFromJac(t *testing.T) {
 
 	p := testPoints{{.Name}}()
@@ -117,27 +111,26 @@ func Test{{.Name}}JacScalarMul(t *testing.T) {
 
 func Test{{.Name}}JacMultiExp(t *testing.T) {
 	curve := {{toUpper .PackageName}}()
-	// var points []{{.Name}}Jac
+	var points []{{.Name}}Jac
 	var scalars []fr.Element
 	var got {{.Name}}Jac
 
 	//
 	// Test 1: testPoints{{.Name}}multiExp
 	// 
-	// TODO why is this commented?
-	// numPoints, wants := testPoints{{.Name}}MultiExpResults()
+	numPoints, wants := testPoints{{.Name}}MultiExpResults()
 
-	// for i := range numPoints {
-	// 	if numPoints[i] > 10000 {
-	// 		continue
-	// 	}
-	// 	points, scalars = testPoints{{.Name}}MultiExp(numPoints[i])
+	for i := range numPoints {
+		if numPoints[i] > 10000 {
+			continue
+		}
+		points, scalars = testPoints{{.Name}}MultiExp(numPoints[i])
 
-	// 	got.multiExp(curve, points, scalars)
-	// 	if !got.Equal(&wants[i]) {
-	// 		t.Error("multiExp {{.Name}}Jac fail for points:", numPoints[i])
-	// 	}
-	// }
+		got.multiExp(curve, points, scalars)
+		if !got.Equal(&wants[i]) {
+			t.Error("multiExp {{.Name}}Jac fail for points:", numPoints[i])
+		}
+	}
 
 	//
 	// Test 2: testPoints{{.Name}}()
@@ -145,9 +138,9 @@ func Test{{.Name}}JacMultiExp(t *testing.T) {
 	p := testPoints{{.Name}}()
 
 	// scalars
-	s1 := fr.Element{23872983, 238203802, 9827897384, 2372}
-	s2 := fr.Element{128923, 2878236, 398478, 187970707}
-	s3 := fr.Element{9038947, 3947970, 29080823, 282739}
+	s1 := fr.Element{23872983, 238203802, 9827897384, 2372} // 14889285316340551032002176131108485811963550694615991316137431
+	s2 := fr.Element{128923, 2878236, 398478, 187970707} // 1179911251111561301561648964820473185772012989930899737079831459739
+	s3 := fr.Element{9038947, 3947970, 29080823, 282739} // 1774781467561494742381858548177178844765555009630735687022668899
 
 	scalars = []fr.Element{
 		s1,
@@ -258,8 +251,6 @@ func Test{{.Name}}JacMultiExp(t *testing.T) {
 	// TODO: Jacobian points with nontrivial Z coord?
 }
 
-{{- end}}
-
 func TestMultiExp{{ .Name}}(t *testing.T) {
 
 	curve := {{toUpper .PackageName}}()
@@ -346,7 +337,6 @@ func TestMultiExp{{.Name}}LotOfPoints(t *testing.T) {
 
 }
 
-
 func testPoints{{.Name}}MultiExp(n int) (points []{{.Name}}Jac, scalars []fr.Element) {
 
 	curve := {{toUpper .PackageName}}()
@@ -367,19 +357,25 @@ func testPoints{{.Name}}MultiExp(n int) (points []{{.Name}}Jac, scalars []fr.Ele
 
 	// To ensure a diverse selection of scalars that use all words of an fr.Element,
 	// each scalar should be a power of a large generator of fr.
-	// 22 is a small generator of fr for bls377.
-	// 2^{31}-1 is prime, so 22^{2^31}-1} is a large generator of fr for bls377
-	// generator in Montgomery form
 	var scalarGenMont fr.Element
-	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
-
+	scalarGenMont.SetString("
+	{{- if eq .Fr "8444461749428370424248824938781546531375899335154063827935233455917409239041" -}}
+		7716837800905789770901243404444209691916730933998574719964609384059111546487
+	{{- else if eq .Fr "52435875175126190479447740508185965837690552500527637822603658699938581184513" -}}
+		42033899646658082535995012643440421268349534540760060111646640675404812871419
+	{{- else if eq .Fr "21888242871839275222246405745257275088548364400416034343698204186575808495617" -}}
+		18147194858733678592031140175294542593979808267792252765512745512101703194607
+	{{- else -}}
+		not implemented
+	{{- end -}}
+	")
 	scalars[0].Set(&scalarGenMont).FromMont()
 
 	var curScalarMont fr.Element // Montgomery form
 	curScalarMont.Set(&scalarGenMont)
 	for i := 1; i < len(scalars); i++ {
-		curScalarMont.MulAssign(&scalarGenMont)
-		scalars[i].Set(&curScalarMont).FromMont() // scalars[i] = scalars[0]^i
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
 	return points, scalars

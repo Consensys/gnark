@@ -3,7 +3,7 @@ module github.com/consensys/gnark
 go 1.14
 
 require (
-	github.com/consensys/goff v0.0.0-20200228165255-cdf3a42a38e8
+	github.com/consensys/goff v0.0.0-20200303150907-a521c541d43d
 	github.com/google/gofuzz v1.1.0
 	github.com/pkg/profile v1.4.0
 	github.com/spf13/cobra v0.0.6
