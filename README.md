@@ -32,7 +32,6 @@ You'll need to [install Go](https://golang.org/doc/install).
 git clone https://github.com/consensys/gnark.git
 cd gnark
 make
-go build
 ```
 
 ### Workflow
