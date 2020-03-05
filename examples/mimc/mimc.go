@@ -11,19 +11,21 @@ func main() {
 }
 
 // New return the circuit implementing
-//  a pre image check
+// a pre image check
 func New() cs.CS {
 	// create root constraint system
 	circuit := cs.New()
 
 	// declare secret and public inputs
-	pi := circuit.SECRET_INPUT("pi")
-	h := circuit.PUBLIC_INPUT("h")
+	preImage := circuit.SECRET_INPUT("pi")
+	hash := circuit.PUBLIC_INPUT("h")
 
-	// specify constraints
+	// hash function
 	mimc := mimc.NewMiMC("seed")
 
-	circuit.MUSTBE_EQ(pi, mimc.Hash(&circuit, h))
+	// specify constraints
+	// mimc(preImage) == hash
+	circuit.MUSTBE_EQ(hash, mimc.Hash(&circuit, preImage))
 
 	return circuit
 }
