@@ -1,5 +1,5 @@
 # gnark
-[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark)
+[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark) [![GoDoc](https://godoc.org/github.com/consensys/gnark?status.svg)](https://godoc.org/github.com/consensys/gnark)
 
 
 `gnark` is a framework to execute (and verify) algorithms in zero-knowledge. It offers a high-level API to easily design circuits and fast implementation of state of the art ZKP schemes. 
@@ -32,16 +32,17 @@ You'll need to [install Go](https://golang.org/doc/install).
 git clone https://github.com/consensys/gnark.git
 cd gnark
 make
+go build
 ```
 
 ### Workflow
 
 [Our blog post](https://hackmd.io/@zkteam/gnark) is a good place to start. In short:
 1. Implement the algorithm using our API (written in Go)
-2. Serialize the circuit in its R1CS form (`circuit.r1cs`) (in the `examples/cubic_equation` subfolder, that would be `go run -tags bls381 cubic.go`)
+2. Serialize the circuit in its R1CS form (`circuit.r1cs`) (in the `examples/cubic` subfolder, that would be `go run examples/cubic/cubic.go`)
 3. Run `gnark setup circuit.r1cs` to generate proving and verifying keys
 4. Run `gnark prove circuit.r1cs --pk circuit.pk --input input`to generate a proof
-5. Run `gnark verify proof --vk circuit.vk --input input.public` to verify a proof
+5. Run `gnark verify circuit.proof --vk circuit.vk --input input.public` to verify a proof
 
 Note that, currently, the input file has a simple csv-like format:
 ```csv
