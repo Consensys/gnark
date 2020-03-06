@@ -9,8 +9,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
-github.com/consensys/goff v0.0.0-20200303150907-a521c541d43d h1:yUFm2CyCAfi1w3OAQIeVngHSc3hbr6wfCTCN6s7gz4k=
-github.com/consensys/goff v0.0.0-20200303150907-a521c541d43d/go.mod h1:o2GQlBqSwG9JvC42mpcJ40CwoJxp+rmxWxSKQv+dCW4=
+github.com/consensys/goff v0.1.0 h1:Up/hj1u1JNe810aP0uINAe9OnjdN8+Z6l4Ru84yMxms=
+github.com/consensys/goff v0.1.0/go.mod h1:o2GQlBqSwG9JvC42mpcJ40CwoJxp+rmxWxSKQv+dCW4=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
