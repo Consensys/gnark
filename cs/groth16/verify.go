@@ -33,7 +33,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicInputs map[string]cs.Assignmen
 
 	// e([Krs]1, -[δ]2)
 	go func() {
-		c.MillerLoop(proof.Krs, vk.G2Aff.DeltaNeg, &eKrsδ)
+		c.MillerLoop(proof.Krs, vk.G2.DeltaNeg, &eKrsδ)
 		chan1 <- true
 	}()
 
@@ -47,13 +47,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicInputs map[string]cs.Assignmen
 	if err != nil {
 		return false, err
 	}
-	kSum.WindowedMultiExp(c, vk.G1Jac.K, inputs)
+	<-kSum.MultiExp(c, vk.G1.K, inputs)
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine
 	kSum.ToAffineFromJac(&kSumAff)
 
-	c.MillerLoop(kSumAff, vk.G2Aff.GammaNeg, &eKvkγ)
+	c.MillerLoop(kSumAff, vk.G2.GammaNeg, &eKvkγ)
 
 	<-chan1
 	<-chan2

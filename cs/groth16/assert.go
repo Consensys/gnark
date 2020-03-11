@@ -73,7 +73,7 @@ func (assert *Assert) Solved(circuit cs.CS, solution cs.Assignments, expectedVal
 			assert.False(pk.G1.K[i].Equal(&pk2.G1.K[i]), "groth16 setup with same input should produce different outputs (pk.K)")
 		}
 
-		for i := 0; i < len(vk.G1Jac.K); i++ {
+		for i := 0; i < len(vk.G1.K); i++ {
 			// assert.False(vk.G1Jac.K[i].Equal(&vk2.G1Jac.K[i]), "groth16 setup with same input should produce different outputs (vk.K)")
 		}
 	}

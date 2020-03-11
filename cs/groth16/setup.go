@@ -49,13 +49,13 @@ type VerifyingKey struct {
 	// -[γ]2, -[δ]2
 	// note: storing GammaNeg and DeltaNeg instead of Gamma and Delta
 	// see proof.Verify() for more details
-	G2Aff struct {
+	G2 struct {
 		GammaNeg, DeltaNeg ecc.G2Affine
 	}
 
 	// [Kvk]1
-	G1Jac struct {
-		K []ecc.G1Jac // The indexes correspond to the public wires
+	G1 struct {
+		K []ecc.G1Affine // The indexes correspond to the public wires
 	}
 
 	PublicInputsTracker []string // maps the name of the public input
@@ -91,7 +91,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	pk.G2.B = make([]ecc.G2Affine, nbWires)
 
 	// initialize verifying key
-	vk.G1Jac.K = make([]ecc.G1Jac, nbPublicWires)
+	vk.G1.K = make([]ecc.G1Affine, nbPublicWires)
 
 	// samples toxic waste
 	toxicWaste := sampleToxicWaste()
@@ -173,9 +173,9 @@ func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
 	vkG2JacGammaNeg.ScalarMulByGen(curve, tw.gammaReg)
 
 	vkG2JacDeltaNeg.Neg(&vkG2JacDeltaNeg).
-		ToAffineFromJac(&vk.G2Aff.DeltaNeg)
+		ToAffineFromJac(&vk.G2.DeltaNeg)
 	vkG2JacGammaNeg.Neg(&vkG2JacGammaNeg).
-		ToAffineFromJac(&vk.G2Aff.GammaNeg)
+		ToAffineFromJac(&vk.G2.GammaNeg)
 
 	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta, &vk.E))
 
@@ -301,7 +301,7 @@ func setupKeyVectors(A, B, C []ecc.Element, pk *ProvingKey, vk *VerifyingKey, tw
 
 	pool.Execute(0, nbWires, func(start, end int) {
 		var tt ecc.Element
-		var pkG1A, pkG1K ecc.G1Jac
+		var pkG1A, pkG1K, vkG1K ecc.G1Jac
 		for i := start; i < end; i++ {
 
 			pkG1A.ScalarMulByGen(curve, A[i].ToRegular()).
@@ -318,7 +318,7 @@ func setupKeyVectors(A, B, C []ecc.Element, pk *ProvingKey, vk *VerifyingKey, tw
 					ToAffineFromJac(&pk.G1.K[i])
 			} else {
 				A[i].Div(&A[i], &tw.gamma).FromMont()
-				vk.G1Jac.K[i-nbPrivateWires].ScalarMulByGen(curve, A[i])
+				vkG1K.ScalarMulByGen(curve, A[i]).ToAffineFromJac(&vk.G1.K[i-nbPrivateWires])
 			}
 		}
 	}, false)
