@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark/cs/fft"
 	"github.com/consensys/gnark/cs/internal/curve"
 	ecc "github.com/consensys/gnark/cs/internal/curve"
+	"github.com/consensys/gnark/ecc/bn256/fr"
 	"github.com/consensys/gnark/internal/debug"
 	"github.com/consensys/gnark/internal/pool"
 )
@@ -49,6 +50,7 @@ func init() {
 
 // Prove creates proof from a circuit
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*Proof, error) {
+	curve := ecc.GetCurve()
 	proof := &Proof{}
 	// sample random r and s
 	var r, s, _r, _s ecc.Element
@@ -72,118 +74,281 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, solution map[string]cs.Assignment) (*P
 	pool.Execute(0, len(wireValues), work, false)
 
 	// compute proof elements
-	// 4 MultiExpNew + 1 FFT
-	// G2 MultiExpNew is likely the most compute intensive task here
+	// 4 multiexp + 1 FFT
+	// G2 multiexp is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
 	chH := computeH(a, b, c, r1cs.NbConstraints())
 
-	// these tokens ensure MultiExpNew tasks are enqueue in order in the pool
-	// so that bs2 doesn't compete with ar1 and bs1 for resources
-	// hence delaying Krs compute longer than needed
-	chTokenA := make(chan struct{}, 1)
-	chTokenB := make(chan struct{}, 1)
+	// krs need to add Ar1 and Bs1
+	chKrsRandom := make(chan ecc.G1Jac, 2)
+
+	chMAr1, chMBs1, chMBs2 := multiExp(pk.G1.A, pk.G1.B, pk.G2.B, wireValues)
 
 	// Ar1 (1 multi exp G1 - size = len(wires))
-	chAr1 := computeAr1(pk, _r, wireValues, chTokenA)
+	go func() {
+		var t ecc.G1Jac
+		// chAsync := ar.MultiExp(curve, pk.G1.A, wireValues)
+		pk.G1.Delta.ToJacobian(&t)
+		t.ScalarMul(curve, &t, _r)
+		ar := <-chMAr1
+		ar.Add(curve, &t)
+		ar.AddMixed(&pk.G1.Alpha)
+
+		ar.ToAffineFromJac(&proof.Ar)
+		ar.ScalarMul(curve, &ar, _s)
+		chKrsRandom <- ar
+	}()
 
 	// Bs1 (1 multi exp G1 - size = len(wires))
-	chBs1 := computeBs1(pk, _s, wireValues, chTokenA, chTokenB)
+	go func() {
+		var t ecc.G1Jac
+
+		// chAsync := bs1.MultiExp(curve, pk.G1.B, wireValues)
+		pk.G1.Delta.ToJacobian(&t)
+		t.ScalarMul(curve, &t, _s)
+		bs1 := <-chMBs1
+		bs1.Add(curve, &t)
+		bs1.AddMixed(&pk.G1.Beta)
+
+		bs1.ScalarMul(curve, &bs1, _r)
+		chKrsRandom <- bs1
+	}()
 
 	// Bs2 (1 multi exp G2 - size = len(wires))
-	chBs2 := computeBs2(pk, _s, wireValues, chTokenB)
+	chBs2 := make(chan ecc.G2Affine, 1)
+	go func() {
+		var t ecc.G2Jac
+		var BsAffine ecc.G2Affine
+		// chAsync := Bs.MultiExp(curve, pk.G2.B, wireValues)
+		pk.G2.Delta.ToJacobian(&t)
+		t.ScalarMul(curve, &t, _s)
+		Bs := <-chMBs2
+		Bs.Add(curve, &t)
+		Bs.AddMixed(&pk.G2.Beta)
+		Bs.ToAffineFromJac(&BsAffine)
+		chBs2 <- BsAffine
+		close(chBs2)
+	}()
 
 	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-	h := <-chH
-	proof.Ar = <-chAr1
-	bs := <-chBs1
-	proof.Krs = <-computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs, h, r1cs.PublicInputsStartIndex, chTokenB)
+	var Krs ecc.G1Jac
 
+	// Krs (H part + priv part)
+	r.Mul(&r, &s).Neg(&r)
+	points := append(pk.G1.Z, pk.G1.K[:r1cs.PublicInputsStartIndex]...) //, Ar, bs1, pk.G1.Delta)
+	h := <-chH
+	scalars := append(h, wireValues[:r1cs.PublicInputsStartIndex]...) //, _s, _r, r.ToRegular())
+	// Krs random part
+	points = append(points, pk.G1.Delta)     //, ar, bs)
+	scalars = append(scalars, r.ToRegular()) //, _s, _r)
+	<-Krs.MultiExp(curve, points, scalars)
+
+	// wait for Ar1 and Bs1
+	rand := <-chKrsRandom
+	Krs.Add(curve, &rand)
+	rand = <-chKrsRandom
+	Krs.Add(curve, &rand)
+
+	Krs.ToAffineFromJac(&proof.Krs)
+
+	// get Bs2
 	proof.Bs = <-chBs2
 
 	return proof, nil
 }
 
-func computeKrs(pk *ProvingKey, r, s, _r, _s ecc.Element, wireValues []ecc.Element, ar, bs ecc.G1Affine, h []ecc.Element, kIndex int, chToken chan struct{}) <-chan ecc.G1Affine {
-	chResult := make(chan ecc.G1Affine, 1)
-	go func() {
-		var Krs ecc.G1Jac
-		var KrsAffine ecc.G1Affine
+func multiExp(pointsA, pointsB1 []ecc.G1Affine, pointsB2 []ecc.G2Affine, wireValues []ecc.Element) (chA, chB1 chan ecc.G1Jac, chB2 chan ecc.G2Jac) {
+	chA = make(chan ecc.G1Jac, 1)
+	chB1 = make(chan ecc.G1Jac, 1)
+	chB2 = make(chan ecc.G2Jac, 1)
+	nbPoints := len(wireValues)
+	curve := ecc.GetCurve()
+	if nbPoints < 50 {
+		go func() {
+			var v ecc.G1Jac
+			chA <- <-v.MultiExp(curve, pointsA, wireValues)
+		}()
 
-		// Krs (H part + priv part)
-		r.Mul(&r, &s).Neg(&r)
-		points := append(pk.G1.Z, pk.G1.K[:kIndex]...) //, Ar, bs1, pk.G1.Delta)
-		scalars := append(h, wireValues[:kIndex]...)   //, _s, _r, r.ToRegular())
-		// Krs random part
-		points = append(points, pk.G1.Delta, ar, bs)
-		scalars = append(scalars, r.ToRegular(), _s, _r)
-		<-chToken
-		chAsync := Krs.MultiExpNew(ecc.GetCurve(), points, scalars)
-		<-chAsync
-		Krs.ToAffineFromJac(&KrsAffine)
+		go func() {
+			var v ecc.G1Jac
+			chB1 <- <-v.MultiExp(curve, pointsB1, wireValues)
+		}()
 
-		chResult <- KrsAffine
-		close(chResult)
-	}()
-	return chResult
-}
+		go func() {
+			var v ecc.G2Jac
+			chB2 <- <-v.MultiExp(curve, pointsB2, wireValues)
+		}()
+		return
+	}
 
-func computeBs2(pk *ProvingKey, _s ecc.Element, wireValues []ecc.Element, chToken chan struct{}) <-chan ecc.G2Affine {
-	chResult := make(chan ecc.G2Affine, 1)
-	go func() {
-		var Bs ecc.G2Jac
-		var BsAffine ecc.G2Affine
-		points2 := append(pk.G2.B, pk.G2.Delta)
-		scalars2 := append(wireValues, _s)
-		<-chToken
-		chAsync := Bs.MultiExpNew(ecc.GetCurve(), points2, scalars2)
-		chToken <- struct{}{}
-		<-chAsync
-		Bs.AddMixed(&pk.G2.Beta)
-		Bs.ToAffineFromJac(&BsAffine)
-		chResult <- BsAffine
-		close(chResult)
-	}()
-	return chResult
-}
+	// compute nbCalls and nbPointsPerBucket as a function of available CPUs
+	const chunkSize = 64
+	const totalSize = chunkSize * fr.ElementLimbs
+	var nbBits, nbCalls uint64
+	nbPointsPerBucket := 20 // empirical parameter to chose nbBits
+	// set nbBbits and nbCalls
+	nbBits = 0
+	for nbPoints/(1<<nbBits) >= nbPointsPerBucket {
+		nbBits++
+	}
+	nbCalls = totalSize / nbBits
+	if totalSize%nbBits > 0 {
+		nbCalls++
+	}
+	const useAllCpus = false
+	// if we need to use all CPUs
+	if useAllCpus {
+		nbCpus := uint64(runtime.NumCPU())
+		// goal here is to have at least as many calls as number of go routine we're allowed to spawn
+		for nbCalls < nbCpus && nbPointsPerBucket < nbPoints {
+			nbBits = 0
+			for nbPoints/(1<<nbBits) >= nbPointsPerBucket {
+				nbBits++
+			}
+			nbCalls = totalSize / nbBits
+			if totalSize%nbBits > 0 {
+				nbCalls++
+			}
+			nbPointsPerBucket *= 2
+		}
+	}
 
-func computeBs1(pk *ProvingKey, _s ecc.Element, wireValues []ecc.Element, chTokenA, chTokenB chan struct{}) <-chan ecc.G1Affine {
-	chResult := make(chan ecc.G1Affine, 1)
-	go func() {
-		var bs1 ecc.G1Jac
-		var bs1Affine ecc.G1Affine
+	// result (1 per go routine)
+	tmpResA := make([]chan ecc.G1Jac, nbCalls)
+	tmpResB1 := make([]chan ecc.G1Jac, nbCalls)
+	tmpResB2 := make([]chan ecc.G2Jac, nbCalls)
+	chIndices := make([]chan struct{}, nbCalls)
+	indices := make([][][]int, nbCalls)
+	for i := 0; i < int(nbCalls); i++ {
+		tmpResA[i] = make(chan ecc.G1Jac, 1)
+		tmpResB1[i] = make(chan ecc.G1Jac, 1)
+		tmpResB2[i] = make(chan ecc.G2Jac, 1)
+		chIndices[i] = make(chan struct{}, 3)
+		indices[i] = make([][]int, 0, 1<<nbBits)
+		for j := 0; j < len(indices[i]); j++ {
+			indices[i][j] = make([]int, 0, nbPointsPerBucket)
+		}
+	}
 
-		points := append(pk.G1.B, pk.G1.Delta)
-		scalars := append(wireValues, _s)
-		<-chTokenA
-		chAsync := bs1.MultiExpNew(ecc.GetCurve(), points, scalars)
-		chTokenB <- struct{}{}
-		<-chAsync
-		bs1.AddMixed(&pk.G1.Beta)
-		bs1.ToAffineFromJac(&bs1Affine)
+	work := func(iStart, iEnd int) {
+		chunks := make([]uint64, nbBits)
+		offsets := make([]uint64, nbBits)
+		for i := uint64(iStart); i < uint64(iEnd); i++ {
+			start := i * nbBits
+			debug.Assert(start != totalSize)
+			var counter uint64
+			for j := start; counter < nbBits && (j < totalSize); j++ {
+				chunks[counter] = j / chunkSize
+				offsets[counter] = j % chunkSize
+				counter++
+			}
+			c := 1 << counter
+			indices[i] = make([][]int, c-1)
+			var l uint64
+			for j := 0; j < nbPoints; j++ {
+				var index uint64
+				for k := uint64(0); k < counter; k++ {
+					l = wireValues[j][chunks[k]] >> offsets[k]
+					l &= 1
+					l <<= k
+					index += l
+				}
+				if index != 0 {
+					indices[i][index-1] = append(indices[i][index-1], j)
+				}
+			}
+			chIndices[i] <- struct{}{}
+			chIndices[i] <- struct{}{}
+			chIndices[i] <- struct{}{}
+			close(chIndices[i])
+		}
+	}
+	pool.ExecuteAsyncReverse(0, int(nbCalls), work, false)
 
-		chResult <- bs1Affine
-		close(chResult)
-	}()
-	return chResult
-}
+	// indices are being computed, let's launch multiExp work
+	g1Worker := func(points, points2 []ecc.G1Affine, tRes, tRes2 []chan ecc.G1Jac) {
+		pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int) {
+			for i := start; i < end; i++ {
+				var res, sum ecc.G1Jac
+				var res2, sum2 ecc.G1Jac
+				sum.X.SetOne()
+				sum.Y.SetOne()
+				sum2.X.SetOne()
+				sum2.Y.SetOne()
+				<-chIndices[i]
+				for j := len(indices[i]) - 1; j >= 0; j-- {
+					for k := 0; k < len(indices[i][j]); k++ {
+						sum.AddMixed(&points[indices[i][j][k]])
+						sum2.AddMixed(&points2[indices[i][j][k]])
+					}
+					res.Add(curve, &sum)
+					res2.Add(curve, &sum2)
+				}
+				tRes[i] <- res
+				tRes2[i] <- res2
+				close(tRes[i])
+				close(tRes2[i])
+			}
+		}, false)
+	}
 
-func computeAr1(pk *ProvingKey, _r ecc.Element, wireValues []ecc.Element, chToken chan struct{}) <-chan ecc.G1Affine {
-	chResult := make(chan ecc.G1Affine, 1)
-	go func() {
-		var ar ecc.G1Jac
-		var arAffine ecc.G1Affine
-		points := append(pk.G1.A, pk.G1.Delta)
-		scalars := append(wireValues, _r)
-		chAsync := ar.MultiExpNew(ecc.GetCurve(), points, scalars)
-		chToken <- struct{}{}
-		<-chAsync
-		ar.AddMixed(&pk.G1.Alpha)
-		ar.ToAffineFromJac(&arAffine)
-		chResult <- arAffine
-		close(chResult)
-	}()
-	return chResult
+	g1Accumulator := func(chResult chan ecc.G1Jac, tRes []chan ecc.G1Jac) {
+		var result ecc.G1Jac
+		result.X.SetOne()
+		result.Y.SetOne()
+		for i := len(tRes) - 1; i >= 0; i-- {
+			for j := uint64(0); j < nbBits; j++ {
+				result.Double()
+			}
+			r := <-tRes[i]
+			result.Add(curve, &r)
+		}
+		chResult <- result
+	}
+
+	g2Worker := func(points []ecc.G2Affine, tRes []chan ecc.G2Jac) {
+		pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int) {
+			for i := start; i < end; i++ {
+				var res, sum ecc.G2Jac
+				sum.X.SetOne()
+				sum.Y.SetOne()
+				<-chIndices[i]
+				for j := len(indices[i]) - 1; j >= 0; j-- {
+					for k := 0; k < len(indices[i][j]); k++ {
+						sum.AddMixed(&points[indices[i][j][k]])
+					}
+					res.Add(curve, &sum)
+				}
+				tRes[i] <- res
+				close(tRes[i])
+			}
+		}, false)
+	}
+
+	g2Accumulator := func(chResult chan ecc.G2Jac, tRes []chan ecc.G2Jac) {
+		var result ecc.G2Jac
+		result.X.SetOne()
+		result.Y.SetOne()
+		for i := len(tRes) - 1; i >= 0; i-- {
+			for j := uint64(0); j < nbBits; j++ {
+				result.Double()
+			}
+			r := <-tRes[i]
+			result.Add(curve, &r)
+		}
+		chResult <- result
+	}
+
+	go g1Worker(pointsA, pointsB1, tmpResA, tmpResB1)
+	// go g1Worker(pointsB1, tmpResB1)
+	go g2Worker(pointsB2, tmpResB2)
+
+	go g1Accumulator(chA, tmpResA)
+	go g1Accumulator(chB1, tmpResB1)
+	go g2Accumulator(chB2, tmpResB2)
+
+	return
 }
 
 func computeH(a, b, c []ecc.Element, nbConstraints int) <-chan []ecc.Element {
@@ -294,10 +459,10 @@ func asyncExpTable(scale, w curve.Element, table []curve.Element, wg *sync.WaitG
 
 	if interval < ratioExpMul {
 		wg.Add(1)
-		pool.Push(func() {
+		go func() {
 			precomputeExpTableChunk(scale, w, 1, table[1:])
 			wg.Done()
-		}, true)
+		}()
 	} else {
 		// we parallelize
 		for i := 1; i < n; i += interval {
@@ -307,10 +472,10 @@ func asyncExpTable(scale, w curve.Element, table []curve.Element, wg *sync.WaitG
 				end = n
 			}
 			wg.Add(1)
-			pool.Push(func() {
+			go func() {
 				precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
 				wg.Done()
-			}, true)
+			}()
 		}
 	}
 }

@@ -50,6 +50,101 @@ type {{.Name}}Affine struct {
 	X, Y {{.CType}}
 }
 
+// {{.Name}}ZZZ parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
+type {{.Name}}ZZZ struct {
+	X, Y, ZZ, ZZZ {{.CType}}
+}
+
+// SetInfinity sets p to O
+func (p *{{.Name}}ZZZ) SetInfinity() *{{.Name}}ZZZ {
+	p.X.SetOne()
+	p.Y.SetOne()
+	p.ZZ.SetZero()
+	p.ZZZ.SetZero()
+	return p
+}
+
+// ToAffine sets p in affine coords
+func (p *{{.Name}}ZZZ) ToAffine(Q *{{.Name}}Affine) *{{.Name}}Affine {
+	Q.X.Inverse(&p.ZZ).MulAssign(&p.X)
+	Q.Y.Inverse(&p.ZZZ).MulAssign(&p.Y)
+	return Q
+}
+
+// ToJac sets p in affine coords
+func (p *{{.Name}}ZZZ) ToJac(Q *{{.Name}}Jac) *{{.Name}}Jac {
+	Q.X.Mul(&p.ZZ, &p.X).MulAssign(&p.ZZ)
+	Q.Y.Mul(&p.ZZZ, &p.Y).MulAssign(&p.ZZZ)
+	Q.Z.Set(&p.ZZZ)
+	return Q
+}
+
+// mAddZZZ
+// http://www.hyperelliptic.org/EFD/{{toLower .Name}}p/auto-shortw-xyzz.html#addition-madd-2008-s
+func (p *{{.Name}}ZZZ) mAddZZZ(a *{{.Name}}Affine) *{{.Name}}ZZZ {
+
+	//if a is infinity return p
+	if a.X.IsZero() && a.Y.IsZero() {
+		return p
+	}
+	// p is infinity, return a
+	if p.ZZ.IsZero() {
+		p.X = a.X
+		p.Y = a.Y
+		p.ZZ.SetOne()
+		p.ZZZ.SetOne()
+		return p
+	}
+
+	var U2, S2, P, R, PP, PPP, Q, Q2, RR, X3, Y3 {{.CType}}
+
+	// p2: a, p1: p
+	U2.Mul(&a.X, &p.ZZ)
+	S2.Mul(&a.Y, &p.ZZZ)
+	if U2.Equal(&p.X) && S2.Equal(&p.Y) {
+		return p.doubleZZZ(a)
+	}
+	P.Sub(&U2, &p.X)
+	R.Sub(&S2, &p.Y)
+	PP.Square(&P)
+	PPP.Mul(&P, &PP)
+	Q.Mul(&p.X, &PP)
+	RR.Square(&R)
+	X3.Sub(&RR, &PPP)
+	Q2.AddAssign(&Q).AddAssign(&Q)
+	p.X.Sub(&X3, &Q2)
+	Y3.Sub(&Q, &p.X).MulAssign(&R)
+	R.Mul(&p.Y, &PPP)
+	p.Y.Sub(&Y3, &R)
+	p.ZZ.MulAssign(&PP)
+	p.ZZZ.MulAssign(&PPP)
+
+	return p
+}
+
+// DoubleZZZ double point in ZZ coords
+// http://www.hyperelliptic.org/EFD/{{toLower .Name}}p/auto-shortw-xyzz.html#doubling-dbl-2008-s-1
+func (p *{{.Name}}ZZZ) doubleZZZ(q *{{.Name}}Affine) *{{.Name}}ZZZ {
+
+	var U, S, M, _M, Y3 {{.CType}}
+
+	U.Double(&q.Y)
+	p.ZZ.Square(&U)
+	p.ZZZ.Mul(&U, &p.ZZ)
+	S.Mul(&q.X, &p.ZZ)
+	_M.Square(&q.X)
+	M.Double(&_M).
+		AddAssign(&_M) // -> + a, but a=0 here
+	p.X.Square(&M).
+		SubAssign(&S).
+		SubAssign(&S)
+	Y3.Sub(&S, &p.X).MulAssign(&M)
+	U.Mul(&p.ZZZ, &q.Y)
+	p.Y.Sub(&Y3, &U)
+
+	return p
+}
+
 // Set set p to the provided point
 func (p *{{.Name}}Jac) Set(a *{{.Name}}Jac) *{{.Name}}Jac {
 	p.X.Set(&a.X)

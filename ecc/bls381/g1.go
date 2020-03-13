@@ -26,6 +26,101 @@ type G1Affine struct {
 	X, Y fp.Element
 }
 
+// G1ZZZ parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
+type G1ZZZ struct {
+	X, Y, ZZ, ZZZ fp.Element
+}
+
+// SetInfinity sets p to O
+func (p *G1ZZZ) SetInfinity() *G1ZZZ {
+	p.X.SetOne()
+	p.Y.SetOne()
+	p.ZZ.SetZero()
+	p.ZZZ.SetZero()
+	return p
+}
+
+// ToAffine sets p in affine coords
+func (p *G1ZZZ) ToAffine(Q *G1Affine) *G1Affine {
+	Q.X.Inverse(&p.ZZ).MulAssign(&p.X)
+	Q.Y.Inverse(&p.ZZZ).MulAssign(&p.Y)
+	return Q
+}
+
+// ToJac sets p in affine coords
+func (p *G1ZZZ) ToJac(Q *G1Jac) *G1Jac {
+	Q.X.Mul(&p.ZZ, &p.X).MulAssign(&p.ZZ)
+	Q.Y.Mul(&p.ZZZ, &p.Y).MulAssign(&p.ZZZ)
+	Q.Z.Set(&p.ZZZ)
+	return Q
+}
+
+// mAddZZZ
+// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-xyzz.html#addition-madd-2008-s
+func (p *G1ZZZ) mAddZZZ(a *G1Affine) *G1ZZZ {
+
+	//if a is infinity return p
+	if a.X.IsZero() && a.Y.IsZero() {
+		return p
+	}
+	// p is infinity, return a
+	if p.ZZ.IsZero() {
+		p.X = a.X
+		p.Y = a.Y
+		p.ZZ.SetOne()
+		p.ZZZ.SetOne()
+		return p
+	}
+
+	var U2, S2, P, R, PP, PPP, Q, Q2, RR, X3, Y3 fp.Element
+
+	// p2: a, p1: p
+	U2.Mul(&a.X, &p.ZZ)
+	S2.Mul(&a.Y, &p.ZZZ)
+	if U2.Equal(&p.X) && S2.Equal(&p.Y) {
+		return p.doubleZZZ(a)
+	}
+	P.Sub(&U2, &p.X)
+	R.Sub(&S2, &p.Y)
+	PP.Square(&P)
+	PPP.Mul(&P, &PP)
+	Q.Mul(&p.X, &PP)
+	RR.Square(&R)
+	X3.Sub(&RR, &PPP)
+	Q2.AddAssign(&Q).AddAssign(&Q)
+	p.X.Sub(&X3, &Q2)
+	Y3.Sub(&Q, &p.X).MulAssign(&R)
+	R.Mul(&p.Y, &PPP)
+	p.Y.Sub(&Y3, &R)
+	p.ZZ.MulAssign(&PP)
+	p.ZZZ.MulAssign(&PPP)
+
+	return p
+}
+
+// DoubleZZZ double point in ZZ coords
+// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-xyzz.html#doubling-dbl-2008-s-1
+func (p *G1ZZZ) doubleZZZ(q *G1Affine) *G1ZZZ {
+
+	var U, S, M, _M, Y3 fp.Element
+
+	U.Double(&q.Y)
+	p.ZZ.Square(&U)
+	p.ZZZ.Mul(&U, &p.ZZ)
+	S.Mul(&q.X, &p.ZZ)
+	_M.Square(&q.X)
+	M.Double(&_M).
+		AddAssign(&_M) // -> + a, but a=0 here
+	p.X.Square(&M).
+		SubAssign(&S).
+		SubAssign(&S)
+	Y3.Sub(&S, &p.X).MulAssign(&M)
+	U.Mul(&p.ZZZ, &q.Y)
+	p.Y.Sub(&Y3, &U)
+
+	return p
+}
+
 // Set set p to the provided point
 func (p *G1Jac) Set(a *G1Jac) *G1Jac {
 	p.X.Set(&a.X)
@@ -385,7 +480,7 @@ func (p *G1Jac) ScalarMulByGen(curve *Curve, scalar fr.Element) *G1Jac {
 	return p.pippenger(curve, []G1Jac{curve.g1Gen}, []fr.Element{scalar}, sGen, bGen, curve.tGenG1[:], computeT)
 }
 
-func (p *G1Jac) MultiExp(curve *Curve, points []G1Affine, scalars []fr.Element) chan G1Jac {
+func (p *G1Jac) MultiExpFormer(curve *Curve, points []G1Affine, scalars []fr.Element) chan G1Jac {
 	debug.Assert(len(scalars) == len(points))
 	chRes := make(chan G1Jac, 1)
 	// call windowed multi exp if input not large enough
@@ -437,7 +532,18 @@ func (p *G1Jac) MultiExp(curve *Curve, points []G1Affine, scalars []fr.Element) 
 	}
 
 	// result (1 per go routine)
-	tmpRes := make([]G1Jac, nbCalls)
+	tmpRes := make([]chan G1Jac, nbCalls)
+	chIndices := make([]chan struct{}, nbCalls)
+	indices := make([][][]int, nbCalls)
+	for i := 0; i < int(nbCalls); i++ {
+		tmpRes[i] = make(chan G1Jac, 1)
+		chIndices[i] = make(chan struct{}, 1)
+		indices[i] = make([][]int, 0, 1<<nbBits)
+		for j := 0; j < len(indices[i]); j++ {
+			indices[i][j] = make([]int, 0, nbPointsPerBucket)
+		}
+	}
+
 	work := func(iStart, iEnd int) {
 		chunks := make([]uint64, nbBits)
 		offsets := make([]uint64, nbBits)
@@ -451,11 +557,7 @@ func (p *G1Jac) MultiExp(curve *Curve, points []G1Affine, scalars []fr.Element) 
 				counter++
 			}
 			c := 1 << counter
-			buckets := make([]G1Jac, c-1)
-			for j := 0; j < c-1; j++ {
-				buckets[j].X.SetOne()
-				buckets[j].Y.SetOne()
-			}
+			indices[i] = make([][]int, c-1)
 			var l uint64
 			for j := 0; j < nbPoints; j++ {
 				var index uint64
@@ -466,25 +568,43 @@ func (p *G1Jac) MultiExp(curve *Curve, points []G1Affine, scalars []fr.Element) 
 					index += l
 				}
 				if index != 0 {
-					buckets[index-1].AddMixed(&points[j])
+					indices[i][index-1] = append(indices[i][index-1], j)
 				}
 			}
-			sum := curve.g1Infinity
-			for j := len(buckets) - 1; j >= 0; j-- {
-				sum.Add(curve, &buckets[j])
-				tmpRes[i].Add(curve, &sum)
-			}
+			chIndices[i] <- struct{}{}
+			close(chIndices[i])
 		}
 	}
-	chDone := pool.ExecuteAsync(0, len(tmpRes), work, false)
+	pool.ExecuteAsyncReverse(0, int(nbCalls), work, false)
+
+	// now we have the indices, let's compute what's inside
+
+	debug.Assert(nbCalls > 1)
+	pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int) {
+		for i := start; i < end; i++ {
+			var res G1Jac
+			sum := curve.g1Infinity
+			<-chIndices[i]
+			for j := len(indices[i]) - 1; j >= 0; j-- {
+				for k := 0; k < len(indices[i][j]); k++ {
+					sum.AddMixed(&points[indices[i][j][k]])
+				}
+				res.Add(curve, &sum)
+			}
+			tmpRes[i] <- res
+			close(tmpRes[i])
+		}
+	}, false)
+
 	go func() {
-		<-chDone // that's making a "go routine" in the pool block, uncool
 		p.Set(&curve.g1Infinity)
+		debug.Assert(len(tmpRes)-2 >= 0)
 		for i := len(tmpRes) - 1; i >= 0; i-- {
 			for j := uint64(0); j < nbBits; j++ {
 				p.Double()
 			}
-			p.Add(curve, &tmpRes[i])
+			r := <-tmpRes[i]
+			p.Add(curve, &r)
 		}
 		chRes <- *p
 	}()
@@ -496,171 +616,170 @@ type lockedG1Jac struct {
 	G1Jac
 }
 
-func (p *lockedG1Jac) addMixed(p1 *G1Affine) {
-	p.Lock()
-	p.AddMixed(p1)
-	p.Unlock()
-}
-
-// MultiExp set p = scalars[0]*points[0] + ... + scalars[n]*points[n]
-// see: https://eprint.iacr.org/2012/549.pdf
-// if maxGoRoutine is not provided, uses all available CPUs
-func (p *G1Jac) MultiExpNew(curve *Curve, points []G1Affine, scalars []fr.Element) chan G1Jac {
+func (p *G1Jac) MultiExp(curve *Curve, points []G1Affine, scalars []fr.Element) chan G1Jac {
 
 	debug.Assert(len(scalars) == len(points))
 
-	// res channel
 	chRes := make(chan G1Jac, 1)
 
-	// create buckets
-	var buckets [32][255]lockedG1Jac
-	for i := 0; i < 32; i++ {
-		for j := 0; j < 255; j++ {
-			buckets[i][j].Set(&curve.g1Infinity)
+	const minPoints = 50 // under 50 points, the windowed multi exp performs better
+	if len(scalars) <= minPoints {
+		_points := make([]G1Jac, len(points))
+		for i := 0; i < len(points); i++ {
+			points[i].ToJacobian(&_points[i])
 		}
+		go func() {
+			p.WindowedMultiExp(curve, _points, scalars)
+			chRes <- *p
+		}()
+		return chRes
 	}
 
-	// each cpu works on a subset of scalars/points, on the chunk-th pack of 8 bits
-	work := func(chunk int) func(start, end int) {
+	// var nbChunksPerLimbs, nbChunks, chunkSize int
+	var nbChunks, chunkSize int
+	var mask uint64
+	if len(scalars) <= 10000 {
+		chunkSize = 8
+	} else if len(scalars) <= 80000 {
+		chunkSize = 11
+	} else if len(scalars) <= 400000 {
+		chunkSize = 13
+	} else if len(scalars) <= 800000 {
+		chunkSize = 14
+	} else {
+		chunkSize = 16
+	}
 
-		return func(_start, _end int) {
-			var _res G1Jac
-			_res.Set(&curve.g1Infinity)
-
-			const mask = 255
-
-			limb := 3 - (chunk / 8)
-			offset := (7 - chunk%8) * 8
-			var val uint64
-
-			//for all scalars in the range of this worker
-			for j := _start; j < _end; j++ {
-				val = (scalars[j][limb] >> offset) & mask
-				if val != 0 {
-					buckets[chunk][val-1].addMixed(&points[j])
-				}
+	var bitsForTask [][]int
+	if 256%chunkSize == 0 {
+		counter := 255
+		nbChunks = 256 / chunkSize
+		bitsForTask = make([][]int, nbChunks)
+		for i := 0; i < nbChunks; i++ {
+			bitsForTask[i] = make([]int, chunkSize)
+			for j := 0; j < chunkSize; j++ {
+				bitsForTask[i][j] = counter
+				counter--
+			}
+		}
+	} else {
+		counter := 255
+		nbChunks = 256/chunkSize + 1
+		bitsForTask = make([][]int, nbChunks)
+		for i := 0; i < nbChunks; i++ {
+			if i < nbChunks-1 {
+				bitsForTask[i] = make([]int, chunkSize)
+			} else {
+				bitsForTask[i] = make([]int, 256%chunkSize)
+			}
+			for j := 0; j < chunkSize && counter >= 0; j++ {
+				bitsForTask[i][j] = counter
+				counter--
 			}
 		}
 	}
 
-	var chunkChans [32]chan bool
-	for i := 0; i < 32; i++ {
-		chunkChans[i] = pool.ExecuteAsync(0, len(scalars), work(i), false)
+	almostThere := make([]G1Jac, nbChunks)
+	chunkDone := make([]chan struct{}, nbChunks)
+	readyToReduce := make([]chan struct{}, nbChunks)
+	for i := 0; i < nbChunks; i++ {
+		chunkDone[i] = make(chan struct{}, 1)
+		readyToReduce[i] = make(chan struct{}, 1)
 	}
 
-	go func() {
+	mask = (1 << chunkSize) - 1
+	nbPointsPerSlots := len(scalars) / int(mask)
+	indices := make([][]int, int(mask)*nbChunks) // [][] is more efficient than [][][] for storage, elmts are accessed via i*nbChunks+k
+	for i := 0; i < int(mask)*nbChunks; i++ {
+		indices[i] = make([]int, 0, nbPointsPerSlots)
+	}
 
-		var acc G1Jac
+	accumulate := func(cpuid, nbTasks, n int) {
+		for i := 0; i < nbTasks; i++ {
+			//start := time.Now()
+			task := cpuid + i*n
+			for j := 0; j < len(scalars); j++ {
+				val := 0
+				for k := 0; k < len(bitsForTask[task]); k++ {
+					val = val << 1
+					c := bitsForTask[task][k] / int(64)
+					o := bitsForTask[task][k] % int(64)
+					b := (scalars[j][c] >> o) & 1
+					val += int(b)
+				}
+				if val != 0 {
+					indices[task*int(mask)+int(val)-1] = append(indices[int(mask)*task+int(val)-1], j)
+				}
+			}
+			chunkDone[task] <- struct{}{}
+			close(chunkDone[task])
+			// elapsed := time.Since(start)
+			// fmt.Printf("accumulate: %s\n", elapsed)
+		}
+	}
 
-		// final result
-		var res, almostThere G1Jac
+	aggregate := func(cpuid, nbTasks, n int) {
+		for i := 0; i < nbTasks; i++ {
+			//start := time.Now()
+			var tmp G1ZZZ
+			var _tmp G1Jac
+			task := cpuid + i*n
+			<-chunkDone[task]
+			almostThere[task].Set(&curve.g1Infinity)
+			tmp.SetInfinity()
+			_tmp = curve.g1Infinity
+			for j := int(mask - 1); j >= 0; j-- {
+				for _, k := range indices[task*int(mask)+j] {
+					tmp.mAddZZZ(&points[k])
+				}
+				tmp.ToJac(&_tmp)
+				almostThere[task].Add(curve, &_tmp)
+			}
+			readyToReduce[task] <- struct{}{}
+			close(readyToReduce[task])
+			// elapsed := time.Since(start)
+			// fmt.Printf("aggregate: %s", elapsed)
+		}
+	}
+
+	reduce := func() {
+		var res G1Jac
 		res.Set(&curve.g1Infinity)
-
-		for i := 0; i < 32; i++ {
-			for j := 0; j < 8; j++ {
+		for i := 0; i < nbChunks; i++ {
+			<-readyToReduce[i]
+			for j := 0; j < len(bitsForTask[i]); j++ {
 				res.Double()
 			}
-
-			<-chunkChans[i]
-
-			acc.Set(&curve.g1Infinity)
-			almostThere.Set(&curve.g1Infinity)
-			for j := 0; j < 255; j++ {
-				acc.Add(curve, &buckets[i][254-j].G1Jac)
-				almostThere.Add(curve, &acc)
-			}
-			res.Add(curve, &almostThere)
+			res.Add(curve, &almostThere[i])
 		}
 		p.Set(&res)
-
-		chRes <- res
-	}()
-
-	return chRes
-}
-
-// MultiExpNewNoPool version without pool
-func (p *G1Jac) MultiExpNewNoPool(curve *Curve, points []G1Affine, scalars []fr.Element) *G1Jac {
-
-	debug.Assert(len(scalars) == len(points))
-
-	// res channel
-	var res G1Jac
-	res.Set(&curve.g1Infinity)
+		chRes <- *p
+	}
 
 	nbCpus := runtime.NumCPU()
-	//nbCpus := 2
-	nbTasksPerCpus := len(scalars) / nbCpus
-
-	// one work= scheduling the cpus for the chunk-th chunk of 8 bits
-	work := func(chunk int) G1Jac {
-
-		buckets := make([][255]G1Jac, nbCpus)
-		for i := 0; i < nbCpus; i++ {
-			for j := 0; j < 255; j++ {
-				buckets[i][j].Set(&curve.g1Infinity)
-			}
+	nbTasksPerCpus := nbChunks / nbCpus
+	remainingTasks := nbChunks % nbCpus
+	for i := 0; i < nbCpus; i++ {
+		if remainingTasks > 0 {
+			go accumulate(i, nbTasksPerCpus+1, nbCpus)
+			remainingTasks--
+		} else {
+			go accumulate(i, nbTasksPerCpus, nbCpus)
 		}
-
-		var wg sync.WaitGroup
-
-		//beginning := time.Now()
-		var _res G1Jac
-		_res.Set(&curve.g1Infinity)
-
-		const mask = 255
-
-		subWorker := func(id, _start, _end int) {
-
-			//for all scalars in the range of this worker
-			for j := _start; j < _end; j++ {
-				limb := chunk / 8
-				offset := chunk % 8
-				val := (scalars[j][3-limb] >> ((7 - offset) * 8)) & mask
-				if val != 0 {
-					buckets[id][val-1].AddMixed(&points[j])
-				}
-			}
-			wg.Done()
-		}
-
-		wg.Add(nbCpus)
-		for i := 0; i < nbCpus; i++ {
-			start := i * nbTasksPerCpus
-			var end int
-			if i < nbCpus-1 {
-				end = start + nbTasksPerCpus
-			} else {
-				end = len(scalars)
-			}
-			go subWorker(i, start, end)
-		}
-		wg.Wait()
-
-		var acc G1Jac
-		acc.Set(&curve.g1Infinity)
-
-		for i := 1; i < nbCpus; i++ {
-			for j := 0; j < 255; j++ {
-				buckets[0][j].Add(curve, &buckets[i][j])
-			}
-		}
-		for i := 0; i < 255; i++ {
-			acc.Add(curve, &buckets[0][254-i])
-			_res.Add(curve, &acc)
-		}
-		return _res
 	}
 
-	for i := 0; i < 32; i++ {
-		tmp := work(i)
-		for j := 0; j < 8; j++ {
-			res.Double()
+	remainingTasks = nbChunks % nbCpus
+	for i := 0; i < nbCpus; i++ {
+		if remainingTasks > 0 {
+			go aggregate(i, nbTasksPerCpus+1, nbCpus)
+			remainingTasks--
+		} else {
+			go aggregate(i, nbTasksPerCpus, nbCpus)
 		}
-		res.Add(curve, &tmp)
 	}
-	p.Set(&res)
-	return p
+	go reduce()
+
+	return chRes
 }
 
 // WindowedMultiExp set p = scalars[0]*points[0] + ... + scalars[n]*points[n]

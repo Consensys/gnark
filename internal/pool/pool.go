@@ -21,32 +21,60 @@ import (
 	"sync"
 )
 
-// NbCpus nb cpus we play with
-var nbCpus int
-
-// Push schedules a function to be executed.
-// if it's high priority and the job queue is full, executes synchronously the call
-func Push(fn func(), highPriority bool) {
-	getPool().push(fn, highPriority)
-}
-
 // Execute process in parallel the work function and wait for result
 func Execute(iStart, iEnd int, work func(int, int), highPriority bool) {
 	<-ExecuteAsync(iStart, iEnd, work, highPriority)
+}
+func ExecuteAsyncReverse(iStart, iEnd int, work func(int, int), highPriority bool) {
+	// total number of tasks to queue up
+	var nbTasks int
+
+	//NbCpus := runtime.NumCPU()
+	nbIterations := iEnd - iStart // not  +1 -> iEnd is not included
+	nbIterationsPerCpus := nbIterations / runtime.NumCPU()
+	nbTasks = runtime.NumCPU()
+
+	// more CPUs than tasks: a CPU will work on exactly one iteration
+	if nbIterationsPerCpus < 1 {
+		nbIterationsPerCpus = 1
+		nbTasks = nbIterations
+	}
+
+	extraTasks := iEnd - (iStart + nbTasks*nbIterationsPerCpus)
+	extraTasksOffset := 0
+
+	type tuple struct {
+		a, b int
+	}
+	tasks := make([]tuple, nbTasks)
+	for i := 0; i < nbTasks; i++ {
+		_start := iStart + i*nbIterationsPerCpus + extraTasksOffset
+		_end := _start + nbIterationsPerCpus
+		if extraTasks > 0 {
+			_end++
+			extraTasks--
+			extraTasksOffset++
+		}
+		tasks[i] = tuple{_start, _end}
+	}
+	for i := nbTasks - 1; i >= 0; i-- {
+		_start := tasks[i].a
+		_end := tasks[i].b
+		go work(_start, _end)
+	}
 }
 
 // ExecuteAsync process in parallel the work function and return a channel that notifies caller when
 // work is done
 func ExecuteAsync(iStart, iEnd int, work func(int, int), highPriority bool) chan bool {
 
-	pool := getPool()
-
 	// total number of tasks to queue up
 	var nbTasks int
 
+	//NbCpus := runtime.NumCPU()
 	nbIterations := iEnd - iStart // not  +1 -> iEnd is not included
-	nbIterationsPerCpus := nbIterations / nbCpus
-	nbTasks = nbCpus
+	nbIterationsPerCpus := nbIterations / runtime.NumCPU()
+	nbTasks = runtime.NumCPU()
 
 	// more CPUs than tasks: a CPU will work on exactly one iteration
 	if nbIterationsPerCpus < 1 {
@@ -56,83 +84,28 @@ func ExecuteAsync(iStart, iEnd int, work func(int, int), highPriority bool) chan
 
 	var wg sync.WaitGroup
 
+	extraTasks := iEnd - (iStart + nbTasks*nbIterationsPerCpus)
+	extraTasksOffset := 0
+
 	for i := 0; i < nbTasks; i++ {
 		wg.Add(1)
-		_start := iStart + i*nbIterationsPerCpus
+		_start := iStart + i*nbIterationsPerCpus + extraTasksOffset
 		_end := _start + nbIterationsPerCpus
-		if i == nbTasks-1 {
-			_end = iEnd
+		if extraTasks > 0 {
+			_end++
+			extraTasks--
+			extraTasksOffset++
 		}
-		pool.push(func() {
+		go func() {
 			work(_start, _end)
 			wg.Done()
-		}, highPriority)
+		}()
 	}
+
 	chDone := make(chan bool, 1)
 	go func() {
 		wg.Wait()
 		chDone <- true
 	}()
 	return chDone
-}
-
-var initOnce sync.Once
-var globalPool *pool
-
-type pool struct {
-	chLow, chHigh chan func()
-	chJob         chan struct{}
-}
-
-func worker(pool *pool) {
-	for range pool.chJob {
-		select {
-		// if we have a high priority job, execute it.
-		case job := <-pool.chHigh:
-			job()
-		default:
-			// else, dequeue low priority task
-			job := <-pool.chLow
-			job()
-		}
-
-	}
-}
-
-func init() {
-	nbCpus = runtime.NumCPU()
-	_ = getPool()
-}
-
-func getPool() *pool {
-	initOnce.Do(func() {
-
-		globalPool = &pool{
-			chLow:  make(chan func(), 10*nbCpus), // TODO NbCpus only?
-			chHigh: make(chan func(), 32*nbCpus),
-			chJob:  make(chan struct{}, 10*32*(nbCpus)),
-		}
-
-		for i := 0; i < nbCpus; i++ {
-			go worker(globalPool)
-		}
-	})
-	return globalPool
-}
-
-func (pool *pool) push(fn func(), highPriority bool) {
-	if highPriority {
-		select {
-		case pool.chHigh <- fn:
-		default:
-			// channel is full, calling go routine is executing the function synchronously instead
-			// this should be used only in the recursive FFT setting
-			// because caller is already a worker from this pool
-			fn()
-			return
-		}
-	} else {
-		pool.chLow <- fn
-	}
-	pool.chJob <- struct{}{}
 }
