@@ -50,13 +50,13 @@ type {{.Name}}Affine struct {
 	X, Y {{.CType}}
 }
 
-// {{.Name}}ZZZ parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
-type {{.Name}}ZZZ struct {
+// {{toLower .Name}}JacExtended parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
+type {{toLower .Name}}JacExtended struct {
 	X, Y, ZZ, ZZZ {{.CType}}
 }
 
 // SetInfinity sets p to O
-func (p *{{.Name}}ZZZ) SetInfinity() *{{.Name}}ZZZ {
+func (p *{{toLower .Name}}JacExtended) SetInfinity() *{{toLower .Name}}JacExtended {
 	p.X.SetOne()
 	p.Y.SetOne()
 	p.ZZ.SetZero()
@@ -65,23 +65,23 @@ func (p *{{.Name}}ZZZ) SetInfinity() *{{.Name}}ZZZ {
 }
 
 // ToAffine sets p in affine coords
-func (p *{{.Name}}ZZZ) ToAffine(Q *{{.Name}}Affine) *{{.Name}}Affine {
+func (p *{{toLower .Name}}JacExtended) ToAffine(Q *{{.Name}}Affine) *{{.Name}}Affine {
 	Q.X.Inverse(&p.ZZ).MulAssign(&p.X)
 	Q.Y.Inverse(&p.ZZZ).MulAssign(&p.Y)
 	return Q
 }
 
 // ToJac sets p in affine coords
-func (p *{{.Name}}ZZZ) ToJac(Q *{{.Name}}Jac) *{{.Name}}Jac {
+func (p *{{toLower .Name}}JacExtended) ToJac(Q *{{.Name}}Jac) *{{.Name}}Jac {
 	Q.X.Mul(&p.ZZ, &p.X).MulAssign(&p.ZZ)
 	Q.Y.Mul(&p.ZZZ, &p.Y).MulAssign(&p.ZZZ)
 	Q.Z.Set(&p.ZZZ)
 	return Q
 }
 
-// mAddZZZ
+// mAdd
 // http://www.hyperelliptic.org/EFD/{{toLower .Name}}p/auto-shortw-xyzz.html#addition-madd-2008-s
-func (p *{{.Name}}ZZZ) mAddZZZ(a *{{.Name}}Affine) *{{.Name}}ZZZ {
+func (p *{{toLower .Name}}JacExtended) mAdd(a *{{.Name}}Affine) *{{toLower .Name}}JacExtended {
 
 	//if a is infinity return p
 	if a.X.IsZero() && a.Y.IsZero() {
@@ -102,7 +102,7 @@ func (p *{{.Name}}ZZZ) mAddZZZ(a *{{.Name}}Affine) *{{.Name}}ZZZ {
 	U2.Mul(&a.X, &p.ZZ)
 	S2.Mul(&a.Y, &p.ZZZ)
 	if U2.Equal(&p.X) && S2.Equal(&p.Y) {
-		return p.doubleZZZ(a)
+		return p.double(a)
 	}
 	P.Sub(&U2, &p.X)
 	R.Sub(&S2, &p.Y)
@@ -122,9 +122,9 @@ func (p *{{.Name}}ZZZ) mAddZZZ(a *{{.Name}}Affine) *{{.Name}}ZZZ {
 	return p
 }
 
-// DoubleZZZ double point in ZZ coords
+// double point in ZZ coords
 // http://www.hyperelliptic.org/EFD/{{toLower .Name}}p/auto-shortw-xyzz.html#doubling-dbl-2008-s-1
-func (p *{{.Name}}ZZZ) doubleZZZ(q *{{.Name}}Affine) *{{.Name}}ZZZ {
+func (p *{{toLower .Name}}JacExtended) double(q *{{.Name}}Affine) *{{toLower .Name}}JacExtended {
 
 	var U, S, M, _M, Y3 {{.CType}}
 

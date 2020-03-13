@@ -23,13 +23,13 @@ type G2Affine struct {
 	X, Y e2
 }
 
-// G2ZZZ parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
-type G2ZZZ struct {
+// g2JacExtended parameterized jacobian coordinates (x=X/ZZ, y=Y/ZZZ, ZZ**3=ZZZ**2)
+type g2JacExtended struct {
 	X, Y, ZZ, ZZZ e2
 }
 
 // SetInfinity sets p to O
-func (p *G2ZZZ) SetInfinity() *G2ZZZ {
+func (p *g2JacExtended) SetInfinity() *g2JacExtended {
 	p.X.SetOne()
 	p.Y.SetOne()
 	p.ZZ.SetZero()
@@ -38,23 +38,23 @@ func (p *G2ZZZ) SetInfinity() *G2ZZZ {
 }
 
 // ToAffine sets p in affine coords
-func (p *G2ZZZ) ToAffine(Q *G2Affine) *G2Affine {
+func (p *g2JacExtended) ToAffine(Q *G2Affine) *G2Affine {
 	Q.X.Inverse(&p.ZZ).MulAssign(&p.X)
 	Q.Y.Inverse(&p.ZZZ).MulAssign(&p.Y)
 	return Q
 }
 
 // ToJac sets p in affine coords
-func (p *G2ZZZ) ToJac(Q *G2Jac) *G2Jac {
+func (p *g2JacExtended) ToJac(Q *G2Jac) *G2Jac {
 	Q.X.Mul(&p.ZZ, &p.X).MulAssign(&p.ZZ)
 	Q.Y.Mul(&p.ZZZ, &p.Y).MulAssign(&p.ZZZ)
 	Q.Z.Set(&p.ZZZ)
 	return Q
 }
 
-// mAddZZZ
+// mAdd
 // http://www.hyperelliptic.org/EFD/g2p/auto-shortw-xyzz.html#addition-madd-2008-s
-func (p *G2ZZZ) mAddZZZ(a *G2Affine) *G2ZZZ {
+func (p *g2JacExtended) mAdd(a *G2Affine) *g2JacExtended {
 
 	//if a is infinity return p
 	if a.X.IsZero() && a.Y.IsZero() {
@@ -75,7 +75,7 @@ func (p *G2ZZZ) mAddZZZ(a *G2Affine) *G2ZZZ {
 	U2.Mul(&a.X, &p.ZZ)
 	S2.Mul(&a.Y, &p.ZZZ)
 	if U2.Equal(&p.X) && S2.Equal(&p.Y) {
-		return p.doubleZZZ(a)
+		return p.double(a)
 	}
 	P.Sub(&U2, &p.X)
 	R.Sub(&S2, &p.Y)
@@ -95,9 +95,9 @@ func (p *G2ZZZ) mAddZZZ(a *G2Affine) *G2ZZZ {
 	return p
 }
 
-// DoubleZZZ double point in ZZ coords
+// double point in ZZ coords
 // http://www.hyperelliptic.org/EFD/g2p/auto-shortw-xyzz.html#doubling-dbl-2008-s-1
-func (p *G2ZZZ) doubleZZZ(q *G2Affine) *G2ZZZ {
+func (p *g2JacExtended) double(q *G2Affine) *g2JacExtended {
 
 	var U, S, M, _M, Y3 e2
 
@@ -608,11 +608,7 @@ func (p *G2Jac) MultiExpFormer(curve *Curve, points []G2Affine, scalars []fr.Ele
 	return chRes
 }
 
-type lockedG2Jac struct {
-	sync.Mutex
-	G2Jac
-}
-
+// MultiExp complexity O(n)
 func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) chan G2Jac {
 
 	debug.Assert(len(scalars) == len(points))
@@ -632,7 +628,7 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 		return chRes
 	}
 
-	// var nbChunksPerLimbs, nbChunks, chunkSize int
+	// empirical values
 	var nbChunks, chunkSize int
 	var mask uint64
 	if len(scalars) <= 10000 {
@@ -647,10 +643,12 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 		chunkSize = 16
 	}
 
+	sizeScalar := fr.ElementLimbs * 64
+
 	var bitsForTask [][]int
-	if 256%chunkSize == 0 {
-		counter := 255
-		nbChunks = 256 / chunkSize
+	if sizeScalar%chunkSize == 0 {
+		counter := sizeScalar - 1
+		nbChunks = sizeScalar / chunkSize
 		bitsForTask = make([][]int, nbChunks)
 		for i := 0; i < nbChunks; i++ {
 			bitsForTask[i] = make([]int, chunkSize)
@@ -660,14 +658,14 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 			}
 		}
 	} else {
-		counter := 255
-		nbChunks = 256/chunkSize + 1
+		counter := sizeScalar - 1
+		nbChunks = sizeScalar/chunkSize + 1
 		bitsForTask = make([][]int, nbChunks)
 		for i := 0; i < nbChunks; i++ {
 			if i < nbChunks-1 {
 				bitsForTask[i] = make([]int, chunkSize)
 			} else {
-				bitsForTask[i] = make([]int, 256%chunkSize)
+				bitsForTask[i] = make([]int, sizeScalar%chunkSize)
 			}
 			for j := 0; j < chunkSize && counter >= 0; j++ {
 				bitsForTask[i][j] = counter
@@ -691,10 +689,13 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 		indices[i] = make([]int, 0, nbPointsPerSlots)
 	}
 
-	accumulate := func(cpuid, nbTasks, n int) {
+	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
+	// for each 32 chunk, there is a list of 2**8=256 list of indices
+	// for the i-th chunk, accumulate stores in the k-th list all the indices of points
+	// for which the i-th chunk of 8 bits is equal to k
+	accumulate := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
-			//start := time.Now()
-			task := cpuid + i*n
+			task := cpuID + i*n
 			for j := 0; j < len(scalars); j++ {
 				val := 0
 				for k := 0; k < len(bitsForTask[task]); k++ {
@@ -710,35 +711,34 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 			}
 			chunkDone[task] <- struct{}{}
 			close(chunkDone[task])
-			// elapsed := time.Since(start)
-			// fmt.Printf("accumulate: %s\n", elapsed)
 		}
 	}
 
-	aggregate := func(cpuid, nbTasks, n int) {
+	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
+	// for each chunk, sum up elements in index 0, add to current result, sum up elements
+	// in index 1, add to current result, etc, up to 255=2**8-1
+	aggregate := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
-			//start := time.Now()
-			var tmp G2ZZZ
+			var tmp g2JacExtended
 			var _tmp G2Jac
-			task := cpuid + i*n
+			task := cpuID + i*n
 			<-chunkDone[task]
 			almostThere[task].Set(&curve.g2Infinity)
 			tmp.SetInfinity()
 			_tmp = curve.g2Infinity
 			for j := int(mask - 1); j >= 0; j-- {
 				for _, k := range indices[task*int(mask)+j] {
-					tmp.mAddZZZ(&points[k])
+					tmp.mAdd(&points[k])
 				}
 				tmp.ToJac(&_tmp)
 				almostThere[task].Add(curve, &_tmp)
 			}
 			readyToReduce[task] <- struct{}{}
 			close(readyToReduce[task])
-			// elapsed := time.Since(start)
-			// fmt.Printf("aggregate: %s", elapsed)
 		}
 	}
 
+	// double and add algo to collect all small reductions
 	reduce := func() {
 		var res G2Jac
 		res.Set(&curve.g2Infinity)

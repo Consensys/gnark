@@ -160,11 +160,7 @@ func (p *{{.Name}}Jac) MultiExpFormer(curve *Curve, points []{{ .Name}}Affine, s
 	return chRes
 }
 
-type locked{{.Name}}Jac struct {
-	sync.Mutex
-	{{.Name}}Jac
-} 
-
+// MultiExp complexity O(n)
 func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars []fr.Element) chan {{.Name}}Jac {
 
 	debug.Assert(len(scalars) == len(points))
@@ -184,7 +180,7 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars 
 		return chRes
 	}
 
-	// var nbChunksPerLimbs, nbChunks, chunkSize int
+	// empirical values
 	var nbChunks, chunkSize int
 	var mask uint64
 	if len(scalars) <= 10000 {
@@ -199,10 +195,12 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars 
 		chunkSize = 16
 	}
 
+	sizeScalar := fr.ElementLimbs * 64
+
 	var bitsForTask [][]int
-	if 256%chunkSize == 0 {
-		counter := 255
-		nbChunks = 256 / chunkSize
+	if sizeScalar%chunkSize == 0 {
+		counter := sizeScalar - 1
+		nbChunks = sizeScalar / chunkSize
 		bitsForTask = make([][]int, nbChunks)
 		for i := 0; i < nbChunks; i++ {
 			bitsForTask[i] = make([]int, chunkSize)
@@ -212,14 +210,14 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars 
 			}
 		}
 	} else {
-		counter := 255
-		nbChunks = 256/chunkSize + 1
+		counter := sizeScalar - 1
+		nbChunks = sizeScalar/chunkSize + 1
 		bitsForTask = make([][]int, nbChunks)
 		for i := 0; i < nbChunks; i++ {
 			if i < nbChunks-1 {
 				bitsForTask[i] = make([]int, chunkSize)
 			} else {
-				bitsForTask[i] = make([]int, 256%chunkSize)
+				bitsForTask[i] = make([]int, sizeScalar%chunkSize)
 			}
 			for j := 0; j < chunkSize && counter >= 0; j++ {
 				bitsForTask[i][j] = counter
@@ -243,10 +241,13 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars 
 		indices[i] = make([]int, 0, nbPointsPerSlots)
 	}
 
-	accumulate := func(cpuid, nbTasks, n int) {
+	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
+	// for each 32 chunk, there is a list of 2**8=256 list of indices
+	// for the i-th chunk, accumulate stores in the k-th list all the indices of points
+	// for which the i-th chunk of 8 bits is equal to k 
+	accumulate := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
-			//start := time.Now()
-			task := cpuid + i*n
+			task := cpuID + i*n
 			for j := 0; j < len(scalars); j++ {
 				val := 0
 				for k := 0; k < len(bitsForTask[task]); k++ {
@@ -262,35 +263,34 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{.Name}}Affine, scalars 
 			}
 			chunkDone[task] <- struct{}{}
 			close(chunkDone[task])
-			// elapsed := time.Since(start)
-			// fmt.Printf("accumulate: %s\n", elapsed)
 		}
 	}
 
-	aggregate := func(cpuid, nbTasks, n int) {
+	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
+	// for each chunk, sum up elements in index 0, add to current result, sum up elements
+	// in index 1, add to current result, etc, up to 255=2**8-1
+	aggregate := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
-			//start := time.Now()
-			var tmp {{.Name}}ZZZ
+			var tmp {{toLower .Name}}JacExtended
 			var _tmp {{.Name}}Jac
-			task := cpuid + i*n
+			task := cpuID + i*n
 			<-chunkDone[task]
 			almostThere[task].Set(&curve.{{toLower .Name}}Infinity)
 			tmp.SetInfinity()
 			_tmp = curve.{{toLower .Name}}Infinity
 			for j := int(mask - 1); j >= 0; j-- {
 				for _, k := range indices[task*int(mask)+j] {
-					tmp.mAddZZZ(&points[k])
+					tmp.mAdd(&points[k])
 				}
 				tmp.ToJac(&_tmp)
 				almostThere[task].Add(curve, &_tmp)
 			}
 			readyToReduce[task] <- struct{}{}
 			close(readyToReduce[task])
-			// elapsed := time.Since(start)
-			// fmt.Printf("aggregate: %s", elapsed)
 		}
 	}
 
+	// double and add algo to collect all small reductions
 	reduce := func() {
 		var res {{.Name}}Jac
 		res.Set(&curve.{{toLower .Name}}Infinity)
