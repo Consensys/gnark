@@ -610,13 +610,14 @@ func (p *G2Jac) MultiExpFormer(curve *Curve, points []G2Affine, scalars []fr.Ele
 
 // MultiExp complexity O(n)
 func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) chan G2Jac {
-
-	debug.Assert(len(scalars) == len(points))
+	nbPoints := len(points)
+	debug.Assert(nbPoints == len(scalars))
 
 	chRes := make(chan G2Jac, 1)
 
-	const minPoints = 50 // under 50 points, the windowed multi exp performs better
-	if len(scalars) <= minPoints {
+	// under 50 points, the windowed multi exp performs better
+	const minPoints = 50
+	if nbPoints <= minPoints {
 		_points := make([]G2Jac, len(points))
 		for i := 0; i < len(points); i++ {
 			points[i].ToJacobian(&_points[i])
@@ -631,19 +632,19 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 	// empirical values
 	var nbChunks, chunkSize int
 	var mask uint64
-	if len(scalars) <= 10000 {
+	if nbPoints <= 10000 {
 		chunkSize = 8
-	} else if len(scalars) <= 80000 {
+	} else if nbPoints <= 80000 {
 		chunkSize = 11
-	} else if len(scalars) <= 400000 {
+	} else if nbPoints <= 400000 {
 		chunkSize = 13
-	} else if len(scalars) <= 800000 {
+	} else if nbPoints <= 800000 {
 		chunkSize = 14
 	} else {
 		chunkSize = 16
 	}
 
-	sizeScalar := fr.ElementLimbs * 64
+	const sizeScalar = fr.ElementLimbs * 64
 
 	var bitsForTask [][]int
 	if sizeScalar%chunkSize == 0 {
@@ -674,29 +675,31 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 		}
 	}
 
-	almostThere := make([]G2Jac, nbChunks)
-	chunkDone := make([]chan struct{}, nbChunks)
-	readyToReduce := make([]chan struct{}, nbChunks)
+	accumulators := make([]G2Jac, nbChunks)
+	chIndices := make([]chan struct{}, nbChunks)
+	chPoints := make([]chan struct{}, nbChunks)
 	for i := 0; i < nbChunks; i++ {
-		chunkDone[i] = make(chan struct{}, 1)
-		readyToReduce[i] = make(chan struct{}, 1)
+		chIndices[i] = make(chan struct{}, 1)
+		chPoints[i] = make(chan struct{}, 1)
 	}
 
 	mask = (1 << chunkSize) - 1
-	nbPointsPerSlots := len(scalars) / int(mask)
-	indices := make([][]int, int(mask)*nbChunks) // [][] is more efficient than [][][] for storage, elmts are accessed via i*nbChunks+k
+	nbPointsPerSlots := nbPoints / int(mask)
+	// [][] is more efficient than [][][] for storage, elements are accessed via i*nbChunks+k
+	indices := make([][]int, int(mask)*nbChunks)
 	for i := 0; i < int(mask)*nbChunks; i++ {
 		indices[i] = make([]int, 0, nbPointsPerSlots)
 	}
 
 	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
 	// for each 32 chunk, there is a list of 2**8=256 list of indices
-	// for the i-th chunk, accumulate stores in the k-th list all the indices of points
+	// for the i-th chunk, accumulateIndices stores in the k-th list all the indices of points
 	// for which the i-th chunk of 8 bits is equal to k
-	accumulate := func(cpuID, nbTasks, n int) {
+	accumulateIndices := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
 			task := cpuID + i*n
-			for j := 0; j < len(scalars); j++ {
+			idx := task*int(mask) - 1
+			for j := 0; j < nbPoints; j++ {
 				val := 0
 				for k := 0; k < len(bitsForTask[task]); k++ {
 					val = val << 1
@@ -706,35 +709,39 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 					val += int(b)
 				}
 				if val != 0 {
-					indices[task*int(mask)+int(val)-1] = append(indices[int(mask)*task+int(val)-1], j)
+					indices[idx+int(val)] = append(indices[idx+int(val)], j)
 				}
 			}
-			chunkDone[task] <- struct{}{}
-			close(chunkDone[task])
+			chIndices[task] <- struct{}{}
+			close(chIndices[task])
 		}
 	}
 
 	// if chunkSize=8, nbChunks=32 (the scalars are chunkSize*nbChunks bits long)
 	// for each chunk, sum up elements in index 0, add to current result, sum up elements
 	// in index 1, add to current result, etc, up to 255=2**8-1
-	aggregate := func(cpuID, nbTasks, n int) {
+	accumulatePoints := func(cpuID, nbTasks, n int) {
 		for i := 0; i < nbTasks; i++ {
 			var tmp g2JacExtended
 			var _tmp G2Jac
 			task := cpuID + i*n
-			<-chunkDone[task]
-			almostThere[task].Set(&curve.g2Infinity)
+
+			// init points
 			tmp.SetInfinity()
-			_tmp = curve.g2Infinity
+			accumulators[task].Set(&curve.g2Infinity)
+
+			// wait for indices to be ready
+			<-chIndices[task]
+
 			for j := int(mask - 1); j >= 0; j-- {
 				for _, k := range indices[task*int(mask)+j] {
 					tmp.mAdd(&points[k])
 				}
 				tmp.ToJac(&_tmp)
-				almostThere[task].Add(curve, &_tmp)
+				accumulators[task].Add(curve, &_tmp)
 			}
-			readyToReduce[task] <- struct{}{}
-			close(readyToReduce[task])
+			chPoints[task] <- struct{}{}
+			close(chPoints[task])
 		}
 	}
 
@@ -743,11 +750,11 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 		var res G2Jac
 		res.Set(&curve.g2Infinity)
 		for i := 0; i < nbChunks; i++ {
-			<-readyToReduce[i]
 			for j := 0; j < len(bitsForTask[i]); j++ {
 				res.Double()
 			}
-			res.Add(curve, &almostThere[i])
+			<-chPoints[i]
+			res.Add(curve, &accumulators[i])
 		}
 		p.Set(&res)
 		chRes <- *p
@@ -758,22 +765,15 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 	remainingTasks := nbChunks % nbCpus
 	for i := 0; i < nbCpus; i++ {
 		if remainingTasks > 0 {
-			go accumulate(i, nbTasksPerCpus+1, nbCpus)
+			go accumulateIndices(i, nbTasksPerCpus+1, nbCpus)
+			go accumulatePoints(i, nbTasksPerCpus+1, nbCpus)
 			remainingTasks--
 		} else {
-			go accumulate(i, nbTasksPerCpus, nbCpus)
+			go accumulateIndices(i, nbTasksPerCpus, nbCpus)
+			go accumulatePoints(i, nbTasksPerCpus, nbCpus)
 		}
 	}
 
-	remainingTasks = nbChunks % nbCpus
-	for i := 0; i < nbCpus; i++ {
-		if remainingTasks > 0 {
-			go aggregate(i, nbTasksPerCpus+1, nbCpus)
-			remainingTasks--
-		} else {
-			go aggregate(i, nbTasksPerCpus, nbCpus)
-		}
-	}
 	go reduce()
 
 	return chRes

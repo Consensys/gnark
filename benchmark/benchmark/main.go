@@ -14,7 +14,7 @@ import (
 
 const benchCount = 1
 
-var nbConstraints = []int{20000} //1000, 10000, 40000} //, 100000, 1000000, 10000000}
+var nbConstraints = []int{1000, 10000, 40000} //, 100000, 1000000, 10000000}
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
