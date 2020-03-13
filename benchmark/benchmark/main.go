@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/profile"
 )
 
-const benchCount = 10
+const benchCount = 1
 
 var nbConstraints = []int{1000, 10000, 40000} //, 100000, 1000000, 10000000}
 

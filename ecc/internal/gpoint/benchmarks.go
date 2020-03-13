@@ -110,7 +110,7 @@ func BenchmarkMultiExp{{.Name}}(b *testing.B) {
 	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
 
 	var nbSamples int
-	nbSamples = 400000
+	nbSamples = 800000
 
 	samplePoints := make([]{{.Name}}Affine, nbSamples)
 	sampleScalars := make([]fr.Element, nbSamples)
@@ -126,16 +126,20 @@ func BenchmarkMultiExp{{.Name}}(b *testing.B) {
 
 	var testPoint {{.Name}}Jac
 
-	for i := 0; i < 8; i++ {
-		b.Run(fmt.Sprintf("%d points", (i+1)*50000), func(b *testing.B) {
+	for i := 0; i < 16; i++ {
+		b.Run(fmt.Sprintf("former (%d points)", (i+1)*50000), func(b *testing.B) {
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				<-testPoint.MultiExpFormer(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
+			}
+		})
+		b.Run(fmt.Sprintf("new (%d points)", (i+1)*50000), func(b *testing.B) {
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
 				<-testPoint.MultiExp(curve, samplePoints[:50000+i*50000], sampleScalars[:50000+i*50000])
 			}
 		})
 	}
-
 }
-
 		
 `

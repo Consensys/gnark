@@ -294,10 +294,10 @@ func asyncExpTable(scale, w curve.Element, table []curve.Element, wg *sync.WaitG
 
 	if interval < ratioExpMul {
 		wg.Add(1)
-		pool.Push(func() {
+		go func() {
 			precomputeExpTableChunk(scale, w, 1, table[1:])
 			wg.Done()
-		}, true)
+		}()
 	} else {
 		// we parallelize
 		for i := 1; i < n; i += interval {
@@ -307,10 +307,10 @@ func asyncExpTable(scale, w curve.Element, table []curve.Element, wg *sync.WaitG
 				end = n
 			}
 			wg.Add(1)
-			pool.Push(func() {
+			go func() {
 				precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
 				wg.Done()
-			}, true)
+			}()
 		}
 	}
 }

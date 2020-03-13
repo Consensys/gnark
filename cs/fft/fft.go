@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/cs/internal/curve"
-	"github.com/consensys/gnark/internal/pool"
 )
 
 // FFT computes the discrete Fourier transform of a and stores the result in a.
@@ -79,10 +78,10 @@ func asyncFFT(a []curve.Element, w curve.Element, wg *sync.WaitGroup, splits uin
 	} else {
 		splits <<= 1
 		wg.Add(1)
-		pool.Push(func() {
+		go func() {
 			asyncFFT(a[m:n], w, wg, splits)
 			wg.Done()
-		}, true)
+		}()
 		// TODO fixme that seems risky behavior and could starve the thread pool
 		// we may want to push that as a taks in the pool too?.
 		asyncFFT(a[0:m], w, wg, splits)
