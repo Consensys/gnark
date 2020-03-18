@@ -11,6 +11,8 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/consensys/goff v0.1.0 h1:Up/hj1u1JNe810aP0uINAe9OnjdN8+Z6l4Ru84yMxms=
 github.com/consensys/goff v0.1.0/go.mod h1:o2GQlBqSwG9JvC42mpcJ40CwoJxp+rmxWxSKQv+dCW4=
+github.com/consensys/goff v0.1.1-0.20200318153029-947f4a63ffff h1:2LzpusCkzKY2LnBfvue/JcLiXNY3yUPKGC24cDCg5/Q=
+github.com/consensys/goff v0.1.1-0.20200318153029-947f4a63ffff/go.mod h1:o2GQlBqSwG9JvC42mpcJ40CwoJxp+rmxWxSKQv+dCW4=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

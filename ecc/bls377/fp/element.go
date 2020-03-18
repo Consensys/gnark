@@ -33,6 +33,7 @@ import (
 	"io"
 	"math/big"
 	"math/bits"
+	"strconv"
 	"sync"
 
 	"unsafe"
@@ -386,6 +387,34 @@ func (z *Element) SetRandom() *Element {
 	return z
 }
 
+func One() Element {
+	var one Element
+	one.SetOne()
+	return one
+}
+
+func FromInterface(i1 interface{}) Element {
+	var val Element
+
+	switch c1 := i1.(type) {
+	case uint64:
+		val.SetUint64(c1)
+	case int:
+		val.SetString(strconv.Itoa(c1))
+	case string:
+		val.SetString(c1)
+	case Element:
+		val = c1
+	case *Element:
+		val.Set(c1)
+	// TODO add big.Int convertions
+	default:
+		panic("invalid type")
+	}
+
+	return val
+}
+
 // Add z = x + y mod q
 func (z *Element) Add(x, y *Element) *Element {
 	var carry uint64
@@ -503,18 +532,31 @@ func (z *Element) SubAssign(x *Element) *Element {
 	return z
 }
 
-// Exp z = x^e mod q
-func (z *Element) Exp(x Element, e uint64) *Element {
-	if e == 0 {
+// Exp z = x^exponent mod q
+// (not optimized)
+// exponent (non-montgomery form) is ordered from least significant word to most significant word
+func (z *Element) Exp(x Element, exponent ...uint64) *Element {
+	r := 0
+	msb := 0
+	for i := len(exponent) - 1; i >= 0; i-- {
+		if exponent[i] == 0 {
+			r++
+		} else {
+			msb = (i * 64) + bits.Len64(exponent[i])
+			break
+		}
+	}
+	exponent = exponent[:len(exponent)-r]
+	if len(exponent) == 0 {
 		return z.SetOne()
 	}
 
 	z.Set(&x)
 
-	l := bits.Len64(e) - 2
+	l := msb - 2
 	for i := l; i >= 0; i-- {
 		z.Square(z)
-		if e&(1<<uint(i)) != 0 {
+		if exponent[i/64]&(1<<uint(i%64)) != 0 {
 			z.MulAssign(&x)
 		}
 	}
@@ -686,6 +728,7 @@ func (z *Element) SetString(s string) *Element {
 }
 
 // Mul z = x * y mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) Mul(x, y *Element) *Element {
 
 	var t [6]uint64
@@ -808,6 +851,7 @@ func (z *Element) Mul(x, y *Element) *Element {
 }
 
 // MulAssign z = z * x mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) MulAssign(x *Element) *Element {
 
 	var t [6]uint64
@@ -929,7 +973,109 @@ func (z *Element) MulAssign(x *Element) *Element {
 	return z
 }
 
+// Legendre returns the Legendre symbol of z (either +1, -1, or 0.)
+func (z *Element) Legendre() int {
+	var l Element
+	// z^((q-1)/2)
+	l.Exp(*z,
+		4793061456545316864,
+		830261717530312704,
+		10338489135656117248,
+		10165025652810090951,
+		7142008483575014557,
+		60549156353247349,
+	)
+
+	if l.IsZero() {
+		return 0
+	}
+
+	// if l == 1
+	if (l[5] == 39800542322357402) && (l[4] == 5545221690922665192) && (l[3] == 8885205928937022213) && (l[2] == 11492539364873682930) && (l[1] == 5854854902718660529) && (l[0] == 202099033278250856) {
+		return 1
+	}
+	return -1
+}
+
+// Sqrt z = √x mod q
+// if the square root doesn't exist (x is not a square mod q)
+// Sqrt leaves z unchanged and returns nil
+func (z *Element) Sqrt(x *Element) *Element {
+	// q ≡ 1 (mod 4)
+	// see modSqrtTonelliShanks in math/big/int.go
+	// using https://www.maa.org/sites/default/files/pdf/upload_library/22/Polya/07468342.di020786.02p0470a.pdf
+
+	var y, b, t, w Element
+	// w = x^((s-1)/2))
+	w.Exp(*x,
+		13441098641003579921,
+		14150156177295552022,
+		12963050682622819814,
+		828901211384460357,
+		8398139675458767990,
+		860,
+	)
+
+	// y = x^((s+1)/2)) = w * x
+	y.Mul(x, &w)
+
+	// b = x^s = w * w * x = y * x
+	b.Mul(&w, &y)
+
+	// g = nonResidue ^ s
+	var g = Element{
+		7563926049028936178,
+		2688164645460651601,
+		12112688591437172399,
+		3177973240564633687,
+		14764383749841851163,
+		52487407124055189,
+	}
+	r := uint64(46)
+
+	// compute legendre symbol
+	// t = x^((q-1)/2) = r-1 squaring of x^s
+	t = b
+	for i := uint64(0); i < r-1; i++ {
+		t.Square(&t)
+	}
+	if t.IsZero() {
+		return z.SetZero()
+	}
+	if !((t[5] == 39800542322357402) && (t[4] == 5545221690922665192) && (t[3] == 8885205928937022213) && (t[2] == 11492539364873682930) && (t[1] == 5854854902718660529) && (t[0] == 202099033278250856)) {
+		// t != 1, we don't have a square root
+		return nil
+	}
+	for {
+		var m uint64
+		t = b
+
+		// for t != 1
+		for !((t[5] == 39800542322357402) && (t[4] == 5545221690922665192) && (t[3] == 8885205928937022213) && (t[2] == 11492539364873682930) && (t[1] == 5854854902718660529) && (t[0] == 202099033278250856)) {
+			t.Square(&t)
+			m++
+		}
+
+		if m == 0 {
+			return z.Set(&y)
+		}
+		// t = g^(2^(r-m-1)) mod q
+		ge := int(r - m - 1)
+		t = g
+		for ge > 0 {
+			t.Square(&t)
+			ge--
+		}
+
+		g.Square(&t)
+		y.MulAssign(&t)
+		b.MulAssign(&g)
+		r = m
+	}
+}
+
 // Square z = x * x mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) Square(x *Element) *Element {
 
 	var p [6]uint64

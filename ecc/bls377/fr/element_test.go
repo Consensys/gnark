@@ -21,7 +21,14 @@ func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 
 	modulusMinusOne.Sub(modulus, &one)
 
-	for i := 0; i < 1000; i++ {
+	var n int
+	if testing.Short() {
+		n = 10
+	} else {
+		n = 500
+	}
+
+	for i := 0; i < n; i++ {
 
 		// sample 2 random big int
 		b1, _ := rand.Int(rand.Reader, modulus)
@@ -57,10 +64,10 @@ func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 
 		rbExp := new(big.Int).SetUint64(rExp)
 
-		var bMul, bAdd, bSub, bDiv, bNeg, bLsh, bInv, bExp, bSquare big.Int
+		var bMul, bAdd, bSub, bDiv, bNeg, bLsh, bInv, bExp, bExp2, bSquare big.Int
 
 		// e1 = mont(b1), e2 = mont(b2)
-		var e1, e2, eMul, eAdd, eSub, eDiv, eNeg, eLsh, eInv, eExp, eSquare, eMulAssign, eSubAssign, eAddAssign Element
+		var e1, e2, eMul, eAdd, eSub, eDiv, eNeg, eLsh, eInv, eExp, eExp2, eSquare, eMulAssign, eSubAssign, eAddAssign Element
 		e1.SetBigInt(b1)
 		e2.SetBigInt(b2)
 
@@ -79,6 +86,12 @@ func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 		eNeg.Neg(&e1)
 		eInv.Inverse(&e1)
 		eExp.Exp(e1, rExp)
+		bits := b2.Bits()
+		exponent := make([]uint64, len(bits))
+		for k := 0; k < len(bits); k++ {
+			exponent[k] = uint64(bits[k])
+		}
+		eExp2.Exp(e1, exponent...)
 		eLsh.Double(&e1)
 
 		// same operations with big int
@@ -93,6 +106,7 @@ func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 
 		bInv.ModInverse(b1, modulus)
 		bExp.Exp(b1, rbExp, modulus)
+		bExp2.Exp(b1, b2, modulus)
 		bLsh.Lsh(b1, 1).Mod(&bLsh, modulus)
 
 		cmpEandB(&eSquare, &bSquare, "Square")
@@ -106,12 +120,28 @@ func TestELEMENTCorrectnessAgainstBigInt(t *testing.T) {
 		cmpEandB(&eNeg, &bNeg, "Neg")
 		cmpEandB(&eInv, &bInv, "Inv")
 		cmpEandB(&eExp, &bExp, "Exp")
+		cmpEandB(&eExp2, &bExp2, "Exp multi words")
 		cmpEandB(&eLsh, &bLsh, "Lsh")
+
+		// legendre symbol
+		if e1.Legendre() != big.Jacobi(b1, modulus) {
+			t.Fatal("legendre symbol computation failed")
+		}
+		if e2.Legendre() != big.Jacobi(b2, modulus) {
+			t.Fatal("legendre symbol computation failed")
+		}
+
+		// sqrt
+		var eSqrt Element
+		var bSqrt big.Int
+		bSqrt.ModSqrt(b1, modulus)
+		eSqrt.Sqrt(&e1)
+		cmpEandB(&eSqrt, &bSqrt, "Sqrt")
 	}
 }
 
 func TestELEMENTIsRandom(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 50; i++ {
 		var x, y Element
 		x.SetRandom()
 		y.SetRandom()
@@ -125,7 +155,6 @@ func TestELEMENTIsRandom(t *testing.T) {
 // benchmarks
 // most benchmarks are rudimentary and should sample a large number of random inputs
 // or be run multiple times to ensure it didn't measure the fastest path of the function
-// TODO: clean up and push benchmarking branch
 
 var benchResElement Element
 
@@ -216,6 +245,15 @@ func BenchmarkSquareELEMENT(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		benchResElement.Square(&benchResElement)
+	}
+}
+
+func BenchmarkSqrtELEMENT(b *testing.B) {
+	var a Element
+	a.SetRandom()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchResElement.Sqrt(&a)
 	}
 }
 

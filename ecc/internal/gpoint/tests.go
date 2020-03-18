@@ -7,7 +7,7 @@ package {{.PackageName}}
 import (
 	"testing"
 	"fmt"
-	"github.com/consensys/gnark/internal/pool"
+	"github.com/consensys/gnark/utils/parallel"
 	"github.com/consensys/gnark/ecc/{{.PackageName}}/fr"
 )
 

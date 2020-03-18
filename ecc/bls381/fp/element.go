@@ -33,6 +33,7 @@ import (
 	"io"
 	"math/big"
 	"math/bits"
+	"strconv"
 	"sync"
 
 	"unsafe"
@@ -386,6 +387,34 @@ func (z *Element) SetRandom() *Element {
 	return z
 }
 
+func One() Element {
+	var one Element
+	one.SetOne()
+	return one
+}
+
+func FromInterface(i1 interface{}) Element {
+	var val Element
+
+	switch c1 := i1.(type) {
+	case uint64:
+		val.SetUint64(c1)
+	case int:
+		val.SetString(strconv.Itoa(c1))
+	case string:
+		val.SetString(c1)
+	case Element:
+		val = c1
+	case *Element:
+		val.Set(c1)
+	// TODO add big.Int convertions
+	default:
+		panic("invalid type")
+	}
+
+	return val
+}
+
 // Add z = x + y mod q
 func (z *Element) Add(x, y *Element) *Element {
 	var carry uint64
@@ -503,18 +532,31 @@ func (z *Element) SubAssign(x *Element) *Element {
 	return z
 }
 
-// Exp z = x^e mod q
-func (z *Element) Exp(x Element, e uint64) *Element {
-	if e == 0 {
+// Exp z = x^exponent mod q
+// (not optimized)
+// exponent (non-montgomery form) is ordered from least significant word to most significant word
+func (z *Element) Exp(x Element, exponent ...uint64) *Element {
+	r := 0
+	msb := 0
+	for i := len(exponent) - 1; i >= 0; i-- {
+		if exponent[i] == 0 {
+			r++
+		} else {
+			msb = (i * 64) + bits.Len64(exponent[i])
+			break
+		}
+	}
+	exponent = exponent[:len(exponent)-r]
+	if len(exponent) == 0 {
 		return z.SetOne()
 	}
 
 	z.Set(&x)
 
-	l := bits.Len64(e) - 2
+	l := msb - 2
 	for i := l; i >= 0; i-- {
 		z.Square(z)
-		if e&(1<<uint(i)) != 0 {
+		if exponent[i/64]&(1<<uint(i%64)) != 0 {
 			z.MulAssign(&x)
 		}
 	}
@@ -686,6 +728,7 @@ func (z *Element) SetString(s string) *Element {
 }
 
 // Mul z = x * y mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) Mul(x, y *Element) *Element {
 
 	var t [6]uint64
@@ -808,6 +851,7 @@ func (z *Element) Mul(x, y *Element) *Element {
 }
 
 // MulAssign z = z * x mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) MulAssign(x *Element) *Element {
 
 	var t [6]uint64
@@ -929,7 +973,55 @@ func (z *Element) MulAssign(x *Element) *Element {
 	return z
 }
 
+// Legendre returns the Legendre symbol of z (either +1, -1, or 0.)
+func (z *Element) Legendre() int {
+	var l Element
+	// z^((q-1)/2)
+	l.Exp(*z,
+		15924587544893707605,
+		1105070755758604287,
+		12941209323636816658,
+		12843041017062132063,
+		2706051889235351147,
+		936899308823769933,
+	)
+
+	if l.IsZero() {
+		return 0
+	}
+
+	// if l == 1
+	if (l[5] == 1582556514881692819) && (l[4] == 6631298214892334189) && (l[3] == 8632934651105793861) && (l[2] == 6865905132761471162) && (l[1] == 17002214543764226050) && (l[0] == 8505329371266088957) {
+		return 1
+	}
+	return -1
+}
+
+// Sqrt z = √x mod q
+// if the square root doesn't exist (x is not a square mod q)
+// Sqrt leaves z unchanged and returns nil
+func (z *Element) Sqrt(x *Element) *Element {
+	// q ≡ 3 (mod 4)
+	// using  z ≡ ± x^((p+1)/4) (mod q)
+	var y, square Element
+	y.Exp(*x,
+		17185665809301629611,
+		552535377879302143,
+		15693976698673184137,
+		15644892545385841839,
+		10576397981472451381,
+		468449654411884966,
+	)
+	// as we didn't compute the legendre symbol, ensure we found y such that y * y = x
+	square.Square(&y)
+	if square.Equal(x) {
+		return z.Set(&y)
+	}
+	return nil
+}
+
 // Square z = x * x mod q
+// see https://hackmd.io/@zkteam/modular_multiplication
 func (z *Element) Square(x *Element) *Element {
 
 	var p [6]uint64

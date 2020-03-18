@@ -25,10 +25,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/consensys/gnark/cs"
-	"github.com/consensys/gnark/cs/encoding/csv"
-	"github.com/consensys/gnark/cs/encoding/gob"
-	"github.com/consensys/gnark/cs/groth16"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/curve"
+	"github.com/consensys/gnark/utils/encoding/gob"
 	"github.com/spf13/cobra"
 )
 
@@ -70,11 +70,11 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints())
+	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 
 	// parse proving key
 	var pk groth16.ProvingKey
-	if err := gob.Read(fPkPath, &pk); err != nil {
+	if err := gob.Read(fPkPath, &pk, curve.ID); err != nil {
 		fmt.Println("can't load proving key")
 		fmt.Println(err)
 		os.Exit(-1)
@@ -82,7 +82,8 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
 
 	// parse input file
-	r1csInput, err := csv.Read(fInputPath)
+	r1csInput := backend.NewAssignment()
+	err = r1csInput.Read(fInputPath)
 	if err != nil {
 		fmt.Println("can't parse input", err)
 		os.Exit(-1)
@@ -110,7 +111,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		proofPath = fProofPath
 	}
 
-	if err := gob.Write(proofPath, proof); err != nil {
+	if err := gob.Write(proofPath, proof, curve.ID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
@@ -144,7 +145,7 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints())
+	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 
 	// run setup
 	var pk groth16.ProvingKey
@@ -154,12 +155,12 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 	duration := time.Since(start)
 	fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 
-	if err := gob.Write(vkPath, &vk); err != nil {
+	if err := gob.Write(vkPath, &vk, curve.ID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
 	fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
-	if err := gob.Write(pkPath, &pk); err != nil {
+	if err := gob.Write(pkPath, &pk, curve.ID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
@@ -197,7 +198,7 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 
 	// parse verifying key
 	var vk groth16.VerifyingKey
-	if err := gob.Read(fVkPath, &vk); err != nil {
+	if err := gob.Read(fVkPath, &vk, curve.ID); err != nil {
 		fmt.Println("can't load verifying key")
 		fmt.Println(err)
 		os.Exit(-1)
@@ -205,20 +206,21 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 	fmt.Printf("%-30s %-30s\n", "loaded verifying key", fVkPath)
 
 	// parse input file
-	r1csInput, err := csv.Read(fInputPath)
+	r1csInput := backend.NewAssignment()
+	err := r1csInput.Read(fInputPath)
 	if err != nil {
 		fmt.Println("can't parse input", err)
 		os.Exit(-1)
 	}
 	fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-	if len(vk.PublicInputsTracker)-1 != len(r1csInput) {
-		fmt.Printf("invalid input size. expected %d got %d\n", len(vk.PublicInputsTracker), len(r1csInput))
+	if len(vk.PublicInputs)-1 != len(r1csInput) {
+		fmt.Printf("invalid input size. expected %d got %d\n", len(vk.PublicInputs), len(r1csInput))
 		os.Exit(-1)
 	}
 
 	// load proof
 	var proof groth16.Proof
-	if err := gob.Read(proofPath, &proof); err != nil {
+	if err := gob.Read(proofPath, &proof, curve.ID); err != nil {
 		fmt.Println("can't parse proof", err)
 		os.Exit(-1)
 	}
@@ -236,15 +238,15 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 	fmt.Printf("%-30s %-30s %-30s\n", "proof is valid", proofPath, time.Since(start))
 }
 
-func loadCircuit(circuitPath string) (*cs.R1CS, error) {
+func loadCircuit(circuitPath string) (*backend.R1CS, error) {
 	// first, let's ensure provided circuit exists.
 	if !fileExists(circuitPath) {
 		return nil, errNotFound
 	}
 
 	// now let's deserialize the R1CS
-	var circuit cs.R1CS
-	if err := gob.Read(circuitPath, &circuit); err != nil {
+	var circuit backend.R1CS
+	if err := gob.Read(circuitPath, &circuit, curve.ID); err != nil {
 		return nil, err
 	}
 	return &circuit, nil

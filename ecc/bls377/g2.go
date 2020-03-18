@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/ecc/bls377/fr"
-	"github.com/consensys/gnark/internal/debug"
-	"github.com/consensys/gnark/internal/pool"
+	"github.com/consensys/gnark/utils/debug"
+	"github.com/consensys/gnark/utils/parallel"
 )
 
 // G2Jac is a point with e2 coordinates
@@ -572,12 +572,12 @@ func (p *G2Jac) MultiExpFormer(curve *Curve, points []G2Affine, scalars []fr.Ele
 			close(chIndices[i])
 		}
 	}
-	pool.ExecuteAsyncReverse(0, int(nbCalls), work, false)
+	parallel.ExecuteAsyncReverse(0, int(nbCalls), work, false)
 
 	// now we have the indices, let's compute what's inside
 
 	debug.Assert(nbCalls > 1)
-	pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int) {
+	parallel.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int) {
 		for i := start; i < end; i++ {
 			var res G2Jac
 			sum := curve.g2Infinity
@@ -787,7 +787,7 @@ func (p *G2Jac) MultiExp(curve *Curve, points []G2Affine, scalars []fr.Element) 
 // uses all availables runtime.NumCPU()
 func (p *G2Jac) WindowedMultiExp(curve *Curve, points []G2Jac, scalars []fr.Element) *G2Jac {
 	var lock sync.Mutex
-	pool.Execute(0, len(points), func(start, end int) {
+	parallel.Execute(0, len(points), func(start, end int) {
 		var t G2Jac
 		t.multiExp(curve, points[start:end], scalars[start:end])
 		lock.Lock()

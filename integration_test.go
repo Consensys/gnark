@@ -23,9 +23,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/consensys/gnark/cs"
-	"github.com/consensys/gnark/cs/encoding/csv"
-	"github.com/consensys/gnark/cs/encoding/gob"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/curve"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/utils/encoding/gob"
 )
 
 func TestIntegration(t *testing.T) {
@@ -47,18 +48,19 @@ func TestIntegration(t *testing.T) {
 	c, good, bad := testCircuit()
 
 	// 1: serialize circuit to disk
-	if err := gob.Write(fCircuit, c); err != nil {
+	if err := gob.Write(fCircuit, c, curve.ID); err != nil {
 		t.Fatal(err)
 	}
 
 	// spv: setup, prove, verify
-	spv := func(x map[string]cs.Assignment, expectedVerifyResult bool) {
-		buildTags := cs.CurveID.String() + ",debug"
+	spv := func(x backend.Assignments, expectedVerifyResult bool) {
+		buildTags := curve.ID.String() + ",debug"
 		// 2: input files to disk
-		if err := csv.Write(x, fInput); err != nil {
+		if err := x.Write(fInput); err != nil {
 			t.Fatal(err)
 		}
-		if err := csv.Write(filterOutPrivateAssignment(x), fPublicInput); err != nil {
+		y := filterOutPrivateAssignment(x)
+		if err := y.Write(fPublicInput); err != nil {
 			t.Fatal(err)
 		}
 
@@ -103,8 +105,8 @@ func TestIntegration(t *testing.T) {
 
 }
 
-func filterOutPrivateAssignment(assignments map[string]cs.Assignment) map[string]cs.Assignment {
-	toReturn := make(map[string]cs.Assignment)
+func filterOutPrivateAssignment(assignments backend.Assignments) backend.Assignments {
+	toReturn := backend.NewAssignment()
 	for k, v := range assignments {
 		if v.IsPublic {
 			toReturn[k] = v
@@ -114,8 +116,8 @@ func filterOutPrivateAssignment(assignments map[string]cs.Assignment) map[string
 	return toReturn
 }
 
-func testCircuit() (*cs.R1CS, map[string]cs.Assignment, map[string]cs.Assignment) {
-	circuit := cs.New()
+func testCircuit() (*backend.R1CS, backend.Assignments, backend.Assignments) {
+	circuit := frontend.New()
 
 	// declare inputs
 	x := circuit.SECRET_INPUT("x")
@@ -129,21 +131,21 @@ func testCircuit() (*cs.R1CS, map[string]cs.Assignment, map[string]cs.Assignment
 	}
 	circuit.MUSTBE_EQ(x, y)
 
-	good := cs.NewAssignment()
-	good.Assign(cs.Secret, "x", 2)
+	good := backend.NewAssignment()
+	good.Assign(backend.Secret, "x", 2)
 
 	// compute expected Y
-	expectedY := cs.Element(2)
+	expectedY := frontend.Element(2)
 
 	for i := 0; i < nbConstraints; i++ {
 		expectedY.MulAssign(&expectedY)
 	}
 
-	good.Assign(cs.Public, "y", expectedY)
+	good.Assign(backend.Public, "y", expectedY)
 
-	bad := cs.NewAssignment()
-	bad.Assign(cs.Secret, "x", 2)
-	bad.Assign(cs.Public, "y", 3)
+	bad := backend.NewAssignment()
+	bad.Assign(backend.Secret, "x", 2)
+	bad.Assign(backend.Public, "y", 3)
 
-	return cs.NewR1CS(&circuit), good, bad
+	return circuit.ToR1CS(), good, bad
 }

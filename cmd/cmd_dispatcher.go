@@ -24,7 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/consensys/gnark/cs/encoding/gob"
+	"github.com/consensys/gnark/backend/encoding/gob"
 	"github.com/consensys/gnark/ecc"
 	"github.com/spf13/cobra"
 )

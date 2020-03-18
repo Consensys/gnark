@@ -124,12 +124,12 @@ func (p *{{.Name}}Jac) MultiExpFormer(curve *Curve, points []{{ .Name}}Affine, s
 			close(chIndices[i])
 		}
 	}
-	pool.ExecuteAsyncReverse(0, int(nbCalls), work, false)
+	parallel.ExecuteAsyncReverse(0, int(nbCalls), work, false)
 
 	// now we have the indices, let's compute what's inside
 
 	debug.Assert(nbCalls > 1)
-	pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int){
+	parallel.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int){
 		for i := start; i < end; i++ {
 			var res  {{ .Name}}Jac
 			sum := curve.{{toLower .Name}}Infinity
@@ -342,7 +342,7 @@ const windowedMultiExp = `
 // uses all availables runtime.NumCPU()
 func (p *{{.Name}}Jac) WindowedMultiExp(curve *Curve, points []{{.Name}}Jac, scalars []fr.Element) *{{.Name}}Jac {
 	var lock sync.Mutex
-	pool.Execute(0, len(points), func(start, end int) {
+	parallel.Execute(0, len(points), func(start, end int) {
 		var t {{.Name}}Jac
 		t.multiExp(curve, points[start:end], scalars[start:end])
 		lock.Lock()

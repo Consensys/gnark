@@ -35,8 +35,8 @@ import (
 		"github.com/consensys/gnark/ecc/{{.PackageName}}/fp"
 	{{end}}
 	"github.com/consensys/gnark/ecc/{{.PackageName}}/fr"
-	"github.com/consensys/gnark/internal/pool"
-	"github.com/consensys/gnark/internal/debug"
+	"github.com/consensys/gnark/utils/parallel"
+	"github.com/consensys/gnark/utils/debug"
 	"sync"
 )
 

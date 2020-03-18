@@ -83,11 +83,11 @@ func main() {
 	//----------------//
 	// use goff to generate fp, fr
 	//----------------//
-	if err := cmd.GenerateFF("fp", "Element", fFp, filepath.Join(fOutputDir, "fp"), false); err != nil {
+	if err := cmd.GenerateFF("fp", "Element", fFp, filepath.Join(fOutputDir, "fp"), false, false); err != nil {
 		fmt.Fprintln(os.Stderr, "goff field generation failed")
 		os.Exit(-1)
 	}
-	if err := cmd.GenerateFF("fr", "Element", fFr, filepath.Join(fOutputDir, "fr"), false); err != nil {
+	if err := cmd.GenerateFF("fr", "Element", fFr, filepath.Join(fOutputDir, "fr"), false, false); err != nil {
 		fmt.Fprintln(os.Stderr, "goff field generation failed")
 		os.Exit(-1)
 	}
