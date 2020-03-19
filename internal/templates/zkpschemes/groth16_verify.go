@@ -62,9 +62,6 @@ func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.E
 	// ensure we don't assign private inputs
 	publicInput := input.DiscardSecrets()
 
-	// assert we have exactly the number of inputs that we expect
-	debug.Assert(len(publicInput) == (len(expectedNames) - 1)) // - 1 for the ONE_WIRE that shouldn't be there
-
 	for i := 0; i < len(expectedNames); i++ {
 		if expectedNames[i] == constants.OneWire {
 			// ONE_WIRE is a reserved name, it should not be set by the user

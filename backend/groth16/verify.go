@@ -21,7 +21,6 @@ package groth16
 import (
 	"github.com/consensys/gnark/curve"
 	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/utils/debug"
 
 	"github.com/consensys/gnark/backend"
 
@@ -75,9 +74,6 @@ func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.E
 
 	// ensure we don't assign private inputs
 	publicInput := input.DiscardSecrets()
-
-	// assert we have exactly the number of inputs that we expect
-	debug.Assert(len(publicInput) == (len(expectedNames) - 1)) // - 1 for the ONE_WIRE that shouldn't be there
 
 	for i := 0; i < len(expectedNames); i++ {
 		if expectedNames[i] == constants.OneWire {

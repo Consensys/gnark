@@ -26,6 +26,7 @@ import (
 
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	constants "github.com/consensys/gnark/backend"
@@ -34,7 +35,7 @@ import (
 
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
-	matches, _ := filepath.Glob("./testdata/*.r1cs")
+	matches, _ := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
 	for _, name := range matches {
 		name = name[:len(name)-5]
 		t.Log("testing circuit", name)
