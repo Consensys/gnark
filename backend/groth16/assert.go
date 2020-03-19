@@ -75,12 +75,15 @@ func (assert *Assert) Solved(r1cs *backend.R1CS, solution backend.Assignments, e
 		assert.False(pk.G1.Delta.Equal(&pk2.G1.Delta), "groth16 setup with same input should produce different outputs (delta)")
 
 		for i := 0; i < len(pk.G1.K); i++ {
-			assert.False(pk.G1.K[i].Equal(&pk2.G1.K[i]), "groth16 setup with same input should produce different outputs (pk.K)")
+			if !pk.G1.K[i].IsInfinity() {
+				assert.False(pk.G1.K[i].Equal(&pk2.G1.K[i]), "groth16 setup with same input should produce different outputs (pk.K)")
+			}
 		}
 
 		for i := 0; i < len(vk.G1.K); i++ {
-			// TODO why is that commented?
-			// assert.False(vk.G1.K[i].Equal(&vk2.G1.K[i]), "groth16 setup with same input should produce different outputs (vk.K)")
+			if !vk.G1.K[i].IsInfinity() {
+				assert.False(vk.G1.K[i].Equal(&vk2.G1.K[i]), "groth16 setup with same input should produce different outputs (vk.K)")
+			}
 		}
 	}
 
