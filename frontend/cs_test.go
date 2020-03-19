@@ -141,9 +141,9 @@ func TestADD(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      3,
+		nbConstraints:              3,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -191,9 +191,9 @@ func TestSUB(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      3,
+		nbConstraints:              3,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -243,9 +243,9 @@ func TestMUL(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      3,
+		nbConstraints:              3,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -289,9 +289,9 @@ func TestDIV(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              1,
+		nbPrivateWires:             0,
+		nbPublicWires:              3,
 	})
 
 	bad := backend.NewAssignment()
@@ -342,9 +342,9 @@ func TestDIVLC(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              1,
+		nbPrivateWires:             0,
+		nbPublicWires:              3,
 	})
 
 	bad := backend.NewAssignment()
@@ -393,9 +393,9 @@ func TestMULLC(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              1,
+		nbPrivateWires:             0,
+		nbPublicWires:              3,
 	})
 
 	bad := backend.NewAssignment()
@@ -440,9 +440,9 @@ func TestSELECT(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 1,
-		nbConstraints:              1,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              2,
+		nbPrivateWires:             0,
+		nbPublicWires:              4,
 	})
 
 	bad := backend.NewAssignment()
@@ -496,9 +496,9 @@ func TestFROM_BINARY(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    7,
 		nbComputationalConstraints: 1,
-		nbConstraints:              5,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              6,
+		nbPrivateWires:             0,
+		nbPublicWires:              6,
 	})
 
 	bad := backend.NewAssignment()
@@ -557,10 +557,10 @@ func TestTO_BINARY(t *testing.T) {
 	// tests solving R1CS
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    7,
-		nbComputationalConstraints: 1,
-		nbConstraints:              5,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      5,
+		nbComputationalConstraints: 5,
+		nbConstraints:              10,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -613,9 +613,9 @@ func TestSELECT_LUT(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
-		nbConstraints:              2,
-		privateInputStartIndex:     1,
-		publicInputStartIndex:      3,
+		nbConstraints:              3,
+		nbPrivateWires:             2,
+		nbPublicWires:              1,
 	})
 
 	bad := backend.NewAssignment()
@@ -670,9 +670,9 @@ func TestXOR(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    7,
 		nbComputationalConstraints: 3,
-		nbConstraints:              3,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      3,
+		nbConstraints:              6,
+		nbPrivateWires:             0,
+		nbPublicWires:              4,
 	})
 
 	bad := backend.NewAssignment()
@@ -722,9 +722,9 @@ func TestALLOC(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    2,
 		nbComputationalConstraints: 1,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              1,
+		nbPrivateWires:             0,
+		nbPublicWires:              1,
 	})
 
 	// bad := backend.NewAssignment()
@@ -763,8 +763,8 @@ func TestMUSTBE_BOOL(t *testing.T) {
 		nbWires:                    2,
 		nbComputationalConstraints: 0,
 		nbConstraints:              1,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      0,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -801,7 +801,7 @@ func TestXtimes2EqualsY(t *testing.T) {
 	// tests CS
 	assert.csIsCorrect(circuit, expectedCS{
 		nbWires:         4,
-		nbConstraints:   5, // TODO 5, really?
+		nbConstraints:   5,
 		nbMOConstraints: 0,
 		nbNOConstraints: 0,
 	})
@@ -810,9 +810,9 @@ func TestXtimes2EqualsY(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    4, // TODO why 1 wire for cst?
 		nbComputationalConstraints: 1,
-		nbConstraints:              1,
-		privateInputStartIndex:     1,
-		publicInputStartIndex:      2,
+		nbConstraints:              2,
+		nbPrivateWires:             1,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -859,9 +859,9 @@ func TestINV(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    3,
 		nbComputationalConstraints: 1,
-		nbConstraints:              0,
-		privateInputStartIndex:     -1,
-		publicInputStartIndex:      1,
+		nbConstraints:              1,
+		nbPrivateWires:             0,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -914,9 +914,9 @@ func TestMerge(t *testing.T) {
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 1,
-		nbConstraints:              1,
-		privateInputStartIndex:     1,
-		publicInputStartIndex:      3,
+		nbConstraints:              2,
+		nbPrivateWires:             2,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()
@@ -978,10 +978,10 @@ func TestMergeMoeNoe(t *testing.T) {
 	// tests solving R1CS
 	assert.r1csIsCorrect(circuit, expectedR1CS{
 		nbWires:                    5,
-		nbComputationalConstraints: 1,
-		nbConstraints:              3,
-		privateInputStartIndex:     2,
-		publicInputStartIndex:      3,
+		nbComputationalConstraints: 2,
+		nbConstraints:              5,
+		nbPrivateWires:             1,
+		nbPublicWires:              2,
 	})
 
 	bad := backend.NewAssignment()

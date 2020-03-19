@@ -21,6 +21,7 @@ package groth16
 import (
 	"github.com/consensys/gnark/curve"
 	"github.com/consensys/gnark/curve/fr"
+	"github.com/consensys/gnark/utils/debug"
 
 	"github.com/consensys/gnark/backend"
 
@@ -28,7 +29,7 @@ import (
 )
 
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, publicInputs map[string]backend.Assignment) (bool, error) {
+func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, error) {
 
 	c := curve.GetCurve()
 
@@ -49,11 +50,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicInputs map[string]backend.Assi
 		chan2 <- true
 	}()
 
-	inputs, err := ParsePublicInput(vk.PublicInputs, publicInputs)
+	kInputs, err := parsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return false, err
 	}
-	<-kSum.MultiExp(c, vk.G1.K, inputs)
+	<-kSum.MultiExp(c, vk.G1.K, kInputs)
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine
@@ -67,35 +68,30 @@ func Verify(proof *Proof, vk *VerifyingKey, publicInputs map[string]backend.Assi
 	return vk.E.Equal(&right), nil
 }
 
-// ParsePublicInput return the input values, not in Montgomery form
-// TODO should not be here
-func ParsePublicInput(expectedNames []string, publicInput map[string]backend.Assignment) ([]fr.Element, error) {
-
+// parsePublicInput return the ordered public input values
+// in regular form (used as scalars for multi exponentiation)
+func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.Element, error) {
 	toReturn := make([]fr.Element, len(expectedNames))
 
-	// // ONE_WIRE is a reserved name, it should not be set by the user
-	// if _, ok := publicInput[constants.OneWire]; ok {
-	// 	return nil, ErrGotOneWire
-	// }
+	// ensure we don't assign private inputs
+	publicInput := input.DiscardSecrets()
+
+	// assert we have exactly the number of inputs that we expect
+	debug.Assert(len(publicInput) == (len(expectedNames) - 1)) // - 1 for the ONE_WIRE that shouldn't be there
 
 	for i := 0; i < len(expectedNames); i++ {
-
 		if expectedNames[i] == constants.OneWire {
+			// ONE_WIRE is a reserved name, it should not be set by the user
 			toReturn[i].SetOne()
 			toReturn[i].FromMont()
 		} else {
-
 			if val, ok := publicInput[expectedNames[i]]; ok {
-				if !val.IsPublic {
-					return nil, constants.ErrInputVisiblity
-				}
 				toReturn[i] = val.Value.ToRegular()
 			} else {
 				return nil, constants.ErrInputNotSet
 			}
-
 		}
-
 	}
+
 	return toReturn, nil
 }

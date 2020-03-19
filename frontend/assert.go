@@ -49,7 +49,11 @@ func (assert *Assert) NotSolved(circuit CS, solution backend.Assignments) {
 		// solving with missing assignments should return a ErrInputNotSet
 		nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
 		if len(solution) < nbInputs {
-			_, _, _, _, err := r.Solve(solution)
+			wireValues := make([]fr.Element, r.NbWires)
+			a := make([]fr.Element, r.NbConstraints)
+			b := make([]fr.Element, r.NbConstraints)
+			c := make([]fr.Element, r.NbConstraints)
+			err := r.Solve(solution, a, b, c, wireValues)
 			assert.Error(err, "solving R1CS with bad solution should return an error")
 			assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
 			return
@@ -63,7 +67,11 @@ func (assert *Assert) NotSolved(circuit CS, solution backend.Assignments) {
 
 	{
 		r := circuit.ToR1CS()
-		_, _, _, _, err := r.Solve(solution)
+		wireValues := make([]fr.Element, r.NbWires)
+		a := make([]fr.Element, r.NbConstraints)
+		b := make([]fr.Element, r.NbConstraints)
+		c := make([]fr.Element, r.NbConstraints)
+		err := r.Solve(solution, a, b, c, wireValues)
 		assert.Error(err, "solving R1CS with bad solution should return an error")
 		assert.True(errors.Is(err, backend.ErrUnsatisfiedConstraint) || errors.Is(err, backend.ErrInputVisiblity), "expected ErrUnsatisfiedConstraint or ErrInputVisiblity")
 	}
@@ -78,7 +86,11 @@ func (assert *Assert) Solved(circuit CS, solution backend.Assignments, expectedV
 
 	{
 		r1cs := circuit.ToR1CS()
-		a, b, c, wireValues, err := r1cs.Solve(solution)
+		wireValues := make([]fr.Element, r1cs.NbWires)
+		a := make([]fr.Element, r1cs.NbConstraints)
+		b := make([]fr.Element, r1cs.NbConstraints)
+		c := make([]fr.Element, r1cs.NbConstraints)
+		err := r1cs.Solve(solution, a, b, c, wireValues)
 		assert.Nil(err, "solving R1CS with good solution shouldn't return an error")
 		assert.Equal(len(a), len(b), "R1CS solution a,b and c vectors should be the same size")
 		assert.Equal(len(b), len(c), "R1CS solution a,b and c vectors should be the same size")
@@ -110,7 +122,7 @@ type expectedCS struct {
 }
 
 type expectedR1CS struct {
-	nbWires, nbComputationalConstraints, nbConstraints, privateInputStartIndex, publicInputStartIndex int
+	nbWires, nbComputationalConstraints, nbConstraints, nbPrivateWires, nbPublicWires int
 }
 
 func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
@@ -123,10 +135,10 @@ func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
 func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 	r1cs := circuit.ToR1CS()
 	assert.Equal(expectedR1CS.nbWires, r1cs.NbWires, "r1cs nbWires")
-	// assert.Equal(expectedR1CS.nbComputationalConstraints, len(r1cs.ComputationalGraph), "r1cs nbComputationalConstraints")
-	// assert.Equal(expectedR1CS.nbComputationalConstraints+expectedR1CS.nbConstraints, len(r1cs.Constraints), "r1cs nbConstraints")
-	// assert.Equal(expectedR1CS.publicInputStartIndex, r1cs.PublicWireStartIndex, "r1cs public input start index")
-	// assert.Equal(expectedR1CS.privateInputStartIndex, r1cs.PrivateWireStartIndex, "r1cs private input start index")
+	assert.Equal(expectedR1CS.nbPrivateWires, r1cs.NbPrivateWires, "r1cs private nbWires")
+	assert.Equal(expectedR1CS.nbPublicWires, r1cs.NbPublicWires, "r1cs public nbWires")
+	assert.Equal(expectedR1CS.nbConstraints, r1cs.NbConstraints, "r1cs nbConstraints")
+	assert.Equal(expectedR1CS.nbComputationalConstraints, r1cs.NbCOConstraints, "r1cs computational nbConstraints")
 }
 
 func (assert *Assert) errInputNotSet(circuit CS) {
@@ -134,7 +146,11 @@ func (assert *Assert) errInputNotSet(circuit CS) {
 
 	nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
 	if nbInputs > 0 {
-		_, _, _, _, err := r.Solve(backend.NewAssignment())
+		wireValues := make([]fr.Element, r.NbWires)
+		a := make([]fr.Element, r.NbConstraints)
+		b := make([]fr.Element, r.NbConstraints)
+		c := make([]fr.Element, r.NbConstraints)
+		err := r.Solve(backend.NewAssignment(), a, b, c, wireValues)
 		assert.Error(err, "solving R1CS without assignments should return an error")
 		assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
 	}

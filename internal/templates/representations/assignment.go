@@ -102,5 +102,15 @@ func (assignment Assignments) Write(path string) error {
 	return nil
 }
 
+// DiscardSecrets returns a copy of self without Secret Assigment
+func (assignments Assignments) DiscardSecrets() Assignments {
+	toReturn := NewAssignment()
+	for k, v := range assignments {
+		if v.IsPublic {
+			toReturn[k] = v
+		}
+	}
+	return toReturn
+}
 
 `

@@ -124,17 +124,15 @@ func main() {
 			}
 		}
 
-		if d.Curve != "GENERIC" {
-			{
-				// tests
-				src := []string{
-					templates.Header,
-					templates.ImportCurve,
-					zkpschemes.Groth16Tests,
-				}
-				if err := generateCode(d.rootPath+"groth16/groth16_test.go", src, d); err != nil {
-					panic(err)
-				}
+		{
+			// tests
+			src := []string{
+				templates.Header,
+				templates.ImportCurve,
+				zkpschemes.Groth16Tests,
+			}
+			if err := generateCode(d.rootPath+"groth16/groth16_test.go", src, d); err != nil {
+				panic(err)
 			}
 		}
 

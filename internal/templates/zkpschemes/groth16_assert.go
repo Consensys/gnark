@@ -89,7 +89,7 @@ func (assert *Assert) Solved(r1cs *backend.R1CS, solution backend.Assignments, e
 	}
 
 	// verifier
-	assert.checkProof(true, proof, &vk, filterOutPrivateAssignment(solution))
+	assert.checkProof(true, proof, &vk, solution.DiscardSecrets())
 
 	// fuzz testing
 	// TODO need to fuzz inputs once code is genrated and we have fixed size arrays
@@ -99,53 +99,29 @@ func (assert *Assert) Solved(r1cs *backend.R1CS, solution backend.Assignments, e
 		// pk = ProvingKey{}
 		// proof, err := Prove(r1cs, &pk, solution)
 		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, filterOutPrivateAssignment(solution))
+		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
 
 		// // 2. fuzzing the pk
 		// assert.fuzz.Fuzz(&pk)
 		// pk.G1.A[0].X.SetRandom()
 		// proof, err = Prove(r1cs, &pk, solution)
 		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, filterOutPrivateAssignment(solution))
+		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
 
 		// // 3. fuzzing the vk
 		// vk = VerifyingKey{}
 		// assert.fuzz.Fuzz(&vk)
 		// proof, err = Prove(r1cs, &goodPk, solution)
 		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, filterOutPrivateAssignment(solution))
+		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
 
 	}
 }
 
 func (assert *Assert) checkProof(expected bool, proof *Proof, vk *VerifyingKey, solution backend.Assignments) {
-	isValid, err := Verify(proof, vk, filterOutPrivateAssignment(solution))
+	isValid, err := Verify(proof, vk, solution.DiscardSecrets())
 	assert.Nil(err, "verifying proof with good solution should not output an error")
 	assert.True(isValid == expected, "unexpected Verify(proof) result")
-}
-
-// TODO this need to be done somewhere else
-// func (assert *Assert) serializeRoundTrip(r1cs *backend.R1CS) {
-// 	rawR1CS := circuit.ToR1CS()
-// 	var bytes bytes.Buffer
-// 	err := gob.Serialize(&bytes, rawR1CS)
-// 	assert.Nil(err, "serializing R1CS shouldn't output an error")
-// 	var r1cs r1cs.R1CS
-// 	err = gob.Deserialize(&bytes, &r1cs)
-// 	assert.Nil(err, "deserializing R1CS shouldn't output an error")
-
-// 	assert.True(reflect.DeepEqual(rawR1CS, &r1cs), "round trip (de)serialization of R1CS failed")
-// }
-
-// TODO this is a duplicate with groth16_test
-func filterOutPrivateAssignment(assignments map[string]backend.Assignment) map[string]backend.Assignment {
-	toReturn := backend.NewAssignment()
-	for k, v := range assignments {
-		if v.IsPublic {
-			toReturn[k] = v
-		}
-	}
-	return toReturn
 }
 
 `

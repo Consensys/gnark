@@ -2,8 +2,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve"
@@ -33,6 +35,20 @@ func addEntry(name string, r1cs *backend.R1CS, good, bad backend.Assignments) {
 func main() {
 
 	for k, v := range circuits {
+		// test r1cs serialization
+		var bytes bytes.Buffer
+		if err := gob.Serialize(&bytes, v.r1cs, curve.ID); err != nil {
+			panic("serializaing R1CS shouldn't output an error")
+		}
+		var r1cs backend.R1CS
+		if err := gob.Deserialize(&bytes, &r1cs, curve.ID); err != nil {
+			panic("deserializaing R1CS shouldn't output an error")
+		}
+		if !reflect.DeepEqual(v.r1cs, &r1cs) {
+			panic("round trip (de)serializaiton of R1CS failed")
+		}
+
+		// serialize test circuits to disk
 		fName := fmt.Sprintf("%s/%s.", os.Args[1], k)
 		fmt.Println("generating", fName)
 		if err := gob.Write(fName+"r1cs", v.r1cs, curve.ID); err != nil {
@@ -44,5 +60,6 @@ func main() {
 		if err := v.bad.Write(fName + "bad"); err != nil {
 			panic(err)
 		}
+
 	}
 }

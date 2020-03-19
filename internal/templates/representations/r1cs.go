@@ -37,18 +37,18 @@ type R1CS struct {
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // assignment: map[string]value: contains the input variables
 // a, b, c vectors: ab-c = hz
-// WireValues =  [intermediateVariables | privateInputs | publicInputs]
-// WireValues = [..PrivateWireStartIndex-1] || [PrivateWireStartIndex..PublicInputsStartIndex-1] || [PublicInputsStartIndex...].
-// The label of the wire is the index in the wire tracker
-func (r1cs *R1CS) Solve(assignment map[string]Assignment) (a, b, c, wireValues []fr.Element, err error) {
+// wireValues =  [intermediateVariables | privateInputs | publicInputs]
+func (r1cs *R1CS) Solve(assignment Assignments, a, b, c, wireValues []fr.Element) error {
 
 	// compute the wires and the a, b, c polynomials
-	// TODO reserving extra capacity here should help, (fftDomain.Cardinality) --> better to take a,b,c as parameters
-	a = make([]fr.Element, r1cs.NbConstraints)
-	b = make([]fr.Element, r1cs.NbConstraints)
-	c = make([]fr.Element, r1cs.NbConstraints)
+	debug.Assert(len(a) == r1cs.NbConstraints)
+	debug.Assert(len(b) == r1cs.NbConstraints)
+	debug.Assert(len(c) == r1cs.NbConstraints)
+	debug.Assert(len(wireValues) == r1cs.NbWires)
+	
+	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
-	wireValues = make([]fr.Element, r1cs.NbWires)
+	
 
 	// instantiate the public/ private inputs
 	instantiateInputs := func(offset int, visibility {{if ne .Curve "GENERIC"}} backend.{{- end}}Visibility, inputNames []string) error {
@@ -77,14 +77,14 @@ func (r1cs *R1CS) Solve(assignment map[string]Assignment) (a, b, c, wireValues [
 	if r1cs.NbPrivateWires != 0 {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
 		if err := instantiateInputs(offset, {{if ne .Curve "GENERIC"}} backend.{{- end}}Secret, r1cs.PrivateWires); err != nil {
-			return nil, nil, nil, nil, err
+			return err
 		}
 	}
 	// instantiate public inputs
 	{
 		offset := r1cs.NbWires - r1cs.NbPublicWires // public input start index
 		if err := instantiateInputs(offset, {{if ne .Curve "GENERIC"}} backend.{{- end}}Public, r1cs.PublicWires); err != nil {
-			return nil, nil, nil, nil, err
+			return err
 		}
 	}
 
@@ -112,14 +112,14 @@ func (r1cs *R1CS) Solve(assignment map[string]Assignment) (a, b, c, wireValues [
 			invalidB := b[i]
 			invalidC := c[i]
 
-			return a, b, c, wireValues, fmt.Errorf("%w: %q * %q != %q", {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrUnsatisfiedConstraint,
+			return fmt.Errorf("%w: %q * %q != %q", {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrUnsatisfiedConstraint,
 				invalidA.String(),
 				invalidB.String(),
 				invalidC.String())
 		}
 	}
 
-	return
+	return nil
 }
 
 // Inspect returns the tagged variables with their corresponding value
@@ -129,7 +129,8 @@ func (r1cs *R1CS) Inspect(wireValues []fr.Element) (map[string]fr.Element, error
 	for wireID, tags := range r1cs.WireTags {
 		for _, tag := range tags {
 			if _, ok := res[tag]; ok {
-				return nil, {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrDuplicateTag // TODO ensure wire.Tag() checks for duplicates ?
+				// TODO checking duplicates should be done in the frontend, probably in cs.ToR1CS()
+				return nil, {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrDuplicateTag 
 			}
 			res[tag] = wireValues[wireID]
 		}
@@ -296,10 +297,8 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	}
 }
 
-func (r1cs *R1CS) Write(path string) {
-	if err := gob.Write(path, r1cs, curve.ID); err != nil {
-		panic(err) // TODO fixme
-	}
+func (r1cs *R1CS) Write(path string) error {
+	return gob.Write(path, r1cs, curve.ID)
 }
 
 `

@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve"
+	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/utils/encoding/gob"
 )
@@ -135,7 +136,7 @@ func testCircuit() (*backend.R1CS, backend.Assignments, backend.Assignments) {
 	good.Assign(backend.Secret, "x", 2)
 
 	// compute expected Y
-	expectedY := frontend.Element(2)
+	expectedY := fr.FromInterface(2)
 
 	for i := 0; i < nbConstraints; i++ {
 		expectedY.MulAssign(&expectedY)

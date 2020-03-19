@@ -5,7 +5,7 @@ const Groth16Tests = `
 
 {{ template "header" . }}
 
-package groth16_test
+package groth16
 
 import (
 	{{ template "import_curve" . }}
@@ -14,22 +14,14 @@ import (
 	"runtime/debug"
 	"testing"
 
-	{{if eq .Curve "BLS377"}}
-	"github.com/consensys/gnark/backend/bls377/groth16"
-	{{else if eq .Curve "BLS381"}}
-	"github.com/consensys/gnark/backend/bls381/groth16"
-	{{else if eq .Curve "BN256"}}
-	"github.com/consensys/gnark/backend/bn256/groth16"
-	{{end}}
 
-	
 	"github.com/consensys/gnark/utils/encoding/gob"
 	constants "github.com/consensys/gnark/backend"
 )
 
 
 func TestCircuits(t *testing.T) {
-	assert := groth16.NewAssert(t)
+	assert := NewAssert(t)
 	matches, _ := filepath.Glob("./testdata/*.r1cs")
 	for _, name := range matches {
 		name = name[:len(name)-5]
@@ -53,35 +45,30 @@ func TestCircuits(t *testing.T) {
 	}
 }
 
-// test input
-// TODO should probably not be here
 func TestParsePublicInput(t *testing.T) {
 
 	expectedNames := [2]string{"data", "ONE_WIRE"}
 
 	inputOneWire := backend.NewAssignment()
 	inputOneWire.Assign(constants.Public, "ONE_WIRE", 3)
-	_, errOneWire := groth16.ParsePublicInput(expectedNames[:], inputOneWire)
-	if errOneWire == nil {
-		t.Fatal("expected ErrGotOneWire error")
+	if _, err := parsePublicInput(expectedNames[:], inputOneWire); err == nil {
+		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	inputPrivate := backend.NewAssignment()
 	inputPrivate.Assign(constants.Secret, "data", 3)
-	_, errPrivate := groth16.ParsePublicInput(expectedNames[:], inputPrivate)
-	if errPrivate == nil {
-		t.Fatal("expected ErrGotPrivateInput error")
+	if _, err := parsePublicInput(expectedNames[:], inputPrivate); err == nil {
+		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	missingInput := backend.NewAssignment()
-	_, errMissing := groth16.ParsePublicInput(expectedNames[:], missingInput)
-	if errMissing == nil {
+	if _, err := parsePublicInput(expectedNames[:], missingInput); err == nil {
 		t.Fatal("expected ErrMissingAssigment")
 	}
 
 	correctInput := backend.NewAssignment()
 	correctInput.Assign(constants.Public, "data", 3)
-	got, err := groth16.ParsePublicInput(expectedNames[:], correctInput)
+	got, err := parsePublicInput(expectedNames[:], correctInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,69 +110,60 @@ func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments)
 	return r1cs, good, bad
 }
 
-// BenchmarkSetup is a helper to benchmark groth16.Setup on a given circuit
+// BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk groth16.ProvingKey
-	var vk groth16.VerifyingKey
+	var pk ProvingKey
+	var vk VerifyingKey
 	b.ResetTimer()
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			groth16.Setup(&r1cs, &pk, &vk)
+			Setup(&r1cs, &pk, &vk)
 		}
 	})
 }
 
-// BenchmarkProver is a helper to benchmark groth16.Prove on a given circuit
+// BenchmarkProver is a helper to benchmark Prove on a given circuit
 // it will run the Setup, reset the benchmark timer and benchmark the prover
 func BenchmarkProver(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk groth16.ProvingKey
-	var vk groth16.VerifyingKey
-	groth16.Setup(&r1cs, &pk, &vk)
+	var pk ProvingKey
+	var vk VerifyingKey
+	Setup(&r1cs, &pk, &vk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16.Prove(&r1cs, &pk, solution)
+			_, _ = Prove(&r1cs, &pk, solution)
 		}
 	})
 }
 
-// BenchmarkVerifier is a helper to benchmark groth16.Verify on a given circuit
+// BenchmarkVerifier is a helper to benchmark Verify on a given circuit
 // it will run the Setup, the Prover and reset the benchmark timer and benchmark the verifier
 // the provided solution will be filtered to keep only public inputs
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk groth16.ProvingKey
-	var vk groth16.VerifyingKey
-	groth16.Setup(&r1cs, &pk, &vk)
-	proof, err := groth16.Prove(&r1cs, &pk, solution)
+	var pk ProvingKey
+	var vk VerifyingKey
+	Setup(&r1cs, &pk, &vk)
+	proof, err := Prove(&r1cs, &pk, solution)
 	if err != nil {
 		panic(err)
 	}
 
-	solution = filterOutPrivateAssignment(solution)
+	solution = solution.DiscardSecrets()
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16.Verify(proof, &vk, solution)
+			_, _ = Verify(proof, &vk, solution)
 		}
 	})
 }
 
-func filterOutPrivateAssignment(assignments map[string]backend.Assignment) map[string]backend.Assignment {
-	toReturn := backend.NewAssignment()
-	for k, v := range assignments {
-		if v.IsPublic {
-			toReturn[k] = v
-		}
-	}
-	return toReturn
-}
 
 `

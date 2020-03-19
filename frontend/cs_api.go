@@ -388,11 +388,3 @@ func (cs *CS) ALLOCATE(input interface{}) *Constraint {
 		return cs.constVar(x)
 	}
 }
-
-// Element converts a [uint64, int, string, *Element] to a fr.Element
-// see internal/curve
-// this methods panic if the provided interface is not supported
-func Element(i1 interface{}) fr.Element {
-	// TODO delete this method?
-	return fr.FromInterface(i1)
-}

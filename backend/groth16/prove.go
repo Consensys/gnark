@@ -51,8 +51,12 @@ func init() {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution map[string]backend.Assignment) (*Proof, error) {
+func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
 	proof := &Proof{}
+
+	// fft domain (computeH)
+	fftDomain := newDomain(root, MaxOrder, r1cs.NbConstraints)
+
 	// sample random r and s
 	var r, s, _r, _s fr.Element
 	r.SetRandom()
@@ -61,7 +65,11 @@ func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution map[string]backend.Assig
 	_s = s.ToRegular()
 
 	// Solve the R1CS and compute the a, b, c vectors
-	a, b, c, wireValues, err := r1cs.Solve(solution)
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality)
+	err := r1cs.Solve(solution, a, b, c, wireValues)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +87,7 @@ func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution map[string]backend.Assig
 	// G2 multiexp is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
-	chH := computeH(a, b, c, r1cs.NbConstraints)
+	chH := computeH(a, b, c, fftDomain)
 
 	// these tokens ensure multiExp tasks are enqueue in order in the pool
 	// so that bs2 doesn't compete with ar1 and bs1 for resources
@@ -189,7 +197,7 @@ func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken 
 	return chResult
 }
 
-func computeH(a, b, c []fr.Element, nbConstraints int) <-chan []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 	chResult := make(chan []fr.Element, 1)
 	go func() {
 		// H part of Krs
@@ -197,7 +205,6 @@ func computeH(a, b, c []fr.Element, nbConstraints int) <-chan []fr.Element {
 		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
 		// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
 		// 	3 - h = ifft_coset(ca o cb - cc)
-		fftDomain := newDomain(root, MaxOrder, nbConstraints)
 
 		n := len(a)
 		debug.Assert((n == len(b)) && (n == len(c)))

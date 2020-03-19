@@ -103,7 +103,7 @@ func BenchmarkFFT(b *testing.B) {
 	}
 }
 
-func TestNewSubGroup(t *testing.T) {
+func TestNewDomain(t *testing.T) {
 
 	var rootOfUnity fr.Element
 	rootOfUnity.SetString(RootOfUnityStr)
@@ -111,7 +111,7 @@ func TestNewSubGroup(t *testing.T) {
 	var one fr.Element
 	one.SetOne()
 
-	// TODO fixme : stopping at 2^25 , probably enough?
+	// stopping at 2^25 , probably enough?
 	for i := uint(0); i < uint(25); i++ {
 		m := 1 << i // m = 2^i
 

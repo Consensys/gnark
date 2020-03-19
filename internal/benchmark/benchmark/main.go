@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/curve"
+	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/pkg/profile"
 )
@@ -66,7 +67,7 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend.R1CS, backe
 	// expected solution
 
 	// compute expected Y
-	expectedY := frontend.Element(2)
+	expectedY := fr.FromInterface(2)
 	for i := 0; i < nbConstraints; i++ {
 		expectedY.MulAssign(&expectedY)
 	}
