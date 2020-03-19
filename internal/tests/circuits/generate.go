@@ -27,9 +27,9 @@ func addEntry(name string, r1cs *backend.R1CS, good, bad backend.Assignments) {
 	circuits[name] = testCircuit{r1cs, good, bad}
 }
 
-//go:generate go run -tags bls377,debug . ../../../backend/bls377/groth16/testdata
-//go:generate go run -tags bls381,debug . ../../../backend/bls381/groth16/testdata
-//go:generate go run -tags bn256,debug . ../../../backend/bn256/groth16/testdata
+//go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377
+//go:generate go run -tags bls381,debug . ../../../backend/groth16/testdata/bls381
+//go:generate go run -tags bn256,debug . ../../../backend/groth16/testdata/bn256
 func main() {
 
 	for k, v := range circuits {

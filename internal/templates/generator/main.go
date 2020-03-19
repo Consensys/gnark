@@ -24,19 +24,19 @@ func main() {
 		"../../../backend/",
 		"GENERIC",
 	}
-	bls377 := tData{
-		"../../../backend/bls377/",
-		"BLS377",
-	}
-	bls381 := tData{
-		"../../../backend/bls381/",
-		"BLS381",
-	}
-	bn256 := tData{
-		"../../../backend/bn256/",
-		"BN256",
-	}
-	datas := []tData{generic, bls377, bls381, bn256}
+	// bls377 := tData{
+	// 	"../../../backend/bls377/",
+	// 	"BLS377",
+	// }
+	// bls381 := tData{
+	// 	"../../../backend/bls381/",
+	// 	"BLS381",
+	// }
+	// bn256 := tData{
+	// 	"../../../backend/bn256/",
+	// 	"BN256",
+	// }
+	datas := []tData{generic} //, bls377, bls381, bn256}
 
 	for _, d := range datas {
 		{
