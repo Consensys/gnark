@@ -292,6 +292,9 @@ func cmdExport(cmd *cobra.Command, args []string) {
 		fOutputDir,
 		strings.ToUpper(curve.ID.String()),
 	}
-	generator.GenerateGroth16(d)
+	if err := generator.GenerateGroth16(d); err != nil {
+		fmt.Println("can't generate groth16 code:", err)
+		os.Exit(-1)
+	}
 
 }

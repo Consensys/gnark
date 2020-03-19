@@ -26,7 +26,9 @@ func main() {
 	datas := []generator.GenerateData{generic} //, bls377, bls381, bn256}
 
 	for _, d := range datas {
-		generator.GenerateGroth16(d)
+		if err := generator.GenerateGroth16(d); err != nil {
+			panic(err)
+		}
 	}
 
 }

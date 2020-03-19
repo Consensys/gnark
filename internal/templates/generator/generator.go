@@ -18,7 +18,7 @@ type GenerateData struct {
 	Curve    string // GENERIC, BLS381, BLS377, BN256
 }
 
-func GenerateGroth16(d GenerateData) {
+func GenerateGroth16(d GenerateData) error {
 	if !strings.HasSuffix(d.RootPath, "/") {
 		d.RootPath += "/"
 	}
@@ -30,7 +30,7 @@ func GenerateGroth16(d GenerateData) {
 			representations.R1CS,
 		}
 		if err := generateCode(d.RootPath+"r1cs.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -42,7 +42,7 @@ func GenerateGroth16(d GenerateData) {
 			representations.Assignment,
 		}
 		if err := generateCode(d.RootPath+"assignment.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -55,7 +55,7 @@ func GenerateGroth16(d GenerateData) {
 			zkpschemes.Groth16Setup,
 		}
 		if err := generateCode(d.RootPath+"groth16/setup.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 	{
@@ -66,7 +66,7 @@ func GenerateGroth16(d GenerateData) {
 			zkpschemes.Groth16Prove,
 		}
 		if err := generateCode(d.RootPath+"groth16/prove.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -78,7 +78,7 @@ func GenerateGroth16(d GenerateData) {
 			zkpschemes.Groth16Verify,
 		}
 		if err := generateCode(d.RootPath+"groth16/verify.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -90,7 +90,7 @@ func GenerateGroth16(d GenerateData) {
 			algorithms.FFT,
 		}
 		if err := generateCode(d.RootPath+"groth16/fft.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -102,7 +102,7 @@ func GenerateGroth16(d GenerateData) {
 			zkpschemes.Groth16Assert,
 		}
 		if err := generateCode(d.RootPath+"groth16/assert.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -114,10 +114,10 @@ func GenerateGroth16(d GenerateData) {
 			zkpschemes.Groth16Tests,
 		}
 		if err := generateCode(d.RootPath+"groth16/groth16_test.go", src, d); err != nil {
-			panic(err)
+			return err
 		}
 	}
-
+	return nil
 }
 
 // TODO from goff, need factorizing all this code generation business
