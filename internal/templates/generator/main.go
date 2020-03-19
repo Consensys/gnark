@@ -18,6 +18,7 @@ type tData struct {
 	Curve    string // GENERIC, BLS381, BLS377, BN256
 }
 
+// TODO should not be there. Need to factorize code genration boilerplate used in goff, ecc and here
 //go:generate go run -tags debug main.go
 func main() {
 	generic := tData{
