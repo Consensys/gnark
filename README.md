@@ -27,12 +27,17 @@ src="banner_gnark.png">
 You'll need to [install Go](https://golang.org/doc/install).
 
 ### Install `gnark`
+To install for use as a command line application:
 
 ```bash
 git clone https://github.com/consensys/gnark.git
 cd gnark
 make
 ```
+
+To install for use as a Go package:
+
+`go get github.com/consensys/gnark/cs`
 
 ### Workflow
 
