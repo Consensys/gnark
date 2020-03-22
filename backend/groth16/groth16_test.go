@@ -105,7 +105,7 @@ func TestParsePublicInput(t *testing.T) {
 //--------------------//
 
 func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments) {
-	name := "./testdata/reference"
+	name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference"
 	good := backend.NewAssignment()
 	if err := good.Read(name + ".good"); err != nil {
 		panic(err)
