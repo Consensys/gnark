@@ -23,7 +23,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/consensys/gnark/ecc/bls381/fr"
+	"github.com/consensys/gurvy/bls381/fr"
 )
 
 // fft computes the discrete Fourier transform of a and stores the result in a.

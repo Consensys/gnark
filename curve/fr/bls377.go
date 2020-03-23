@@ -19,7 +19,7 @@ limitations under the License.
 package fr
 
 import (
-	"github.com/consensys/gnark/ecc/bls377/fr"
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
 type Element = fr.Element

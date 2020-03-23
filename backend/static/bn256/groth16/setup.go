@@ -20,8 +20,8 @@ limitations under the License.
 package groth16
 
 import (
-	curve "github.com/consensys/gnark/ecc/bn256"
-	"github.com/consensys/gnark/ecc/bn256/fr"
+	curve "github.com/consensys/gurvy/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 
 	"github.com/consensys/gnark/utils/parallel"
 

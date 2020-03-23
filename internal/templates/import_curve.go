@@ -6,14 +6,14 @@ const ImportCurve = `
 	"github.com/consensys/gnark/curve"
 	"github.com/consensys/gnark/curve/fr"
 {{else if eq .Curve "BLS377"}}
-	curve "github.com/consensys/gnark/ecc/bls377"
-	"github.com/consensys/gnark/ecc/bls377/fr"
+	curve "github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gurvy/bls377/fr"
 {{else if eq .Curve "BLS381"}}
-	curve "github.com/consensys/gnark/ecc/bls381"
-	"github.com/consensys/gnark/ecc/bls381/fr"
+	curve "github.com/consensys/gurvy/bls381"
+	"github.com/consensys/gurvy/bls381/fr"
 {{else if eq .Curve "BN256"}}
-curve "github.com/consensys/gnark/ecc/bn256"	
-"github.com/consensys/gnark/ecc/bn256/fr"
+curve "github.com/consensys/gurvy/bn256"	
+"github.com/consensys/gurvy/bn256/fr"
 {{end}}
 
 {{end}}

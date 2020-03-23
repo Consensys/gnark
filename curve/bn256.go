@@ -19,7 +19,7 @@ limitations under the License.
 package curve
 
 import (
-	"github.com/consensys/gnark/ecc/bn256"
+	"github.com/consensys/gurvy/bn256"
 )
 
 // GetCurve returns bn256 singleton accessor

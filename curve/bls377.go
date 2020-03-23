@@ -19,7 +19,7 @@ limitations under the License.
 package curve
 
 import (
-	"github.com/consensys/gnark/ecc/bls377"
+	"github.com/consensys/gurvy/bls377"
 )
 
 // GetCurve returns bls377 singleton accessor

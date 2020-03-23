@@ -25,7 +25,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/consensys/gnark/ecc/bn256/fr"
+	"github.com/consensys/gurvy/bn256/fr"
 
 	"github.com/consensys/gnark/backend"
 )

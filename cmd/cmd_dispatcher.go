@@ -24,8 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/consensys/gnark/backend/encoding/gob"
-	"github.com/consensys/gnark/ecc"
+	"github.com/consensys/gurvy"
+	"github.com/consensys/gnark/utils/encoding/gob"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ func init() {
 
 func dispatch(inputFile string) {
 	curveID, err := gob.PeekCurveID(inputFile)
-	if err != nil || curveID == ecc.UNKNOWN {
+	if err != nil || curveID == gurvy.UNKNOWN {
 		fmt.Println("invalid input file: " + inputFile)
 		os.Exit(-1)
 	}

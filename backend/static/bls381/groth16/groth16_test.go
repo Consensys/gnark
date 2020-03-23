@@ -19,8 +19,8 @@ limitations under the License.
 package groth16
 
 import (
-	curve "github.com/consensys/gnark/ecc/bls381"
-	"github.com/consensys/gnark/ecc/bls381/fr"
+	curve "github.com/consensys/gurvy/bls381"
+	"github.com/consensys/gurvy/bls381/fr"
 
 	"github.com/consensys/gnark/backend/static/bls381"
 

@@ -21,7 +21,7 @@ import (
 	"sync"
 )
 
-// TODO clean this up. ecc/ should not depend on gnark.
+// TODO clean this up. duplicate with gurvy
 // groth16 should not need all this boiletplate
 
 // Execute process in parallel the work function and wait for result

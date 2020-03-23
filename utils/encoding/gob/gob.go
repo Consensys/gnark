@@ -23,7 +23,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/consensys/gnark/ecc"
+	"github.com/consensys/gurvy"
 )
 
 var (
@@ -32,7 +32,7 @@ var (
 
 // Write serialize object into file
 // uses gob + gzip
-func Write(path string, from interface{}, curveID ecc.ID) error {
+func Write(path string, from interface{}, curveID gurvy.ID) error {
 	// create file
 	f, err := os.Create(path)
 	if err != nil {
@@ -46,7 +46,7 @@ func Write(path string, from interface{}, curveID ecc.ID) error {
 // Read read and deserialize input into object
 // provided interface must be a pointer
 // uses gob + gzip
-func Read(path string, into interface{}, expectedCurveID ecc.ID) error {
+func Read(path string, into interface{}, expectedCurveID gurvy.ID) error {
 	// open file
 	f, err := os.Open(path)
 	if err != nil {
@@ -59,7 +59,7 @@ func Read(path string, into interface{}, expectedCurveID ecc.ID) error {
 
 // Serialize object from into f
 // uses gob + gzip
-func Serialize(f io.Writer, from interface{}, curveID ecc.ID) error {
+func Serialize(f io.Writer, from interface{}, curveID gurvy.ID) error {
 	// create a gzip writer
 	writer := gzip.NewWriter(f)
 	defer writer.Close()
@@ -81,18 +81,18 @@ func Serialize(f io.Writer, from interface{}, curveID ecc.ID) error {
 }
 
 // PeekCurveID reads the first bytes of the file and tries to decode and return the curveID
-func PeekCurveID(file string) (ecc.ID, error) {
+func PeekCurveID(file string) (gurvy.ID, error) {
 	// open file
 	f, err := os.Open(file)
 	if err != nil {
-		return ecc.UNKNOWN, err
+		return gurvy.UNKNOWN, err
 	}
 	defer f.Close()
 
 	// create a gzip reader from the opened file
 	reader, err := gzip.NewReader(f)
 	if err != nil {
-		return ecc.UNKNOWN, err
+		return gurvy.UNKNOWN, err
 	}
 	defer reader.Close()
 
@@ -100,16 +100,16 @@ func PeekCurveID(file string) (ecc.ID, error) {
 	decoder := gob.NewDecoder(reader)
 
 	// decode the curve ID
-	var curveID ecc.ID
+	var curveID gurvy.ID
 	if err = decoder.Decode(&curveID); err != nil {
-		return ecc.UNKNOWN, err
+		return gurvy.UNKNOWN, err
 	}
 	return curveID, nil
 }
 
 // Deserialize f into object into
 // uses gob + gzip
-func Deserialize(f io.Reader, into interface{}, expectedCurveID ecc.ID) error {
+func Deserialize(f io.Reader, into interface{}, expectedCurveID gurvy.ID) error {
 	// create a gzip reader from the opened file
 	reader, err := gzip.NewReader(f)
 	if err != nil {
@@ -121,7 +121,7 @@ func Deserialize(f io.Reader, into interface{}, expectedCurveID ecc.ID) error {
 	decoder := gob.NewDecoder(reader)
 
 	// decode the curve type, and ensure it matches
-	var curveID ecc.ID
+	var curveID gurvy.ID
 	if err = decoder.Decode(&curveID); err != nil {
 		return err
 	}
