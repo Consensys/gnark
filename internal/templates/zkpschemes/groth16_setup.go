@@ -27,8 +27,6 @@ const RootOfUnityStr = fr.RootOfUnityStr
 const MaxOrder = fr.MaxOrder
 {{end}}
 
-
-
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
 type ProvingKey struct {
 	// [α]1, [β]1, [δ]1
@@ -100,8 +98,8 @@ func Setup(r1cs *backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	// samples toxic waste
 	toxicWaste := sampleToxicWaste()
 
-	// Set the public input map
-	setupPublicInputTracker(r1cs, vk)
+	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
+	vk.PublicInputs = r1cs.PublicWires
 
 	// setup the alpha, beta, gamma, delta part of verifying & proving key
 	setupToxicWaste(pk, vk, toxicWaste)
@@ -125,18 +123,6 @@ type toxicWaste struct {
 
 	// Non Montgomery form of params
 	alphaReg, betaReg, gammaReg, deltaReg fr.Element
-}
-
-func setupPublicInputTracker(r1cs *backend.R1CS, vk *VerifyingKey) {
-
-	// nbPublicInputs := len(r1cs.WireTracker) - r1cs.PublicInputsStartIndex
-	// vk.PublicInputs = make(map[string]int)
-
-	vk.PublicInputs = r1cs.PublicWires
-	// for i := 0; i < nbPublicInputs; i++ {
-	// 	vk.PublicInputs[i] = r1cs.WireTracker[i+r1cs.PublicInputsStartIndex].Name
-	// }
-
 }
 
 func sampleToxicWaste() toxicWaste {

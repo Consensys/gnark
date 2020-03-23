@@ -77,11 +77,3 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 	}
 	dispatch(filepath.Clean(args[0]))
 }
-
-func cmdExport(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		fmt.Println("missing circuit path -- gnark export -h for help")
-		os.Exit(-1)
-	}
-	dispatch(filepath.Clean(args[0]))
-}

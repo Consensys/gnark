@@ -7,9 +7,10 @@ import (
 // TODO should not be there. Need to factorize code genration boilerplate used in goff, ecc and here
 //go:generate go run -tags debug main.go
 func main() {
+
 	generic := generator.GenerateData{
-		"../../../../backend/",
-		"GENERIC",
+		RootPath: "../../../../backend/",
+		Curve:    "GENERIC",
 	}
 	// bls377 := tData{
 	// 	"../../../../backend/bls377/",

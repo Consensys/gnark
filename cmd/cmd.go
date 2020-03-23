@@ -23,13 +23,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/curve"
-	"github.com/consensys/gnark/internal/templates/generator"
 	"github.com/consensys/gnark/utils/encoding/gob"
 	"github.com/spf13/cobra"
 )
@@ -252,49 +250,4 @@ func loadCircuit(circuitPath string) (*backend.R1CS, error) {
 		return nil, err
 	}
 	return &circuit, nil
-}
-
-func cmdExport(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		fmt.Println("missing circuit path -- gnark prove -h for help")
-		os.Exit(-1)
-	}
-	circuitPath := filepath.Clean(args[0])
-	circuitName := filepath.Base(circuitPath)
-	circuitExt := filepath.Ext(circuitName)
-	circuitName = circuitName[0 : len(circuitName)-len(circuitExt)]
-
-	if !fGo {
-		fmt.Println("--go not set")
-		os.Exit(-1)
-	}
-	if fPackageName == "" {
-		fmt.Println("--package not set")
-		os.Exit(-1)
-	}
-
-	// load circuit
-	r1cs, err := loadCircuit(circuitPath)
-	if err != nil {
-		fmt.Println("error:", err)
-		os.Exit(-1)
-	}
-	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-
-	// create output dir, if it doesn't exist
-	fOutputDir = filepath.Clean(fOutputDir)
-	if err := os.MkdirAll(filepath.Join(fOutputDir, "groth16"), 0700); err != nil {
-		fmt.Println("can't create output dir:", err)
-		os.Exit(-1)
-	}
-
-	d := generator.GenerateData{
-		fOutputDir,
-		strings.ToUpper(curve.ID.String()),
-	}
-	if err := generator.GenerateGroth16(d); err != nil {
-		fmt.Println("can't generate groth16 code:", err)
-		os.Exit(-1)
-	}
-
 }
