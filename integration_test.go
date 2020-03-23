@@ -109,6 +109,10 @@ func TestIntegration(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for name, circuit := range circuits.Circuits {
+		if name == "reference_large" {
+			// be nice with circleci.
+			continue
+		}
 		wg.Add(1)
 		go func(name string, circuit circuits.TestCircuit) {
 			defer wg.Done()

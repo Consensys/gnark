@@ -6,9 +6,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-const nbConstraints = 500
-
 func init() {
+	const nbConstraints = 500
 	circuit := frontend.New()
 
 	// declare inputs
@@ -39,5 +38,5 @@ func init() {
 
 	r1cs := circuit.ToR1CS()
 
-	addEntry("reference", r1cs, good, bad)
+	addEntry("reference_large", r1cs, good, bad)
 }
