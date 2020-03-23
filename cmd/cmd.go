@@ -213,10 +213,6 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 	fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-	if len(vk.PublicInputs)-1 != len(r1csInput) {
-		fmt.Printf("invalid input size. expected %d got %d\n", len(vk.PublicInputs), len(r1csInput))
-		os.Exit(-1)
-	}
 
 	// load proof
 	var proof groth16.Proof

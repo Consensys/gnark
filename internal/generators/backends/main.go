@@ -11,19 +11,19 @@ import (
 func main() {
 
 	generic := generator.GenerateData{
-		RootPath: "../../../../backend/",
+		RootPath: "../../../backend/",
 		Curve:    "GENERIC",
 	}
 	bls377 := generator.GenerateData{
-		RootPath: "../../../../backend/static/bls377/",
+		RootPath: "../../../backend/static/bls377/",
 		Curve:    "BLS377",
 	}
 	bls381 := generator.GenerateData{
-		RootPath: "../../../../backend/static/bls381/",
+		RootPath: "../../../backend/static/bls381/",
 		Curve:    "BLS381",
 	}
 	bn256 := generator.GenerateData{
-		RootPath: "../../../../backend/static/bn256/",
+		RootPath: "../../../backend/static/bn256/",
 		Curve:    "BN256",
 	}
 	datas := []generator.GenerateData{generic, bls377, bls381, bn256}

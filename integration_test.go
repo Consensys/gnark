@@ -17,16 +17,15 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve"
-	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/frontend"
+	testcircuits "github.com/consensys/gnark/internal/tests/circuits"
 	"github.com/consensys/gnark/utils/encoding/gob"
 )
 
@@ -34,34 +33,28 @@ func TestIntegration(t *testing.T) {
 	// create temporary dir for integration test
 	parentDir := "./internal/tests/integration"
 	os.RemoveAll(parentDir)
-	if err := os.Mkdir(parentDir, 0700); err != nil {
-		t.Fatal(err)
-	}
-
-	// path for files
-	fCircuit := filepath.Join(parentDir, "testcircuit.r1cs")
-	fPk := filepath.Join(parentDir, "testcircuit.pk")
-	fVk := filepath.Join(parentDir, "testcircuit.vk")
-	fProof := filepath.Join(parentDir, "testcircuit.proof")
-	fInput := filepath.Join(parentDir, "testcircuit.input")
-	fPublicInput := filepath.Join(parentDir, "testcircuit.public.input")
-
-	c, good, bad := testCircuit()
-
-	// 1: serialize circuit to disk
-	if err := gob.Write(fCircuit, c, curve.ID); err != nil {
+	defer os.RemoveAll(parentDir)
+	if err := os.MkdirAll(parentDir, 0700); err != nil {
 		t.Fatal(err)
 	}
 
 	// spv: setup, prove, verify
-	spv := func(x backend.Assignments, expectedVerifyResult bool) {
+	spv := func(name string, good, bad backend.Assignments) {
+		t.Log("circuit", name)
+		// path for files
+		fCircuit := filepath.Join(parentDir, name+".r1cs")
+		fPk := filepath.Join(parentDir, name+".pk")
+		fVk := filepath.Join(parentDir, name+".vk")
+		fProof := filepath.Join(parentDir, name+".proof")
+		fInputGood := filepath.Join(parentDir, name+".good.input")
+		fInputBad := filepath.Join(parentDir, name+".bad.input")
+
 		buildTags := curve.ID.String() + ",debug"
 		// 2: input files to disk
-		if err := x.Write(fInput); err != nil {
+		if err := good.Write(fInputGood); err != nil {
 			t.Fatal(err)
 		}
-		y := filterOutPrivateAssignment(x)
-		if err := y.Write(fPublicInput); err != nil {
+		if err := bad.Write(fInputBad); err != nil {
 			t.Fatal(err)
 		}
 
@@ -76,77 +69,56 @@ func TestIntegration(t *testing.T) {
 			}
 		}
 
-		// 4: run prove
-		{
-			cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
-			out, err := cmd.Output()
-			t.Log(string(out))
-			if expectedVerifyResult && err != nil {
-				// proving should pass
-				t.Fatal(err)
+		pv := func(fInput string, expectedVerifyResult bool) {
+			// 4: run prove
+			{
+				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
+				out, err := cmd.Output()
+				t.Log(string(out))
+				if expectedVerifyResult && err != nil {
+					// proving should pass
+					t.Fatal(err)
+				}
+			}
+
+			// 4: run verify
+			{
+				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
+				out, err := cmd.Output()
+				t.Log(string(out))
+				if expectedVerifyResult && err != nil {
+					t.Fatal(err)
+				} else if !expectedVerifyResult && err == nil {
+					t.Fatal("verify should have failed but apparently succeeded")
+				}
 			}
 		}
 
-		// 4: run verify
-		{
-			cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "verify", fProof, "--vk", fVk, "--input", fPublicInput)
-			out, err := cmd.Output()
-			t.Log(string(out))
-			if expectedVerifyResult && err != nil {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pv(fInputGood, true)
+		}()
+		pv(fInputBad, false)
+		wg.Wait()
+	}
+
+	var wg sync.WaitGroup
+	for name, circuit := range testcircuits.Circuits {
+		wg.Add(1)
+		go func(name string, circuit testcircuits.TestCircuit) {
+			defer wg.Done()
+			// serialize to disk
+			fCircuit := filepath.Join(parentDir, name+".r1cs")
+			if err := gob.Write(fCircuit, circuit.R1CS, curve.ID); err != nil {
 				t.Fatal(err)
-			} else if !expectedVerifyResult && err == nil {
-				t.Fatal("verify should have failed but apparently succeeded")
 			}
-		}
+
+			spv(name, circuit.Good, circuit.Bad)
+		}(name, circuit)
 
 	}
+	wg.Wait()
 
-	spv(good, true)
-	spv(bad, false)
-
-}
-
-func filterOutPrivateAssignment(assignments backend.Assignments) backend.Assignments {
-	toReturn := backend.NewAssignment()
-	for k, v := range assignments {
-		if v.IsPublic {
-			toReturn[k] = v
-		}
-	}
-
-	return toReturn
-}
-
-func testCircuit() (*backend.R1CS, backend.Assignments, backend.Assignments) {
-	circuit := frontend.New()
-
-	// declare inputs
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-
-	const nbConstraints = 5
-
-	for i := 0; i < nbConstraints; i++ {
-		x = circuit.MUL(x, x)
-		x.Tag(fmt.Sprintf("x^%d", i+2))
-	}
-	circuit.MUSTBE_EQ(x, y)
-
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 2)
-
-	// compute expected Y
-	expectedY := fr.FromInterface(2)
-
-	for i := 0; i < nbConstraints; i++ {
-		expectedY.MulAssign(&expectedY)
-	}
-
-	good.Assign(backend.Public, "y", expectedY)
-
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 2)
-	bad.Assign(backend.Public, "y", 3)
-
-	return circuit.ToR1CS(), good, bad
 }

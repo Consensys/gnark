@@ -1,4 +1,4 @@
-package main
+package circuits
 
 import (
 	"github.com/consensys/gnark/backend"
