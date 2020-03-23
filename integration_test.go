@@ -25,13 +25,16 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve"
-	testcircuits "github.com/consensys/gnark/internal/tests/circuits"
-	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
+	"github.com/consensys/gnark/internal/utils/encoding/gob"
 )
 
 func TestIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration tests")
+	}
 	// create temporary dir for integration test
-	parentDir := "./internal/tests/integration"
+	parentDir := "./integration_test"
 	os.RemoveAll(parentDir)
 	defer os.RemoveAll(parentDir)
 	if err := os.MkdirAll(parentDir, 0700); err != nil {
@@ -105,9 +108,9 @@ func TestIntegration(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for name, circuit := range testcircuits.Circuits {
+	for name, circuit := range circuits.Circuits {
 		wg.Add(1)
-		go func(name string, circuit testcircuits.TestCircuit) {
+		go func(name string, circuit circuits.TestCircuit) {
 			defer wg.Done()
 			// serialize to disk
 			fCircuit := filepath.Join(parentDir, name+".r1cs")

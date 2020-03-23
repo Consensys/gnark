@@ -8,8 +8,8 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve"
-	"github.com/consensys/gnark/internal/tests/circuits"
-	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
+	"github.com/consensys/gnark/internal/utils/encoding/gob"
 )
 
 //go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377 ../../../backend/static/bls377/groth16/testdata

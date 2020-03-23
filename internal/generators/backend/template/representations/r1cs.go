@@ -13,8 +13,8 @@ import (
 	{{if ne .Curve "GENERIC"}}
 	"github.com/consensys/gnark/backend"
 	{{end}}
-	"github.com/consensys/gnark/utils/debug"
-	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gnark/internal/utils/debug"
+	"github.com/consensys/gnark/internal/utils/encoding/gob"
 )
 
 // R1CS decsribes a set of R1CS constraint 

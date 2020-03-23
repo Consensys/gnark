@@ -23,7 +23,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/utils/debug"
+	"github.com/consensys/gnark/internal/utils/debug"
 )
 
 var (

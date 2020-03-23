@@ -16,7 +16,7 @@ import (
 	"strings"
 
 
-	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gnark/internal/utils/encoding/gob"
 	constants "github.com/consensys/gnark/backend"
 )
 

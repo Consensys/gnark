@@ -28,7 +28,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/curve"
-	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gnark/internal/utils/encoding/gob"
 	"github.com/spf13/cobra"
 )
 

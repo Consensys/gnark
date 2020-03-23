@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 	twistededwards "github.com/consensys/gnark/frontend/std/reference/algebra/twisted_edwards"
-	"github.com/consensys/gnark/utils/debug"
+	"github.com/consensys/gnark/internal/utils/debug"
 )
 
 // Point point on a twisted Edwards curve in a Snark circuit

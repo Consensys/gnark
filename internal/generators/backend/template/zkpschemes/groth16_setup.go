@@ -9,7 +9,7 @@ package groth16
 
 import (
 	{{ template "import_curve" . }}
-	"github.com/consensys/gnark/utils/parallel"
+	"github.com/consensys/gnark/internal/utils/parallel"
 	{{ template "import_backend" . }}
 )
 

@@ -1,4 +1,4 @@
-package templates
+package template
 
 const ImportCurve = `
 {{ define "import_curve" }}

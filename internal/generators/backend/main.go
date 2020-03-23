@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/consensys/gnark/internal/templates/generator"
+	"github.com/consensys/gnark/internal/generators/backend/template/generator"
 )
 
 // TODO should not be there. Need to factorize code genration boilerplate used in goff, ecc and here

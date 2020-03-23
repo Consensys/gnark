@@ -11,8 +11,8 @@ import (
 	{{ template "import_backend" . }}
 	"runtime"
 	"sync"
-	"github.com/consensys/gnark/utils/debug"
-	"github.com/consensys/gnark/utils/parallel"
+	"github.com/consensys/gnark/internal/utils/debug"
+	"github.com/consensys/gnark/internal/utils/parallel"
 )
 
 

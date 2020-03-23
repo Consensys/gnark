@@ -7,10 +7,10 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/consensys/gnark/internal/templates"
-	"github.com/consensys/gnark/internal/templates/algorithms"
-	"github.com/consensys/gnark/internal/templates/representations"
-	"github.com/consensys/gnark/internal/templates/zkpschemes"
+	templates "github.com/consensys/gnark/internal/generators/backend/template"
+	"github.com/consensys/gnark/internal/generators/backend/template/algorithms"
+	"github.com/consensys/gnark/internal/generators/backend/template/representations"
+	"github.com/consensys/gnark/internal/generators/backend/template/zkpschemes"
 )
 
 type GenerateData struct {
