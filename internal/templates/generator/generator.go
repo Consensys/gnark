@@ -22,6 +22,9 @@ func GenerateGroth16(d GenerateData) error {
 	if !strings.HasSuffix(d.RootPath, "/") {
 		d.RootPath += "/"
 	}
+	fmt.Println()
+	fmt.Println("generating groth16 backend for ", d.Curve)
+	fmt.Println()
 	{
 		// generate R1CS.go
 		src := []string{

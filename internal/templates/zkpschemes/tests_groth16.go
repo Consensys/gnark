@@ -23,7 +23,15 @@ import (
 
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
-	matches, _ := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
+	{{if eq .Curve "GENERIC"}}
+		matches, _ := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
+	{{else}}
+		matches, _ := filepath.Glob("./testdata/*.r1cs")
+	{{end}}
+	
+	if len(matches) == 0 {
+		t.Fatal("couldn't find test circuits for", curve.ID.String())
+	}
 	for _, name := range matches {
 		name = name[:len(name)-5]
 		t.Log("testing circuit", name)
@@ -93,7 +101,12 @@ func TestParsePublicInput(t *testing.T) {
 //--------------------//
 
 func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments) {
-	name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference"
+	{{if eq .Curve "GENERIC"}}
+		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference"
+	{{else}}
+		name := "./testdata/reference"
+	{{end}}
+	
 	good := backend.NewAssignment()
 	if err := good.Read(name + ".good"); err != nil {
 		panic(err)

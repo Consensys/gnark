@@ -20,11 +20,11 @@ curve "github.com/consensys/gnark/ecc/bn256"
 
 {{ define "import_backend" }}
 {{if eq .Curve "BLS377"}}
-	"github.com/consensys/gnark/backend/bls377"
+	"github.com/consensys/gnark/backend/static/bls377"
 {{else if eq .Curve "BLS381"}}
-"github.com/consensys/gnark/backend/bls381"
+"github.com/consensys/gnark/backend/static/bls381"
 {{else if eq .Curve "BN256"}}
-"github.com/consensys/gnark/backend/bn256"
+"github.com/consensys/gnark/backend/static/bn256"
 {{else if eq .Curve "GENERIC"}}
 "github.com/consensys/gnark/backend"
 {{end}}

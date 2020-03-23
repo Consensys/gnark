@@ -29,11 +29,13 @@ func addEntry(name string, r1cs *backend.R1CS, good, bad backend.Assignments) {
 	circuits[name] = testCircuit{r1cs, good, bad}
 }
 
-//go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377
-//go:generate go run -tags bls381,debug . ../../../backend/groth16/testdata/bls381
-//go:generate go run -tags bn256,debug . ../../../backend/groth16/testdata/bn256
+//go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377 ../../../backend/static/bls377/groth16/testdata
+//go:generate go run -tags bls381,debug . ../../../backend/groth16/testdata/bls381 ../../../backend/static/bls381/groth16/testdata
+//go:generate go run -tags bn256,debug . ../../../backend/groth16/testdata/bn256 ../../../backend/static/bn256/groth16/testdata
 func main() {
-
+	fmt.Println()
+	fmt.Println("generating test circuits for ", curve.ID.String())
+	fmt.Println()
 	for k, v := range circuits {
 		// test r1cs serialization
 		var bytes bytes.Buffer
@@ -49,17 +51,27 @@ func main() {
 		}
 
 		// serialize test circuits to disk
-		fName := fmt.Sprintf("%s/%s.", os.Args[1], k)
-		fmt.Println("generating", fName)
-		if err := gob.Write(fName+"r1cs", v.r1cs, curve.ID); err != nil {
+		if err := os.MkdirAll(os.Args[1], 0700); err != nil {
 			panic(err)
 		}
-		if err := v.good.Write(fName + "good"); err != nil {
+		if err := os.MkdirAll(os.Args[2], 0700); err != nil {
 			panic(err)
 		}
-		if err := v.bad.Write(fName + "bad"); err != nil {
-			panic(err)
+		names := []string{
+			fmt.Sprintf("%s/%s.", os.Args[1], k),
+			fmt.Sprintf("%s/%s.", os.Args[2], k),
 		}
-
+		for _, fName := range names {
+			fmt.Println("generating", fName)
+			if err := gob.Write(fName+"r1cs", v.r1cs, curve.ID); err != nil {
+				panic(err)
+			}
+			if err := v.good.Write(fName + "good"); err != nil {
+				panic(err)
+			}
+			if err := v.bad.Write(fName + "bad"); err != nil {
+				panic(err)
+			}
+		}
 	}
 }

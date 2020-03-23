@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/consensys/gnark/internal/templates/generator"
 )
 
@@ -12,21 +14,24 @@ func main() {
 		RootPath: "../../../../backend/",
 		Curve:    "GENERIC",
 	}
-	// bls377 := tData{
-	// 	"../../../../backend/bls377/",
-	// 	"BLS377",
-	// }
-	// bls381 := tData{
-	// 	"../../../../backend/bls381/",
-	// 	"BLS381",
-	// }
-	// bn256 := tData{
-	// 	"../../../../backend/bn256/",
-	// 	"BN256",
-	// }
-	datas := []generator.GenerateData{generic} //, bls377, bls381, bn256}
+	bls377 := generator.GenerateData{
+		RootPath: "../../../../backend/static/bls377/",
+		Curve:    "BLS377",
+	}
+	bls381 := generator.GenerateData{
+		RootPath: "../../../../backend/static/bls381/",
+		Curve:    "BLS381",
+	}
+	bn256 := generator.GenerateData{
+		RootPath: "../../../../backend/static/bn256/",
+		Curve:    "BN256",
+	}
+	datas := []generator.GenerateData{generic, bls377, bls381, bn256}
 
 	for _, d := range datas {
+		if err := os.MkdirAll(d.RootPath+"groth16/testdata", 0700); err != nil {
+			panic(err)
+		}
 		if err := generator.GenerateGroth16(d); err != nil {
 			panic(err)
 		}
