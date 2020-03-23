@@ -102,9 +102,9 @@ func TestParsePublicInput(t *testing.T) {
 
 func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments) {
 	{{if eq .Curve "GENERIC"}}
-		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference"
+		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{else}}
-		name := "./testdata/reference"
+		name := "./testdata/reference_large"
 	{{end}}
 	
 	good := backend.NewAssignment()

@@ -110,7 +110,7 @@ func TestParsePublicInput(t *testing.T) {
 
 func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments) {
 
-	name := "./testdata/reference"
+	name := "./testdata/reference_large"
 
 	good := backend.NewAssignment()
 	if err := good.Read(name + ".good"); err != nil {
