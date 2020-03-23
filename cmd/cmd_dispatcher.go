@@ -24,8 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/consensys/gurvy"
 	"github.com/consensys/gnark/utils/encoding/gob"
+	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
 
