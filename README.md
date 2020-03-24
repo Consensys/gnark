@@ -26,12 +26,18 @@ src="banner_gnark.png">
 `gnark` is optimized for Unix (Linux / macOS) 64bits platforms (and not tested on other architectures). 
 You'll need to [install Go](https://golang.org/doc/install).
 
-### Install `gnark`
+### Install `gnark` 
+
+#### Command line interface
 
 ```bash
-git clone https://github.com/consensys/gnark.git
-cd gnark
-make
+go install github.com/ConsenSys/gnark
+```
+
+#### Library
+
+```bash
+go get github.com/ConsenSys/gnark
 ```
 
 ### Workflow
