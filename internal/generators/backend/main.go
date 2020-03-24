@@ -29,7 +29,7 @@ func main() {
 	datas := []generator.GenerateData{generic, bls377, bls381, bn256}
 
 	for _, d := range datas {
-		if err := os.MkdirAll(d.RootPath+"groth16/testdata", 0700); err != nil {
+		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
 			panic(err)
 		}
 		if err := generator.GenerateGroth16(d); err != nil {

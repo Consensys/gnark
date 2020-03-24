@@ -18,6 +18,11 @@ import (
 
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
 	constants "github.com/consensys/gnark/backend"
+
+	{{if ne .Curve "GENERIC"}}
+	"reflect"
+	"github.com/stretchr/testify/require"
+	{{end}}
 )
 
 
@@ -26,7 +31,7 @@ func TestCircuits(t *testing.T) {
 	{{if eq .Curve "GENERIC"}}
 		matches, _ := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
 	{{else}}
-		matches, _ := filepath.Glob("./testdata/*.r1cs")
+		matches, _ := filepath.Glob("../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
 	{{end}}
 	
 	if len(matches) == 0 {
@@ -104,7 +109,7 @@ func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments)
 	{{if eq .Curve "GENERIC"}}
 		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{else}}
-		name := "./testdata/reference_large"
+		name := "../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{end}}
 	
 	good := backend.NewAssignment()
@@ -179,5 +184,10 @@ func BenchmarkVerifier(b *testing.B) {
 	})
 }
 
+
+{{if ne .Curve "GENERIC"}}
+// assert helpers
+{{ template "groth16_assert" . }}
+{{end}}
 
 `

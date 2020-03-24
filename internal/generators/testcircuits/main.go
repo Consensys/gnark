@@ -12,9 +12,9 @@ import (
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
 )
 
-//go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377 ../../../backend/static/bls377/groth16/testdata
-//go:generate go run -tags bls381,debug . ../../../backend/groth16/testdata/bls381 ../../../backend/static/bls381/groth16/testdata
-//go:generate go run -tags bn256,debug . ../../../backend/groth16/testdata/bn256 ../../../backend/static/bn256/groth16/testdata
+//go:generate go run -tags bls377,debug . ../../../backend/groth16/testdata/bls377
+//go:generate go run -tags bls381,debug . ../../../backend/groth16/testdata/bls381
+//go:generate go run -tags bn256,debug . ../../../backend/groth16/testdata/bn256
 func main() {
 	fmt.Println()
 	fmt.Println("generating test circuits for ", curve.ID.String())
@@ -37,12 +37,12 @@ func main() {
 		if err := os.MkdirAll(os.Args[1], 0700); err != nil {
 			panic(err)
 		}
-		if err := os.MkdirAll(os.Args[2], 0700); err != nil {
-			panic(err)
-		}
+		// if err := os.MkdirAll(os.Args[2], 0700); err != nil {
+		// 	panic(err)
+		// }
 		names := []string{
 			fmt.Sprintf("%s/%s.", os.Args[1], k),
-			fmt.Sprintf("%s/%s.", os.Args[2], k),
+			// fmt.Sprintf("%s/%s.", os.Args[2], k),
 		}
 		for _, fName := range names {
 			fmt.Println("generating", fName)

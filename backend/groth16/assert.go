@@ -99,37 +99,9 @@ func (assert *Assert) Solved(r1cs *backend.R1CS, solution backend.Assignments, e
 	}
 
 	// verifier
-	assert.checkProof(true, proof, &vk, solution.DiscardSecrets())
-
-	// fuzz testing
-	// TODO need to fuzz inputs once code is genrated and we have fixed size arrays
 	{
-		// goodPk := pk
-		// // 1. computing with empty proving key the proof
-		// pk = ProvingKey{}
-		// proof, err := Prove(r1cs, &pk, solution)
-		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
-
-		// // 2. fuzzing the pk
-		// assert.fuzz.Fuzz(&pk)
-		// pk.G1.A[0].X.SetRandom()
-		// proof, err = Prove(r1cs, &pk, solution)
-		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
-
-		// // 3. fuzzing the vk
-		// vk = VerifyingKey{}
-		// assert.fuzz.Fuzz(&vk)
-		// proof, err = Prove(r1cs, &goodPk, solution)
-		// assert.Nil(err, "proving with good solution should not output an error")
-		// assert.checkProof(false, proof, &vk, solution.DiscardSecrets())
-
+		isValid, err := Verify(proof, &vk, solution.DiscardSecrets())
+		assert.Nil(err, "verifying proof with good solution should not output an error")
+		assert.True(isValid, "unexpected Verify(proof) result")
 	}
-}
-
-func (assert *Assert) checkProof(expected bool, proof *Proof, vk *VerifyingKey, solution backend.Assignments) {
-	isValid, err := Verify(proof, vk, solution.DiscardSecrets())
-	assert.Nil(err, "verifying proof with good solution should not output an error")
-	assert.True(isValid == expected, "unexpected Verify(proof) result")
 }

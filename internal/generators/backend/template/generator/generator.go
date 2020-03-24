@@ -97,11 +97,12 @@ func GenerateGroth16(d GenerateData) error {
 		}
 	}
 
-	{
-		// assert
+	if d.Curve == "GENERIC" {
+		// export assert only in GENERIC case
 		src := []string{
 			templates.Header,
 			templates.ImportCurve,
+			zkpschemes.Groth16StandaloneAssert,
 			zkpschemes.Groth16Assert,
 		}
 		if err := generateCode(d.RootPath+"groth16/assert.go", src, d); err != nil {
@@ -115,6 +116,7 @@ func GenerateGroth16(d GenerateData) error {
 			templates.Header,
 			templates.ImportCurve,
 			zkpschemes.Groth16Tests,
+			zkpschemes.Groth16Assert,
 		}
 		if err := generateCode(d.RootPath+"groth16/groth16_test.go", src, d); err != nil {
 			return err
