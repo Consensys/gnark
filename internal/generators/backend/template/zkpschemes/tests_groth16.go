@@ -2,11 +2,6 @@ package zkpschemes
 
 const Groth16Tests = `
 
-
-{{ template "header" . }}
-
-package groth16
-
 import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}

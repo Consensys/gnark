@@ -2,10 +2,6 @@ package algorithms
 
 const FFT = `
 
-{{ template "header" . }}
-
-package groth16
-
 import (
 	"math/bits"
 	"runtime"

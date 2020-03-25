@@ -1,9 +1,6 @@
 package zkpschemes
 
 const Groth16StandaloneAssert = `
-{{ template "header" . }}
-
-package groth16
 
 import (
 	"reflect"

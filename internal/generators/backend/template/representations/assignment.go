@@ -1,9 +1,6 @@
 package representations
 
 const Assignment = `
-{{ template "header" . }}
-
-package backend
 
 import (
 	"bufio"

@@ -2,11 +2,6 @@ package zkpschemes
 
 const Groth16Setup = `
 
-{{ template "header" . }}
-
-// Package groth16 exposes zkSNARK (Groth16) 3 algorithms: Setup, Prove and Verify
-package groth16
-
 import (
 	{{ template "import_curve" . }}
 	"github.com/consensys/gnark/internal/utils/parallel"

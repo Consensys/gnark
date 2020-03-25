@@ -2,9 +2,6 @@ package representations
 
 const R1CS = `
 
-{{ template "header" . }}
-
-package backend
 
 import (
 	"fmt"
