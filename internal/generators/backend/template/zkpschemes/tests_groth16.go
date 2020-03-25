@@ -29,24 +29,28 @@ import (
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
 	{{if eq .Curve "GENERIC"}}
-		matches, _ := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
+		matches, err := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
 	{{else}}
-		matches, _ := filepath.Glob("../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
+		matches, err := filepath.Glob("../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
 	{{end}}
 	
+	if err != nil {
+		t.Fatal(err) 
+	}
+
 	if len(matches) == 0 {
 		t.Fatal("couldn't find test circuits for", curve.ID.String())
 	}
 	for _, name := range matches {
 		name = name[:len(name)-5]
-		t.Log("testing circuit", name)
+		t.Log(curve.ID.String(), " -- ", filepath.Base(name))
 
 		good := backend.NewAssignment()
-		if err := good.Read(name + ".good"); err != nil {
+		if err := good.ReadFile(name + ".good"); err != nil {
 			t.Fatal(err)
 		}
 		bad := backend.NewAssignment()
-		if err := bad.Read(name + ".bad"); err != nil {
+		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
 		var r1cs backend.R1CS
@@ -113,11 +117,11 @@ func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments)
 	{{end}}
 	
 	good := backend.NewAssignment()
-	if err := good.Read(name + ".good"); err != nil {
+	if err := good.ReadFile(name + ".good"); err != nil {
 		panic(err)
 	}
 	bad := backend.NewAssignment()
-	if err := bad.Read(name + ".bad"); err != nil {
+	if err := bad.ReadFile(name + ".bad"); err != nil {
 		panic(err)
 	}
 	var r1cs backend.R1CS

@@ -17,8 +17,6 @@ func main() {
 		panic(err)
 	}
 	version := strings.TrimSpace(string(v))
-	fmt.Println(version)
-
 	src := []string{
 		templates.Header,
 		Version,

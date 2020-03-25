@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
@@ -54,10 +53,10 @@ func TestIntegration(t *testing.T) {
 
 		buildTags := curve.ID.String() + ",debug"
 		// 2: input files to disk
-		if err := good.Write(fInputGood); err != nil {
+		if err := good.WriteFile(fInputGood); err != nil {
 			t.Fatal(err)
 		}
-		if err := bad.Write(fInputBad); err != nil {
+		if err := bad.WriteFile(fInputBad); err != nil {
 			t.Fatal(err)
 		}
 
@@ -97,35 +96,22 @@ func TestIntegration(t *testing.T) {
 			}
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			pv(fInputGood, true)
-		}()
+		pv(fInputGood, true)
 		pv(fInputBad, false)
-		wg.Wait()
 	}
 
-	var wg sync.WaitGroup
 	for name, circuit := range circuits.Circuits {
 		if name == "reference_large" {
 			// be nice with circleci.
 			continue
 		}
-		wg.Add(1)
-		go func(name string, circuit circuits.TestCircuit) {
-			defer wg.Done()
-			// serialize to disk
-			fCircuit := filepath.Join(parentDir, name+".r1cs")
-			if err := gob.Write(fCircuit, circuit.R1CS, curve.ID); err != nil {
-				t.Fatal(err)
-			}
+		// serialize to disk
+		fCircuit := filepath.Join(parentDir, name+".r1cs")
+		if err := gob.Write(fCircuit, circuit.R1CS, curve.ID); err != nil {
+			t.Fatal(err)
+		}
 
-			spv(name, circuit.Good, circuit.Bad)
-		}(name, circuit)
+		spv(name, circuit.Good, circuit.Bad)
 
 	}
-	wg.Wait()
-
 }

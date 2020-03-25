@@ -122,7 +122,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// parse input file
 		r1csInput := backend_bls377.NewAssignment()
-		err = r1csInput.Read(fInputPath)
+		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)
 			os.Exit(-1)
@@ -174,7 +174,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// parse input file
 		r1csInput := backend_bls381.NewAssignment()
-		err = r1csInput.Read(fInputPath)
+		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)
 			os.Exit(-1)
@@ -226,7 +226,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// parse input file
 		r1csInput := backend_bn256.NewAssignment()
-		err = r1csInput.Read(fInputPath)
+		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)
 			os.Exit(-1)

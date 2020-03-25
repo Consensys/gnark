@@ -51,16 +51,19 @@ func (a Assignments) Assign(visibility {{if ne .Curve "GENERIC"}} backend.{{- en
 	}
 }
 
-// Read parse r1cs.Assigments from given file
-// file line structure: secret/public, assignmentName, assignmentValue
-// note this is a cs/ subpackage because we need to instantiate internal/fr.Element
-func (assigment Assignments) Read(filePath string) error {
+// ReadFile parse r1cs.Assigments from given file
+func (assignment Assignments) ReadFile(filePath string) error {
 	csvFile, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 	defer csvFile.Close()
-	reader := csv.NewReader(bufio.NewReader(csvFile))
+	return assignment.Read(csvFile)
+}
+
+// Read parse r1cs.Assigments from given io.Reader
+func (assigment Assignments) Read(r io.Reader) error {
+	reader := csv.NewReader(bufio.NewReader(r))
 	for {
 		line, err := reader.Read()
 		if err == io.EOF {
@@ -79,15 +82,20 @@ func (assigment Assignments) Read(filePath string) error {
 	return nil
 }
 
-// Write serialize given assigment to disk
-// file line structure: secret/public, assignmentName, assignmentValue
-func (assignment Assignments) Write(path string) error {
+
+// WriteFile serialize given assigment to disk
+func (assignment Assignments) WriteFile(path string) error {
 	csvFile, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer csvFile.Close()
-	writer := csv.NewWriter(csvFile)
+	return assignment.Write(csvFile)
+}
+
+// Write serialize given assigment to io.Writer
+func (assignment Assignments) Write(w io.Writer) error {
+	writer := csv.NewWriter(w)
 	for k, v := range assignment {
 		r := v.Value
 		record := []string{string({{if ne .Curve "GENERIC"}} backend.{{- end}}Secret), k, r.String()}

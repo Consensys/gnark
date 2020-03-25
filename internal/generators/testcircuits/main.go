@@ -49,10 +49,10 @@ func main() {
 			if err := gob.Write(fName+"r1cs", v.R1CS, curve.ID); err != nil {
 				panic(err)
 			}
-			if err := v.Good.Write(fName + "good"); err != nil {
+			if err := v.Good.WriteFile(fName + "good"); err != nil {
 				panic(err)
 			}
-			if err := v.Bad.Write(fName + "bad"); err != nil {
+			if err := v.Bad.WriteFile(fName + "bad"); err != nil {
 				panic(err)
 			}
 		}
