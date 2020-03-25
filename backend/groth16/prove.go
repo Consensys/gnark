@@ -80,7 +80,7 @@ func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution backend.Assignments) (*P
 			wireValues[i].FromMont()
 		}
 	}
-	parallel.Execute(0, len(wireValues), work, false)
+	parallel.Execute(len(wireValues), work)
 
 	// compute proof elements
 	// 4 multiexp + 1 FFT
@@ -241,11 +241,11 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 			// wait for the expTable to be pre-computed
 			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
 			wgExpTable.Wait()
-			parallel.Execute(0, n, func(start, end int) {
+			parallel.Execute(n, func(start, end int) {
 				for i := start; i < end; i++ {
 					s[i].MulAssign(&expTable[i])
 				}
-			}, true)
+			})
 
 			// FFT coset
 			fft(s, fftDomain.generator)
@@ -261,13 +261,13 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 
 		// h = ifft_coset(ca o cb - cc)
 		// reusing a to avoid unecessary memalloc
-		parallel.Execute(0, n, func(start, end int) {
+		parallel.Execute(n, func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &b[i]).
 					SubAssign(&c[i]).
 					MulAssign(&minusTwoInv)
 			}
-		}, true)
+		})
 
 		// before computing the ifft_coset, we schedule the expTable precompute of the ifft_coset
 		// to ensure the pool is busy while the FFT splits
@@ -281,11 +281,11 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 		fft(a, fftDomain.generatorInv)
 
 		wgExpTable.Wait() // wait for pre-computation of exp table to be done
-		parallel.Execute(0, n, func(start, end int) {
+		parallel.Execute(n, func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].MulAssign(&expTable[i]).FromMont()
 			}
-		}, true)
+		})
 
 		chResult <- a
 		close(chResult)

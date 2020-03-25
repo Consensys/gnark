@@ -196,13 +196,13 @@ func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *domain) {
 	}
 
 	// Z(t) = [(t^j*Zd(t) / delta)]
-	parallel.Execute(0, g.cardinality, func(start, end int) {
+	parallel.Execute(g.cardinality, func(start, end int) {
 		var pkG1Z curve.G1Jac
 		for j := start; j < end; j++ {
 			pkG1Z.ScalarMulByGen(c, Zdt[j])
 			pkG1Z.ToAffineFromJac(&pk.G1.Z[j])
 		}
-	}, false)
+	})
 
 }
 
@@ -268,7 +268,7 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	publicStartIndex := r1cs.NbWires - r1cs.NbPublicWires
-	parallel.Execute(0, nbWires, func(start, end int) {
+	parallel.Execute(nbWires, func(start, end int) {
 		var tt fr.Element
 		var pkG1A, pkG1K, vkG1K curve.G1Jac
 		for i := start; i < end; i++ {
@@ -290,10 +290,10 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 				vkG1K.ScalarMulByGen(c, A[i]).ToAffineFromJac(&vk.G1.K[i-publicStartIndex])
 			}
 		}
-	}, false)
+	})
 
 	// Set the points from the coefficients
-	parallel.Execute(0, nbWires, func(start, end int) {
+	parallel.Execute(nbWires, func(start, end int) {
 		var pkG1B curve.G1Jac
 		var pkG2B curve.G2Jac
 		for i := start; i < end; i++ {
@@ -303,6 +303,6 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 			pkG2B.ScalarMulByGen(c, B[i]).
 				ToAffineFromJac(&pk.G2.B[i])
 		}
-	}, false)
+	})
 
 }
