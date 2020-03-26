@@ -3,48 +3,36 @@ package main
 import (
 	"testing"
 
-	"github.com/consensys/gnark/cs"
-	"github.com/consensys/gnark/cs/groth16"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
 )
 
 func TestCubicEquation(t *testing.T) {
 	assert := groth16.NewAssert(t)
-	circuit := New() // x**3+x+5 == y
+	r1cs := New() // x**3+x+5 == y
 
 	{
-		bad := cs.NewAssignment()
-		bad.Assign(cs.Secret, "x", 42)
-		bad.Assign(cs.Public, "y", 42)
-		assert.NotSolved(circuit, bad)
+		bad := backend.NewAssignment()
+		bad.Assign(backend.Secret, "x", 42)
+		bad.Assign(backend.Public, "y", 42)
+		assert.NotSolved(r1cs, bad)
 	}
 
 	{
-		bad := cs.NewAssignment()
-		bad.Assign(cs.Public, "x", 3) // x should be Secret
-		bad.Assign(cs.Public, "y", 35)
-		assert.NotSolved(circuit, bad)
+		bad := backend.NewAssignment()
+		bad.Assign(backend.Public, "x", 3) // x should be Secret
+		bad.Assign(backend.Public, "y", 35)
+		assert.NotSolved(r1cs, bad)
 	}
 
 	{
-		good := cs.NewAssignment()
-		good.Assign(cs.Secret, "x", 3)
-		good.Assign(cs.Public, "y", 35)
+		good := backend.NewAssignment()
+		good.Assign(backend.Secret, "x", 3)
+		good.Assign(backend.Public, "y", 35)
 		expectedValues := make(map[string]interface{})
 		expectedValues["x^3"] = 27
 		expectedValues["x"] = 3
-		assert.Solved(circuit, good, expectedValues)
+		assert.Solved(r1cs, good, expectedValues)
 	}
 
-}
-
-func BenchmarkCubicEquation(b *testing.B) {
-	circuit := New() // x**3+x+5 == y
-
-	good := cs.NewAssignment()
-	good.Assign(cs.Secret, "x", 3)
-	good.Assign(cs.Public, "y", 35)
-
-	groth16.BenchmarkSetup(b, circuit)
-	groth16.BenchmarkProver(b, circuit, good)
-	groth16.BenchmarkVerifier(b, circuit, good)
 }

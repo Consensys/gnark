@@ -27,7 +27,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:     "gnark",
 	Short:   "gnark is a framework to execute (and verify) algorithms in zero-knowledge",
-	Version: buildString(),
+	Version: Version,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

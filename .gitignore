@@ -25,7 +25,7 @@ tasks.txt
 *.log
 
 # generated files during integratrion tests
-internal/tests/integration/
+integratrion_test/**
 
 # binary
 gnark

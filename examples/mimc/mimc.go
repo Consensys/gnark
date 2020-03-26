@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/consensys/gnark/cs"
-	"github.com/consensys/gnark/cs/std/gadget/hash/mimc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
 )
 
 func main() {
@@ -12,9 +13,9 @@ func main() {
 
 // New return the circuit implementing
 // a pre image check
-func New() cs.CS {
+func New() *backend.R1CS {
 	// create root constraint system
-	circuit := cs.New()
+	circuit := frontend.New()
 
 	// declare secret and public inputs
 	preImage := circuit.SECRET_INPUT("pi")
@@ -27,5 +28,5 @@ func New() cs.CS {
 	// mimc(preImage) == hash
 	circuit.MUSTBE_EQ(hash, mimc.Hash(&circuit, preImage))
 
-	return circuit
+	return circuit.ToR1CS()
 }
