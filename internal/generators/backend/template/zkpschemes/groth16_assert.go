@@ -30,7 +30,7 @@ func NewAssert(t *testing.T) *Assert {
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
-func (assert *Assert) NotSolved(r1cs *backend.R1CS, solution backend.Assignments) {
+func (assert *Assert) NotSolved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments) {
 	// setup
 
 	var pk ProvingKey
@@ -46,7 +46,7 @@ func (assert *Assert) NotSolved(r1cs *backend.R1CS, solution backend.Assignments
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs *backend.R1CS, solution backend.Assignments, expectedValues map[string]interface{}) {
+func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]interface{}) {
 	// setup
 
 	var pk ProvingKey

@@ -23,30 +23,18 @@ func GenerateGroth16(d GenerateData) error {
 	fmt.Println()
 	fmt.Println("generating groth16 backend for ", d.Curve)
 	fmt.Println()
+	if d.Curve == "GENERIC" {
+		return nil
+	}
 
-	{
+	if d.Curve != "GENERIC" {
 		// generate R1CS.go
 		src := []string{
 			templates.ImportCurve,
 			representations.R1CS,
 		}
 		if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
-			bavard.Package("backend"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// generate assignment.go
-		src := []string{
-			templates.ImportCurve,
-			representations.Assignment,
-		}
-		if err := bavard.Generate(d.RootPath+"assignment.go", src, d,
-			bavard.Package("backend"),
+			bavard.Package("backend_"+strings.ToLower(d.Curve)),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {
@@ -62,7 +50,7 @@ func GenerateGroth16(d GenerateData) error {
 			zkpschemes.Groth16Setup,
 		}
 		if err := bavard.Generate(d.RootPath+"groth16/setup.go", src, d,
-			bavard.Package("groth16", "exposes zkSNARK (Groth16) 3 algorithms: Setup, Prove and Verify"),
+			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {
@@ -105,8 +93,8 @@ func GenerateGroth16(d GenerateData) error {
 			templates.ImportCurve,
 			algorithms.FFT,
 		}
-		if err := bavard.Generate(d.RootPath+"groth16/fft.go", src, d,
-			bavard.Package("groth16"),
+		if err := bavard.Generate(d.RootPath+"fft.go", src, d,
+			bavard.Package("backend_"+strings.ToLower(d.Curve)),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {

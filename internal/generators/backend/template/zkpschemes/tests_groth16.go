@@ -12,7 +12,7 @@ import (
 
 
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
-	constants "github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend"
 
 	{{if ne .Curve "GENERIC"}}
 	"reflect"
@@ -48,7 +48,7 @@ func TestCircuits(t *testing.T) {
 		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
-		var r1cs backend.R1CS
+		var r1cs backend_{{toLower .Curve}}.R1CS
 
 		if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
 			t.Fatal(err)
@@ -63,13 +63,13 @@ func TestParsePublicInput(t *testing.T) {
 	expectedNames := [2]string{"data", "ONE_WIRE"}
 
 	inputOneWire := backend.NewAssignment()
-	inputOneWire.Assign(constants.Public, "ONE_WIRE", 3)
+	inputOneWire.Assign(backend.Public, "ONE_WIRE", 3)
 	if _, err := parsePublicInput(expectedNames[:], inputOneWire); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	inputPrivate := backend.NewAssignment()
-	inputPrivate.Assign(constants.Secret, "data", 3)
+	inputPrivate.Assign(backend.Secret, "data", 3)
 	if _, err := parsePublicInput(expectedNames[:], inputPrivate); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
@@ -80,7 +80,7 @@ func TestParsePublicInput(t *testing.T) {
 	}
 
 	correctInput := backend.NewAssignment()
-	correctInput.Assign(constants.Public, "data", 3)
+	correctInput.Assign(backend.Public, "data", 3)
 	got, err := parsePublicInput(expectedNames[:], correctInput)
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments) {
+func referenceCircuit() (backend_{{toLower .Curve}}.R1CS, backend.Assignments, backend.Assignments) {
 	{{if eq .Curve "GENERIC"}}
 		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{else}}
@@ -119,7 +119,7 @@ func referenceCircuit() (backend.R1CS, backend.Assignments, backend.Assignments)
 	if err := bad.ReadFile(name + ".bad"); err != nil {
 		panic(err)
 	}
-	var r1cs backend.R1CS
+	var r1cs backend_{{toLower .Curve}}.R1CS
 
 	if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
 		panic(err)
