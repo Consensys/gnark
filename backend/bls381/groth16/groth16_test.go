@@ -51,9 +51,6 @@ func TestCircuits(t *testing.T) {
 	for _, name := range matches {
 		name = name[:len(name)-5]
 		t.Log(curve.ID.String(), " -- ", filepath.Base(name))
-		if filepath.Base(name) == "constant_ops" {
-			continue
-		}
 
 		good := backend.NewAssignment()
 		if err := good.ReadFile(name + ".good"); err != nil {

@@ -14,9 +14,13 @@ func main() {
 	fmt.Println()
 	fmt.Println("generating test circuits")
 	fmt.Println()
+	os.RemoveAll(os.Args[1])
+	if err := os.MkdirAll(os.Args[1], 0700); err != nil {
+		panic(err)
+	}
 	for k, v := range circuits.Circuits {
 		// test r1cs serialization
-		// TODO fixme big int serialization
+		// fmt.Println("test serialization", k)
 		// var bytes bytes.Buffer
 		// if err := gob.Serialize(&bytes, v.R1CS, gurvy.UNKNOWN); err != nil {
 		// 	panic("serializaing R1CS shouldn't output an error")
@@ -30,9 +34,7 @@ func main() {
 		// }
 
 		// serialize test circuits to disk
-		if err := os.MkdirAll(os.Args[1], 0700); err != nil {
-			panic(err)
-		}
+
 		// if err := os.MkdirAll(os.Args[2], 0700); err != nil {
 		// 	panic(err)
 		// }

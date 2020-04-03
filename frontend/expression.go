@@ -464,6 +464,7 @@ func (p *packExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 	// L
 	left := LinearExpression{}
 	for k, b := range p.bits {
+		// TODO this doesn't seem to work
 		tmp.Exp(&two, new(big.Int).SetUint64(uint64(k)), nil)
 		lwtl := ToRefactorTerm{ID: b.WireID, Coeff: tmp}
 		left = append(left, lwtl)
@@ -643,6 +644,7 @@ func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 		ToRefactorTerm{ID: win.b0.WireID, Coeff: bigOne()},
 	}
 
+	// TODO doesn't work
 	t0.Neg(&win.lookuptable[0]).
 		Add(&t0, &win.lookuptable[1])
 	t1.Sub(&win.lookuptable[0], &win.lookuptable[1]).

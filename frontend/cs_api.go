@@ -336,7 +336,7 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 	default:
 		c1Fr := FromInterface(i1)
 		c2Fr := FromInterface(i2)
-		c1Fr.Sub(&c1Fr, &c2Fr)
+		c1Fr.Sub(&c1Fr, &c2Fr) // TODO this is not gonna work.
 		expression := linearExpression{
 			term{Wire: b.outputWire, Coeff: c1Fr, Operation: mul},
 			term{Wire: cs.Constraints[0].outputWire, Coeff: bigOne(), Operation: mul},

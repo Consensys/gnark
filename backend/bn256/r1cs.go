@@ -60,14 +60,29 @@ func New(r1cs *frontend.R1CS) R1CS {
 	toReturn.Constraints = make([]R1C, len(r1cs.Constraints))
 	for i := 0; i < len(r1cs.Constraints); i++ {
 		from := r1cs.Constraints[i]
-		toReturn.Constraints[i] = R1C{
+		to := R1C{
 			Solver: from.Solver,
 			L:      make(LinearExpression, len(from.L)),
 			R:      make(LinearExpression, len(from.R)),
 			O:      make(LinearExpression, len(from.O)),
 		}
 
+		for j := 0; j < len(from.L); j++ {
+			to.L[j].ID = from.L[j].ID
+			to.L[j].Coeff.SetBigInt(&from.L[j].Coeff)
+		}
+		for j := 0; j < len(from.R); j++ {
+			to.R[j].ID = from.R[j].ID
+			to.R[j].Coeff.SetBigInt(&from.R[j].Coeff)
+		}
+		for j := 0; j < len(from.O); j++ {
+			to.O[j].ID = from.O[j].ID
+			to.O[j].Coeff.SetBigInt(&from.O[j].Coeff)
+		}
+
+		toReturn.Constraints[i] = to
 	}
+
 	return toReturn
 }
 
