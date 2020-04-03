@@ -1,8 +1,9 @@
 package circuits
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -12,7 +13,7 @@ func init() {
 	x := circuit.SECRET_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")
 
-	elmts := make([]fr.Element, 3)
+	elmts := make([]big.Int, 3)
 	for i := 0; i < 3; i++ {
 		elmts[i].SetUint64(uint64(i) + 10)
 	}

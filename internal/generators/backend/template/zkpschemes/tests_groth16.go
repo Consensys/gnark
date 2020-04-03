@@ -13,6 +13,8 @@ import (
 
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 
 	{{if ne .Curve "GENERIC"}}
 	"reflect"
@@ -23,11 +25,7 @@ import (
 
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
-	{{if eq .Curve "GENERIC"}}
-		matches, err := filepath.Glob("./testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
-	{{else}}
-		matches, err := filepath.Glob("../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
-	{{end}}
+	matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
 	
 	if err != nil {
 		t.Fatal(err) 
@@ -48,11 +46,11 @@ func TestCircuits(t *testing.T) {
 		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
-		var r1cs backend_{{toLower .Curve}}.R1CS
-
-		if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
+		var fr1cs frontend.R1CS
+		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
+		r1cs := backend_{{toLower .Curve}}.New(&fr1cs)
 		assert.NotSolved(&r1cs, bad)
 		assert.Solved(&r1cs, good, nil)
 	}

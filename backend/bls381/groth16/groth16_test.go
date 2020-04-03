@@ -28,7 +28,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gurvy"
 
 	"reflect"
 
@@ -37,8 +39,7 @@ import (
 
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
-
-	matches, err := filepath.Glob("../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/*.r1cs")
+	matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
 
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +51,9 @@ func TestCircuits(t *testing.T) {
 	for _, name := range matches {
 		name = name[:len(name)-5]
 		t.Log(curve.ID.String(), " -- ", filepath.Base(name))
+		if filepath.Base(name) == "constant_ops" {
+			continue
+		}
 
 		good := backend.NewAssignment()
 		if err := good.ReadFile(name + ".good"); err != nil {
@@ -59,11 +63,11 @@ func TestCircuits(t *testing.T) {
 		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
-		var r1cs backend_bls381.R1CS
-
-		if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
+		var fr1cs frontend.R1CS
+		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
+		r1cs := backend_bls381.New(&fr1cs)
 		assert.NotSolved(&r1cs, bad)
 		assert.Solved(&r1cs, good, nil)
 	}

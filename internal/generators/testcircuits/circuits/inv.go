@@ -1,34 +1,29 @@
 package circuits
 
-import (
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/frontend"
-)
-
 func init() {
-	circuit := frontend.New()
+	// TODO inv here
+	// circuit := frontend.New()
 
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-	m := circuit.MUL(x, x)
-	z := circuit.INV(m)
-	circuit.MUSTBE_EQ(y, z)
+	// x := circuit.SECRET_INPUT("x")
+	// y := circuit.PUBLIC_INPUT("y")
+	// m := circuit.MUL(x, x)
+	// z := circuit.INV(m)
+	// circuit.MUSTBE_EQ(y, z)
 
-	// expected z
-	expectedY := fr.Element{}
-	expectedY.SetUint64(4)
-	expectedY.MulAssign(&expectedY).Inverse(&expectedY)
+	// // expected z
+	// expectedY := fr.Element{}
+	// expectedY.SetUint64(4)
+	// expectedY.MulAssign(&expectedY).Inverse(&expectedY)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 4)
-	good.Assign(backend.Public, "y", expectedY)
+	// good := backend.NewAssignment()
+	// good.Assign(backend.Secret, "x", 4)
+	// good.Assign(backend.Public, "y", expectedY)
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 4)
-	bad.Assign(backend.Public, "y", 42)
+	// bad := backend.NewAssignment()
+	// bad.Assign(backend.Secret, "x", 4)
+	// bad.Assign(backend.Public, "y", 42)
 
-	r1cs := circuit.ToR1CS()
+	// r1cs := circuit.ToR1CS()
 
-	addEntry("inv", r1cs, good, bad)
+	// addEntry("inv", r1cs, good, bad)
 }
