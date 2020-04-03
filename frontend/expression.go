@@ -17,10 +17,8 @@ limitations under the License.
 package frontend
 
 import (
+	"math/big"
 	"strconv"
-
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 )
 
 // expression [of constraints] represents the lowest level of circuit design
@@ -43,10 +41,10 @@ import (
 // so one needs a function replaceWire(oldWire, newWire)
 // The bound in the number of expressions is only limited by the fact that we use a r1cs system.
 type expression interface {
-	consumeWires()                                    // used during the conversion to r1cs: tells what variables are consumed (useful for the post ordering)
-	replaceWire(oldWire, newWire *wire)               // replace a wire in the expression (used when equal is called on two constraints)
-	toR1CS(oneWire *wire, wires ...*wire) backend.R1C // turns an expression into a r1cs (ex: toR1cs on a selection constraint x-b(y-x) yields: b(y-x)=z-x)
-	string() string                                   // implement string interface
+	consumeWires()                            // used during the conversion to r1cs: tells what variables are consumed (useful for the post ordering)
+	replaceWire(oldWire, newWire *wire)       // replace a wire in the expression (used when equal is called on two constraints)
+	toR1CS(oneWire *wire, wires ...*wire) R1C // turns an expression into a r1cs (ex: toR1cs on a selection constraint x-b(y-x) yields: b(y-x)=z-x)
+	string() string                           // implement string interface
 }
 
 // Multi Output expression
@@ -65,7 +63,7 @@ const (
 // term expression of type coef*wire
 type term struct {
 	Wire      *wire
-	Coeff     fr.Element
+	Coeff     big.Int
 	Operation operationType
 }
 
@@ -79,42 +77,42 @@ func (t *term) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (t *term) toR1CS(oneWire *wire, wires ...*wire) backend.R1C {
-	var L, R, O backend.LinearExpression
+func (t *term) toR1CS(oneWire *wire, wires ...*wire) R1C {
+	var L, R, O LinearExpression
 	switch t.Operation {
 	case mul:
-		L = backend.LinearExpression{
-			backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff},
+		L = LinearExpression{
+			ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff},
 		}
 
-		R = backend.LinearExpression{
-			backend.Term{ID: oneWire.WireID, Coeff: fr.One()},
+		R = LinearExpression{
+			ToRefactorTerm{ID: oneWire.WireID, Coeff: bigOne()},
 		}
 
-		O = backend.LinearExpression{
-			backend.Term{ID: wires[0].WireID, Coeff: fr.One()},
+		O = LinearExpression{
+			ToRefactorTerm{ID: wires[0].WireID, Coeff: bigOne()},
 		}
 	case div:
-		L = backend.LinearExpression{
-			backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff},
+		L = LinearExpression{
+			ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff},
 		}
 
-		R = backend.LinearExpression{
-			backend.Term{ID: wires[0].WireID, Coeff: fr.One()},
+		R = LinearExpression{
+			ToRefactorTerm{ID: wires[0].WireID, Coeff: bigOne()},
 		}
 
-		O = backend.LinearExpression{
-			backend.Term{ID: oneWire.WireID, Coeff: fr.One()},
+		O = LinearExpression{
+			ToRefactorTerm{ID: oneWire.WireID, Coeff: bigOne()},
 		}
 	default:
 		panic("unimplemented operation type")
 	}
 
-	return backend.R1C{
+	return R1C{
 		L:      L,
 		R:      R,
 		O:      O,
-		Solver: backend.SingleOutput,
+		Solver: SingleOutput,
 	}
 }
 
@@ -163,23 +161,23 @@ func (l *linearExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (l *linearExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (l *linearExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
-	left := backend.LinearExpression{}
+	left := LinearExpression{}
 	for _, t := range *l {
-		lwt := backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff}
+		lwt := ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff}
 		left = append(left, lwt)
 	}
 
-	right := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: fr.One()},
+	right := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: bigOne()},
 	}
 
-	o := backend.LinearExpression{
-		backend.Term{ID: w[0].WireID, Coeff: fr.One()},
+	o := LinearExpression{
+		ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 	}
 
-	return backend.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
+	return R1C{L: left, R: right, O: o, Solver: SingleOutput}
 }
 
 func (l *linearExpression) string() string {
@@ -216,42 +214,42 @@ func (q *quadraticExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (q *quadraticExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (q *quadraticExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
 	switch q.operation {
 	case mul:
-		L := backend.LinearExpression{}
+		L := LinearExpression{}
 		for _, t := range q.left {
-			L = append(L, backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff})
+			L = append(L, ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff})
 		}
 
-		R := backend.LinearExpression{}
+		R := LinearExpression{}
 		for _, t := range q.right {
-			R = append(R, backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff})
+			R = append(R, ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff})
 		}
 
-		O := backend.LinearExpression{
-			backend.Term{ID: w[0].WireID, Coeff: fr.One()},
+		O := LinearExpression{
+			ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 		}
 
-		return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+		return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 	case div:
-		L := backend.LinearExpression{}
+		L := LinearExpression{}
 
 		for _, t := range q.left {
-			L = append(L, backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff})
+			L = append(L, ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff})
 		}
 
-		R := backend.LinearExpression{
-			backend.Term{ID: w[0].WireID, Coeff: fr.One()},
+		R := LinearExpression{
+			ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 		}
 
-		O := backend.LinearExpression{}
+		O := LinearExpression{}
 		for _, t := range q.right {
-			O = append(O, backend.Term{ID: t.Wire.WireID, Coeff: t.Coeff})
+			O = append(O, ToRefactorTerm{ID: t.Wire.WireID, Coeff: t.Coeff})
 		}
 
-		return backend.R1C{L: L, R: R, O: O}
+		return R1C{L: L, R: R, O: O}
 	default:
 		panic("unimplemented operation")
 	}
@@ -293,26 +291,26 @@ func (s *selectExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (s *selectExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (s *selectExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
-	var minusOne fr.Element
-	one := fr.One()
+	var minusOne big.Int
+	one := bigOne()
 	minusOne.Neg(&one)
 
-	L := backend.LinearExpression{
-		backend.Term{ID: s.b.WireID, Coeff: one},
+	L := LinearExpression{
+		ToRefactorTerm{ID: s.b.WireID, Coeff: one},
 	}
 
-	R := backend.LinearExpression{
-		backend.Term{ID: s.y.WireID, Coeff: one},
-		backend.Term{ID: s.x.WireID, Coeff: minusOne},
+	R := LinearExpression{
+		ToRefactorTerm{ID: s.y.WireID, Coeff: one},
+		ToRefactorTerm{ID: s.x.WireID, Coeff: minusOne},
 	}
 
-	O := backend.LinearExpression{
-		backend.Term{ID: s.y.WireID, Coeff: one},
-		backend.Term{ID: w[0].WireID, Coeff: minusOne},
+	O := LinearExpression{
+		ToRefactorTerm{ID: s.y.WireID, Coeff: one},
+		ToRefactorTerm{ID: w[0].WireID, Coeff: minusOne},
 	}
-	return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 }
 
 func (s *selectExpression) string() string {
@@ -343,28 +341,28 @@ func (x *xorExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (x *xorExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (x *xorExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
-	var minusOne, two fr.Element
-	one := fr.One()
+	var minusOne, two big.Int
+	one := bigOne()
 	minusOne.Neg(&one)
 	two.SetUint64(2)
 
-	L := backend.LinearExpression{
-		backend.Term{ID: x.a.WireID, Coeff: two},
+	L := LinearExpression{
+		ToRefactorTerm{ID: x.a.WireID, Coeff: two},
 	}
 
-	R := backend.LinearExpression{
-		backend.Term{ID: x.b.WireID, Coeff: one},
+	R := LinearExpression{
+		ToRefactorTerm{ID: x.b.WireID, Coeff: one},
 	}
 
-	O := backend.LinearExpression{
-		backend.Term{ID: x.a.WireID, Coeff: one},
-		backend.Term{ID: x.b.WireID, Coeff: one},
-		backend.Term{ID: w[0].WireID, Coeff: minusOne},
+	O := LinearExpression{
+		ToRefactorTerm{ID: x.a.WireID, Coeff: one},
+		ToRefactorTerm{ID: x.b.WireID, Coeff: one},
+		ToRefactorTerm{ID: w[0].WireID, Coeff: minusOne},
 	}
 
-	return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 }
 
 func (x *xorExpression) string() string {
@@ -397,29 +395,29 @@ func (u *unpackExpression) replaceWire(oldWire, newWire *wire) {
 
 }
 
-func (u *unpackExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
-	var two, tmp fr.Element
-	one := fr.One()
+func (u *unpackExpression) toR1CS(constWire *wire, w ...*wire) R1C {
+	var two, tmp big.Int
+	one := bigOne()
 	two.SetUint64(2)
 
 	// L
-	left := backend.LinearExpression{}
+	left := LinearExpression{}
 	for k, b := range u.bits {
-		tmp.Exp(two, uint64(k))
-		left = append(left, backend.Term{ID: b.WireID, Coeff: tmp})
+		tmp.Exp(&two, new(big.Int).SetUint64(uint64(k)), nil)
+		left = append(left, ToRefactorTerm{ID: b.WireID, Coeff: tmp})
 	}
 
 	// R
-	right := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: one},
+	right := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: one},
 	}
 
 	// O
-	o := backend.LinearExpression{
-		backend.Term{ID: u.res.WireID, Coeff: one},
+	o := LinearExpression{
+		ToRefactorTerm{ID: u.res.WireID, Coeff: one},
 	}
 
-	return backend.R1C{L: left, R: right, O: o, Solver: backend.BinaryDec}
+	return R1C{L: left, R: right, O: o, Solver: BinaryDec}
 }
 
 func (u *unpackExpression) setConstraintID(n int64) {
@@ -458,30 +456,30 @@ func (p *packExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (p *packExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
-	var two, tmp fr.Element
-	one := fr.One()
+func (p *packExpression) toR1CS(constWire *wire, w ...*wire) R1C {
+	var two, tmp big.Int
+	one := bigOne()
 	two.SetUint64(2)
 
 	// L
-	left := backend.LinearExpression{}
+	left := LinearExpression{}
 	for k, b := range p.bits {
-		tmp.Exp(two, uint64(k))
-		lwtl := backend.Term{ID: b.WireID, Coeff: tmp}
+		tmp.Exp(&two, new(big.Int).SetUint64(uint64(k)), nil)
+		lwtl := ToRefactorTerm{ID: b.WireID, Coeff: tmp}
 		left = append(left, lwtl)
 	}
 
 	// R
-	right := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: one},
+	right := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: one},
 	}
 
 	// O
-	o := backend.LinearExpression{
-		backend.Term{ID: w[0].WireID, Coeff: one},
+	o := LinearExpression{
+		ToRefactorTerm{ID: w[0].WireID, Coeff: one},
 	}
 
-	return backend.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
+	return R1C{L: left, R: right, O: o, Solver: SingleOutput}
 }
 
 func (p *packExpression) string() string {
@@ -507,26 +505,26 @@ func (b *booleanExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (b *booleanExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (b *booleanExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
-	var minusOne, zero fr.Element
-	one := fr.One()
+	var minusOne, zero big.Int
+	one := bigOne()
 	minusOne.Neg(&one)
 
-	L := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: one},
-		backend.Term{ID: b.b.WireID, Coeff: minusOne},
+	L := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: one},
+		ToRefactorTerm{ID: b.b.WireID, Coeff: minusOne},
 	}
 
-	R := backend.LinearExpression{
-		backend.Term{ID: b.b.WireID, Coeff: one},
+	R := LinearExpression{
+		ToRefactorTerm{ID: b.b.WireID, Coeff: one},
 	}
 
-	O := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: zero},
+	O := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: zero},
 	}
 
-	return backend.R1C{L: L, R: R, O: O}
+	return R1C{L: L, R: R, O: O}
 }
 
 func (b *booleanExpression) string() string {
@@ -538,31 +536,31 @@ func (b *booleanExpression) string() string {
 
 // eqConstExp wire is equal to a constant
 type eqConstantExpression struct {
-	v fr.Element
+	v big.Int
 }
 
 func (e *eqConstantExpression) consumeWires() {}
 
 func (e *eqConstantExpression) replaceWire(oldWire, newWire *wire) {}
 
-func (e *eqConstantExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (e *eqConstantExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
 	// L
-	L := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: e.v},
+	L := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: e.v},
 	}
 
 	// R
-	R := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: fr.One()},
+	R := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: bigOne()},
 	}
 
 	// O
-	O := backend.LinearExpression{
-		backend.Term{ID: w[0].WireID, Coeff: fr.One()},
+	O := LinearExpression{
+		ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 	}
 
-	return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 }
 
 func (e *eqConstantExpression) string() string {
@@ -587,27 +585,27 @@ func (i *implyExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (i *implyExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
+func (i *implyExpression) toR1CS(constWire *wire, w ...*wire) R1C {
 
-	var one, minusOne, zero fr.Element
-	one.SetOne()
+	var one, minusOne, zero big.Int
+	one.SetUint64(1)
 	minusOne.Neg(&one)
 
-	L := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: one},
-		backend.Term{ID: i.b.WireID, Coeff: minusOne},
-		backend.Term{ID: i.a.WireID, Coeff: minusOne},
+	L := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: one},
+		ToRefactorTerm{ID: i.b.WireID, Coeff: minusOne},
+		ToRefactorTerm{ID: i.a.WireID, Coeff: minusOne},
 	}
 
-	R := backend.LinearExpression{
-		backend.Term{ID: i.a.WireID, Coeff: one},
+	R := LinearExpression{
+		ToRefactorTerm{ID: i.a.WireID, Coeff: one},
 	}
 
-	O := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: zero},
+	O := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: zero},
 	}
 
-	return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 }
 
 func (i *implyExpression) string() string {
@@ -620,7 +618,7 @@ func (i *implyExpression) string() string {
 // cf https://z.cash/technology/jubjub/
 type lutExpression struct {
 	b0, b1      *wire
-	lookuptable [4]fr.Element
+	lookuptable [4]big.Int
 }
 
 func (win *lutExpression) consumeWires() {
@@ -637,12 +635,12 @@ func (win *lutExpression) replaceWire(oldWire, newWire *wire) {
 	}
 }
 
-func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
-	var t0, t1 fr.Element
+func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) R1C {
+	var t0, t1 big.Int
 
 	// L
-	L := backend.LinearExpression{
-		backend.Term{ID: win.b0.WireID, Coeff: fr.One()},
+	L := LinearExpression{
+		ToRefactorTerm{ID: win.b0.WireID, Coeff: bigOne()},
 	}
 
 	t0.Neg(&win.lookuptable[0]).
@@ -652,9 +650,9 @@ func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
 		Add(&t1, &win.lookuptable[3])
 
 	// R
-	R := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: t0},
-		backend.Term{ID: win.b1.WireID, Coeff: t1},
+	R := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: t0},
+		ToRefactorTerm{ID: win.b1.WireID, Coeff: t1},
 	}
 
 	t0.Neg(&win.lookuptable[0])
@@ -662,18 +660,18 @@ func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) backend.R1C {
 	t1.Sub(&t1, &win.lookuptable[2])
 
 	// O
-	O := backend.LinearExpression{
-		backend.Term{ID: constWire.WireID, Coeff: t0},
-		backend.Term{ID: win.b1.WireID, Coeff: t1},
-		backend.Term{ID: w[0].WireID, Coeff: fr.One()},
+	O := LinearExpression{
+		ToRefactorTerm{ID: constWire.WireID, Coeff: t0},
+		ToRefactorTerm{ID: win.b1.WireID, Coeff: t1},
+		ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 	}
 
-	return backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return R1C{L: L, R: R, O: O, Solver: SingleOutput}
 }
 
 func (win *lutExpression) string() string {
 
-	var lookuptablereg [4]fr.Element
+	var lookuptablereg [4]big.Int
 	for i := 0; i < 4; i++ {
 		lookuptablereg[i] = win.lookuptable[i] //.ToRegular()
 	}

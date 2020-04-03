@@ -20,9 +20,9 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/internal/utils/debug"
 )
 
@@ -81,8 +81,8 @@ func (cs *CS) addConstraint(c *Constraint) {
 func (cs *CS) mul(c1, c2 *Constraint) *Constraint {
 
 	expression := &quadraticExpression{
-		left:      linearExpression{term{Wire: c1.outputWire, Coeff: fr.One()}},
-		right:     linearExpression{term{Wire: c2.outputWire, Coeff: fr.One()}},
+		left:      linearExpression{term{Wire: c1.outputWire, Coeff: bigOne()}},
+		right:     linearExpression{term{Wire: c2.outputWire, Coeff: bigOne()}},
 		operation: mul,
 	}
 
@@ -90,7 +90,7 @@ func (cs *CS) mul(c1, c2 *Constraint) *Constraint {
 }
 
 // mulConstant multiplies by a constant
-func (cs *CS) mulConstant(c *Constraint, constant fr.Element) *Constraint {
+func (cs *CS) mulConstant(c *Constraint, constant big.Int) *Constraint {
 	expression := &term{
 		Wire:      c.outputWire,
 		Coeff:     constant,
@@ -103,8 +103,8 @@ func (cs *CS) mulConstant(c *Constraint, constant fr.Element) *Constraint {
 func (cs *CS) div(c1, c2 *Constraint) *Constraint {
 
 	expression := quadraticExpression{
-		left:      linearExpression{term{Wire: c2.outputWire, Coeff: fr.One()}},
-		right:     linearExpression{term{Wire: c1.outputWire, Coeff: fr.One()}},
+		left:      linearExpression{term{Wire: c2.outputWire, Coeff: bigOne()}},
+		right:     linearExpression{term{Wire: c1.outputWire, Coeff: bigOne()}},
 		operation: div,
 	}
 
@@ -112,7 +112,7 @@ func (cs *CS) div(c1, c2 *Constraint) *Constraint {
 }
 
 // inv (e*c1)**-1
-func (cs *CS) inv(c1 *Constraint, e fr.Element) *Constraint {
+func (cs *CS) inv(c1 *Constraint, e big.Int) *Constraint {
 	expression := &term{
 		Wire:      c1.outputWire,
 		Coeff:     e,
@@ -125,18 +125,18 @@ func (cs *CS) inv(c1 *Constraint, e fr.Element) *Constraint {
 func (cs *CS) add(c1 *Constraint, c2 *Constraint) *Constraint {
 
 	expression := &linearExpression{
-		term{Wire: c1.outputWire, Coeff: fr.One()},
-		term{Wire: c2.outputWire, Coeff: fr.One()},
+		term{Wire: c1.outputWire, Coeff: bigOne()},
+		term{Wire: c2.outputWire, Coeff: bigOne()},
 	}
 
 	return newConstraint(cs, expression)
 }
 
 // ADDCST adds a constant to a variable
-func (cs *CS) addConstant(c *Constraint, constant fr.Element) *Constraint {
+func (cs *CS) addConstant(c *Constraint, constant big.Int) *Constraint {
 
 	expression := &linearExpression{
-		term{Wire: c.outputWire, Coeff: fr.One()},
+		term{Wire: c.outputWire, Coeff: bigOne()},
 		term{Wire: cs.Constraints[0].outputWire, Coeff: constant},
 	}
 
@@ -146,8 +146,8 @@ func (cs *CS) addConstant(c *Constraint, constant fr.Element) *Constraint {
 // SUB generic version for substracting 2 constraints
 func (cs *CS) sub(c1 *Constraint, c2 *Constraint) *Constraint {
 
-	var minusOne fr.Element
-	one := fr.One()
+	var minusOne big.Int
+	one := bigOne()
 	minusOne.Neg(&one)
 
 	expression := &linearExpression{
@@ -158,10 +158,10 @@ func (cs *CS) sub(c1 *Constraint, c2 *Constraint) *Constraint {
 	return newConstraint(cs, expression)
 }
 
-func (cs *CS) subConstant(c *Constraint, constant fr.Element) *Constraint {
+func (cs *CS) subConstant(c *Constraint, constant big.Int) *Constraint {
 
-	var minusOne fr.Element
-	one := fr.One()
+	var minusOne big.Int
+	one := bigOne()
 	minusOne.Neg((&constant))
 
 	expression := &linearExpression{
@@ -173,10 +173,10 @@ func (cs *CS) subConstant(c *Constraint, constant fr.Element) *Constraint {
 
 }
 
-func (cs *CS) subConstraint(constant fr.Element, c *Constraint) *Constraint {
+func (cs *CS) subConstraint(constant big.Int, c *Constraint) *Constraint {
 
-	var minusOne fr.Element
-	one := fr.One()
+	var minusOne big.Int
+	one := bigOne()
 	minusOne.Neg((&one))
 
 	expression := &linearExpression{
@@ -286,7 +286,7 @@ func (cs *CS) equal(c1, c2 *Constraint) error {
 }
 
 // equalConstant Equal a constraint to a constant
-func (cs *CS) equalConstant(c *Constraint, constant fr.Element) error {
+func (cs *CS) equalConstant(c *Constraint, constant big.Int) error {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
 	if c.outputWire.isUserInput() {
 		return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input == VALUE) is invalid")
@@ -344,11 +344,12 @@ func (cs *CS) registerNamedInput(name string) bool {
 // constVar creates a new variable set to a prescribed value
 func (cs *CS) constVar(i1 interface{}) *Constraint {
 	// parse input
-	constant := fr.FromInterface(i1)
+	constant := FromInterface(i1)
 
 	// if constant == 1, we return the ONE_WIRE
-	one := fr.One()
-	if constant.Equal(&one) {
+	one := bigOne()
+
+	if constant.Cmp(&one) == 0 {
 		return cs.Constraints[0]
 	}
 
