@@ -25,9 +25,6 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 )
 
-const RootOfUnityStr = "8065159656716812877374967518403273466521432693661810619979959746626482506078"
-const MaxOrder = 47
-
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
 type ProvingKey struct {
 	// [α]1, [β]1, [δ]1
@@ -84,7 +81,7 @@ func Setup(r1cs *backend_bls377.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := backend_bls377.NewDomain(root, MaxOrder, nbConstraints)
+	gateGroup := backend_bls377.NewDomain(root, backend_bls377.MaxOrder, nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

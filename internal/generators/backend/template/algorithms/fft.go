@@ -10,6 +10,18 @@ import (
 	{{ template "import_curve" . }}
 )
 
+// TODO this should not be in fft.go
+{{if eq .Curve "BLS377"}}
+const RootOfUnityStr = "8065159656716812877374967518403273466521432693661810619979959746626482506078"
+const MaxOrder = 47
+{{else if eq .Curve "BLS381"}}
+const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
+const MaxOrder = 32
+{{else if eq .Curve "BN256"}}
+const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
+const MaxOrder = 28
+{{end}}
+
 // FFT computes the discrete Fourier transform of a and stores the result in a.
 // The result is in bit-reversed order.
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.

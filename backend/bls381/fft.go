@@ -24,6 +24,11 @@ import (
 	"github.com/consensys/gurvy/bls381/fr"
 )
 
+// TODO this should not be in fft.go
+
+const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
+const MaxOrder = 32
+
 // FFT computes the discrete Fourier transform of a and stores the result in a.
 // The result is in bit-reversed order.
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.

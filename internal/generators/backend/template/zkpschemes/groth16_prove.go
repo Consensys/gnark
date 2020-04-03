@@ -26,7 +26,7 @@ var (
 )
 
 func init() {
-	root.SetString(RootOfUnityStr)
+	root.SetString(backend_{{toLower .Curve}}.RootOfUnityStr)
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
@@ -37,7 +37,7 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution backe
 	proof := &Proof{}
 
 	// fft domain (computeH)
-	fftDomain := backend_{{toLower .Curve}}.NewDomain(root, MaxOrder, r1cs.NbConstraints)
+	fftDomain := backend_{{toLower .Curve}}.NewDomain(root, backend_{{toLower .Curve}}.MaxOrder, r1cs.NbConstraints)
 
 	// sample random r and s
 	var r, s, _r, _s fr.Element

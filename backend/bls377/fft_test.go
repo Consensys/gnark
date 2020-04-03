@@ -21,11 +21,8 @@ package backend_bls377
 import (
 	"testing"
 
-	"github.com/consensys/gnark/curve/fr"
+	"github.com/consensys/gurvy/bls377/fr"
 )
-
-const RootOfUnityStr = fr.RootOfUnityStr
-const MaxOrder = fr.MaxOrder
 
 func TestFFT(t *testing.T) {
 

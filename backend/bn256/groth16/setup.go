@@ -25,9 +25,6 @@ import (
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 )
 
-const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
-const MaxOrder = 28
-
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
 type ProvingKey struct {
 	// [α]1, [β]1, [δ]1
@@ -84,7 +81,7 @@ func Setup(r1cs *backend_bn256.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := backend_bn256.NewDomain(root, MaxOrder, nbConstraints)
+	gateGroup := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
