@@ -18,6 +18,8 @@ package frontend
 
 import (
 	"math/big"
+
+	"github.com/consensys/gnark/backend"
 )
 
 // ADD Adds 2+ inputs and returns resulting Constraint
@@ -31,12 +33,12 @@ func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) *Constraint {
 			case *Constraint:
 				return cs.add(c1, c2)
 			default:
-				return cs.addConstant(c1, FromInterface(c2))
+				return cs.addConstant(c1, backend.FromInterface(c2))
 			}
 		default:
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				return cs.addConstant(c2, FromInterface(c1))
+				return cs.addConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
 			}
@@ -89,12 +91,12 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) *Constraint {
 			case *Constraint:
 				return cs.mul(c1, c2)
 			default:
-				return cs.mulConstant(c1, FromInterface(c2))
+				return cs.mulConstant(c1, backend.FromInterface(c2))
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				return cs.mulConstant(c2, FromInterface(c1))
+				return cs.mulConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
 			}
@@ -129,7 +131,7 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 			case *Constraint:
 				return cs.div(c1, c2)
 			default:
-				tmp := FromInterface(c2)
+				tmp := backend.FromInterface(c2)
 				// TODO unsupported
 				panic("inverse without modulo, need cs.div ?")
 				// tmp.Inverse(&tmp)
@@ -138,7 +140,7 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				tmp := FromInterface(c2)
+				tmp := backend.FromInterface(c2)
 				// TODO unsupported
 				panic("inverse without modulo, need cs.div ?")
 				// tmp.Inverse(&tmp)
@@ -268,7 +270,7 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, input interface{}) {
 	// parse input
-	constant := FromInterface(input)
+	constant := backend.FromInterface(input)
 	// binary decomposition of e
 	// var ei []int
 	// _e := constant.ToRegular()
@@ -334,8 +336,8 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 			panic("invalid type")
 		}
 	default:
-		c1Fr := FromInterface(i1)
-		c2Fr := FromInterface(i2)
+		c1Fr := backend.FromInterface(i1)
+		c2Fr := backend.FromInterface(i2)
 		c1Fr.Sub(&c1Fr, &c2Fr) // TODO this is not gonna work.
 		expression := linearExpression{
 			term{Wire: b.outputWire, Coeff: c1Fr, Operation: mul},

@@ -2,6 +2,7 @@ package circuits
 
 func init() {
 	// TODO inv here
+	//fmt.Println("init inv")
 	// circuit := frontend.New()
 
 	// x := circuit.SECRET_INPUT("x")

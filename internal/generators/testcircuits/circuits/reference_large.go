@@ -2,9 +2,10 @@ package circuits
 
 func init() {
 	// fmt.Println("init reference_large")
-	// defer fmt.Println("init reference_large done")
-	// const nbConstraints = 500
+
 	// circuit := frontend.New()
+
+	// const nbConstraints = 500
 
 	// // declare inputs
 	// x := circuit.SECRET_INPUT("x")

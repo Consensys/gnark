@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/backend"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -17,7 +17,7 @@ const bitSize = 8 // number of bits of exponent
 // New return the circuit implementing
 // y == x**e
 // only the bitSize least significant bits of e are used
-func New() *backend.R1CS {
+func New() *backend_bn256.R1CS {
 
 	// create root constraint system
 	circuit := frontend.New()
@@ -46,5 +46,8 @@ func New() *backend.R1CS {
 
 	circuit.MUSTBE_EQ(y, output)
 
-	return circuit.ToR1CS()
+	_r1cs := circuit.ToR1CS()
+	r1cs := backend_bn256.New(_r1cs)
+
+	return &r1cs
 }

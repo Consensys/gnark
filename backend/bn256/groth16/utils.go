@@ -1,20 +1,16 @@
-package zkpschemes
-
-const Groth16StandaloneAssert = `
+package groth16
 
 import (
 	"reflect"
 	"testing"
 
-	{{ template "import_backend" . }}
+	"github.com/consensys/gnark/backend"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 	"github.com/stretchr/testify/require"
 )
-{{ template "groth16_assert" . }}
 
-`
-
-const Groth16Assert = `
-{{ define "groth16_assert" }}
+// assert helpers
 
 // Assert is a helper to test circuits
 // it embeds a frontend.Assert object (see gnark/cs/assert)
@@ -30,7 +26,7 @@ func NewAssert(t *testing.T) *Assert {
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
-func (assert *Assert) NotSolved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments) {
+func (assert *Assert) NotSolved(r1cs *backend_bn256.R1CS, solution backend.Assignments) {
 	// setup
 
 	var pk ProvingKey
@@ -46,7 +42,7 @@ func (assert *Assert) NotSolved(r1cs *backend_{{toLower .Curve}}.R1CS, solution 
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]interface{}) {
+func (assert *Assert) Solved(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 	// setup
 
 	var pk ProvingKey
@@ -76,6 +72,29 @@ func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution bac
 		}
 	}
 
+	// ensure expected Values are computed correctly
+	{
+		// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
+		var root fr.Element
+		fftDomain := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, r1cs.NbConstraints)
+
+		wireValues := make([]fr.Element, r1cs.NbWires)
+		a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+		b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+		c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+		r1cs.Solve(solution, a, b, c, wireValues)
+		res, _ := r1cs.Inspect(wireValues)
+
+		for k, v := range expectedValues {
+			val, ok := res[k]
+			assert.True(ok, "Variable to test ("+k+") is not tagged")
+			assert.True(val.Equal(&v), "Tagged variable "+k+" does not have the expected value")
+
+		}
+
+	}
+
 	// prover
 	proof, err := Prove(r1cs, &pk, solution)
 	assert.Nil(err, "proving with good solution should not output an error")
@@ -94,6 +113,3 @@ func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution bac
 		assert.True(isValid, "unexpected Verify(proof) result")
 	}
 }
-
-{{end}}
-`

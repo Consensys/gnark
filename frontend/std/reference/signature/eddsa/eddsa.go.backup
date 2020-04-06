@@ -22,9 +22,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/curve/fr"
-	twistededwards "github.com/consensys/gnark/frontend/std/reference/algebra/twisted_edwards"
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc"
+	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
+	twistededwards "github.com/consensys/gurvy/bn256/twisted_edwards"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -133,7 +133,7 @@ func Sign(privateKey PrivateKey, publicKey PublicKey, message fr.Element) (Signa
 		message,
 	}
 
-	hram := mimc.NewMiMC("seed").Hash(data...)
+	hram := bn256.NewMiMC("seed").Hash(data...)
 	hram.FromMont()
 
 	// Compute s = randScalarInt + H(R,A,M)*S
@@ -168,7 +168,7 @@ func Verify(pubKey PublicKey, sig Signature, message fr.Element) (bool, error) {
 		pubKey.A.Y,
 		message,
 	}
-	hram := mimc.NewMiMC("seed").Hash(data...)
+	hram := bn256.NewMiMC("seed").Hash(data...)
 	hram.FromMont()
 
 	// lhs = cofactor*S*Base

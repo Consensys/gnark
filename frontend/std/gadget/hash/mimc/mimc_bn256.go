@@ -1,5 +1,3 @@
-// +build bn256
-
 /*
 Copyright © 2020 ConsenSys
 

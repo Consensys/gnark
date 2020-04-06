@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestCubicEquation(t *testing.T) {
@@ -29,9 +30,12 @@ func TestCubicEquation(t *testing.T) {
 		good := backend.NewAssignment()
 		good.Assign(backend.Secret, "x", 3)
 		good.Assign(backend.Public, "y", 35)
-		expectedValues := make(map[string]interface{})
-		expectedValues["x^3"] = 27
-		expectedValues["x"] = 3
+		expectedValues := make(map[string]fr.Element)
+		var x, xcube fr.Element
+		xcube.SetUint64(27)
+		expectedValues["x^3"] = xcube
+		x.SetUint64(3)
+		expectedValues["x"] = x
 		assert.Solved(r1cs, good, expectedValues)
 	}
 

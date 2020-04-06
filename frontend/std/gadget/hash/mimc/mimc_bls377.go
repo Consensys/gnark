@@ -1,4 +1,4 @@
-// +build bls377 !bn256,!bls381
+// +build bls377
 
 /*
 Copyright © 2020 ConsenSys

@@ -207,7 +207,7 @@ func TestSUB(t *testing.T) {
 	expectedValues["x"] = 42
 	expectedValues["x-x"] = 0
 	expectedValues["x-4"] = 42 - 4
-	fourMinus42 := FromInterface(42)
+	fourMinus42 := backend.FromInterface(42)
 	fourMinus42.Sub(&val, &fourMinus42)
 	expectedValues["4-x"] = fourMinus42
 
@@ -303,8 +303,8 @@ func TestDIV(t *testing.T) {
 	good.Assign(backend.Public, "y", 142)
 
 	// expected values
-	xVal := FromInterface(42)
-	xDiv := FromInterface(142)
+	xVal := backend.FromInterface(42)
+	xDiv := backend.FromInterface(142)
 	xDiv.Div(&xVal, &xDiv)
 	expectedValues["x"] = xVal
 	expectedValues["x/y"] = xDiv
@@ -323,7 +323,7 @@ func TestDIVLC(t *testing.T) {
 	x := circuit.PUBLIC_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")
 
-	two := FromInterface(2)
+	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Constraint: x, Coeff: two}}
 	l2 := LinearCombination{Term{Constraint: y, Coeff: two}}
@@ -374,7 +374,7 @@ func TestMULLC(t *testing.T) {
 	x := circuit.PUBLIC_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")
 
-	two := FromInterface(2)
+	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Constraint: x, Coeff: two}}
 	l2 := LinearCombination{Term{Constraint: y, Coeff: two}}
@@ -596,8 +596,8 @@ func TestSELECT_LUT(t *testing.T) {
 	b1 := circuit.SECRET_INPUT("b1")
 
 	var lut [4]big.Int
-	lut[0] = FromInterface(42)
-	lut[2] = FromInterface(8000)
+	lut[0] = backend.FromInterface(42)
+	lut[2] = backend.FromInterface(8000)
 
 	circuit.SELECT_LUT(b0, b1, lut).Tag(("res"))
 
@@ -877,7 +877,7 @@ func TestINV(t *testing.T) {
 	// expected values
 	t.Skip("TODO INVERSE")
 	// TODO inverse
-	// xVal := FromInterface(42)
+	// xVal := backend.FromInterface(42)
 	// var xInvVal big.Int
 
 	// xInvVal.Inverse(&xVal)
@@ -934,10 +934,10 @@ func TestMerge(t *testing.T) {
 	// bad.Assign(backend.Public, "w", 42)
 
 	// good solution
-	// uVal := FromInterface(2)
+	// uVal := backend.FromInterface(2)
 	// var uInvVal big.Int
 	// uInvVal.Inverse(&uVal)
-	// wWal := FromInterface(65536)
+	// wWal := backend.FromInterface(65536)
 	// wWal.Mul(&wWal, &uInvVal)
 
 	// good.Assign(backend.Secret, "u", 2)

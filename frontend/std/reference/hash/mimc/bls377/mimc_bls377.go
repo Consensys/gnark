@@ -14,14 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mimc
+package bls377
 
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/curve/fr"
+	"github.com/consensys/gurvy/bls377/fr"
 	"golang.org/x/crypto/sha3"
 )
+
+const mimcNbRounds = 91
 
 // MiMC reference implementation (pure Go)
 type MiMC struct {
@@ -36,6 +38,7 @@ func NewMiMC(seed string) MiMC {
 	return MiMC{NewParams(seed)}
 }
 
+// NewParams creates new mimc object
 func NewParams(seed string) Params {
 
 	// set the constants
@@ -66,4 +69,18 @@ func (h MiMC) Hash(data ...fr.Element) fr.Element {
 	}
 
 	return digest
+}
+
+// plain execution of a mimc run
+// m: message
+// k: encryption key
+func (h MiMC) encrypt(m, k fr.Element) fr.Element {
+
+	for _, cons := range h.Params {
+		// m = (m+k+c)**-1
+		m.Add(&m, &k).Add(&m, &cons).Inverse(&m)
+	}
+	m.Add(&m, &k)
+	return m
+
 }

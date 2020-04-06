@@ -1,8 +1,8 @@
 package merkle
 
 import (
-	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc"
+	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 // TreeLevel i-th level of a Merkle tree
@@ -27,7 +27,7 @@ func (mp Proof) Verify(root, leaf fr.Element) (bool, error) {
 // computes the root of the Merkle proof
 func computeRoot(leaf fr.Element, path []TreeLevel) (fr.Element, error) {
 
-	hash := mimc.NewMiMC("seed")
+	hash := bn256.NewMiMC("seed")
 
 	currentLeaf := leaf
 	arity := len(path[0].Elements)

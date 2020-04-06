@@ -20,7 +20,6 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -123,30 +122,4 @@ func (assignments Assignments) DiscardSecrets() Assignments {
 		}
 	}
 	return toReturn
-}
-
-// TODO duplicate with frontend R1CS
-func FromInterface(i1 interface{}) big.Int {
-	var val big.Int
-
-	switch c1 := i1.(type) {
-	case uint64:
-		val.SetUint64(c1)
-	case int:
-		if _, ok := val.SetString(strconv.Itoa(c1), 10); !ok {
-			panic("unable to set big.Int from base10 string")
-		}
-	case string:
-		if _, ok := val.SetString(c1, 10); !ok {
-			panic("unable to set big.Int from base10 string")
-		}
-	case big.Int:
-		val = c1
-	case *big.Int:
-		val.Set(c1)
-	default:
-		panic("invalid type")
-	}
-
-	return val
 }

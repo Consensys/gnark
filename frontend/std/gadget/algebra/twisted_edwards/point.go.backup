@@ -21,10 +21,10 @@ package twistededwards
 // cloudfare one (in golang)
 
 import (
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
-	twistededwards "github.com/consensys/gnark/frontend/std/reference/algebra/twisted_edwards"
+	"github.com/consensys/gurvy/bn256/twistededwards"
 	"github.com/consensys/gnark/internal/utils/debug"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 // Point point on a twisted Edwards curve in a Snark circuit

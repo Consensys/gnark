@@ -181,10 +181,4 @@ func BenchmarkVerifier(b *testing.B) {
 	})
 }
 
-
-{{if ne .Curve "GENERIC"}}
-// assert helpers
-{{ template "groth16_assert" . }}
-{{end}}
-
 `

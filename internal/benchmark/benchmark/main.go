@@ -2,16 +2,15 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/curve"
-	"github.com/consensys/gnark/curve/fr"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	"github.com/consensys/gnark/backend/bn256/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy/bn256/fr"
 	"github.com/pkg/profile"
 )
 
@@ -38,7 +37,7 @@ func main() {
 			}
 			duration := time.Since(start)
 			duration = time.Duration(int64(duration) / int64(benchCount))
-			fmt.Printf("%s,%d,%d\n", curve.ID.String(), r1cs.NbConstraints, duration.Milliseconds())
+			//fmt.Printf("%s,%d,%d\n", curve.ID.String(), r1cs.NbConstraints, duration.Milliseconds())
 		} else {
 			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."))
 			for i := uint(0); i < benchCount; i++ {
@@ -50,7 +49,7 @@ func main() {
 	}
 }
 
-func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend.R1CS, backend.Assignments) {
+func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend_bn256.R1CS, backend.Assignments) {
 	// ---------------------------------------------------------------------------------------------
 	// circuit definition
 	circuit := frontend.New()
@@ -79,8 +78,9 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend.R1CS, backe
 	//  setup
 	var pk groth16.ProvingKey
 	var vk groth16.VerifyingKey
-	r1cs := circuit.ToR1CS()
-	groth16.Setup(r1cs, &pk, &vk)
+	_r1cs := circuit.ToR1CS()
+	r1cs := backend_bn256.New(_r1cs)
+	groth16.Setup(&r1cs, &pk, &vk)
 
-	return pk, *r1cs, solution
+	return pk, r1cs, solution
 }

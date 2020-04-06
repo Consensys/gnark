@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/consensys/gnark/backend"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -12,7 +12,7 @@ func main() {
 
 // New return the circuit implementing
 //  x**3 + x + 5 == y
-func New() *backend.R1CS {
+func New() *backend_bn256.R1CS {
 	// create root constraint system
 	circuit := frontend.New()
 
@@ -25,5 +25,8 @@ func New() *backend.R1CS {
 	x3.Tag("x^3") // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
 	circuit.MUSTBE_EQ(y, circuit.ADD(x3, x, 5))
 
-	return circuit.ToR1CS()
+	_r1cs := circuit.ToR1CS()
+
+	r1cs := backend_bn256.New(_r1cs)
+	return &r1cs
 }

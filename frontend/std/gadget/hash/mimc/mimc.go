@@ -18,17 +18,17 @@ package mimc
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc"
+	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
 )
 
 // MiMC gadget
 type MiMC struct {
-	mimc.Params
+	bn256.Params
 }
 
 // NewMiMC returns a MiMC gadget, than can be used in a circuit
 func NewMiMC(seed string) MiMC {
-	return MiMC{mimc.NewParams(seed)}
+	return MiMC{bn256.NewParams(seed)}
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:

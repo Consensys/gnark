@@ -1,5 +1,3 @@
-// +build bn256 bls381 bls377
-
 /*
 Copyright © 2020 ConsenSys
 
@@ -21,16 +19,19 @@ package mimc
 import (
 	"testing"
 
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
+	"github.com/consensys/gnark/backend/bn256/groth16"
 	"github.com/consensys/gnark/frontend"
-	mimcgo "github.com/consensys/gnark/frontend/std/reference/hash/mimc"
+	mimcgo "github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 // TODO need tests on MiMC edge cases, bad or un-allocated inputs, and errors
 func TestMimc(t *testing.T) {
 
-	assert := frontend.NewAssert(t)
+	assert := groth16.NewAssert(t)
 
 	// input
 	var data fr.Element
@@ -45,13 +46,17 @@ func TestMimc(t *testing.T) {
 	result.Tag("res")
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]interface{})
+	expectedValues := make(map[string]fr.Element)
 	expectedValues["res"] = mimcgo.NewMiMC("seed").Hash(data)
 
 	// provide inputs to the circuit
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Public, "data", data)
 
-	assert.Solved(s, inputs, expectedValues)
+	// creates r1cs
+	_r1cs := s.ToR1CS()
+	r1cs := backend_bn256.New(_r1cs)
+
+	assert.Solved(&r1cs, inputs, expectedValues)
 
 }

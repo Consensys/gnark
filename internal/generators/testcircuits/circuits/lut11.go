@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
@@ -8,6 +9,7 @@ import (
 )
 
 func init() {
+	fmt.Println("init lut11")
 	circuit := frontend.New()
 
 	b0 := circuit.SECRET_INPUT("b0")

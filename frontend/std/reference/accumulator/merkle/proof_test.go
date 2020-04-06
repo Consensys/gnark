@@ -3,8 +3,8 @@ package merkle
 import (
 	"testing"
 
-	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc"
+	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestMerkleTree(t *testing.T) {
@@ -12,7 +12,7 @@ func TestMerkleTree(t *testing.T) {
 	t.Skip("wip")
 
 	// hash function
-	hash := mimc.NewMiMC("seed")
+	hash := bn256.NewMiMC("seed")
 
 	var proof Proof
 	var leaf, goodRoot, badRoot fr.Element

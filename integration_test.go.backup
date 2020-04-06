@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve"
 	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
 	"github.com/consensys/gnark/internal/utils/encoding/gob"
 )

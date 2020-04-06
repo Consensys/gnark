@@ -344,7 +344,7 @@ func (cs *CS) registerNamedInput(name string) bool {
 // constVar creates a new variable set to a prescribed value
 func (cs *CS) constVar(i1 interface{}) *Constraint {
 	// parse input
-	constant := FromInterface(i1)
+	constant := backend.FromInterface(i1)
 
 	// if constant == 1, we return the ONE_WIRE
 	one := bigOne()

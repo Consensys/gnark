@@ -18,6 +18,7 @@ package backend_bls377
 
 import (
 	"fmt"
+	"strconv"
 
 	curve "github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fr"
@@ -205,8 +206,26 @@ type Term struct {
 	Coeff fr.Element // coefficient by which the wire is multiplied
 }
 
+// String helper for Term
+func (t Term) String() string {
+	res := ""
+	res = res + t.Coeff.String() + "*:" + strconv.Itoa(int(t.ID))
+	return res
+}
+
 // LinearExpression lightweight version of linear expression
 type LinearExpression []Term
+
+// String helper for LinearExpression
+func (l LinearExpression) String() string {
+	res := ""
+	for _, t := range l {
+		res += t.String()
+		res += "+ "
+	}
+	res = res[:len(res)-2]
+	return res
+}
 
 // R1C used to compute the wires (wo pointers)
 type R1C struct {
@@ -214,6 +233,12 @@ type R1C struct {
 	R      LinearExpression
 	O      LinearExpression
 	Solver frontend.SolvingMethod
+}
+
+// String helper for a Rank1 Constraint
+func (r R1C) String() string {
+	res := "(" + r.L.String() + ")*(" + r.R.String() + ")=" + r.O.String()
+	return res
 }
 
 // compute left, right, o part of a r1cs constraint

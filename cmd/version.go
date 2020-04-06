@@ -16,4 +16,4 @@
 
 package cmd
 
-const Version = "v0.1.0-alpha"
+const Version = "1.0.0-alpha"

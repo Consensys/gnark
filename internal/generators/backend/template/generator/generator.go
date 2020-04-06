@@ -106,7 +106,6 @@ func GenerateGroth16(d GenerateData) error {
 		// export assert only in GENERIC case
 		src := []string{
 			templates.ImportCurve,
-			zkpschemes.Groth16StandaloneAssert,
 			zkpschemes.Groth16Assert,
 		}
 		if err := bavard.Generate(d.RootPath+"groth16/assert.go", src, d,
@@ -126,6 +125,20 @@ func GenerateGroth16(d GenerateData) error {
 			zkpschemes.Groth16Assert,
 		}
 		if err := bavard.Generate(d.RootPath+"groth16/groth16_test.go", src, d,
+			bavard.Package("groth16"),
+			bavard.Apache2("ConsenSys AG", 2020),
+			bavard.GeneratedBy("gnark/internal/generators"),
+		); err != nil {
+			return err
+		}
+	}
+	{
+		// utils
+		src := []string{
+			templates.ImportCurve,
+			zkpschemes.Groth16Assert,
+		}
+		if err := bavard.Generate(d.RootPath+"groth16/utils.go", src, d,
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),

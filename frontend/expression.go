@@ -396,15 +396,18 @@ func (u *unpackExpression) replaceWire(oldWire, newWire *wire) {
 }
 
 func (u *unpackExpression) toR1CS(constWire *wire, w ...*wire) R1C {
-	var two, tmp big.Int
+	var two big.Int
 	one := bigOne()
 	two.SetUint64(2)
 
 	// L
 	left := LinearExpression{}
-	for k, b := range u.bits {
-		tmp.Exp(&two, new(big.Int).SetUint64(uint64(k)), nil)
+	acc := bigOne()
+	for _, b := range u.bits {
+		var tmp big.Int
+		tmp.Set(&acc)
 		left = append(left, ToRefactorTerm{ID: b.WireID, Coeff: tmp})
+		acc.Mul(&acc, &two)
 	}
 
 	// R
@@ -457,17 +460,19 @@ func (p *packExpression) replaceWire(oldWire, newWire *wire) {
 }
 
 func (p *packExpression) toR1CS(constWire *wire, w ...*wire) R1C {
-	var two, tmp big.Int
+	var two big.Int
 	one := bigOne()
 	two.SetUint64(2)
 
 	// L
 	left := LinearExpression{}
-	for k, b := range p.bits {
-		// TODO this doesn't seem to work
-		tmp.Exp(&two, new(big.Int).SetUint64(uint64(k)), nil)
+	acc := bigOne()
+	for _, b := range p.bits {
+		var tmp big.Int
+		tmp.Set(&acc)
 		lwtl := ToRefactorTerm{ID: b.WireID, Coeff: tmp}
 		left = append(left, lwtl)
+		acc.Mul(&acc, &two)
 	}
 
 	// R
@@ -637,34 +642,31 @@ func (win *lutExpression) replaceWire(oldWire, newWire *wire) {
 }
 
 func (win *lutExpression) toR1CS(constWire *wire, w ...*wire) R1C {
-	var t0, t1 big.Int
+	var t0, t1, t2, t3 big.Int
 
 	// L
 	L := LinearExpression{
 		ToRefactorTerm{ID: win.b0.WireID, Coeff: bigOne()},
 	}
 
-	// TODO doesn't work
 	t0.Neg(&win.lookuptable[0]).
 		Add(&t0, &win.lookuptable[1])
 	t1.Sub(&win.lookuptable[0], &win.lookuptable[1]).
 		Sub(&t1, &win.lookuptable[2]).
 		Add(&t1, &win.lookuptable[3])
-
 	// R
 	R := LinearExpression{
 		ToRefactorTerm{ID: constWire.WireID, Coeff: t0},
 		ToRefactorTerm{ID: win.b1.WireID, Coeff: t1},
 	}
 
-	t0.Neg(&win.lookuptable[0])
-	t1.Set(&win.lookuptable[0])
-	t1.Sub(&t1, &win.lookuptable[2])
-
+	t2.Neg(&win.lookuptable[0])
+	t3.Set(&win.lookuptable[0])
+	t3.Sub(&t3, &win.lookuptable[2])
 	// O
 	O := LinearExpression{
-		ToRefactorTerm{ID: constWire.WireID, Coeff: t0},
-		ToRefactorTerm{ID: win.b1.WireID, Coeff: t1},
+		ToRefactorTerm{ID: constWire.WireID, Coeff: t2},
+		ToRefactorTerm{ID: win.b1.WireID, Coeff: t3},
 		ToRefactorTerm{ID: w[0].WireID, Coeff: bigOne()},
 	}
 
