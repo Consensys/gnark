@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	{{ template "import_backend" . }}
+	{{ template "import_fr" . }}
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +43,7 @@ func (assert *Assert) NotSolved(r1cs *backend_{{toLower .Curve}}.R1CS, solution 
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]interface{}) {
+func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 	// setup
 
 	var pk ProvingKey

@@ -35,13 +35,11 @@ import (
 
 func TestCircuits(t *testing.T) {
 	assert := NewAssert(t)
-	// matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
+	matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
 
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	matches := []string{"../../../internal/generators/testcircuits/generated/reference_small.r1cs"}
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(matches) == 0 {
 		t.Fatal("couldn't find test circuits for", curve.ID.String())

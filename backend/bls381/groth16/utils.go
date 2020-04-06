@@ -22,9 +22,9 @@ import (
 
 	"github.com/consensys/gnark/backend"
 
-	backend_bls377 "github.com/consensys/gnark/backend/bls377"
+	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 
-	"github.com/consensys/gurvy/bls377/fr"
+	"github.com/consensys/gurvy/bls381/fr"
 
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func NewAssert(t *testing.T) *Assert {
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
-func (assert *Assert) NotSolved(r1cs *backend_bls377.R1CS, solution backend.Assignments) {
+func (assert *Assert) NotSolved(r1cs *backend_bls381.R1CS, solution backend.Assignments) {
 	// setup
 
 	var pk ProvingKey
@@ -61,7 +61,7 @@ func (assert *Assert) NotSolved(r1cs *backend_bls377.R1CS, solution backend.Assi
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs *backend_bls377.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+func (assert *Assert) Solved(r1cs *backend_bls381.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 	// setup
 
 	var pk ProvingKey
@@ -95,7 +95,7 @@ func (assert *Assert) Solved(r1cs *backend_bls377.R1CS, solution backend.Assignm
 	{
 		// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
 		var root fr.Element
-		fftDomain := backend_bls377.NewDomain(root, backend_bls377.MaxOrder, r1cs.NbConstraints)
+		fftDomain := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, r1cs.NbConstraints)
 
 		wireValues := make([]fr.Element, r1cs.NbWires)
 		a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
