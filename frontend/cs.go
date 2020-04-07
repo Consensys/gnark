@@ -111,6 +111,30 @@ func (cs *CS) div(c1, c2 *Constraint) *Constraint {
 	return newConstraint(cs, &expression)
 }
 
+// divConstantRight c1, c2 -> c1/c2, where the right (c2) is a constant
+func (cs *CS) divConstantRight(c1 *Constraint, c2 big.Int) *Constraint {
+
+	expression := quadraticExpression{
+		left:      linearExpression{term{Wire: cs.Constraints[0].outputWire, Coeff: c2}},
+		right:     linearExpression{term{Wire: c1.outputWire, Coeff: bigOne()}},
+		operation: div,
+	}
+
+	return newConstraint(cs, &expression)
+}
+
+// divConstantLeft c1, c2 -> c1/c2, where the left (c1) is a constant
+func (cs *CS) divConstantLeft(c1 big.Int, c2 *Constraint) *Constraint {
+
+	expression := quadraticExpression{
+		left:      linearExpression{term{Wire: c2.outputWire, Coeff: bigOne()}},
+		right:     linearExpression{term{Wire: cs.Constraints[0].outputWire, Coeff: c1}},
+		operation: div,
+	}
+
+	return newConstraint(cs, &expression)
+}
+
 // inv (e*c1)**-1
 func (cs *CS) inv(c1 *Constraint, e big.Int) *Constraint {
 	expression := &term{

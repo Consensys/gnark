@@ -132,19 +132,13 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 				return cs.div(c1, c2)
 			default:
 				tmp := backend.FromInterface(c2)
-				// TODO unsupported
-				panic("inverse without modulo, need cs.div ?")
-				// tmp.Inverse(&tmp)
-				return cs.mulConstant(c1, tmp)
+				return cs.divConstantRight(c1, tmp)
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				tmp := backend.FromInterface(c2)
-				// TODO unsupported
-				panic("inverse without modulo, need cs.div ?")
-				// tmp.Inverse(&tmp)
-				return cs.inv(c2, tmp)
+				tmp := backend.FromInterface(c1)
+				return cs.divConstantLeft(tmp, c2)
 			default:
 				panic("invalid type")
 			}
@@ -336,11 +330,11 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 			panic("invalid type")
 		}
 	default:
-		c1Fr := backend.FromInterface(i1)
-		c2Fr := backend.FromInterface(i2)
-		c1Fr.Sub(&c1Fr, &c2Fr) // TODO this is not gonna work.
+		c1Bigint := backend.FromInterface(i1)
+		c2Bigint := backend.FromInterface(i2)
+		c1Bigint.Sub(&c1Bigint, &c2Bigint)
 		expression := linearExpression{
-			term{Wire: b.outputWire, Coeff: c1Fr, Operation: mul},
+			term{Wire: b.outputWire, Coeff: c1Bigint, Operation: mul},
 			term{Wire: cs.Constraints[0].outputWire, Coeff: bigOne(), Operation: mul},
 		}
 		return newConstraint(cs, &expression)
