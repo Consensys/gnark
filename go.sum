@@ -11,6 +11,7 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/consensys/bavard v0.1.0 h1:0lsXRFKSD8GuA93yjSlwUQu45LFV4HZFGZIYdouWfMg=
 github.com/consensys/bavard v0.1.0/go.mod h1:ffZkLPNQSN3E6u+zpArQSleJ/lsraMwKPCHQymPQJtM=
+github.com/consensys/bavard v0.1.1 h1:sFtk3U10YO4Mt8NNCEZQhMzoQ9UMy2H5GKOx/DwNg80=
 github.com/consensys/bavard v0.1.1/go.mod h1:ffZkLPNQSN3E6u+zpArQSleJ/lsraMwKPCHQymPQJtM=
 github.com/consensys/goff v0.1.1-0.20200318175900-2b9e7b66b91f h1:oClf8ebLCcoxQXeGUBje1Hok4n4y+XLwbrV2i538d/8=
 github.com/consensys/goff v0.1.1-0.20200318175900-2b9e7b66b91f/go.mod h1:o2GQlBqSwG9JvC42mpcJ40CwoJxp+rmxWxSKQv+dCW4=
