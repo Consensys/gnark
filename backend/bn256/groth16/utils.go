@@ -107,8 +107,8 @@ func (assert *Assert) Solved(r1cs *backend_bn256.R1CS, solution backend.Assignme
 
 		for k, v := range expectedValues {
 			val, ok := res[k]
-			assert.True(ok, "Variable to test ("+k+") is not tagged")
-			assert.True(val.Equal(&v), "Tagged variable "+k+" does not have the expected value")
+			assert.True(ok, "Variable to test <"+k+"> (bn256) is not tagged")
+			assert.True(val.Equal(&v), "Tagged variable <"+k+"> (bn256) does not have the expected value")
 
 		}
 

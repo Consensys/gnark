@@ -3,7 +3,8 @@ package main
 import (
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
+	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gurvy"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func New() *backend_bn256.R1CS {
 	hash := circuit.PUBLIC_INPUT("h")
 
 	// hash function
-	mimc := mimc.NewMiMC("seed")
+	mimc, _ := mimc.NewMiMC("seed", gurvy.BN256)
 
 	// specify constraints
 	// mimc(preImage) == hash

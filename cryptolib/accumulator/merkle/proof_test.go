@@ -3,7 +3,7 @@ package merkle
 import (
 	"testing"
 
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gnark/cryptolib/hash/mimc/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
 )
 

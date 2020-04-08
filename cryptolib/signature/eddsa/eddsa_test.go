@@ -21,8 +21,8 @@ package eddsa
 import (
 	"testing"
 
-	"github.com/consensys/gnark/curve/fr"
-	twistededwards "github.com/consensys/gnark/frontend/std/reference/algebra/twisted_edwards"
+	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bn256/twistededwards"
 )
 
 func TestEddsa(t *testing.T) {

@@ -22,9 +22,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gnark/cryptolib/hash/mimc/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
-	twistededwards "github.com/consensys/gurvy/bn256/twisted_edwards"
+	"github.com/consensys/gurvy/bn256/twistededwards"
 	"golang.org/x/crypto/blake2b"
 )
 

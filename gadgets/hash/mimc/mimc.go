@@ -17,18 +17,24 @@ limitations under the License.
 package mimc
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/std/reference/hash/mimc/bn256"
+	"github.com/consensys/gurvy"
 )
 
 // MiMC gadget
 type MiMC struct {
-	bn256.Params
+	Params []big.Int
+	id     gurvy.ID
 }
 
 // NewMiMC returns a MiMC gadget, than can be used in a circuit
-func NewMiMC(seed string) MiMC {
-	return MiMC{bn256.NewParams(seed)}
+func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
+	if constructor, ok := newMimc[id]; ok {
+		return constructor(seed), nil
+	}
+	return MiMC{}, errUnknownCurve
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
@@ -39,7 +45,7 @@ func (h MiMC) Hash(circuit *frontend.CS, data ...*frontend.Constraint) *frontend
 	digest := circuit.ALLOCATE(0)
 
 	for _, stream := range data {
-		digest = h.encrypt(circuit, stream, digest)
+		digest = encryptFuncs[h.id](circuit, h, stream, digest)
 		digest = circuit.ADD(digest, stream)
 	}
 

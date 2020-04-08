@@ -89,8 +89,8 @@ func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution bac
 
 		for k, v := range expectedValues {
 			val, ok := res[k]
-			assert.True(ok, "Variable to test ("+k+") is not tagged")
-			assert.True(val.Equal(&v), "Tagged variable "+k+" does not have the expected value")
+			assert.True(ok, "Variable to test <"+k+"> ({{toLower .Curve}}) is not tagged")
+			assert.True(val.Equal(&v), "Tagged variable <"+k+"> ({{toLower .Curve}}) does not have the expected value")
 
 		}
 

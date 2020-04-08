@@ -18,7 +18,6 @@ package eddsa
 
 import (
 	"github.com/consensys/gnark/frontend"
-	twistededwards "github.com/consensys/gnark/frontend/std/gadget/algebra/twisted_edwards"
 	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
 	"github.com/consensys/gnark/frontend/std/reference/signature/eddsa"
 	"github.com/consensys/gurvy/bn256/fr"

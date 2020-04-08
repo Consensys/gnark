@@ -22,9 +22,9 @@ package twistededwards
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bn256/twistededwards"
 	"github.com/consensys/gnark/internal/utils/debug"
 	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bn256/twistededwards"
 )
 
 // Point point on a twisted Edwards curve in a Snark circuit
@@ -187,10 +187,10 @@ func (p *Point) Double(p1 *Point, ecurve twistededwards.CurveParams) *Point {
 func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
 
 	switch point := p1.(type) {
-	case *twistededwards.Point:
-		p.scalarMulFixedBase(point, ecurve, scalar, n)
-	case twistededwards.Point:
-		p.scalarMulFixedBase(&point, ecurve, scalar, n)
+	// case *twistededwards.Point:
+	// 	p.scalarMulFixedBase(point, ecurve, scalar, n)
+	// case twistededwards.Point:
+	// 	p.scalarMulFixedBase(&point, ecurve, scalar, n)
 	case *Point:
 		p.scalarMulNonFixedBase(point, scalar, ecurve, n)
 	case Point:
@@ -206,88 +206,88 @@ func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, sca
 // n: nbBits of the scalar
 // Without lookup table -> 6 constraints/bit (1 (bool constraint) + 3 (addition with fixed point) + 1 (select constraint) per bit)
 // With loopkup table -> 5.5 constraints/bit (7 (generic addition) + 2(bool constraints) + 2 (select lookup table) per 2 bits)
-func (p *Point) scalarMulFixedBase(p1 *twistededwards.Point, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
+// func (p *Point) scalarMulFixedBase(p1 *twistededwards.Point, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
 
-	debug.Assert(p.circuit != nil, "point not initialized")
+// 	debug.Assert(p.circuit != nil, "point not initialized")
 
-	circuit := p.circuit
+// 	circuit := p.circuit
 
-	// fir	st unpack the scalar
-	b := circuit.TO_BINARY(scalar, n)
+// 	// fir	st unpack the scalar
+// 	b := circuit.TO_BINARY(scalar, n)
 
-	// look up tables for x, y coordinates of the current point
-	// lut[i] = coords of i*base_point for i=0..3
-	var lutx, luty [4]fr.Element
-	var tmp [4]twistededwards.Point
+// 	// look up tables for x, y coordinates of the current point
+// 	// lut[i] = coords of i*base_point for i=0..3
+// 	var lutx, luty [4]fr.Element
+// 	var tmp [4]twistededwards.Point
 
-	// infinity
-	tmp[0].X.SetZero()
-	tmp[0].Y.SetOne()
-	lutx[0] = tmp[0].X
-	luty[0] = tmp[0].Y
+// 	// infinity
+// 	tmp[0].X.SetZero()
+// 	tmp[0].Y.SetOne()
+// 	lutx[0] = tmp[0].X
+// 	luty[0] = tmp[0].Y
 
-	// p1
-	tmp[1] = *p1
-	lutx[1] = tmp[1].X
-	luty[1] = tmp[1].Y
+// 	// p1
+// 	tmp[1] = *p1
+// 	lutx[1] = tmp[1].X
+// 	luty[1] = tmp[1].Y
 
-	// 2*p1
-	tmp[2].Double(p1, ecurve)
-	lutx[2] = tmp[2].X
-	luty[2] = tmp[2].Y
+// 	// 2*p1
+// 	tmp[2].Double(p1, ecurve)
+// 	lutx[2] = tmp[2].X
+// 	luty[2] = tmp[2].Y
 
-	// 3*p1
-	tmp[3].Add(&tmp[2], &tmp[1], ecurve)
-	lutx[3] = tmp[3].X
-	luty[3] = tmp[3].Y
+// 	// 3*p1
+// 	tmp[3].Add(&tmp[2], &tmp[1], ecurve)
+// 	lutx[3] = tmp[3].X
+// 	luty[3] = tmp[3].Y
 
-	curPoint := &Point{circuit: p.circuit}
-	curPoint.X = circuit.SELECT_LUT(b[1], b[0], lutx)
-	curPoint.Y = circuit.SELECT_LUT(b[1], b[0], luty)
+// 	curPoint := &Point{circuit: p.circuit}
+// 	curPoint.X = circuit.SELECT_LUT(b[1], b[0], lutx)
+// 	curPoint.Y = circuit.SELECT_LUT(b[1], b[0], luty)
 
-	for i := 1; i < n/2; i++ {
+// 	for i := 1; i < n/2; i++ {
 
-		// update lookup table
-		tmp[1].Double(&tmp[1], ecurve).Double(&tmp[1], ecurve)
-		tmp[2].Double(&tmp[2], ecurve).Double(&tmp[2], ecurve)
-		tmp[3].Double(&tmp[3], ecurve).Double(&tmp[3], ecurve)
+// 		// update lookup table
+// 		tmp[1].Double(&tmp[1], ecurve).Double(&tmp[1], ecurve)
+// 		tmp[2].Double(&tmp[2], ecurve).Double(&tmp[2], ecurve)
+// 		tmp[3].Double(&tmp[3], ecurve).Double(&tmp[3], ecurve)
 
-		lutx[1] = tmp[1].X
-		luty[1] = tmp[1].Y
+// 		lutx[1] = tmp[1].X
+// 		luty[1] = tmp[1].Y
 
-		lutx[2] = tmp[2].X
-		luty[2] = tmp[2].Y
+// 		lutx[2] = tmp[2].X
+// 		luty[2] = tmp[2].Y
 
-		lutx[3] = tmp[3].X
-		luty[3] = tmp[3].Y
+// 		lutx[3] = tmp[3].X
+// 		luty[3] = tmp[3].Y
 
-		// select the point to add in the lookup table
-		toAddx := circuit.SELECT_LUT(b[2*i+1], b[2*i], lutx)
-		toAddy := circuit.SELECT_LUT(b[2*i+1], b[2*i], luty)
-		toAdd := &Point{circuit: p.circuit, X: toAddx, Y: toAddy}
+// 		// select the point to add in the lookup table
+// 		toAddx := circuit.SELECT_LUT(b[2*i+1], b[2*i], lutx)
+// 		toAddy := circuit.SELECT_LUT(b[2*i+1], b[2*i], luty)
+// 		toAdd := &Point{circuit: p.circuit, X: toAddx, Y: toAddy}
 
-		curPoint.AddGeneric(curPoint, toAdd, ecurve)
-	}
+// 		curPoint.AddGeneric(curPoint, toAdd, ecurve)
+// 	}
 
-	if n%2 != 0 {
-		tmp[2].Double(&tmp[2], ecurve)
-		lutx[2] = tmp[2].X
-		luty[2] = tmp[2].Y
+// 	if n%2 != 0 {
+// 		tmp[2].Double(&tmp[2], ecurve)
+// 		lutx[2] = tmp[2].X
+// 		luty[2] = tmp[2].Y
 
-		var one, zero fr.Element
-		zero.SetZero()
-		one.SetOne()
-		last := &Point{circuit: p.circuit}
-		last.Add(curPoint, &tmp[2], ecurve)
+// 		var one, zero fr.Element
+// 		zero.SetZero()
+// 		one.SetOne()
+// 		last := &Point{circuit: p.circuit}
+// 		last.Add(curPoint, &tmp[2], ecurve)
 
-		curPoint.X = circuit.SELECT(b[n-1], last.X, curPoint.X)
-		curPoint.Y = circuit.SELECT(b[n-1], last.Y, curPoint.Y)
-	}
+// 		curPoint.X = circuit.SELECT(b[n-1], last.X, curPoint.X)
+// 		curPoint.Y = circuit.SELECT(b[n-1], last.Y, curPoint.Y)
+// 	}
 
-	p.X = curPoint.X
-	p.Y = curPoint.Y
-	return p
-}
+// 	p.X = curPoint.X
+// 	p.Y = curPoint.Y
+// 	return p
+// }
 
 // ScalarMulGadget computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)

@@ -1,9 +1,10 @@
 package merkle
 
 import (
+	"github.com/consensys/gnark/cryptolib/accumulator/merkle"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
-	"github.com/consensys/gnark/frontend/std/reference/accumulator/merkle"
+	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gurvy"
 )
 
 // TreeLevel i-th level of a Merkle tree
@@ -39,7 +40,10 @@ func NewProof(circuit *frontend.CS, mkProof *merkle.Proof) {
 // data in mp, leaf are supposed to be already allocated
 func (mp Proof) computeRoot(circuit *frontend.CS, leaf *frontend.Constraint) (*frontend.Constraint, error) {
 
-	hash := mimc.NewMiMC("seed")
+	hash, err := mimc.NewMiMC("seed", gurvy.BN256)
+	if err != nil {
+		return nil, err
+	}
 	arity := len(mp.Path[0].Elements)
 
 	var curLeaf *frontend.Constraint
