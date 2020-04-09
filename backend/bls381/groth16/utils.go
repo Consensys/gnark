@@ -92,27 +92,7 @@ func (assert *Assert) Solved(r1cs *backend_bls381.R1CS, solution backend.Assignm
 	}
 
 	// ensure expected Values are computed correctly
-	{
-		// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
-		var root fr.Element
-		fftDomain := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, r1cs.NbConstraints)
-
-		wireValues := make([]fr.Element, r1cs.NbWires)
-		a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-		b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-		c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-
-		r1cs.Solve(solution, a, b, c, wireValues)
-		res, _ := r1cs.Inspect(wireValues)
-
-		for k, v := range expectedValues {
-			val, ok := res[k]
-			assert.True(ok, "Variable to test <"+k+"> (bls381) is not tagged")
-			assert.True(val.Equal(&v), "Tagged variable <"+k+"> (bls381) does not have the expected value")
-
-		}
-
-	}
+	assert.CorrectExecution(r1cs, solution, expectedValues)
 
 	// prover
 	proof, err := Prove(r1cs, &pk, solution)
@@ -130,5 +110,27 @@ func (assert *Assert) Solved(r1cs *backend_bls381.R1CS, solution backend.Assignm
 		isValid, err := Verify(proof, &vk, solution.DiscardSecrets())
 		assert.Nil(err, "verifying proof with good solution should not output an error")
 		assert.True(isValid, "unexpected Verify(proof) result")
+	}
+}
+
+// CorrectExecution Verifies that the expected solution matches the solved variables
+func (assert *Assert) CorrectExecution(r1cs *backend_bls381.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+	// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
+	var root fr.Element
+	fftDomain := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, r1cs.NbConstraints)
+
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+	r1cs.Solve(solution, a, b, c, wireValues)
+	res, _ := r1cs.Inspect(wireValues)
+
+	for k, v := range expectedValues {
+		val, ok := res[k]
+		assert.True(ok, "Variable to test <"+k+"> (backend_bls381) is not tagged")
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bls381) does not have the expected value")
+
 	}
 }

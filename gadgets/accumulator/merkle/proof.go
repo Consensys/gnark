@@ -40,7 +40,7 @@ func NewProof(circuit *frontend.CS, mkProof *merkle.Proof) {
 // data in mp, leaf are supposed to be already allocated
 func (mp Proof) computeRoot(circuit *frontend.CS, leaf *frontend.Constraint) (*frontend.Constraint, error) {
 
-	hash, err := mimc.NewMiMC("seed", gurvy.BN256)
+	hash, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
 	if err != nil {
 		return nil, err
 	}

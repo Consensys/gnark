@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/consensys/bavard v0.1.1
-	github.com/consensys/gurvy v0.1.0
+	github.com/consensys/gurvy v0.1.2-0.20200409125542-5a798b9a0bb3
 	github.com/pkg/profile v1.4.0
 	github.com/spf13/cobra v0.0.7
 	github.com/stretchr/testify v1.5.1

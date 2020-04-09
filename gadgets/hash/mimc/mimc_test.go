@@ -53,7 +53,7 @@ func TestMimcBN256(t *testing.T) {
 	databn256.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// running MiMC (R1CS)
-	mimcGadget, err := NewMiMC("seed", gurvy.BN256)
+	mimcGadget, err := NewMiMCGadget("seed", gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestMimcBLS381(t *testing.T) {
 	databls381.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// running MiMC (R1CS)
-	mimcGadget, err := NewMiMC("seed", gurvy.BLS381)
+	mimcGadget, err := NewMiMCGadget("seed", gurvy.BLS381)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestMimcBLS377(t *testing.T) {
 	databls377.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// running MiMC (R1CS)
-	mimcGadget, err := NewMiMC("seed", gurvy.BLS377)
+	mimcGadget, err := NewMiMCGadget("seed", gurvy.BLS377)
 	if err != nil {
 		t.Fatal(err)
 	}

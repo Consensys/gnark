@@ -1,5 +1,3 @@
-// +build bls381 bn256
-
 /*
 Copyright © 2020 ConsenSys
 
@@ -21,8 +19,8 @@ package eddsa
 import (
 	"testing"
 
-	"github.com/consensys/gurvy/bn256/fr"
-	"github.com/consensys/gurvy/bn256/twistededwards"
+	"github.com/consensys/gurvy/bls381/fr"
+	"github.com/consensys/gurvy/bls381/twistededwards"
 )
 
 func TestEddsa(t *testing.T) {

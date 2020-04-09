@@ -27,16 +27,16 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMC, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint
-var newMimc map[gurvy.ID]func(string) MiMC
+var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMCGadget, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint
+var newMimc map[gurvy.ID]func(string) MiMCGadget
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMC, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint)
+	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMCGadget, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint)
 	encryptFuncs[gurvy.BN256] = encryptBN256
 	encryptFuncs[gurvy.BLS381] = encryptBLS381
 	encryptFuncs[gurvy.BLS377] = encryptBLS377
 
-	newMimc = make(map[gurvy.ID]func(string) MiMC)
+	newMimc = make(map[gurvy.ID]func(string) MiMCGadget)
 	newMimc[gurvy.BN256] = newMimcBN256
 	newMimc[gurvy.BLS381] = newMimcBLS381
 	newMimc[gurvy.BLS377] = newMimcBLS377
@@ -45,8 +45,8 @@ func init() {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string) MiMC {
-	res := MiMC{}
+func newMimcBLS377(seed string) MiMCGadget {
+	res := MiMCGadget{}
 	tmp := bls377.NewMiMC(seed)
 	for _, v := range tmp.Params {
 		var cpy big.Int
@@ -57,8 +57,8 @@ func newMimcBLS377(seed string) MiMC {
 	return res
 }
 
-func newMimcBLS381(seed string) MiMC {
-	res := MiMC{}
+func newMimcBLS381(seed string) MiMCGadget {
+	res := MiMCGadget{}
 	tmp := bls381.NewMiMC(seed)
 	for _, v := range tmp.Params {
 		var cpy big.Int
@@ -69,8 +69,8 @@ func newMimcBLS381(seed string) MiMC {
 	return res
 }
 
-func newMimcBN256(seed string) MiMC {
-	res := MiMC{}
+func newMimcBN256(seed string) MiMCGadget {
+	res := MiMCGadget{}
 	tmp := bn256.NewMiMC(seed)
 	for _, v := range tmp.Params {
 		var cpy big.Int
@@ -85,7 +85,7 @@ func newMimcBN256(seed string) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(circuit *frontend.CS, h MiMC, message, key *frontend.Constraint) *frontend.Constraint {
+func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key *frontend.Constraint) *frontend.Constraint {
 
 	res := message
 
@@ -104,7 +104,7 @@ func encryptBN256(circuit *frontend.CS, h MiMC, message, key *frontend.Constrain
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(circuit *frontend.CS, h MiMC, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
+func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
 
 	res := message
 
@@ -121,7 +121,7 @@ func encryptBLS381(circuit *frontend.CS, h MiMC, message *frontend.Constraint, k
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(circuit *frontend.CS, h MiMC, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
+func encryptBLS377(circuit *frontend.CS, h MiMCGadget, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
 	res := message
 	for i := 0; i < len(h.Params); i++ {
 		tmp := circuit.ADD(res, h.Params[i], key)

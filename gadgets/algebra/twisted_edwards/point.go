@@ -16,58 +16,54 @@ limitations under the License.
 
 package twistededwards
 
-// versions of bn256
+// version of bn256
 // https://github.com/matter-labs/pairing/blob/master/src/bn256/fq.rs
-// cloudfare one (in golang)
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
-	"github.com/consensys/gurvy/bn256/fr"
-	"github.com/consensys/gurvy/bn256/twistededwards"
 )
 
-// Point point on a twisted Edwards curve in a Snark circuit
-type Point struct {
-	X, Y    *frontend.Constraint
-	circuit *frontend.CS
+// PointGadget point on a twisted Edwards curve in a Snark circuit
+type PointGadget struct {
+	X, Y *frontend.Constraint
 }
 
-// NewPoint creates a new instance of Point
+// NewPointGadget creates a new instance of Point
 // if x and y are not of type frontend.Constraint
 // they must be fr.Element and will be allocated (ALLOCATE) in the circuit
-func NewPoint(circuit *frontend.CS, _x, _y interface{}) Point {
+func NewPointGadget(circuit *frontend.CS, _x, _y interface{}) PointGadget {
 	// TODO one should be able to create an empty point, should we use this switch in ALLOCATE?
 	if _x == nil && _y == nil {
-		return Point{
+		return PointGadget{
 			nil,
 			nil,
-			circuit,
 		}
 	}
-	return Point{
+	return PointGadget{
 		circuit.ALLOCATE(_x),
 		circuit.ALLOCATE(_y),
-		circuit,
 	}
 }
 
-// IsOnCurve checks if a point is on the twisted Edwards curve
+// IsOnCurveGadget checks if a point is on the twisted Edwards curve
 // ax^2 + y^2 = 1 + d*x^2*y^2
-func (p *Point) IsOnCurve(ecurve twistededwards.CurveParams) {
-	debug.Assert(p.X != nil && p.Y != nil && p.circuit != nil, "point not initialized")
+func (p *PointGadget) IsOnCurveGadget(circuit *frontend.CS, curve EdCurveGadget) {
 
-	circuit := p.circuit
-	var one fr.Element
-	one.SetOne()
-	l1 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: ecurve.A}}
-	l2 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: one}}
+	debug.Assert(p.X != nil && p.Y != nil, "point not initialized")
+
+	one := big.NewInt(1)
+	l1 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.A}}
+	l2 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
 	axx := circuit.MUL(l1, l2)
 
 	yy := circuit.MUL(p.Y, p.Y)
 	lhs := circuit.ADD(axx, yy)
-	l1 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: ecurve.D}}
-	l2 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: one}}
+	l1 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.D}}
+	l2 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
 	dxx := circuit.MUL(l1, l2)
 	dxxyy := circuit.MUL(dxx, yy)
 	rhs := circuit.ADD(dxxyy, one)
@@ -78,126 +74,131 @@ func (p *Point) IsOnCurve(ecurve twistededwards.CurveParams) {
 
 // Add Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) Add(p1 *Point, base *twistededwards.Point, ecurve twistededwards.CurveParams) *Point {
+func (p PointGadget) Add(circuit *frontend.CS, p1 *PointGadget, x, y interface{}, curve EdCurveGadget) PointGadget {
 
-	debug.Assert(p1.circuit != nil && p1.X != nil && p1.Y != nil, "point not initialized")
+	debug.Assert(p1.X != nil && p1.Y != nil, "point not initialized")
 
-	circuit := p1.circuit
 	// cf https://z.cash/technology/jubjub/
 	// or https://eprint.iacr.org/2008/013.pdf
-	res := &Point{circuit: p.circuit}
+	res := PointGadget{nil, nil}
 
 	// constraint 1
 	b := circuit.MUL(p1.X, p1.Y)
 
-	var duv fr.Element
-	duv.Mul(&base.X, &base.Y).Mul(&duv, &ecurve.D)
+	X := backend.FromInterface(x)
+	Y := backend.FromInterface(y)
 
-	var one fr.Element
-	one.SetOne()
+	var duv big.Int
+	duv.Mul(&X, &Y).Mul(&duv, &curve.D)
+
+	one := big.NewInt(1)
 	oneWire := circuit.ALLOCATE(one)
 
 	// constraint 2
 	den := frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: one},
+		frontend.Term{Constraint: oneWire, Coeff: *one},
 		frontend.Term{Constraint: b, Coeff: duv},
 	}
 	num := frontend.LinearCombination{
-		frontend.Term{Constraint: p1.X, Coeff: base.Y},
-		frontend.Term{Constraint: p1.Y, Coeff: base.X},
+		frontend.Term{Constraint: p1.X, Coeff: Y},
+		frontend.Term{Constraint: p1.Y, Coeff: X},
 	}
 	res.X = circuit.DIV(num, den)
 
 	// constraint 3
 	duv.Neg(&duv)
 	den = frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: one},
+		frontend.Term{Constraint: oneWire, Coeff: *one},
 		frontend.Term{Constraint: b, Coeff: duv},
 	}
-	var tmp fr.Element
-	tmp.Neg(&ecurve.A).Mul(&tmp, &base.X)
+	// TODO here storing big.Int without reduction results in a memory blow up...
+	// But storing the cruve params ad Fr elmts specialiazes the structure...
+	// Don't know what is the best here
+	var tmp big.Int
+	tmp.Neg(&curve.A).Mul(&tmp, &X)
 	num = frontend.LinearCombination{
-		frontend.Term{Constraint: p1.Y, Coeff: base.Y},
+		frontend.Term{Constraint: p1.Y, Coeff: Y},
 		frontend.Term{Constraint: p1.X, Coeff: tmp},
 	}
 	res.Y = circuit.DIV(num, den)
 
 	p.X = res.X
 	p.Y = res.Y
+
 	return p
 }
 
-// AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
-// p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddGeneric(p1, p2 *Point, ecurve twistededwards.CurveParams) *Point {
+// // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
+// // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
+// func (p *Point) AddGeneric(p1, p2 *Point, ecurve twistededwards.CurveParams) *Point {
 
-	debug.Assert(p1.circuit != nil && p1.X != nil && p1.Y != nil, "point not initialized")
-	debug.Assert(p2.circuit != nil && p2.X != nil && p2.Y != nil, "point not initialized")
+// 	debug.Assert(p1.circuit != nil && p1.X != nil && p1.Y != nil, "point not initialized")
+// 	debug.Assert(p2.circuit != nil && p2.X != nil && p2.Y != nil, "point not initialized")
 
-	circuit := p.circuit
-	// cf https://z.cash/technology/jubjub/
-	// or https://eprint.iacr.org/2008/013.pdf
-	res := &Point{circuit: p.circuit}
+// 	circuit := p.circuit
+// 	// cf https://z.cash/technology/jubjub/
+// 	// or https://eprint.iacr.org/2008/013.pdf
+// 	res := &Point{circuit: p.circuit}
 
-	var one fr.Element
-	one.SetOne()
+// 	var one fr.Element
+// 	one.SetOne()
 
-	oneWire := circuit.ALLOCATE(one)
+// 	oneWire := circuit.ALLOCATE(one)
 
-	beta := circuit.MUL(p1.X, p2.Y)
-	gamma := circuit.MUL(p1.Y, p2.X)
-	delta := circuit.MUL(p1.Y, p2.Y)
-	epsilon := circuit.MUL(p1.X, p2.X)
-	tau := circuit.MUL(delta, epsilon)
-	num := frontend.LinearCombination{
-		frontend.Term{Constraint: beta, Coeff: one},
-		frontend.Term{Constraint: gamma, Coeff: one},
-	}
-	den := frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: one},
-		frontend.Term{Constraint: tau, Coeff: ecurve.D},
-	}
-	res.X = circuit.DIV(num, den)
-	var minusa fr.Element
-	minusa.Neg(&ecurve.A)
-	num = frontend.LinearCombination{
-		frontend.Term{Constraint: delta, Coeff: one},
-		frontend.Term{Constraint: epsilon, Coeff: minusa},
-	}
-	var minusd fr.Element
-	minusd.Neg(&ecurve.D)
-	den = frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: one},
-		frontend.Term{Constraint: tau, Coeff: minusd},
-	}
-	res.Y = circuit.DIV(num, den)
+// 	beta := circuit.MUL(p1.X, p2.Y)
+// 	gamma := circuit.MUL(p1.Y, p2.X)
+// 	delta := circuit.MUL(p1.Y, p2.Y)
+// 	epsilon := circuit.MUL(p1.X, p2.X)
+// 	tau := circuit.MUL(delta, epsilon)
+// 	num := frontend.LinearCombination{
+// 		frontend.Term{Constraint: beta, Coeff: one},
+// 		frontend.Term{Constraint: gamma, Coeff: one},
+// 	}
+// 	den := frontend.LinearCombination{
+// 		frontend.Term{Constraint: oneWire, Coeff: one},
+// 		frontend.Term{Constraint: tau, Coeff: ecurve.D},
+// 	}
+// 	res.X = circuit.DIV(num, den)
+// 	var minusa fr.Element
+// 	minusa.Neg(&ecurve.A)
+// 	num = frontend.LinearCombination{
+// 		frontend.Term{Constraint: delta, Coeff: one},
+// 		frontend.Term{Constraint: epsilon, Coeff: minusa},
+// 	}
+// 	var minusd fr.Element
+// 	minusd.Neg(&ecurve.D)
+// 	den = frontend.LinearCombination{
+// 		frontend.Term{Constraint: oneWire, Coeff: one},
+// 		frontend.Term{Constraint: tau, Coeff: minusd},
+// 	}
+// 	res.Y = circuit.DIV(num, den)
 
-	p.X = res.X
-	p.Y = res.Y
-	return p
-}
+// 	p.X = res.X
+// 	p.Y = res.Y
+// 	return p
+// }
 
-// Double doubles a points in SNARK coordinates
-func (p *Point) Double(p1 *Point, ecurve twistededwards.CurveParams) *Point {
-	p.AddGeneric(p1, p1, ecurve)
-	return p
-}
+// // Double doubles a points in SNARK coordinates
+// func (p *Point) Double(p1 *Point, ecurve twistededwards.CurveParams) *Point {
+// 	p.AddGeneric(p1, p1, ecurve)
+// 	return p
+// }
 
-// ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
-func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
+// // ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
 
-	switch point := p1.(type) {
-	// case *twistededwards.Point:
-	// 	p.scalarMulFixedBase(point, ecurve, scalar, n)
-	// case twistededwards.Point:
-	// 	p.scalarMulFixedBase(&point, ecurve, scalar, n)
-	case *Point:
-		p.scalarMulNonFixedBase(point, scalar, ecurve, n)
-	case Point:
-		p.scalarMulNonFixedBase(&point, scalar, ecurve, n)
-	}
-	return p
-}
+// 	switch point := p1.(type) {
+// 	// case *twistededwards.Point:
+// 	// 	p.scalarMulFixedBase(point, ecurve, scalar, n)
+// 	// case twistededwards.Point:
+// 	// 	p.scalarMulFixedBase(&point, ecurve, scalar, n)
+// 	case *Point:
+// 		p.scalarMulNonFixedBase(point, scalar, ecurve, n)
+// 	case Point:
+// 		p.scalarMulNonFixedBase(&point, scalar, ecurve, n)
+// 	}
+// 	return p
+// }
 
 // ScalarMulGadget computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (in plain go)
@@ -295,24 +296,24 @@ func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, sca
 // scal: scalar as a SNARK constraint
 // n: nbBits of the scalar
 // Standard left to right double and add
-func (p *Point) scalarMulNonFixedBase(p1 *Point, scalar *frontend.Constraint, c twistededwards.CurveParams, n int) *Point {
+// func (p *Point) scalarMulNonFixedBase(p1 *Point, scalar *frontend.Constraint, c twistededwards.CurveParams, n int) *Point {
 
-	circuit := p1.circuit
+// 	circuit := p1.circuit
 
-	// first unpack the scalar
-	b := circuit.TO_BINARY(scalar, n)
+// 	// first unpack the scalar
+// 	b := circuit.TO_BINARY(scalar, n)
 
-	res := NewPoint(circuit, 0, 1)
+// 	res := NewPoint(circuit, 0, 1)
 
-	for i := len(b) - 1; i >= 0; i-- {
-		res.Double(&res, c)
-		tmp := &Point{circuit: circuit}
-		tmp.AddGeneric(&res, p1, c)
-		res.X = circuit.SELECT(b[i], tmp.X, res.X)
-		res.Y = circuit.SELECT(b[i], tmp.Y, res.Y)
-	}
+// 	for i := len(b) - 1; i >= 0; i-- {
+// 		res.Double(&res, c)
+// 		tmp := &Point{circuit: circuit}
+// 		tmp.AddGeneric(&res, p1, c)
+// 		res.X = circuit.SELECT(b[i], tmp.X, res.X)
+// 		res.Y = circuit.SELECT(b[i], tmp.Y, res.Y)
+// 	}
 
-	p.X = res.X
-	p.Y = res.Y
-	return p
-}
+// 	p.X = res.X
+// 	p.Y = res.Y
+// 	return p
+// }

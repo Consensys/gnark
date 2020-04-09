@@ -23,7 +23,7 @@ func New() *backend_bn256.R1CS {
 	hash := circuit.PUBLIC_INPUT("h")
 
 	// hash function
-	mimc, _ := mimc.NewMiMC("seed", gurvy.BN256)
+	mimc, _ := mimc.NewMiMCGadget("seed", gurvy.BN256)
 
 	// specify constraints
 	// mimc(preImage) == hash
