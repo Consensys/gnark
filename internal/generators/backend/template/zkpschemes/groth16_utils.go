@@ -106,14 +106,16 @@ func (assert *Assert) CorrectExecution(r1cs *backend_{{toLower .Curve}}.R1CS, so
 	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
 
-	r1cs.Solve(solution, a, b, c, wireValues)
-	res, _ := r1cs.Inspect(wireValues)
+	err := r1cs.Solve(solution, a, b, c, wireValues)
+	assert.Nil(err, "Solving the constraint system with correct inputs should not output an error")
+
+	res, err := r1cs.Inspect(wireValues)
+	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 
 	for k, v := range expectedValues {
 		val, ok := res[k]
 		assert.True(ok, "Variable to test <"+k+"> (backend_{{toLower .Curve}}) is not tagged")
-		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_{{toLower .Curve}}) does not have the expected value")
-
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_{{toLower .Curve}}) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
 	}
 }
 `

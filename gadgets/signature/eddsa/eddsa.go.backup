@@ -21,6 +21,7 @@ import (
 	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
 	"github.com/consensys/gnark/frontend/std/reference/signature/eddsa"
 	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bn256/twistededwards"
 )
 
 // PublicKey snark version of the public key

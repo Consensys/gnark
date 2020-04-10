@@ -29,7 +29,7 @@ import (
 
 // EdCurveGadget stores the info on the chosen edwards curve
 type EdCurveGadget struct {
-	A, D, Cofactor, Order, BaseX, BaseY big.Int
+	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
 }
 
 var newTwistedEdwards map[gurvy.ID]func(*frontend.CS) EdCurveGadget
@@ -42,8 +42,8 @@ func init() {
 
 // NewEdCurveGadget returns an Edwards curve parameters
 func NewEdCurveGadget(circuit *frontend.CS, id gurvy.ID) (EdCurveGadget, error) {
-	if val, ok := newTwistedEdwards[id]; ok {
-		return val(circuit), nil
+	if constructor, ok := newTwistedEdwards[id]; ok {
+		return constructor(circuit), nil
 	}
 	return EdCurveGadget{}, gadgets.ErrUnknownCurve
 }
@@ -63,6 +63,8 @@ func newEdBN256(circuit *frontend.CS) EdCurveGadget {
 		BaseX:    backend.FromInterface(edcurve.Base.X),
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
 	}
+	// TODO use the modulus soon-to-be exported by goff
+	res.Modulus.SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10)
 
 	return res
 
@@ -80,6 +82,8 @@ func newEdBLS381(circuit *frontend.CS) EdCurveGadget {
 		BaseX:    backend.FromInterface(edcurve.Base.X),
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
 	}
+	// TODO use the modulus soon-to-be exported by goff
+	res.Modulus.SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
 
 	return res
 

@@ -75,7 +75,7 @@ func TestMimcBN256(t *testing.T) {
 	_r1cs := circuit.ToR1CS()
 	r1csbn256 := backend_bn256.New(_r1cs)
 
-	assertbn256.Solved(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 
 }
 
@@ -112,7 +112,7 @@ func TestMimcBLS381(t *testing.T) {
 	_r1cs := circuit.ToR1CS()
 	r1csbls381 := backend_bls381.New(_r1cs)
 
-	assertbls381.Solved(&r1csbls381, inputs, expectedValues)
+	assertbls381.CorrectExecution(&r1csbls381, inputs, expectedValues)
 
 }
 
@@ -149,6 +149,6 @@ func TestMimcBLS377(t *testing.T) {
 	_r1cs := circuit.ToR1CS()
 	r1csbls377 := backend_bls377.New(_r1cs)
 
-	assertbls377.Solved(&r1csbls377, inputs, expectedValues)
+	assertbls377.CorrectExecution(&r1csbls377, inputs, expectedValues)
 
 }
