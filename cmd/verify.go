@@ -26,7 +26,7 @@ import (
 	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )

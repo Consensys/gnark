@@ -13,7 +13,7 @@ import (
 	{{end}}
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gnark/encoding/gob"
 )
 
 // R1CS decsribes a set of R1CS constraint 

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
 )
 

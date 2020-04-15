@@ -29,7 +29,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
 )
 
