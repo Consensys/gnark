@@ -35,11 +35,11 @@ type Params []fr.Element
 
 // NewMiMC returns a MiMCImpl object, pure-go reference implementation
 func NewMiMC(seed string) MiMC {
-	return MiMC{NewParams(seed)}
+	return MiMC{newParams(seed)}
 }
 
 // NewParams creates new mimc object
-func NewParams(seed string) Params {
+func newParams(seed string) Params {
 
 	// set the constants
 	res := make(Params, mimcNbRounds)

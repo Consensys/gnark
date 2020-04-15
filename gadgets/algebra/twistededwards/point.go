@@ -56,12 +56,13 @@ func (p *PointGadget) IsOnCurveGadget(circuit *frontend.CS, curve EdCurveGadget)
 	debug.Assert(p.X != nil && p.Y != nil, "point not initialized")
 
 	one := big.NewInt(1)
+
 	l1 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.A}}
 	l2 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
 	axx := circuit.MUL(l1, l2)
-
 	yy := circuit.MUL(p.Y, p.Y)
 	lhs := circuit.ADD(axx, yy)
+
 	l1 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.D}}
 	l2 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
 	dxx := circuit.MUL(l1, l2)

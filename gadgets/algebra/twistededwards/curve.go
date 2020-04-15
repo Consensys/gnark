@@ -30,6 +30,7 @@ import (
 // EdCurveGadget stores the info on the chosen edwards curve
 type EdCurveGadget struct {
 	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
+	ID                                           gurvy.ID
 }
 
 var newTwistedEdwards map[gurvy.ID]func(*frontend.CS) EdCurveGadget
@@ -54,14 +55,17 @@ func NewEdCurveGadget(circuit *frontend.CS, id gurvy.ID) (EdCurveGadget, error) 
 func newEdBN256(circuit *frontend.CS) EdCurveGadget {
 
 	edcurve := edbn256.GetEdwardsCurve()
+	var cofactorReg big.Int
+	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurveGadget{
 		A:        backend.FromInterface(edcurve.A),
 		D:        backend.FromInterface(edcurve.D),
-		Cofactor: backend.FromInterface(edcurve.Cofactor),
+		Cofactor: backend.FromInterface(cofactorReg),
 		Order:    backend.FromInterface(edcurve.Order),
 		BaseX:    backend.FromInterface(edcurve.Base.X),
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
+		ID:       gurvy.BN256,
 	}
 	// TODO use the modulus soon-to-be exported by goff
 	res.Modulus.SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10)
@@ -73,14 +77,17 @@ func newEdBN256(circuit *frontend.CS) EdCurveGadget {
 func newEdBLS381(circuit *frontend.CS) EdCurveGadget {
 
 	edcurve := edbls381.GetEdwardsCurve()
+	var cofactorReg big.Int
+	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurveGadget{
 		A:        backend.FromInterface(edcurve.A),
 		D:        backend.FromInterface(edcurve.D),
-		Cofactor: backend.FromInterface(edcurve.Cofactor),
+		Cofactor: backend.FromInterface(cofactorReg),
 		Order:    backend.FromInterface(edcurve.Order),
 		BaseX:    backend.FromInterface(edcurve.Base.X),
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
+		ID:       gurvy.BLS381,
 	}
 	// TODO use the modulus soon-to-be exported by goff
 	res.Modulus.SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)

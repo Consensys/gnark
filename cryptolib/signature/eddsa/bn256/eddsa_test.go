@@ -33,18 +33,17 @@ func TestEddsa(t *testing.T) {
 		seed[i] = v
 	}
 
+	// create eddsa obj and sign a message
 	signer := New(seed, edcurve)
-
 	var msg fr.Element
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
-
 	signature, err := signer.Sign(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verifies correct msg
-	res, err := signer.Verify(signature, msg)
+	res, err := Verify(signature, msg, signer.Pub, signer.curveParams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestEddsa(t *testing.T) {
 
 	// verifies wrong msg
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035979")
-	res, err = signer.Verify(signature, msg)
+	res, err = Verify(signature, msg, signer.Pub, signer.curveParams)
 	if err != nil {
 		t.Fatal(err)
 	}

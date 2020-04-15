@@ -38,7 +38,7 @@ type privateKey struct {
 // Eddsa stores parameters to generate and verify eddsa signature
 type Eddsa struct {
 	priv        privateKey
-	pub         PublicKey
+	Pub         PublicKey
 	curveParams *twistededwards.CurveParams
 }
 
@@ -69,7 +69,7 @@ func New(seed [32]byte, c twistededwards.CurveParams) Eddsa {
 	res.priv.scalar.SetBigInt(&tmp).FromMont()
 	res.curveParams = &c
 
-	res.pub.A.ScalarMul(&c.Base, c, res.priv.scalar)
+	res.Pub.A.ScalarMul(&c.Base, c, res.priv.scalar)
 
 	return res
 }
@@ -114,8 +114,8 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 	data := []fr.Element{
 		res.R.X,
 		res.R.Y,
-		eddsaObj.pub.A.X,
-		eddsaObj.pub.A.Y,
+		eddsaObj.Pub.A.X,
+		eddsaObj.Pub.A.Y,
 		message,
 	}
 
@@ -138,10 +138,10 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func (eddsaObj Eddsa) Verify(sig Signature, message fr.Element) (bool, error) {
+func Verify(sig Signature, message fr.Element, pub PublicKey, params *twistededwards.CurveParams) (bool, error) {
 
 	// verify that pubKey and R are on the curve
-	if !eddsaObj.pub.A.IsOnCurve(*eddsaObj.curveParams) {
+	if !pub.A.IsOnCurve(*params) {
 		return false, ErrNotOnCurve
 	}
 
@@ -149,8 +149,8 @@ func (eddsaObj Eddsa) Verify(sig Signature, message fr.Element) (bool, error) {
 	data := []fr.Element{
 		sig.R.X,
 		sig.R.Y,
-		eddsaObj.pub.A.X,
-		eddsaObj.pub.A.Y,
+		pub.A.X,
+		pub.A.Y,
 		message,
 	}
 	hram := {{toLower .Curve}}.NewMiMC("seed").Hash(data...)
@@ -158,19 +158,19 @@ func (eddsaObj Eddsa) Verify(sig Signature, message fr.Element) (bool, error) {
 
 	// lhs = cofactor*S*Base
 	var lhs twistededwards.Point
-	lhs.ScalarMul(&eddsaObj.curveParams.Base, *eddsaObj.curveParams, sig.S).
-		ScalarMul(&lhs, *eddsaObj.curveParams, eddsaObj.curveParams.Cofactor)
+	lhs.ScalarMul(&params.Base, *params, sig.S).
+		ScalarMul(&lhs, *params, params.Cofactor)
 
-	if !lhs.IsOnCurve(*eddsaObj.curveParams) {
+	if !lhs.IsOnCurve(*params) {
 		return false, ErrNotOnCurve
 	}
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
 	var rhs twistededwards.Point
-	rhs.ScalarMul(&eddsaObj.pub.A, *eddsaObj.curveParams, hram).
-		Add(&rhs, &sig.R, *eddsaObj.curveParams).
-		ScalarMul(&rhs, *eddsaObj.curveParams, eddsaObj.curveParams.Cofactor)
-	if !rhs.IsOnCurve(*eddsaObj.curveParams) {
+	rhs.ScalarMul(&pub.A, *params, hram).
+		Add(&rhs, &sig.R, *params).
+		ScalarMul(&rhs, *params, params.Cofactor)
+	if !rhs.IsOnCurve(*params) {
 		return false, ErrNotOnCurve
 	}
 
@@ -180,4 +180,5 @@ func (eddsaObj Eddsa) Verify(sig Signature, message fr.Element) (bool, error) {
 	}
 	return true, nil
 }
+
 `

@@ -118,4 +118,26 @@ func (assert *Assert) CorrectExecution(r1cs *backend_{{toLower .Curve}}.R1CS, so
 		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_{{toLower .Curve}}) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
 	}
 }
+
+// ConsistantExpectedValues checks only the consistency against a map of expected values
+func (assert *Assert) ConsistantExpectedValues(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+	var root fr.Element
+	fftDomain := backend_{{toLower .Curve}}.NewDomain(root, backend_{{toLower .Curve}}.MaxOrder, r1cs.NbConstraints)
+
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+	r1cs.Solve(solution, a, b, c, wireValues)
+
+	res, err := r1cs.Inspect(wireValues)
+	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
+
+	for k, v := range expectedValues {
+		val, ok := res[k]
+		assert.True(ok, "Variable to test <"+k+"> (backend_{{toLower .Curve}}) is not tagged")
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_{{toLower .Curve}}) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
+	}
+}
 `

@@ -5,12 +5,17 @@ import (
 	"strings"
 
 	"github.com/consensys/bavard"
-	"github.com/consensys/gnark/cryptolib/internal/meta"
 	"github.com/consensys/gnark/cryptolib/internal/template"
 )
 
+// Data meta data for template generation
+type Data struct {
+	Curve string
+	Path  string
+}
+
 // Generate template generator
-func Generate(d meta.Data) error {
+func Generate(d Data) error {
 
 	if !strings.HasSuffix(d.Path, "/") {
 		d.Path += "/"

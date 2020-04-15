@@ -57,6 +57,8 @@ func (assert *Assert) NotSolved(r1cs *backend_bn256.R1CS, solution backend.Assig
 	assert.Error(err, "proving with bad solution should output an error")
 }
 
+// TODO refactor the assertions (for instance for the gadgets we just want to check that the circuit is solved correctly, groth16 shouldn't be involved)
+
 // Solved check that a solution solves a circuit
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
@@ -126,6 +128,28 @@ func (assert *Assert) CorrectExecution(r1cs *backend_bn256.R1CS, solution backen
 
 	err := r1cs.Solve(solution, a, b, c, wireValues)
 	assert.Nil(err, "Solving the constraint system with correct inputs should not output an error")
+
+	res, err := r1cs.Inspect(wireValues)
+	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
+
+	for k, v := range expectedValues {
+		val, ok := res[k]
+		assert.True(ok, "Variable to test <"+k+"> (backend_bn256) is not tagged")
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bn256) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
+	}
+}
+
+// ConsistantExpectedValues checks only the consistency against a map of expected values
+func (assert *Assert) ConsistantExpectedValues(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+	var root fr.Element
+	fftDomain := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, r1cs.NbConstraints)
+
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+	r1cs.Solve(solution, a, b, c, wireValues)
 
 	res, err := r1cs.Inspect(wireValues)
 	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
