@@ -57,8 +57,6 @@ func (assert *Assert) NotSolved(r1cs *backend_bn256.R1CS, solution backend.Assig
 	assert.Error(err, "proving with bad solution should output an error")
 }
 
-// TODO refactor the assertions (for instance for the gadgets we just want to check that the circuit is solved correctly, groth16 shouldn't be involved)
-
 // Solved check that a solution solves a circuit
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c

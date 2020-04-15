@@ -136,3 +136,25 @@ func (assert *Assert) CorrectExecution(r1cs *backend_bls381.R1CS, solution backe
 		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bls381) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
 	}
 }
+
+// ConsistantExpectedValues checks only the consistency against a map of expected values
+func (assert *Assert) ConsistantExpectedValues(r1cs *backend_bls381.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+	var root fr.Element
+	fftDomain := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, r1cs.NbConstraints)
+
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+	r1cs.Solve(solution, a, b, c, wireValues)
+
+	res, err := r1cs.Inspect(wireValues)
+	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
+
+	for k, v := range expectedValues {
+		val, ok := res[k]
+		assert.True(ok, "Variable to test <"+k+"> (backend_bls381) is not tagged")
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bls381) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
+	}
+}
