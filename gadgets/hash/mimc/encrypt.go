@@ -47,8 +47,8 @@ func init() {
 
 func newMimcBLS377(seed string) MiMCGadget {
 	res := MiMCGadget{}
-	tmp := bls377.NewMiMC(seed)
-	for _, v := range tmp.Params {
+	params := bls377.NewParams(seed)
+	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.Params = append(res.Params, cpy)
@@ -59,8 +59,8 @@ func newMimcBLS377(seed string) MiMCGadget {
 
 func newMimcBLS381(seed string) MiMCGadget {
 	res := MiMCGadget{}
-	tmp := bls381.NewMiMC(seed)
-	for _, v := range tmp.Params {
+	params := bls381.NewParams(seed)
+	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.Params = append(res.Params, cpy)
@@ -71,8 +71,8 @@ func newMimcBLS381(seed string) MiMCGadget {
 
 func newMimcBN256(seed string) MiMCGadget {
 	res := MiMCGadget{}
-	tmp := bn256.NewMiMC(seed)
-	for _, v := range tmp.Params {
+	params := bn256.NewParams(seed)
+	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.Params = append(res.Params, cpy)

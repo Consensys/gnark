@@ -49,9 +49,9 @@ func NewPointGadget(circuit *frontend.CS, _x, _y interface{}) PointGadget {
 	}
 }
 
-// IsOnCurveGadget checks if a point is on the twisted Edwards curve
+// MustBeOnCurveGadget checks if a point is on the twisted Edwards curve
 // ax^2 + y^2 = 1 + d*x^2*y^2
-func (p *PointGadget) IsOnCurveGadget(circuit *frontend.CS, curve EdCurveGadget) {
+func (p *PointGadget) MustBeOnCurveGadget(circuit *frontend.CS, curve EdCurveGadget) {
 
 	debug.Assert(p.X != nil && p.Y != nil, "point not initialized")
 

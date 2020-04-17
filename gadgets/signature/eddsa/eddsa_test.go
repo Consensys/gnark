@@ -55,7 +55,7 @@ func TestEddsaGadget(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !res {
-		//t.Fatal("Verifying the signature should return true")
+		t.Fatal("Verifying the signature should return true")
 	}
 
 	// Set the eddsa circuit and the gadget

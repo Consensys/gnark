@@ -27,6 +27,35 @@ import (
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
+func TestIsOnCurve(t *testing.T) {
+
+	circuit := frontend.New()
+
+	assertbn256 := groth16_bn256.NewAssert(t)
+
+	// get edwards curve gadget
+	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// set the Snark point
+	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+
+	pointSnark.MustBeOnCurveGadget(&circuit, edgadget)
+
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "x", edgadget.BaseX)
+	inputs.Assign(backend.Secret, "y", edgadget.BaseY)
+
+	// creates r1cs
+	_r1cs := circuit.ToR1CS()
+	r1csbn256 := backend_bn256.New(_r1cs)
+
+	assertbn256.CorrectExecution(&r1csbn256, inputs, nil)
+
+}
+
 func TestAdd(t *testing.T) {
 
 	circuit := frontend.New()

@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -131,6 +132,7 @@ func (assert *Assert) CorrectExecution(r1cs *backend_bn256.R1CS, solution backen
 	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 
 	for k, v := range expectedValues {
+		fmt.Println(k + ": " + v.String())
 		val, ok := res[k]
 		assert.True(ok, "Variable to test <"+k+"> (backend_bn256) is not tagged")
 		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bn256) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())

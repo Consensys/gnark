@@ -5,13 +5,15 @@ import (
 	"strings"
 
 	"github.com/consensys/bavard"
-	"github.com/consensys/gnark/cryptolib/internal/template"
 )
 
 // Data meta data for template generation
 type Data struct {
-	Curve string
-	Path  string
+	Curve    string
+	Path     string
+	FileName string
+	Src      []string
+	Package  string
 }
 
 // Generate template generator
@@ -24,31 +26,13 @@ func Generate(d Data) error {
 	fmt.Println("generating crpyptolib for ", d.Curve)
 	fmt.Println()
 
-	{
-		// generate eddsa
-		src := []string{
-			template.EddsaTemplate,
-		}
-		if err := bavard.Generate(d.Path+"eddsa.go", src, d,
-			bavard.Package("eddsa"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/cryptolib/internal/generator"),
-		); err != nil {
-			return err
-		}
+	if err := bavard.Generate(d.Path+d.FileName, d.Src, d,
+		bavard.Package(d.Package),
+		bavard.Apache2("ConsenSys AG", 2020),
+		bavard.GeneratedBy("gnark/cryptolib/internal/generator"),
+	); err != nil {
+		return err
 	}
-	{
-		// generate eddsa tests
-		src := []string{
-			template.EddsaTest,
-		}
-		if err := bavard.Generate(d.Path+"eddsa_test.go", src, d,
-			bavard.Package("eddsa"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/cryptolib/internal/generator"),
-		); err != nil {
-			return err
-		}
-	}
+
 	return nil
 }

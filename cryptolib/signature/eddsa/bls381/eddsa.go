@@ -133,7 +133,7 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 		message,
 	}
 
-	hram := bls381.NewMiMC("seed").Hash(data...)
+	hram := bls381.Sum("seed", data)
 	hram.FromMont()
 
 	// Compute s = randScalarInt + H(R,A,M)*S
@@ -167,7 +167,7 @@ func Verify(sig Signature, message fr.Element, pub PublicKey, params *twistededw
 		pub.A.Y,
 		message,
 	}
-	hram := bls381.NewMiMC("seed").Hash(data...)
+	hram := bls381.Sum("seed", data)
 	hram.FromMont()
 
 	// lhs = cofactor*S*Base
