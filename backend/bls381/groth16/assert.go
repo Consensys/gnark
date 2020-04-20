@@ -17,15 +17,14 @@
 package groth16
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bls381/fr"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +45,7 @@ func NewAssert(t *testing.T) *Assert {
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
-func (assert *Assert) NotSolved(r1cs *backend_bn256.R1CS, solution backend.Assignments) {
+func (assert *Assert) NotSolved(r1cs *backend_bls381.R1CS, solution backend.Assignments) {
 	// setup
 
 	var pk ProvingKey
@@ -62,7 +61,7 @@ func (assert *Assert) NotSolved(r1cs *backend_bn256.R1CS, solution backend.Assig
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+func (assert *Assert) Solved(r1cs *backend_bls381.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 	// setup
 
 	var pk ProvingKey
@@ -115,10 +114,10 @@ func (assert *Assert) Solved(r1cs *backend_bn256.R1CS, solution backend.Assignme
 }
 
 // CorrectExecution Verifies that the expected solution matches the solved variables
-func (assert *Assert) CorrectExecution(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
+func (assert *Assert) CorrectExecution(r1cs *backend_bls381.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 	// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
 	var root fr.Element
-	fftDomain := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, r1cs.NbConstraints)
+	fftDomain := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, r1cs.NbConstraints)
 
 	wireValues := make([]fr.Element, r1cs.NbWires)
 	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
@@ -132,31 +131,8 @@ func (assert *Assert) CorrectExecution(r1cs *backend_bn256.R1CS, solution backen
 	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 
 	for k, v := range expectedValues {
-		fmt.Println(k + ": " + v.String())
 		val, ok := res[k]
-		assert.True(ok, "Variable to test <"+k+"> (backend_bn256) is not tagged")
-		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bn256) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
-	}
-}
-
-// ConsistantExpectedValues checks only the consistency against a map of expected values
-func (assert *Assert) ConsistantExpectedValues(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
-	var root fr.Element
-	fftDomain := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, r1cs.NbConstraints)
-
-	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-
-	r1cs.Solve(solution, a, b, c, wireValues)
-
-	res, err := r1cs.Inspect(wireValues)
-	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
-
-	for k, v := range expectedValues {
-		val, ok := res[k]
-		assert.True(ok, "Variable to test <"+k+"> (backend_bn256) is not tagged")
-		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bn256) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
+		assert.True(ok, "Variable to test <"+k+"> (backend_bls381) is not tagged")
+		assert.True(val.Equal(&v), "Tagged variable <"+k+"> (backend_bls381) does not have the expected value\nexpected: "+v.String()+"\ngot:\t  "+val.String())
 	}
 }

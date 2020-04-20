@@ -122,7 +122,7 @@ func GenerateGroth16(d GenerateData) error {
 			templates.ImportCurve,
 			zkpschemes.Groth16Assert,
 		}
-		if err := bavard.Generate(d.RootPath+"groth16/utils.go", src, d,
+		if err := bavard.Generate(d.RootPath+"groth16/assert.go", src, d,
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
