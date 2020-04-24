@@ -47,7 +47,17 @@ type R1CS struct {
 }
 
 // New return a typed R1CS with the curve from frontend.R1CS
-func New(r1cs *frontend.R1CS) R1CS {
+func New(cs *frontend.CS) R1CS {
+
+	r1cs := cs.ToR1CS()
+
+	return Cast(r1cs)
+}
+
+// Cast casts a frontend.R1CS (whose coefficients are big.Int)
+// into a specialized R1CS whose coefficients are fr elements
+func Cast(r1cs *frontend.R1CS) R1CS {
+
 	toReturn := R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,

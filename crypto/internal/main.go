@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/consensys/gnark/cryptolib/internal/generator"
-	"github.com/consensys/gnark/cryptolib/internal/template"
+	"github.com/consensys/gnark/crypto/internal/generator"
+	"github.com/consensys/gnark/crypto/internal/template"
 )
 
 //go:generate go run -tags debug main.go

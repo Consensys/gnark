@@ -19,9 +19,9 @@ package mimc
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/cryptolib/hash/mimc/bls377"
-	"github.com/consensys/gnark/cryptolib/hash/mimc/bls381"
-	"github.com/consensys/gnark/cryptolib/hash/mimc/bn256"
+	"github.com/consensys/gnark/crypto/hash/mimc/bls377"
+	"github.com/consensys/gnark/crypto/hash/mimc/bls381"
+	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"

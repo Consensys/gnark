@@ -78,8 +78,7 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend_bn256.R1CS,
 	//  setup
 	var pk groth16.ProvingKey
 	var vk groth16.VerifyingKey
-	_r1cs := circuit.ToR1CS()
-	r1cs := backend_bn256.New(_r1cs)
+	r1cs := backend_bn256.New(&circuit)
 	groth16.Setup(&r1cs, &pk, &vk)
 
 	return pk, r1cs, solution

@@ -22,7 +22,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
-	eddsa_bn256 "github.com/consensys/gnark/cryptolib/signature/eddsa/bn256"
+	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
 	"github.com/consensys/gnark/frontend"
 	twistededwards_gadget "github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gurvy"
@@ -96,8 +96,7 @@ func TestEddsaGadget(t *testing.T) {
 	SMont.Set(&signature.S).ToMont()
 	good.Assign(backend.Public, "sigS", SMont)
 
-	_r1cs := circuit.ToR1CS()
-	r1cs := backend_bn256.New(_r1cs)
+	r1cs := backend_bn256.New(&circuit)
 
 	assert.CorrectExecution(&r1cs, good, nil)
 

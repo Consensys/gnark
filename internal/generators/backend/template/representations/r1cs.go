@@ -33,7 +33,17 @@ type R1CS struct {
 }
 
 // New return a typed R1CS with the curve from frontend.R1CS
-func New(r1cs *frontend.R1CS) R1CS {
+func New(cs *frontend.CS) R1CS {
+
+	r1cs := cs.ToR1CS()
+
+	return Cast(r1cs)
+}
+
+// Cast casts a frontend.R1CS (whose coefficients are big.Int)
+// into a specialized R1CS whose coefficients are fr elements
+func Cast(r1cs *frontend.R1CS) R1CS {
+
 	toReturn := R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
@@ -54,15 +64,15 @@ func New(r1cs *frontend.R1CS) R1CS {
 			O:      make(LinearExpression, len(from.O)),
 		}
 
-		for j:=0;j<len(from.L);j++{
+		for j := 0; j < len(from.L); j++ {
 			to.L[j].ID = from.L[j].ID
 			to.L[j].Coeff.SetBigInt(&from.L[j].Coeff)
 		}
-		for j:=0;j<len(from.R);j++{
+		for j := 0; j < len(from.R); j++ {
 			to.R[j].ID = from.R[j].ID
 			to.R[j].Coeff.SetBigInt(&from.R[j].Coeff)
 		}
-		for j:=0;j<len(from.O);j++{
+		for j := 0; j < len(from.O); j++ {
 			to.O[j].ID = from.O[j].ID
 			to.O[j].Coeff.SetBigInt(&from.O[j].Coeff)
 		}

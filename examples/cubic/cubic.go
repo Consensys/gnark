@@ -25,8 +25,6 @@ func New() *backend_bn256.R1CS {
 	x3.Tag("x^3") // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
 	circuit.MUSTBE_EQ(y, circuit.ADD(x3, x, 5))
 
-	_r1cs := circuit.ToR1CS()
-
-	r1cs := backend_bn256.New(_r1cs)
+	r1cs := backend_bn256.New(&circuit)
 	return &r1cs
 }

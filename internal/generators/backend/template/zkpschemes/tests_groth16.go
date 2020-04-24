@@ -50,7 +50,7 @@ func TestCircuits(t *testing.T) {
 		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
-		r1cs := backend_{{toLower .Curve}}.New(&fr1cs)
+		r1cs := backend_{{toLower .Curve}}.Cast(&fr1cs)
 		assert.NotSolved(&r1cs, bad)
 		assert.Solved(&r1cs, good, nil)
 	}

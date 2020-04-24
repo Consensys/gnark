@@ -46,8 +46,7 @@ func New() *backend_bn256.R1CS {
 
 	circuit.MUSTBE_EQ(y, output)
 
-	_r1cs := circuit.ToR1CS()
-	r1cs := backend_bn256.New(_r1cs)
+	r1cs := backend_bn256.New(&circuit)
 
 	return &r1cs
 }

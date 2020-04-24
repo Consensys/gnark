@@ -49,8 +49,7 @@ func TestIsOnCurve(t *testing.T) {
 	inputs.Assign(backend.Secret, "y", edgadget.BaseY)
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, nil)
 
@@ -88,8 +87,7 @@ func TestAdd(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 }
@@ -129,8 +127,7 @@ func TestAddGeneric(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 }
@@ -166,8 +163,7 @@ func TestDouble(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 }
@@ -207,8 +203,7 @@ func TestScalarMulFixedBase(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 }
@@ -248,8 +243,7 @@ func TestScalarMulNonFixedBase(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 }

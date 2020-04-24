@@ -32,9 +32,9 @@ import (
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
 
-	mimcbls377 "github.com/consensys/gnark/cryptolib/hash/mimc/bls377"
-	mimcbls381 "github.com/consensys/gnark/cryptolib/hash/mimc/bls381"
-	mimcbn256 "github.com/consensys/gnark/cryptolib/hash/mimc/bn256"
+	mimcbls377 "github.com/consensys/gnark/crypto/hash/mimc/bls377"
+	mimcbls381 "github.com/consensys/gnark/crypto/hash/mimc/bls381"
+	mimcbn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 
 	fr_bls377 "github.com/consensys/gurvy/bls377/fr"
 	fr_bls381 "github.com/consensys/gurvy/bls381/fr"
@@ -70,8 +70,7 @@ func TestMimcBN256(t *testing.T) {
 	inputs.Assign(backend.Public, "data", databn256)
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbn256 := backend_bn256.New(_r1cs)
+	r1csbn256 := backend_bn256.New(&circuit)
 
 	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
 
@@ -107,8 +106,7 @@ func TestMimcBLS381(t *testing.T) {
 	inputs.Assign(backend.Public, "data", data)
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbls381 := backend_bls381.New(_r1cs)
+	r1csbls381 := backend_bls381.New(&circuit)
 
 	assertbls381.CorrectExecution(&r1csbls381, inputs, expectedValues)
 
@@ -144,8 +142,7 @@ func TestMimcBLS377(t *testing.T) {
 	inputs.Assign(backend.Public, "data", data)
 
 	// creates r1cs
-	_r1cs := circuit.ToR1CS()
-	r1csbls377 := backend_bls377.New(_r1cs)
+	r1csbls377 := backend_bls377.New(&circuit)
 
 	assertbls377.CorrectExecution(&r1csbls377, inputs, expectedValues)
 

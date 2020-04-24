@@ -29,7 +29,7 @@ func Generate(d Data) error {
 	if err := bavard.Generate(d.Path+d.FileName, d.Src, d,
 		bavard.Package(d.Package),
 		bavard.Apache2("ConsenSys AG", 2020),
-		bavard.GeneratedBy("gnark/cryptolib/internal/generator"),
+		bavard.GeneratedBy("gnark/crypto/internal/generator"),
 	); err != nil {
 		return err
 	}

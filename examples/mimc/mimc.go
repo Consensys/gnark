@@ -29,8 +29,7 @@ func New() *backend_bn256.R1CS {
 	// mimc(preImage) == hash
 	circuit.MUSTBE_EQ(hash, mimc.Hash(&circuit, preImage))
 
-	_r1cs := circuit.ToR1CS()
-	r1cs := backend_bn256.New(_r1cs)
+	r1cs := backend_bn256.New(&circuit)
 
 	return &r1cs
 }
