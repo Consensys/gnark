@@ -21,15 +21,11 @@ func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint)
 	// prepending 0x00 means the first chunk to be hashed will consist of the first 31 bytes
 	d1 := circuit.FROM_BINARY(dataBin[8:]...)
 
-	// the lsByte of data will become the msByte of the second chunk
-	// doing this operation consists in multiplying the lsByte of data by 1 << (31*8)
-	// var shifter big.Int
-	// shifter.SetString("452312848583266388373324160190187140051835877600158453279131187530910662656", 10) // 1 << (31*8)
-	// d2 := circuit.FROM_BINARY(dataBin[:8]...)
-	// d2 = circuit.MUL(d2, shifter)
+	// the lsByte of data will become the lsByte of the second chunk
+	d2 := circuit.FROM_BINARY(dataBin[:8]...)
 
-	//res := h.Hash(circuit, d1, d2)
-	res := h.Hash(circuit, d1)
+	res := h.Hash(circuit, d1, d2)
+	//res := h.Hash(circuit, d1)
 
 	return res
 }
@@ -57,9 +53,9 @@ func nodeSum(circuit *frontend.CS, h mimc.MiMCGadget, a, b *frontend.Constraint)
 	tmp := circuit.FROM_BINARY(d2Bin[8:]...)
 	chunk2 = circuit.ADD(chunk2, tmp) // chunk2 = chunk2 || (b>>8)
 
-	// lsByte(b)<<31*8
+	// lsByte(b)
 	chunk3 := circuit.FROM_BINARY(d2Bin[:8]...)
-	chunk3 = circuit.MUL(chunk3, shifter)
+	//chunk3 = circuit.MUL(chunk3, shifter)
 
 	res := h.Hash(circuit, chunk1, chunk2, chunk3)
 
@@ -110,6 +106,8 @@ func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.C
 	// 	return false
 	// }
 	sum := leafSum(circuit, h, proofSet[height])
+	proofSet[height].Tag("leaf")
+	sum.Tag("sum")
 	height++
 
 	// While the current subtree (of height 'height') is complete, determine

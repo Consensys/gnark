@@ -239,17 +239,22 @@ func (d *digest) checksum() fr.Element {
 	var buffer [32]byte
 	var x fr.Element
 
-	// if data size is not multiple of BlockSizes we padd
+	// if data size is not multiple of BlockSizes we padd:
+	// .. || 0xaf8 -> .. || 0x0000...0af8
 	if len(d.data)%BlockSize != 0 {
-		for i := 0; i < BlockSize-len(d.data)%BlockSize; i++ {
-			d.data = append(d.data, 0)
-		}
+		q := len(d.data) / BlockSize
+		r := len(d.data) % BlockSize
+		sliceq := make([]byte, q*BlockSize)
+		copy(sliceq, d.data)
+		slicer := make([]byte, r)
+		copy(slicer, d.data[q*BlockSize:])
+		sliceremainder := make([]byte, BlockSize-r)
+		d.data = append(sliceq, sliceremainder...)
+		d.data = append(d.data, slicer...)
 	}
 
 	if len(d.data) == 0 {
-		for i := 0; i < BlockSize; i++ {
-			d.data = append(d.data, 0)
-		}
+		d.data = make([]byte, 32)
 	}
 
 	nbChunks := len(d.data) / BlockSize
