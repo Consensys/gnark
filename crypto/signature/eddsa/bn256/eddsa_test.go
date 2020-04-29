@@ -19,6 +19,7 @@ package eddsa
 import (
 	"testing"
 
+	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
 	"github.com/consensys/gurvy/bn256/twistededwards"
 )
@@ -33,17 +34,19 @@ func TestEddsa(t *testing.T) {
 		seed[i] = v
 	}
 
+	hFunc := bn256.NewMiMC("seed")
+
 	// create eddsa obj and sign a message
-	signer := New(seed, edcurve)
+	signer, pubKey, privKey := New(seed, edcurve, hFunc)
 	var msg fr.Element
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
-	signature, err := signer.Sign(msg)
+	signature, err := Sign(signer, msg, pubKey, privKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verifies correct msg
-	res, err := Verify(signature, msg, signer.Pub, signer.curveParams)
+	res, err := Verify(signer, signature, msg, pubKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +56,7 @@ func TestEddsa(t *testing.T) {
 
 	// verifies wrong msg
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035979")
-	res, err = Verify(signature, msg, signer.Pub, signer.curveParams)
+	res, err = Verify(signer, signature, msg, pubKey)
 	if err != nil {
 		t.Fatal(err)
 	}

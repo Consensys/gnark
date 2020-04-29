@@ -21,6 +21,6 @@ func TestConstraintTag(t *testing.T) {
 	assert.True(len(a.outputWire.Tags) == 2, "a should have 2 tag")
 
 	x := circuit.PUBLIC_INPUT("x")
-	assert.True(len(x.outputWire.Tags) == 1, "a secret/public input should have 1 tag by default (it's name)")
+	assert.True(len(x.outputWire.Tags) == 0, "a secret/public is not tagged by default")
 
 }

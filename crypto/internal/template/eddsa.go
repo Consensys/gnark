@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"hash"
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/hash/mimc/{{toLower .Curve}}"
 	"github.com/consensys/gurvy/{{toLower .Curve}}/fr"
 	"github.com/consensys/gurvy/{{toLower .Curve}}/twistededwards"
 	"golang.org/x/crypto/blake2b"
@@ -30,28 +30,31 @@ type PublicKey struct {
 }
 
 // PrivateKey private key of an eddsa instance
-type privateKey struct {
+type PrivateKey struct {
 	randSrc [32]byte   // randomizer (non need to convert it when doing scalar mul --> random = H(randSrc,msg))
 	scalar  fr.Element // secret scalar (non need to convert it when doing scalar mul)
 }
 
 // Eddsa stores parameters to generate and verify eddsa signature
 type Eddsa struct {
-	priv        privateKey
-	Pub         PublicKey
 	curveParams *twistededwards.CurveParams
+	h           hash.Hash
 }
 
 // New creates an instance of eddsa
-func New(seed [32]byte, c twistededwards.CurveParams) Eddsa {
-
-	res := Eddsa{}
+func New(seed [32]byte, c twistededwards.CurveParams, hFunc hash.Hash) (Eddsa, PublicKey, PrivateKey) {
 
 	var tmp big.Int
 
+	var res Eddsa
+	var pub PublicKey
+	var priv PrivateKey
+
+	res.h = hFunc
+
 	h := blake2b.Sum512(seed[:])
 	for i := 0; i < 32; i++ {
-		res.priv.randSrc[i] = h[i+32]
+		priv.randSrc[i] = h[i+32]
 	}
 
 	// prune the key
@@ -66,18 +69,18 @@ func New(seed [32]byte, c twistededwards.CurveParams) Eddsa {
 		h[i], h[j] = h[j], h[i]
 	}
 	tmp.SetBytes(h[:32])
-	res.priv.scalar.SetBigInt(&tmp).FromMont()
+	priv.scalar.SetBigInt(&tmp).FromMont()
 	res.curveParams = &c
 
-	res.Pub.A.ScalarMul(&c.Base, c, res.priv.scalar)
+	pub.A.ScalarMul(&c.Base, c, priv.scalar)
 
-	return res
+	return res, pub, priv
 }
 
 // Sign sign a message (in Montgomery form)
 // cf https://en.wikipedia.org/wiki/EdDSA for the notations
 // Eddsa is supposed to be built upon Edwards (or twisted Edwards) curves having 256 bits group size and cofactor=4 or 8
-func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
+func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error) {
 
 	res := Signature{}
 
@@ -86,7 +89,7 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 
 	// randSrc = privKey.randSrc || msg (-> message = MSB message .. LSB message)
 	randSrc := make([]byte, 64)
-	for i, v := range eddsaObj.priv.randSrc {
+	for i, v := range priv.randSrc {
 		randSrc[i] = v
 	}
 	buf := new(bytes.Buffer)
@@ -105,8 +108,8 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 	randScalar.SetBigInt(&tmp).FromMont()
 
 	// compute R = randScalar*Base
-	res.R.ScalarMul(&eddsaObj.curveParams.Base, *eddsaObj.curveParams, randScalar)
-	if !res.R.IsOnCurve(*eddsaObj.curveParams) {
+	res.R.ScalarMul(&eddsaContext.curveParams.Base, *eddsaContext.curveParams, randScalar)
+	if !res.R.IsOnCurve(*eddsaContext.curveParams) {
 		return Signature{}, ErrNotOnCurve
 	}
 
@@ -114,23 +117,27 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 	data := []fr.Element{
 		res.R.X,
 		res.R.Y,
-		eddsaObj.Pub.A.X,
-		eddsaObj.Pub.A.Y,
+		pub.A.X,
+		pub.A.Y,
 		message,
 	}
-
-	hram := {{toLower .Curve}}.Sum("seed", data)
-	hram.FromMont()
+	eddsaContext.h.Reset()
+	for i := 0; i < len(data); i++ {
+		eddsaContext.h.Write(data[i].Bytes())
+	}
+	hramBin := eddsaContext.h.Sum([]byte{})
+	var hram fr.Element
+	hram.SetBytes(hramBin)
 
 	// Compute s = randScalarInt + H(R,A,M)*S
 	// going with big int to do ops mod curve order
 	var hramInt, sInt, randScalarInt big.Int
 	hram.ToBigInt(&hramInt)
-	eddsaObj.priv.scalar.ToBigInt(&sInt)
+	priv.scalar.ToBigInt(&sInt)
 	randScalar.ToBigInt(&randScalarInt)
 	hramInt.Mul(&hramInt, &sInt).
 		Add(&hramInt, &randScalarInt).
-		Mod(&hramInt, &eddsaObj.curveParams.Order)
+		Mod(&hramInt, &eddsaContext.curveParams.Order)
 	res.S.SetBigInt(&hramInt).FromMont()
 
 	return res, nil
@@ -138,10 +145,10 @@ func (eddsaObj Eddsa) Sign(message fr.Element) (Signature, error) {
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(sig Signature, message fr.Element, pub PublicKey, params *twistededwards.CurveParams) (bool, error) {
+func Verify(eddsaContext Eddsa, sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 
 	// verify that pubKey and R are on the curve
-	if !pub.A.IsOnCurve(*params) {
+	if !pub.A.IsOnCurve(*eddsaContext.curveParams) {
 		return false, ErrNotOnCurve
 	}
 
@@ -153,24 +160,29 @@ func Verify(sig Signature, message fr.Element, pub PublicKey, params *twistededw
 		pub.A.Y,
 		message,
 	}
-	hram := {{toLower .Curve}}.Sum("seed",data)
-	hram.FromMont()
+	eddsaContext.h.Reset()
+	for i := 0; i < len(data); i++ {
+		eddsaContext.h.Write(data[i].Bytes())
+	}
+	hramBin := eddsaContext.h.Sum([]byte{})
+	var hram fr.Element
+	hram.SetBytes(hramBin)
 
 	// lhs = cofactor*S*Base
 	var lhs twistededwards.Point
-	lhs.ScalarMul(&params.Base, *params, sig.S).
-		ScalarMul(&lhs, *params, params.Cofactor)
+	lhs.ScalarMul(&eddsaContext.curveParams.Base, *eddsaContext.curveParams, sig.S).
+		ScalarMul(&lhs, *eddsaContext.curveParams, eddsaContext.curveParams.Cofactor)
 
-	if !lhs.IsOnCurve(*params) {
+	if !lhs.IsOnCurve(*eddsaContext.curveParams) {
 		return false, ErrNotOnCurve
 	}
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
 	var rhs twistededwards.Point
-	rhs.ScalarMul(&pub.A, *params, hram).
-		Add(&rhs, &sig.R, *params).
-		ScalarMul(&rhs, *params, params.Cofactor)
-	if !rhs.IsOnCurve(*params) {
+	rhs.ScalarMul(&pub.A, *eddsaContext.curveParams, hram).
+		Add(&rhs, &sig.R, *eddsaContext.curveParams).
+		ScalarMul(&rhs, *eddsaContext.curveParams, eddsaContext.curveParams.Cofactor)
+	if !rhs.IsOnCurve(*eddsaContext.curveParams) {
 		return false, ErrNotOnCurve
 	}
 

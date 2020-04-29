@@ -63,7 +63,10 @@ func TestMimcBN256(t *testing.T) {
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]fr_bn256.Element)
-	expectedValues["res"] = mimcbn256.Sum("seed", []fr_bn256.Element{databn256})
+	b := mimcbn256.Sum("seed", databn256.Bytes())
+	var tmp fr_bn256.Element
+	tmp.SetBytes(b)
+	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
 	inputs := backend.NewAssignment()
@@ -99,7 +102,10 @@ func TestMimcBLS381(t *testing.T) {
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]fr_bls381.Element)
-	expectedValues["res"] = mimcbls381.Sum("seed", []fr_bls381.Element{databls381})
+	b := mimcbls381.Sum("seed", databls381.Bytes())
+	var tmp fr_bls381.Element
+	tmp.SetBytes(b)
+	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
 	inputs := backend.NewAssignment()
@@ -135,7 +141,10 @@ func TestMimcBLS377(t *testing.T) {
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]fr_bls377.Element)
-	expectedValues["res"] = mimcbls377.Sum("seed", []fr_bls377.Element{databls377})
+	b := mimcbls377.Sum("seed", databls377.Bytes())
+	var tmp fr_bls377.Element
+	tmp.SetBytes(b)
+	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
 	inputs := backend.NewAssignment()

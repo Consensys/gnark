@@ -36,8 +36,8 @@ type R1CS struct {
 	NbWires        int
 	NbPublicWires  int // includes ONE wire
 	NbPrivateWires int
-	PrivateWires   []string         // private wire names
-	PublicWires    []string         // public wire names
+	PrivateWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
+	PublicWires    []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	WireTags       map[int][]string // optional tags -- debug info
 
 	// Constraints
@@ -186,9 +186,34 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 }
 
 // Inspect returns the tagged variables with their corresponding value
-func (r1cs *R1CS) Inspect(wireValues []fr.Element) (map[string]fr.Element, error) {
+// If showsInput is set, it also puts in the resulting map the inputs (public and private).
+func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[string]fr.Element, error) {
+
 	res := make(map[string]fr.Element)
 
+	var root fr.Element
+	fftDomain := NewDomain(root, MaxOrder, r1cs.NbConstraints)
+
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+
+	err := r1cs.Solve(solution, a, b, c, wireValues)
+
+	// showsInput is set, put the inputs in the resulting map
+	if showsInputs {
+		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
+		for i := 0; i < len(r1cs.PrivateWires); i++ {
+			res[r1cs.PrivateWires[i]] = wireValues[i+offset]
+		}
+		offset = r1cs.NbWires - r1cs.NbPublicWires // public input start index
+		for i := 0; i < len(r1cs.PublicWires); i++ {
+			res[r1cs.PublicWires[i]] = wireValues[i+offset]
+		}
+	}
+
+	// get the tagged variables
 	for wireID, tags := range r1cs.WireTags {
 		for _, tag := range tags {
 			if _, ok := res[tag]; ok {
@@ -199,6 +224,12 @@ func (r1cs *R1CS) Inspect(wireValues []fr.Element) (map[string]fr.Element, error
 		}
 
 	}
+
+	// the error cannot be caught before because the res map needs to be filled
+	if err != nil {
+		return res, err
+	}
+
 	return res, nil
 }
 

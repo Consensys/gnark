@@ -61,7 +61,7 @@ func New() CS {
 			WireID:       -1,
 			ConstraintID: -1,
 			IsConsumed:   true, // if false it means it is the last wire of the computational graph
-			Tags:         []string{backend.OneWire},
+			Tags:         []string{},
 		},
 	}
 

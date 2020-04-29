@@ -114,20 +114,11 @@ func (assert *Assert) Solved(r1cs *backend_bn256.R1CS, solution backend.Assignme
 }
 
 // CorrectExecution Verifies that the expected solution matches the solved variables
+// CorrectExecution Verifies that the expected solution matches the solved variables
 func (assert *Assert) CorrectExecution(r1cs *backend_bn256.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
-	// TODO Solve should not require to  create by hand a, b, c etc... it should return it, super annoying to create variables before solving the r1cs
-	var root fr.Element
-	fftDomain := backend_bn256.NewDomain(root, backend_bn256.MaxOrder, r1cs.NbConstraints)
 
-	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-
-	err := r1cs.Solve(solution, a, b, c, wireValues)
-	assert.Nil(err, "Solving the constraint system with correct inputs should not output an error")
-
-	res, err := r1cs.Inspect(wireValues)
+	// In inspect the r1cs is solved, if an error occurs it is caught here
+	res, err := r1cs.Inspect(solution, true)
 	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 
 	for k, v := range expectedValues {

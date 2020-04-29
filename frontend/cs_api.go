@@ -248,7 +248,7 @@ func (cs *CS) TO_BINARY(c *Constraint, nbBits int) []*Constraint {
 	return bits
 }
 
-// FROM_BINARY c = bi*2^i (first item of b = LSb of c)
+// FROM_BINARY packs b, seen as a fr.Element in little endian
 func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 
 	expression := packExpression{}
@@ -369,7 +369,7 @@ func (cs *CS) SECRET_INPUT(name string) *Constraint {
 	toReturn := &Constraint{
 		outputWire: &wire{
 			Name:         name,
-			Tags:         []string{name},
+			Tags:         []string{},
 			IsPrivate:    true,
 			IsConsumed:   true,
 			ConstraintID: -1,

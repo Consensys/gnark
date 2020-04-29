@@ -17,7 +17,6 @@
 package bls381
 
 import (
-	"encoding/binary"
 	"hash"
 	"math/big"
 
@@ -80,8 +79,9 @@ func (d *digest) Reset() {
 func (d *digest) Sum(b []byte) []byte {
 	buffer := d.checksum()
 	d.data = nil // flush the data already hashed
-	hash := toBytes(buffer)
-	return append(b, hash[:]...)
+	hash := buffer.Bytes()
+	b = append(b, hash[:]...)
+	return b
 }
 
 // BlockSize returns the hash's underlying block size.
@@ -105,32 +105,13 @@ func (d *digest) Write(p []byte) (n int, err error) {
 	return
 }
 
-// toBytes converts a fr Element into a BlockSize bytes array
-func toBytes(e fr.Element) [BlockSize]byte {
-	var res [BlockSize]byte
-	binary.BigEndian.PutUint64(res[:8], e[0])
-	binary.BigEndian.PutUint64(res[8:16], e[1])
-	binary.BigEndian.PutUint64(res[16:24], e[2])
-	binary.BigEndian.PutUint64(res[24:], e[3])
-	return res
-}
-
-// fromBytes converts a fr Element into a BlockSize bytes array
-func fromBytes(e [BlockSize]byte) fr.Element {
-	var res fr.Element
-	res[0] = binary.BigEndian.Uint64(e[:8])
-	res[1] = binary.BigEndian.Uint64(e[8:16])
-	res[2] = binary.BigEndian.Uint64(e[16:24])
-	res[3] = binary.BigEndian.Uint64(e[24:])
-	return res
-}
-
 // Hash hash using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition, data is in Montgomery form
 func (d *digest) checksum() fr.Element {
 
 	var buffer [32]byte
+	var x fr.Element
 
 	// if data size is not multiple of BlockSizes we padd
 	if len(d.data)%BlockSize != 0 {
@@ -149,7 +130,7 @@ func (d *digest) checksum() fr.Element {
 
 	for i := 0; i < nbChunks; i++ {
 		copy(buffer[:], d.data[i*BlockSize:(i+1)*BlockSize])
-		x := fromBytes(buffer)
+		x.SetBytes(buffer[:])
 		d.encrypt(x)
 		d.h.Add(&x, &d.h)
 	}
@@ -175,13 +156,11 @@ func (d *digest) encrypt(m fr.Element) {
 }
 
 // Sum computes the mimc hash of msg from seed
-func Sum(seed string, msg []fr.Element) fr.Element {
+func Sum(seed string, msg []byte) []byte {
 	params := NewParams(seed)
 	var d digest
 	d.Params = params
-	for _, stream := range msg {
-		tmp := toBytes(stream)
-		d.Write(tmp[:])
-	}
-	return d.checksum()
+	d.Write(msg)
+	h := d.checksum()
+	return h.Bytes()
 }
