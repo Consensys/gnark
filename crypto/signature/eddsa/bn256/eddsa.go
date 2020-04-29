@@ -141,7 +141,7 @@ func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey
 	}
 	hramBin := eddsaContext.h.Sum([]byte{})
 	var hram fr.Element
-	hram.SetBytes(hramBin)
+	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
 
 	// Compute s = randScalarInt + H(R,A,M)*S
 	// going with big int to do ops mod curve order
@@ -180,8 +180,7 @@ func Verify(eddsaContext Eddsa, sig Signature, message fr.Element, pub PublicKey
 	}
 	hramBin := eddsaContext.h.Sum([]byte{})
 	var hram fr.Element
-	hram.SetBytes(hramBin)
-	//	fmt.Println("hram: " + hram.String())
+	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
 
 	// lhs = cofactor*S*Base
 	var lhs twistededwards.Point

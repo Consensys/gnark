@@ -19,7 +19,7 @@ import (
 
 func TestLeafNode(t *testing.T) {
 
-	t.Skip("wip")
+	t.Skip("need to fix the domain separation")
 
 	// computation of expected result
 	leafPrefix := []byte{0x00}
@@ -56,7 +56,7 @@ func TestLeafNode(t *testing.T) {
 // TODO need tests
 func TestVerify(t *testing.T) {
 
-	t.Skip("wip")
+	t.Skip("need to fix the domain separation")
 
 	// get merkle root of a file
 	segmentSize := 32

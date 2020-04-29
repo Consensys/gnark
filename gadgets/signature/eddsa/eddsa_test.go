@@ -17,11 +17,11 @@ limitations under the License.
 package eddsa
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
 	mimc_bn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
 	"github.com/consensys/gnark/frontend"
@@ -33,9 +33,7 @@ import (
 
 func TestEddsaGadget(t *testing.T) {
 
-	t.Skip("wip")
-
-	//assert := groth16_bn256.NewAssert(t)
+	assert := groth16_bn256.NewAssert(t)
 
 	params := twistededwards_bn256.GetEdwardsCurve()
 
@@ -103,28 +101,18 @@ func TestEddsaGadget(t *testing.T) {
 
 	r1cs := backend_bn256.New(&circuit)
 
-	_res, _err := r1cs.Inspect(good, true)
-	if _err != nil {
-		t.Fatal(_err)
-	}
-
-	fmt.Println("--------------")
-	for k, v := range _res {
-		fmt.Println(k + ": " + v.String())
-	}
-
-	//assert.CorrectExecution(&r1cs, good, nil)
+	assert.CorrectExecution(&r1cs, good, nil)
 
 	// verification with incorrect message
-	// bad := backend.NewAssignment()
-	// bad.Assign(backend.Secret, "message", "44717650746155748460101257525078853138837311576962212923649547644148297035979")
+	bad := backend.NewAssignment()
+	bad.Assign(backend.Secret, "message", "44717650746155748460101257525078853138837311576962212923649547644148297035979")
 
-	// bad.Assign(backend.Public, "pubkeyX", pubKey.A.X)
-	// bad.Assign(backend.Public, "pubkeyY", pubKey.A.Y)
+	bad.Assign(backend.Public, "pubkeyX", pubKey.A.X)
+	bad.Assign(backend.Public, "pubkeyY", pubKey.A.Y)
 
-	// bad.Assign(backend.Public, "sigRX", signature.R.X)
-	// bad.Assign(backend.Public, "sigRY", signature.R.Y)
+	bad.Assign(backend.Public, "sigRX", signature.R.X)
+	bad.Assign(backend.Public, "sigRY", signature.R.Y)
 
-	// bad.Assign(backend.Public, "sigS", SMont)
-	// assert.NotSolved(&r1cs, bad)
+	bad.Assign(backend.Public, "sigS", SMont)
+	assert.NotSolved(&r1cs, bad)
 }

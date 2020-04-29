@@ -51,7 +51,6 @@ func Verify(circuit *frontend.CS, sig SignatureGadget, msg *frontend.Constraint,
 		return err
 	}
 	hramAllocated := mimcGadget.Hash(circuit, data...)
-	hramAllocated.Tag("hramAllocated")
 
 	// lhs = cofactor*SB
 	cofactorAllocated := circuit.ALLOCATE(params.Cofactor)
@@ -68,11 +67,8 @@ func Verify(circuit *frontend.CS, sig SignatureGadget, msg *frontend.Constraint,
 		ScalarMulNonFixedBase(circuit, &rhs, cofactorAllocated, params)
 	// TODO adding rhs.IsOnCurveGadget(...) makes the r1cs bug
 
-	rhs.X.Tag("rhsX")
-	lhs.X.Tag("lhsX")
-
-	// circuit.MUSTBE_EQ(lhs.X, rhs.X)
-	// circuit.MUSTBE_EQ(lhs.Y, rhs.Y)
+	circuit.MUSTBE_EQ(lhs.X, rhs.X)
+	circuit.MUSTBE_EQ(lhs.Y, rhs.Y)
 
 	return nil
 }
