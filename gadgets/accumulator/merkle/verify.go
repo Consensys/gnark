@@ -20,6 +20,7 @@ func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint)
 
 	// prepending 0x00 means the first chunk to be hashed will consist of the first 31 bytes
 	d1 := circuit.FROM_BINARY(dataBin[8:]...)
+	d1.Tag("d1")
 
 	// the lsByte of data will become the lsByte of the second chunk
 	d2 := circuit.FROM_BINARY(dataBin[:8]...)

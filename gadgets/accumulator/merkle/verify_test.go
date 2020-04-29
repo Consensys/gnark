@@ -3,7 +3,6 @@ package merkle
 import (
 	"bytes"
 	"fmt"
-	"math/big"
 	"os"
 	"testing"
 
@@ -23,8 +22,7 @@ func TestLeaf(t *testing.T) {
 	// computation of expected result
 	leafPrefix := []byte{0x00}
 	var leaf fr.Element
-	//leaf.SetRandom()
-	leaf.SetString("452312848583266388373314160190187140051835878600158453279131187530910662657")
+	leaf.SetRandom()
 	h := bn256.NewMiMC("seed")
 	h.Write(leafPrefix)
 	h.Write(leaf.Bytes())
@@ -53,9 +51,6 @@ func TestLeaf(t *testing.T) {
 }
 
 func TestNode(t *testing.T) {
-
-	var shifter big.Int
-	shifter.SetString("452312848583266388373324160190187140051835877600158453279131187530910662656", 10)
 
 	// computation of expected result
 	nodePrefix := []byte{0x01}
@@ -90,22 +85,20 @@ func TestNode(t *testing.T) {
 	assert.CorrectExecution(&r1cs, assignment, expectedRes)
 }
 
-// TODO need tests
 func TestVerify(t *testing.T) {
-
-	t.Skip("wip")
 
 	// generate random data
 	// makes sure that each chunk of 64 bits fits in a fr modulus, otherwise there are bugs due to the padding (domain separation)
+	// TODO since when using mimc the user should be aware of this fact (otherwise one can easily finds collision), I am not sure we should take care of that in the code
 	var buf bytes.Buffer
-	for i := 0; i < 32; i++ {
+	for i := 0; i < 10; i++ {
 		var leaf fr.Element
 		leaf.SetRandom()
-		fmt.Fprintf(&buf, string(leaf.Bytes()))
+		buf.Write(leaf.Bytes())
 	}
 
 	// build & verify proof for an elmt in the file
-	proofIndex := uint64(7)
+	proofIndex := uint64(0)
 	segmentSize := 32
 	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn256.NewMiMC("seed"), segmentSize, proofIndex)
 	if err != nil {
@@ -146,12 +139,6 @@ func TestVerify(t *testing.T) {
 		assignment.Assign(backend_common.Secret, "path"+string(i), proof[i])
 	}
 
-	fmt.Println("--")
-	res, _ := r1cs.Inspect(assignment, false)
-	for k, v := range res {
-		fmt.Println(k + ": " + v.String())
-	}
-
-	// assert := groth16.NewAssert(t)
-	// assert.Solved(&r1cs, assignment, nil)
+	assert := groth16.NewAssert(t)
+	assert.Solved(&r1cs, assignment, nil)
 }
