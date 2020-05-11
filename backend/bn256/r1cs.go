@@ -218,7 +218,7 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[s
 		for _, tag := range tags {
 			if _, ok := res[tag]; ok {
 				// TODO checking duplicates should be done in the frontend, probably in cs.ToR1CS()
-				return nil, backend.ErrDuplicateTag
+				return nil, backend.ErrDuplicateTag(tag)
 			}
 			res[tag] = wireValues[wireID]
 		}

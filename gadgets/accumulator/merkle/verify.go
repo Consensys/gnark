@@ -1,3 +1,19 @@
+/*
+Copyright © 2020 ConsenSys
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package merkle
 
 import (
@@ -8,19 +24,19 @@ import (
 )
 
 // nbBits in an Fr element
+// TODO this shouldn't be a constant, but don't know how to to avoid passing it to every function
 const nbBits = 256
 
 // leafSum returns the hash created from data inserted to form a leaf. Leaf
 // sums are calculated using:
 //		Hash(0x00 || data)
-func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint) *frontend.Constraint {
+func leafSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint) *frontend.Constraint {
 
 	// TODO find a better way than querying the binary decomposition, too many constraints
 	dataBin := circuit.TO_BINARY(data, nbBits)
 
 	// prepending 0x00 means the first chunk to be hashed will consist of the first 31 bytes
 	d1 := circuit.FROM_BINARY(dataBin[8:]...)
-	d1.Tag("d1")
 
 	// the lsByte of data will become the lsByte of the second chunk
 	d2 := circuit.FROM_BINARY(dataBin[:8]...)
@@ -31,10 +47,19 @@ func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint)
 	return res
 }
 
+// leafSum returns the hash created from data inserted to form a leaf.
+// Without domain separation.
+func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data *frontend.Constraint) *frontend.Constraint {
+
+	res := h.Hash(circuit, data)
+
+	return res
+}
+
 // nodeSum returns the hash created from two sibling nodes being combined into
 // a parent node. Node sums are calculated using:
 //		Hash(0x01 || left sibling sum || right sibling sum)
-func nodeSum(circuit *frontend.CS, h mimc.MiMCGadget, a, b *frontend.Constraint) *frontend.Constraint {
+func nodeSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, a, b *frontend.Constraint) *frontend.Constraint {
 
 	// TODO find a better way than querying the binary decomposition (too many constraints)
 	d1Bin := circuit.TO_BINARY(a, nbBits)
@@ -64,52 +89,24 @@ func nodeSum(circuit *frontend.CS, h mimc.MiMCGadget, a, b *frontend.Constraint)
 
 }
 
-// VerifyProof takes a Merkle root, a proofSet, and a proofIndex and returns
-// true if the first element of the proof set is a leaf of data in the Merkle
-// root. False is returned if the proof set or Merkle root is nil, and if
-// 'numLeaves' equals 0.
-func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.Constraint, proofSet []*frontend.Constraint, proofIndex uint64, numLeaves uint64) {
+// nodeSum returns the hash created from data inserted to form a leaf.
+// Without domain separation.
+func nodeSum(circuit *frontend.CS, h mimc.MiMCGadget, a, b *frontend.Constraint) *frontend.Constraint {
 
-	// In a Merkle tree, every node except the root node has a sibling.
-	// Combining the two siblings in the correct order will create the parent
-	// node. Each of the remaining hashes in the proof set is a sibling to a
-	// node that can be built from all of the previous elements of the proof
-	// set. The next node is built by taking:
-	//
-	//		H(0x01 || sibling A || sibling B)
-	//
-	// The difficulty of the algorithm lies in determining whether the supplied
-	// hash is sibling A or sibling B. This information can be determined by
-	// using the proof index and the total number of leaves in the tree.
-	//
-	// A pair of two siblings forms a subtree. The subtree is complete if it
-	// has 1 << height total leaves. When the subtree is complete, the position
-	// of the proof index within the subtree can be determined by looking at
-	// the bounds of the subtree and determining if the proof index is in the
-	// first or second half of the subtree.
-	//
-	// When the subtree is not complete, either 1 or 0 of the remaining hashes
-	// will be sibling B. All remaining hashes after that will be sibling A.
-	// This is true because of the way that orphans are merged into the Merkle
-	// tree - an orphan at height n is elevated to height n + 1, and only
-	// hashed when it is no longer an orphan. Each subtree will therefore merge
-	// with at most 1 orphan to the right before becoming an orphan itself.
-	// Orphan nodes are always merged with larger subtrees to the left.
-	//
-	// One vulnerability with the proof verification is that the proofSet may
-	// not be long enough. Before looking at an element of proofSet, a check
-	// needs to be made that the element exists.
+	res := h.Hash(circuit, a, b)
 
-	// The first element of the set is the original data. A sibling at height 1
-	// is created by getting the leafSum of the original data.
-	height := 0
-	// if len(proofSet) <= height {
-	// 	return false
-	// }
-	sum := leafSum(circuit, h, proofSet[height])
-	proofSet[height].Tag("leaf")
-	sum.Tag("sum")
-	height++
+	return res
+}
+
+// GenerateProofHelper generates an array of 1 or 0 telling if during the proof verification
+// the hash to compute is h(sum, proof[i]) or h(proof[i], sum). The size of the resulting slice is
+// len(proofSet)-1.
+// cf gitlab.com/NebulousLabs/merkletree for the algorithm
+func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int {
+
+	res := make([]int, len(proofSet)-1)
+
+	height := 1
 
 	// While the current subtree (of height 'height') is complete, determine
 	// the position of the next sibling using the complete subtree algorithm.
@@ -133,15 +130,10 @@ func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.C
 		}
 		stableEnd = subTreeEndIndex
 
-		// Determine if the proofIndex is in the first or the second half of
-		// the subtree.
-		// if len(proofSet) <= height {
-		// 	return false
-		// }
 		if proofIndex-subTreeStartIndex < 1<<uint(height-1) {
-			sum = nodeSum(circuit, h, sum, proofSet[height])
+			res[height-1] = 1
 		} else {
-			sum = nodeSum(circuit, h, proofSet[height], sum)
+			res[height-1] = 0
 		}
 		height++
 	}
@@ -150,17 +142,34 @@ func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.C
 	// is the case IFF 'stableEnd' (the last index of the largest full subtree)
 	// is equal to the number of leaves in the Merkle tree.
 	if stableEnd != numLeaves-1 {
-		// if len(proofSet) <= height {
-		// 	return false
-		// }
-		sum = nodeSum(circuit, h, sum, proofSet[height])
+		res[height-1] = 1
 		height++
 	}
 
 	// All remaining elements in the proof set will belong to a left sibling.
 	for height < len(proofSet) {
-		sum = nodeSum(circuit, h, proofSet[height], sum)
+		res[height-1] = 0
 		height++
+	}
+
+	return res
+}
+
+// VerifyProof takes a Merkle root, a proofSet, and a proofIndex and returns
+// true if the first element of the proof set is a leaf of data in the Merkle
+// root. False is returned if the proof set or Merkle root is nil, and if
+// 'numLeaves' equals 0.
+func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.Constraint, proofSet, helper []*frontend.Constraint) {
+
+	sum := leafSum(circuit, h, proofSet[0])
+
+	for i := 1; i < len(proofSet); i++ {
+		circuit.MUSTBE_BOOLEAN(helper[i-1])
+		sum1 := nodeSum(circuit, h, sum, proofSet[i])
+		sum2 := nodeSum(circuit, h, proofSet[i], sum)
+
+		// leftOrRight tells if which of the 2 computations above to chose
+		sum = circuit.SELECT(helper[i-1], sum1, sum2)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.

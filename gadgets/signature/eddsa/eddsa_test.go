@@ -28,14 +28,11 @@ import (
 	twistededwards_gadget "github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gurvy"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
-	twistededwards_bn256 "github.com/consensys/gurvy/bn256/twistededwards"
 )
 
 func TestEddsaGadget(t *testing.T) {
 
 	assert := groth16_bn256.NewAssert(t)
-
-	params := twistededwards_bn256.GetEdwardsCurve()
 
 	var seed [32]byte
 	s := []byte("eddsa")
@@ -46,14 +43,14 @@ func TestEddsaGadget(t *testing.T) {
 	hFunc := mimc_bn256.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
-	signer, pubKey, privKey := eddsa_bn256.New(seed, params, hFunc)
+	pubKey, privKey := eddsa_bn256.New(seed, hFunc)
 	var msg fr_bn256.Element
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
-	signature, err := eddsa_bn256.Sign(signer, msg, pubKey, privKey)
+	signature, err := eddsa_bn256.Sign(msg, pubKey, privKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := eddsa_bn256.Verify(signer, signature, msg, pubKey)
+	res, err := eddsa_bn256.Verify(signature, msg, pubKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +61,7 @@ func TestEddsaGadget(t *testing.T) {
 	// Set the eddsa circuit and the gadget
 	circuit := frontend.New()
 
-	paramsGadget, err := twistededwards_gadget.NewEdCurveGadget(&circuit, gurvy.BN256)
+	paramsGadget, err := twistededwards_gadget.NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +70,7 @@ func TestEddsaGadget(t *testing.T) {
 	var pubKeyAllocated PublicKeyGadget
 	pubKeyAllocated.A.X = circuit.PUBLIC_INPUT("pubkeyX")
 	pubKeyAllocated.A.Y = circuit.PUBLIC_INPUT("pubkeyY")
+	pubKeyAllocated.Curve = paramsGadget
 
 	var sigAllocated SignatureGadget
 	sigAllocated.R.A.X = circuit.PUBLIC_INPUT("sigRX")
@@ -83,7 +81,7 @@ func TestEddsaGadget(t *testing.T) {
 	msgAllocated := circuit.PUBLIC_INPUT("message")
 
 	// verify the signature in the circuit
-	Verify(&circuit, sigAllocated, msgAllocated, pubKeyAllocated, paramsGadget)
+	Verify(&circuit, sigAllocated, msgAllocated, pubKeyAllocated)
 
 	// verification with the correct message
 	good := backend.NewAssignment()
@@ -95,9 +93,7 @@ func TestEddsaGadget(t *testing.T) {
 	good.Assign(backend.Public, "sigRX", signature.R.X)
 	good.Assign(backend.Public, "sigRY", signature.R.Y)
 
-	var SMont fr_bn256.Element
-	SMont.Set(&signature.S).ToMont()
-	good.Assign(backend.Public, "sigS", SMont)
+	good.Assign(backend.Public, "sigS", signature.S)
 
 	r1cs := backend_bn256.New(&circuit)
 
@@ -113,6 +109,6 @@ func TestEddsaGadget(t *testing.T) {
 	bad.Assign(backend.Public, "sigRX", signature.R.X)
 	bad.Assign(backend.Public, "sigRY", signature.R.Y)
 
-	bad.Assign(backend.Public, "sigS", SMont)
+	bad.Assign(backend.Public, "sigS", signature.S)
 	assert.NotSolved(&r1cs, bad)
 }

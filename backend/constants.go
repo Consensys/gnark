@@ -28,8 +28,11 @@ const (
 	Public Visibility = "public"
 )
 
+func ErrDuplicateTag(tag string) error {
+	return errors.New("duplicate tag: " + tag)
+}
+
 var (
-	ErrDuplicateTag          = errors.New("duplicate tag")
 	ErrInputNotSet           = errors.New("input not set")
 	ErrInputVisiblity        = errors.New("input has incorrect visibility (secret / public)")
 	ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")

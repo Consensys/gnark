@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets"
 	"github.com/consensys/gurvy"
 	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
@@ -33,18 +32,18 @@ type EdCurveGadget struct {
 	ID                                           gurvy.ID
 }
 
-var newTwistedEdwards map[gurvy.ID]func(*frontend.CS) EdCurveGadget
+var newTwistedEdwards map[gurvy.ID]func() EdCurveGadget
 
 func init() {
-	newTwistedEdwards = make(map[gurvy.ID]func(*frontend.CS) EdCurveGadget)
+	newTwistedEdwards = make(map[gurvy.ID]func() EdCurveGadget)
 	newTwistedEdwards[gurvy.BLS381] = newEdBLS381
 	newTwistedEdwards[gurvy.BN256] = newEdBN256
 }
 
 // NewEdCurveGadget returns an Edwards curve parameters
-func NewEdCurveGadget(circuit *frontend.CS, id gurvy.ID) (EdCurveGadget, error) {
+func NewEdCurveGadget(id gurvy.ID) (EdCurveGadget, error) {
 	if constructor, ok := newTwistedEdwards[id]; ok {
-		return constructor(circuit), nil
+		return constructor(), nil
 	}
 	return EdCurveGadget{}, gadgets.ErrUnknownCurve
 }
@@ -52,7 +51,7 @@ func NewEdCurveGadget(circuit *frontend.CS, id gurvy.ID) (EdCurveGadget, error) 
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newEdBN256(circuit *frontend.CS) EdCurveGadget {
+func newEdBN256() EdCurveGadget {
 
 	edcurve := edbn256.GetEdwardsCurve()
 	var cofactorReg big.Int
@@ -74,7 +73,7 @@ func newEdBN256(circuit *frontend.CS) EdCurveGadget {
 
 }
 
-func newEdBLS381(circuit *frontend.CS) EdCurveGadget {
+func newEdBLS381() EdCurveGadget {
 
 	edcurve := edbls381.GetEdwardsCurve()
 	var cofactorReg big.Int

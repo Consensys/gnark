@@ -40,7 +40,8 @@ type Signature struct {
 // PublicKey eddsa signature object
 // cf https://en.wikipedia.org/wiki/EdDSA for notation
 type PublicKey struct {
-	A twistededwards.Point
+	A     twistededwards.Point
+	HFunc hash.Hash
 }
 
 // PrivateKey private key of an eddsa instance
@@ -49,22 +50,20 @@ type PrivateKey struct {
 	scalar  fr.Element // secret scalar (non need to convert it when doing scalar mul)
 }
 
-// Eddsa stores parameters to generate and verify eddsa signature
-type Eddsa struct {
-	curveParams *twistededwards.CurveParams
-	h           hash.Hash
+// GetCurveParams get the parameters of the Edwards curve used
+func GetCurveParams() twistededwards.CurveParams {
+	return twistededwards.GetEdwardsCurve()
 }
 
 // New creates an instance of eddsa
-func New(seed [32]byte, c twistededwards.CurveParams, hFunc hash.Hash) (Eddsa, PublicKey, PrivateKey) {
+func New(seed [32]byte, hFunc hash.Hash) (PublicKey, PrivateKey) {
+
+	c := GetCurveParams()
 
 	var tmp big.Int
 
-	var res Eddsa
 	var pub PublicKey
 	var priv PrivateKey
-
-	res.h = hFunc
 
 	h := blake2b.Sum512(seed[:])
 	for i := 0; i < 32; i++ {
@@ -84,17 +83,19 @@ func New(seed [32]byte, c twistededwards.CurveParams, hFunc hash.Hash) (Eddsa, P
 	}
 	tmp.SetBytes(h[:32])
 	priv.scalar.SetBigInt(&tmp).FromMont()
-	res.curveParams = &c
 
 	pub.A.ScalarMul(&c.Base, c, priv.scalar)
+	pub.HFunc = hFunc
 
-	return res, pub, priv
+	return pub, priv
 }
 
 // Sign sign a message (in Montgomery form)
 // cf https://en.wikipedia.org/wiki/EdDSA for the notations
 // Eddsa is supposed to be built upon Edwards (or twisted Edwards) curves having 256 bits group size and cofactor=4 or 8
-func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error) {
+func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error) {
+
+	curveParams := GetCurveParams()
 
 	res := Signature{}
 
@@ -122,8 +123,8 @@ func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey
 	randScalar.SetBigInt(&tmp).FromMont()
 
 	// compute R = randScalar*Base
-	res.R.ScalarMul(&eddsaContext.curveParams.Base, *eddsaContext.curveParams, randScalar)
-	if !res.R.IsOnCurve(*eddsaContext.curveParams) {
+	res.R.ScalarMul(&curveParams.Base, curveParams, randScalar)
+	if !res.R.IsOnCurve(curveParams) {
 		return Signature{}, ErrNotOnCurve
 	}
 
@@ -135,11 +136,11 @@ func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey
 		pub.A.Y,
 		message,
 	}
-	eddsaContext.h.Reset()
+	pub.HFunc.Reset()
 	for i := 0; i < len(data); i++ {
-		eddsaContext.h.Write(data[i].Bytes())
+		pub.HFunc.Write(data[i].Bytes())
 	}
-	hramBin := eddsaContext.h.Sum([]byte{})
+	hramBin := pub.HFunc.Sum([]byte{})
 	var hram fr.Element
 	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
 
@@ -151,18 +152,20 @@ func Sign(eddsaContext Eddsa, message fr.Element, pub PublicKey, priv PrivateKey
 	randScalar.ToBigInt(&randScalarInt)
 	hramInt.Mul(&hramInt, &sInt).
 		Add(&hramInt, &randScalarInt).
-		Mod(&hramInt, &eddsaContext.curveParams.Order)
-	res.S.SetBigInt(&hramInt).FromMont()
+		Mod(&hramInt, &curveParams.Order)
+	res.S.SetBigInt(&hramInt)
 
 	return res, nil
 }
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(eddsaContext Eddsa, sig Signature, message fr.Element, pub PublicKey) (bool, error) {
+func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
+
+	curveParams := GetCurveParams()
 
 	// verify that pubKey and R are on the curve
-	if !pub.A.IsOnCurve(*eddsaContext.curveParams) {
+	if !pub.A.IsOnCurve(curveParams) {
 		return false, ErrNotOnCurve
 	}
 
@@ -174,29 +177,31 @@ func Verify(eddsaContext Eddsa, sig Signature, message fr.Element, pub PublicKey
 		pub.A.Y,
 		message,
 	}
-	eddsaContext.h.Reset()
+	pub.HFunc.Reset()
 	for i := 0; i < len(data); i++ {
-		eddsaContext.h.Write(data[i].Bytes())
+		pub.HFunc.Write(data[i].Bytes())
 	}
-	hramBin := eddsaContext.h.Sum([]byte{})
+	hramBin := pub.HFunc.Sum([]byte{})
 	var hram fr.Element
 	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
 
 	// lhs = cofactor*S*Base
 	var lhs twistededwards.Point
-	lhs.ScalarMul(&eddsaContext.curveParams.Base, *eddsaContext.curveParams, sig.S).
-		ScalarMul(&lhs, *eddsaContext.curveParams, eddsaContext.curveParams.Cofactor)
+	var SFromMont fr.Element
+	SFromMont.Set(&sig.S).FromMont()
+	lhs.ScalarMul(&curveParams.Base, curveParams, SFromMont).
+		ScalarMul(&lhs, curveParams, curveParams.Cofactor)
 
-	if !lhs.IsOnCurve(*eddsaContext.curveParams) {
+	if !lhs.IsOnCurve(curveParams) {
 		return false, ErrNotOnCurve
 	}
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
 	var rhs twistededwards.Point
-	rhs.ScalarMul(&pub.A, *eddsaContext.curveParams, hram).
-		Add(&rhs, &sig.R, *eddsaContext.curveParams).
-		ScalarMul(&rhs, *eddsaContext.curveParams, eddsaContext.curveParams.Cofactor)
-	if !rhs.IsOnCurve(*eddsaContext.curveParams) {
+	rhs.ScalarMul(&pub.A, curveParams, hram).
+		Add(&rhs, &sig.R, curveParams).
+		ScalarMul(&rhs, curveParams, curveParams.Cofactor)
+	if !rhs.IsOnCurve(curveParams) {
 		return false, ErrNotOnCurve
 	}
 

@@ -34,7 +34,7 @@ func TestIsOnCurve(t *testing.T) {
 	assertbn256 := groth16_bn256.NewAssert(t)
 
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestAdd(t *testing.T) {
 	assertbn256 := groth16_bn256.NewAssert(t)
 
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestAddGeneric(t *testing.T) {
 	assertbn256 := groth16_bn256.NewAssert(t)
 
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestDouble(t *testing.T) {
 	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestScalarMulFixedBase(t *testing.T) {
 	assertbn256 := groth16_bn256.NewAssert(t)
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestScalarMulNonFixedBase(t *testing.T) {
 	assertbn256 := groth16_bn256.NewAssert(t)
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(&circuit, gurvy.BN256)
+	edgadget, err := NewEdCurveGadget(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
