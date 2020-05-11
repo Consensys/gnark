@@ -10,11 +10,23 @@ import (
 	{{ template "import_curve" . }}
 )
 
-// fft computes the discrete Fourier transform of a and stores the result in a.
+// TODO this should not be in fft.go
+{{if eq .Curve "BLS377"}}
+const RootOfUnityStr = "8065159656716812877374967518403273466521432693661810619979959746626482506078"
+const MaxOrder = 47
+{{else if eq .Curve "BLS381"}}
+const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
+const MaxOrder = 32
+{{else if eq .Curve "BN256"}}
+const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
+const MaxOrder = 28
+{{end}}
+
+// FFT computes the discrete Fourier transform of a and stores the result in a.
 // The result is in bit-reversed order.
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
 // The algorithm is recursive, decimation-in-frequency. [cite]
-func fft(a []fr.Element, w fr.Element) {
+func FFT(a []fr.Element, w fr.Element) {
 	var wg sync.WaitGroup
 	asyncFFT(a, w, &wg, 1)
 	wg.Wait()
@@ -92,21 +104,21 @@ func bitReverse(a []fr.Element) {
 // domain with a power of 2 cardinality
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
-type domain struct {
-	generator        fr.Element
-	generatorInv     fr.Element
-	generatorSqRt    fr.Element // generator of 2 adic subgroup of order 2*nb_constraints
-	generatorSqRtInv fr.Element
-	cardinality      int
-	cardinalityInv   fr.Element
+type Domain struct {
+	Generator        fr.Element
+	GeneratorInv     fr.Element
+	GeneratorSqRt    fr.Element // generator of 2 adic subgroup of order 2*nb_constraints
+	GeneratorSqRtInv fr.Element
+	Cardinality      int
+	CardinalityInv   fr.Element
 }
 
 // newDomain returns a subgroup with a power of 2 cardinality
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
-func newDomain(rootOfUnity fr.Element, maxOrderRoot uint, m int) *domain {
-	subGroup := &domain{}
+func NewDomain(rootOfUnity fr.Element, maxOrderRoot uint, m int) *Domain {
+	subGroup := &Domain{}
 	x := nextPowerOfTwo(uint(m))
 
 	// maxOderRoot is the largest power-of-two order for any element in the field
@@ -117,14 +129,14 @@ func newDomain(rootOfUnity fr.Element, maxOrderRoot uint, m int) *domain {
 		panic("m is too big: the required root of unity does not exist")
 	}
 	expo := uint64(1 << (maxOrderRoot - logx - 1))
-	subGroup.generatorSqRt.Exp(rootOfUnity, expo)
+	subGroup.GeneratorSqRt.Exp(rootOfUnity, expo)
 
 	// Generator = GeneratorSqRt^2 has order x
-	subGroup.generator.Mul(&subGroup.generatorSqRt, &subGroup.generatorSqRt) // order x
-	subGroup.cardinality = int(x)
-	subGroup.generatorSqRtInv.Inverse(&subGroup.generatorSqRt)
-	subGroup.generatorInv.Inverse(&subGroup.generator)
-	subGroup.cardinalityInv.SetUint64(uint64(x)).Inverse(&subGroup.cardinalityInv)
+	subGroup.Generator.Mul(&subGroup.GeneratorSqRt, &subGroup.GeneratorSqRt) // order x
+	subGroup.Cardinality = int(x)
+	subGroup.GeneratorSqRtInv.Inverse(&subGroup.GeneratorSqRt)
+	subGroup.GeneratorInv.Inverse(&subGroup.Generator)
+	subGroup.CardinalityInv.SetUint64(uint64(x)).Inverse(&subGroup.CardinalityInv)
 
 	return subGroup
 }

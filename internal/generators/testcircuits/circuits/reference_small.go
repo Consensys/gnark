@@ -1,13 +1,16 @@
 package circuits
 
 import (
+	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
-	const nbConstraints = 60
+	fmt.Println("init reference_small")
+	const nbConstraints = 5
 	circuit := frontend.New()
 
 	// declare inputs
@@ -23,11 +26,11 @@ func init() {
 	good.Assign(backend.Secret, "x", 2)
 
 	// compute expected Y
-	expectedY := fr.Element{}
+	var expectedY big.Int
 	expectedY.SetUint64(2)
 
 	for i := 0; i < nbConstraints; i++ {
-		expectedY.MulAssign(&expectedY)
+		expectedY.Mul(&expectedY, &expectedY)
 	}
 
 	good.Assign(backend.Public, "y", expectedY)

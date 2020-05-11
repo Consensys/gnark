@@ -9,6 +9,7 @@ import (
 	"sync"
 	"github.com/consensys/gnark/internal/utils/debug"
 	"github.com/consensys/gnark/internal/utils/parallel"
+	"github.com/consensys/gnark/backend"
 )
 
 
@@ -25,18 +26,18 @@ var (
 )
 
 func init() {
-	root.SetString(RootOfUnityStr)
+	root.SetString(backend_{{toLower .Curve}}.RootOfUnityStr)
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
+func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
 	proof := &Proof{}
 
 	// fft domain (computeH)
-	fftDomain := newDomain(root, MaxOrder, r1cs.NbConstraints)
+	fftDomain := backend_{{toLower .Curve}}.NewDomain(root, backend_{{toLower .Curve}}.MaxOrder, r1cs.NbConstraints)
 
 	// sample random r and s
 	var r, s, _r, _s fr.Element
@@ -47,9 +48,9 @@ func Prove(r1cs *backend.R1CS, pk *ProvingKey, solution backend.Assignments) (*P
 
 	// Solve the R1CS and compute the a, b, c vectors
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality) 
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.cardinality)
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality) 
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
 	err := r1cs.Solve(solution, a, b, c, wireValues)
 	if err != nil {
 		return nil, err
@@ -178,7 +179,7 @@ func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken 
 	return chResult
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain) <-chan []fr.Element {
 	chResult := make(chan []fr.Element, 1)
 	go func() {
 		// H part of Krs
@@ -191,7 +192,7 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 		debug.Assert((n == len(b)) && (n == len(c)))
 
 		// add padding
-		padding := make([]fr.Element, fftDomain.cardinality-n)
+		padding := make([]fr.Element, fftDomain.Cardinality-n)
 		a = append(a, padding...)
 		b = append(b, padding...)
 		c = append(c, padding...)
@@ -206,18 +207,18 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 		// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
 		// ...
 		expTable := make([]fr.Element, n)
-		expTable[0] = fftDomain.cardinalityInv
+		expTable[0] = fftDomain.CardinalityInv
 
 		var wgExpTable sync.WaitGroup
 
 		// to ensure the pool is busy while the FFT splits, we schedule precomputation of the exp table
 		// before the FFTs
-		asyncExpTable(fftDomain.cardinalityInv, fftDomain.generatorSqRt, expTable, &wgExpTable)
+		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable, &wgExpTable)
 
 		var wg sync.WaitGroup
 		FFTa := func(s []fr.Element) {
 			// FFT inverse
-			fft(s, fftDomain.generatorInv)
+			backend_{{toLower .Curve}}.FFT(s, fftDomain.GeneratorInv)
 
 			// wait for the expTable to be pre-computed
 			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
@@ -229,7 +230,7 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 			})
 
 			// FFT coset
-			fft(s, fftDomain.generator)
+			backend_{{toLower .Curve}}.FFT(s, fftDomain.Generator)
 			wg.Done()
 		}
 		wg.Add(3)
@@ -256,10 +257,10 @@ func computeH(a, b, c []fr.Element, fftDomain *domain) <-chan []fr.Element {
 		// expTable[0] = fftDomain.CardinalityInv
 		// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
 		// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
-		asyncExpTable(fftDomain.cardinalityInv, fftDomain.generatorSqRtInv, expTable, &wgExpTable)
+		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
 
 		// ifft_coset
-		fft(a, fftDomain.generatorInv)
+		backend_{{toLower .Curve}}.FFT(a, fftDomain.GeneratorInv)
 
 		wgExpTable.Wait() // wait for pre-computation of exp table to be done
 		parallel.Execute( n, func(start, end int) {

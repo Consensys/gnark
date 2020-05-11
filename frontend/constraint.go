@@ -17,8 +17,7 @@ limitations under the License.
 package frontend
 
 import (
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
+	"math/big"
 )
 
 // Constraint list of expressions that must be equal+an output wire, that can be computed out of the inputs wire.
@@ -37,7 +36,7 @@ type Constraint struct {
 // Term coeff*constraint
 type Term struct {
 	Constraint *Constraint
-	Coeff      fr.Element
+	Coeff      big.Int
 }
 
 // LinearCombination linear combination of constraints
@@ -71,10 +70,10 @@ func (c *Constraint) Tag(tag string) {
 	c.outputWire.Tags = append(c.outputWire.Tags, tag)
 }
 
-func (c *Constraint) toR1CS(s *CS) []backend.R1C {
+func (c *Constraint) toR1CS(s *CS) []R1C {
 	oneWire := s.Constraints[0].outputWire
 
-	toReturn := make([]backend.R1C, len(c.expressions))
+	toReturn := make([]R1C, len(c.expressions))
 	for i := 0; i < len(c.expressions); i++ {
 		toReturn[i] = c.expressions[i].toR1CS(oneWire, c.outputWire)
 	}

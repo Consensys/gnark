@@ -17,11 +17,8 @@ limitations under the License.
 package frontend
 
 import (
-	"errors"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,82 +32,6 @@ type Assert struct {
 // this helper embeds a stretch/testify Assert object for convenience
 func NewAssert(t *testing.T) *Assert {
 	return &Assert{t, require.New(t)}
-}
-
-// NotSolved check that a solution does NOT solve a circuit
-// error may be missing inputs or unsatisfied constraints
-func (assert *Assert) NotSolved(circuit CS, solution backend.Assignments) {
-	// sanity check that no assignement return an error if we need inputs
-	assert.errInputNotSet(circuit)
-
-	{
-		r := circuit.ToR1CS()
-
-		// solving with missing assignments should return a ErrInputNotSet
-		nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
-		if len(solution) < nbInputs {
-			wireValues := make([]fr.Element, r.NbWires)
-			a := make([]fr.Element, r.NbConstraints)
-			b := make([]fr.Element, r.NbConstraints)
-			c := make([]fr.Element, r.NbConstraints)
-			err := r.Solve(solution, a, b, c, wireValues)
-			assert.Error(err, "solving R1CS with bad solution should return an error")
-			assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
-			return
-		}
-
-		if len(r.Constraints) == 0 {
-			assert.t.Log("circuit has no constraints, any input will solve it")
-			return
-		}
-	}
-
-	{
-		r := circuit.ToR1CS()
-		wireValues := make([]fr.Element, r.NbWires)
-		a := make([]fr.Element, r.NbConstraints)
-		b := make([]fr.Element, r.NbConstraints)
-		c := make([]fr.Element, r.NbConstraints)
-		err := r.Solve(solution, a, b, c, wireValues)
-		assert.Error(err, "solving R1CS with bad solution should return an error")
-		assert.True(errors.Is(err, backend.ErrUnsatisfiedConstraint) || errors.Is(err, backend.ErrInputVisiblity), "expected ErrUnsatisfiedConstraint or ErrInputVisiblity")
-	}
-}
-
-// Solved check that a solution solves a circuit
-// for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
-// this helper also ensure the result vectors a*b=c
-func (assert *Assert) Solved(circuit CS, solution backend.Assignments, expectedValues map[string]interface{}) {
-	// sanity check that no assignement return an error if we need inputs
-	assert.errInputNotSet(circuit)
-
-	{
-		r1cs := circuit.ToR1CS()
-		wireValues := make([]fr.Element, r1cs.NbWires)
-		a := make([]fr.Element, r1cs.NbConstraints)
-		b := make([]fr.Element, r1cs.NbConstraints)
-		c := make([]fr.Element, r1cs.NbConstraints)
-		err := r1cs.Solve(solution, a, b, c, wireValues)
-		assert.Nil(err, "solving R1CS with good solution shouldn't return an error")
-		assert.Equal(len(a), len(b), "R1CS solution a,b and c vectors should be the same size")
-		assert.Equal(len(b), len(c), "R1CS solution a,b and c vectors should be the same size")
-
-		var tmp fr.Element
-		for i := 0; i < len(a); i++ {
-			assert.True(tmp.Mul(&a[i], &b[i]).Equal(&c[i]), "R1CS solution should be valid a * b = c rank 1 constriant")
-		}
-
-		values, err := r1cs.Inspect(wireValues)
-		assert.Nil(err, "inspecting values from R1CS after solving shouldn't return an error")
-
-		for k, i := range expectedValues {
-			got, ok := values[k]
-			assert.True(ok, "expectedValues must be found in returned values from r1Inspect()")
-			v := fr.FromInterface(i)
-			assert.True(v.Equal(&got), "at tag "+k+" expected "+v.String()+" got "+got.String())
-		}
-
-	}
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -142,16 +63,16 @@ func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 }
 
 func (assert *Assert) errInputNotSet(circuit CS) {
-	r := circuit.ToR1CS()
+	// r := circuit.ToR1CS()
 
-	nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
-	if nbInputs > 0 {
-		wireValues := make([]fr.Element, r.NbWires)
-		a := make([]fr.Element, r.NbConstraints)
-		b := make([]fr.Element, r.NbConstraints)
-		c := make([]fr.Element, r.NbConstraints)
-		err := r.Solve(backend.NewAssignment(), a, b, c, wireValues)
-		assert.Error(err, "solving R1CS without assignments should return an error")
-		assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
-	}
+	// nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
+	// if nbInputs > 0 {
+	// 	wireValues := make([]fr.Element, r.NbWires)
+	// 	a := make([]fr.Element, r.NbConstraints)
+	// 	b := make([]fr.Element, r.NbConstraints)
+	// 	c := make([]fr.Element, r.NbConstraints)
+	// 	err := r.Solve(backend.NewAssignment(), a, b, c, wireValues)
+	// 	assert.Error(err, "solving R1CS without assignments should return an error")
+	// 	assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
+	// }
 }

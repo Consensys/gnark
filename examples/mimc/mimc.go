@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/consensys/gnark/backend"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/std/gadget/hash/mimc"
+	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gurvy"
 )
 
 func main() {
@@ -13,7 +14,7 @@ func main() {
 
 // New return the circuit implementing
 // a pre image check
-func New() *backend.R1CS {
+func New() *backend_bn256.R1CS {
 	// create root constraint system
 	circuit := frontend.New()
 
@@ -22,11 +23,13 @@ func New() *backend.R1CS {
 	hash := circuit.PUBLIC_INPUT("h")
 
 	// hash function
-	mimc := mimc.NewMiMC("seed")
+	mimc, _ := mimc.NewMiMCGadget("seed", gurvy.BN256)
 
 	// specify constraints
 	// mimc(preImage) == hash
 	circuit.MUSTBE_EQ(hash, mimc.Hash(&circuit, preImage))
 
-	return circuit.ToR1CS()
+	r1cs := backend_bn256.New(&circuit)
+
+	return &r1cs
 }

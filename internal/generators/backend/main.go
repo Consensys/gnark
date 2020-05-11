@@ -10,23 +10,19 @@ import (
 //go:generate go run -tags debug main.go
 func main() {
 
-	generic := generator.GenerateData{
-		RootPath: "../../../backend/",
-		Curve:    "GENERIC",
-	}
 	bls377 := generator.GenerateData{
-		RootPath: "../../../backend/static/bls377/",
+		RootPath: "../../../backend/bls377/",
 		Curve:    "BLS377",
 	}
 	bls381 := generator.GenerateData{
-		RootPath: "../../../backend/static/bls381/",
+		RootPath: "../../../backend/bls381/",
 		Curve:    "BLS381",
 	}
 	bn256 := generator.GenerateData{
-		RootPath: "../../../backend/static/bn256/",
+		RootPath: "../../../backend/bn256/",
 		Curve:    "BN256",
 	}
-	datas := []generator.GenerateData{generic, bls377, bls381, bn256}
+	datas := []generator.GenerateData{bls377, bls381, bn256}
 
 	for _, d := range datas {
 		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {

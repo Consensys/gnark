@@ -1,12 +1,15 @@
 package circuits
 
 import (
+	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
+	fmt.Println("init div")
 	circuit := frontend.New()
 
 	x := circuit.SECRET_INPUT("x")
@@ -17,15 +20,12 @@ func init() {
 	circuit.MUSTBE_EQ(d, z)
 
 	// expected z
-	expectedZ := fr.Element{}
-	expectedY := fr.Element{}
-	expectedY.SetUint64(10)
-	expectedZ.SetUint64(4)
-	expectedZ.MulAssign(&expectedZ).Div(&expectedZ, &expectedY)
+	var expectedZ big.Int
+	expectedZ.SetUint64(3)
 
 	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 4)
-	good.Assign(backend.Secret, "y", 10)
+	good.Assign(backend.Secret, "x", 6)
+	good.Assign(backend.Secret, "y", 12)
 	good.Assign(backend.Public, "z", expectedZ)
 
 	bad := backend.NewAssignment()

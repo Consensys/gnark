@@ -1,15 +1,14 @@
-// +build bls377 !bn256,!bls381
-
 package main
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/bn256/groth16"
 )
 
 func TestPreimage(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
 	circuit := New()
 
@@ -30,7 +29,7 @@ func TestPreimage(t *testing.T) {
 	{
 		good := backend.NewAssignment()
 		good.Assign(backend.Secret, "pi", 35)
-		good.Assign(backend.Public, "h", "3576610639377770372167309049248361867549136162456161943898479697477337767682")
+		good.Assign(backend.Public, "h", "19226210204356004706765360050059680583735587569269469539941275797408975356275")
 		assert.Solved(circuit, good, nil)
 	}
 

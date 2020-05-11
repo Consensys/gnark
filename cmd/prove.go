@@ -22,13 +22,14 @@ import (
 	"path/filepath"
 	"time"
 
-	backend_bls377 "github.com/consensys/gnark/backend/static/bls377"
-	groth16_bls377 "github.com/consensys/gnark/backend/static/bls377/groth16"
-	backend_bls381 "github.com/consensys/gnark/backend/static/bls381"
-	groth16_bls381 "github.com/consensys/gnark/backend/static/bls381/groth16"
-	backend_bn256 "github.com/consensys/gnark/backend/static/bn256"
-	groth16_bn256 "github.com/consensys/gnark/backend/static/bn256/groth16"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gnark/backend"
+	backend_bls377 "github.com/consensys/gnark/backend/bls377"
+	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
+	backend_bls381 "github.com/consensys/gnark/backend/bls381"
+	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
@@ -121,7 +122,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
 
 		// parse input file
-		r1csInput := backend_bls377.NewAssignment()
+		r1csInput := backend.NewAssignment()
 		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)
@@ -173,7 +174,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
 
 		// parse input file
-		r1csInput := backend_bls381.NewAssignment()
+		r1csInput := backend.NewAssignment()
 		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)
@@ -225,7 +226,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
 
 		// parse input file
-		r1csInput := backend_bn256.NewAssignment()
+		r1csInput := backend.NewAssignment()
 		err = r1csInput.ReadFile(fInputPath)
 		if err != nil {
 			fmt.Println("can't parse input", err)

@@ -1,11 +1,14 @@
 package circuits
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
+	fmt.Println("init from binary")
 	circuit := frontend.New()
 
 	b0 := circuit.SECRET_INPUT("b0")
@@ -36,8 +39,8 @@ func init() {
 	bad.Assign(backend.Secret, "b1", 0)
 	bad.Assign(backend.Secret, "b2", 1)
 	bad.Assign(backend.Secret, "b3", 1)
-	bad.Assign(backend.Public, "y", 12)
 
+	bad.Assign(backend.Public, "y", 12)
 	r1cs := circuit.ToR1CS()
 	addEntry("frombinary", r1cs, good, bad)
 }

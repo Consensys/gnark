@@ -1,12 +1,15 @@
 package circuits
 
 import (
+	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
+	fmt.Println("init lut01")
 	circuit := frontend.New()
 
 	b0 := circuit.SECRET_INPUT("b0")
@@ -17,7 +20,7 @@ func init() {
 	circuit.MUSTBE_BOOLEAN(b0)
 	circuit.MUSTBE_BOOLEAN(b1)
 
-	var lookuptable [4]fr.Element
+	var lookuptable [4]big.Int
 
 	lookuptable[0].SetUint64(10)
 	lookuptable[1].SetUint64(12)

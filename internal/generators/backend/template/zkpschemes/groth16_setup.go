@@ -8,20 +8,6 @@ import (
 	{{ template "import_backend" . }}
 )
 
-{{if eq .Curve "BLS377"}}
-const RootOfUnityStr = "8065159656716812877374967518403273466521432693661810619979959746626482506078"
-const MaxOrder = 47
-{{else if eq .Curve "BLS381"}}
-const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
-const MaxOrder = 32
-{{else if eq .Curve "BN256"}}
-const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
-const MaxOrder = 28
-{{ else if eq .Curve "GENERIC"}}
-const RootOfUnityStr = fr.RootOfUnityStr
-const MaxOrder = fr.MaxOrder
-{{end}}
-
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
 type ProvingKey struct {
 	// [α]1, [β]1, [δ]1
@@ -60,7 +46,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
+func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 
 	/*
 		Setup
@@ -78,13 +64,13 @@ func Setup(r1cs *backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := newDomain(root, MaxOrder, nbConstraints)
+	gateGroup := backend_{{toLower .Curve}}.NewDomain(root, backend_{{toLower .Curve}}.MaxOrder, nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
 	pk.G1.B = make([]curve.G1Affine, nbWires)
 	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
-	pk.G1.Z = make([]curve.G1Affine, gateGroup.cardinality)
+	pk.G1.Z = make([]curve.G1Affine, gateGroup.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires)
 
 	// initialize verifying key
@@ -167,7 +153,7 @@ func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
 
 }
 
-func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *domain) {
+func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *backend_{{toLower .Curve}}.Domain) {
 
 	c := {{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}
 
@@ -176,18 +162,18 @@ func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *domain) {
 
 	var zdt fr.Element
 
-	zdt.Exp(tw.t, uint64(g.cardinality)).
+	zdt.Exp(tw.t, uint64(g.Cardinality)).
 		Sub(&zdt, &one).
 		Div(&zdt, &tw.delta) // sets Zdt to Zdt/delta
 
-	Zdt := make([]fr.Element, g.cardinality)
-	for i := 0; i < g.cardinality; i++ {
+	Zdt := make([]fr.Element, g.Cardinality)
+	for i := 0; i < g.Cardinality; i++ {
 		Zdt[i] = zdt.ToRegular()
 		zdt.MulAssign(&tw.t)
 	}
 
 	// Z(t) = [(t^j*Zd(t) / delta)]
-	parallel.Execute( g.cardinality, func(start, end int) {
+	parallel.Execute( g.Cardinality, func(start, end int) {
 		var pkG1Z curve.G1Jac
 		for j := start; j < end; j++ {
 			pkG1Z.ScalarMulByGen(c, Zdt[j])
@@ -197,7 +183,7 @@ func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *domain) {
 
 }
 
-func setupABC(r1cs *backend.R1CS, g *domain, tw toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve}}.Domain, tw toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbWires
 
@@ -213,16 +199,16 @@ func setupABC(r1cs *backend.R1CS, g *domain, tw toxicWaste) (A []fr.Element, B [
 
 	// L0 = 1/n*(t^n-1)/(t-1), Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 	var w, wi, tmp fr.Element
-	w.Set(&g.generator)
+	w.Set(&g.Generator)
 	wi.SetOne()
 
 	// Setting L0
 	ithLagrangePolt.Set(&tw.t)
-	ithLagrangePolt.Exp(ithLagrangePolt, uint64(g.cardinality)).
+	ithLagrangePolt.Exp(ithLagrangePolt, uint64(g.Cardinality)).
 		Sub(&ithLagrangePolt, &one)
 	tmp.Set(&tw.t).Sub(&tmp, &one)
 	ithLagrangePolt.Div(&ithLagrangePolt, &tmp).
-		Mul(&ithLagrangePolt, &g.cardinalityInv)
+		Mul(&ithLagrangePolt, &g.CardinalityInv)
 
 	// Constraints
 	for _, c := range r1cs.Constraints {
@@ -252,7 +238,7 @@ func setupABC(r1cs *backend.R1CS, g *domain, tw toxicWaste) (A []fr.Element, B [
 
 }
 
-func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw toxicWaste, r1cs *backend.R1CS) {
+func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw toxicWaste, r1cs *backend_{{toLower .Curve}}.R1CS) {
 
 	c := {{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}
 

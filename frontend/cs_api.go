@@ -17,7 +17,9 @@ limitations under the License.
 package frontend
 
 import (
-	"github.com/consensys/gnark/curve/fr"
+	"math/big"
+
+	"github.com/consensys/gnark/backend"
 )
 
 // ADD Adds 2+ inputs and returns resulting Constraint
@@ -31,12 +33,12 @@ func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) *Constraint {
 			case *Constraint:
 				return cs.add(c1, c2)
 			default:
-				return cs.addConstant(c1, fr.FromInterface(c2))
+				return cs.addConstant(c1, backend.FromInterface(c2))
 			}
 		default:
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				return cs.addConstant(c2, fr.FromInterface(c1))
+				return cs.addConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
 			}
@@ -59,10 +61,10 @@ func (cs *CS) SUB(i1, i2 interface{}) *Constraint {
 		switch c2 := i2.(type) {
 		case *Constraint:
 			return cs.sub(c1, c2)
-		case fr.Element:
+		case big.Int:
 			return cs.subConstant(c1, c2)
 		}
-	case fr.Element:
+	case big.Int:
 		switch c2 := i2.(type) {
 		case *Constraint:
 			return cs.subConstraint(c1, c2)
@@ -89,12 +91,12 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) *Constraint {
 			case *Constraint:
 				return cs.mul(c1, c2)
 			default:
-				return cs.mulConstant(c1, fr.FromInterface(c2))
+				return cs.mulConstant(c1, backend.FromInterface(c2))
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				return cs.mulConstant(c2, fr.FromInterface(c1))
+				return cs.mulConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
 			}
@@ -129,16 +131,14 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 			case *Constraint:
 				return cs.div(c1, c2)
 			default:
-				tmp := fr.FromInterface(c2)
-				tmp.Inverse(&tmp)
-				return cs.mulConstant(c1, tmp)
+				tmp := backend.FromInterface(c2)
+				return cs.divConstantRight(c1, tmp)
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
 			case *Constraint:
-				tmp := fr.FromInterface(c2)
-				tmp.Inverse(&tmp)
-				return cs.inv(c2, tmp)
+				tmp := backend.FromInterface(c1)
+				return cs.divConstantLeft(tmp, c2)
 			default:
 				panic("invalid type")
 			}
@@ -163,13 +163,13 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 				panic(err)
 			}
 			return
-		case fr.Element:
+		case big.Int: // TODO handle *big.Int ?
 			if err := cs.equalConstant(c1, c2); err != nil {
 				panic(err)
 			}
 			return
 		}
-	case fr.Element:
+	case big.Int: // TODO handle *big.Int ?
 		switch c2 := i2.(type) {
 		case *Constraint:
 			if err := cs.equalConstant(c2, c1); err != nil {
@@ -185,7 +185,7 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 
 // INV inverse a Constraint
 func (cs *CS) INV(c1 *Constraint) *Constraint {
-	return cs.inv(c1, fr.One())
+	return cs.inv(c1, bigOne())
 }
 
 // XOR compute the xor between two constraints
@@ -264,13 +264,24 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, input interface{}) {
 	// parse input
-	constant := fr.FromInterface(input)
+	constant := backend.FromInterface(input)
 	// binary decomposition of e
+	// var ei []int
+	// _e := constant.ToRegular()
+	// for i := 0; i < len(_e); i++ {
+	// 	for j := 0; j < 64; j++ {
+	// 		ei = append(ei, int(_e[i]>>uint64(j)&uint64(1)))
+	// 	}
+	// }
 	var ei []int
-	_e := constant.ToRegular()
-	for i := 0; i < len(_e); i++ {
+	_e := constant
+	words := _e.Bits()
+	nbWords := len(words)
+
+	for i := 0; i < nbWords; i++ {
 		for j := 0; j < 64; j++ {
-			ei = append(ei, int(_e[i]>>uint64(j)&uint64(1)))
+			// TODO fix me assumes big.Int.Word is 64 bits
+			ei = append(ei, int(uint64(words[i])>>uint64(j)&uint64(1)))
 		}
 	}
 
@@ -319,12 +330,12 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 			panic("invalid type")
 		}
 	default:
-		c1Fr := fr.FromInterface(i1)
-		c2Fr := fr.FromInterface(i2)
-		c1Fr.Sub(&c1Fr, &c2Fr)
+		c1Bigint := backend.FromInterface(i1)
+		c2Bigint := backend.FromInterface(i2)
+		c1Bigint.Sub(&c1Bigint, &c2Bigint)
 		expression := linearExpression{
-			term{Wire: b.outputWire, Coeff: c1Fr, Operation: mul},
-			term{Wire: cs.Constraints[0].outputWire, Coeff: fr.One(), Operation: mul},
+			term{Wire: b.outputWire, Coeff: c1Bigint, Operation: mul},
+			term{Wire: cs.Constraints[0].outputWire, Coeff: bigOne(), Operation: mul},
 		}
 		return newConstraint(cs, &expression)
 	}
@@ -332,7 +343,7 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 
 // SELECT_LUT select lookuptable[c1*2+c0] where c0 and c1 are boolean constrained
 // cf https://z.cash/technology/jubjub/
-func (cs *CS) SELECT_LUT(c1, c0 *Constraint, lookuptable [4]fr.Element) *Constraint {
+func (cs *CS) SELECT_LUT(c1, c0 *Constraint, lookuptable [4]big.Int) *Constraint {
 
 	// ensure c0 and c1 are boolean constrained
 	cs.MUSTBE_BOOLEAN(c0)

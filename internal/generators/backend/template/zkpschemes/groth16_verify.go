@@ -5,7 +5,7 @@ const Groth16Verify = `
 import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
-	constants "github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend"
 )
 
 
@@ -58,15 +58,15 @@ func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.E
 	publicInput := input.DiscardSecrets()
 
 	for i := 0; i < len(expectedNames); i++ {
-		if expectedNames[i] == constants.OneWire {
+		if expectedNames[i] == backend.OneWire {
 			// ONE_WIRE is a reserved name, it should not be set by the user
 			toReturn[i].SetOne()
 			toReturn[i].FromMont()
 		} else {
 			if val, ok := publicInput[expectedNames[i]]; ok {
-				toReturn[i] = val.Value.ToRegular()
+				toReturn[i].SetBigInt(&val.Value).FromMont()
 			} else {
-				return nil, constants.ErrInputNotSet
+				return nil, backend.ErrInputNotSet
 			}
 		}
 	}

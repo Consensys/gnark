@@ -1,11 +1,14 @@
 package circuits
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
+	fmt.Println("init xor11")
 	circuit := frontend.New()
 
 	b0 := circuit.SECRET_INPUT("b0")

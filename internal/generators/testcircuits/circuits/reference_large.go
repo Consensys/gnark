@@ -1,42 +1,39 @@
 package circuits
 
-import (
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/curve/fr"
-	"github.com/consensys/gnark/frontend"
-)
-
 func init() {
-	const nbConstraints = 500
-	circuit := frontend.New()
+	// fmt.Println("init reference_large")
 
-	// declare inputs
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	// circuit := frontend.New()
 
-	for i := 0; i < nbConstraints; i++ {
-		x = circuit.MUL(x, x)
-	}
-	circuit.MUSTBE_EQ(x, y)
+	// const nbConstraints = 500
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 2)
+	// // declare inputs
+	// x := circuit.SECRET_INPUT("x")
+	// y := circuit.PUBLIC_INPUT("y")
 
-	// compute expected Y
-	expectedY := fr.Element{}
-	expectedY.SetUint64(2)
+	// for i := 0; i < nbConstraints; i++ {
+	// 	x = circuit.MUL(x, x)
+	// }
+	// circuit.MUSTBE_EQ(x, y)
 
-	for i := 0; i < nbConstraints; i++ {
-		expectedY.MulAssign(&expectedY)
-	}
+	// good := backend.NewAssignment()
+	// good.Assign(backend.Secret, "x", 2)
 
-	good.Assign(backend.Public, "y", expectedY)
+	// // compute expected Y
+	// var expectedY big.Int
+	// expectedY.SetUint64(2)
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 2)
-	bad.Assign(backend.Public, "y", 0)
+	// for i := 0; i < nbConstraints; i++ {
+	// 	expectedY.Mul(&expectedY, &expectedY)
+	// }
 
-	r1cs := circuit.ToR1CS()
+	// good.Assign(backend.Public, "y", expectedY)
 
-	addEntry("reference_large", r1cs, good, bad)
+	// bad := backend.NewAssignment()
+	// bad.Assign(backend.Secret, "x", 2)
+	// bad.Assign(backend.Public, "y", 0)
+
+	// r1cs := circuit.ToR1CS()
+
+	// addEntry("reference_large", r1cs, good, bad)
 }
