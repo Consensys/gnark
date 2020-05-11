@@ -3,6 +3,9 @@ module github.com/consensys/gnark
 go 1.14
 
 require (
+	github.com/NebulousLabs/errors v0.0.0-20181203160057-9f787ce8f69e // indirect
+	github.com/NebulousLabs/fastrand v0.0.0-20181203155948-6fb6489aac4e // indirect
+	github.com/NebulousLabs/merkletree v0.0.0-20181203152040-08d5d54b07f5
 	github.com/consensys/bavard v0.1.2-0.20200424125854-c0225aa55321
 	github.com/consensys/gurvy v0.1.2-0.20200427135534-d0ee267fe789
 	github.com/pkg/profile v1.4.0
