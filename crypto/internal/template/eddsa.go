@@ -70,7 +70,7 @@ func New(seed [32]byte, hFunc hash.Hash) (PublicKey, PrivateKey) {
 	tmp.SetBytes(h[:32])
 	priv.scalar.SetBigInt(&tmp).FromMont()
 
-	pub.A.ScalarMul(&c.Base, c, priv.scalar)
+	pub.A.ScalarMul(&c.Base, priv.scalar)
 	pub.HFunc = hFunc
 
 	return pub, priv
@@ -109,8 +109,8 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 	randScalar.SetBigInt(&tmp).FromMont()
 
 	// compute R = randScalar*Base
-	res.R.ScalarMul(&curveParams.Base, curveParams, randScalar)
-	if !res.R.IsOnCurve(curveParams) {
+	res.R.ScalarMul(&curveParams.Base, randScalar)
+	if !res.R.IsOnCurve() {
 		return Signature{}, ErrNotOnCurve
 	}
 
@@ -151,7 +151,7 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 	curveParams := GetCurveParams()
 
 	// verify that pubKey and R are on the curve
-	if !pub.A.IsOnCurve(curveParams) {
+	if !pub.A.IsOnCurve() {
 		return false, ErrNotOnCurve
 	}
 
@@ -175,19 +175,19 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 	var lhs twistededwards.Point
 	var SFromMont fr.Element
 	SFromMont.Set(&sig.S).FromMont()
-	lhs.ScalarMul(&curveParams.Base, curveParams, SFromMont).
-		ScalarMul(&lhs, curveParams, curveParams.Cofactor)
+	lhs.ScalarMul(&curveParams.Base, SFromMont).
+		ScalarMul(&lhs, curveParams.Cofactor)
 
-	if !lhs.IsOnCurve(curveParams) {
+	if !lhs.IsOnCurve() {
 		return false, ErrNotOnCurve
 	}
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
 	var rhs twistededwards.Point
-	rhs.ScalarMul(&pub.A, curveParams, hram).
-		Add(&rhs, &sig.R, curveParams).
-		ScalarMul(&rhs, curveParams, curveParams.Cofactor)
-	if !rhs.IsOnCurve(curveParams) {
+	rhs.ScalarMul(&pub.A, hram).
+		Add(&rhs, &sig.R).
+		ScalarMul(&rhs, curveParams.Cofactor)
+	if !rhs.IsOnCurve() {
 		return false, ErrNotOnCurve
 	}
 
@@ -197,6 +197,5 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 	}
 	return true, nil
 }
-
 
 `
