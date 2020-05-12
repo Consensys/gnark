@@ -120,7 +120,7 @@ func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountC
 
 // updateAccountGadget ensures that from, to are correctly updated according to t, h is the gadget hash for checking the signature
 // returns the updated accounts from, to
-func updateAccountGadget(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountCircuit, t TransferCircuit, h mimc.MiMCGadget) {
+func verifyUpdateAccountGadget(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountCircuit, amount *frontend.Constraint) {
 
 	// ensure that nonce is correctly updated
 	one := circuit.ALLOCATE(1)
@@ -130,15 +130,11 @@ func updateAccountGadget(circuit *frontend.CS, from, to, fromUpdated, toUpdated 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
 
 	// ensure that balance is correctly updated
-	fromBalanceUpdated := circuit.SUB(from.balance, t.amount)
+	fromBalanceUpdated := circuit.SUB(from.balance, amount)
 	circuit.MUSTBE_EQ(fromBalanceUpdated, fromUpdated.balance)
 
-	toBalanceUpdated := circuit.ADD(to.balance, t.amount)
+	toBalanceUpdated := circuit.ADD(to.balance, amount)
 	circuit.MUSTBE_EQ(toBalanceUpdated, toUpdated.balance)
-
-	// ensures that the sender owns the associated private key by checking the signature
-	hTransfer := h.Hash(circuit, t.amount, t.nonce, t.senderPubKey.A.X, t.senderPubKey.A.Y, t.receiverPubKey.A.X, t.receiverPubKey.A.Y)
-	eddsa.Verify(circuit, t.signature, hTransfer, t.senderPubKey)
 
 }
 
@@ -147,7 +143,7 @@ func updateAccountGadget(circuit *frontend.CS, from, to, fromUpdated, toUpdated 
 // depth size of the merkle proofs
 // nbAccounts number of accounts managed by the operator
 // indices list of indices for the proofs
-func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts uint64, indicesSender []uint64, indicesReceiver []uint64) error {
+func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts int) error {
 
 	// hash function for the merkle proof and the eddsa signature
 	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
@@ -212,27 +208,29 @@ func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts ui
 
 		for j := 0; j < depth; j++ {
 			ext := strconv.Itoa(i) + strconv.Itoa(j)
+
 			merkleProofsSenderBefore[i][j] = circuit.SECRET_INPUT(baseNameSenderMerkleBefore + ext)
 			merkleProofsSenderAfter[i][j] = circuit.SECRET_INPUT(baseNameSenderMerkleAfter + ext)
-
-			if j < depth-1 {
-
-				merkleProofHelperSenderBefore[i][j] = circuit.SECRET_INPUT(baseNameSenderProofHelperBefore + ext)
-				merkleProofHelperSenderAfter[i][j] = circuit.SECRET_INPUT(baseNameSenderProofHelperAfter + ext)
-
-				merkleProofHelperReceiverBefore[i][j] = circuit.SECRET_INPUT(baseNameReceiverProofHelperBefore + ext)
-				merkleProofHelperReceiverAfter[i][j] = circuit.SECRET_INPUT(baseNameReceiverProofHelperAfter + ext)
-
-			}
-
 			merkleProofsReceiverBefore[i][j] = circuit.SECRET_INPUT(baseNameReceiverMerkleBefore + ext)
 			merkleProofsReceiverAfter[i][j] = circuit.SECRET_INPUT(baseNameReceiverMerkleAfter + ext)
+
+			if j < depth-1 {
+				merkleProofHelperSenderBefore[i][j] = circuit.SECRET_INPUT(baseNameSenderProofHelperBefore + ext)
+				merkleProofHelperSenderAfter[i][j] = circuit.SECRET_INPUT(baseNameSenderProofHelperAfter + ext)
+				merkleProofHelperReceiverBefore[i][j] = circuit.SECRET_INPUT(baseNameReceiverProofHelperBefore + ext)
+				merkleProofHelperReceiverAfter[i][j] = circuit.SECRET_INPUT(baseNameReceiverProofHelperAfter + ext)
+			}
 		}
 
 		// setting sender public key
 		publicKeysSender[i].Curve = paramsGadget
 		publicKeysSender[i].A.X = circuit.SECRET_INPUT(baseNameSenderAccountPubkeyx + strconv.Itoa(i))
 		publicKeysSender[i].A.Y = circuit.SECRET_INPUT(baseNameSenderAccountPubkeyy + strconv.Itoa(i))
+
+		// setting receiver public key
+		publicKeysReceiver[i].Curve = paramsGadget
+		publicKeysReceiver[i].A.X = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyx + strconv.Itoa(i))
+		publicKeysReceiver[i].A.Y = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyy + strconv.Itoa(i))
 
 		// setting the sender accounts before update
 		senderAccountsBefore[i].index = circuit.SECRET_INPUT(baseNameSenderAccountIndexBefore + strconv.Itoa(i))
@@ -246,29 +244,20 @@ func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts ui
 		senderAccountsAfter[i].balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceAfter + strconv.Itoa(i))
 		senderAccountsAfter[i].pubKey = publicKeysSender[i]
 
-		// setting receiver public key
-		publicKeysReceiver[i].Curve = paramsGadget
-		publicKeysReceiver[i].A.X = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyx + strconv.Itoa(i))
-		publicKeysReceiver[i].A.Y = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyy + strconv.Itoa(i))
-
 		// setting the receiver accounts before update
 		receiverAccountsBefore[i].index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexBefore + strconv.Itoa(i))
 		receiverAccountsBefore[i].nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceBefore + strconv.Itoa(i))
 		receiverAccountsBefore[i].balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceBefore + strconv.Itoa(i))
-		receiverAccountsBefore[i].pubKey.Curve = paramsGadget
-		receiverAccountsBefore[i].pubKey.A.X = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyx + strconv.Itoa(i))
-		receiverAccountsBefore[i].pubKey.A.Y = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyy + strconv.Itoa(i))
+		receiverAccountsBefore[i].pubKey = publicKeysReceiver[i]
 
 		// setting the receiver accounts after update
 		receiverAccountsAfter[i].index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexAfter + strconv.Itoa(i))
 		receiverAccountsAfter[i].nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceAfter + strconv.Itoa(i))
 		receiverAccountsAfter[i].balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceAfter + strconv.Itoa(i))
-		receiverAccountsAfter[i].pubKey.Curve = paramsGadget
-		receiverAccountsAfter[i].pubKey.A.X = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyx + strconv.Itoa(i))
-		receiverAccountsAfter[i].pubKey.A.Y = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyy + strconv.Itoa(i))
+		receiverAccountsAfter[i].pubKey = publicKeysReceiver[i]
 
 		// setting the transfers
-		transfers[i].nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + strconv.Itoa(i))
+		transfers[i].nonce = senderAccountsBefore[i].nonce
 		transfers[i].amount = circuit.SECRET_INPUT(baseNameTransferAmount + strconv.Itoa(i))
 		transfers[i].senderPubKey = publicKeysSender[i]
 		transfers[i].receiverPubKey = publicKeysReceiver[i]
@@ -286,8 +275,8 @@ func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts ui
 		merkle.VerifyProof(circuit, hFunc, rootHashesBefore[i], merkleProofsReceiverBefore[i], merkleProofHelperReceiverBefore[i])
 
 		// verify the sender and receiver accounts exist after the update
-		merkle.VerifyProof(circuit, hFunc, rootHashesAfter[i], merkleProofsSenderBefore[i], merkleProofHelperSenderAfter[i])
-		merkle.VerifyProof(circuit, hFunc, rootHashesAfter[i], merkleProofsReceiverBefore[i], merkleProofHelperReceiverAfter[i])
+		merkle.VerifyProof(circuit, hFunc, rootHashesAfter[i], merkleProofsSenderAfter[i], merkleProofHelperSenderAfter[i])
+		merkle.VerifyProof(circuit, hFunc, rootHashesAfter[i], merkleProofsReceiverAfter[i], merkleProofHelperReceiverAfter[i])
 
 		// verify the transaction transfer
 		err := verifySignatureTransfer(circuit, transfers[i], hFunc)
@@ -296,7 +285,7 @@ func rollupCircuit(circuit *frontend.CS, batchSize int, depth int, nbAccounts ui
 		}
 
 		// update the accounts
-		updateAccountGadget(circuit, senderAccountsBefore[i], receiverAccountsBefore[i], senderAccountsBefore[i], receiverAccountsAfter[i], transfers[i], hFunc)
+		verifyUpdateAccountGadget(circuit, senderAccountsBefore[i], receiverAccountsBefore[i], senderAccountsAfter[i], receiverAccountsAfter[i], transfers[i].amount)
 	}
 
 	return nil

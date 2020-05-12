@@ -170,7 +170,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return err
 	}
 	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
-	o.witnesses.Assign(backend.Secret, baseNameRootHashBefore+ext, merkleRootBefore)
+	o.witnesses.Assign(backend.Public, baseNameRootHashBefore+ext, merkleRootBefore)
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
 		o.witnesses.Assign(backend.Secret, baseNameSenderMerkleBefore+ext+strconv.Itoa(i), proofInclusionSenderBefore[i])
 		o.witnesses.Assign(backend.Secret, baseNameReceiverMerkleBefore+ext+strconv.Itoa(i), proofInclusionReceiverBefore[i])
@@ -264,7 +264,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 	merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
-	o.witnesses.Assign(backend.Secret, baseNameRootHashAfter+ext, merkleRootAfer)
+	o.witnesses.Assign(backend.Public, baseNameRootHashAfter+ext, merkleRootAfer)
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {
 		o.witnesses.Assign(backend.Secret, baseNameSenderMerkleAfter+ext+strconv.Itoa(i), proofInclusionSenderAfter[i])
 		o.witnesses.Assign(backend.Secret, baseNameReceiverMerkleAfter+ext+strconv.Itoa(i), proofInclusionReceiverAfter[i])

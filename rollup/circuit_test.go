@@ -17,7 +17,6 @@ limitations under the License.
 package rollup
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -240,8 +239,8 @@ func TestCircuitInclusionProof(t *testing.T) {
 		merkleHelperReceiverAfter[i] = circuit.SECRET_INPUT(baseNameReceiverProofHelperAfter + ext + strconv.Itoa(i))
 	}
 
-	merkleRootBefore := circuit.SECRET_INPUT(baseNameRootHashBefore + ext)
-	merkleRootAfter := circuit.SECRET_INPUT(baseNameRootHashAfter + ext)
+	merkleRootBefore := circuit.PUBLIC_INPUT(baseNameRootHashBefore + ext)
+	merkleRootAfter := circuit.PUBLIC_INPUT(baseNameRootHashAfter + ext)
 
 	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
 	if err != nil {
@@ -255,7 +254,167 @@ func TestCircuitInclusionProof(t *testing.T) {
 	merkle.VerifyProof(&circuit, hFunc, merkleRootAfter, merkleProofReceiverAfter, merkleHelperReceiverAfter)
 
 	r1cs := backend_bn256.New(&circuit)
-	fmt.Printf("nb constraints: %d\n", r1cs.NbConstraints)
+
+	assert := groth16.NewAssert(t)
+	assert.Solved(&r1cs, operator.witnesses, nil)
+
+}
+
+func TestCircuitUpdateAccount(t *testing.T) {
+
+	notInInpuList := " is not in the input list"
+
+	// 16 accounts so we know that the proof length is 5
+	nbAccounts := 16
+
+	operator, users := createOperator(nbAccounts)
+
+	// read accounts involved in the transfer
+	sender, err := operator.readAccount(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiver, err := operator.readAccount(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// create the transfer and sign it
+	var amount uint64
+	amount = 10
+	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
+
+	// sign the transfer
+	_, err = transfer.Sign(users[0], operator.h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// update the state from the received transfer
+	err = operator.updateState(transfer, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check the inputs for the accounts of the sender/receiver are instantiated
+	ext := "0"
+	for i := 0; i < 2; i++ {
+		if _, ok := operator.witnesses[baseNameSenderAccountIndexBefore+ext]; !ok {
+			t.Fatal(baseNameSenderAccountIndexBefore + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameSenderAccountNonceBefore+ext]; !ok {
+			t.Fatal(baseNameSenderAccountNonceBefore + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameSenderAccountBalanceBefore+ext]; !ok {
+			t.Fatal(baseNameSenderAccountBalanceBefore + notInInpuList)
+		}
+
+		if _, ok := operator.witnesses[baseNameSenderAccountIndexAfter+ext]; !ok {
+			t.Fatal(baseNameSenderAccountIndexAfter + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameSenderAccountNonceAfter+ext]; !ok {
+			t.Fatal(baseNameSenderAccountNonceAfter + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameSenderAccountBalanceAfter+ext]; !ok {
+			t.Fatal(baseNameSenderAccountBalanceAfter + notInInpuList)
+		}
+
+		if _, ok := operator.witnesses[baseNameReceiverAccountIndexBefore+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountIndexBefore + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameReceiverAccountNonceBefore+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountNonceBefore + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameReceiverAccountBalanceBefore+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountBalanceBefore + notInInpuList)
+		}
+
+		if _, ok := operator.witnesses[baseNameReceiverAccountIndexAfter+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountIndexAfter + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameReceiverAccountNonceAfter+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountNonceAfter + notInInpuList)
+		}
+		if _, ok := operator.witnesses[baseNameReceiverAccountBalanceAfter+ext]; !ok {
+			t.Fatal(baseNameReceiverAccountBalanceAfter + notInInpuList)
+		}
+	}
+
+	// verifies the proofs of inclusion of the transfer
+	circuit := frontend.New()
+
+	transferAmount := circuit.SECRET_INPUT(baseNameTransferAmount + ext)
+
+	var fromBefore, fromAfter, toBefore, toAfter AccountCircuit
+
+	fromBefore.index = circuit.SECRET_INPUT(baseNameSenderAccountIndexBefore + ext)
+	fromBefore.nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + ext)
+	fromBefore.balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceBefore + ext)
+
+	fromAfter.index = circuit.SECRET_INPUT(baseNameSenderAccountIndexAfter + ext)
+	fromAfter.nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceAfter + ext)
+	fromAfter.balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceAfter + ext)
+
+	toBefore.index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexBefore + ext)
+	toBefore.nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceBefore + ext)
+	toBefore.balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceBefore + ext)
+
+	toAfter.index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexAfter + ext)
+	toAfter.nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceAfter + ext)
+	toAfter.balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceAfter + ext)
+
+	verifyUpdateAccountGadget(&circuit, fromBefore, toBefore, fromAfter, toAfter, transferAmount)
+
+	r1cs := backend_bn256.New(&circuit)
+
+	assert := groth16.NewAssert(t)
+	assert.Solved(&r1cs, operator.witnesses, nil)
+
+}
+
+func TestCircuitFull(t *testing.T) {
+
+	nbAccounts := 16 // 16 accounts so we know that the proof length is 5
+	depth := 5       // size fo the inclusion proofs
+	batchSize := 1   // nbTranfers to batch in a proof
+
+	operator, users := createOperator(nbAccounts)
+
+	// read accounts involved in the transfer
+	sender, err := operator.readAccount(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiver, err := operator.readAccount(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// create the transfer and sign it
+	var amount uint64
+	amount = 10
+	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
+
+	// sign the transfer
+	_, err = transfer.Sign(users[0], operator.h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// update the state from the received transfer
+	err = operator.updateState(transfer, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// verifies the proofs of inclusion of the transfer
+	circuit := frontend.New()
+
+	rollupCircuit(&circuit, batchSize, depth, nbAccounts)
+
+	r1cs := backend_bn256.New(&circuit)
 
 	assert := groth16.NewAssert(t)
 	assert.Solved(&r1cs, operator.witnesses, nil)
