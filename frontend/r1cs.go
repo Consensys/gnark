@@ -45,13 +45,13 @@ const (
 )
 
 // Term ...
-type ToRefactorTerm struct {
+type TermR1cs struct {
 	ID    int64   // index of the constraint used to compute this wire
 	Coeff big.Int // coefficient by which the wire is multiplied
 }
 
 // LinearExpression
-type LinearExpression []ToRefactorTerm
+type LinearExpression []TermR1cs
 
 // R1C used to compute the wires
 type R1C struct {

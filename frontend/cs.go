@@ -321,6 +321,82 @@ func (cs *CS) equalConstant(c *Constraint, constant big.Int) error {
 	return nil
 }
 
+func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
+
+	// TODO assumes fr is alaws 256 bit long, should this elsewhere
+	var ci [256]int
+
+	// query the decomposition of constant, ensuring it's 256 bits long (this constant should set elsewhere)
+	words := constant.Bits()
+	if len(words) < 4 {
+		for i := 0; i < 4-len(words); i++ {
+			words = append(words, big.Word(0))
+		}
+	}
+	nbWords := len(words)
+
+	for i := 0; i < nbWords; i++ {
+		for j := 0; j < 64; j++ {
+			// TODO fix me assumes big.Int.Word is 64 bits
+			ci[i*64+j] = int(uint64(words[i]) >> uint64(j) & uint64(1))
+		}
+	}
+
+	// unpacking the Constraint c
+	ai := cs.TO_BINARY(a, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+
+	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
+	var pi [257]*Constraint
+	pi[256] = cs.constVar(1)
+
+	// Setting the product
+	for i := 255; i >= 0; i-- {
+		if ci[i] == 1 {
+			pi[i] = cs.MUL(pi[i+1], ai[i])
+		} else {
+			pi[i] = pi[i+1]
+		}
+	}
+
+	// constrain the bi
+	for i := 255; i >= 0; i-- {
+		if ci[255] == 0 {
+			constraintRes := &implyExpression{b: pi[i+1].outputWire, a: ai[i].outputWire}
+			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
+		} else {
+			cs.MUSTBE_BOOLEAN(ai[i])
+		}
+	}
+	return nil
+}
+
+// func (cs *CS) mustBeLessOrEq(c *Constraint, a *Constraint) error {
+
+// 	// unpacking the constant bound c and the variable to test a
+// 	ci := cs.TO_BINARY(c, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+// 	ai := cs.TO_BINARY(a, 256)
+
+// 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
+// 	var pi [257]*Constraint
+// 	pi[256] = cs.constVar(1)
+
+// 	// Setting the product
+// 	for i := 255; i >= 0; i-- {
+// 		cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i])
+// 	}
+
+// 	// constrain the bi
+// 	for i := 255; i >= 0; i-- {
+// 		if ci[255] == 0 {
+// 			constraintRes := &implyExpression{b: pi[i+1].outputWire, a: ai[i].outputWire}
+// 			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
+// 		} else {
+// 			cs.MUSTBE_BOOLEAN(ai[i])
+// 		}
+// 	}
+// 	return nil
+// }
+
 func (cs *CS) String() string {
 	res := ""
 	res += "SO constraints: \n"
@@ -346,14 +422,6 @@ func (cs *CS) String() string {
 	}
 	return res
 }
-
-// Write creates a R1CS from the CS and writes it to disk
-// func (cs *CS) Write(path string) {
-// 	r1cs := cs.ToR1CS()
-// 	if err := gob.Write(path, r1cs); err != nil {
-// 		panic(err)
-// 	}
-// }
 
 func (cs *CS) registerNamedInput(name string) bool {
 	// checks if the name already exists

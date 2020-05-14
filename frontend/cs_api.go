@@ -262,51 +262,14 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 }
 
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
-func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, input interface{}) {
+// from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
+func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}) {
+
 	// parse input
-	constant := backend.FromInterface(input)
-	// binary decomposition of e
-	// var ei []int
-	// _e := constant.ToRegular()
-	// for i := 0; i < len(_e); i++ {
-	// 	for j := 0; j < 64; j++ {
-	// 		ei = append(ei, int(_e[i]>>uint64(j)&uint64(1)))
-	// 	}
-	// }
-	var ei []int
-	_e := constant
-	words := _e.Bits()
-	nbWords := len(words)
+	castedBound := backend.FromInterface(bound)
 
-	for i := 0; i < nbWords; i++ {
-		for j := 0; j < 64; j++ {
-			// TODO fix me assumes big.Int.Word is 64 bits
-			ei = append(ei, int(uint64(words[i])>>uint64(j)&uint64(1)))
-		}
-	}
-
-	// unpacking the Constraint c
-	b := cs.TO_BINARY(c, 256)
-
-	// building the product
-	pi := []*Constraint{cs.constVar(1)}
-
-	for i := len(ei) - 1; i >= 0; i-- {
-		if ei[i] == 1 {
-			pi = append(pi, cs.MUL(pi[len(pi)-1], b[i]))
-		} else {
-			pi = append(pi, pi[len(pi)-1])
-		}
-	}
-
-	for i := len(ei) - 1; i >= 0; i-- {
-		if ei[i] == 0 {
-			constraintRes := &implyExpression{b: pi[len(ei)-i-1].outputWire, a: b[i].outputWire}
-			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
-		} else {
-			cs.MUSTBE_BOOLEAN(b[i])
-		}
-	}
+	// TODO handle the case where the bound is a constraint
+	cs.mustBeLessOrEqConstant(c, castedBound)
 
 }
 
