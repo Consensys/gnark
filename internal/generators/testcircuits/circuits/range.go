@@ -17,7 +17,7 @@ func rangeCheckConstant() {
 	c1 := circuit.MUL(x, y)
 	c2 := circuit.MUL(c1, y)
 
-	circuit.MUSTBE_LESS_OR_EQ(c2, 161)
+	circuit.MUSTBE_LESS_OR_EQ(c2, 161, 256)
 
 	good := backend.NewAssignment()
 	good.Assign(backend.Secret, "x", 10)
@@ -42,7 +42,7 @@ func rangeCheck() {
 	c1 := circuit.MUL(x, y)
 	c2 := circuit.MUL(c1, y)
 
-	circuit.MUSTBE_LESS_OR_EQ(c2, bound)
+	circuit.MUSTBE_LESS_OR_EQ(c2, bound, 256)
 
 	good := backend.NewAssignment()
 	good.Assign(backend.Secret, "x", 10)
@@ -64,6 +64,6 @@ func init() {
 
 	rangeCheckConstant()
 
-	//rangeCheck()
+	rangeCheck()
 
 }

@@ -128,6 +128,7 @@ func verifyUpdateAccountGadget(circuit *frontend.CS, from, to, fromUpdated, toUp
 	circuit.MUSTBE_EQ(nonceUpdated, fromUpdated.nonce)
 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
+	circuit.MUSTBE_LESS_OR_EQ(amount, from.balance, 256)
 
 	// ensure that balance is correctly updated
 	fromBalanceUpdated := circuit.SUB(from.balance, amount)

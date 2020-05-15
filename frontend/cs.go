@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils/debug"
@@ -321,10 +322,10 @@ func (cs *CS) equalConstant(c *Constraint, constant big.Int) error {
 	return nil
 }
 
-func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
+func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int, nbBits int) error {
 
 	// TODO assumes fr is alaws 256 bit long, should this elsewhere
-	var ci [256]int
+	ci := make([]int, nbBits)
 
 	// query the decomposition of constant, ensuring it's 256 bits long (this constant should set elsewhere)
 	words := constant.Bits()
@@ -343,14 +344,14 @@ func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
 	}
 
 	// unpacking the Constraint c
-	ai := cs.TO_BINARY(a, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+	ai := cs.TO_BINARY(a, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
-	var pi [257]*Constraint
-	pi[256] = cs.constVar(1)
+	pi := make([]*Constraint, nbBits+1)
+	pi[nbBits] = cs.constVar(1)
 
 	// Setting the product
-	for i := 255; i >= 0; i-- {
+	for i := nbBits - 1; i >= 0; i-- {
 		if ci[i] == 1 {
 			pi[i] = cs.MUL(pi[i+1], ai[i])
 		} else {
@@ -359,7 +360,7 @@ func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
 	}
 
 	// constrain the bi
-	for i := 255; i >= 0; i-- {
+	for i := nbBits - 1; i >= 0; i-- {
 		if ci[i] == 0 {
 			constraintRes := &implyExpression{b: pi[i+1].outputWire, a: ai[i].outputWire}
 			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
@@ -370,24 +371,29 @@ func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
 	return nil
 }
 
-func (cs *CS) mustBeLessOrEq(c *Constraint, a *Constraint) error {
+func (cs *CS) mustBeLessOrEq(a *Constraint, c *Constraint, nbBits int) error {
 
 	// unpacking the constant bound c and the variable to test a
-	ci := cs.TO_BINARY(c, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
-	ai := cs.TO_BINARY(a, 256)
+	ci := cs.TO_BINARY(c, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+	ai := cs.TO_BINARY(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
-	var pi [257]*Constraint
-	pi[256] = cs.ALLOCATE(1)
+	pi := make([]*Constraint, nbBits+1)
+	pi[nbBits] = cs.ALLOCATE(1)
+
+	//spi := "pi_"
+	sci := "ci_"
 
 	// Setting the product
-	for i := 255; i >= 0; i-- {
+	for i := nbBits - 1; i >= 0; i-- {
+		ci[i].Tag(sci + strconv.Itoa(i))
 		pi[i] = cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i+1])
+		//pi[i].Tag(spi + strconv.Itoa(i))
 	}
 
 	// constrain the bi
 	zero := cs.ALLOCATE(0)
-	for i := 255; i >= 0; i-- {
+	for i := nbBits - 1; i >= 0; i-- {
 		notci := cs.SUB(1, ci[i])
 		t1 := cs.MUL(notci, ai[i])
 		t2 := cs.SUB(1, pi[i+1])

@@ -264,14 +264,14 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 // from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}) {
+func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}, nbBits int) {
 
 	switch _bound := bound.(type) {
 	case *Constraint:
-		cs.mustBeLessOrEq(c, _bound)
+		cs.mustBeLessOrEq(c, _bound, nbBits)
 	default:
 		b := backend.FromInterface(bound)
-		cs.mustBeLessOrEqConstant(c, b)
+		cs.mustBeLessOrEqConstant(c, b, nbBits)
 	}
 }
 
