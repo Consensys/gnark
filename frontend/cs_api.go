@@ -64,10 +64,11 @@ func (cs *CS) SUB(i1, i2 interface{}) *Constraint {
 		case big.Int:
 			return cs.subConstant(c1, c2)
 		}
-	case big.Int:
+	default:
+		_c1 := backend.FromInterface(c1)
 		switch c2 := i2.(type) {
 		case *Constraint:
-			return cs.subConstraint(c1, c2)
+			return cs.subConstraint(_c1, c2)
 		}
 	}
 	panic("invalid type")
@@ -265,12 +266,13 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 // from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
 func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}) {
 
-	// parse input
-	castedBound := backend.FromInterface(bound)
-
-	// TODO handle the case where the bound is a constraint
-	cs.mustBeLessOrEqConstant(c, castedBound)
-
+	switch _bound := bound.(type) {
+	case *Constraint:
+		cs.mustBeLessOrEq(c, _bound)
+	default:
+		b := backend.FromInterface(bound)
+		cs.mustBeLessOrEqConstant(c, b)
+	}
 }
 
 // SELECT if b is true, yields c1 else yields c2

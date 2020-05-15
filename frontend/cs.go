@@ -360,7 +360,7 @@ func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
 
 	// constrain the bi
 	for i := 255; i >= 0; i-- {
-		if ci[255] == 0 {
+		if ci[i] == 0 {
 			constraintRes := &implyExpression{b: pi[i+1].outputWire, a: ai[i].outputWire}
 			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
 		} else {
@@ -370,32 +370,38 @@ func (cs *CS) mustBeLessOrEqConstant(a *Constraint, constant big.Int) error {
 	return nil
 }
 
-// func (cs *CS) mustBeLessOrEq(c *Constraint, a *Constraint) error {
+func (cs *CS) mustBeLessOrEq(c *Constraint, a *Constraint) error {
 
-// 	// unpacking the constant bound c and the variable to test a
-// 	ci := cs.TO_BINARY(c, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
-// 	ai := cs.TO_BINARY(a, 256)
+	// unpacking the constant bound c and the variable to test a
+	ci := cs.TO_BINARY(c, 256) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+	ai := cs.TO_BINARY(a, 256)
 
-// 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
-// 	var pi [257]*Constraint
-// 	pi[256] = cs.constVar(1)
+	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
+	var pi [257]*Constraint
+	pi[256] = cs.ALLOCATE(1)
 
-// 	// Setting the product
-// 	for i := 255; i >= 0; i-- {
-// 		cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i])
-// 	}
+	// Setting the product
+	for i := 255; i >= 0; i-- {
+		pi[i] = cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i+1])
+	}
 
-// 	// constrain the bi
-// 	for i := 255; i >= 0; i-- {
-// 		if ci[255] == 0 {
-// 			constraintRes := &implyExpression{b: pi[i+1].outputWire, a: ai[i].outputWire}
-// 			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
-// 		} else {
-// 			cs.MUSTBE_BOOLEAN(ai[i])
-// 		}
-// 	}
-// 	return nil
-// }
+	// constrain the bi
+	zero := cs.ALLOCATE(0)
+	for i := 255; i >= 0; i-- {
+		notci := cs.SUB(1, ci[i])
+		t1 := cs.MUL(notci, ai[i])
+		t2 := cs.SUB(1, pi[i+1])
+		lin1 := LinearCombination{
+			Term{t1, bigOne()},
+		}
+		lin2 := LinearCombination{
+			Term{cs.SUB(t2, ai[i]), bigOne()},
+		}
+		res := cs.MUL(lin1, lin2)
+		cs.MUSTBE_EQ(res, zero)
+	}
+	return nil
+}
 
 func (cs *CS) String() string {
 	res := ""
