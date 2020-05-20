@@ -165,11 +165,9 @@ func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot *frontend.C
 
 	for i := 1; i < len(proofSet); i++ {
 		circuit.MUSTBE_BOOLEAN(helper[i-1])
-		sum1 := nodeSum(circuit, h, sum, proofSet[i])
-		sum2 := nodeSum(circuit, h, proofSet[i], sum)
-
-		// leftOrRight tells if which of the 2 computations above to chose
-		sum = circuit.SELECT(helper[i-1], sum1, sum2)
+		d1 := circuit.SELECT(helper[i-1], sum, proofSet[i])
+		d2 := circuit.SELECT(helper[i-1], proofSet[i], sum)
+		sum = nodeSum(circuit, h, d1, d2)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
