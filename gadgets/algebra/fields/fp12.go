@@ -1,3 +1,19 @@
+/*
+Copyright © 2020 ConsenSys
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package fields
 
 import "github.com/consensys/gnark/frontend"
@@ -18,11 +34,18 @@ type Extension struct {
 	frobv2w interface{} // frobv2w = (v**6)**(2*(p-1)/6)*(w*12)**(p-1/12)
 
 	// frobenius square applied to generators
-	frob2v   interface{} // v**p  = (v**6)**(p**2-1/6)*v, frobv=(v**6)**(p**2-1/6), belongs to Fp)
+	frob2v   interface{} // v**(p**2)  = (v**6)**(p**2-1/6)*v, frobv=(v**6)**(p**2-1/6), belongs to Fp)
 	frob2v2  interface{} // frobv2 = (v**6)**(2*(p**2-1)/6)
 	frob2w   interface{} // frobw = (w**12)**(p**2-1/12)
 	frob2vw  interface{} // frobvw = (v**6)**(p**2-1/6)*(w*12)**(p**2-1/12)
 	frob2v2w interface{} // frobv2w = (v**6)**(2*(p**2-1)/6)*(w*12)**(p**2-1/12)
+
+	// frobenius cube applied to generators
+	frob3v   interface{} // v**(p**3)  = (v**6)**(p**3-1/6)*v, frobv=(v**6)**(p**3-1/6), belongs to Fp)
+	frob3v2  interface{} // frobv2 = (v**6)**(2*(p**3-1)/6)
+	frob3w   interface{} // frobw = (w**12)**(p**3-1/12)
+	frob3vw  interface{} // frobvw = (v**6)**(p**3-1/6)*(w*12)**(p**3-1/12)
+	frob3v2w interface{} // frobv2w = (v**6)**(2*(p**3-1)/6)*(w*12)**(p**3-1/12)
 
 }
 
@@ -32,7 +55,16 @@ type Fp12Elmt struct {
 }
 
 // NewFp12Elmt creates a fp6elmt from fp elmts
-func NewFp12Elmt(circuit *frontend.CS, a, b *Fp6Elmt) Fp12Elmt {
+func NewFp12Elmt(circuit *frontend.CS, a, b, c, d, e, f, g, h, i, j, k, l interface{}) Fp12Elmt {
+
+	u := NewFp6Elmt(circuit, a, b, c, d, e, f)
+	v := NewFp6Elmt(circuit, g, h, i, j, k, l)
+	res := NewFp12ElmtFromFp6(circuit, &u, &v)
+	return res
+}
+
+// NewFp12ElmtFromFp6 creates a fp6elmt from fp elmts
+func NewFp12ElmtFromFp6(circuit *frontend.CS, a, b *Fp6Elmt) Fp12Elmt {
 
 	res := Fp12Elmt{
 		c0: *a,
@@ -178,5 +210,17 @@ func (e *Fp12Elmt) FrobeniusSquare(circuit *frontend.CS, e1 *Fp12Elmt, ext Exten
 	e.c1.b2.MulByFp(circuit, &e.c1.b2, ext.frob2v2w)
 
 	return e
+}
 
+// FrobeniusCube applies frob**2 to an fp12 elmt
+func (e *Fp12Elmt) FrobeniusCube(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
+
+	e.c0.b0.Conjugate(circuit, &e.c0.b0)
+	e.c0.b1.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frob3v)
+	e.c0.b2.Conjugate(circuit, &e.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frob3v2)
+	e.c1.b0.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b0, ext.frob3w)
+	e.c1.b1.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b1, ext.frob3vw)
+	e.c1.b2.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b2, ext.frob3v2w)
+
+	return e
 }

@@ -1,3 +1,19 @@
+/*
+Copyright © 2020 ConsenSys
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package fields
 
 import (
@@ -20,6 +36,13 @@ func NewFp2Elmt(circuit *frontend.CS, _x, _y interface{}) Fp2Elmt {
 		y: circuit.ALLOCATE(_y),
 	}
 	return res
+}
+
+// Neg negates a e2 elmt
+func (e *Fp2Elmt) Neg(circuit *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
+	e.x = circuit.SUB(0, e1.x)
+	e.y = circuit.SUB(0, e1.y)
+	return e
 }
 
 // Add e2 elmts
@@ -67,8 +90,8 @@ func (e *Fp2Elmt) MulByFp(circuit *frontend.CS, e1 *Fp2Elmt, c interface{}) *Fp2
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
 func (e *Fp2Elmt) MulByIm(circuit *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
-	x := e1.y
-	e.x = circuit.MUL(e.y, ext.uSquare)
+	x := e1.x
+	e.x = circuit.MUL(e1.y, ext.uSquare)
 	e.y = x
 	return e
 }

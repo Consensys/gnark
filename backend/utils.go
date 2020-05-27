@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"strconv"
 
+	fp_bls377 "github.com/consensys/gurvy/bls377/fp"
 	fr_bls377 "github.com/consensys/gurvy/bls377/fr"
 	fr_bls381 "github.com/consensys/gurvy/bls381/fr"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
@@ -53,6 +54,10 @@ func FromInterface(i1 interface{}) big.Int {
 	case fr_bls377.Element:
 		c1.ToBigIntRegular(&val)
 	case *fr_bls377.Element:
+		c1.ToBigIntRegular(&val)
+	case fp_bls377.Element:
+		c1.ToBigIntRegular(&val)
+	case *fp_bls377.Element:
 		c1.ToBigIntRegular(&val)
 	case []byte:
 		val.SetBytes(c1)
