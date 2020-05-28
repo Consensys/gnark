@@ -49,9 +49,9 @@ func (p *G1Jac) Neg(circuit *frontend.CS) *G1Jac {
 	return p
 }
 
-// Add adds 2 point in Jacobian coordinates
+// AddAssign adds 2 point in Jacobian coordinates
 // p=p, p1=a
-func (p *G1Jac) Add(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AddAssign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 
 	// get some Element from our pool
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V *frontend.Constraint
@@ -88,8 +88,8 @@ func (p *G1Jac) Add(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	return p
 }
 
-// Double doubles a point in jacobian coords
-func (p *G1Jac) Double(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
+// DoubleAssign doubles a point in jacobian coords
+func (p *G1Jac) DoubleAssign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	// get some Element from our pool
 	var XX, YY, YYYY, ZZ, S, M, T *frontend.Constraint
 

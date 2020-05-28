@@ -28,7 +28,7 @@ type Extension struct {
 
 	// frobenius applied to generators
 	frobv   interface{} // v**p  = (v**6)**(p-1/6)*v, frobv=(v**6)**(p-1/6), belongs to Fp)
-	frobv2  interface{} // frobv2 = (v**6)**(2*(p-1)/6)
+	frobv2  interface{} // frobv2 = (v**6)**(p-1/3)
 	frobw   interface{} // frobw = (w**12)**(p-1/12)
 	frobvw  interface{} // frobvw = (v**6)**(p-1/6)*(w*12)**(p-1/12)
 	frobv2w interface{} // frobv2w = (v**6)**(2*(p-1)/6)*(w*12)**(p-1/12)
@@ -119,8 +119,9 @@ func (e *Fp12Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp12Elmt, ext Extension) *F
 // Conjugate applies Frob**6 (conjugation over Fp6)
 func (e *Fp12Elmt) Conjugate(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
 	zero := NewFp6Zero(circuit)
-	e1.c1.Sub(circuit, &zero, &e1.c1)
-	return e1
+	e.c1.Sub(circuit, &zero, &e1.c1)
+	e.c0 = e1.c0
+	return e
 }
 
 // MulByVW multiplies an e12 elmt by an elmt of the form a*VW (Fp6=Fp2(V), Fp12 = Fp6(W))
@@ -178,7 +179,7 @@ func (e *Fp12Elmt) MulByV2W(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext
 	res.c0.b2.Mul(circuit, &e1.c1.b2, &tmp, ext)
 	res.c1.b0.Mul(circuit, &e1.c0.b1, &tmp, ext)
 	res.c1.b1.Mul(circuit, &e1.c0.b2, &tmp, ext)
-	res.c1.b2.Mul(circuit, &e1.c0.b0, &tmp, ext)
+	res.c1.b2.Mul(circuit, &e1.c0.b0, e2, ext)
 
 	e.c0 = res.c0
 	e.c1 = res.c1
@@ -190,8 +191,8 @@ func (e *Fp12Elmt) MulByV2W(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext
 func (e *Fp12Elmt) Frobenius(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
 	e.c0.b0.Conjugate(circuit, &e1.c0.b0)
-	e.c0.b1.Conjugate(circuit, &e1.c0.b1).MulByFp(circuit, &e.c0.b0, ext.frobv)
-	e.c0.b2.Conjugate(circuit, &e1.c0.b2).MulByFp(circuit, &e.c0.b0, ext.frobv2)
+	e.c0.b1.Conjugate(circuit, &e1.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frobv)
+	e.c0.b2.Conjugate(circuit, &e1.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frobv2)
 	e.c1.b0.Conjugate(circuit, &e1.c1.b0).MulByFp(circuit, &e.c1.b0, ext.frobw)
 	e.c1.b1.Conjugate(circuit, &e1.c1.b1).MulByFp(circuit, &e.c1.b1, ext.frobvw)
 	e.c1.b2.Conjugate(circuit, &e1.c1.b2).MulByFp(circuit, &e.c1.b2, ext.frobv2w)
@@ -203,11 +204,12 @@ func (e *Fp12Elmt) Frobenius(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) 
 // FrobeniusSquare applies frob**2 to an fp12 elmt
 func (e *Fp12Elmt) FrobeniusSquare(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
-	e.c0.b1.MulByFp(circuit, &e.c0.b0, ext.frob2v)
-	e.c0.b2.MulByFp(circuit, &e.c0.b0, ext.frob2v2)
-	e.c1.b0.MulByFp(circuit, &e.c1.b0, ext.frob2w)
-	e.c1.b1.MulByFp(circuit, &e.c1.b1, ext.frob2vw)
-	e.c1.b2.MulByFp(circuit, &e.c1.b2, ext.frob2v2w)
+	e.c0.b0 = e1.c0.b0
+	e.c0.b1.MulByFp(circuit, &e1.c0.b1, ext.frob2v)
+	e.c0.b2.MulByFp(circuit, &e1.c0.b2, ext.frob2v2)
+	e.c1.b0.MulByFp(circuit, &e1.c1.b0, ext.frob2w)
+	e.c1.b1.MulByFp(circuit, &e1.c1.b1, ext.frob2vw)
+	e.c1.b2.MulByFp(circuit, &e1.c1.b2, ext.frob2v2w)
 
 	return e
 }
@@ -215,12 +217,12 @@ func (e *Fp12Elmt) FrobeniusSquare(circuit *frontend.CS, e1 *Fp12Elmt, ext Exten
 // FrobeniusCube applies frob**2 to an fp12 elmt
 func (e *Fp12Elmt) FrobeniusCube(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
-	e.c0.b0.Conjugate(circuit, &e.c0.b0)
-	e.c0.b1.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frob3v)
-	e.c0.b2.Conjugate(circuit, &e.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frob3v2)
-	e.c1.b0.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b0, ext.frob3w)
-	e.c1.b1.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b1, ext.frob3vw)
-	e.c1.b2.Conjugate(circuit, &e.c0.b1).MulByFp(circuit, &e.c1.b2, ext.frob3v2w)
+	e.c0.b0.Conjugate(circuit, &e1.c0.b0)
+	e.c0.b1.Conjugate(circuit, &e1.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frob3v)
+	e.c0.b2.Conjugate(circuit, &e1.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frob3v2)
+	e.c1.b0.Conjugate(circuit, &e1.c1.b0).MulByFp(circuit, &e.c1.b0, ext.frob3w)
+	e.c1.b1.Conjugate(circuit, &e1.c1.b1).MulByFp(circuit, &e.c1.b1, ext.frob3vw)
+	e.c1.b2.Conjugate(circuit, &e1.c1.b2).MulByFp(circuit, &e.c1.b2, ext.frob3v2w)
 
 	return e
 }

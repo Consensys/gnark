@@ -25,6 +25,14 @@ type Fp2Elmt struct {
 	x, y *frontend.Constraint
 }
 
+// NewFp2Zero creates a new
+func NewFp2Zero(circuit *frontend.CS) Fp2Elmt {
+	return NewFp2Elmt(circuit,
+		circuit.ALLOCATE(0),
+		circuit.ALLOCATE(0),
+	)
+}
+
 // NewFp2Elmt creates a fp2elmt from x, y points
 func NewFp2Elmt(circuit *frontend.CS, _x, _y interface{}) Fp2Elmt {
 
