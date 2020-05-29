@@ -60,8 +60,8 @@ func TestAddFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Add(&circuit, &fp2a, &fp2b)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -104,8 +104,8 @@ func TestSubFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Sub(&circuit, &fp2a, &fp2b)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -150,8 +150,8 @@ func TestMulFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Mul(&circuit, &fp2a, &fp2b, ext)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -195,8 +195,8 @@ func TestMulByFpFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.MulByFp(&circuit, &fp2a, fpb)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -238,8 +238,8 @@ func TestMulByImFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.MulByIm(&circuit, &fp2a, ext)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -278,8 +278,8 @@ func TestConjugateFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Conjugate(&circuit, &fp2a)
 
-	fp2c.x.Tag("c0")
-	fp2c.y.Tag("c1")
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
 
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", a.A0)
@@ -300,6 +300,48 @@ func TestConjugateFp2(t *testing.T) {
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error ConjugateFp2")
+		}
+	}
+}
+
+func TestInverseFp2(t *testing.T) {
+
+	ext := Extension{uSquare: 5}
+
+	circuit := frontend.New()
+
+	// witness values
+	var a, c bls377.E2
+	a.SetRandom()
+	c.Inverse(&a)
+
+	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
+
+	fp2c := NewFp2Elmt(&circuit, nil, nil)
+	fp2c.Inverse(&circuit, &fp2a, ext)
+
+	fp2c.X.Tag("c0")
+	fp2c.Y.Tag("c1")
+
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "a0", a.A0)
+	inputs.Assign(backend.Secret, "a1", a.A1)
+
+	expectedValues := make(map[string]*fp.Element)
+	expectedValues["c0"] = &c.A0
+	expectedValues["c1"] = &c.A1
+
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error InverseFp2")
 		}
 	}
 }

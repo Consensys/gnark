@@ -46,12 +46,12 @@ func newOperandFp6(circuit *frontend.CS, s string) Fp6Elmt {
 }
 
 func tagFp6Elmt(e Fp6Elmt, s string) {
-	e.b0.x.Tag(s + "0")
-	e.b0.y.Tag(s + "1")
-	e.b1.x.Tag(s + "2")
-	e.b1.y.Tag(s + "3")
-	e.b2.x.Tag(s + "4")
-	e.b2.y.Tag(s + "5")
+	e.B0.X.Tag(s + "0")
+	e.B0.Y.Tag(s + "1")
+	e.B1.X.Tag(s + "2")
+	e.B1.Y.Tag(s + "3")
+	e.B2.X.Tag(s + "4")
+	e.B2.Y.Tag(s + "5")
 }
 
 func assignOperandFp6(inputs backend.Assignments, s string, w bls377.E6) {
@@ -75,7 +75,7 @@ func getExpectedValuesFp6(m map[string]*fp.Element, s string, w bls377.E6) {
 func getBLS377ExtensionFp6(circuit *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = &Fp2Elmt{x: circuit.ALLOCATE(0), y: circuit.ALLOCATE(1)}
+	res.vCube = &Fp2Elmt{X: circuit.ALLOCATE(0), Y: circuit.ALLOCATE(1)}
 	return res
 }
 
@@ -261,6 +261,45 @@ func TestMulByVFp6(t *testing.T) {
 	fp6a := newOperandFp6(&circuit, "a")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.MulByV(&circuit, &fp6a, ext)
+	tagFp6Elmt(fp6c, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignOperandFp6(inputs, "a", a)
+
+	// assign the exepcted values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesFp6(expectedValues, "c", c)
+
+	r1cs := backend_bw6.New(&circuit)
+
+	// inspect and compare the results
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error MulByVFp6")
+		}
+	}
+}
+
+func TestInverseFp6(t *testing.T) {
+
+	circuit := frontend.New()
+
+	ext := getBLS377ExtensionFp6(&circuit)
+
+	// witness values
+	var a, c bls377.E6
+	a.SetRandom()
+	c.Inverse(&a)
+
+	// circuit values
+	fp6a := newOperandFp6(&circuit, "a")
+	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
+	fp6c.Inverse(&circuit, &fp6a, ext)
 	tagFp6Elmt(fp6c, "c")
 
 	// assign the inputs

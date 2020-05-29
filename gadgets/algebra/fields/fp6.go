@@ -20,16 +20,16 @@ import "github.com/consensys/gnark/frontend"
 
 // Fp6Elmt element in a quadratic extension
 type Fp6Elmt struct {
-	b0, b1, b2 Fp2Elmt
+	B0, B1, B2 Fp2Elmt
 }
 
 // NewFp6Elmt creates a fp6elmt from fp elmts
 func NewFp6Elmt(circuit *frontend.CS, _b00, _b01, _b10, _b11, _b20, _b21 interface{}) Fp6Elmt {
 
 	res := Fp6Elmt{
-		b0: NewFp2Elmt(circuit, _b00, _b01),
-		b1: NewFp2Elmt(circuit, _b10, _b11),
-		b2: NewFp2Elmt(circuit, _b20, _b21),
+		B0: NewFp2Elmt(circuit, _b00, _b01),
+		B1: NewFp2Elmt(circuit, _b10, _b11),
+		B2: NewFp2Elmt(circuit, _b20, _b21),
 	}
 	return res
 }
@@ -37,9 +37,9 @@ func NewFp6Elmt(circuit *frontend.CS, _b00, _b01, _b10, _b11, _b20, _b21 interfa
 // Add creates a fp6elmt from fp elmts
 func (e *Fp6Elmt) Add(circuit *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
 
-	e.b0.Add(circuit, &e1.b0, &e2.b0)
-	e.b1.Add(circuit, &e1.b1, &e2.b1)
-	e.b2.Add(circuit, &e1.b2, &e2.b2)
+	e.B0.Add(circuit, &e1.B0, &e2.B0)
+	e.B1.Add(circuit, &e1.B1, &e2.B1)
+	e.B2.Add(circuit, &e1.B2, &e2.B2)
 
 	return e
 }
@@ -59,10 +59,18 @@ func NewFp6Zero(circuit *frontend.CS) Fp6Elmt {
 // Sub creates a fp6elmt from fp elmts
 func (e *Fp6Elmt) Sub(circuit *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
 
-	e.b0.Sub(circuit, &e1.b0, &e2.b0)
-	e.b1.Sub(circuit, &e1.b1, &e2.b1)
-	e.b2.Sub(circuit, &e1.b2, &e2.b2)
+	e.B0.Sub(circuit, &e1.B0, &e2.B0)
+	e.B1.Sub(circuit, &e1.B1, &e2.B1)
+	e.B2.Sub(circuit, &e1.B2, &e2.B2)
 
+	return e
+}
+
+// Neg negates an Fp6 elmt
+func (e *Fp6Elmt) Neg(circuit *frontend.CS, e1 *Fp6Elmt) *Fp6Elmt {
+	e.B0.Neg(circuit, &e1.B0)
+	e.B1.Neg(circuit, &e1.B1)
+	e.B2.Neg(circuit, &e1.B2)
 	return e
 }
 
@@ -73,30 +81,30 @@ func (e *Fp6Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp6Elmt, ext Extension) *Fp6
 	res := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
 	tmp := NewFp2Elmt(circuit, nil, nil)
 
-	res.b0.Mul(circuit, &e1.b0, &e2.b0, ext)
-	tmp.Mul(circuit, &e1.b1, &e2.b2, ext).
+	res.B0.Mul(circuit, &e1.B0, &e2.B0, ext)
+	tmp.Mul(circuit, &e1.B1, &e2.B2, ext).
 		Mul(circuit, &tmp, ext.vCube, ext)
-	res.b0.Add(circuit, &res.b0, &tmp)
-	tmp.Mul(circuit, &e1.b2, &e2.b1, ext).
+	res.B0.Add(circuit, &res.B0, &tmp)
+	tmp.Mul(circuit, &e1.B2, &e2.B1, ext).
 		Mul(circuit, &tmp, ext.vCube, ext)
-	res.b0.Add(circuit, &res.b0, &tmp)
+	res.B0.Add(circuit, &res.B0, &tmp)
 
-	res.b1.Mul(circuit, &e1.b0, &e2.b1, ext)
-	tmp.Mul(circuit, &e1.b1, &e2.b0, ext)
-	res.b1.Add(circuit, &res.b1, &tmp)
-	tmp.Mul(circuit, &e1.b2, &e2.b2, ext).
+	res.B1.Mul(circuit, &e1.B0, &e2.B1, ext)
+	tmp.Mul(circuit, &e1.B1, &e2.B0, ext)
+	res.B1.Add(circuit, &res.B1, &tmp)
+	tmp.Mul(circuit, &e1.B2, &e2.B2, ext).
 		Mul(circuit, &tmp, ext.vCube, ext)
-	res.b1.Add(circuit, &res.b1, &tmp)
+	res.B1.Add(circuit, &res.B1, &tmp)
 
-	res.b2.Mul(circuit, &e1.b2, &e2.b0, ext)
-	tmp.Mul(circuit, &e1.b0, &e2.b2, ext)
-	res.b2.Add(circuit, &res.b2, &tmp)
-	tmp.Mul(circuit, &e1.b1, &e2.b1, ext)
-	res.b2.Add(circuit, &res.b2, &tmp)
+	res.B2.Mul(circuit, &e1.B2, &e2.B0, ext)
+	tmp.Mul(circuit, &e1.B0, &e2.B2, ext)
+	res.B2.Add(circuit, &res.B2, &tmp)
+	tmp.Mul(circuit, &e1.B1, &e2.B1, ext)
+	res.B2.Add(circuit, &res.B2, &tmp)
 
-	e.b0 = res.b0
-	e.b1 = res.b1
-	e.b2 = res.b2
+	e.B0 = res.B0
+	e.B1 = res.B1
+	e.B2 = res.B2
 
 	return e
 }
@@ -107,13 +115,13 @@ func (e *Fp6Elmt) MulByFp2(circuit *frontend.CS, e1 *Fp6Elmt, e2 *Fp2Elmt, ext E
 
 	res := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
 
-	res.b0.Mul(circuit, &e1.b0, e2, ext)
-	res.b1.Mul(circuit, &e1.b1, e2, ext)
-	res.b2.Mul(circuit, &e1.b2, e2, ext)
+	res.B0.Mul(circuit, &e1.B0, e2, ext)
+	res.B1.Mul(circuit, &e1.B1, e2, ext)
+	res.B2.Mul(circuit, &e1.B2, e2, ext)
 
-	e.b0 = res.b0
-	e.b1 = res.b1
-	e.b2 = res.b2
+	e.B0 = res.B0
+	e.B1 = res.B1
+	e.B2 = res.B2
 
 	return e
 }
@@ -121,9 +129,49 @@ func (e *Fp6Elmt) MulByFp2(circuit *frontend.CS, e1 *Fp6Elmt, e2 *Fp2Elmt, ext E
 // MulByV multiplies e by the imaginary elmt of Fp6 (noted a+bV+cV where V**3 in F^2)
 func (e *Fp6Elmt) MulByV(circuit *frontend.CS, e1 *Fp6Elmt, ext Extension) *Fp6Elmt {
 	res := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	res.b0.Mul(circuit, &e1.b2, ext.vCube, ext)
-	e.b1 = e1.b0
-	e.b2 = e1.b1
-	e.b0 = res.b0
+	res.B0.Mul(circuit, &e1.B2, ext.vCube, ext)
+	e.B1 = e1.B0
+	e.B2 = e1.B1
+	e.B0 = res.B0
 	return e
+}
+
+// Inverse inverses an Fp2 elmt
+func (e *Fp6Elmt) Inverse(circuit *frontend.CS, e1 *Fp6Elmt, ext Extension) *Fp6Elmt {
+
+	var t [7]Fp2Elmt
+	var c [3]Fp2Elmt
+	var buf Fp2Elmt
+
+	t[0].Mul(circuit, &e1.B0, &e1.B0, ext)
+	t[1].Mul(circuit, &e1.B1, &e1.B1, ext)
+	t[2].Mul(circuit, &e1.B2, &e1.B2, ext)
+	t[3].Mul(circuit, &e1.B0, &e1.B1, ext)
+	t[4].Mul(circuit, &e1.B0, &e1.B2, ext)
+	t[5].Mul(circuit, &e1.B1, &e1.B2, ext)
+
+	c[0].MulByIm(circuit, &t[5], ext)
+
+	c[0].Neg(circuit, &c[0]).Add(circuit, &c[0], &t[0])
+
+	c[1].MulByIm(circuit, &t[2], ext)
+
+	c[1].Sub(circuit, &c[1], &t[3])
+	c[2].Sub(circuit, &t[1], &t[4])
+	t[6].Mul(circuit, &e1.B2, &c[1], ext)
+	buf.Mul(circuit, &e1.B1, &c[2], ext)
+	t[6].Add(circuit, &t[6], &buf)
+
+	t[6].MulByIm(circuit, &t[6], ext)
+
+	buf.Mul(circuit, &e1.B0, &c[0], ext)
+	t[6].Add(circuit, &t[6], &buf)
+
+	t[6].Inverse(circuit, &t[6], ext)
+	e.B0.Mul(circuit, &c[0], &t[6], ext)
+	e.B1.Mul(circuit, &c[1], &t[6], ext)
+	e.B2.Mul(circuit, &c[2], &t[6], ext)
+
+	return e
+
 }

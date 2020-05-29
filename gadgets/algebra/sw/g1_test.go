@@ -31,27 +31,25 @@ import (
 //--------------------------------------------------------------------
 // utils
 
-func randomPoints() (bls377.G1Jac, bls377.G1Jac) {
+func randomPointG1() bls377.G1Jac {
 
 	curve := bls377.BLS377()
 
-	var p1, p2 bls377.G1Jac
+	var p1 bls377.G1Jac
 
 	p1.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
 	p1.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
 	p1.Z.SetString("1")
 
-	var r1, r2 fr.Element
+	var r1 fr.Element
 	r1.SetRandom()
-	r2.SetRandom()
 
 	p1.ScalarMul(curve, &p1, r1)
-	p2.ScalarMul(curve, &p1, r2)
 
-	return p1, p2
+	return p1
 }
 
-func newPointCircuit(circuit *frontend.CS, s string) *G1Jac {
+func newPointCircuitG1(circuit *frontend.CS, s string) *G1Jac {
 	return NewPointG1(circuit,
 		circuit.SECRET_INPUT(s+"0"),
 		circuit.SECRET_INPUT(s+"1"),
@@ -59,10 +57,10 @@ func newPointCircuit(circuit *frontend.CS, s string) *G1Jac {
 	)
 }
 
-func tagPoint(g *G1Jac, s string) {
-	g.x.Tag(s + "0")
-	g.y.Tag(s + "1")
-	g.z.Tag(s + "2")
+func tagPointG1(g *G1Jac, s string) {
+	g.X.Tag(s + "0")
+	g.Y.Tag(s + "1")
+	g.Z.Tag(s + "2")
 }
 
 func assignPointG1(inputs backend.Assignments, g bls377.G1Jac, s string) {
@@ -83,20 +81,19 @@ func getExpectedValuesG1(m map[string]*fp.Element, s string, g bls377.G1Jac) {
 
 func TestAddAssignG1(t *testing.T) {
 
-	t.Skip("wip")
-
 	curve := bls377.BLS377()
 
 	// sample 2 random points
-	g1, g2 := randomPoints()
+	g1 := randomPointG1()
+	g2 := randomPointG1()
 
 	// create the circuit
 	circuit := frontend.New()
 
-	gc1 := newPointCircuit(&circuit, "a")
-	gc2 := newPointCircuit(&circuit, "b")
+	gc1 := newPointCircuitG1(&circuit, "a")
+	gc2 := newPointCircuitG1(&circuit, "b")
 	gc1.AddAssign(&circuit, gc2)
-	tagPoint(gc1, "c")
+	tagPointG1(gc1, "c")
 
 	// assign the inputs
 	inputs := backend.NewAssignment()
@@ -119,6 +116,78 @@ func TestAddAssignG1(t *testing.T) {
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error add g1")
+		}
+	}
+}
+
+func TestDoubleG1(t *testing.T) {
+
+	// sample 2 random points
+	g1 := randomPointG1()
+
+	// create the circuit
+	circuit := frontend.New()
+
+	gc1 := newPointCircuitG1(&circuit, "a")
+	gc1.Double(&circuit, gc1)
+	tagPointG1(gc1, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignPointG1(inputs, g1, "a")
+
+	// compute the result
+	g1.Double()
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesG1(expectedValues, "c", g1)
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error double g1")
+		}
+	}
+}
+
+func TestNegG1(t *testing.T) {
+	t.Skip("wip")
+	// sample 2 random points
+	g1 := randomPointG1()
+
+	// create the circuit
+	circuit := frontend.New()
+
+	gc1 := newPointCircuitG1(&circuit, "a")
+	gc1.Neg(&circuit, gc1)
+	tagPointG1(gc1, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignPointG1(inputs, g1, "a")
+
+	// compute the result
+	g1.Neg(&g1)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesG1(expectedValues, "c", g1)
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error double g1")
 		}
 	}
 

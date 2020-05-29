@@ -51,7 +51,39 @@ type Extension struct {
 
 // Fp12Elmt element in a quadratic extension
 type Fp12Elmt struct {
-	c0, c1 Fp6Elmt
+	C0, C1 Fp6Elmt
+}
+
+// GetBLS377ExtensionFp12 get extension field parameters for bls377
+func GetBLS377ExtensionFp12(circuit *frontend.CS) Extension {
+	res := Extension{}
+	res.uSquare = 5
+	res.vCube = &Fp2Elmt{X: circuit.ALLOCATE(0), Y: circuit.ALLOCATE(1)}
+	res.wSquare = &Fp6Elmt{
+		B0: NewFp2Zero(circuit),
+		B1: NewFp2Elmt(circuit, circuit.ALLOCATE(1), circuit.ALLOCATE(0)),
+		B2: NewFp2Zero(circuit),
+	}
+
+	res.frobv = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
+	res.frobv2 = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"
+	res.frobw = "92949345220277864758624960506473182677953048909283248980960104381795901929519566951595905490535835115111760994353"
+	res.frobvw = "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"
+	res.frobv2w = "123516416119946754630746545296132064952198520638002533875843642777304321125866014634106496325844844051843001220146"
+
+	res.frob2v = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"
+	res.frob2v2 = "258664426012969093929703085429980814127835149614277183275038967946009968870203535512256352201271898244626862047231"
+	res.frob2w = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
+	res.frob2vw = "258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458176"
+	res.frob2v2w = "258664426012969093929703085429980814127835149614277183275038967946009968870203535512256352201271898244626862047232"
+
+	res.frob3v = "258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458176"
+	res.frob3v2 = "1"
+	res.frob3w = "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"
+	res.frob3vw = "42198664672744474621281227892288285906241943207628877683080515507620245292955241189266486323192680957485559243678"
+	res.frob3v2w = "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"
+
+	return res
 }
 
 // NewFp12Elmt creates a fp6elmt from fp elmts
@@ -67,8 +99,8 @@ func NewFp12Elmt(circuit *frontend.CS, a, b, c, d, e, f, g, h, i, j, k, l interf
 func NewFp12ElmtFromFp6(circuit *frontend.CS, a, b *Fp6Elmt) Fp12Elmt {
 
 	res := Fp12Elmt{
-		c0: *a,
-		c1: *b,
+		C0: *a,
+		C1: *b,
 	}
 	return res
 }
@@ -80,23 +112,30 @@ func NewFp12ElmtNil(circuit *frontend.CS) Fp12Elmt {
 	b := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
 
 	res := Fp12Elmt{
-		c0: a,
-		c1: b,
+		C0: a,
+		C1: b,
 	}
 	return res
 }
 
 // Add adds 2 elmts in Fp12
 func (e *Fp12Elmt) Add(circuit *frontend.CS, e1, e2 *Fp12Elmt) *Fp12Elmt {
-	e.c0.Add(circuit, &e1.c0, &e2.c0)
-	e.c1.Add(circuit, &e1.c1, &e2.c1)
+	e.C0.Add(circuit, &e1.C0, &e2.C0)
+	e.C1.Add(circuit, &e1.C1, &e2.C1)
 	return e
 }
 
 // Sub substracts 2 elmts in Fp12
 func (e *Fp12Elmt) Sub(circuit *frontend.CS, e1, e2 *Fp12Elmt) *Fp12Elmt {
-	e.c0.Sub(circuit, &e1.c0, &e2.c0)
-	e.c1.Sub(circuit, &e1.c1, &e2.c1)
+	e.C0.Sub(circuit, &e1.C0, &e2.C0)
+	e.C1.Sub(circuit, &e1.C1, &e2.C1)
+	return e
+}
+
+// Neg negates an Fp6elmt
+func (e *Fp12Elmt) Neg(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
+	e.C0.Neg(circuit, &e1.C0)
+	e.C1.Neg(circuit, &e1.C1)
 	return e
 }
 
@@ -106,21 +145,21 @@ func (e *Fp12Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp12Elmt, ext Extension) *F
 	b := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
 	c := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
 	d := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	a.Mul(circuit, &e1.c0, &e2.c0, ext)
-	b.Mul(circuit, &e1.c1, &e2.c1, ext).
+	a.Mul(circuit, &e1.C0, &e2.C0, ext)
+	b.Mul(circuit, &e1.C1, &e2.C1, ext).
 		Mul(circuit, &b, ext.wSquare, ext)
-	c.Mul(circuit, &e1.c0, &e2.c1, ext)
-	d.Mul(circuit, &e1.c1, &e2.c0, ext)
-	e.c0.Add(circuit, &a, &b)
-	e.c1.Add(circuit, &c, &d)
+	c.Mul(circuit, &e1.C0, &e2.C1, ext)
+	d.Mul(circuit, &e1.C1, &e2.C0, ext)
+	e.C0.Add(circuit, &a, &b)
+	e.C1.Add(circuit, &c, &d)
 	return e
 }
 
 // Conjugate applies Frob**6 (conjugation over Fp6)
 func (e *Fp12Elmt) Conjugate(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
 	zero := NewFp6Zero(circuit)
-	e.c1.Sub(circuit, &zero, &e1.c1)
-	e.c0 = e1.c0
+	e.C1.Sub(circuit, &zero, &e1.C1)
+	e.C0 = e1.C0
 	return e
 }
 
@@ -132,15 +171,15 @@ func (e *Fp12Elmt) MulByVW(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext 
 
 	res := NewFp12ElmtNil(circuit)
 
-	res.c0.b0.Mul(circuit, &e1.c1.b1, &tmp, ext)
-	res.c0.b1.Mul(circuit, &e1.c1.b2, &tmp, ext)
-	res.c0.b2.Mul(circuit, &e1.c1.b0, e2, ext)
-	res.c1.b0.Mul(circuit, &e1.c0.b2, &tmp, ext)
-	res.c1.b1.Mul(circuit, &e1.c0.b0, e2, ext)
-	res.c1.b2.Mul(circuit, &e1.c0.b1, e2, ext)
+	res.C0.B0.Mul(circuit, &e1.C1.B1, &tmp, ext)
+	res.C0.B1.Mul(circuit, &e1.C1.B2, &tmp, ext)
+	res.C0.B2.Mul(circuit, &e1.C1.B0, e2, ext)
+	res.C1.B0.Mul(circuit, &e1.C0.B2, &tmp, ext)
+	res.C1.B1.Mul(circuit, &e1.C0.B0, e2, ext)
+	res.C1.B2.Mul(circuit, &e1.C0.B1, e2, ext)
 
-	e.c0 = res.c0
-	e.c1 = res.c1
+	e.C0 = res.C0
+	e.C1 = res.C1
 
 	return e
 }
@@ -153,15 +192,15 @@ func (e *Fp12Elmt) MulByV(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext E
 
 	res := NewFp12ElmtNil(circuit)
 
-	res.c0.b0.Mul(circuit, &e1.c0.b2, &tmp, ext)
-	res.c0.b1.Mul(circuit, &e1.c0.b0, e2, ext)
-	res.c0.b2.Mul(circuit, &e1.c0.b1, e2, ext)
-	res.c1.b0.Mul(circuit, &e1.c1.b2, &tmp, ext)
-	res.c1.b1.Mul(circuit, &e1.c1.b0, e2, ext)
-	res.c1.b2.Mul(circuit, &e1.c1.b1, e2, ext)
+	res.C0.B0.Mul(circuit, &e1.C0.B2, &tmp, ext)
+	res.C0.B1.Mul(circuit, &e1.C0.B0, e2, ext)
+	res.C0.B2.Mul(circuit, &e1.C0.B1, e2, ext)
+	res.C1.B0.Mul(circuit, &e1.C1.B2, &tmp, ext)
+	res.C1.B1.Mul(circuit, &e1.C1.B0, e2, ext)
+	res.C1.B2.Mul(circuit, &e1.C1.B1, e2, ext)
 
-	e.c0 = res.c0
-	e.c1 = res.c1
+	e.C0 = res.C0
+	e.C1 = res.C1
 
 	return e
 }
@@ -174,15 +213,15 @@ func (e *Fp12Elmt) MulByV2W(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext
 
 	res := NewFp12ElmtNil(circuit)
 
-	res.c0.b0.Mul(circuit, &e1.c1.b0, &tmp, ext)
-	res.c0.b1.Mul(circuit, &e1.c1.b1, &tmp, ext)
-	res.c0.b2.Mul(circuit, &e1.c1.b2, &tmp, ext)
-	res.c1.b0.Mul(circuit, &e1.c0.b1, &tmp, ext)
-	res.c1.b1.Mul(circuit, &e1.c0.b2, &tmp, ext)
-	res.c1.b2.Mul(circuit, &e1.c0.b0, e2, ext)
+	res.C0.B0.Mul(circuit, &e1.C1.B0, &tmp, ext)
+	res.C0.B1.Mul(circuit, &e1.C1.B1, &tmp, ext)
+	res.C0.B2.Mul(circuit, &e1.C1.B2, &tmp, ext)
+	res.C1.B0.Mul(circuit, &e1.C0.B1, &tmp, ext)
+	res.C1.B1.Mul(circuit, &e1.C0.B2, &tmp, ext)
+	res.C1.B2.Mul(circuit, &e1.C0.B0, e2, ext)
 
-	e.c0 = res.c0
-	e.c1 = res.c1
+	e.C0 = res.C0
+	e.C1 = res.C1
 
 	return e
 }
@@ -190,12 +229,12 @@ func (e *Fp12Elmt) MulByV2W(circuit *frontend.CS, e1 *Fp12Elmt, e2 *Fp2Elmt, ext
 // Frobenius applies frob to an fp12 elmt
 func (e *Fp12Elmt) Frobenius(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
-	e.c0.b0.Conjugate(circuit, &e1.c0.b0)
-	e.c0.b1.Conjugate(circuit, &e1.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frobv)
-	e.c0.b2.Conjugate(circuit, &e1.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frobv2)
-	e.c1.b0.Conjugate(circuit, &e1.c1.b0).MulByFp(circuit, &e.c1.b0, ext.frobw)
-	e.c1.b1.Conjugate(circuit, &e1.c1.b1).MulByFp(circuit, &e.c1.b1, ext.frobvw)
-	e.c1.b2.Conjugate(circuit, &e1.c1.b2).MulByFp(circuit, &e.c1.b2, ext.frobv2w)
+	e.C0.B0.Conjugate(circuit, &e1.C0.B0)
+	e.C0.B1.Conjugate(circuit, &e1.C0.B1).MulByFp(circuit, &e.C0.B1, ext.frobv)
+	e.C0.B2.Conjugate(circuit, &e1.C0.B2).MulByFp(circuit, &e.C0.B2, ext.frobv2)
+	e.C1.B0.Conjugate(circuit, &e1.C1.B0).MulByFp(circuit, &e.C1.B0, ext.frobw)
+	e.C1.B1.Conjugate(circuit, &e1.C1.B1).MulByFp(circuit, &e.C1.B1, ext.frobvw)
+	e.C1.B2.Conjugate(circuit, &e1.C1.B2).MulByFp(circuit, &e.C1.B2, ext.frobv2w)
 
 	return e
 
@@ -204,12 +243,12 @@ func (e *Fp12Elmt) Frobenius(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) 
 // FrobeniusSquare applies frob**2 to an fp12 elmt
 func (e *Fp12Elmt) FrobeniusSquare(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
-	e.c0.b0 = e1.c0.b0
-	e.c0.b1.MulByFp(circuit, &e1.c0.b1, ext.frob2v)
-	e.c0.b2.MulByFp(circuit, &e1.c0.b2, ext.frob2v2)
-	e.c1.b0.MulByFp(circuit, &e1.c1.b0, ext.frob2w)
-	e.c1.b1.MulByFp(circuit, &e1.c1.b1, ext.frob2vw)
-	e.c1.b2.MulByFp(circuit, &e1.c1.b2, ext.frob2v2w)
+	e.C0.B0 = e1.C0.B0
+	e.C0.B1.MulByFp(circuit, &e1.C0.B1, ext.frob2v)
+	e.C0.B2.MulByFp(circuit, &e1.C0.B2, ext.frob2v2)
+	e.C1.B0.MulByFp(circuit, &e1.C1.B0, ext.frob2w)
+	e.C1.B1.MulByFp(circuit, &e1.C1.B1, ext.frob2vw)
+	e.C1.B2.MulByFp(circuit, &e1.C1.B2, ext.frob2v2w)
 
 	return e
 }
@@ -217,12 +256,31 @@ func (e *Fp12Elmt) FrobeniusSquare(circuit *frontend.CS, e1 *Fp12Elmt, ext Exten
 // FrobeniusCube applies frob**2 to an fp12 elmt
 func (e *Fp12Elmt) FrobeniusCube(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
 
-	e.c0.b0.Conjugate(circuit, &e1.c0.b0)
-	e.c0.b1.Conjugate(circuit, &e1.c0.b1).MulByFp(circuit, &e.c0.b1, ext.frob3v)
-	e.c0.b2.Conjugate(circuit, &e1.c0.b2).MulByFp(circuit, &e.c0.b2, ext.frob3v2)
-	e.c1.b0.Conjugate(circuit, &e1.c1.b0).MulByFp(circuit, &e.c1.b0, ext.frob3w)
-	e.c1.b1.Conjugate(circuit, &e1.c1.b1).MulByFp(circuit, &e.c1.b1, ext.frob3vw)
-	e.c1.b2.Conjugate(circuit, &e1.c1.b2).MulByFp(circuit, &e.c1.b2, ext.frob3v2w)
+	e.C0.B0.Conjugate(circuit, &e1.C0.B0)
+	e.C0.B1.Conjugate(circuit, &e1.C0.B1).MulByFp(circuit, &e.C0.B1, ext.frob3v)
+	e.C0.B2.Conjugate(circuit, &e1.C0.B2).MulByFp(circuit, &e.C0.B2, ext.frob3v2)
+	e.C1.B0.Conjugate(circuit, &e1.C1.B0).MulByFp(circuit, &e.C1.B0, ext.frob3w)
+	e.C1.B1.Conjugate(circuit, &e1.C1.B1).MulByFp(circuit, &e.C1.B1, ext.frob3vw)
+	e.C1.B2.Conjugate(circuit, &e1.C1.B2).MulByFp(circuit, &e.C1.B2, ext.frob3v2w)
+
+	return e
+}
+
+// Inverse inverse an elmt in Fp12
+func (e *Fp12Elmt) Inverse(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *Fp12Elmt {
+
+	var t [2]Fp6Elmt
+	var buf Fp6Elmt
+
+	t[0].Mul(circuit, &e1.C0, &e1.C0, ext)
+	t[1].Mul(circuit, &e1.C1, &e1.C1, ext)
+
+	buf.MulByV(circuit, &t[1], ext)
+	t[0].Sub(circuit, &t[0], &buf)
+
+	t[1].Inverse(circuit, &t[0], ext)
+	e.C0.Mul(circuit, &e1.C0, &t[1], ext)
+	e.C1.Mul(circuit, &e1.C1, &t[1], ext).Neg(circuit, &e.C1)
 
 	return e
 }

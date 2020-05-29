@@ -22,7 +22,7 @@ import (
 
 // Fp2Elmt element in a quadratic extension
 type Fp2Elmt struct {
-	x, y *frontend.Constraint
+	X, Y *frontend.Constraint
 }
 
 // NewFp2Zero creates a new
@@ -40,73 +40,94 @@ func NewFp2Elmt(circuit *frontend.CS, _x, _y interface{}) Fp2Elmt {
 		return Fp2Elmt{nil, nil}
 	}
 	res := Fp2Elmt{
-		x: circuit.ALLOCATE(_x),
-		y: circuit.ALLOCATE(_y),
+		X: circuit.ALLOCATE(_x),
+		Y: circuit.ALLOCATE(_y),
 	}
 	return res
 }
 
 // Neg negates a e2 elmt
 func (e *Fp2Elmt) Neg(circuit *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
-	e.x = circuit.SUB(0, e1.x)
-	e.y = circuit.SUB(0, e1.y)
+	e.X = circuit.SUB(0, e1.X)
+	e.Y = circuit.SUB(0, e1.Y)
 	return e
 }
 
 // Add e2 elmts
 func (e *Fp2Elmt) Add(circuit *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
-	x := circuit.ADD(e1.x, e2.x)
-	y := circuit.ADD(e1.y, e2.y)
-	e.x = x
-	e.y = y
+	x := circuit.ADD(e1.X, e2.X)
+	y := circuit.ADD(e1.Y, e2.Y)
+	e.X = x
+	e.Y = y
 	return e
 }
 
 // Sub e2 elmts
 func (e *Fp2Elmt) Sub(circuit *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
-	x := circuit.SUB(e1.x, e2.x)
-	y := circuit.SUB(e1.y, e2.y)
-	e.x = x
-	e.y = y
+	x := circuit.SUB(e1.X, e2.X)
+	y := circuit.SUB(e1.Y, e2.Y)
+	e.X = x
+	e.Y = y
 	return e
 }
 
 // Mul e2 elmts
 func (e *Fp2Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2Elmt {
-	a := circuit.MUL(e1.x, e2.x)
-	b := circuit.MUL(e1.y, e2.y)
+	a := circuit.MUL(e1.X, e2.X)
+	b := circuit.MUL(e1.Y, e2.Y)
 	b = circuit.MUL(b, ext.uSquare)
 	x := circuit.ADD(a, b)
 
-	c := circuit.MUL(e1.x, e2.y)
-	d := circuit.MUL(e1.y, e2.x)
+	c := circuit.MUL(e1.X, e2.Y)
+	d := circuit.MUL(e1.Y, e2.X)
 	y := circuit.ADD(c, d)
 
-	e.x = x
-	e.y = y
+	e.X = x
+	e.Y = y
 
 	return e
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
 func (e *Fp2Elmt) MulByFp(circuit *frontend.CS, e1 *Fp2Elmt, c interface{}) *Fp2Elmt {
-	e.x = circuit.MUL(e1.x, c)
-	e.y = circuit.MUL(e1.y, c)
+	e.X = circuit.MUL(e1.X, c)
+	e.Y = circuit.MUL(e1.Y, c)
 	return e
 }
 
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
 func (e *Fp2Elmt) MulByIm(circuit *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
-	x := e1.x
-	e.x = circuit.MUL(e1.y, ext.uSquare)
-	e.y = x
+	x := e1.X
+	e.X = circuit.MUL(e1.Y, ext.uSquare)
+	e.Y = x
 	return e
 }
 
 // Conjugate conjugation of an e2 elmt
 func (e *Fp2Elmt) Conjugate(circuit *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
-	e.x = e1.x
-	e.y = circuit.SUB(0, e1.y)
+	e.X = e1.X
+	e.Y = circuit.SUB(0, e1.Y)
+	return e
+}
+
+// Inverse inverses an fp2elmt
+func (e *Fp2Elmt) Inverse(circuit *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
+
+	var a0, a1, t0, t1, t1beta *frontend.Constraint
+
+	a0 = e1.X
+	a1 = e1.Y
+
+	t0 = circuit.MUL(e1.X, e1.X)
+	t1 = circuit.MUL(e1.Y, e1.Y)
+
+	t1beta = circuit.MUL(t1, ext.uSquare)
+	t0 = circuit.SUB(t0, t1beta)
+	t1 = circuit.INV(t0)
+	e.X = circuit.MUL(a0, t1)
+	e.Y = circuit.SUB(0, a1)
+	e.Y = circuit.MUL(e.Y, t1)
+
 	return e
 }
