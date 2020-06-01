@@ -1,0 +1,101 @@
+/*
+Copyright © 2020 ConsenSys
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package sw
+
+import (
+	"testing"
+
+	"github.com/consensys/gnark/backend"
+	backend_bw6 "github.com/consensys/gnark/backend/bw6"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gurvy/bls377/fp"
+)
+
+func TestLineEvalBLS377(t *testing.T) {
+
+	// create the circuit
+	circuit := frontend.New()
+
+	ext := fields.GetBLS377ExtensionFp12(&circuit)
+
+	var Q, R G2Jac
+	var P G1Jac
+
+	Q.X.X = circuit.SECRET_INPUT("qxx")
+	Q.X.Y = circuit.ALLOCATE("153924906120314059329163510034379429156688480181182668999642334674073859906019623717844462092443710331558842221198")
+	Q.Y.X = circuit.ALLOCATE("217426664443013466493849511677243421913435679616098405782168799962712362374085608530270502677771125796970144049342")
+	Q.Y.Y = circuit.ALLOCATE("220113305559851867470055261956775835250492241909876276448085325823827669499391027597256026508256704101389743638320")
+	Q.Z.X = circuit.ALLOCATE("1")
+	Q.Z.Y = circuit.ALLOCATE("0")
+
+	R.X.X = circuit.SECRET_INPUT("rxx")
+	R.X.Y = circuit.ALLOCATE("208837221672103828632878568310047865523715993428626260492233587961023171407529159232705047544612759994485307437530")
+	R.Y.X = circuit.ALLOCATE("219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
+	R.Y.Y = circuit.ALLOCATE("62857965187173987050461294586432573826521562230975685098398439555961148392353952895313161290735015726193379258321")
+	R.Z.X = circuit.ALLOCATE("1")
+	R.Z.Y = circuit.ALLOCATE("0")
+
+	P.X = circuit.SECRET_INPUT("px")
+	P.Y = circuit.ALLOCATE("62857965187173987050461294586432573826521562230975685098398439555961148392353952895313161290735015726193379258321")
+	P.Z = circuit.ALLOCATE("1")
+
+	var lres LineEvalRes
+
+	LineEvalBLS377(&circuit, Q, R, P, &lres, ext)
+
+	lres.r0.X.Tag("lr0x")
+	lres.r0.Y.Tag("lr0y")
+	lres.r1.X.Tag("lr1x")
+	lres.r1.Y.Tag("lr1y")
+	lres.r2.X.Tag("lr2x")
+	lres.r2.Y.Tag("lr2y")
+
+	expectedValues := make(map[string]*fp.Element)
+	var expres [6]fp.Element
+	expres[0].SetString("220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
+	expres[1].SetString("232134458700276476669584229661634543747068594368664068937164975724095736595288995356706959089579876199020312643174")
+	expres[2].SetString("74241662856820718491669277383162555524896537826488558937227282983357670568906847284642533051528779250776935382660")
+	expres[3].SetString("9787836945036920457066634104342154603142239983688979247440278426242314457905122599227144555989168817796094251258")
+	expres[4].SetString("85129589817387660717039592198118788807152207633847410148299763250229022303850156734979397272700502238285752744807")
+	expres[5].SetString("245761211327131018855579902758747359135620549826797077633679496719449586668701082009536667506317412690997533857875")
+	expectedValues["lr0x"] = &expres[0]
+	expectedValues["lr0y"] = &expres[1]
+	expectedValues["lr1x"] = &expres[2]
+	expectedValues["lr1y"] = &expres[3]
+	expectedValues["lr2x"] = &expres[4]
+	expectedValues["lr2y"] = &expres[5]
+
+	// create inputs to the circuit
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "qxx", "11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624")
+	inputs.Assign(backend.Secret, "rxx", "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467")
+	inputs.Assign(backend.Secret, "px", "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
+
+	r1cs := backend_bw6.New(&circuit)
+
+	// inspect and compare the results
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error MulByVFp12")
+		}
+	}
+}

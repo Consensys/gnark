@@ -16,7 +16,9 @@ limitations under the License.
 
 package fields
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"github.com/consensys/gnark/frontend"
+)
 
 // Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp6->Fp12 (Fp2 = Fp(u), Fp6 = Fp2(v), Fp12 = Fp6(w))
 type Extension struct {
@@ -89,19 +91,21 @@ func GetBLS377ExtensionFp12(circuit *frontend.CS) Extension {
 // NewFp12Elmt creates a fp6elmt from fp elmts
 func NewFp12Elmt(circuit *frontend.CS, a, b, c, d, e, f, g, h, i, j, k, l interface{}) Fp12Elmt {
 
-	u := NewFp6Elmt(circuit, a, b, c, d, e, f)
-	v := NewFp6Elmt(circuit, g, h, i, j, k, l)
-	res := NewFp12ElmtFromFp6(circuit, &u, &v)
-	return res
-}
+	var res Fp12Elmt
 
-// NewFp12ElmtFromFp6 creates a fp6elmt from fp elmts
-func NewFp12ElmtFromFp6(circuit *frontend.CS, a, b *Fp6Elmt) Fp12Elmt {
+	res.C0.B0.X = circuit.ALLOCATE(a)
+	res.C0.B0.Y = circuit.ALLOCATE(b)
+	res.C0.B1.X = circuit.ALLOCATE(c)
+	res.C0.B1.Y = circuit.ALLOCATE(d)
+	res.C0.B2.X = circuit.ALLOCATE(e)
+	res.C0.B2.Y = circuit.ALLOCATE(f)
+	res.C1.B0.X = circuit.ALLOCATE(g)
+	res.C1.B0.Y = circuit.ALLOCATE(h)
+	res.C1.B1.X = circuit.ALLOCATE(i)
+	res.C1.B1.Y = circuit.ALLOCATE(j)
+	res.C1.B2.X = circuit.ALLOCATE(k)
+	res.C1.B2.Y = circuit.ALLOCATE(l)
 
-	res := Fp12Elmt{
-		C0: *a,
-		C1: *b,
-	}
 	return res
 }
 
@@ -116,6 +120,23 @@ func NewFp12ElmtNil(circuit *frontend.CS) Fp12Elmt {
 		C1: b,
 	}
 	return res
+}
+
+// Assign assigne e to e1
+func (e *Fp12Elmt) Assign(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
+	e.C0.B0.X = circuit.ALLOCATE(e1.C0.B0.X)
+	e.C0.B0.Y = circuit.ALLOCATE(e1.C0.B0.Y)
+	e.C0.B1.X = circuit.ALLOCATE(e1.C0.B1.X)
+	e.C0.B1.Y = circuit.ALLOCATE(e1.C0.B1.Y)
+	e.C0.B2.X = circuit.ALLOCATE(e1.C0.B2.X)
+	e.C0.B2.Y = circuit.ALLOCATE(e1.C0.B2.Y)
+	e.C1.B0.X = circuit.ALLOCATE(e1.C1.B0.X)
+	e.C1.B0.Y = circuit.ALLOCATE(e1.C1.B0.Y)
+	e.C1.B1.X = circuit.ALLOCATE(e1.C1.B1.X)
+	e.C1.B1.Y = circuit.ALLOCATE(e1.C1.B1.Y)
+	e.C1.B2.X = circuit.ALLOCATE(e1.C1.B2.X)
+	e.C1.B2.Y = circuit.ALLOCATE(e1.C1.B2.Y)
+	return e
 }
 
 // Add adds 2 elmts in Fp12
@@ -281,6 +302,104 @@ func (e *Fp12Elmt) Inverse(circuit *frontend.CS, e1 *Fp12Elmt, ext Extension) *F
 	t[1].Inverse(circuit, &t[0], ext)
 	e.C0.Mul(circuit, &e1.C0, &t[1], ext)
 	e.C1.Mul(circuit, &e1.C1, &t[1], ext).Neg(circuit, &e.C1)
+
+	return e
+}
+
+// ConjugateFp12 conjugates an Fp12 elmt (applies Frob**6)
+func (e *Fp12Elmt) ConjugateFp12(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
+	e.C0 = e1.C0
+	e.C1.Neg(circuit, &e1.C1)
+	return e
+}
+
+// Select sets e to r1 if b=1, r2 otherwise
+func (e *Fp12Elmt) Select(circuit *frontend.CS, b *frontend.Constraint, r1, r2 *Fp12Elmt) *Fp12Elmt {
+
+	e.C0.B0.X = circuit.SELECT(b, r1.C0.B0.X, r2.C0.B0.X)
+	e.C0.B0.Y = circuit.SELECT(b, r1.C0.B0.Y, r2.C0.B0.Y)
+	e.C0.B1.X = circuit.SELECT(b, r1.C0.B1.X, r2.C0.B1.X)
+	e.C0.B1.Y = circuit.SELECT(b, r1.C0.B1.Y, r2.C0.B1.Y)
+	e.C0.B2.X = circuit.SELECT(b, r1.C0.B2.X, r2.C0.B2.X)
+	e.C0.B2.Y = circuit.SELECT(b, r1.C0.B2.Y, r2.C0.B2.Y)
+	e.C1.B0.X = circuit.SELECT(b, r1.C1.B0.X, r2.C1.B0.X)
+	e.C1.B0.Y = circuit.SELECT(b, r1.C1.B0.Y, r2.C1.B0.Y)
+	e.C1.B1.X = circuit.SELECT(b, r1.C1.B1.X, r2.C1.B1.X)
+	e.C1.B1.Y = circuit.SELECT(b, r1.C1.B1.Y, r2.C1.B1.Y)
+	e.C1.B2.X = circuit.SELECT(b, r1.C1.B2.X, r2.C1.B2.X)
+	e.C1.B2.Y = circuit.SELECT(b, r1.C1.B2.Y, r2.C1.B2.Y)
+
+	return e
+}
+
+// Exponentiate compute e1**exponent (n is the size of the exponent)
+func (e *Fp12Elmt) Exponentiate(circuit *frontend.CS, e1 *Fp12Elmt, exponent interface{}, n int, ext Extension) *Fp12Elmt {
+
+	_exponent := circuit.ALLOCATE(exponent)
+
+	// TODO here we suppose that the t is 64 bits long, only used in the pairing (power t, where t is 64 bits long)
+	b := circuit.TO_BINARY(_exponent, n)
+	circuit.MUSTBE_BOOLEAN(b[0])
+
+	var s, m Fp12Elmt
+
+	res := NewFp12Elmt(circuit, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+	for i := n - 1; i >= 0; i-- {
+		s.Mul(circuit, &res, &res, ext)
+		m.Mul(circuit, &s, e1, ext)
+		res.Select(circuit, b[i], &m, &s)
+	}
+	e.Assign(circuit, &res)
+
+	return e
+}
+
+// FinalExpoBLS final  exponentation for curves of the bls family (t is the parameter used to generate the curve)
+func (e *Fp12Elmt) FinalExpoBLS(circuit *frontend.CS, e1 *Fp12Elmt, genT interface{}, ext Extension) *Fp12Elmt {
+
+	var res Fp12Elmt
+	res.Assign(circuit, e1)
+
+	var t [6]Fp12Elmt
+
+	t[0].FrobeniusCube(circuit, e1, ext).FrobeniusCube(circuit, &t[0], ext)
+
+	res.Inverse(circuit, &res, ext)
+	t[0].Mul(circuit, &t[0], &res, ext)
+
+	res.FrobeniusSquare(circuit, &t[0], ext).Mul(circuit, &res, &t[0], ext)
+
+	t[0].ConjugateFp12(circuit, &res).Mul(circuit, &t[0], &t[0], ext)
+	t[5].Exponentiate(circuit, &res, genT, 64, ext)
+	t[1].Mul(circuit, &t[5], &t[5], ext)
+	t[3].Mul(circuit, &t[0], &t[5], ext)
+
+	t[0].Exponentiate(circuit, &t[3], genT, 64, ext)
+	t[2].Exponentiate(circuit, &t[0], genT, 64, ext)
+	t[4].Exponentiate(circuit, &t[2], genT, 64, ext)
+
+	t[4].Mul(circuit, &t[1], &t[4], ext)
+	t[1].Exponentiate(circuit, &t[4], genT, 64, ext)
+	t[3].Conjugate(circuit, &t[3])
+	t[1].Mul(circuit, &t[3], &t[1], ext)
+	t[1].Mul(circuit, &t[1], &res, ext)
+
+	t[0].Mul(circuit, &t[0], &res, ext)
+	t[0].FrobeniusCube(circuit, &t[0], ext)
+
+	t[3].Conjugate(circuit, &res)
+	t[4].Mul(circuit, &t[3], &t[4], ext)
+	t[4].Frobenius(circuit, &t[4], ext)
+
+	t[5].Mul(circuit, &t[2], &t[5], ext)
+	t[5].FrobeniusSquare(circuit, &t[5], ext)
+
+	t[5].Mul(circuit, &t[5], &t[0], ext)
+	t[5].Mul(circuit, &t[5], &t[4], ext)
+	t[5].Mul(circuit, &t[5], &t[1], ext)
+
+	e.Assign(circuit, &t[5])
 
 	return e
 }

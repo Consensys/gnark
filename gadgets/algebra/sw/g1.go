@@ -43,6 +43,15 @@ func NewInfinityG1(circuit *frontend.CS) *G1Jac {
 	return res
 }
 
+// ToProj sets p to the projective rep of p1 and return it
+func (p *G1Jac) ToProj(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
+	p.X = circuit.MUL(p1.X, p1.Z)
+	p.Y = p1.Y
+	t := circuit.MUL(p1.Z, p1.Z)
+	p.Z = circuit.MUL(p1.Z, t)
+	return p
+}
+
 // Neg outputs -p
 func (p *G1Jac) Neg(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	p.X = p1.X

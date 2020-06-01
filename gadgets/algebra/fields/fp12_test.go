@@ -17,6 +17,7 @@ limitations under the License.
 package fields
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -451,6 +452,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	getExpectedValuesFp12(expectedValues, "c", c)
 
 	r1cs := backend_bw6.New(&circuit)
+	fmt.Println(r1cs.NbConstraints)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -537,7 +539,88 @@ func TestInverseFp12(t *testing.T) {
 	}
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
-			t.Fatal("error InverseFp12")
+			t.Fatal("error FrobeniusSquareFp12")
+		}
+	}
+}
+
+func TestExpoFp12(t *testing.T) {
+
+	circuit := frontend.New()
+
+	ext := GetBLS377ExtensionFp12(&circuit)
+
+	// witness values
+	var a, c bls377.E12
+	a.SetRandom()
+	c.Expt(&a)
+
+	// circuit values
+	expo := circuit.ALLOCATE("9586122913090633729")
+	fp12a := newOperandFp12(&circuit, "a")
+	fp12c := NewFp12ElmtNil(&circuit)
+	fp12c.Exponentiate(&circuit, &fp12a, expo, 64, ext)
+	tagFp12Elmt(fp12c, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignOperandFp12(inputs, "a", a)
+
+	// assign the exepcted values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesFp12(expectedValues, "c", c)
+
+	r1cs := backend_bw6.New(&circuit)
+
+	// inspect and compare the results
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error Final exponentiation bls")
+		}
+	}
+}
+
+func TestFinalExpoBLSFp12(t *testing.T) {
+
+	circuit := frontend.New()
+
+	ext := GetBLS377ExtensionFp12(&circuit)
+
+	// witness values
+	var a, c bls377.E12
+	a.SetRandom()
+	c.FinalExponentiation(&a)
+
+	// circuit values
+	expo := circuit.ALLOCATE("9586122913090633729")
+	fp12a := newOperandFp12(&circuit, "a")
+	fp12c := NewFp12ElmtNil(&circuit)
+	fp12c.FinalExpoBLS(&circuit, &fp12a, expo, ext)
+	tagFp12Elmt(fp12c, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignOperandFp12(inputs, "a", a)
+
+	// assign the exepcted values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesFp12(expectedValues, "c", c)
+
+	r1cs := backend_bw6.New(&circuit)
+
+	// inspect and compare the results
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			fmt.Println(expectedValues[k].String())
+			t.Fatal("error ExponentiationFp12")
 		}
 	}
 }
