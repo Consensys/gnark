@@ -122,6 +122,23 @@ func NewFp12ElmtNil(circuit *frontend.CS) Fp12Elmt {
 	return res
 }
 
+// SetOne returns a newly allocated element equal to 1
+func (e *Fp12Elmt) SetOne(circuit *frontend.CS) *Fp12Elmt {
+	e.C0.B0.X = circuit.ALLOCATE(1)
+	e.C0.B0.Y = circuit.ALLOCATE(0)
+	e.C0.B1.X = circuit.ALLOCATE(0)
+	e.C0.B1.Y = circuit.ALLOCATE(0)
+	e.C0.B2.X = circuit.ALLOCATE(0)
+	e.C0.B2.Y = circuit.ALLOCATE(0)
+	e.C1.B0.X = circuit.ALLOCATE(0)
+	e.C1.B0.Y = circuit.ALLOCATE(0)
+	e.C1.B1.X = circuit.ALLOCATE(0)
+	e.C1.B1.Y = circuit.ALLOCATE(0)
+	e.C1.B2.X = circuit.ALLOCATE(0)
+	e.C1.B2.Y = circuit.ALLOCATE(0)
+	return e
+}
+
 // Assign assigne e to e1
 func (e *Fp12Elmt) Assign(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
 	e.C0.B0.X = circuit.ALLOCATE(e1.C0.B0.X)
@@ -332,23 +349,23 @@ func (e *Fp12Elmt) Select(circuit *frontend.CS, b *frontend.Constraint, r1, r2 *
 	return e
 }
 
-// Exponentiate compute e1**exponent (n is the size of the exponent)
-func (e *Fp12Elmt) Exponentiate(circuit *frontend.CS, e1 *Fp12Elmt, exponent interface{}, n int, ext Extension) *Fp12Elmt {
+// FixedExponentiation compute e1**exponent, where the exponent is hardcoded
+// This function is only used for the final expo of the pairing for bls377, so the exponent is supposed to be hardcoded
+// and on 64 bits.
+func (e *Fp12Elmt) FixedExponentiation(circuit *frontend.CS, e1 *Fp12Elmt, exponent uint64, ext Extension) *Fp12Elmt {
 
-	_exponent := circuit.ALLOCATE(exponent)
-
-	// TODO here we suppose that the t is 64 bits long, only used in the pairing (power t, where t is 64 bits long)
-	b := circuit.TO_BINARY(_exponent, n)
-	circuit.MUSTBE_BOOLEAN(b[0])
-
-	var s, m Fp12Elmt
+	var expoBin [64]uint8
+	for i := 0; i < 64; i++ {
+		expoBin[i] = uint8((exponent >> (63 - i))) & 1
+	}
 
 	res := NewFp12Elmt(circuit, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
-	for i := n - 1; i >= 0; i-- {
-		s.Mul(circuit, &res, &res, ext)
-		m.Mul(circuit, &s, e1, ext)
-		res.Select(circuit, b[i], &m, &s)
+	for i := 0; i < 64; i++ {
+		res.Mul(circuit, &res, &res, ext)
+		if expoBin[i] == 1 {
+			res.Mul(circuit, &res, e1, ext)
+		}
 	}
 	e.Assign(circuit, &res)
 
@@ -356,7 +373,7 @@ func (e *Fp12Elmt) Exponentiate(circuit *frontend.CS, e1 *Fp12Elmt, exponent int
 }
 
 // FinalExpoBLS final  exponentation for curves of the bls family (t is the parameter used to generate the curve)
-func (e *Fp12Elmt) FinalExpoBLS(circuit *frontend.CS, e1 *Fp12Elmt, genT interface{}, ext Extension) *Fp12Elmt {
+func (e *Fp12Elmt) FinalExpoBLS(circuit *frontend.CS, e1 *Fp12Elmt, genT uint64, ext Extension) *Fp12Elmt {
 
 	var res Fp12Elmt
 	res.Assign(circuit, e1)
@@ -371,16 +388,16 @@ func (e *Fp12Elmt) FinalExpoBLS(circuit *frontend.CS, e1 *Fp12Elmt, genT interfa
 	res.FrobeniusSquare(circuit, &t[0], ext).Mul(circuit, &res, &t[0], ext)
 
 	t[0].ConjugateFp12(circuit, &res).Mul(circuit, &t[0], &t[0], ext)
-	t[5].Exponentiate(circuit, &res, genT, 64, ext)
+	t[5].FixedExponentiation(circuit, &res, genT, ext)
 	t[1].Mul(circuit, &t[5], &t[5], ext)
 	t[3].Mul(circuit, &t[0], &t[5], ext)
 
-	t[0].Exponentiate(circuit, &t[3], genT, 64, ext)
-	t[2].Exponentiate(circuit, &t[0], genT, 64, ext)
-	t[4].Exponentiate(circuit, &t[2], genT, 64, ext)
+	t[0].FixedExponentiation(circuit, &t[3], genT, ext)
+	t[2].FixedExponentiation(circuit, &t[0], genT, ext)
+	t[4].FixedExponentiation(circuit, &t[2], genT, ext)
 
 	t[4].Mul(circuit, &t[1], &t[4], ext)
-	t[1].Exponentiate(circuit, &t[4], genT, 64, ext)
+	t[1].FixedExponentiation(circuit, &t[4], genT, ext)
 	t[3].Conjugate(circuit, &t[3])
 	t[1].Mul(circuit, &t[3], &t[1], ext)
 	t[1].Mul(circuit, &t[1], &res, ext)

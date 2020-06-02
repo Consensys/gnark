@@ -17,12 +17,15 @@ limitations under the License.
 package sw
 
 import (
+	"math/big"
+	"strconv"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
 	backend_bw6 "github.com/consensys/gnark/backend/bw6"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 )
 
@@ -98,4 +101,144 @@ func TestLineEvalBLS377(t *testing.T) {
 			t.Fatal("error MulByVFp12")
 		}
 	}
+}
+
+func TestPairingBLS377(t *testing.T) {
+
+	// create the map containing the expected result
+	expectedValues := make(map[string]*fp.Element)
+
+	// create circuit
+	circuit := frontend.New()
+
+	// set reference result
+	curve := bls377.BLS377()
+
+	var _P bls377.G1Affine
+	_P.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
+	_P.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
+
+	var _Q bls377.G2Affine
+	_Q.X.A0.SetString("129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
+	_Q.X.A1.SetString("218164455698855406745723400799886985937129266327098023241324696183914328661520330195732120783615155502387891913936")
+	_Q.Y.A0.SetString("178797786102020318006939402153521323286173305074858025240458924050651930669327663166574060567346617543016897467207")
+	_Q.Y.A1.SetString("246194676937700783734853490842104812127151341609821057456393698060154678349106147660301543343243364716364400889778")
+
+	var milres, pairingRes bls377.PairingResult
+	curve.MillerLoop(_P, _Q, &milres)
+
+	expectedValues["millerloop0"] = &milres.C0.B0.A0
+	expectedValues["millerloop1"] = &milres.C0.B0.A1
+	expectedValues["millerloop2"] = &milres.C0.B1.A0
+	expectedValues["millerloop3"] = &milres.C0.B1.A1
+	expectedValues["millerloop4"] = &milres.C0.B2.A0
+	expectedValues["millerloop5"] = &milres.C0.B2.A1
+	expectedValues["millerloop6"] = &milres.C1.B0.A0
+	expectedValues["millerloop7"] = &milres.C1.B0.A1
+	expectedValues["millerloop8"] = &milres.C1.B1.A0
+	expectedValues["millerloop9"] = &milres.C1.B1.A1
+	expectedValues["millerloop10"] = &milres.C1.B2.A0
+	expectedValues["millerloop11"] = &milres.C1.B2.A1
+
+	pairingRes = curve.FinalExponentiation(&milres)
+
+	expectedValues["pairing0"] = &pairingRes.C0.B0.A0
+	expectedValues["pairing1"] = &pairingRes.C0.B0.A1
+	expectedValues["pairing2"] = &pairingRes.C0.B1.A0
+	expectedValues["pairing3"] = &pairingRes.C0.B1.A1
+	expectedValues["pairing4"] = &pairingRes.C0.B2.A0
+	expectedValues["pairing5"] = &pairingRes.C0.B2.A1
+	expectedValues["pairing6"] = &pairingRes.C1.B0.A0
+	expectedValues["pairing7"] = &pairingRes.C1.B0.A1
+	expectedValues["pairing8"] = &pairingRes.C1.B1.A0
+	expectedValues["pairing9"] = &pairingRes.C1.B1.A1
+	expectedValues["pairing10"] = &pairingRes.C1.B2.A0
+	expectedValues["pairing11"] = &pairingRes.C1.B2.A1
+
+	// set the circuit
+	var ateLoop big.Int
+	ateLoop.SetString("9586122913090633729", 10)
+
+	ext := fields.GetBLS377ExtensionFp12(&circuit)
+
+	var Q G2Jac
+	var P G1Jac
+
+	Q.X.X = circuit.SECRET_INPUT("qxx")
+	Q.X.Y = circuit.ALLOCATE("218164455698855406745723400799886985937129266327098023241324696183914328661520330195732120783615155502387891913936")
+	Q.Y.X = circuit.ALLOCATE("178797786102020318006939402153521323286173305074858025240458924050651930669327663166574060567346617543016897467207")
+	Q.Y.Y = circuit.ALLOCATE("246194676937700783734853490842104812127151341609821057456393698060154678349106147660301543343243364716364400889778")
+	Q.Z.X = circuit.ALLOCATE("1")
+	Q.Z.Y = circuit.ALLOCATE("0")
+
+	P.X = circuit.SECRET_INPUT("px")
+	P.Y = circuit.ALLOCATE("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
+	P.Z = circuit.ALLOCATE("1")
+
+	// create inputs to the circuit
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "qxx", "129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
+	inputs.Assign(backend.Secret, "px", "68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
+
+	milrescircuit := fields.NewFp12ElmtNil(&circuit)
+
+	MillerLoop(&circuit, P, Q, &milrescircuit, ext, ateLoop)
+
+	// tag the result of the miller loop
+	milrescircuit.C0.B0.X.Tag("millerloop0")
+	milrescircuit.C0.B0.Y.Tag("millerloop1")
+	milrescircuit.C0.B1.X.Tag("millerloop2")
+	milrescircuit.C0.B1.Y.Tag("millerloop3")
+	milrescircuit.C0.B2.X.Tag("millerloop4")
+	milrescircuit.C0.B2.Y.Tag("millerloop5")
+	milrescircuit.C1.B0.X.Tag("millerloop6")
+	milrescircuit.C1.B0.Y.Tag("millerloop7")
+	milrescircuit.C1.B1.X.Tag("millerloop8")
+	milrescircuit.C1.B1.Y.Tag("millerloop9")
+	milrescircuit.C1.B2.X.Tag("millerloop10")
+	milrescircuit.C1.B2.Y.Tag("millerloop11")
+
+	//pairingres := fields.NewFp12ElmtNil(&circuit)
+	milrescircuit.FinalExpoBLS(&circuit, &milrescircuit, uint64(9586122913090633729), ext)
+
+	// tag the result of the pairing loop
+	milrescircuit.C0.B0.X.Tag("pairing0")
+	milrescircuit.C0.B0.Y.Tag("pairing1")
+	milrescircuit.C0.B1.X.Tag("pairing2")
+	milrescircuit.C0.B1.Y.Tag("pairing3")
+	milrescircuit.C0.B2.X.Tag("pairing4")
+	milrescircuit.C0.B2.Y.Tag("pairing5")
+	milrescircuit.C1.B0.X.Tag("pairing6")
+	milrescircuit.C1.B0.Y.Tag("pairing7")
+	milrescircuit.C1.B1.X.Tag("pairing8")
+	milrescircuit.C1.B1.Y.Tag("pairing9")
+	milrescircuit.C1.B2.X.Tag("pairing10")
+	milrescircuit.C1.B2.Y.Tag("pairing11")
+
+	// inspect and compare the results
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefixMillerLoop := "millerloop"
+	prefixPairing := "pairing"
+	for i := 0; i < 12; i++ {
+		entry := prefixMillerLoop + strconv.Itoa(i)
+		s1 := expectedValues[entry].String()
+		s2 := res[entry]
+		if s1 != s2.String() {
+			t.Fatal("error miller loop")
+		}
+	}
+	for i := 0; i < 12; i++ {
+		entry := prefixPairing + strconv.Itoa(i)
+		s1 := expectedValues[entry].String()
+		s2 := res[entry]
+		if s1 != s2.String() {
+			t.Fatal("error pairing")
+		}
+	}
+
 }

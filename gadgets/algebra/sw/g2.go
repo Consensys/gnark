@@ -46,6 +46,14 @@ func NewInfinityG2(circuit *frontend.CS) *G2Jac {
 	return res
 }
 
+// Assign assigns p to p1 and return it
+func (p *G2Jac) Assign(circuit *frontend.CS, p1 *G2Jac) *G2Jac {
+	p.X = p1.X
+	p.Y = p1.Y
+	p.Z = p1.Z
+	return p
+}
+
 // ToProj sets p to p1 in projective coords and return it
 func (p *G2Jac) ToProj(circuit *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 	p.X.Mul(circuit, &p1.X, &p1.Z, ext)
@@ -57,8 +65,10 @@ func (p *G2Jac) ToProj(circuit *frontend.CS, p1 *G2Jac, ext fields.Extension) *G
 }
 
 // Neg outputs -p
-func (p *G2Jac) Neg(circuit *frontend.CS) *G2Jac {
-	p.Y.Neg(circuit, &p.Y)
+func (p *G2Jac) Neg(circuit *frontend.CS, p1 *G2Jac) *G2Jac {
+	p.Y.Neg(circuit, &p1.Y)
+	p.X = p1.X
+	p.Z = p1.Z
 	return p
 }
 

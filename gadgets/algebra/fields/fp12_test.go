@@ -17,7 +17,6 @@ limitations under the License.
 package fields
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -452,7 +451,6 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	getExpectedValuesFp12(expectedValues, "c", c)
 
 	r1cs := backend_bw6.New(&circuit)
-	fmt.Println(r1cs.NbConstraints)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -544,7 +542,7 @@ func TestInverseFp12(t *testing.T) {
 	}
 }
 
-func TestExpoFp12(t *testing.T) {
+func TestFixExpoFp12(t *testing.T) {
 
 	circuit := frontend.New()
 
@@ -556,10 +554,10 @@ func TestExpoFp12(t *testing.T) {
 	c.Expt(&a)
 
 	// circuit values
-	expo := circuit.ALLOCATE("9586122913090633729")
+	expo := uint64(9586122913090633729)
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
-	fp12c.Exponentiate(&circuit, &fp12a, expo, 64, ext)
+	fp12c.FixedExponentiation(&circuit, &fp12a, expo, ext)
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
@@ -596,7 +594,7 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	c.FinalExponentiation(&a)
 
 	// circuit values
-	expo := circuit.ALLOCATE("9586122913090633729")
+	expo := uint64(9586122913090633729)
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.FinalExpoBLS(&circuit, &fp12a, expo, ext)
@@ -619,7 +617,6 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	}
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
-			fmt.Println(expectedValues[k].String())
 			t.Fatal("error ExponentiationFp12")
 		}
 	}

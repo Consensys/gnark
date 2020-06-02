@@ -17,8 +17,11 @@ limitations under the License.
 package sw
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gurvy/utils"
 )
 
 // LineEvalRes represents a sparse Fp12 Elmt (result of the line evaluation)
@@ -65,4 +68,56 @@ func (l *LineEvalRes) MulAssign(circuit *frontend.CS, z *fields.Fp12Elmt, ext fi
 	b.MulByV(circuit, z, &l.r0, ext)
 	c.MulByV2W(circuit, z, &l.r2, ext)
 	z.Add(circuit, &a, &b).Add(circuit, z, &c)
+}
+
+// MillerLoop computes the miller loop
+func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, ext fields.Extension, ateLoop big.Int) *fields.Fp12Elmt {
+
+	var ateLoopNaf [64]int8
+	utils.NafDecomposition(&ateLoop, ateLoopNaf[:])
+
+	res.SetOne(circuit)
+
+	// the line goes through QCur and QNext
+	var QCur, QNext, QNextNeg G2Jac
+	var QNeg G2Jac
+
+	QCur.Assign(circuit, &Q)
+
+	// Stores -Q
+	QNeg.Neg(circuit, &Q)
+
+	var lEval LineEvalRes
+
+	// Miller loop
+	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
+		QNext.Assign(circuit, &QCur)
+		QNext.Double(circuit, &QNext, ext)
+		QNextNeg.Neg(circuit, &QNext)
+
+		res.Mul(circuit, res, res, ext)
+
+		// evaluates line though Qcur,2Qcur at P
+		LineEvalBLS377(circuit, QCur, QNextNeg, P, &lEval, ext)
+		lEval.MulAssign(circuit, res, ext)
+
+		if ateLoopNaf[i] == 1 {
+			// evaluates line through 2Qcur, Q at P
+			LineEvalBLS377(circuit, QNext, Q, P, &lEval, ext)
+			lEval.MulAssign(circuit, res, ext)
+
+			QNext.AddAssign(circuit, &Q, ext)
+
+		} else if ateLoopNaf[i] == -1 {
+			// evaluates line through 2Qcur, -Q at P
+			LineEvalBLS377(circuit, QNext, QNeg, P, &lEval, ext)
+			lEval.MulAssign(circuit, res, ext)
+
+			QNext.AddAssign(circuit, &QNeg, ext)
+		}
+
+		QCur.Assign(circuit, &QNext)
+	}
+
+	return res
 }
