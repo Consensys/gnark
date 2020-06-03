@@ -57,10 +57,22 @@ func newPointCircuitG1(circuit *frontend.CS, s string) *G1Jac {
 	)
 }
 
+func newPointCircuitG1Aff(circuit *frontend.CS, s string) *G1Aff {
+	return NewPointG1Aff(circuit,
+		circuit.SECRET_INPUT(s+"0"),
+		circuit.SECRET_INPUT(s+"1"),
+	)
+}
+
 func tagPointG1(g *G1Jac, s string) {
 	g.X.Tag(s + "0")
 	g.Y.Tag(s + "1")
 	g.Z.Tag(s + "2")
+}
+
+func tagPointG1Aff(g *G1Aff, s string) {
+	g.X.Tag(s + "0")
+	g.Y.Tag(s + "1")
 }
 
 func assignPointG1(inputs backend.Assignments, g bls377.G1Jac, s string) {
@@ -109,6 +121,7 @@ func TestAddAssignG1(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw6.New(&circuit)
+
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +129,59 @@ func TestAddAssignG1(t *testing.T) {
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error add g1")
+		}
+	}
+}
+
+func TestAddAssignAffG1(t *testing.T) {
+
+	curve := bls377.BLS377()
+
+	// sample 2 random points
+	g1 := randomPointG1()
+	g2 := randomPointG1()
+	var _g1, _g2 bls377.G1Affine
+	g1.ToAffineFromJac(&_g1)
+	g2.ToAffineFromJac(&_g2)
+
+	// create the circuit
+	circuit := frontend.New()
+
+	gc1 := newPointCircuitG1Aff(&circuit, "a")
+	gc2 := newPointCircuitG1Aff(&circuit, "b")
+	gc1.AddAssign(&circuit, gc2)
+	tagPointG1Aff(gc1, "c")
+
+	// assign the inputs
+	var one fp.Element
+	one.SetUint64(1)
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "a0", _g1.X)
+	inputs.Assign(backend.Secret, "a1", _g1.Y)
+
+	inputs.Assign(backend.Secret, "b0", _g2.X)
+	inputs.Assign(backend.Secret, "b1", _g2.Y)
+
+	// compute the result
+	var _gres bls377.G1Affine
+	g1.Add(curve, &g2)
+	g1.ToAffineFromJac(&_gres)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	expectedValues["c0"] = &_gres.X
+	expectedValues["c1"] = &_gres.Y
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error add g1 (affine)")
 		}
 	}
 }
@@ -156,8 +222,53 @@ func TestDoubleG1(t *testing.T) {
 	}
 }
 
+func TestDoubleAffG1(t *testing.T) {
+
+	// sample a random points
+	g1 := randomPointG1()
+	var _g1 bls377.G1Affine
+	g1.ToAffineFromJac(&_g1)
+
+	// create the circuit
+	circuit := frontend.New()
+
+	gc1 := newPointCircuitG1Aff(&circuit, "a")
+	gc1.Double(&circuit, gc1)
+	tagPointG1Aff(gc1, "c")
+
+	// assign the inputs
+	var one fp.Element
+	one.SetUint64(1)
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "a0", _g1.X)
+	inputs.Assign(backend.Secret, "a1", _g1.Y)
+
+	// compute the reference result
+	var _gres bls377.G1Affine
+	g1.Double()
+	g1.ToAffineFromJac(&_gres)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	expectedValues["c0"] = &_gres.X
+	expectedValues["c1"] = &_gres.Y
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error double g1 (affine)")
+		}
+	}
+}
+
 func TestNegG1(t *testing.T) {
-	t.Skip("wip")
+
 	// sample 2 random points
 	g1 := randomPointG1()
 

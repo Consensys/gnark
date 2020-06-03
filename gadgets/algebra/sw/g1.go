@@ -16,11 +16,20 @@ limitations under the License.
 
 package sw
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"math/big"
+
+	"github.com/consensys/gnark/frontend"
+)
 
 // G1Jac point in Jacobian coords
 type G1Jac struct {
 	X, Y, Z *frontend.Constraint
+}
+
+// G1Aff point in affine coords
+type G1Aff struct {
+	X, Y *frontend.Constraint
 }
 
 // NewPointG1 creates a new point from interaces as coordinates
@@ -29,6 +38,15 @@ func NewPointG1(circuit *frontend.CS, x, y, z interface{}) *G1Jac {
 		X: circuit.ALLOCATE(x),
 		Y: circuit.ALLOCATE(y),
 		Z: circuit.ALLOCATE(z),
+	}
+	return res
+}
+
+// NewPointG1Aff creates a new affine point from interaces as coordinates
+func NewPointG1Aff(circuit *frontend.CS, x, y interface{}) *G1Aff {
+	res := &G1Aff{
+		X: circuit.ALLOCATE(x),
+		Y: circuit.ALLOCATE(y),
 	}
 	return res
 }
@@ -55,7 +73,47 @@ func (p *G1Jac) ToProj(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 // Neg outputs -p
 func (p *G1Jac) Neg(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	p.X = p1.X
-	p.Y = circuit.SUB(0, &p1.Y)
+	p.Y = circuit.SUB(0, p1.Y)
+	p.Z = p1.Z
+	return p
+}
+
+// AddAssign adds p1 to p using the affine formulas with division, and return p
+func (p *G1Aff) AddAssign(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
+
+	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
+	var c1, c2 big.Int
+	c1.SetInt64(1)
+	c2.SetInt64(-1)
+	l1 := frontend.LinearCombination{
+		frontend.Term{Constraint: p1.Y, Coeff: c1},
+		frontend.Term{Constraint: p.Y, Coeff: c2},
+	}
+	l2 := frontend.LinearCombination{
+		frontend.Term{Constraint: p1.X, Coeff: c1},
+		frontend.Term{Constraint: p.X, Coeff: c2},
+	}
+	l := circuit.DIV(l1, l2)
+
+	// xr = lambda**2-p.x-p1.x
+	_x := frontend.LinearCombination{
+		frontend.Term{Constraint: circuit.MUL(l, l), Coeff: c1},
+		frontend.Term{Constraint: p.X, Coeff: c2},
+		frontend.Term{Constraint: p1.X, Coeff: c2},
+	}
+
+	// p.y = lambda(p.x-xr) - p.y
+	t1 := circuit.MUL(p.X, l)
+	t2 := circuit.MUL(l, _x)
+	l3 := frontend.LinearCombination{
+		frontend.Term{Constraint: t1, Coeff: c1},
+		frontend.Term{Constraint: t2, Coeff: c2},
+		frontend.Term{Constraint: p.Y, Coeff: c2},
+	}
+	p.Y = circuit.MUL(l3, 1)
+
+	//p.x = xr
+	p.X = circuit.MUL(_x, 1)
 	return p
 }
 
@@ -141,5 +199,47 @@ func (p *G1Jac) Double(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	YYYY = circuit.MUL(YYYY, 8)
 	p.Y = circuit.SUB(p.Y, YYYY)
 
+	return p
+}
+
+// Double double a point in affine coords
+func (p *G1Aff) Double(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
+
+	var t, d, c1, c2, c3 big.Int
+	t.SetInt64(3)
+	d.SetInt64(2)
+	c1.SetInt64(1)
+	c2.SetInt64(-2)
+	c3.SetInt64(-1)
+
+	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
+	x2 := circuit.MUL(p1.X, p1.X)
+	circuit.MUL(p1.X, p1.X)
+	l1 := frontend.LinearCombination{
+		frontend.Term{Constraint: x2, Coeff: t},
+	}
+	l2 := frontend.LinearCombination{
+		frontend.Term{Constraint: p1.Y, Coeff: d},
+	}
+	l := circuit.DIV(l1, l2)
+
+	// xr = lambda**2-p.x-p1.x
+	_x := frontend.LinearCombination{
+		frontend.Term{Constraint: circuit.MUL(l, l), Coeff: c1},
+		frontend.Term{Constraint: p1.X, Coeff: c2},
+	}
+
+	// p.y = lambda(p.x-xr) - p.y
+	t1 := circuit.MUL(p1.X, l)
+	t2 := circuit.MUL(l, _x)
+	l3 := frontend.LinearCombination{
+		frontend.Term{Constraint: t1, Coeff: c1},
+		frontend.Term{Constraint: t2, Coeff: c3},
+		frontend.Term{Constraint: p1.Y, Coeff: c3},
+	}
+	p.Y = circuit.MUL(l3, 1)
+
+	//p.x = xr
+	p.X = circuit.MUL(_x, 1)
 	return p
 }

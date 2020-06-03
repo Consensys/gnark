@@ -61,6 +61,31 @@ func LineEvalBLS377(circuit *frontend.CS, Q, R G2Jac, P G1Jac, result *LineEvalR
 	result.r2.MulByFp(circuit, &result.r2, P.Z)
 }
 
+// LineEvalAffineBLS377 computes f(P) where div(f) = P+R-2O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
+// the result is pulled back like if it was computed on the original curve, so it's a Fp12Elmt, that is sparse,
+// only 3 entries are non zero. The result is therefore stored in a custom type LineEvalRes representing a sparse element
+func LineEvalAffineBLS377(circuit *frontend.CS, Q, R G2Aff, P G1Aff, result *LineEvalRes, ext fields.Extension) {
+
+	// line eq: w^3*(QyRz-QzRy)x +  w^2*(QzRx - QxRz)y + w^5*(QxRy-QyRxz)
+	// result.r1 = Px*(QyRz-QzRy)
+	// result.r0 = Py*(QzRx - QxRz)
+	// result.r2 = Pz*(QxRy-QyRx)
+	// here all the z coordinates are 1
+
+	//result.r1.Mul(circuit, &Q.Y, &R.Z, ext)
+	result.r1.Sub(circuit, &Q.Y, &R.Y)
+	result.r0.Sub(circuit, &R.X, &Q.X)
+	result.r2.Mul(circuit, &Q.X, &R.Y, ext)
+
+	var tmp fields.Fp2Elmt
+	tmp.Mul(circuit, &Q.Y, &R.X, ext)
+	result.r2.Sub(circuit, &result.r2, &tmp)
+
+	// multiply P.Z by coeffs[2] in case P is infinity
+	result.r0.MulByFp(circuit, &result.r0, P.Y)
+	result.r1.MulByFp(circuit, &result.r1, P.X)
+}
+
 // MulAssign multiplies the result of a line evaluation to the current Fp12 accumulator
 func (l *LineEvalRes) MulAssign(circuit *frontend.CS, z *fields.Fp12Elmt, ext fields.Extension) {
 	var a, b, c fields.Fp12Elmt
@@ -111,6 +136,59 @@ func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, ex
 		} else if ateLoopNaf[i] == -1 {
 			// evaluates line through 2Qcur, -Q at P
 			LineEvalBLS377(circuit, QNext, QNeg, P, &lEval, ext)
+			lEval.MulAssign(circuit, res, ext)
+
+			QNext.AddAssign(circuit, &QNeg, ext)
+		}
+
+		QCur.Assign(circuit, &QNext)
+	}
+
+	return res
+}
+
+// MillerLoopAffine computes the miller loop, with points in affine
+// When neither Q nor P are the point at infinity
+func MillerLoopAffine(circuit *frontend.CS, P G1Aff, Q G2Aff, res *fields.Fp12Elmt, ext fields.Extension, ateLoop big.Int) *fields.Fp12Elmt {
+
+	var ateLoopNaf [64]int8
+	utils.NafDecomposition(&ateLoop, ateLoopNaf[:])
+
+	res.SetOne(circuit)
+
+	// the line goes through QCur and QNext
+	var QCur, QNext, QNextNeg G2Aff
+	var QNeg G2Aff
+
+	QCur.Assign(circuit, &Q)
+
+	// Stores -Q
+	QNeg.Neg(circuit, &Q)
+
+	var lEval LineEvalRes
+
+	// Miller loop
+	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
+		QNext.Assign(circuit, &QCur)
+		QNext.Double(circuit, &QNext, ext)
+		QNextNeg.Neg(circuit, &QNext)
+
+		res.Mul(circuit, res, res, ext)
+
+		// evaluates line though Qcur,2Qcur at P
+		LineEvalAffineBLS377(circuit, QCur, QNextNeg, P, &lEval, ext)
+		lEval.MulAssign(circuit, res, ext)
+
+		if ateLoopNaf[i] == 1 {
+			// evaluates line through 2Qcur, Q at P
+			LineEvalAffineBLS377(circuit, QNext, Q, P, &lEval, ext)
+			lEval.MulAssign(circuit, res, ext)
+
+			QNext.AddAssign(circuit, &Q, ext)
+
+		} else if ateLoopNaf[i] == -1 {
+			// evaluates line through 2Qcur, -Q at P
+			LineEvalAffineBLS377(circuit, QNext, QNeg, P, &lEval, ext)
 			lEval.MulAssign(circuit, res, ext)
 
 			QNext.AddAssign(circuit, &QNeg, ext)

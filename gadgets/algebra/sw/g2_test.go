@@ -60,6 +60,12 @@ func newPointCircuitG2(circuit *frontend.CS, s string) *G2Jac {
 	return NewPointG2(circuit, x, y, z)
 }
 
+func newPointAffineCircuitG2(circuit *frontend.CS, s string) *G2Aff {
+	x := fields.NewFp2Elmt(circuit, circuit.SECRET_INPUT(s+"x0"), circuit.SECRET_INPUT(s+"x1"))
+	y := fields.NewFp2Elmt(circuit, circuit.SECRET_INPUT(s+"y0"), circuit.SECRET_INPUT(s+"y1"))
+	return NewPointG2Aff(circuit, x, y)
+}
+
 func tagPointG2(g *G2Jac, s string) {
 	g.X.X.Tag(s + "x0")
 	g.X.Y.Tag(s + "x1")
@@ -67,6 +73,13 @@ func tagPointG2(g *G2Jac, s string) {
 	g.Y.Y.Tag(s + "y1")
 	g.Z.X.Tag(s + "z0")
 	g.Z.Y.Tag(s + "z1")
+}
+
+func tagPointAffineG2(g *G2Aff, s string) {
+	g.X.X.Tag(s + "x0")
+	g.X.Y.Tag(s + "x1")
+	g.Y.X.Tag(s + "y0")
+	g.Y.Y.Tag(s + "y1")
 }
 
 func assignPointG2(inputs backend.Assignments, g bls377.G2Jac, s string) {
@@ -78,6 +91,13 @@ func assignPointG2(inputs backend.Assignments, g bls377.G2Jac, s string) {
 	inputs.Assign(backend.Secret, s+"z1", g.Z.A1)
 }
 
+func assignPointAffineG2(inputs backend.Assignments, g bls377.G2Affine, s string) {
+	inputs.Assign(backend.Secret, s+"x0", g.X.A0)
+	inputs.Assign(backend.Secret, s+"x1", g.X.A1)
+	inputs.Assign(backend.Secret, s+"y0", g.Y.A0)
+	inputs.Assign(backend.Secret, s+"y1", g.Y.A1)
+}
+
 func getExpectedValuesG2(m map[string]*fp.Element, s string, g bls377.G2Jac) {
 	m[s+"x0"] = &g.X.A0
 	m[s+"x1"] = &g.X.A1
@@ -85,6 +105,13 @@ func getExpectedValuesG2(m map[string]*fp.Element, s string, g bls377.G2Jac) {
 	m[s+"y1"] = &g.Y.A1
 	m[s+"z0"] = &g.Z.A0
 	m[s+"z1"] = &g.Z.A1
+}
+
+func getExpectedValuesAffineG2(m map[string]*fp.Element, s string, g bls377.G2Affine) {
+	m[s+"x0"] = &g.X.A0
+	m[s+"x1"] = &g.X.A1
+	m[s+"y0"] = &g.Y.A0
+	m[s+"y1"] = &g.Y.A1
 }
 
 //--------------------------------------------------------------------
@@ -121,6 +148,7 @@ func TestAddAssignG2(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw6.New(&circuit)
+
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +156,94 @@ func TestAddAssignG2(t *testing.T) {
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error add g1")
+		}
+	}
+}
+
+func TestAddAffAssignG2(t *testing.T) {
+
+	curve := bls377.BLS377()
+
+	// sample 2 random points
+	var _g1, _g2 bls377.G2Affine
+	g1 := randomPointG2()
+	g2 := randomPointG2()
+	g1.ToAffineFromJac(&_g1)
+	g2.ToAffineFromJac(&_g2)
+
+	// create the circuit
+	circuit := frontend.New()
+	ext := fields.GetBLS377ExtensionFp12(&circuit)
+
+	gc1 := newPointAffineCircuitG2(&circuit, "a")
+	gc2 := newPointAffineCircuitG2(&circuit, "b")
+	gc1.AddAssign(&circuit, gc2, ext)
+	tagPointAffineG2(gc1, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignPointAffineG2(inputs, _g1, "a")
+	assignPointAffineG2(inputs, _g2, "b")
+
+	// compute the result
+	g1.Add(curve, &g2)
+	g1.ToAffineFromJac(&_g1)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesAffineG2(expectedValues, "c", _g1)
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error add affine g1")
+		}
+	}
+}
+
+func TestDoubleAffAssignG2(t *testing.T) {
+
+	// sample 2 random points
+	var _g1 bls377.G2Affine
+	g1 := randomPointG2()
+	g1.ToAffineFromJac(&_g1)
+
+	// create the circuit
+	circuit := frontend.New()
+	ext := fields.GetBLS377ExtensionFp12(&circuit)
+
+	gc1 := newPointAffineCircuitG2(&circuit, "a")
+	gc1.Double(&circuit, gc1, ext)
+	tagPointAffineG2(gc1, "c")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	assignPointAffineG2(inputs, _g1, "a")
+
+	// compute the result
+	g1.Double()
+	g1.ToAffineFromJac(&_g1)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	getExpectedValuesAffineG2(expectedValues, "c", _g1)
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error add affine g1")
 		}
 	}
 }
@@ -158,6 +274,7 @@ func TestDoubleG2(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw6.New(&circuit)
+
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)

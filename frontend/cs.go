@@ -251,6 +251,14 @@ func (cs *CS) mullc(l1, l2 LinearCombination) *Constraint {
 	return newConstraint(cs, expression)
 }
 
+// mullcinterface multiplies a linear combination with a coeff (represented as an interface)
+func (cs *CS) mullcinterface(l LinearCombination, c interface{}) *Constraint {
+	var coeff big.Int
+	coeff.SetUint64(1)
+	right := LinearCombination{Term{Constraint: cs.ALLOCATE(c), Coeff: coeff}}
+	return cs.mullc(l, right)
+}
+
 // equal equal constraints
 func (cs *CS) equal(c1, c2 *Constraint) error {
 

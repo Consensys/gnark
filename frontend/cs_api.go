@@ -85,12 +85,14 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) *Constraint {
 			case LinearCombination:
 				return cs.mullc(c1, c2)
 			default:
-				panic("invalid type; only support linear expression MUL linear expression")
+				return cs.mullcinterface(c1, c2)
 			}
 		case *Constraint:
 			switch c2 := _i2.(type) {
 			case *Constraint:
 				return cs.mul(c1, c2)
+			case LinearCombination:
+				return cs.mullcinterface(c2, c1)
 			default:
 				return cs.mulConstant(c1, backend.FromInterface(c2))
 			}

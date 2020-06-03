@@ -26,6 +26,20 @@ type G2Jac struct {
 	X, Y, Z fields.Fp2Elmt
 }
 
+// G2Aff point in Jacobian coords
+type G2Aff struct {
+	X, Y fields.Fp2Elmt
+}
+
+// NewPointG2Aff creates a new affine point from interaces as coordinates
+func NewPointG2Aff(circuit *frontend.CS, x, y fields.Fp2Elmt) *G2Aff {
+	res := &G2Aff{
+		X: x,
+		Y: y,
+	}
+	return res
+}
+
 // NewPointG2 creates a new point from interaces as coordinates
 func NewPointG2(circuit *frontend.CS, x, y, z fields.Fp2Elmt) *G2Jac {
 	res := &G2Jac{
@@ -54,6 +68,13 @@ func (p *G2Jac) Assign(circuit *frontend.CS, p1 *G2Jac) *G2Jac {
 	return p
 }
 
+// Assign assigns p to p1 and return it
+func (p *G2Aff) Assign(circuit *frontend.CS, p1 *G2Aff) *G2Aff {
+	p.X = p1.X
+	p.Y = p1.Y
+	return p
+}
+
 // ToProj sets p to p1 in projective coords and return it
 func (p *G2Jac) ToProj(circuit *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 	p.X.Mul(circuit, &p1.X, &p1.Z, ext)
@@ -69,6 +90,13 @@ func (p *G2Jac) Neg(circuit *frontend.CS, p1 *G2Jac) *G2Jac {
 	p.Y.Neg(circuit, &p1.Y)
 	p.X = p1.X
 	p.Z = p1.Z
+	return p
+}
+
+// Neg outputs -p
+func (p *G2Aff) Neg(circuit *frontend.CS, p1 *G2Aff) *G2Aff {
+	p.Y.Neg(circuit, &p1.Y)
+	p.X = p1.X
 	return p
 }
 
@@ -124,6 +152,59 @@ func (p *G2Jac) AddAssign(circuit *frontend.CS, p1 *G2Jac, ext fields.Extension)
 	p.Z.Mul(circuit, &p.Z, &H, ext)
 
 	return p
+}
+
+// AddAssign add p1 to p and return p
+func (p *G2Aff) AddAssign(circuit *frontend.CS, p1 *G2Aff, ext fields.Extension) *G2Aff {
+
+	var n, d, l, xr, yr fields.Fp2Elmt
+
+	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
+	n.Sub(circuit, &p1.Y, &p.Y)
+	d.Sub(circuit, &p1.X, &p.X)
+	l.Inverse(circuit, &d, ext).Mul(circuit, &l, &n, ext)
+
+	// xr =lambda**2-p1.x-p.x
+	xr.Mul(circuit, &l, &l, ext).
+		Sub(circuit, &xr, &p1.X).
+		Sub(circuit, &xr, &p.X)
+
+	// yr = lambda(p.x - xr)-p.y
+	yr.Sub(circuit, &p.X, &xr).
+		Mul(circuit, &l, &yr, ext).
+		Sub(circuit, &yr, &p.Y)
+
+	p.X = xr
+	p.Y = yr
+	return p
+}
+
+// Double compute 2*p1, assign the result to p and return it
+// Only for curve with j invariant 0 (a=0).
+func (p *G2Aff) Double(circuit *frontend.CS, p1 *G2Aff, ext fields.Extension) *G2Aff {
+
+	var n, d, l, xr, yr fields.Fp2Elmt
+
+	// lambda = 3*p1.x**2/2*p.y
+	n.Mul(circuit, &p1.X, &p1.X, ext).MulByFp(circuit, &n, 3)
+	d.MulByFp(circuit, &p1.Y, 2)
+	l.Inverse(circuit, &d, ext).Mul(circuit, &l, &n, ext)
+
+	// xr = lambda**2-2*p1.x
+	xr.Mul(circuit, &l, &l, ext).
+		Sub(circuit, &xr, &p1.X).
+		Sub(circuit, &xr, &p1.X)
+
+	// yr = lambda*(p.x-xr)-p.y
+	yr.Sub(circuit, &p.X, &xr).
+		Mul(circuit, &l, &yr, ext).
+		Sub(circuit, &yr, &p.Y)
+
+	p.X = xr
+	p.Y = yr
+
+	return p
+
 }
 
 // Double doubles a point in jacobian coords
