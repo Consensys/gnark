@@ -16,4 +16,5 @@
 
 package cmd
 
+// Version queried using git
 const Version = "v0.2.0-alpha"
