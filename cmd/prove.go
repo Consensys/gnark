@@ -30,6 +30,7 @@ import (
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
 	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
@@ -104,13 +105,14 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 	// TODO clean that up with interfaces and type casts
+	var bigIntR1cs frontend.R1CS
 	switch curveID {
 	case gurvy.BLS377:
-		var r1cs backend_bls377.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bls377.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls377.ProvingKey
@@ -158,11 +160,11 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
 	case gurvy.BLS381:
-		var r1cs backend_bls381.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bls381.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls381.ProvingKey
@@ -210,11 +212,11 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
 	case gurvy.BN256:
-		var r1cs backend_bn256.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bn256.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bn256.ProvingKey

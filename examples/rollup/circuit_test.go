@@ -140,6 +140,10 @@ func TestCircuitSignature(t *testing.T) {
 
 func TestCircuitInclusionProof(t *testing.T) {
 
+	if testing.Short() {
+		t.Skip("skipping rollup tests for circleCI")
+	}
+
 	notInInpuList := " is not in the input list"
 
 	// 16 accounts so we know that the proof length is 5
@@ -262,6 +266,10 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 func TestCircuitUpdateAccount(t *testing.T) {
 
+	if testing.Short() {
+		t.Skip("skipping rollup tests for circleCI")
+	}
+
 	notInInpuList := " is not in the input list"
 
 	// 16 accounts so we know that the proof length is 5
@@ -374,6 +382,10 @@ func TestCircuitUpdateAccount(t *testing.T) {
 }
 
 func TestCircuitFull(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip("skipping rollup tests for circleCI")
+	}
 
 	nbAccounts := 16 // 16 accounts so we know that the proof length is 5
 	depth := 5       // size fo the inclusion proofs

@@ -29,6 +29,7 @@ import (
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
 	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
@@ -79,20 +80,21 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 
-	// check curve ID
+	// check curve ID (TODO is curve.ID necessary now? Because the circuits are serialized with big.Int, here the curve.ID is "unknown")
 	curveID, err := gob.PeekCurveID(circuitPath)
 	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
 	// TODO clean that up with interfaces and type casts
+	var bigIntR1cs frontend.R1CS
 	switch curveID {
 	case gurvy.BLS377:
-		var r1cs backend_bls377.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bls377.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls377.ProvingKey
@@ -113,11 +115,11 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		}
 		fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
 	case gurvy.BLS381:
-		var r1cs backend_bls381.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bls381.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls381.ProvingKey
@@ -138,11 +140,11 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		}
 		fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
 	case gurvy.BN256:
-		var r1cs backend_bn256.R1CS
-		if err := gob.Read(circuitPath, &r1cs, curveID); err != nil {
+		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
+		r1cs := backend_bn256.Cast(&bigIntR1cs)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bn256.ProvingKey
