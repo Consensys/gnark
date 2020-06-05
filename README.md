@@ -26,13 +26,18 @@ src="banner_gnark.png">
 `gnark` is optimized for Unix (Linux / macOS) 64bits platforms (and not tested on other architectures). 
 You'll need to [install Go](https://golang.org/doc/install).
 
-### Install `gnark`
-To install for use as a command line application:
+### Install `gnark` 
+
+#### Command line interface
 
 ```bash
-git clone https://github.com/consensys/gnark.git
-cd gnark
-make
+go install github.com/ConsenSys/gnark
+```
+
+#### Library
+
+```bash
+go get github.com/ConsenSys/gnark
 ```
 
 To install for use as a Go package:
@@ -109,7 +114,12 @@ TODO (field overflows, etc)
 
 #### `gnark` standard library
 
-TODO
+Currently gnark provides the following gadgets:
+
+* The Mimc hash function
+* Merkle tree (binary, without domain separation)
+* Twisted Edwards curve arithmetic (for bn256 and bls381)
+* Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
 
 ## Benchmarks
 
