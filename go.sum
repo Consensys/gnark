@@ -15,6 +15,7 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
+github.com/consensYs/gnark v0.1.0-alpha h1:EdMCXpXxzuOYSOTUAVn1WI8GL2OuGBcbPtABM/DZhr4=
 github.com/consensys/bavard v0.1.0 h1:0lsXRFKSD8GuA93yjSlwUQu45LFV4HZFGZIYdouWfMg=
 github.com/consensys/bavard v0.1.0/go.mod h1:ffZkLPNQSN3E6u+zpArQSleJ/lsraMwKPCHQymPQJtM=
 github.com/consensys/bavard v0.1.1 h1:sFtk3U10YO4Mt8NNCEZQhMzoQ9UMy2H5GKOx/DwNg80=

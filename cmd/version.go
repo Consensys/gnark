@@ -16,4 +16,5 @@
 
 package cmd
 
-const Version = "v0.1.0-alpha"
+// Version queried using git
+const Version = "v0.2.0-alpha"

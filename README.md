@@ -1,5 +1,5 @@
 # gnark
-[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark) [![GoDoc](https://godoc.org/github.com/consensys/gnark?status.svg)](https://godoc.org/github.com/consensys/gnark)
+[![Gitter](https://badges.gitter.im/consensys-gnark/community.svg)](https://gitter.im/consensys-gnark/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark) [![GoDoc](https://godoc.org/github.com/consensys/gnark?status.svg)](https://godoc.org/github.com/consensys/gnark)
 
 
 `gnark` is a framework to execute (and verify) algorithms in zero-knowledge. It offers a high-level API to easily design circuits and fast implementation of state of the art ZKP schemes. 
@@ -39,6 +39,10 @@ go install github.com/ConsenSys/gnark
 ```bash
 go get github.com/ConsenSys/gnark
 ```
+
+To install for use as a Go package:
+
+`go get github.com/consensys/gnark/cs`
 
 ### Workflow
 
@@ -110,7 +114,12 @@ TODO (field overflows, etc)
 
 #### `gnark` standard library
 
-TODO
+Currently gnark provides the following gadgets:
+
+* The Mimc hash function
+* Merkle tree (binary, without domain separation)
+* Twisted Edwards curve arithmetic (for bn256 and bls381)
+* Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
 
 ## Benchmarks
 

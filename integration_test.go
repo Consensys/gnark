@@ -23,13 +23,14 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
-	"github.com/consensys/gnark/internal/utils/encoding/gob"
+	"github.com/consensys/gurvy"
 )
 
 func TestIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration tests")
+		t.Skip("skipping integration tests for circleCI")
 	}
 	// create temporary dir for integration test
 	parentDir := "./integration_test"
@@ -50,7 +51,7 @@ func TestIntegration(t *testing.T) {
 		fInputGood := filepath.Join(parentDir, name+".good.input")
 		fInputBad := filepath.Join(parentDir, name+".bad.input")
 
-		buildTags := curve.ID.String() + ",debug"
+		buildTags := "debug"
 		// 2: input files to disk
 		if err := good.WriteFile(fInputGood); err != nil {
 			t.Fatal(err)
@@ -106,11 +107,9 @@ func TestIntegration(t *testing.T) {
 		}
 		// serialize to disk
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
-		if err := gob.Write(fCircuit, circuit.R1CS, curve.ID); err != nil {
+		if err := gob.Write(fCircuit, circuit.R1CS, gurvy.BN256); err != nil {
 			t.Fatal(err)
 		}
-
 		spv(name, circuit.Good, circuit.Bad)
-
 	}
 }
