@@ -45,7 +45,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, e
 		chan2 <- true
 	}()
 
-	kInputs, err := parsePublicInput(vk.PublicInputs, inputs)
+	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return false, err
 	}
@@ -64,8 +64,9 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, e
 }
 
 // parsePublicInput return the ordered public input values
-// in regular form (used as scalars for multi exponentiation)
-func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.Element, error) {
+// in regular form (used as scalars for multi exponentiation).
+// The function is public because it's needed for the recursive snark.
+func ParsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.Element, error) {
 	toReturn := make([]fr.Element, len(expectedNames))
 
 	// ensure we don't assign private inputs

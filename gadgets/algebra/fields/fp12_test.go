@@ -587,6 +587,7 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	circuit := frontend.New()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
+	ateLoop := uint64(9586122913090633729)
 
 	// witness values
 	var a, c bls377.E12
@@ -594,10 +595,9 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	c.FinalExponentiation(&a)
 
 	// circuit values
-	expo := uint64(9586122913090633729)
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
-	fp12c.FinalExpoBLS(&circuit, &fp12a, expo, ext)
+	fp12c.FinalExpoBLS(&circuit, &fp12a, ateLoop, ext)
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs

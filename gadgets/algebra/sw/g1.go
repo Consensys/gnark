@@ -22,6 +22,11 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// G1Proj point in projective coordinates
+type G1Proj struct {
+	X, Y, Z *frontend.Constraint
+}
+
 // G1Jac point in Jacobian coords
 type G1Jac struct {
 	X, Y, Z *frontend.Constraint
@@ -32,7 +37,7 @@ type G1Aff struct {
 	X, Y *frontend.Constraint
 }
 
-// NewPointG1 creates a new point from interaces as coordinates
+// NewPointG1 creates a new point from interfaces as coordinates
 func NewPointG1(circuit *frontend.CS, x, y, z interface{}) *G1Jac {
 	res := &G1Jac{
 		X: circuit.ALLOCATE(x),
@@ -51,9 +56,19 @@ func NewPointG1Aff(circuit *frontend.CS, x, y interface{}) *G1Aff {
 	return res
 }
 
-// NewInfinityG1 returns a newly allocated point at infinity
+// NewInfinityG1 returns a newly allocated point at infinity (in Jacobian)
 func NewInfinityG1(circuit *frontend.CS) *G1Jac {
 	res := &G1Jac{
+		X: circuit.ALLOCATE(1),
+		Y: circuit.ALLOCATE(1),
+		Z: circuit.ALLOCATE(0),
+	}
+	return res
+}
+
+// NewInfinityProjG1 returns a newly allocated point at infinity (in projective)
+func NewInfinityProjG1(circuit *frontend.CS) *G1Proj {
+	res := &G1Proj{
 		X: circuit.ALLOCATE(0),
 		Y: circuit.ALLOCATE(1),
 		Z: circuit.ALLOCATE(0),
@@ -75,6 +90,13 @@ func (p *G1Jac) Neg(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	p.X = p1.X
 	p.Y = circuit.SUB(0, p1.Y)
 	p.Z = p1.Z
+	return p
+}
+
+// Neg outputs -p
+func (p *G1Aff) Neg(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
+	p.X = p1.X
+	p.Y = circuit.SUB(0, p1.Y)
 	return p
 }
 
@@ -114,6 +136,21 @@ func (p *G1Aff) AddAssign(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 
 	//p.x = xr
 	p.X = circuit.MUL(_x, 1)
+	return p
+}
+
+// Assign sets p to p1 and return it
+func (p *G1Jac) Assign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
+	p.X = circuit.ALLOCATE(p1.X)
+	p.Y = circuit.ALLOCATE(p1.Y)
+	p.Z = circuit.ALLOCATE(p1.Z)
+	return p
+}
+
+// Assign sets p to p1 and return it
+func (p *G1Aff) Assign(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
+	p.X = circuit.ALLOCATE(p1.X)
+	p.Y = circuit.ALLOCATE(p1.Y)
 	return p
 }
 
@@ -172,8 +209,8 @@ func (p *G1Jac) AddAssign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	return p
 }
 
-// Double doubles a point in jacobian coords
-func (p *G1Jac) Double(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
+// DoubleAssign doubles the receiver point in jacobian coords and returns it
+func (p *G1Jac) DoubleAssign(circuit *frontend.CS) *G1Jac {
 	// get some Element from our pool
 	var XX, YY, YYYY, ZZ, S, M, T *frontend.Constraint
 
@@ -199,6 +236,24 @@ func (p *G1Jac) Double(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 	YYYY = circuit.MUL(YYYY, 8)
 	p.Y = circuit.SUB(p.Y, YYYY)
 
+	return p
+}
+
+// Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
+func (p *G1Aff) Select(circuit *frontend.CS, b *frontend.Constraint, p1, p2 *G1Aff) *G1Aff {
+
+	p.X = circuit.SELECT(b, p1.X, p2.X)
+	p.Y = circuit.SELECT(b, p1.Y, p2.Y)
+
+	return p
+
+}
+
+// FromJac sets p to p1 in affine and returns it
+func (p *G1Aff) FromJac(circuit *frontend.CS, p1 *G1Jac) *G1Aff {
+	s := circuit.MUL(p1.Z, p1.Z)
+	p.X = circuit.DIV(p1.X, s)
+	p.Y = circuit.DIV(p1.Y, circuit.MUL(s, p1.Z))
 	return p
 }
 
@@ -242,4 +297,34 @@ func (p *G1Aff) Double(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 	//p.x = xr
 	p.X = circuit.MUL(_x, 1)
 	return p
+}
+
+// ScalarMul computes scalar*p1, affect the result to p, and returns it
+func (p *G1Aff) ScalarMul(circuit *frontend.CS, p1 *G1Aff, s interface{}) *G1Aff {
+
+	scalar := circuit.ALLOCATE(s)
+
+	var base, res G1Aff
+	base.Double(circuit, p1)
+	res.Assign(circuit, p1)
+
+	b := circuit.TO_BINARY(scalar, 256)
+
+	var tmp G1Aff
+
+	// start from 1 and use right-to-left scalar multiplication to avoid bugs due to incomplete addition law
+	// (I don't see how to avoid that)
+	for i := 1; i <= 255; i++ {
+		tmp.Assign(circuit, &res).AddAssign(circuit, &base)
+		res.Select(circuit, b[i], &tmp, &res)
+		base.Double(circuit, &base)
+	}
+
+	// now check the lsb, if it's one, leave the result as is, otherwise substract P
+	tmp.Neg(circuit, p1).AddAssign(circuit, &res)
+
+	p.Select(circuit, b[0], &res, &tmp)
+
+	return p
+
 }

@@ -191,13 +191,10 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[s
 
 	res := make(map[string]fr.Element)
 
-	var root fr.Element
-	fftDomain := NewDomain(root, MaxOrder, r1cs.NbConstraints)
-
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	a := make([]fr.Element, r1cs.NbConstraints)
+	b := make([]fr.Element, r1cs.NbConstraints)
+	c := make([]fr.Element, r1cs.NbConstraints)
 
 	err := r1cs.Solve(solution, a, b, c, wireValues)
 

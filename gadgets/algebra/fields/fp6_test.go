@@ -17,6 +17,7 @@ limitations under the License.
 package fields
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -190,6 +191,7 @@ func TestMulFp6(t *testing.T) {
 	getExpectedValuesFp6(expectedValues, "c", c)
 
 	r1cs := backend_bw6.New(&circuit)
+	fmt.Println(r1cs.NbConstraints)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)

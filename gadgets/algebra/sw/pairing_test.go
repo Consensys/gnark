@@ -17,7 +17,6 @@ limitations under the License.
 package sw
 
 import (
-	"math/big"
 	"strconv"
 	"testing"
 
@@ -225,10 +224,10 @@ func TestPairingBLS377(t *testing.T) {
 	expectedValues["pairing11"] = &pairingRes.C1.B2.A1
 
 	// set the circuit
-	var ateLoop big.Int
-	ateLoop.SetString("9586122913090633729", 10)
-
+	var ateLoop uint64
+	ateLoop = 9586122913090633729
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
 	var Q G2Jac
 	var P G1Jac
@@ -251,7 +250,7 @@ func TestPairingBLS377(t *testing.T) {
 
 	milrescircuit := fields.NewFp12ElmtNil(&circuit)
 
-	MillerLoop(&circuit, P, Q, &milrescircuit, ext, ateLoop)
+	MillerLoop(&circuit, P, Q, &milrescircuit, pairingInfo)
 
 	// tag the result of the miller loop
 	milrescircuit.C0.B0.X.Tag("millerloop0")
@@ -351,10 +350,10 @@ func TestPairingAffineBLS377(t *testing.T) {
 	expectedValues["pairing11"] = &pairingRes.C1.B2.A1
 
 	// set the circuit
-	var ateLoop big.Int
-	ateLoop.SetString("9586122913090633729", 10)
-
+	var ateLoop uint64
+	ateLoop = 9586122913090633729
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
 	var Q G2Aff
 	var P G1Aff
@@ -374,7 +373,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 
 	milrescircuit := fields.NewFp12ElmtNil(&circuit)
 
-	MillerLoopAffine(&circuit, P, Q, &milrescircuit, ext, ateLoop)
+	MillerLoopAffine(&circuit, P, Q, &milrescircuit, pairingInfo)
 
 	//pairingres := fields.NewFp12ElmtNil(&circuit)
 	milrescircuit.FinalExpoBLS(&circuit, &milrescircuit, uint64(9586122913090633729), ext)

@@ -72,24 +72,24 @@ func TestParsePublicInput(t *testing.T) {
 
 	inputOneWire := backend.NewAssignment()
 	inputOneWire.Assign(backend.Public, "ONE_WIRE", 3)
-	if _, err := parsePublicInput(expectedNames[:], inputOneWire); err == nil {
+	if _, err := ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	inputPrivate := backend.NewAssignment()
 	inputPrivate.Assign(backend.Secret, "data", 3)
-	if _, err := parsePublicInput(expectedNames[:], inputPrivate); err == nil {
+	if _, err := ParsePublicInput(expectedNames[:], inputPrivate); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	missingInput := backend.NewAssignment()
-	if _, err := parsePublicInput(expectedNames[:], missingInput); err == nil {
+	if _, err := ParsePublicInput(expectedNames[:], missingInput); err == nil {
 		t.Fatal("expected ErrMissingAssigment")
 	}
 
 	correctInput := backend.NewAssignment()
 	correctInput.Assign(backend.Public, "data", 3)
-	got, err := parsePublicInput(expectedNames[:], correctInput)
+	got, err := ParsePublicInput(expectedNames[:], correctInput)
 	if err != nil {
 		t.Fatal(err)
 	}

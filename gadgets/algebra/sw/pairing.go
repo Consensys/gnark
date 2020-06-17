@@ -24,6 +24,12 @@ import (
 	"github.com/consensys/gurvy/utils"
 )
 
+// PairingContext contains useful info about the pairing
+type PairingContext struct {
+	AteLoop   uint64 // stores the ate loop
+	Extension fields.Extension
+}
+
 // LineEvalRes represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvalRes struct {
 	r0, r1, r2 fields.Fp2Elmt
@@ -96,10 +102,12 @@ func (l *LineEvalRes) MulAssign(circuit *frontend.CS, z *fields.Fp12Elmt, ext fi
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, ext fields.Extension, ateLoop big.Int) *fields.Fp12Elmt {
+func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, pairingInfo PairingContext) *fields.Fp12Elmt {
 
 	var ateLoopNaf [64]int8
-	utils.NafDecomposition(&ateLoop, ateLoopNaf[:])
+	var ateLoopBigInt big.Int
+	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
+	utils.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
 
 	res.SetOne(circuit)
 
@@ -117,28 +125,28 @@ func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, ex
 	// Miller loop
 	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
 		QNext.Assign(circuit, &QCur)
-		QNext.Double(circuit, &QNext, ext)
+		QNext.Double(circuit, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(circuit, &QNext)
 
-		res.Mul(circuit, res, res, ext)
+		res.Mul(circuit, res, res, pairingInfo.Extension)
 
 		// evaluates line though Qcur,2Qcur at P
-		LineEvalBLS377(circuit, QCur, QNextNeg, P, &lEval, ext)
-		lEval.MulAssign(circuit, res, ext)
+		LineEvalBLS377(circuit, QCur, QNextNeg, P, &lEval, pairingInfo.Extension)
+		lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
 		if ateLoopNaf[i] == 1 {
 			// evaluates line through 2Qcur, Q at P
-			LineEvalBLS377(circuit, QNext, Q, P, &lEval, ext)
-			lEval.MulAssign(circuit, res, ext)
+			LineEvalBLS377(circuit, QNext, Q, P, &lEval, pairingInfo.Extension)
+			lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
-			QNext.AddAssign(circuit, &Q, ext)
+			QNext.AddAssign(circuit, &Q, pairingInfo.Extension)
 
 		} else if ateLoopNaf[i] == -1 {
 			// evaluates line through 2Qcur, -Q at P
-			LineEvalBLS377(circuit, QNext, QNeg, P, &lEval, ext)
-			lEval.MulAssign(circuit, res, ext)
+			LineEvalBLS377(circuit, QNext, QNeg, P, &lEval, pairingInfo.Extension)
+			lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
-			QNext.AddAssign(circuit, &QNeg, ext)
+			QNext.AddAssign(circuit, &QNeg, pairingInfo.Extension)
 		}
 
 		QCur.Assign(circuit, &QNext)
@@ -149,10 +157,12 @@ func MillerLoop(circuit *frontend.CS, P G1Jac, Q G2Jac, res *fields.Fp12Elmt, ex
 
 // MillerLoopAffine computes the miller loop, with points in affine
 // When neither Q nor P are the point at infinity
-func MillerLoopAffine(circuit *frontend.CS, P G1Aff, Q G2Aff, res *fields.Fp12Elmt, ext fields.Extension, ateLoop big.Int) *fields.Fp12Elmt {
+func MillerLoopAffine(circuit *frontend.CS, P G1Aff, Q G2Aff, res *fields.Fp12Elmt, pairingInfo PairingContext) *fields.Fp12Elmt {
 
 	var ateLoopNaf [64]int8
-	utils.NafDecomposition(&ateLoop, ateLoopNaf[:])
+	var ateLoopBigInt big.Int
+	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
+	utils.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
 
 	res.SetOne(circuit)
 
@@ -170,28 +180,28 @@ func MillerLoopAffine(circuit *frontend.CS, P G1Aff, Q G2Aff, res *fields.Fp12El
 	// Miller loop
 	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
 		QNext.Assign(circuit, &QCur)
-		QNext.Double(circuit, &QNext, ext)
+		QNext.Double(circuit, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(circuit, &QNext)
 
-		res.Mul(circuit, res, res, ext)
+		res.Mul(circuit, res, res, pairingInfo.Extension)
 
 		// evaluates line though Qcur,2Qcur at P
-		LineEvalAffineBLS377(circuit, QCur, QNextNeg, P, &lEval, ext)
-		lEval.MulAssign(circuit, res, ext)
+		LineEvalAffineBLS377(circuit, QCur, QNextNeg, P, &lEval, pairingInfo.Extension)
+		lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
 		if ateLoopNaf[i] == 1 {
 			// evaluates line through 2Qcur, Q at P
-			LineEvalAffineBLS377(circuit, QNext, Q, P, &lEval, ext)
-			lEval.MulAssign(circuit, res, ext)
+			LineEvalAffineBLS377(circuit, QNext, Q, P, &lEval, pairingInfo.Extension)
+			lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
-			QNext.AddAssign(circuit, &Q, ext)
+			QNext.AddAssign(circuit, &Q, pairingInfo.Extension)
 
 		} else if ateLoopNaf[i] == -1 {
 			// evaluates line through 2Qcur, -Q at P
-			LineEvalAffineBLS377(circuit, QNext, QNeg, P, &lEval, ext)
-			lEval.MulAssign(circuit, res, ext)
+			LineEvalAffineBLS377(circuit, QNext, QNeg, P, &lEval, pairingInfo.Extension)
+			lEval.MulAssign(circuit, res, pairingInfo.Extension)
 
-			QNext.AddAssign(circuit, &QNeg, ext)
+			QNext.AddAssign(circuit, &QNeg, pairingInfo.Extension)
 		}
 
 		QCur.Assign(circuit, &QNext)

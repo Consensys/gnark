@@ -195,7 +195,7 @@ func TestDoubleG1(t *testing.T) {
 	circuit := frontend.New()
 
 	gc1 := newPointCircuitG1(&circuit, "a")
-	gc1.Double(&circuit, gc1)
+	gc1.DoubleAssign(&circuit)
 	tagPointG1(gc1, "c")
 
 	// assign the inputs
@@ -237,8 +237,6 @@ func TestDoubleAffG1(t *testing.T) {
 	tagPointG1Aff(gc1, "c")
 
 	// assign the inputs
-	var one fp.Element
-	one.SetUint64(1)
 	inputs := backend.NewAssignment()
 	inputs.Assign(backend.Secret, "a0", _g1.X)
 	inputs.Assign(backend.Secret, "a1", _g1.Y)
@@ -298,8 +296,56 @@ func TestNegG1(t *testing.T) {
 	}
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
-			t.Fatal("error double g1")
+			t.Fatal("error neg g1")
 		}
 	}
 
+}
+
+func TestScalarMulG1(t *testing.T) {
+
+	curve := bls377.BLS377()
+
+	// sample a random points
+	g1 := randomPointG1()
+	var g1Aff bls377.G1Affine
+	g1.ToAffineFromJac(&g1Aff)
+
+	// random scalar
+	var r fr.Element
+	r.SetRandom()
+
+	// create the circuit
+	circuit := frontend.New()
+	gc1 := newPointCircuitG1Aff(&circuit, "gc1")
+	gc1.ScalarMul(&circuit, gc1, r.String())
+	tagPointG1Aff(gc1, "res")
+
+	// assign the inputs
+	inputs := backend.NewAssignment()
+	inputs.Assign(backend.Secret, "gc10", g1Aff.X)
+	inputs.Assign(backend.Secret, "gc11", g1Aff.Y)
+
+	// compute the result
+	r.FromMont()
+	g1.ScalarMul(curve, &g1, r)
+	g1.ToAffineFromJac(&g1Aff)
+
+	// assign the exepected values
+	expectedValues := make(map[string]*fp.Element)
+	expectedValues["res0"] = &g1Aff.X
+	expectedValues["res1"] = &g1Aff.Y
+
+	// check expected result
+	r1cs := backend_bw6.New(&circuit)
+
+	res, err := r1cs.Inspect(inputs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range res {
+		if expectedValues[k].String() != v.String() {
+			t.Fatal("error scalar mul g1")
+		}
+	}
 }
