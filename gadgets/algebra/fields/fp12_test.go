@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw6 "github.com/consensys/gnark/backend/bw6"
+	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -124,7 +124,7 @@ func TestAddFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -164,7 +164,7 @@ func TestSubFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -206,7 +206,7 @@ func TestMulFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -243,7 +243,7 @@ func TestConjugateFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -286,7 +286,7 @@ func TestMulByVFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -329,7 +329,7 @@ func TestMulByVWFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -372,7 +372,7 @@ func TestMulByV2WFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -411,7 +411,7 @@ func TestFrobeniusFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -450,7 +450,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -489,7 +489,7 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -528,7 +528,7 @@ func TestInverseFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -568,7 +568,7 @@ func TestFixExpoFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -608,7 +608,7 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp12(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)

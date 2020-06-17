@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw6 "github.com/consensys/gnark/backend/bw6"
+	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -73,14 +73,14 @@ func TestAddFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error AddFp2")
@@ -117,14 +117,14 @@ func TestSubFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error SubFp2")
@@ -163,14 +163,14 @@ func TestMulFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error MulFp2")
@@ -207,14 +207,14 @@ func TestMulByFpFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error MulByFpFp2")
@@ -249,14 +249,14 @@ func TestMulByImFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error MulByImFp2")
@@ -289,14 +289,14 @@ func TestConjugateFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error ConjugateFp2")
@@ -331,14 +331,14 @@ func TestInverseFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO here we use string because we can't compare bls377.fp to bw6.fr elmts (add a raw cast?)
+	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
 		if expectedValues[k].String() != v.String() {
 			t.Fatal("error InverseFp2")

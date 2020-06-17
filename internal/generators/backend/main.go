@@ -22,11 +22,11 @@ func main() {
 		RootPath: "../../../backend/bn256/",
 		Curve:    "BN256",
 	}
-	// bw6 := generator.GenerateData{
-	// 	RootPath: "../../../backend/bw6/",
-	// 	Curve:    "BW6",
-	// }
-	datas := []generator.GenerateData{bls377, bls381, bn256} //, bw6}
+	bw761 := generator.GenerateData{
+		RootPath: "../../../backend/bw761/",
+		Curve:    "BW761",
+	}
+	datas := []generator.GenerateData{bls377, bls381, bn256, bw761}
 
 	for _, d := range datas {
 		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {

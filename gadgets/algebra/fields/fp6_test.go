@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw6 "github.com/consensys/gnark/backend/bw6"
+	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -108,7 +108,7 @@ func TestAddFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -148,7 +148,7 @@ func TestSubFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -190,7 +190,7 @@ func TestMulFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 	fmt.Println(r1cs.NbConstraints)
 
 	// inspect and compare the results
@@ -234,7 +234,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -273,7 +273,7 @@ func TestMulByVFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)
@@ -312,7 +312,7 @@ func TestInverseFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
 	res, err := r1cs.Inspect(inputs, false)

@@ -10,8 +10,8 @@ const ImportCurve = `
 	"github.com/consensys/gurvy/bls381/fr"
 {{ else if eq .Curve "BN256"}}
 	"github.com/consensys/gurvy/bn256/fr"
-{{ else if eq .Curve "BW6"}}
-	"github.com/consensys/gurvy/bw6_761/fr"
+{{ else if eq .Curve "BW761"}}
+	"github.com/consensys/gurvy/bw761/fr"
 {{end}}
 
 {{end}}
@@ -26,9 +26,9 @@ const ImportCurve = `
 {{else if eq .Curve "BN256"}}
 	curve "github.com/consensys/gurvy/bn256"	
 	"github.com/consensys/gurvy/bn256/fr"
-{{else if eq .Curve "BW6"}}
-	curve "github.com/consensys/gurvy/bw6_761"	
-	"github.com/consensys/gurvy/bw6_761/fr"
+{{else if eq .Curve "BW761"}}
+	curve "github.com/consensys/gurvy/bw761"	
+	"github.com/consensys/gurvy/bw761/fr"
 {{end}}
 
 {{end}}
@@ -40,8 +40,8 @@ const ImportCurve = `
 	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls381"
 {{else if eq .Curve "BN256"}}
 	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bn256"
-{{ else if eq .Curve "BW6"}}
-	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw6_761"
+{{ else if eq .Curve "BW761"}}
+	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761"
 {{end}}
 
 {{end}}

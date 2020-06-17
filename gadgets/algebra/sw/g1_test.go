@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw6 "github.com/consensys/gnark/backend/bw6"
+	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
@@ -120,7 +120,7 @@ func TestAddAssignG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestAddAssignAffG1(t *testing.T) {
 	expectedValues["c1"] = &_gres.Y
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
@@ -210,7 +210,7 @@ func TestDoubleG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +252,7 @@ func TestDoubleAffG1(t *testing.T) {
 	expectedValues["c1"] = &_gres.Y
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
@@ -289,7 +289,7 @@ func TestNegG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
@@ -337,7 +337,7 @@ func TestScalarMulG1(t *testing.T) {
 	expectedValues["res1"] = &g1Aff.Y
 
 	// check expected result
-	r1cs := backend_bw6.New(&circuit)
+	r1cs := backend_bw761.New(&circuit)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
