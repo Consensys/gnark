@@ -82,6 +82,7 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 
 	// check curve ID (TODO is curve.ID necessary now? Because the circuits are serialized with big.Int, here the curve.ID is "unknown")
 	curveID, err := gob.PeekCurveID(circuitPath)
+	fmt.Println("test-----" + curveID.String())
 	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)

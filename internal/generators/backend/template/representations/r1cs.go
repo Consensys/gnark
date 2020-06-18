@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"strconv"
 
-	{{ template "import_curve" . }}
 	{{if ne .Curve "GENERIC"}}
 	"github.com/consensys/gnark/backend"
 	{{end}}
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
-	"github.com/consensys/gnark/encoding/gob"
 )
 
 // R1CS decsribes a set of R1CS constraint 
@@ -397,10 +395,6 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	default:
 		panic("unimplemented solving method")
 	}
-}
-
-func (r1cs *R1CS) Write(path string) error {
-	return gob.Write(path, r1cs, curve.ID)
 }
 
 `

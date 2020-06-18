@@ -4,13 +4,18 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/bn256/groth16"
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestExponentiate(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
-	r1cs := New() // y == x**e
+
+	r1cs := New() // y == x**e, captures the geometry of the circuit, not tied to any curve.
+
+	r1csBN256 := backend_bn256.Cast(r1cs)
 
 	// TODO bigger numbers
 	{
@@ -18,7 +23,7 @@ func TestExponentiate(t *testing.T) {
 		bad.Assign(backend.Public, "x", 2)
 		bad.Assign(backend.Secret, "e", 12)
 		bad.Assign(backend.Public, "y", 4095) // y != x**e
-		assert.NotSolved(r1cs, bad)
+		assert.NotSolved(&r1csBN256, bad)
 	}
 
 	{
@@ -26,7 +31,7 @@ func TestExponentiate(t *testing.T) {
 		bad.Assign(backend.Public, "x", 2)
 		bad.Assign(backend.Public, "e", 12) // e should be Secret
 		bad.Assign(backend.Public, "y", 4096)
-		assert.NotSolved(r1cs, bad)
+		assert.NotSolved(&r1csBN256, bad)
 	}
 
 	{
@@ -52,7 +57,7 @@ func TestExponentiate(t *testing.T) {
 		expectedValues["e[5]"] = bindec[5]
 		expectedValues["e[6]"] = bindec[6]
 		expectedValues["e[7]"] = bindec[7]
-		assert.Solved(r1cs, good, expectedValues)
+		assert.Solved(&r1csBN256, good, expectedValues)
 	}
 
 }

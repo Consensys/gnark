@@ -20,12 +20,9 @@ import (
 	"fmt"
 	"strconv"
 
-	curve "github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gurvy/bls377/fr"
 
-	"github.com/consensys/gnark/backend"
-
-	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
 )
@@ -410,8 +407,4 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	default:
 		panic("unimplemented solving method")
 	}
-}
-
-func (r1cs *R1CS) Write(path string) error {
-	return gob.Write(path, r1cs, curve.ID)
 }
