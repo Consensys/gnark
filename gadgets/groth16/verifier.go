@@ -44,11 +44,10 @@ type VerifyingKey struct {
 }
 
 // Verify implements the verification function of groth16.
-// pubInputNames must be created
+// pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
-// The verifier is created to work on BLS377 (the ateLoop counter is harcoded).
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, vk VerifyingKey, proof Proof, pubInputNames []string, pubInputVals []interface{}) {
+func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, vk VerifyingKey, proof Proof, pubInputNames []string) {
 
 	var eπCdelta, eπAπB, epsigamma fields.Fp12Elmt
 
@@ -65,9 +64,9 @@ func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, vk VerifyingKey
 		publicInputsSnark[k] = circuit.PUBLIC_INPUT(v)
 	}
 	var psi0, tmp sw.G1Aff
-	psi0.ScalarMul(circuit, &vk.G1[0], pubInputVals[0])
+	psi0.ScalarMul(circuit, &vk.G1[0], publicInputsSnark[0])
 	for i := 1; i < len(pubInputNames); i++ {
-		tmp.ScalarMul(circuit, &vk.G1[i], pubInputVals[i])
+		tmp.ScalarMul(circuit, &vk.G1[i], publicInputsSnark[i])
 		psi0.AddAssign(circuit, &tmp)
 	}
 
