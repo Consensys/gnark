@@ -17,6 +17,7 @@ limitations under the License.
 package mimc
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -66,6 +67,7 @@ func TestMimcBN256(t *testing.T) {
 	b := mimcbn256.Sum("seed", databn256.Bytes())
 	var tmp fr_bn256.Element
 	tmp.SetBytes(b)
+	fmt.Println(tmp.String())
 	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
