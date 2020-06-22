@@ -122,6 +122,24 @@ func NewFp12ElmtNil(circuit *frontend.CS) Fp12Elmt {
 	return res
 }
 
+// MustBeEq constrains p1 and p2 to be equal (it's a constraint, not a variable assignment)
+func (e *Fp12Elmt) MustBeEq(circuit *frontend.CS, e1 *Fp12Elmt) {
+
+	circuit.MUSTBE_EQ(e.C0.B0.X, e1.C0.B0.X)
+	circuit.MUSTBE_EQ(e.C0.B0.Y, e1.C0.B0.Y)
+	circuit.MUSTBE_EQ(e.C0.B1.X, e1.C0.B1.X)
+	circuit.MUSTBE_EQ(e.C0.B1.Y, e1.C0.B1.Y)
+	circuit.MUSTBE_EQ(e.C0.B2.X, e1.C0.B2.X)
+	circuit.MUSTBE_EQ(e.C0.B2.Y, e1.C0.B2.Y)
+
+	circuit.MUSTBE_EQ(e.C1.B0.X, e1.C1.B0.X)
+	circuit.MUSTBE_EQ(e.C1.B0.Y, e1.C1.B0.Y)
+	circuit.MUSTBE_EQ(e.C1.B1.X, e1.C1.B1.X)
+	circuit.MUSTBE_EQ(e.C1.B1.Y, e1.C1.B1.Y)
+	circuit.MUSTBE_EQ(e.C1.B2.X, e1.C1.B2.X)
+	circuit.MUSTBE_EQ(e.C1.B2.Y, e1.C1.B2.Y)
+}
+
 // SetOne returns a newly allocated element equal to 1
 func (e *Fp12Elmt) SetOne(circuit *frontend.CS) *Fp12Elmt {
 	e.C0.B0.X = circuit.ALLOCATE(1)

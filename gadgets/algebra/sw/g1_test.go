@@ -318,7 +318,7 @@ func TestScalarMulG1(t *testing.T) {
 	// create the circuit
 	circuit := frontend.New()
 	gc1 := newPointCircuitG1Aff(&circuit, "gc1")
-	gc1.ScalarMul(&circuit, gc1, r.String())
+	gc1.ScalarMul(&circuit, gc1, r.String(), 256)
 	tagPointG1Aff(gc1, "res")
 
 	// assign the inputs

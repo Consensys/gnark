@@ -35,7 +35,7 @@ type LineEvalRes struct {
 	r0, r1, r2 fields.Fp2Elmt
 }
 
-// LineEvalBLS377 computes f(P) where div(f) = P+R-2O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
+// LineEvalBLS377 computes f(P) where div(f) = (P)+(R)+(-(P+R))-3O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
 // the result is pulled back like if it was computed on the original curve, so it's a Fp12Elmt, that is sparse,
 // only 3 entries are non zero. The result is therefore stored in a custom type LineEvalRes representing a sparse element
 func LineEvalBLS377(circuit *frontend.CS, Q, R G2Jac, P G1Jac, result *LineEvalRes, ext fields.Extension) {
@@ -67,7 +67,7 @@ func LineEvalBLS377(circuit *frontend.CS, Q, R G2Jac, P G1Jac, result *LineEvalR
 	result.r2.MulByFp(circuit, &result.r2, P.Z)
 }
 
-// LineEvalAffineBLS377 computes f(P) where div(f) = P+R-2O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
+// LineEvalAffineBLS377 computes f(P) where div(f) = (P)+(R)+(-(P+R))-3O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
 // the result is pulled back like if it was computed on the original curve, so it's a Fp12Elmt, that is sparse,
 // only 3 entries are non zero. The result is therefore stored in a custom type LineEvalRes representing a sparse element
 func LineEvalAffineBLS377(circuit *frontend.CS, Q, R G2Aff, P G1Aff, result *LineEvalRes, ext fields.Extension) {

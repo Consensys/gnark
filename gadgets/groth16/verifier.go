@@ -47,31 +47,36 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, vk VerifyingKey, proof Proof, pubInputNames []string) {
+func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputNames []string) {
 
 	var eπCdelta, eπAπB, epsigamma fields.Fp12Elmt
 
 	// e(-πC, -δ)
-	sw.MillerLoopAffine(circuit, proof.Krs, vk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoopAffine(circuit, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoopAffine(circuit, proof.Ar, proof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoopAffine(circuit, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
-	publicInputsSnark := make([]*frontend.Constraint, len(pubInputNames))
-	for k, v := range pubInputNames {
-		publicInputsSnark[k] = circuit.PUBLIC_INPUT(v)
-	}
 	var psi0, tmp sw.G1Aff
-	psi0.ScalarMul(circuit, &vk.G1[0], publicInputsSnark[0])
-	for i := 1; i < len(pubInputNames); i++ {
-		tmp.ScalarMul(circuit, &vk.G1[i], publicInputsSnark[i])
-		psi0.AddAssign(circuit, &tmp)
+
+	// assign the initial psi0 to the part of the public key corresponding to one_wire
+	for k, v := range innerPubInputNames {
+		if v == "ONE_WIRE" {
+			psi0.X = innerVk.G1[k].X
+			psi0.Y = innerVk.G1[k].Y
+		}
+	}
+	for k, v := range innerPubInputNames {
+		if v != "ONE_WIRE" {
+			tmp.ScalarMul(circuit, &innerVk.G1[k], circuit.PUBLIC_INPUT(v), 377)
+			psi0.AddAssign(circuit, &tmp)
+		}
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoopAffine(circuit, psi0, vk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoopAffine(circuit, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.Fp12Elmt
@@ -81,5 +86,8 @@ func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, vk VerifyingKey
 	// performs the final expo
 	var resPairing fields.Fp12Elmt
 	resPairing.FinalExpoBLS(circuit, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+
+	// vk.E must be equal to resPairing
+	innerVk.E.MustBeEq(circuit, &resPairing)
 
 }

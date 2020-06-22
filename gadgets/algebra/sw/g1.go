@@ -299,8 +299,10 @@ func (p *G1Aff) Double(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 	return p
 }
 
-// ScalarMul computes scalar*p1, affect the result to p, and returns it
-func (p *G1Aff) ScalarMul(circuit *frontend.CS, p1 *G1Aff, s interface{}) *G1Aff {
+// ScalarMul computes scalar*p1, affect the result to p, and returns it.
+// n is the number of bits used for the scalar mul.
+// TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
+func (p *G1Aff) ScalarMul(circuit *frontend.CS, p1 *G1Aff, s interface{}, n int) *G1Aff {
 
 	scalar := circuit.ALLOCATE(s)
 
@@ -308,13 +310,13 @@ func (p *G1Aff) ScalarMul(circuit *frontend.CS, p1 *G1Aff, s interface{}) *G1Aff
 	base.Double(circuit, p1)
 	res.Assign(circuit, p1)
 
-	b := circuit.TO_BINARY(scalar, 256)
+	b := circuit.TO_BINARY(scalar, n)
 
 	var tmp G1Aff
 
 	// start from 1 and use right-to-left scalar multiplication to avoid bugs due to incomplete addition law
 	// (I don't see how to avoid that)
-	for i := 1; i <= 255; i++ {
+	for i := 1; i <= n-1; i++ {
 		tmp.Assign(circuit, &res).AddAssign(circuit, &base)
 		res.Select(circuit, b[i], &tmp, &res)
 		base.Double(circuit, &base)
