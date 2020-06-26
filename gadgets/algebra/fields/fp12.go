@@ -197,17 +197,19 @@ func (e *Fp12Elmt) Neg(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
 
 // Mul multiplies 2 elmts in Fp12
 func (e *Fp12Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp12Elmt, ext Extension) *Fp12Elmt {
-	a := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	b := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	c := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	d := NewFp6Elmt(circuit, nil, nil, nil, nil, nil, nil)
-	a.Mul(circuit, &e1.C0, &e2.C0, ext)
-	b.Mul(circuit, &e1.C1, &e2.C1, ext).
-		Mul(circuit, &b, ext.wSquare, ext)
-	c.Mul(circuit, &e1.C0, &e2.C1, ext)
-	d.Mul(circuit, &e1.C1, &e2.C0, ext)
-	e.C0.Add(circuit, &a, &b)
-	e.C1.Add(circuit, &c, &d)
+
+	var u, v, ac, bd Fp6Elmt
+	u.Add(circuit, &e1.C0, &e1.C1) // 6C
+	v.Add(circuit, &e2.C0, &e2.C1) // 6C
+	v.Mul(circuit, &u, &v, ext)    // 61C
+
+	ac.Mul(circuit, &e1.C0, &e2.C0, ext)                // 61C
+	bd.Mul(circuit, &e1.C1, &e2.C1, ext)                // 61C
+	e.C1.Sub(circuit, &v, &ac).Sub(circuit, &e.C1, &bd) // 12C
+
+	bd.Mul(circuit, &bd, ext.wSquare, ext) // 6C
+	e.C0.Add(circuit, &ac, &bd)            // 6C
+
 	return e
 }
 

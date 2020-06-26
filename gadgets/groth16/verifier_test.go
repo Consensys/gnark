@@ -48,7 +48,9 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	circuit := frontend.New()
 	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BLS377)
 	if err != nil {
-		t.Fatal(err)
+		if t != nil {
+			t.Fatal(err)
+		}
 	}
 	res := hFunc.Hash(&circuit, circuit.SECRET_INPUT("private_data"))
 	circuit.MUSTBE_EQ(res, circuit.PUBLIC_INPUT("public_hash"))
@@ -71,7 +73,9 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	groth16_bls377.Setup(&r1cs, &pk, vk)
 	_proof, err := groth16_bls377.Prove(&r1cs, &pk, correctAssignment)
 	if err != nil {
-		t.Fatal(err)
+		if t != nil {
+			t.Fatal(err)
+		}
 	}
 	proof.Ar = _proof.Ar
 	proof.Bs = _proof.Bs
@@ -80,10 +84,14 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	// before returning verifies that the proof passes on bls377
 	proofOk, err := groth16_bls377.Verify(proof, vk, correctAssignment)
 	if err != nil {
-		t.Fatal(err)
+		if t != nil {
+			t.Fatal(err)
+		}
 	}
 	if !proofOk {
-		t.Fatal("error during bls377 proof verification")
+		if t != nil {
+			t.Fatal("error during bls377 proof verification")
+		}
 	}
 
 	return r1cs.PublicWires
@@ -226,5 +234,54 @@ func TestVerifier(t *testing.T) {
 	// if !res {
 	// 	t.Fatal("correct proof should pass")
 	// }
+
+}
+
+//--------------------------------------------------------------------
+// bench
+
+func BenchmarkVerifier(b *testing.B) {
+
+	// get the data
+	var innerVk groth16_bls377.VerifyingKey
+	var innerProof groth16_bls377.Proof
+	inputNamesInnerProof := generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
+
+	// create an empty circuit
+	circuit := frontend.New()
+
+	// pairing data
+	var pairingInfo sw.PairingContext
+	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&circuit)
+	pairingInfo.AteLoop = 9586122913090633729
+
+	// allocate the verifying key
+	var innerVkCircuit VerifyingKey
+	allocateInnerVk(&circuit, &innerVk, &innerVkCircuit)
+
+	// create secret inputs corresponding to the proof
+	var innerProofCircuit Proof
+	allocateInnerProof(&circuit, &innerProofCircuit)
+
+	// create the verifier circuit
+	Verify(&circuit, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
+
+	// create r1cs
+	r1cs := backend_bw761.New(&circuit)
+
+	// create assignment, the private part consists of the proof,
+	// the public part is exactly the public part of the inner proof,
+	// up to the renaming of the inner ONE_WIRE to not conflict with the one wire of the outer proof.
+	correctAssignment := backend.NewAssignment()
+	assignPointAffineG1(correctAssignment, innerProof.Ar, "Ar")
+	assignPointAffineG1(correctAssignment, innerProof.Krs, "Krs")
+	assignPointAffineG2(correctAssignment, innerProof.Bs, "Bs")
+	correctAssignment.Assign(backend.Public, "public_hash", publicHash)
+
+	// verifies the circuit
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r1cs.Inspect(correctAssignment, false)
+	}
 
 }

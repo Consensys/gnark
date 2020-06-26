@@ -17,6 +17,7 @@ limitations under the License.
 package sw
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
@@ -338,6 +339,7 @@ func TestScalarMulG1(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
+	fmt.Printf("%d constraints\n", r1cs.NbConstraints)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {

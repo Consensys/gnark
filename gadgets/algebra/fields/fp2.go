@@ -17,6 +17,9 @@ limitations under the License.
 package fields
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -71,19 +74,42 @@ func (e *Fp2Elmt) Sub(circuit *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
 	return e
 }
 
-// Mul e2 elmts
+// Mul e2 elmts: 5C
 func (e *Fp2Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2Elmt {
-	a := circuit.MUL(e1.X, e2.X)
-	b := circuit.MUL(e1.Y, e2.Y)
-	b = circuit.MUL(b, ext.uSquare)
-	x := circuit.ADD(a, b)
 
-	c := circuit.MUL(e1.X, e2.Y)
-	d := circuit.MUL(e1.Y, e2.X)
-	y := circuit.ADD(c, d)
+	var one, minusOne big.Int
+	one.SetUint64(1)
+	minusOne.Neg(&one)
 
-	e.X = x
-	e.Y = y
+	// 1C
+	l1 := frontend.LinearCombination{
+		frontend.Term{Constraint: e1.X, Coeff: one},
+		frontend.Term{Constraint: e1.Y, Coeff: one},
+	}
+	l2 := frontend.LinearCombination{
+		frontend.Term{Constraint: e2.X, Coeff: one},
+		frontend.Term{Constraint: e2.Y, Coeff: one},
+	}
+	u := circuit.MUL(l1, l2)
+
+	// 2C
+	ac := circuit.MUL(e1.X, e2.X)
+	bd := circuit.MUL(e1.Y, e2.Y)
+
+	// 1C
+	l3 := frontend.LinearCombination{
+		frontend.Term{Constraint: u, Coeff: one},
+		frontend.Term{Constraint: ac, Coeff: minusOne},
+		frontend.Term{Constraint: bd, Coeff: minusOne},
+	}
+	e.Y = circuit.MUL(l3, 1)
+
+	// 1C
+	l4 := frontend.LinearCombination{
+		frontend.Term{Constraint: ac, Coeff: one},
+		frontend.Term{Constraint: bd, Coeff: backend.FromInterface(ext.uSquare)},
+	}
+	e.X = circuit.MUL(l4, 1)
 
 	return e
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package fields
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
@@ -74,6 +75,7 @@ func TestAddFp2(t *testing.T) {
 	expectedValues["c1"] = &c.A1
 
 	r1cs := backend_bw761.New(&circuit)
+	fmt.Printf("%d\n", r1cs.NbConstraints)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
@@ -250,6 +252,7 @@ func TestMulByImFp2(t *testing.T) {
 	expectedValues["c1"] = &c.A1
 
 	r1cs := backend_bw761.New(&circuit)
+	fmt.Printf("%d\n", r1cs.NbConstraints)
 
 	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
