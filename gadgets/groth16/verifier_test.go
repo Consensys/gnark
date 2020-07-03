@@ -24,21 +24,20 @@ import (
 	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
 	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	groth16_bw761 "github.com/consensys/gnark/backend/bw761/groth16"
-	mimcbls377 "github.com/consensys/gnark/crypto/hash/mimc/bls377"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gnark/gadgets/algebra/sw"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
-	fr_bls377 "github.com/consensys/gurvy/bls377/fr"
 )
 
 //--------------------------------------------------------------------
 // utils
 
-const preimage string = "7808462342289447506325013279997289618334122576263655295146895675168642919487"
-const publicHash string = "3099878450984161311009646042471309119414969843610576449039352395499643096414"
+const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
+const publicHash string = "5100653184692120205048160297349714747883651904319528520089825735266585689318"
 
 // Prepare the data for the inner proof.
 // Returns the public inputs string of the inner proof
@@ -57,11 +56,6 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 	// build the r1cs from the circuit
 	r1cs := backend_bls377.New(&circuit)
-
-	// compute the public/private inputs using a real mimc
-	var preimage, publicHash fr_bls377.Element
-	b := mimcbls377.Sum("seed", preimage.Bytes())
-	publicHash.SetBytes(b)
 
 	// create the correct assignment
 	correctAssignment := backend.NewAssignment()
