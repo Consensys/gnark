@@ -59,10 +59,13 @@ func Save(ctx *Context, r1cs *R1CS, path string) error {
 // -------------------------------------------------------------------------------------------------
 // Util method to parse and allocate circuit's inputs
 
-const tagKey = "gnark"
-const maxTags = 2
-const attrPublic = "public"
-const attrSecret = "secret"
+const (
+	tagKey     = "gnark"
+	maxTags    = 2
+	attrPublic = "public"
+	attrSecret = "secret"
+	attrOmit   = "omit"
+)
 
 type attrVisibility uint8
 
@@ -124,6 +127,9 @@ func parseType(circuit *CS, input interface{}, baseName string, parentVisibility
 
 			// get gnark tag
 			tagValue := field.Tag.Get(tagKey)
+			if strings.Contains(tagValue, attrOmit) {
+				continue // skipping
+			}
 			var tagValues []string
 			localVisibility := secret
 			attrName := field.Name

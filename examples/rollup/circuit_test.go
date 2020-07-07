@@ -116,21 +116,21 @@ func TestCircuitSignature(t *testing.T) {
 	gPubKeyReceiver.A.X = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyx + ext)
 	gPubKeyReceiver.A.Y = circuit.SECRET_INPUT(baseNameReceiverAccountPubkeyy + ext)
 
-	var gTransfer TransferCircuit
-	gTransfer.amount = circuit.SECRET_INPUT(baseNameTransferAmount + ext)
-	gTransfer.nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + ext)
-	gTransfer.signature.R.A.X = circuit.SECRET_INPUT(baseNameTransferSigRx + ext)
-	gTransfer.signature.R.A.Y = circuit.SECRET_INPUT(baseNameTransferSigRy + ext)
-	gTransfer.signature.S = circuit.SECRET_INPUT(baseNameTransferSigS + ext)
-	gTransfer.senderPubKey = gPubKeySender
-	gTransfer.receiverPubKey = gPubKeyReceiver
+	var gTransfer TransferConstraints
+	gTransfer.Amount = circuit.SECRET_INPUT(baseNameTransferAmount + ext)
+	gTransfer.Nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + ext)
+	gTransfer.Signature.R.A.X = circuit.SECRET_INPUT(baseNameTransferSigRx + ext)
+	gTransfer.Signature.R.A.Y = circuit.SECRET_INPUT(baseNameTransferSigRy + ext)
+	gTransfer.Signature.S = circuit.SECRET_INPUT(baseNameTransferSigS + ext)
+	gTransfer.SenderPubKey = gPubKeySender
+	gTransfer.ReceiverPubKey = gPubKeyReceiver
 
 	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	verifySignatureTransfer(&circuit, gTransfer, hFunc)
+	verifyTransferSignature(&circuit, gTransfer, hFunc)
 
 	r1cs := backend_bn256.New(&circuit)
 
@@ -354,25 +354,25 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	transferAmount := circuit.SECRET_INPUT(baseNameTransferAmount + ext)
 
-	var fromBefore, fromAfter, toBefore, toAfter AccountCircuit
+	var fromBefore, fromAfter, toBefore, toAfter AccountConstraints
 
-	fromBefore.index = circuit.SECRET_INPUT(baseNameSenderAccountIndexBefore + ext)
-	fromBefore.nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + ext)
-	fromBefore.balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceBefore + ext)
+	fromBefore.Index = circuit.SECRET_INPUT(baseNameSenderAccountIndexBefore + ext)
+	fromBefore.Nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceBefore + ext)
+	fromBefore.Balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceBefore + ext)
 
-	fromAfter.index = circuit.SECRET_INPUT(baseNameSenderAccountIndexAfter + ext)
-	fromAfter.nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceAfter + ext)
-	fromAfter.balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceAfter + ext)
+	fromAfter.Index = circuit.SECRET_INPUT(baseNameSenderAccountIndexAfter + ext)
+	fromAfter.Nonce = circuit.SECRET_INPUT(baseNameSenderAccountNonceAfter + ext)
+	fromAfter.Balance = circuit.SECRET_INPUT(baseNameSenderAccountBalanceAfter + ext)
 
-	toBefore.index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexBefore + ext)
-	toBefore.nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceBefore + ext)
-	toBefore.balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceBefore + ext)
+	toBefore.Index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexBefore + ext)
+	toBefore.Nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceBefore + ext)
+	toBefore.Balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceBefore + ext)
 
-	toAfter.index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexAfter + ext)
-	toAfter.nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceAfter + ext)
-	toAfter.balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceAfter + ext)
+	toAfter.Index = circuit.SECRET_INPUT(baseNameReceiverAccountIndexAfter + ext)
+	toAfter.Nonce = circuit.SECRET_INPUT(baseNameReceiverAccountNonceAfter + ext)
+	toAfter.Balance = circuit.SECRET_INPUT(baseNameReceiverAccountBalanceAfter + ext)
 
-	verifyUpdateAccountGadget(&circuit, fromBefore, toBefore, fromAfter, toAfter, transferAmount)
+	verifyAccountUpdated(&circuit, fromBefore, toBefore, fromAfter, toAfter, transferAmount)
 
 	r1cs := backend_bn256.New(&circuit)
 
