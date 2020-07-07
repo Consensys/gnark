@@ -6,6 +6,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
@@ -13,8 +15,16 @@ func TestCubicEquation(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
 
-	r1cs := New() // x**3+x+5 == y, captures the geometry of the circuit, not tied to a backend
+	var cubicCircuit CubicCircuit
 
+	// init context
+	ctx := frontend.NewContext(gurvy.BN256)
+
+	// compiles our circuit into a R1CS
+	r1cs, err := frontend.Compile(ctx, &cubicCircuit)
+	assert.NoError(err)
+
+	// TODO use ctx to "cast" into the good backend choice
 	r1csBN256 := backend_bn256.Cast(r1cs) // specifies the circuit to bn256
 
 	{
