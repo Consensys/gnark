@@ -21,22 +21,22 @@ import (
 	"strconv"
 )
 
-// expression [of constraints] represents the lowest level of circuit design
+// Expression [of constraints] represents the lowest level of circuit design
 // Inspired from ZCash specs
 // When designing a circuit, one has access to (in increasing order of level):
 // 	- constraint that generates new inputs (basic constraints)
 // 	- gadgets (built out of basic constraints, such as boolean constraint)
-// An expression is a mathematical expression in given number of variables that can be evaluated,
-// and whose result is another wire. At most, quadratic operations appear in an expression.
-// The goal of an expression is to exploit the R1cs struct in all way possible.
+// An Expression is a mathematical Expression in given number of variables that can be evaluated,
+// and whose result is another wire. At most, quadratic operations appear in an Expression.
+// The goal of an Expression is to exploit the R1cs struct in all way possible.
 // For instance, a selection constraint b(y-x)=(x-z) (where z is the ouput), corresponds
-// to the expression x-b(y-x), because evaluating this expression yields z.
+// to the Expression x-b(y-x), because evaluating this Expression yields z.
 // Though x-b(y-x) is not a r1cs: to convert it to a r1cs constraint, one needs a
 // function toR1CS.
 // Ex: toR1CS(x-b(y-x), z) -> b(y-x)=(x-z), it is now a R1cs.
-// To evaluate an expression (for the computational graph to instantiate the variables),
+// To evaluate an Expression (for the computational graph to instantiate the variables),
 // one also needs a function Compute.
-// For the computatinal graph one needs to know which wires are used in a given expression
+// For the computatinal graph one needs to know which wires are used in a given Expression
 // Finally, when one equals two constraints, some wires might be merged and replaced,
 // so one needs a function replaceWire(oldWire, newWire)
 // The bound in the number of expressions is only limited by the fact that we use a r1cs system.

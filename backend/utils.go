@@ -43,6 +43,7 @@ func FromInterface(i1 interface{}) big.Int {
 		val = c1
 	case *big.Int:
 		val.Set(c1)
+		// TODO use an interface here would be better :-)
 	case fr_bn256.Element:
 		c1.ToBigIntRegular(&val)
 	case *fr_bn256.Element:

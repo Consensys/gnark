@@ -51,16 +51,16 @@ func (circuit *CS) ToR1CS() *R1CS {
 	for k, c := range circuit.Constraints {
 
 		// if it's a user input
-		if c.outputWire.isUserInput() {
-			if c.outputWire.IsPrivate {
-				privateInputs = append(privateInputs, c.outputWire)
+		if c.getOutputWire().isUserInput() {
+			if c.getOutputWire().IsPrivate {
+				privateInputs = append(privateInputs, c.getOutputWire())
 			} else {
-				publicInputs = append(publicInputs, c.outputWire)
+				publicInputs = append(publicInputs, c.getOutputWire())
 			}
 		} else {
-			wireTracker = append(wireTracker, c.outputWire)
+			wireTracker = append(wireTracker, c.getOutputWire())
 			// it is a unconstrained wire, we will ignore the constraint on step2
-			if len(c.expressions) == 0 {
+			if len(c.getExpressions()) == 0 {
 				ignoredConstraints[k] = struct{}{}
 			}
 		}
@@ -81,9 +81,9 @@ func (circuit *CS) ToR1CS() *R1CS {
 		}
 		keys = append(keys, k)
 
-		if !c.outputWire.isUserInput() {
-			c.expressions[0].consumeWires()       // only the first exp is consumed, the other might containt root of the computational graph
-			c.outputWire.ConstraintID = ccCounter // tells the output wire from which constraint it is computed
+		if !c.getOutputWire().isUserInput() {
+			c.getExpressions()[0].consumeWires()       // only the first exp is consumed, the other might containt root of the computational graph
+			c.getOutputWire().ConstraintID = ccCounter // tells the output wire from which constraint it is computed
 			ccCounter++
 		}
 	}
@@ -118,11 +118,11 @@ func (circuit *CS) ToR1CS() *R1CS {
 	// We can split the constraints into r1cs
 	for _, k := range keys {
 
-		constraint := circuit.Constraints[k]
+		c := circuit.Constraints[k].(*constraint)
 
-		batchR1CS := constraint.toR1CS(circuit)
+		batchR1CS := c.toR1CS(circuit)
 
-		if constraint.outputWire.isUserInput() {
+		if c.getOutputWire().isUserInput() {
 			r1cs.Constraints = append(r1cs.Constraints, batchR1CS...)
 		} else {
 			computationalGraph = append(computationalGraph, batchR1CS[0])
@@ -133,11 +133,11 @@ func (circuit *CS) ToR1CS() *R1CS {
 		}
 	}
 	for _, c := range circuit.MOConstraints {
-		batchR1CS := c.toR1CS(circuit.Constraints[0].outputWire)
+		batchR1CS := c.toR1CS(circuit.Constraints[0].getOutputWire())
 		computationalGraph = append(computationalGraph, batchR1CS)
 	}
 	for _, c := range circuit.NOConstraints {
-		batchR1CS := c.toR1CS(circuit.Constraints[0].outputWire)
+		batchR1CS := c.toR1CS(circuit.Constraints[0].getOutputWire())
 		r1cs.Constraints = append(r1cs.Constraints, batchR1CS)
 	}
 
@@ -219,12 +219,12 @@ func postOrder(constraintID int64, visited []bool, computationalGraph []R1C, gra
 		// first the left wires, then the right, then the output of the constraint
 		for found {
 
-			constraint := computationalGraph[node]
+			c := computationalGraph[node]
 
 			found = false
 
 			// explore left wires
-			for _, l := range constraint.L {
+			for _, l := range c.L {
 				n := wireTracker[l.ID].ConstraintID
 				if n != -1 {
 					if n != node && !visited[n] {
@@ -237,7 +237,7 @@ func postOrder(constraintID int64, visited []bool, computationalGraph []R1C, gra
 
 			// explore right wires
 			if !found {
-				for _, r := range constraint.R {
+				for _, r := range c.R {
 					n := wireTracker[r.ID].ConstraintID
 					if n != -1 {
 						if n != node && !visited[n] {
@@ -251,7 +251,7 @@ func postOrder(constraintID int64, visited []bool, computationalGraph []R1C, gra
 
 			// explore output wires
 			if !found {
-				for _, o := range constraint.O {
+				for _, o := range c.O {
 					n := wireTracker[o.ID].ConstraintID
 					if n != -1 {
 						if n != node && !visited[n] {

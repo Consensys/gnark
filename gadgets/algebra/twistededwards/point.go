@@ -29,7 +29,7 @@ import (
 
 // PointGadget point on a twisted Edwards curve in a Snark circuit
 type PointGadget struct {
-	X, Y *frontend.Constraint
+	X, Y frontend.CircuitVariable
 }
 
 // NewPointGadget creates a new instance of Point
@@ -184,7 +184,7 @@ func (p *PointGadget) Double(circuit *frontend.CS, p1 *PointGadget, curve EdCurv
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *PointGadget) ScalarMulNonFixedBase(circuit *frontend.CS, p1 *PointGadget, scalar *frontend.Constraint, curve EdCurveGadget) *PointGadget {
+func (p *PointGadget) ScalarMulNonFixedBase(circuit *frontend.CS, p1 *PointGadget, scalar frontend.CircuitVariable, curve EdCurveGadget) *PointGadget {
 
 	// first unpack the scalar
 	b := circuit.TO_BINARY(scalar, 256)
@@ -210,7 +210,7 @@ func (p *PointGadget) ScalarMulNonFixedBase(circuit *frontend.CS, p1 *PointGadge
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 // TODO passing a point a x, y interface{} is a bit ugly, but on the other hand creating a special struct{x, y interface{}} only for general point seems too much
-func (p *PointGadget) ScalarMulFixedBase(circuit *frontend.CS, x, y interface{}, scalar *frontend.Constraint, curve EdCurveGadget) *PointGadget {
+func (p *PointGadget) ScalarMulFixedBase(circuit *frontend.CS, x, y interface{}, scalar frontend.CircuitVariable, curve EdCurveGadget) *PointGadget {
 
 	// first unpack the scalar
 	b := circuit.TO_BINARY(scalar, 256)
@@ -231,7 +231,7 @@ func (p *PointGadget) ScalarMulFixedBase(circuit *frontend.CS, x, y interface{},
 }
 
 // // ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
-// func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
+// func (p *Point) ScalarMul(p1 interface{}, ecurve twistededwards.CurveParams, scalar frontend.CircuitVariable, n int) *Point {
 
 // 	switch point := p1.(type) {
 // 	// case *twistededwards.Point:
@@ -253,7 +253,7 @@ func (p *PointGadget) ScalarMulFixedBase(circuit *frontend.CS, x, y interface{},
 // n: nbBits of the scalar
 // Without lookup table -> 6 constraints/bit (1 (bool constraint) + 3 (addition with fixed point) + 1 (select constraint) per bit)
 // With loopkup table -> 5.5 constraints/bit (7 (generic addition) + 2(bool constraints) + 2 (select lookup table) per 2 bits)
-// func (p *Point) scalarMulFixedBase(p1 *twistededwards.Point, ecurve twistededwards.CurveParams, scalar *frontend.Constraint, n int) *Point {
+// func (p *Point) scalarMulFixedBase(p1 *twistededwards.Point, ecurve twistededwards.CurveParams, scalar frontend.CircuitVariable, n int) *Point {
 
 // 	debug.Assert(p.circuit != nil, "point not initialized")
 

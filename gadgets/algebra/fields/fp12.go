@@ -351,7 +351,7 @@ func (e *Fp12Elmt) ConjugateFp12(circuit *frontend.CS, e1 *Fp12Elmt) *Fp12Elmt {
 }
 
 // Select sets e to r1 if b=1, r2 otherwise
-func (e *Fp12Elmt) Select(circuit *frontend.CS, b *frontend.Constraint, r1, r2 *Fp12Elmt) *Fp12Elmt {
+func (e *Fp12Elmt) Select(circuit *frontend.CS, b frontend.CircuitVariable, r1, r2 *Fp12Elmt) *Fp12Elmt {
 
 	e.C0.B0.X = circuit.SELECT(b, r1.C0.B0.X, r2.C0.B0.X)
 	e.C0.B0.Y = circuit.SELECT(b, r1.C0.B0.Y, r2.C0.B0.Y)

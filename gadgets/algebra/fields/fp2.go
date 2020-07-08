@@ -25,7 +25,7 @@ import (
 
 // Fp2Elmt element in a quadratic extension
 type Fp2Elmt struct {
-	X, Y *frontend.Constraint
+	X, Y frontend.CircuitVariable
 }
 
 // NewFp2Zero creates a new
@@ -140,7 +140,7 @@ func (e *Fp2Elmt) Conjugate(circuit *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
 // Inverse inverses an fp2elmt
 func (e *Fp2Elmt) Inverse(circuit *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
 
-	var a0, a1, t0, t1, t1beta *frontend.Constraint
+	var a0, a1, t0, t1, t1beta frontend.CircuitVariable
 
 	a0 = e1.X
 	a1 = e1.Y

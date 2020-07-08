@@ -385,9 +385,11 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
 	case frontend.BinaryDec:
+
 		// the binary decomposition must be called on the non Mont form of the number
 		n := wireValues[r1c.O[0].ID].ToRegular()
 		nbBits := len(r1c.L)
+
 		// binary decomposition of n
 		var i, j int
 		for i*64 < nbBits {

@@ -31,7 +31,7 @@ import (
 // utils
 
 func newOperandFp6(circuit *frontend.CS, s string) Fp6Elmt {
-	component := make([]*frontend.Constraint, 6)
+	component := make([]frontend.CircuitVariable, 6)
 	for i := 0; i < 6; i++ {
 		component[i] = circuit.SECRET_INPUT(s + strconv.Itoa(i))
 	}

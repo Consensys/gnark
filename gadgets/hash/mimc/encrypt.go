@@ -27,11 +27,11 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMCGadget, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint
+var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMCGadget, frontend.CircuitVariable, frontend.CircuitVariable) frontend.CircuitVariable
 var newMimc map[gurvy.ID]func(string) MiMCGadget
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMCGadget, *frontend.Constraint, *frontend.Constraint) *frontend.Constraint)
+	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMCGadget, frontend.CircuitVariable, frontend.CircuitVariable) frontend.CircuitVariable)
 	encryptFuncs[gurvy.BN256] = encryptBN256
 	encryptFuncs[gurvy.BLS381] = encryptBLS381
 	encryptFuncs[gurvy.BLS377] = encryptBLS377
@@ -85,7 +85,7 @@ func newMimcBN256(seed string) MiMCGadget {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key *frontend.Constraint) *frontend.Constraint {
+func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key frontend.CircuitVariable) frontend.CircuitVariable {
 
 	res := message
 
@@ -104,7 +104,7 @@ func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key *frontend.Con
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
+func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message frontend.CircuitVariable, key frontend.CircuitVariable) frontend.CircuitVariable {
 
 	res := message
 
@@ -121,7 +121,7 @@ func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message *frontend.Constra
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(circuit *frontend.CS, h MiMCGadget, message *frontend.Constraint, key *frontend.Constraint) *frontend.Constraint {
+func encryptBLS377(circuit *frontend.CS, h MiMCGadget, message frontend.CircuitVariable, key frontend.CircuitVariable) frontend.CircuitVariable {
 	res := message
 	for i := 0; i < len(h.Params); i++ {
 		tmp := circuit.ADD(res, h.Params[i], key)

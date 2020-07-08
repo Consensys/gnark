@@ -42,9 +42,10 @@ func NewMiMCGadget(seed string, id gurvy.ID) (MiMCGadget, error) {
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition
-func (h MiMCGadget) Hash(circuit *frontend.CS, data ...*frontend.Constraint) *frontend.Constraint {
+func (h MiMCGadget) Hash(circuit *frontend.CS, data ...frontend.CircuitVariable) frontend.CircuitVariable {
 
-	digest := circuit.ALLOCATE(0)
+	var digest frontend.CircuitVariable
+	digest = circuit.ALLOCATE(0)
 
 	for _, stream := range data {
 		digest = encryptFuncs[h.id](circuit, h, stream, digest)

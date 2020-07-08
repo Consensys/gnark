@@ -20,10 +20,10 @@ import (
 	"strconv"
 )
 
-// wire is analogous to a circuit's physical wire
-// each constraint (ie gate) will have a single output wire
+// Wire is analogous to a circuit's physical Wire
+// each constraint (ie gate) will have a single output Wire
 // when the circuit is instantiated and fed an input
-// each wire will have a Value enabling the solver to determine a solution vector
+// each Wire will have a Value enabling the solver to determine a solution vector
 // to the rank 1 constraint system
 type wire struct {
 	Name         string // only inputs wires have a name (different from the tags)
