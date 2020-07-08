@@ -34,7 +34,7 @@ func TestCubicEquation(t *testing.T) {
 		cubicCircuit.X.Assign(42)
 		cubicCircuit.Y.Assign(42)
 
-		bad, err := frontend.ExtractAssignments(&cubicCircuit)
+		bad, err := frontend.ToAssignment(&cubicCircuit)
 		assert.NoError(err)
 
 		// bad := backend.NewAssignment()

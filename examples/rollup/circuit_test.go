@@ -82,7 +82,7 @@ func TestCircuitSignature(t *testing.T) {
 
 	r1csTped := backend_bn256.Cast(r1cs)
 
-	assignments, err := frontend.ExtractAssignments(&operator.witnesses)
+	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
 	assert.Solved(&r1csTped, assignments, nil)
 
@@ -152,7 +152,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	r1csTped := backend_bn256.Cast(r1cs)
 
-	assignments, err := frontend.ExtractAssignments(&operator.witnesses)
+	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
 	assert.Solved(&r1csTped, assignments, nil)
 
@@ -213,7 +213,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	r1csTped := backend_bn256.Cast(r1cs)
 
-	assignments, err := frontend.ExtractAssignments(&operator.witnesses)
+	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
 	assert.Solved(&r1csTped, assignments, nil)
 
@@ -264,7 +264,7 @@ func TestCircuitFull(t *testing.T) {
 
 	r1csTped := backend_bn256.Cast(r1cs)
 
-	assignments, err := frontend.ExtractAssignments(&operator.witnesses)
+	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
 	assert.Solved(&r1csTped, assignments, nil)
 
