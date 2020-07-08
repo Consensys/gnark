@@ -107,6 +107,7 @@ func TestIntegration(t *testing.T) {
 		}
 		// serialize to disk
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
+		// TODO seems here we serialize frontend.R1CS to disk. why would we ever do that?
 		if err := gob.Write(fCircuit, circuit.R1CS, gurvy.BN256); err != nil {
 			t.Fatal(err)
 		}

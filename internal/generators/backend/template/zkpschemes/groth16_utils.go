@@ -96,13 +96,12 @@ func (assert *Assert) Solved(r1cs *backend_{{toLower .Curve}}.R1CS, solution bac
 }
 
 // CorrectExecution Verifies that the expected solution matches the solved variables
-// CorrectExecution Verifies that the expected solution matches the solved variables
 func (assert *Assert) CorrectExecution(r1cs *backend_{{toLower .Curve}}.R1CS, solution backend.Assignments, expectedValues map[string]fr.Element) {
 
 	// In inspect the r1cs is solved, if an error occurs it is caught here
-	res, err := r1cs.Inspect(solution, true)
+	_res, err := r1cs.Inspect(solution, true)
 	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
-
+	res := _res.(map[string]fr.Element) // TODO temporary while refactoring
 	for k, v := range expectedValues {
 		val, ok := res[k]
 		assert.True(ok, "Variable to test <"+k+"> (backend_{{toLower .Curve}}) is not tagged")

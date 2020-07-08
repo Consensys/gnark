@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
+	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 
 	"github.com/consensys/gurvy/bls377"
 )
@@ -149,7 +150,8 @@ func TestAddAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +198,8 @@ func TestAddAffAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +240,8 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +279,8 @@ func TestDoubleG2(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}

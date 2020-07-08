@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
+	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 func TestLineEvalBLS377(t *testing.T) {
@@ -91,7 +92,8 @@ func TestLineEvalBLS377(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +162,8 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +289,8 @@ func TestPairingBLS377(t *testing.T) {
 	// inspect and compare the results
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +399,8 @@ func TestPairingAffineBLS377(t *testing.T) {
 	// inspect and compare the results
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}

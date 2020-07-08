@@ -36,10 +36,6 @@ func TestCubicEquation(t *testing.T) {
 
 		bad, err := frontend.ToAssignment(&cubicCircuit)
 		assert.NoError(err)
-
-		// bad := backend.NewAssignment()
-		// bad.Assign(backend.Secret, "x", 42)
-		// bad.Assign(backend.Public, "y", 42)
 		assert.NotSolved(&r1csBN256, bad)
 	}
 

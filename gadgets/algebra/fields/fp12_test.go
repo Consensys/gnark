@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
+	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 //--------------------------------------------------------------------
@@ -127,7 +128,8 @@ func TestAddFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +169,8 @@ func TestSubFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +212,8 @@ func TestMulFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +250,8 @@ func TestConjugateFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +294,8 @@ func TestMulByVFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +338,8 @@ func TestMulByVWFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +382,8 @@ func TestMulByV2WFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +422,8 @@ func TestFrobeniusFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +462,8 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +502,8 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,7 +542,8 @@ func TestInverseFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -571,7 +583,8 @@ func TestFixExpoFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -611,7 +624,8 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}

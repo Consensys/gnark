@@ -96,10 +96,16 @@ func Cast(r1cs *frontend.R1CS) R1CS {
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
+// and must be []fr.Element
 // assignment: map[string]value: contains the input variables
 // a, b, c vectors: ab-c = hz
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr.Element) error {
+func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues interface{}) error {
+	// cast our inputs
+	a := _a.([]fr.Element)
+	b := _b.([]fr.Element)
+	c := _c.([]fr.Element)
+	wireValues := _wireValues.([]fr.Element)
 
 	// compute the wires and the a, b, c polynomials
 	debug.Assert(len(a) == r1cs.NbConstraints)
@@ -184,8 +190,9 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 
 // Inspect returns the tagged variables with their corresponding value
 // If showsInput is set, it also puts in the resulting map the inputs (public and private).
-func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[string]fr.Element, error) {
-
+// TODO note: for now, we return interface{} and expect caller to cast in proper type
+// this is temporary while we refactor backend.Assignments and use big.Int here.
+func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (interface{}, error) {
 	res := make(map[string]fr.Element)
 
 	wireValues := make([]fr.Element, r1cs.NbWires)

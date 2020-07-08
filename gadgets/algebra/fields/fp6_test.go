@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
+	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 //--------------------------------------------------------------------
@@ -110,7 +111,8 @@ func TestAddFp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +152,8 @@ func TestSubFp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +195,8 @@ func TestMulFp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +239,8 @@ func TestMulByFp2Fp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +279,8 @@ func TestMulByVFp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +319,8 @@ func TestInverseFp6(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 
 	// inspect and compare the results
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}

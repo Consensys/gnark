@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
+	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 
 	"github.com/consensys/gurvy/bls377"
 )
@@ -123,7 +124,8 @@ func TestAddAssignG1(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +178,8 @@ func TestAddAssignAffG1(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +215,9 @@ func TestDoubleG1(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +260,8 @@ func TestDoubleAffG1(t *testing.T) {
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +297,8 @@ func TestNegG1(t *testing.T) {
 
 	// check expected result
 	r1cs := backend_bw761.New(&circuit)
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +348,8 @@ func TestScalarMulG1(t *testing.T) {
 	r1cs := backend_bw761.New(&circuit)
 	fmt.Printf("%d constraints\n", r1cs.NbConstraints)
 
-	res, err := r1cs.Inspect(inputs, false)
+	_res, err := r1cs.Inspect(inputs, false)
+	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
 		t.Fatal(err)
 	}
