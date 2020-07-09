@@ -56,13 +56,13 @@ func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 }
 
 // Term ...
-type TermR1cs struct {
+type Term struct {
 	ID    int64   // index of the constraint used to compute this wire
 	Coeff big.Int // coefficient by which the wire is multiplied
 }
 
 // LinearExpression
-type LinearExpression []TermR1cs
+type LinearExpression []Term
 
 // R1C used to compute the wires
 type R1C struct {
@@ -70,12 +70,6 @@ type R1C struct {
 	R      LinearExpression
 	O      LinearExpression
 	Solver backend.SolvingMethod
-}
-
-func bigOne() big.Int {
-	var val big.Int
-	val.SetUint64(1)
-	return val
 }
 
 func (r1cs *UntypedR1CS) toBLS381() *backend_bls381.R1CS {
