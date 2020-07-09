@@ -300,3 +300,38 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 	})
 
 }
+
+// test purposes
+
+func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
+	vk2 := _other.(*VerifyingKey)
+	for i := 0; i < len(vk.G1.K); i++ {
+		if !vk.G1.K[i].IsInfinity() {
+			if vk.G1.K[i].Equal(&vk2.G1.K[i]) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
+	pk2 := _other.(*ProvingKey)
+
+	if pk.G1.Alpha.Equal(&pk2.G1.Alpha) ||
+		pk.G1.Beta.Equal(&pk2.G1.Beta) ||
+		pk.G1.Delta.Equal(&pk2.G1.Delta) {
+		return false
+	}
+
+	for i := 0; i < len(pk.G1.K); i++ {
+		if !pk.G1.K[i].IsInfinity() {
+			if pk.G1.K[i].Equal(&pk2.G1.K[i]) {
+				return false
+			}
+		}
+	}
+
+	return true
+}

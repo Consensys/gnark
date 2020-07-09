@@ -19,8 +19,7 @@ package rollup
 import (
 	"testing"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	"github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/accumulator/merkle"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
@@ -82,7 +81,7 @@ func TestCircuitSignature(t *testing.T) {
 
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
+	assert.Solved(r1cs, assignments, nil)
 
 }
 
@@ -150,7 +149,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
+	assert.Solved(r1cs, assignments, nil)
 
 }
 
@@ -209,7 +208,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
+	assert.Solved(r1cs, assignments, nil)
 
 }
 
@@ -258,6 +257,6 @@ func TestCircuitFull(t *testing.T) {
 
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
+	assert.Solved(r1cs, assignments, nil)
 
 }

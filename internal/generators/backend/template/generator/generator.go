@@ -109,21 +109,7 @@ func GenerateGroth16(d GenerateData) error {
 			zkpschemes.Groth16Tests,
 		}
 		if err := bavard.Generate(d.RootPath+"groth16/groth16_test.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-		); err != nil {
-			return err
-		}
-	}
-	{
-		// utils
-		src := []string{
-			templates.ImportCurve,
-			zkpschemes.Groth16Assert,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/assert.go", src, d,
-			bavard.Package("groth16"),
+			bavard.Package("groth16_test"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {

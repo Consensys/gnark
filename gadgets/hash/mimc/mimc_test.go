@@ -24,14 +24,10 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	"github.com/consensys/gnark/backend/groth16"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-
-	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
-	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
 
 	mimcbls377 "github.com/consensys/gnark/crypto/hash/mimc/bls377"
 	mimcbls381 "github.com/consensys/gnark/crypto/hash/mimc/bls381"
@@ -45,7 +41,7 @@ import (
 // TODO need tests on MiMC edge cases, bad or un-allocated inputs, and errors
 func TestMimcBN256(t *testing.T) {
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
 	// input
 	var databn256 fr_bn256.Element
@@ -63,7 +59,7 @@ func TestMimcBN256(t *testing.T) {
 	result.Tag("res")
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]fr_bn256.Element)
+	expectedValues := make(map[string]interface{})
 	b := mimcbn256.Sum("seed", databn256.Bytes())
 	var tmp fr_bn256.Element
 	tmp.SetBytes(b)
@@ -71,8 +67,8 @@ func TestMimcBN256(t *testing.T) {
 	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Public, "data", databn256)
+	inputs := make(map[string]interface{})
+	inputs["data"] = databn256
 
 	// creates r1cs
 	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
@@ -83,7 +79,7 @@ func TestMimcBN256(t *testing.T) {
 
 func TestMimcBLS381(t *testing.T) {
 
-	assertbls381 := groth16_bls381.NewAssert(t)
+	assertbls381 := groth16.NewAssert(t)
 
 	// input
 	var data big.Int
@@ -103,15 +99,15 @@ func TestMimcBLS381(t *testing.T) {
 	result.Tag("res")
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]fr_bls381.Element)
+	expectedValues := make(map[string]interface{})
 	b := mimcbls381.Sum("seed", databls381.Bytes())
 	var tmp fr_bls381.Element
 	tmp.SetBytes(b)
 	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Public, "data", data)
+	inputs := make(map[string]interface{})
+	inputs["data"] = data
 
 	// creates r1cs
 	r1csbls381 := circuit.ToR1CS().ToR1CS(gurvy.BLS381).(*backend_bls381.R1CS)
@@ -122,7 +118,7 @@ func TestMimcBLS381(t *testing.T) {
 
 func TestMimcBLS377(t *testing.T) {
 
-	assertbls377 := groth16_bls377.NewAssert(t)
+	assertbls377 := groth16.NewAssert(t)
 
 	// input
 	var data big.Int
@@ -142,15 +138,15 @@ func TestMimcBLS377(t *testing.T) {
 	result.Tag("res")
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]fr_bls377.Element)
+	expectedValues := make(map[string]interface{})
 	b := mimcbls377.Sum("seed", databls377.Bytes())
 	var tmp fr_bls377.Element
 	tmp.SetBytes(b)
 	expectedValues["res"] = tmp
 
 	// provide inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Public, "data", data)
+	inputs := make(map[string]interface{})
+	inputs["data"] = data
 
 	// creates r1cs
 	r1csbls377 := circuit.ToR1CS().ToR1CS(gurvy.BLS377).(*backend_bls377.R1CS)

@@ -24,7 +24,7 @@ import (
 )
 
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, error) {
+func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool, error) {
 
 	c := curve.BW761()
 
@@ -66,11 +66,8 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, e
 // parsePublicInput return the ordered public input values
 // in regular form (used as scalars for multi exponentiation).
 // The function is public because it's needed for the recursive snark.
-func ParsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.Element, error) {
+func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]fr.Element, error) {
 	toReturn := make([]fr.Element, len(expectedNames))
-
-	// ensure we don't assign private inputs
-	publicInput := input.DiscardSecrets()
 
 	for i := 0; i < len(expectedNames); i++ {
 		if expectedNames[i] == backend.OneWire {
@@ -78,8 +75,9 @@ func ParsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.E
 			toReturn[i].SetOne()
 			toReturn[i].FromMont()
 		} else {
-			if val, ok := publicInput[expectedNames[i]]; ok {
-				toReturn[i].SetBigInt(&val.Value).FromMont()
+			if val, ok := input[expectedNames[i]]; ok {
+				toReturn[i] = fr.FromInterface(val)
+				toReturn[i].FromMont() // TODO benchmark this non-sense (regular to montgomery to regular)
 			} else {
 				return nil, backend.ErrInputNotSet
 			}

@@ -20,12 +20,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
-	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 //--------------------------------------------------------------------
@@ -67,19 +65,20 @@ func tagFp12Elmt(e Fp12Elmt, s string) {
 	e.C1.B2.Y.Tag(s + "11")
 }
 
-func assignOperandFp12(inputs backend.Assignments, s string, w bls377.E12) {
-	inputs.Assign(backend.Secret, s+"0", w.C0.B0.A0)
-	inputs.Assign(backend.Secret, s+"1", w.C0.B0.A1)
-	inputs.Assign(backend.Secret, s+"2", w.C0.B1.A0)
-	inputs.Assign(backend.Secret, s+"3", w.C0.B1.A1)
-	inputs.Assign(backend.Secret, s+"4", w.C0.B2.A0)
-	inputs.Assign(backend.Secret, s+"5", w.C0.B2.A1)
-	inputs.Assign(backend.Secret, s+"6", w.C1.B0.A0)
-	inputs.Assign(backend.Secret, s+"7", w.C1.B0.A1)
-	inputs.Assign(backend.Secret, s+"8", w.C1.B1.A0)
-	inputs.Assign(backend.Secret, s+"9", w.C1.B1.A1)
-	inputs.Assign(backend.Secret, s+"10", w.C1.B2.A0)
-	inputs.Assign(backend.Secret, s+"11", w.C1.B2.A1)
+func assignOperandFp12(inputs map[string]interface{}, s string, w bls377.E12) {
+	// TODO using String() here is dirty.
+	inputs[s+"0"] = w.C0.B0.A0.String()
+	inputs[s+"1"] = w.C0.B0.A1.String()
+	inputs[s+"2"] = w.C0.B1.A0.String()
+	inputs[s+"3"] = w.C0.B1.A1.String()
+	inputs[s+"4"] = w.C0.B2.A0.String()
+	inputs[s+"5"] = w.C0.B2.A1.String()
+	inputs[s+"6"] = w.C1.B0.A0.String()
+	inputs[s+"7"] = w.C1.B0.A1.String()
+	inputs[s+"8"] = w.C1.B1.A0.String()
+	inputs[s+"9"] = w.C1.B1.A1.String()
+	inputs[s+"10"] = w.C1.B2.A0.String()
+	inputs[s+"11"] = w.C1.B2.A1.String()
 }
 
 func getExpectedValuesFp12(m map[string]*fp.Element, s string, w bls377.E12) {
@@ -117,7 +116,7 @@ func TestAddFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 	assignOperandFp12(inputs, "b", b)
 
@@ -128,13 +127,13 @@ func TestAddFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error AddFp12")
 		}
 	}
@@ -158,7 +157,7 @@ func TestSubFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 	assignOperandFp12(inputs, "b", b)
 
@@ -169,13 +168,13 @@ func TestSubFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error SubFp12")
 		}
 	}
@@ -201,7 +200,7 @@ func TestMulFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 	assignOperandFp12(inputs, "b", b)
 
@@ -212,13 +211,13 @@ func TestMulFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulFp12")
 		}
 	}
@@ -240,7 +239,7 @@ func TestConjugateFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -250,13 +249,13 @@ func TestConjugateFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error ConjugateFp12")
 		}
 	}
@@ -283,7 +282,7 @@ func TestMulByVFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp2(inputs, "b", b)
 	assignOperandFp12(inputs, "a", a)
 
@@ -294,13 +293,13 @@ func TestMulByVFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
 	}
@@ -327,7 +326,7 @@ func TestMulByVWFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp2(inputs, "b", b)
 	assignOperandFp12(inputs, "a", a)
 
@@ -338,13 +337,13 @@ func TestMulByVWFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
 	}
@@ -371,7 +370,7 @@ func TestMulByV2WFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp2(inputs, "b", b)
 	assignOperandFp12(inputs, "a", a)
 
@@ -382,13 +381,13 @@ func TestMulByV2WFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
 	}
@@ -412,7 +411,7 @@ func TestFrobeniusFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -422,13 +421,13 @@ func TestFrobeniusFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusFp12")
 		}
 	}
@@ -452,7 +451,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -462,13 +461,13 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
 	}
@@ -492,7 +491,7 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -502,13 +501,13 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
 	}
@@ -532,7 +531,7 @@ func TestInverseFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -542,13 +541,13 @@ func TestInverseFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
 	}
@@ -573,7 +572,7 @@ func TestFixExpoFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -583,13 +582,13 @@ func TestFixExpoFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error Final exponentiation bls")
 		}
 	}
@@ -614,7 +613,7 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	tagFp12Elmt(fp12c, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignOperandFp12(inputs, "a", a)
 
 	// assign the exepcted values
@@ -624,13 +623,13 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error ExponentiationFp12")
 		}
 	}

@@ -33,7 +33,7 @@ func init() {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
+func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	proof := &Proof{}
 
 	// fft domain (computeH)

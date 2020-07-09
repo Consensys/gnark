@@ -11,8 +11,19 @@ import (
 	"strings"
 
 
+	{{if eq .Curve "BLS377"}}
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls377/groth16"
+	{{else if eq .Curve "BLS381"}}
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls381/groth16"
+	{{else if eq .Curve "BN256"}}
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bn256/groth16"
+	{{ else if eq .Curve "BW761"}}
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761/groth16"
+	{{end}}
+
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 
@@ -24,7 +35,7 @@ import (
 
 
 func TestCircuits(t *testing.T) {
-	assert := NewAssert(t)
+	assert := groth16.NewAssert(t)
 	matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
 	
 	if err != nil {
@@ -38,12 +49,12 @@ func TestCircuits(t *testing.T) {
 		name = name[:len(name)-5]
 		t.Log(curve.ID.String(), " -- ", filepath.Base(name))
 
-		good := backend.NewAssignment()
-		if err := good.ReadFile(name + ".good"); err != nil {
+		good := make(map[string]interface{})
+		if err := gob.ReadMap(name + ".good", good); err != nil {
 			t.Fatal(err)
 		}
-		bad := backend.NewAssignment()
-		if err := bad.ReadFile(name + ".bad"); err != nil {
+		bad := make(map[string]interface{})
+		if err := gob.ReadMap(name + ".bad", bad); err != nil {
 			t.Fatal(err)
 		}
 		var fr1cs r1cs.UntypedR1CS
@@ -58,28 +69,22 @@ func TestCircuits(t *testing.T) {
 
 func TestParsePublicInput(t *testing.T) {
 
-	expectedNames := [2]string{"data", "ONE_WIRE"}
+	expectedNames := [2]string{"data", backend.OneWire}
 
-	inputOneWire := backend.NewAssignment()
-	inputOneWire.Assign(backend.Public, "ONE_WIRE", 3)
-	if _, err := ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
+	inputOneWire := make(map[string]interface{})
+	inputOneWire[ backend.OneWire ] = 3
+	if _, err := groth16_{{toLower .Curve}}.ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
 
-	inputPrivate := backend.NewAssignment()
-	inputPrivate.Assign(backend.Secret, "data", 3)
-	if _, err := ParsePublicInput(expectedNames[:], inputPrivate); err == nil {
-		t.Fatal("expected ErrMissingAssigment error")
-	}
-
-	missingInput := backend.NewAssignment()
-	if _, err := ParsePublicInput(expectedNames[:], missingInput); err == nil {
+	missingInput := make(map[string]interface{})
+	if _, err := groth16_{{toLower .Curve}}.ParsePublicInput(expectedNames[:], missingInput); err == nil {
 		t.Fatal("expected ErrMissingAssigment")
 	}
 
-	correctInput := backend.NewAssignment()
-	correctInput.Assign(backend.Public, "data", 3)
-	got, err := ParsePublicInput(expectedNames[:], correctInput)
+	correctInput := make(map[string]interface{})
+	correctInput[ "data" ] = 3
+	got, err := groth16_{{toLower .Curve}}.ParsePublicInput(expectedNames[:], correctInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,21 +107,23 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (backend_{{toLower .Curve}}.R1CS, backend.Assignments, backend.Assignments) {
+func referenceCircuit() (backend_{{toLower .Curve}}.R1CS, map[string]interface{}, map[string]interface{}) {
 	{{if eq .Curve "GENERIC"}}
 		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{else}}
 		name := "../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 	{{end}}
 	
-	good := backend.NewAssignment()
-	if err := good.ReadFile(name + ".good"); err != nil {
+	good := make(map[string]interface{})
+	if err := gob.ReadMap(name + ".good", good); err != nil {
 		panic(err)
 	}
-	bad := backend.NewAssignment()
-	if err := bad.ReadFile(name + ".bad"); err != nil {
+	bad := make(map[string]interface{})
+	if err := gob.ReadMap(name + ".bad", bad); err != nil {
 		panic(err)
 	}
+
+
 	var r1cs backend_{{toLower .Curve}}.R1CS
 
 	if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
@@ -130,13 +137,13 @@ func referenceCircuit() (backend_{{toLower .Curve}}.R1CS, backend.Assignments, b
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk ProvingKey
-	var vk VerifyingKey
+	var pk groth16_{{toLower .Curve}}.ProvingKey
+	var vk groth16_{{toLower .Curve}}.VerifyingKey
 	b.ResetTimer()
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			Setup(&r1cs, &pk, &vk)
+			groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
 		}
 	})
 }
@@ -146,14 +153,14 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk ProvingKey
-	var vk VerifyingKey
-	Setup(&r1cs, &pk, &vk)
+	var pk groth16_{{toLower .Curve}}.ProvingKey
+	var vk groth16_{{toLower .Curve}}.VerifyingKey
+	groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = Prove(&r1cs, &pk, solution)
+			_, _ = groth16_{{toLower .Curve}}.Prove(&r1cs, &pk, solution)
 		}
 	})
 }
@@ -164,19 +171,18 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	var pk ProvingKey
-	var vk VerifyingKey
-	Setup(&r1cs, &pk, &vk)
-	proof, err := Prove(&r1cs, &pk, solution)
+	var pk groth16_{{toLower .Curve}}.ProvingKey
+	var vk groth16_{{toLower .Curve}}.VerifyingKey
+	groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
+	proof, err := groth16_{{toLower .Curve}}.Prove(&r1cs, &pk, solution)
 	if err != nil {
 		panic(err)
 	}
 
-	solution = solution.DiscardSecrets()
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = Verify(proof, &vk, solution)
+			_, _ = groth16_{{toLower .Curve}}.Verify(proof, &vk, solution)
 		}
 	})
 }

@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
 	"github.com/consensys/gurvy"
@@ -41,7 +40,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// spv: setup, prove, verify
-	spv := func(name string, good, bad backend.Assignments) {
+	spv := func(name string, good, bad map[string]interface{}) {
 		t.Log("circuit", name)
 		// path for files
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
@@ -53,17 +52,18 @@ func TestIntegration(t *testing.T) {
 
 		buildTags := "debug"
 		// 2: input files to disk
-		if err := good.WriteFile(fInputGood); err != nil {
+
+		if err := gob.WriteMap(fInputGood, good); err != nil {
 			t.Fatal(err)
 		}
-		if err := bad.WriteFile(fInputBad); err != nil {
+		if err := gob.WriteMap(fInputBad, bad); err != nil {
 			t.Fatal(err)
 		}
 
 		// 3: run setup
 		{
 			cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "setup", fCircuit, "--pk", fPk, "--vk", fVk)
-			out, err := cmd.Output()
+			out, err := cmd.CombinedOutput()
 			t.Log(string(out))
 
 			if err != nil {
@@ -75,7 +75,7 @@ func TestIntegration(t *testing.T) {
 			// 4: run prove
 			{
 				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
-				out, err := cmd.Output()
+				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
 					// proving should pass
@@ -86,7 +86,7 @@ func TestIntegration(t *testing.T) {
 			// 4: run verify
 			{
 				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
-				out, err := cmd.Output()
+				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
 					t.Fatal(err)

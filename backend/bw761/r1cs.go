@@ -18,6 +18,7 @@ package backend_bw761
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"github.com/consensys/gnark/backend"
@@ -93,13 +94,17 @@ type R1CS struct {
 // 	return &toReturn
 // }
 
+func (r1cs *R1CS) GetNbConstraints() int {
+	return r1cs.NbConstraints
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // and must be []fr.Element
 // assignment: map[string]value: contains the input variables
 // a, b, c vectors: ab-c = hz
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues interface{}) error {
+func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValues interface{}) error {
 	// cast our inputs
 	a := _a.([]fr.Element)
 	b := _b.([]fr.Element)
@@ -116,7 +121,7 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues 
 	wireInstantiated := make([]bool, r1cs.NbWires)
 
 	// instantiate the public/ private inputs
-	instantiateInputs := func(offset int, visibility backend.Visibility, inputNames []string) error {
+	instantiateInputs := func(offset int, inputNames []string) error {
 		for i := 0; i < len(inputNames); i++ {
 			name := inputNames[i]
 			if name == backend.OneWire {
@@ -124,10 +129,7 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues 
 				wireInstantiated[i+offset] = true
 			} else {
 				if val, ok := assignment[name]; ok {
-					if visibility == backend.Secret && val.IsPublic || visibility == backend.Public && !val.IsPublic {
-						return fmt.Errorf("%q: %w", name, backend.ErrInputVisiblity)
-					}
-					wireValues[i+offset].SetBigInt(&val.Value)
+					wireValues[i+offset] = fr.FromInterface(val)
 					wireInstantiated[i+offset] = true
 				} else {
 					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)
@@ -141,14 +143,14 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues 
 	debug.Assert(len(r1cs.PublicWires) == r1cs.NbPublicWires)
 	if r1cs.NbPrivateWires != 0 {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
-		if err := instantiateInputs(offset, backend.Secret, r1cs.PrivateWires); err != nil {
+		if err := instantiateInputs(offset, r1cs.PrivateWires); err != nil {
 			return err
 		}
 	}
 	// instantiate public inputs
 	{
 		offset := r1cs.NbWires - r1cs.NbPublicWires // public input start index
-		if err := instantiateInputs(offset, backend.Public, r1cs.PublicWires); err != nil {
+		if err := instantiateInputs(offset, r1cs.PublicWires); err != nil {
 			return err
 		}
 	}
@@ -190,11 +192,9 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues 
 // Inspect returns the tagged variables with their corresponding value
 // If showsInput is set, it also puts in the resulting map the inputs (public and private).
 // TODO note: for now, we return interface{} and expect caller to cast in proper type
-// this is temporary while we refactor backend.Assignments and use big.Int here.
-func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (interface{}, error) {
-	var r interface{}
-	r = make(map[string]fr.Element)
-	res := r.(map[string]fr.Element)
+// this is temporary while we refactor map[string]interface{} and use big.Int here.
+func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
+	res := make(map[string]interface{})
 
 	wireValues := make([]fr.Element, r1cs.NbWires)
 	a := make([]fr.Element, r1cs.NbConstraints)
@@ -207,11 +207,13 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (inter
 	if showsInputs {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
 		for i := 0; i < len(r1cs.PrivateWires); i++ {
-			res[r1cs.PrivateWires[i]] = wireValues[i+offset]
+			v := new(big.Int)
+			res[r1cs.PrivateWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
 		}
 		offset = r1cs.NbWires - r1cs.NbPublicWires // public input start index
 		for i := 0; i < len(r1cs.PublicWires); i++ {
-			res[r1cs.PublicWires[i]] = wireValues[i+offset]
+			v := new(big.Int)
+			res[r1cs.PublicWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
 		}
 	}
 
@@ -222,17 +224,18 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (inter
 				// TODO checking duplicates should be done in the frontend, probably in cs.ToR1CS()
 				return nil, backend.ErrDuplicateTag(tag)
 			}
-			res[tag] = wireValues[wireID]
+			v := new(big.Int)
+			res[tag] = *(wireValues[wireID].ToBigIntRegular(v))
 		}
 
 	}
 
 	// the error cannot be caught before because the res map needs to be filled
 	if err != nil {
-		return r, err
+		return res, err
 	}
 
-	return r, nil
+	return res, nil
 }
 
 // method to solve a r1cs

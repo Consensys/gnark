@@ -1,8 +1,7 @@
 package r1cs
 
-import "github.com/consensys/gnark/backend"
-
 type R1CS interface {
-	Solve(assignment backend.Assignments, _a, _b, _c, _wireValues interface{}) error
-	Inspect(solution backend.Assignments, showsInputs bool) (interface{}, error)
+	Solve(assignment map[string]interface{}, _a, _b, _c, _wireValues interface{}) error
+	Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error)
+	GetNbConstraints() int // TODO rename to NbConstraints
 }

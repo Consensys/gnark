@@ -22,12 +22,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/consensys/gnark/backend"
-	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
-	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
 
@@ -83,126 +79,38 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 
-	// check curve ID
-	curveID, err := gob.PeekCurveID(fVkPath)
+	vk, err := groth16.ReadVerifyingKey(fVkPath)
 	if err != nil {
-		fmt.Println("error:", err)
+		fmt.Println("can't load verifying key")
+		fmt.Println(err)
 		os.Exit(-1)
 	}
 
-	// TODO clean that up with interfaces and type casts
-	switch curveID {
-	case gurvy.BLS377:
-		var vk groth16_bls377.VerifyingKey
-		if err := gob.Read(fVkPath, &vk, curveID); err != nil {
-			fmt.Println("can't load verifying key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded verifying key", fVkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err := r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// load proof
-		var proof groth16_bls377.Proof
-		if err := gob.Read(proofPath, &proof, curveID); err != nil {
-			fmt.Println("can't parse proof", err)
-			os.Exit(-1)
-		}
-
-		// verify proof
-		start := time.Now()
-		result, err := groth16_bls377.Verify(&proof, &vk, r1csInput)
-		if err != nil || !result {
-			fmt.Printf("%-30s %-30s %-30s\n", "proof is invalid", proofPath, time.Since(start))
-			if err != nil {
-				fmt.Println(err)
-			}
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-30s\n", "proof is valid", proofPath, time.Since(start))
-	case gurvy.BLS381:
-		var vk groth16_bls381.VerifyingKey
-		if err := gob.Read(fVkPath, &vk, curveID); err != nil {
-			fmt.Println("can't load verifying key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded verifying key", fVkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err := r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// load proof
-		var proof groth16_bls381.Proof
-		if err := gob.Read(proofPath, &proof, curveID); err != nil {
-			fmt.Println("can't parse proof", err)
-			os.Exit(-1)
-		}
-
-		// verify proof
-		start := time.Now()
-		result, err := groth16_bls381.Verify(&proof, &vk, r1csInput)
-		if err != nil || !result {
-			fmt.Printf("%-30s %-30s %-30s\n", "proof is invalid", proofPath, time.Since(start))
-			if err != nil {
-				fmt.Println(err)
-			}
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-30s\n", "proof is valid", proofPath, time.Since(start))
-	case gurvy.BN256:
-		var vk groth16_bn256.VerifyingKey
-		if err := gob.Read(fVkPath, &vk, curveID); err != nil {
-			fmt.Println("can't load verifying key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded verifying key", fVkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err := r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// load proof
-		var proof groth16_bn256.Proof
-		if err := gob.Read(proofPath, &proof, curveID); err != nil {
-			fmt.Println("can't parse proof", err)
-			os.Exit(-1)
-		}
-
-		// verify proof
-		start := time.Now()
-		result, err := groth16_bn256.Verify(&proof, &vk, r1csInput)
-		if err != nil || !result {
-			fmt.Printf("%-30s %-30s %-30s\n", "proof is invalid", proofPath, time.Since(start))
-			if err != nil {
-				fmt.Println(err)
-			}
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-30s\n", "proof is valid", proofPath, time.Since(start))
-	default:
-		fmt.Println("error:", errUnknownCurve)
+	// parse input file
+	// TODO fix serialization here
+	r1csInput := make(map[string]interface{})
+	if err := gob.ReadMap(fInputPath, r1csInput); err != nil {
+		fmt.Println("can't parse input", err)
 		os.Exit(-1)
 	}
+	fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
+
+	// load proof
+	proof, err := groth16.ReadProof(proofPath)
+	if err != nil {
+		fmt.Println("can't parse proof", err)
+		os.Exit(-1)
+	}
+
+	// verify proof
+	start := time.Now()
+	if err := groth16.Verify(proof, vk, r1csInput); err != nil {
+		fmt.Printf("%-30s %-30s %-30s\n", "proof is invalid", proofPath, time.Since(start))
+		if err != nil {
+			fmt.Println(err)
+		}
+		os.Exit(-1)
+	}
+	fmt.Printf("%-30s %-30s %-30s\n", "proof is valid", proofPath, time.Since(start))
 
 }

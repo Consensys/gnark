@@ -3,7 +3,6 @@ package circuits
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -19,13 +18,13 @@ func rangeCheckConstant() {
 
 	circuit.MUSTBE_LESS_OR_EQ(c2, 161, 256)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 10)
-	good.Assign(backend.Public, "y", 4)
+	good := make(map[string]interface{})
+	good["x"] = 10
+	good["y"] = 4
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 10)
-	bad.Assign(backend.Public, "y", 5)
+	bad := make(map[string]interface{})
+	bad["x"] = 10
+	bad["y"] = 5
 
 	r1cs := circuit.ToR1CS()
 	addEntry("range_constant", r1cs, good, bad)
@@ -44,15 +43,15 @@ func rangeCheck() {
 
 	circuit.MUSTBE_LESS_OR_EQ(c2, bound, 256)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 10)
-	good.Assign(backend.Public, "y", 4)
-	good.Assign(backend.Public, "bound", 161)
+	good := make(map[string]interface{})
+	good["x"] = 10
+	good["y"] = 4
+	good["bound"] = 161
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 10)
-	bad.Assign(backend.Public, "y", 5)
-	bad.Assign(backend.Public, "bound", 161)
+	bad := make(map[string]interface{})
+	bad["x"] = 10
+	bad["y"] = 5
+	bad["bound"] = 161
 
 	r1cs := circuit.ToR1CS()
 	addEntry("range", r1cs, good, bad)

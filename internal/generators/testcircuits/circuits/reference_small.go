@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -22,8 +21,8 @@ func init() {
 	}
 	circuit.MUSTBE_EQ(x, y)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 2)
+	good := make(map[string]interface{})
+	good["x"] = 2
 
 	// compute expected Y
 	var expectedY big.Int
@@ -33,11 +32,11 @@ func init() {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Assign(backend.Public, "y", expectedY)
+	good["y"] = expectedY
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 2)
-	bad.Assign(backend.Public, "y", 0)
+	bad := make(map[string]interface{})
+	bad["x"] = 2
+	bad["y"] = 0
 
 	r1cs := circuit.ToR1CS()
 

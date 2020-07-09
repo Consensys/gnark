@@ -4,7 +4,6 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
 )
@@ -102,7 +101,7 @@ func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 // MakeAssignable will parse provided circuit struct members and initialize all leafs that
 // are CircuitVariable with frontend.circuitInput objects
 // see Compile documentation for more info on struct tags
-// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with backend.Assignments
+// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
 func MakeAssignable(circuit Circuit) error {
 	var inputHandler leafHandler = func(_ attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
@@ -120,20 +119,15 @@ func MakeAssignable(circuit Circuit) error {
 // ToAssignment will parse provided circuit and extract all values from leaves that are
 // CircuitVariable.
 // if MakeAssignable was not call prior, will panic.
-// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with backend.Assignments
-func ToAssignment(circuit Circuit) (backend.Assignments, error) {
-	toReturn := backend.NewAssignment()
+// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
+func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
+	toReturn := make(map[string]interface{})
 	var extractHandler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(CircuitVariable).(*circuitInput)
 		if v.val == nil {
 			return errors.New(name + " has no assigned value.")
 		}
-		switch visibility {
-		case unset, secret:
-			toReturn.Assign(backend.Secret, name, v.val)
-		case public:
-			toReturn.Assign(backend.Public, name, v.val)
-		}
+		toReturn[name] = v.val
 		return nil
 	}
 	// recursively parse through reflection the circuits members to find all inputs that need to be allocated

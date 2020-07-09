@@ -28,10 +28,10 @@ func main() {
 			if err := gob.Write(fName+"r1cs", v.R1CS, gurvy.UNKNOWN); err != nil {
 				panic(err)
 			}
-			if err := v.Good.WriteFile(fName + "good"); err != nil {
+			if err := gob.WriteMap(fName+"good", v.Good); err != nil {
 				panic(err)
 			}
-			if err := v.Bad.WriteFile(fName + "bad"); err != nil {
+			if err := gob.WriteMap(fName+"bad", v.Bad); err != nil {
 				panic(err)
 			}
 		}

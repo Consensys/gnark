@@ -21,9 +21,8 @@ import (
 	"os"
 	"testing"
 
-	backend_common "github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	"github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gnark/frontend"
@@ -84,13 +83,13 @@ func TestVerify(t *testing.T) {
 	// compilation of the circuit
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assignment := backend_common.NewAssignment()
-	assignment.Assign(backend_common.Public, "rootHash", merkleRoot)
+	assignment := make(map[string]interface{})
+	assignment["rootHash"] = merkleRoot
 	for i := 0; i < len(proof); i++ {
-		assignment.Assign(backend_common.Secret, "path"+string(i), proof[i])
+		assignment["path"+string(i)] = proof[i]
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment.Assign(backend_common.Secret, "helper"+string(i), proofHelper[i])
+		assignment["helper"+string(i)] = proofHelper[i]
 	}
 
 	assert := groth16.NewAssert(t)

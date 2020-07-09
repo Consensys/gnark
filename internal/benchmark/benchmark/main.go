@@ -37,7 +37,7 @@ func main() {
 	// TODO revisit with new backend R1CS stuff and new frontend.Compile
 }
 
-// func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend_bn256.R1CS, backend.Assignments) {
+// func generateCircuit(nbConstraints int) (groth16.ProvingKey, backend_bn256.R1CS, map[string]interface{}) {
 // 	// ---------------------------------------------------------------------------------------------
 // 	// circuit definition
 // 	circuit := frontend.New()
@@ -58,9 +58,9 @@ func main() {
 // 	for i := 0; i < nbConstraints; i++ {
 // 		expectedY.MulAssign(&expectedY)
 // 	}
-// 	solution := backend.NewAssignment()
-// 	solution.Assign(backend.Secret, "x", 2)
-// 	solution.Assign(backend.Public, "y", expectedY)
+// 	solution := make(map[string]interface{})
+// 	solution[ "x", 2)
+// 	solution[ "y", expectedY)
 
 // 	// ---------------------------------------------------------------------------------------------
 // 	//  setup

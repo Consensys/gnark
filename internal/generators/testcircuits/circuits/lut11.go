@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -31,15 +30,15 @@ func init() {
 
 	circuit.MUSTBE_EQ(r, z)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "b0", 1)
-	good.Assign(backend.Secret, "b1", 1)
-	good.Assign(backend.Public, "z", 7)
+	good := make(map[string]interface{})
+	good["b0"] = 1
+	good["b1"] = 1
+	good["z"] = 7
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "b0", 1)
-	bad.Assign(backend.Secret, "b1", 1)
-	bad.Assign(backend.Public, "z", 9)
+	bad := make(map[string]interface{})
+	bad["b0"] = 1
+	bad["b1"] = 1
+	bad["z"] = 9
 
 	r1cs := circuit.ToR1CS()
 	addEntry("lut11", r1cs, good, bad)

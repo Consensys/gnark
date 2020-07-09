@@ -19,13 +19,11 @@ package sw
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
-	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 
 	"github.com/consensys/gurvy/bls377"
 )
@@ -83,20 +81,20 @@ func tagPointAffineG2(g *G2Aff, s string) {
 	g.Y.Y.Tag(s + "y1")
 }
 
-func assignPointG2(inputs backend.Assignments, g bls377.G2Jac, s string) {
-	inputs.Assign(backend.Secret, s+"x0", g.X.A0)
-	inputs.Assign(backend.Secret, s+"x1", g.X.A1)
-	inputs.Assign(backend.Secret, s+"y0", g.Y.A0)
-	inputs.Assign(backend.Secret, s+"y1", g.Y.A1)
-	inputs.Assign(backend.Secret, s+"z0", g.Z.A0)
-	inputs.Assign(backend.Secret, s+"z1", g.Z.A1)
+func assignPointG2(inputs map[string]interface{}, g bls377.G2Jac, s string) {
+	inputs[s+"x0"] = g.X.A0.String()
+	inputs[s+"x1"] = g.X.A1.String()
+	inputs[s+"y0"] = g.Y.A0.String()
+	inputs[s+"y1"] = g.Y.A1.String()
+	inputs[s+"z0"] = g.Z.A0.String()
+	inputs[s+"z1"] = g.Z.A1.String()
 }
 
-func assignPointAffineG2(inputs backend.Assignments, g bls377.G2Affine, s string) {
-	inputs.Assign(backend.Secret, s+"x0", g.X.A0)
-	inputs.Assign(backend.Secret, s+"x1", g.X.A1)
-	inputs.Assign(backend.Secret, s+"y0", g.Y.A0)
-	inputs.Assign(backend.Secret, s+"y1", g.Y.A1)
+func assignPointAffineG2(inputs map[string]interface{}, g bls377.G2Affine, s string) {
+	inputs[s+"x0"] = g.X.A0.String()
+	inputs[s+"x1"] = g.X.A1.String()
+	inputs[s+"y0"] = g.Y.A0.String()
+	inputs[s+"y1"] = g.Y.A1.String()
 }
 
 func getExpectedValuesG2(m map[string]*fp.Element, s string, g bls377.G2Jac) {
@@ -136,7 +134,7 @@ func TestAddAssignG2(t *testing.T) {
 	tagPointG2(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointG2(inputs, g1, "a")
 	assignPointG2(inputs, g2, "b")
 
@@ -150,13 +148,13 @@ func TestAddAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}
 	}
@@ -183,7 +181,7 @@ func TestAddAffAssignG2(t *testing.T) {
 	tagPointAffineG2(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointAffineG2(inputs, _g1, "a")
 	assignPointAffineG2(inputs, _g2, "b")
 
@@ -198,13 +196,13 @@ func TestAddAffAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add affine g1")
 		}
 	}
@@ -226,7 +224,7 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	tagPointAffineG2(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointAffineG2(inputs, _g1, "a")
 
 	// compute the result
@@ -240,13 +238,13 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add affine g1")
 		}
 	}
@@ -266,7 +264,7 @@ func TestDoubleG2(t *testing.T) {
 	tagPointG2(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointG2(inputs, g1, "a")
 
 	// compute the result
@@ -279,13 +277,13 @@ func TestDoubleG2(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}
 	}

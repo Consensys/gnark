@@ -19,12 +19,10 @@ package sw
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
-	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 
 	"github.com/consensys/gurvy/bls377"
 )
@@ -76,10 +74,10 @@ func tagPointG1Aff(g *G1Aff, s string) {
 	g.Y.Tag(s + "1")
 }
 
-func assignPointG1(inputs backend.Assignments, g bls377.G1Jac, s string) {
-	inputs.Assign(backend.Secret, s+"0", g.X)
-	inputs.Assign(backend.Secret, s+"1", g.Y)
-	inputs.Assign(backend.Secret, s+"2", g.Z)
+func assignPointG1(inputs map[string]interface{}, g bls377.G1Jac, s string) {
+	inputs[s+"0"] = g.X.String()
+	inputs[s+"1"] = g.Y.String()
+	inputs[s+"2"] = g.Z.String()
 
 }
 
@@ -109,7 +107,7 @@ func TestAddAssignG1(t *testing.T) {
 	tagPointG1(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointG1(inputs, g1, "a")
 	assignPointG1(inputs, g2, "b")
 
@@ -123,13 +121,13 @@ func TestAddAssignG1(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}
 	}
@@ -157,12 +155,12 @@ func TestAddAssignAffG1(t *testing.T) {
 	// assign the inputs
 	var one fp.Element
 	one.SetUint64(1)
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", _g1.X)
-	inputs.Assign(backend.Secret, "a1", _g1.Y)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = _g1.X.String()
+	inputs["a1"] = _g1.Y.String()
 
-	inputs.Assign(backend.Secret, "b0", _g2.X)
-	inputs.Assign(backend.Secret, "b1", _g2.Y)
+	inputs["b0"] = _g2.X.String()
+	inputs["b1"] = _g2.Y.String()
 
 	// compute the result
 	var _gres bls377.G1Affine
@@ -177,13 +175,13 @@ func TestAddAssignAffG1(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1 (affine)")
 		}
 	}
@@ -202,7 +200,7 @@ func TestDoubleG1(t *testing.T) {
 	tagPointG1(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointG1(inputs, g1, "a")
 
 	// compute the result
@@ -214,14 +212,14 @@ func TestDoubleG1(t *testing.T) {
 
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error double g1")
 		}
 	}
@@ -242,9 +240,9 @@ func TestDoubleAffG1(t *testing.T) {
 	tagPointG1Aff(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", _g1.X)
-	inputs.Assign(backend.Secret, "a1", _g1.Y)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = _g1.X.String()
+	inputs["a1"] = _g1.Y.String()
 
 	// compute the reference result
 	var _gres bls377.G1Affine
@@ -259,13 +257,13 @@ func TestDoubleAffG1(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error double g1 (affine)")
 		}
 	}
@@ -284,7 +282,7 @@ func TestNegG1(t *testing.T) {
 	tagPointG1(gc1, "c")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
+	inputs := make(map[string]interface{})
 	assignPointG1(inputs, g1, "a")
 
 	// compute the result
@@ -296,13 +294,13 @@ func TestNegG1(t *testing.T) {
 
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error neg g1")
 		}
 	}
@@ -329,9 +327,9 @@ func TestScalarMulG1(t *testing.T) {
 	tagPointG1Aff(gc1, "res")
 
 	// assign the inputs
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "gc10", g1Aff.X)
-	inputs.Assign(backend.Secret, "gc11", g1Aff.Y)
+	inputs := make(map[string]interface{})
+	inputs["gc10"] = g1Aff.X.String()
+	inputs["gc11"] = g1Aff.Y.String()
 
 	// compute the result
 	r.FromMont()
@@ -346,13 +344,13 @@ func TestScalarMulG1(t *testing.T) {
 	// check expected result
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error scalar mul g1")
 		}
 	}

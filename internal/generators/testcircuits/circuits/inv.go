@@ -16,13 +16,13 @@ func init() {
 	// expectedY.SetUint64(4)
 	// expectedY.MulAssign(&expectedY).Inverse(&expectedY)
 
-	// good := backend.NewAssignment()
-	// good.Assign(backend.Secret, "x", 4)
-	// good.Assign(backend.Public, "y", expectedY)
+	// good := make(map[string]interface{})
+	// good[ "x", 4)
+	// good[ "y", expectedY)
 
-	// bad := backend.NewAssignment()
-	// bad.Assign(backend.Secret, "x", 4)
-	// bad.Assign(backend.Public, "y", 42)
+	// bad := make(map[string]interface{})
+	// bad[ "x", 4)
+	// bad[ "y", 42)
 
 	// r1cs := circuit.ToR1CS()
 

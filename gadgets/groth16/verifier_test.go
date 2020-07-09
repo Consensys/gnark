@@ -19,11 +19,10 @@ package groth16
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
 	backend_bw761 "github.com/consensys/gnark/backend/bw761"
-	groth16_bw761 "github.com/consensys/gnark/backend/bw761/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
@@ -58,9 +57,9 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BLS377).(*backend_bls377.R1CS)
 
 	// create the correct assignment
-	correctAssignment := backend.NewAssignment()
-	correctAssignment.Assign(backend.Secret, "private_data", preimage)
-	correctAssignment.Assign(backend.Public, "public_hash", publicHash)
+	correctAssignment := make(map[string]interface{})
+	correctAssignment["private_data"] = preimage
+	correctAssignment["public_hash"] = publicHash
 
 	// generate the data to return for the bls377 proof
 	var pk groth16_bls377.ProvingKey
@@ -152,16 +151,16 @@ func allocateG1(circuit *frontend.CS, g1 *sw.G1Aff, g1Circuit *bls377.G1Affine) 
 	g1.Y = circuit.ALLOCATE(g1Circuit.Y)
 }
 
-func assignPointAffineG2(inputs backend.Assignments, g bls377.G2Affine, s string) {
-	inputs.Assign(backend.Secret, s+"x0", g.X.A0)
-	inputs.Assign(backend.Secret, s+"x1", g.X.A1)
-	inputs.Assign(backend.Secret, s+"y0", g.Y.A0)
-	inputs.Assign(backend.Secret, s+"y1", g.Y.A1)
+func assignPointAffineG2(inputs map[string]interface{}, g bls377.G2Affine, s string) {
+	inputs[s+"x0"] = g.X.A0.String()
+	inputs[s+"x1"] = g.X.A1.String()
+	inputs[s+"y0"] = g.Y.A0.String()
+	inputs[s+"y1"] = g.Y.A1.String()
 }
 
-func assignPointAffineG1(inputs backend.Assignments, g bls377.G1Affine, s string) {
-	inputs.Assign(backend.Secret, s+"0", g.X)
-	inputs.Assign(backend.Secret, s+"1", g.Y)
+func assignPointAffineG1(inputs map[string]interface{}, g bls377.G1Affine, s string) {
+	inputs[s+"0"] = g.X.String()
+	inputs[s+"1"] = g.Y.String()
 }
 
 //--------------------------------------------------------------------
@@ -199,14 +198,14 @@ func TestVerifier(t *testing.T) {
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
 	// up to the renaming of the inner ONE_WIRE to not conflict with the one wire of the outer proof.
-	correctAssignment := backend.NewAssignment()
+	correctAssignment := make(map[string]interface{})
 	assignPointAffineG1(correctAssignment, innerProof.Ar, "Ar")
 	assignPointAffineG1(correctAssignment, innerProof.Krs, "Krs")
 	assignPointAffineG2(correctAssignment, innerProof.Bs, "Bs")
-	correctAssignment.Assign(backend.Public, "public_hash", publicHash)
+	correctAssignment["public_hash"] = publicHash
 
 	// verifies the circuit
-	assertbw761 := groth16_bw761.NewAssert(t)
+	assertbw761 := groth16.NewAssert(t)
 
 	assertbw761.CorrectExecution(r1cs.(*backend_bw761.R1CS), correctAssignment, nil)
 
@@ -266,11 +265,11 @@ func BenchmarkVerifier(b *testing.B) {
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
 	// up to the renaming of the inner ONE_WIRE to not conflict with the one wire of the outer proof.
-	correctAssignment := backend.NewAssignment()
+	correctAssignment := make(map[string]interface{})
 	assignPointAffineG1(correctAssignment, innerProof.Ar, "Ar")
 	assignPointAffineG1(correctAssignment, innerProof.Krs, "Krs")
 	assignPointAffineG2(correctAssignment, innerProof.Bs, "Bs")
-	correctAssignment.Assign(backend.Public, "public_hash", publicHash)
+	correctAssignment["public_hash"] = publicHash
 
 	// verifies the circuit
 	b.ResetTimer()

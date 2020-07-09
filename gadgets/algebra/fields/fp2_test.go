@@ -19,12 +19,10 @@ package fields
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
-	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 //--------------------------------------------------------------------
@@ -37,9 +35,9 @@ func newOperandFp2(circuit *frontend.CS, s string) Fp2Elmt {
 	return res
 }
 
-func assignOperandFp2(inputs backend.Assignments, s string, w bls377.E2) {
-	inputs.Assign(backend.Secret, s+"0", w.A0)
-	inputs.Assign(backend.Secret, s+"1", w.A1)
+func assignOperandFp2(inputs map[string]interface{}, s string, w bls377.E2) {
+	inputs[s+"0"] = w.A0.String()
+	inputs[s+"1"] = w.A1.String()
 }
 
 //--------------------------------------------------------------------
@@ -64,11 +62,11 @@ func TestAddFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
-	inputs.Assign(backend.Secret, "b0", b.A0)
-	inputs.Assign(backend.Secret, "b1", b.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
+	inputs["b0"] = b.A0.String()
+	inputs["b1"] = b.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -76,15 +74,15 @@ func TestAddFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error AddFp2")
 		}
 	}
@@ -109,11 +107,11 @@ func TestSubFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
-	inputs.Assign(backend.Secret, "b0", b.A0)
-	inputs.Assign(backend.Secret, "b1", b.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
+	inputs["b0"] = b.A0.String()
+	inputs["b1"] = b.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -121,15 +119,15 @@ func TestSubFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error SubFp2")
 		}
 	}
@@ -156,11 +154,11 @@ func TestMulFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
-	inputs.Assign(backend.Secret, "b0", b.A0)
-	inputs.Assign(backend.Secret, "b1", b.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
+	inputs["b0"] = b.A0.String()
+	inputs["b1"] = b.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -168,15 +166,15 @@ func TestMulFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulFp2")
 		}
 	}
@@ -202,10 +200,10 @@ func TestMulByFpFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
-	inputs.Assign(backend.Secret, "b0", b)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
+	inputs["b0"] = b.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -213,15 +211,15 @@ func TestMulByFpFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByFpFp2")
 		}
 	}
@@ -246,9 +244,9 @@ func TestMulByImFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -256,15 +254,15 @@ func TestMulByImFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByImFp2")
 		}
 	}
@@ -287,9 +285,9 @@ func TestConjugateFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -297,15 +295,15 @@ func TestConjugateFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error ConjugateFp2")
 		}
 	}
@@ -330,9 +328,9 @@ func TestInverseFp2(t *testing.T) {
 	fp2c.X.Tag("c0")
 	fp2c.Y.Tag("c1")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "a0", a.A0)
-	inputs.Assign(backend.Secret, "a1", a.A1)
+	inputs := make(map[string]interface{})
+	inputs["a0"] = a.A0.String()
+	inputs["a1"] = a.A1.String()
 
 	expectedValues := make(map[string]*fp.Element)
 	expectedValues["c0"] = &c.A0
@@ -340,15 +338,15 @@ func TestInverseFp2(t *testing.T) {
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error InverseFp2")
 		}
 	}

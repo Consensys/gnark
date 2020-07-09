@@ -3,7 +3,6 @@ package circuits
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -23,15 +22,15 @@ func init() {
 
 	circuit.MUSTBE_EQ(z0, y0)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "b0", 1)
-	good.Assign(backend.Secret, "b1", 1)
-	good.Assign(backend.Public, "y0", 0)
+	good := make(map[string]interface{})
+	good["b0"] = 1
+	good["b1"] = 1
+	good["y0"] = 0
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "b0", 1)
-	bad.Assign(backend.Secret, "b1", 1)
-	bad.Assign(backend.Public, "y0", 1)
+	bad := make(map[string]interface{})
+	bad["b0"] = 1
+	bad["b1"] = 1
+	bad["y0"] = 1
 
 	r1cs := circuit.ToR1CS()
 	addEntry("xor11", r1cs, good, bad)

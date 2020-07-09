@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -23,15 +22,15 @@ func init() {
 	var expectedZ big.Int
 	expectedZ.SetUint64(3)
 
-	good := backend.NewAssignment()
-	good.Assign(backend.Secret, "x", 6)
-	good.Assign(backend.Secret, "y", 12)
-	good.Assign(backend.Public, "z", expectedZ)
+	good := make(map[string]interface{})
+	good["x"] = 6
+	good["y"] = 12
+	good["z"] = expectedZ
 
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "x", 4)
-	bad.Assign(backend.Secret, "y", 10)
-	bad.Assign(backend.Public, "z", 42)
+	bad := make(map[string]interface{})
+	bad["x"] = 4
+	bad["y"] = 10
+	bad["z"] = 42
 
 	r1cs := circuit.ToR1CS()
 	addEntry("div", r1cs, good, bad)

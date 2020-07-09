@@ -20,13 +20,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
-	bw761_fr "github.com/consensys/gurvy/bw761/fr"
 )
 
 func TestLineEvalBLS377(t *testing.T) {
@@ -84,21 +82,21 @@ func TestLineEvalBLS377(t *testing.T) {
 	expectedValues["lr2y"] = &expres[5]
 
 	// create inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "qxx", "11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624")
-	inputs.Assign(backend.Secret, "rxx", "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467")
-	inputs.Assign(backend.Secret, "px", "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
+	inputs := make(map[string]interface{})
+	inputs["qxx"] = "11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624"
+	inputs["rxx"] = "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467"
+	inputs["px"] = "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739"
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error Line eval jac")
 		}
 	}
@@ -154,21 +152,21 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	expectedValues["lr2y"] = &expres[5]
 
 	// create inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "qxx", "11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624")
-	inputs.Assign(backend.Secret, "rxx", "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467")
-	inputs.Assign(backend.Secret, "px", "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
+	inputs := make(map[string]interface{})
+	inputs["qxx"] = "11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624"
+	inputs["rxx"] = "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467"
+	inputs["px"] = "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739"
 
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		if expectedValues[k].String() != v.String() {
+		_v := fp.FromInterface(v)
+		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error line eval affine")
 		}
 	}
@@ -247,9 +245,9 @@ func TestPairingBLS377(t *testing.T) {
 	P.Z = circuit.ALLOCATE("1")
 
 	// create inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "qxx", "129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
-	inputs.Assign(backend.Secret, "px", "68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
+	inputs := make(map[string]interface{})
+	inputs["qxx"] = "129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310"
+	inputs["px"] = "68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983"
 
 	milrescircuit := fields.NewFp12ElmtNil(&circuit)
 
@@ -289,8 +287,7 @@ func TestPairingBLS377(t *testing.T) {
 	// inspect and compare the results
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +296,7 @@ func TestPairingBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixMillerLoop + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := res[entry]
+		s2 := fp.FromInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error miller loop")
 		}
@@ -307,7 +304,7 @@ func TestPairingBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixPairing + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := res[entry]
+		s2 := fp.FromInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error pairing")
 		}
@@ -371,9 +368,9 @@ func TestPairingAffineBLS377(t *testing.T) {
 	P.Y = circuit.ALLOCATE("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
 
 	// create inputs to the circuit
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "qxx", "129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
-	inputs.Assign(backend.Secret, "px", "68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
+	inputs := make(map[string]interface{})
+	inputs["qxx"] = "129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310"
+	inputs["px"] = "68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983"
 
 	milrescircuit := fields.NewFp12ElmtNil(&circuit)
 
@@ -399,8 +396,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	// inspect and compare the results
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
-	_res, err := r1cs.Inspect(inputs, false)
-	res := _res.(map[string]bw761_fr.Element)
+	res, err := r1cs.Inspect(inputs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +405,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixPairing + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := res[entry]
+		s2 := fp.FromInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error pairing")
 		}
