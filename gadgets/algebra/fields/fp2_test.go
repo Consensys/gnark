@@ -17,12 +17,11 @@ limitations under the License.
 package fields
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 	bw761_fr "github.com/consensys/gurvy/bw761/fr"
@@ -75,8 +74,7 @@ func TestAddFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
-	fmt.Printf("%d\n", r1cs.NbConstraints)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -121,7 +119,7 @@ func TestSubFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -168,7 +166,7 @@ func TestMulFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -213,7 +211,7 @@ func TestMulByFpFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -256,8 +254,7 @@ func TestMulByImFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
-	fmt.Printf("%d\n", r1cs.NbConstraints)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -298,7 +295,7 @@ func TestConjugateFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -341,7 +338,7 @@ func TestInverseFp2(t *testing.T) {
 	expectedValues["c0"] = &c.A0
 	expectedValues["c1"] = &c.A1
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)

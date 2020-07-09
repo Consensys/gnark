@@ -46,13 +46,13 @@ func TestCircuits(t *testing.T) {
 		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
-		var fr1cs frontend.R1CS
+		var fr1cs r1cs.UntypedR1CS
 		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
-		r1cs := backend_{{toLower .Curve}}.Cast(&fr1cs)
-		assert.NotSolved(&r1cs, bad)
-		assert.Solved(&r1cs, good, nil)
+		r1cs := fr1cs.ToR1CS(curve.ID).(*backend_{{toLower .Curve}}.R1CS)
+		assert.NotSolved(r1cs, bad)
+		assert.Solved(r1cs, good, nil)
 	}
 }
 

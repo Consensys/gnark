@@ -38,3 +38,11 @@ var (
 	ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 	ErrInvalidInputFormat    = errors.New("incorrect input format")
 )
+
+// TODO find a home for this
+type SolvingMethod uint8
+
+const (
+	SingleOutput SolvingMethod = iota
+	BinaryDec
+)

@@ -80,11 +80,9 @@ func TestCircuitSignature(t *testing.T) {
 	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &signatureCircuit)
 	assert.NoError(err)
 
-	r1csTped := backend_bn256.Cast(r1cs)
-
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(&r1csTped, assignments, nil)
+	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
 
 }
 
@@ -150,11 +148,9 @@ func TestCircuitInclusionProof(t *testing.T) {
 	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &inclusionProofCircuit)
 	assert.NoError(err)
 
-	r1csTped := backend_bn256.Cast(r1cs)
-
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(&r1csTped, assignments, nil)
+	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
 
 }
 
@@ -211,11 +207,9 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &updateAccountCircuit)
 	assert.NoError(err)
 
-	r1csTped := backend_bn256.Cast(r1cs)
-
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(&r1csTped, assignments, nil)
+	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
 
 }
 
@@ -262,10 +256,8 @@ func TestCircuitFull(t *testing.T) {
 	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &rollupCircuit)
 	assert.NoError(err)
 
-	r1csTped := backend_bn256.Cast(r1cs)
-
 	assignments, err := frontend.ToAssignment(&operator.witnesses)
 	assert.NoError(err)
-	assert.Solved(&r1csTped, assignments, nil)
+	assert.Solved(r1cs.(*backend_bn256.R1CS), assignments, nil)
 
 }

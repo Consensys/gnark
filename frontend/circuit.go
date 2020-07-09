@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
 )
 
@@ -49,7 +50,7 @@ type CircuitVariable interface {
 //  B frontend.CircuitVariable `gnark:",public"` 	// will allocate a public input name with "B" (struct member name)
 //  C frontend.CircuitVariable `gnark:"-"` 			// C will not be initialized, and has to be initialized in circuit.PostInit hook
 // }
-func Compile(ctx *Context, circuit Circuit) (*R1CS, error) {
+func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 	// instantiate our constraint system
 	cs := New()
 
@@ -88,11 +89,13 @@ func Compile(ctx *Context, circuit Circuit) (*R1CS, error) {
 	}
 
 	// return R1CS
-	return cs.ToR1CS(), nil
+
+	// we have in our context object the curve, so we can type our R1CS to the curve base field elements
+	return cs.ToR1CS().ToR1CS(ctx.CurveID()), nil
 }
 
 // Save will serialize the provided R1CS to path
-func Save(ctx *Context, r1cs *R1CS, path string) error {
+func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 	return gob.Write(path, r1cs, ctx.CurveID())
 }
 

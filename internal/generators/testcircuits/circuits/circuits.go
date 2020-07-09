@@ -3,17 +3,17 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/backend/r1cs"
 )
 
 type TestCircuit struct {
-	R1CS      *frontend.R1CS
+	R1CS      *r1cs.UntypedR1CS
 	Good, Bad backend.Assignments
 }
 
 var Circuits map[string]TestCircuit
 
-func addEntry(name string, r1cs *frontend.R1CS, good, bad backend.Assignments) {
+func addEntry(name string, r1cs *r1cs.UntypedR1CS, good, bad backend.Assignments) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
 	}

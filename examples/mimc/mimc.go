@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
@@ -14,7 +15,7 @@ func main() {
 
 // New return the circuit implementing
 // a pre image check
-func New() *frontend.R1CS {
+func New() *r1cs.UntypedR1CS {
 	// create root constraint system
 	circuit := frontend.New()
 

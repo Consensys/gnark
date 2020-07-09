@@ -31,6 +31,13 @@ var (
 	ErrInconsistantConstraint = errors.New("inconsistant constraint")
 )
 
+// TODO find a home for this
+func bigOne() big.Int {
+	var val big.Int
+	val.SetUint64(1)
+	return val
+}
+
 // CS Constraint System
 type CS struct {
 

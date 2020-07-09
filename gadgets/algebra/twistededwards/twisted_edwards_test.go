@@ -49,9 +49,9 @@ func TestIsOnCurve(t *testing.T) {
 	inputs.Assign(backend.Secret, "y", edgadget.BaseY)
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, nil)
+	assertbn256.CorrectExecution(r1csbn256, inputs, nil)
 
 }
 
@@ -87,9 +87,9 @@ func TestAdd(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestAddGeneric(t *testing.T) {
@@ -127,9 +127,9 @@ func TestAddGeneric(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestDouble(t *testing.T) {
@@ -163,9 +163,9 @@ func TestDouble(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestScalarMulFixedBase(t *testing.T) {
@@ -203,9 +203,9 @@ func TestScalarMulFixedBase(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestScalarMulNonFixedBase(t *testing.T) {
@@ -243,7 +243,7 @@ func TestScalarMulNonFixedBase(t *testing.T) {
 	expectedValues["yg"] = expectedv
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }

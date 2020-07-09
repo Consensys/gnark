@@ -75,9 +75,9 @@ func TestMimcBN256(t *testing.T) {
 	inputs.Assign(backend.Public, "data", databn256)
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 
 }
 
@@ -114,9 +114,9 @@ func TestMimcBLS381(t *testing.T) {
 	inputs.Assign(backend.Public, "data", data)
 
 	// creates r1cs
-	r1csbls381 := backend_bls381.New(&circuit)
+	r1csbls381 := circuit.ToR1CS().ToR1CS(gurvy.BLS381).(*backend_bls381.R1CS)
 
-	assertbls381.CorrectExecution(&r1csbls381, inputs, expectedValues)
+	assertbls381.CorrectExecution(r1csbls381, inputs, expectedValues)
 
 }
 
@@ -153,8 +153,8 @@ func TestMimcBLS377(t *testing.T) {
 	inputs.Assign(backend.Public, "data", data)
 
 	// creates r1cs
-	r1csbls377 := backend_bls377.New(&circuit)
+	r1csbls377 := circuit.ToR1CS().ToR1CS(gurvy.BLS377).(*backend_bls377.R1CS)
 
-	assertbls377.CorrectExecution(&r1csbls377, inputs, expectedValues)
+	assertbls377.CorrectExecution(r1csbls377, inputs, expectedValues)
 
 }

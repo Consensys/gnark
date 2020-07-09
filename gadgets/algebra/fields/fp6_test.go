@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 	bw761_fr "github.com/consensys/gurvy/bw761/fr"
@@ -108,7 +108,7 @@ func TestAddFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -149,7 +149,7 @@ func TestSubFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -192,7 +192,7 @@ func TestMulFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -236,7 +236,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -276,7 +276,7 @@ func TestMulByVFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -316,7 +316,7 @@ func TestInverseFp6(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 	getExpectedValuesFp6(expectedValues, "c", c)
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)

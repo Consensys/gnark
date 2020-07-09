@@ -20,9 +20,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
 	bw761_fr "github.com/consensys/gurvy/bw761/fr"
@@ -148,7 +148,7 @@ func TestAddAssignG2(t *testing.T) {
 	getExpectedValuesG2(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -196,7 +196,7 @@ func TestAddAffAssignG2(t *testing.T) {
 	getExpectedValuesAffineG2(expectedValues, "c", _g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -238,7 +238,7 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	getExpectedValuesAffineG2(expectedValues, "c", _g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -277,7 +277,7 @@ func TestDoubleG2(t *testing.T) {
 	getExpectedValuesG2(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)

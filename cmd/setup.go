@@ -28,8 +28,8 @@ import (
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
@@ -88,20 +88,20 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 	// TODO clean that up with interfaces and type casts
-	var bigIntR1cs frontend.R1CS
+	var bigIntR1cs r1cs.UntypedR1CS
 	switch curveID {
 	case gurvy.BLS377:
 		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bls377.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bls377.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls377.ProvingKey
 		var vk groth16_bls377.VerifyingKey
 		start := time.Now()
-		groth16_bls377.Setup(&r1cs, &pk, &vk)
+		groth16_bls377.Setup(r1cs, &pk, &vk)
 		duration := time.Since(start)
 		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 
@@ -120,13 +120,13 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bls381.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bls381.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls381.ProvingKey
 		var vk groth16_bls381.VerifyingKey
 		start := time.Now()
-		groth16_bls381.Setup(&r1cs, &pk, &vk)
+		groth16_bls381.Setup(r1cs, &pk, &vk)
 		duration := time.Since(start)
 		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 
@@ -145,13 +145,13 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bn256.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bn256.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bn256.ProvingKey
 		var vk groth16_bn256.VerifyingKey
 		start := time.Now()
-		groth16_bn256.Setup(&r1cs, &pk, &vk)
+		groth16_bn256.Setup(r1cs, &pk, &vk)
 		duration := time.Since(start)
 		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 

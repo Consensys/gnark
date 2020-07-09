@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -18,7 +19,7 @@ const bitSize = 8 // number of bits of exponent
 // New return the circuit implementing
 // y == x**e
 // only the bitSize least significant bits of e are used
-func New() *frontend.R1CS {
+func New() *r1cs.UntypedR1CS {
 
 	// create root constraint system
 	circuit := frontend.New()

@@ -18,6 +18,8 @@ package frontend
 
 import (
 	"math/big"
+
+	"github.com/consensys/gnark/backend/r1cs"
 )
 
 // Constraint list of expressions that must be equal+an output wire, that can be computed out of the inputs wire.
@@ -99,10 +101,10 @@ func (c *constraint) Tag(tag string) {
 	c.outputWire.Tags = append(c.outputWire.Tags, tag)
 }
 
-func (c *constraint) toR1CS(s *CS) []R1C {
+func (c *constraint) toR1CS(s *CS) []r1cs.R1C {
 	oneWire := s.Constraints[0].getOutputWire()
 
-	toReturn := make([]R1C, len(c.expressions))
+	toReturn := make([]r1cs.R1C, len(c.expressions))
 	for i := 0; i < len(c.expressions); i++ {
 		toReturn[i] = c.expressions[i].toR1CS(oneWire, c.outputWire)
 	}

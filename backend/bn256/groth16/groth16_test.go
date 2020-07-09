@@ -21,6 +21,7 @@ import (
 	"github.com/consensys/gurvy/bn256/fr"
 
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	"github.com/consensys/gnark/backend/r1cs"
 
 	"path/filepath"
 	"runtime/debug"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
 
@@ -56,13 +56,13 @@ func TestCircuits(t *testing.T) {
 		if err := bad.ReadFile(name + ".bad"); err != nil {
 			t.Fatal(err)
 		}
-		var fr1cs frontend.R1CS
+		var fr1cs r1cs.UntypedR1CS
 		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
-		r1cs := backend_bn256.Cast(&fr1cs)
-		assert.NotSolved(&r1cs, bad)
-		assert.Solved(&r1cs, good, nil)
+		r1cs := fr1cs.ToR1CS(curve.ID).(*backend_bn256.R1CS)
+		assert.NotSolved(r1cs, bad)
+		assert.Solved(r1cs, good, nil)
 	}
 }
 

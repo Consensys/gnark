@@ -25,7 +25,7 @@ func TestCubicEquation(t *testing.T) {
 	assert.NoError(err)
 
 	// TODO use ctx to "cast" into the good backend choice
-	r1csBN256 := backend_bn256.Cast(r1cs) // specifies the circuit to bn256
+	r1csBN256 := r1cs.(*backend_bn256.R1CS)
 
 	{
 		err := frontend.MakeAssignable(&cubicCircuit)
@@ -36,21 +36,21 @@ func TestCubicEquation(t *testing.T) {
 
 		bad, err := frontend.ToAssignment(&cubicCircuit)
 		assert.NoError(err)
-		assert.NotSolved(&r1csBN256, bad)
+		assert.NotSolved(r1csBN256, bad)
 	}
 
 	{
 		bad := backend.NewAssignment()
 		bad.Assign(backend.Secret, "x", 42)
 		bad.Assign(backend.Public, "y", 42)
-		assert.NotSolved(&r1csBN256, bad)
+		assert.NotSolved(r1csBN256, bad)
 	}
 
 	{
 		bad := backend.NewAssignment()
 		bad.Assign(backend.Public, "x", 3) // x should be Secret
 		bad.Assign(backend.Public, "y", 35)
-		assert.NotSolved(&r1csBN256, bad)
+		assert.NotSolved(r1csBN256, bad)
 	}
 
 	{
@@ -63,7 +63,7 @@ func TestCubicEquation(t *testing.T) {
 		expectedValues["x^3"] = xcube
 		x.SetUint64(3)
 		expectedValues["x"] = x
-		assert.Solved(&r1csBN256, good, expectedValues)
+		assert.Solved(r1csBN256, good, expectedValues)
 	}
 
 }

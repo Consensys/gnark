@@ -55,7 +55,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	circuit.MUSTBE_EQ(res, circuit.PUBLIC_INPUT("public_hash"))
 
 	// build the r1cs from the circuit
-	r1cs := backend_bls377.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BLS377).(*backend_bls377.R1CS)
 
 	// create the correct assignment
 	correctAssignment := backend.NewAssignment()
@@ -64,8 +64,8 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 	// generate the data to return for the bls377 proof
 	var pk groth16_bls377.ProvingKey
-	groth16_bls377.Setup(&r1cs, &pk, vk)
-	_proof, err := groth16_bls377.Prove(&r1cs, &pk, correctAssignment)
+	groth16_bls377.Setup(r1cs, &pk, vk)
+	_proof, err := groth16_bls377.Prove(r1cs, &pk, correctAssignment)
 	if err != nil {
 		if t != nil {
 			t.Fatal(err)
@@ -194,7 +194,7 @@ func TestVerifier(t *testing.T) {
 	Verify(&circuit, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
 
 	// create r1cs
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -208,7 +208,7 @@ func TestVerifier(t *testing.T) {
 	// verifies the circuit
 	assertbw761 := groth16_bw761.NewAssert(t)
 
-	assertbw761.CorrectExecution(&r1cs, correctAssignment, nil)
+	assertbw761.CorrectExecution(r1cs.(*backend_bw761.R1CS), correctAssignment, nil)
 
 	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
 	// generate groth16 instance on bw761 (setup, prove, verify)
@@ -261,7 +261,7 @@ func BenchmarkVerifier(b *testing.B) {
 	Verify(&circuit, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
 
 	// create r1cs
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,

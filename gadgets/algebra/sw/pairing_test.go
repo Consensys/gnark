@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 	bw761_fr "github.com/consensys/gurvy/bw761/fr"
@@ -89,7 +89,7 @@ func TestLineEvalBLS377(t *testing.T) {
 	inputs.Assign(backend.Secret, "rxx", "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467")
 	inputs.Assign(backend.Secret, "px", "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -159,7 +159,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	inputs.Assign(backend.Secret, "rxx", "38348804106969641131654336618231918247608720362924380120333996440589719997236048709530218561145001033408367199467")
 	inputs.Assign(backend.Secret, "px", "219129261975485221488302932474367447253380009436652290437731529751224807932621384667224625634955419310221362804739")
 
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	// inspect and compare the results
 	_res, err := r1cs.Inspect(inputs, false)
@@ -287,7 +287,7 @@ func TestPairingBLS377(t *testing.T) {
 	milrescircuit.C1.B2.Y.Tag("pairing11")
 
 	// inspect and compare the results
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -397,7 +397,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	milrescircuit.C1.B2.Y.Tag("pairing11")
 
 	// inspect and compare the results
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)

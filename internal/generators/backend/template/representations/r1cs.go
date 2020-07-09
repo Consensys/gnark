@@ -30,56 +30,56 @@ type R1CS struct {
 	Constraints     []R1C
 }
 
-// New return a typed R1CS with the curve from frontend.R1CS
-func New(cs *frontend.CS) R1CS {
+// New return a typed R1CS with the curve from r1cs.UntypedR1CS
+// func New(cs *backend.CS) R1CS {
 
-	r1cs := cs.ToR1CS()
+// 	r1cs := cs.ToR1CS()
 
-	return Cast(r1cs)
-}
+// 	return Cast(r1cs)
+// }
 
-// Cast casts a frontend.R1CS (whose coefficients are big.Int)
+// Cast casts a r1cs.UntypedR1CS (whose coefficients are big.Int)
 // into a specialized R1CS whose coefficients are fr elements
-func Cast(r1cs *frontend.R1CS) R1CS {
+// func Cast(r1cs *r1cs.UntypedR1CS) *R1CS {
 
-	toReturn := R1CS{
-		NbWires:         r1cs.NbWires,
-		NbPublicWires:   r1cs.NbPublicWires,
-		NbPrivateWires:  r1cs.NbPrivateWires,
-		PrivateWires:    r1cs.PrivateWires,
-		PublicWires:     r1cs.PublicWires,
-		WireTags:        r1cs.WireTags,
-		NbConstraints:   r1cs.NbConstraints,
-		NbCOConstraints: r1cs.NbCOConstraints,
-	}
-	toReturn.Constraints = make([]R1C, len(r1cs.Constraints))
-	for i := 0; i < len(r1cs.Constraints); i++ {
-		from := r1cs.Constraints[i]
-		to := R1C{
-			Solver: from.Solver,
-			L:      make(LinearExpression, len(from.L)),
-			R:      make(LinearExpression, len(from.R)),
-			O:      make(LinearExpression, len(from.O)),
-		}
+// 	toReturn := R1CS{
+// 		NbWires:         r1cs.NbWires,
+// 		NbPublicWires:   r1cs.NbPublicWires,
+// 		NbPrivateWires:  r1cs.NbPrivateWires,
+// 		PrivateWires:    r1cs.PrivateWires,
+// 		PublicWires:     r1cs.PublicWires,
+// 		WireTags:        r1cs.WireTags,
+// 		NbConstraints:   r1cs.NbConstraints,
+// 		NbCOConstraints: r1cs.NbCOConstraints,
+// 	}
+// 	toReturn.Constraints = make([]R1C, len(r1cs.Constraints))
+// 	for i := 0; i < len(r1cs.Constraints); i++ {
+// 		from := r1cs.Constraints[i]
+// 		to := R1C{
+// 			Solver: from.Solver,
+// 			L:      make(LinearExpression, len(from.L)),
+// 			R:      make(LinearExpression, len(from.R)),
+// 			O:      make(LinearExpression, len(from.O)),
+// 		}
 
-		for j := 0; j < len(from.L); j++ {
-			to.L[j].ID = from.L[j].ID
-			to.L[j].Coeff.SetBigInt(&from.L[j].Coeff)
-		}
-		for j := 0; j < len(from.R); j++ {
-			to.R[j].ID = from.R[j].ID
-			to.R[j].Coeff.SetBigInt(&from.R[j].Coeff)
-		}
-		for j := 0; j < len(from.O); j++ {
-			to.O[j].ID = from.O[j].ID
-			to.O[j].Coeff.SetBigInt(&from.O[j].Coeff)
-		}
+// 		for j := 0; j < len(from.L); j++ {
+// 			to.L[j].ID = from.L[j].ID
+// 			to.L[j].Coeff.SetBigInt(&from.L[j].Coeff)
+// 		}
+// 		for j := 0; j < len(from.R); j++ {
+// 			to.R[j].ID = from.R[j].ID
+// 			to.R[j].Coeff.SetBigInt(&from.R[j].Coeff)
+// 		}
+// 		for j := 0; j < len(from.O); j++ {
+// 			to.O[j].ID = from.O[j].ID
+// 			to.O[j].Coeff.SetBigInt(&from.O[j].Coeff)
+// 		}
 
-		toReturn.Constraints[i] = to
-	}
+// 		toReturn.Constraints[i] = to
+// 	}
 
-	return toReturn
-}
+// 	return &toReturn
+// }
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
@@ -181,7 +181,9 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, _a, _b, _c, _wireValues 
 // TODO note: for now, we return interface{} and expect caller to cast in proper type
 // this is temporary while we refactor backend.Assignments and use big.Int here. 
 func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (interface{}, error) {
-	res := make(map[string]fr.Element)
+	var r interface{}
+	r = make(map[string]fr.Element)
+	res := r.(map[string]fr.Element)
 
 	wireValues := make([]fr.Element, r1cs.NbWires)
 	a := make([]fr.Element, r1cs.NbConstraints)
@@ -216,10 +218,10 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (inter
 
 	// the error cannot be caught before because the res map needs to be filled
 	if err != nil {
-		return res, err
+		return r, err
 	}
 
-	return res, nil
+	return r, nil
 }
 
 // method to solve a r1cs
@@ -262,7 +264,7 @@ type R1C struct {
 	L      LinearExpression
 	R      LinearExpression
 	O      LinearExpression
-	Solver frontend.SolvingMethod
+	Solver backend.SolvingMethod
 }
 
 // String helper for a Rank1 Constraint
@@ -309,7 +311,7 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	switch r1c.Solver {
 
 	// in this case we solve a R1C by isolating the uncomputed wire
-	case frontend.SingleOutput:
+	case backend.SingleOutput:
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
@@ -379,7 +381,7 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
-	case frontend.BinaryDec:
+	case backend.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
 		n := wireValues[r1c.O[0].ID].ToRegular()

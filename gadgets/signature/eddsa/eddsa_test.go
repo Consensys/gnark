@@ -95,9 +95,9 @@ func TestEddsaGadget(t *testing.T) {
 
 	good.Assign(backend.Public, "sigS", signature.S)
 
-	r1cs := backend_bn256.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
-	assert.CorrectExecution(&r1cs, good, nil)
+	assert.CorrectExecution(r1cs, good, nil)
 
 	// verification with incorrect message
 	bad := backend.NewAssignment()
@@ -110,5 +110,5 @@ func TestEddsaGadget(t *testing.T) {
 	bad.Assign(backend.Public, "sigRY", signature.R.Y)
 
 	bad.Assign(backend.Public, "sigS", signature.S)
-	assert.NotSolved(&r1cs, bad)
+	assert.NotSolved(r1cs, bad)
 }

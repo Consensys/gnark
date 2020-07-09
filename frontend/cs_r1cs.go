@@ -1,7 +1,11 @@
 package frontend
 
+import (
+	"github.com/consensys/gnark/backend/r1cs"
+)
+
 // NewR1CS builds a R1CS from a system of Constraints
-func (circuit *CS) ToR1CS() *R1CS {
+func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	/*
 		Algorithm to build the r1cs system
@@ -41,7 +45,7 @@ func (circuit *CS) ToR1CS() *R1CS {
 	// those 3 slices store all the wires
 	// those are needed to number the wires, before putting them in the wire tracker
 	var wireTracker, publicInputs, privateInputs []*wire
-	var computationalGraph []R1C
+	var computationalGraph []r1cs.R1C
 
 	// we keep track of wire that are "unconstrained" to ignore them at step 2
 	// unconstrained wires can be inputs or wires issued from a MOConstraint (like the i-th bit of a binary decomposition)
@@ -99,18 +103,18 @@ func (circuit *CS) ToR1CS() *R1CS {
 	}
 	offset := len(wireTracker)
 
-	r1cs := &R1CS{}
-	r1cs.PrivateWires = make([]string, len(privateInputs))
+	uR1CS := &r1cs.UntypedR1CS{}
+	uR1CS.PrivateWires = make([]string, len(privateInputs))
 	for i, w := range privateInputs {
 		w.WireID = int64(i + offset)
-		r1cs.PrivateWires[i] = w.Name
+		uR1CS.PrivateWires[i] = w.Name
 		wireTracker = append(wireTracker, w)
 	}
 	offset += len(privateInputs)
-	r1cs.PublicWires = make([]string, len(publicInputs))
+	uR1CS.PublicWires = make([]string, len(publicInputs))
 	for i, w := range publicInputs {
 		w.WireID = int64(i + offset)
-		r1cs.PublicWires[i] = w.Name
+		uR1CS.PublicWires[i] = w.Name
 		wireTracker = append(wireTracker, w)
 	}
 
@@ -123,12 +127,12 @@ func (circuit *CS) ToR1CS() *R1CS {
 		batchR1CS := c.toR1CS(circuit)
 
 		if c.getOutputWire().isUserInput() {
-			r1cs.Constraints = append(r1cs.Constraints, batchR1CS...)
+			uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS...)
 		} else {
 			computationalGraph = append(computationalGraph, batchR1CS[0])
 
 			if len(batchR1CS) > 1 {
-				r1cs.Constraints = append(r1cs.Constraints, batchR1CS[1:]...)
+				uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS[1:]...)
 			}
 		}
 	}
@@ -138,7 +142,7 @@ func (circuit *CS) ToR1CS() *R1CS {
 	}
 	for _, c := range circuit.NOConstraints {
 		batchR1CS := c.toR1CS(circuit.Constraints[0].getOutputWire())
-		r1cs.Constraints = append(r1cs.Constraints, batchR1CS)
+		uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS)
 	}
 
 	// Keeps track of the visited constraints, useful to build the computational graph
@@ -152,29 +156,29 @@ func (circuit *CS) ToR1CS() *R1CS {
 	}
 
 	// re-order the constraints
-	constraints := make([]R1C, len(graphOrdering))
+	constraints := make([]r1cs.R1C, len(graphOrdering))
 	for i := 0; i < len(graphOrdering); i++ {
 		constraints[i] = computationalGraph[graphOrdering[i]]
 	}
-	r1cs.Constraints = append(constraints, r1cs.Constraints...)
+	uR1CS.Constraints = append(constraints, uR1CS.Constraints...)
 
 	// store R1CS nbWires and nbConstraints
-	r1cs.NbWires = len(wireTracker)
-	r1cs.NbConstraints = len(r1cs.Constraints)
-	r1cs.NbCOConstraints = len(graphOrdering)
-	r1cs.NbPublicWires = len(publicInputs)
-	r1cs.NbPrivateWires = len(privateInputs)
+	uR1CS.NbWires = len(wireTracker)
+	uR1CS.NbConstraints = len(uR1CS.Constraints)
+	uR1CS.NbCOConstraints = len(graphOrdering)
+	uR1CS.NbPublicWires = len(publicInputs)
+	uR1CS.NbPrivateWires = len(privateInputs)
 
 	// tags
-	r1cs.WireTags = make(map[int][]string)
+	uR1CS.WireTags = make(map[int][]string)
 	// TODO here would be a good place to check for duplicate in the tags and make this method return an error?
 	for i, wire := range wireTracker {
 		if len(wire.Tags) > 0 {
-			r1cs.WireTags[i] = wire.Tags
+			uR1CS.WireTags[i] = wire.Tags
 		}
 	}
 
-	return r1cs
+	return uR1CS
 }
 
 // findRootConstraints find the root wires for post ordering
@@ -190,7 +194,7 @@ func findRootConstraints(wireTracker []*wire) []int64 {
 
 // postOrder post order traversal the computational graph; i is the index of the constraint currently visited
 // linear in the number of constraints (with visit each constraint once)
-func postOrder(constraintID int64, visited []bool, computationalGraph []R1C, graphOrdering []int64, wireTracker []*wire) []int64 {
+func postOrder(constraintID int64, visited []bool, computationalGraph []r1cs.R1C, graphOrdering []int64, wireTracker []*wire) []int64 {
 
 	// stackIn stores the unsivisted/non input wires in the order we
 	// visit them

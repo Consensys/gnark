@@ -17,12 +17,11 @@ limitations under the License.
 package sw
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
 	bw761_fr "github.com/consensys/gurvy/bw761/fr"
@@ -122,7 +121,7 @@ func TestAddAssignG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -176,7 +175,7 @@ func TestAddAssignAffG1(t *testing.T) {
 	expectedValues["c1"] = &_gres.Y
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -214,7 +213,7 @@ func TestDoubleG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
 
@@ -258,7 +257,7 @@ func TestDoubleAffG1(t *testing.T) {
 	expectedValues["c1"] = &_gres.Y
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
@@ -296,7 +295,7 @@ func TestNegG1(t *testing.T) {
 	getExpectedValuesG1(expectedValues, "c", g1)
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)
 	if err != nil {
@@ -345,8 +344,7 @@ func TestScalarMulG1(t *testing.T) {
 	expectedValues["res1"] = &g1Aff.Y
 
 	// check expected result
-	r1cs := backend_bw761.New(&circuit)
-	fmt.Printf("%d constraints\n", r1cs.NbConstraints)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
 
 	_res, err := r1cs.Inspect(inputs, false)
 	res := _res.(map[string]bw761_fr.Element)

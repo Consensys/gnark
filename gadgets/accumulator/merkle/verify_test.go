@@ -82,7 +82,7 @@ func TestVerify(t *testing.T) {
 	VerifyProof(&circuit, hFunc, rh, path, helper)
 
 	// compilation of the circuit
-	r1cs := backend_bn256.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
 
 	assignment := backend_common.NewAssignment()
 	assignment.Assign(backend_common.Public, "rootHash", merkleRoot)
@@ -94,5 +94,5 @@ func TestVerify(t *testing.T) {
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.Solved(&r1cs, assignment, nil)
+	assert.Solved(r1cs, assignment, nil)
 }

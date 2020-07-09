@@ -29,8 +29,8 @@ import (
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
@@ -105,14 +105,14 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 	// TODO clean that up with interfaces and type casts
-	var bigIntR1cs frontend.R1CS
+	var bigIntR1cs r1cs.UntypedR1CS
 	switch curveID {
 	case gurvy.BLS377:
 		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bls377.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bls377.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls377.ProvingKey
@@ -134,13 +134,13 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// compute proof
 		start := time.Now()
-		proof, err := groth16_bls377.Prove(&r1cs, &pk, r1csInput)
+		proof, err := groth16_bls377.Prove(r1cs, &pk, r1csInput)
 		if err != nil {
 			fmt.Println("Error proof generation", err)
 			os.Exit(-1)
 		}
 		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bls377.Prove(&r1cs, &pk, r1csInput)
+			_, _ = groth16_bls377.Prove(r1cs, &pk, r1csInput)
 		}
 		duration := time.Since(start)
 		if fCount > 1 {
@@ -164,7 +164,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bls381.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bls381.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bls381.ProvingKey
@@ -186,13 +186,13 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// compute proof
 		start := time.Now()
-		proof, err := groth16_bls381.Prove(&r1cs, &pk, r1csInput)
+		proof, err := groth16_bls381.Prove(r1cs, &pk, r1csInput)
 		if err != nil {
 			fmt.Println("Error proof generation", err)
 			os.Exit(-1)
 		}
 		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bls381.Prove(&r1cs, &pk, r1csInput)
+			_, _ = groth16_bls381.Prove(r1cs, &pk, r1csInput)
 		}
 		duration := time.Since(start)
 		if fCount > 1 {
@@ -216,7 +216,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 			fmt.Println("error:", err)
 			os.Exit(-1)
 		}
-		r1cs := backend_bn256.Cast(&bigIntR1cs)
+		r1cs := bigIntR1cs.ToR1CS(curveID).(*backend_bn256.R1CS)
 		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
 		// run setup
 		var pk groth16_bn256.ProvingKey
@@ -238,13 +238,13 @@ func cmdProve(cmd *cobra.Command, args []string) {
 
 		// compute proof
 		start := time.Now()
-		proof, err := groth16_bn256.Prove(&r1cs, &pk, r1csInput)
+		proof, err := groth16_bn256.Prove(r1cs, &pk, r1csInput)
 		if err != nil {
 			fmt.Println("Error proof generation", err)
 			os.Exit(-1)
 		}
 		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bn256.Prove(&r1cs, &pk, r1csInput)
+			_, _ = groth16_bn256.Prove(r1cs, &pk, r1csInput)
 		}
 		duration := time.Since(start)
 		if fCount > 1 {
