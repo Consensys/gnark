@@ -35,7 +35,7 @@ type constraint struct {
 	constraintID uint64 // key in CS.Constraints[] map
 }
 
-func (c *constraint) Set(other CircuitVariable) {
+func (c *constraint) Set(other *constraint) {
 	c.expressions = other.getExpressions()
 	c.outputWire = other.getOutputWire()
 	c.constraintID = other.id()
@@ -60,13 +60,9 @@ func (c *constraint) getOutputWire() *wire {
 	return c.outputWire
 }
 
-func (c *constraint) Assign(value interface{}) {
-	panic("can't assign a value on a *frontend.Constraint object.")
-}
-
 // Term coeff*c
 type Term struct {
-	Constraint CircuitVariable
+	Constraint Variable
 	Coeff      big.Int
 }
 
@@ -74,8 +70,8 @@ type Term struct {
 type LinearCombination []Term
 
 // newConstraint initialize a c with a single wire and adds it to the Constraint System (CS)
-func newConstraint(cs *CS, expressions ...expression) CircuitVariable {
-	toReturn := &constraint{
+func newConstraint(cs *CS, expressions ...expression) Variable {
+	c := &constraint{
 		outputWire: &wire{
 			IsPrivate:    true,
 			ConstraintID: -1,
@@ -84,9 +80,9 @@ func newConstraint(cs *CS, expressions ...expression) CircuitVariable {
 		expressions: expressions,
 	}
 
-	cs.addConstraint(toReturn)
+	cs.addConstraint(c)
 
-	return toReturn
+	return Variable{constraint: c}
 }
 
 // Tag adds a tag to the c's singleWire

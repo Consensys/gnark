@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/accumulator/merkle"
 )
 
@@ -87,9 +86,6 @@ func NewOperator(nbAccounts int, h hash.Hash) Operator {
 	res.h = h
 	res.q = NewQueue(BatchSize)
 	res.batch = 0
-	if err := frontend.MakeAssignable(&res.witnesses); err != nil {
-		panic(err)
-	}
 	return res
 }
 

@@ -30,7 +30,7 @@ import (
 // utils
 
 func newOperandFp12(circuit *frontend.CS, s string) Fp12Elmt {
-	component := make([]frontend.CircuitVariable, 12)
+	component := make([]frontend.Variable, 12)
 	for i := 0; i < 12; i++ {
 		component[i] = circuit.SECRET_INPUT(s + strconv.Itoa(i))
 	}

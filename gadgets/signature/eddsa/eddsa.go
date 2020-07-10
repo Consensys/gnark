@@ -31,15 +31,15 @@ type PublicKeyGadget struct {
 // SignatureGadget stores a signature as a gadget
 type SignatureGadget struct {
 	R PublicKeyGadget
-	S frontend.CircuitVariable
+	S frontend.Variable
 }
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(circuit *frontend.CS, sig SignatureGadget, msg frontend.CircuitVariable, pubKey PublicKeyGadget) error {
+func Verify(circuit *frontend.CS, sig SignatureGadget, msg frontend.Variable, pubKey PublicKeyGadget) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
-	data := []frontend.CircuitVariable{
+	data := []frontend.Variable{
 		sig.R.A.X,
 		sig.R.A.Y,
 		pubKey.A.X,

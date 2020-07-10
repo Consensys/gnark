@@ -8,8 +8,8 @@ import (
 type CubicCircuit struct {
 	// tagging a constraint is optional
 	// default uses variable name and secret visibility.
-	X frontend.CircuitVariable `gnark:"x"`
-	Y frontend.CircuitVariable `gnark:"y, public"`
+	X frontend.Variable `gnark:"x"`
+	Y frontend.Variable `gnark:"y, public"`
 }
 
 func (circuit *CubicCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {

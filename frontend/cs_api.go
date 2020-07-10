@@ -25,21 +25,21 @@ import (
 )
 
 // ADD Adds 2+ inputs and returns resulting Constraint
-func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) CircuitVariable {
+func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// can add constraint and constants
-	add := func(_i1, _i2 interface{}) CircuitVariable {
+	add := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
-		case CircuitVariable:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
+			case Variable:
 				return cs.add(c1, c2)
 			default:
 				return cs.addConstant(c1, backend.FromInterface(c2))
 			}
 		default:
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
+			case Variable:
 				return cs.addConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
@@ -57,11 +57,11 @@ func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) CircuitVariable {
 }
 
 // SUB Adds two constraints
-func (cs *CS) SUB(i1, i2 interface{}) CircuitVariable {
+func (cs *CS) SUB(i1, i2 interface{}) Variable {
 	switch c1 := i1.(type) {
-	case CircuitVariable:
+	case Variable:
 		switch c2 := i2.(type) {
-		case CircuitVariable:
+		case Variable:
 			return cs.sub(c1, c2)
 		case big.Int:
 			return cs.subConstant(c1, c2)
@@ -69,7 +69,7 @@ func (cs *CS) SUB(i1, i2 interface{}) CircuitVariable {
 	default:
 		_c1 := backend.FromInterface(c1)
 		switch c2 := i2.(type) {
-		case CircuitVariable:
+		case Variable:
 			return cs.subConstraint(_c1, c2)
 		}
 	}
@@ -77,10 +77,10 @@ func (cs *CS) SUB(i1, i2 interface{}) CircuitVariable {
 }
 
 // MUL Multiplies 2+ constraints together
-func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) CircuitVariable {
+func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// multiplies 2 terms (constraints, Elements, uint64, int, String)
-	mul := func(_i1, _i2 interface{}) CircuitVariable {
+	mul := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
 		case LinearCombination:
 			switch c2 := _i2.(type) {
@@ -89,19 +89,19 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) CircuitVariable {
 			default:
 				return cs.mullcinterface(c1, c2)
 			}
-		case CircuitVariable:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
-				return cs.mul(c1.(CircuitVariable), c2.(CircuitVariable))
+			case Variable:
+				return cs.mul(c1, c2)
 			case LinearCombination:
 				return cs.mullcinterface(c2, c1)
 			default:
-				return cs.mulConstant(c1.(CircuitVariable), backend.FromInterface(c2))
+				return cs.mulConstant(c1, backend.FromInterface(c2))
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
-				return cs.mulConstant(c2.(CircuitVariable), backend.FromInterface(c1))
+			case Variable:
+				return cs.mulConstant(c2, backend.FromInterface(c1))
 			default:
 				fmt.Println(reflect.TypeOf(_i2))
 				panic("invalid type")
@@ -121,9 +121,9 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) CircuitVariable {
 }
 
 // DIV divides two constraints (i1/i2)
-func (cs *CS) DIV(i1, i2 interface{}) CircuitVariable {
+func (cs *CS) DIV(i1, i2 interface{}) Variable {
 
-	div := func(_i1, _i2 interface{}) CircuitVariable {
+	div := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
 		case LinearCombination:
 			switch c2 := _i2.(type) {
@@ -132,9 +132,9 @@ func (cs *CS) DIV(i1, i2 interface{}) CircuitVariable {
 			default:
 				panic("invalid type; only support linear expression DIV linear expression")
 			}
-		case CircuitVariable:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
+			case Variable:
 				return cs.div(c1, c2)
 			default:
 				tmp := backend.FromInterface(c2)
@@ -142,7 +142,7 @@ func (cs *CS) DIV(i1, i2 interface{}) CircuitVariable {
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
-			case CircuitVariable:
+			case Variable:
 				tmp := backend.FromInterface(c1)
 				return cs.divConstantLeft(tmp, c2)
 			default:
@@ -162,9 +162,9 @@ func (cs *CS) DIV(i1, i2 interface{}) CircuitVariable {
 func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 
 	switch c1 := i1.(type) {
-	case CircuitVariable:
+	case Variable:
 		switch c2 := i2.(type) {
-		case CircuitVariable:
+		case Variable:
 			if err := cs.equal(c1, c2); err != nil {
 				panic(err)
 			}
@@ -177,7 +177,7 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 		}
 	case big.Int: // TODO handle *big.Int ?
 		switch c2 := i2.(type) {
-		case CircuitVariable:
+		case Variable:
 			if err := cs.equalConstant(c2, c1); err != nil {
 				panic(err)
 			}
@@ -190,12 +190,12 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 }
 
 // INV inverse a Constraint
-func (cs *CS) INV(c1 CircuitVariable) CircuitVariable {
+func (cs *CS) INV(c1 Variable) Variable {
 	return cs.inv(c1, bigOne())
 }
 
 // XOR compute the xor between two constraints
-func (cs *CS) XOR(c1, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) XOR(c1, c2 Variable) Variable {
 	// ensure c1 and c2 are already boolean constrained
 	cs.MUSTBE_BOOLEAN(c1)
 	cs.MUSTBE_BOOLEAN(c2)
@@ -209,7 +209,10 @@ func (cs *CS) XOR(c1, c2 CircuitVariable) CircuitVariable {
 }
 
 // MUSTBE_BOOLEAN boolean constrains a variable
-func (cs *CS) MUSTBE_BOOLEAN(c CircuitVariable) {
+func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
+	if c.constraint == nil {
+		panic("variable is not compiled")
+	}
 	// check if the variable is already boolean constrained
 	for i := 0; i < len(cs.NOConstraints); i++ {
 		if bExpression, ok := cs.NOConstraints[i].(*booleanExpression); ok {
@@ -221,7 +224,7 @@ func (cs *CS) MUSTBE_BOOLEAN(c CircuitVariable) {
 	}
 	// check if the variable is the result of a XOR (a xor b == c --> c is automatically boolean constrained)
 	for _, val := range cs.Constraints {
-		if val == c {
+		if val == c.constraint {
 			expresions := val.getExpressions()
 			for i := 0; i < len(expresions); i++ {
 				if _, ok := expresions[i].(*xorExpression); ok {
@@ -236,7 +239,7 @@ func (cs *CS) MUSTBE_BOOLEAN(c CircuitVariable) {
 
 // TO_BINARY unpacks a variable in binary, n is the number of bits of the variable
 // The result in in little endian (first bit= lsb)
-func (cs *CS) TO_BINARY(c CircuitVariable, nbBits int) []CircuitVariable {
+func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
 
 	// create the expression ensuring the bit decomposition matches c
 	expression := &unpackExpression{
@@ -245,7 +248,7 @@ func (cs *CS) TO_BINARY(c CircuitVariable, nbBits int) []CircuitVariable {
 	cs.MOConstraints = append(cs.MOConstraints, expression)
 
 	// create our bits constraints
-	bits := make([]CircuitVariable, nbBits)
+	bits := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
 		bits[i] = newConstraint(cs)
 		cs.MUSTBE_BOOLEAN(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
@@ -256,7 +259,7 @@ func (cs *CS) TO_BINARY(c CircuitVariable, nbBits int) []CircuitVariable {
 }
 
 // FROM_BINARY packs b, seen as a fr.Element in little endian
-func (cs *CS) FROM_BINARY(b ...CircuitVariable) CircuitVariable {
+func (cs *CS) FROM_BINARY(b ...Variable) Variable {
 
 	expression := packExpression{}
 
@@ -270,10 +273,10 @@ func (cs *CS) FROM_BINARY(b ...CircuitVariable) CircuitVariable {
 
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 // from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-func (cs *CS) MUSTBE_LESS_OR_EQ(c CircuitVariable, bound interface{}, nbBits int) {
+func (cs *CS) MUSTBE_LESS_OR_EQ(c Variable, bound interface{}, nbBits int) {
 
 	switch _bound := bound.(type) {
-	case CircuitVariable:
+	case Variable:
 		cs.mustBeLessOrEq(c, _bound, nbBits)
 	default:
 		b := backend.FromInterface(bound)
@@ -282,15 +285,15 @@ func (cs *CS) MUSTBE_LESS_OR_EQ(c CircuitVariable, bound interface{}, nbBits int
 }
 
 // SELECT if b is true, yields c1 else yields c2
-func (cs *CS) SELECT(b CircuitVariable, i1, i2 interface{}) CircuitVariable {
+func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 
 	// ensure b is boolean constrained
 	cs.MUSTBE_BOOLEAN(b)
 
 	switch c1 := i1.(type) {
-	case CircuitVariable:
+	case Variable:
 		switch c2 := i2.(type) {
-		case CircuitVariable:
+		case Variable:
 			expression := selectExpression{
 				b: b.getOutputWire(),
 				x: c1.getOutputWire(),
@@ -314,7 +317,7 @@ func (cs *CS) SELECT(b CircuitVariable, i1, i2 interface{}) CircuitVariable {
 
 // SELECT_LUT select lookuptable[c1*2+c0] where c0 and c1 are boolean constrained
 // cf https://z.cash/technology/jubjub/
-func (cs *CS) SELECT_LUT(c1, c0 CircuitVariable, lookuptable [4]big.Int) CircuitVariable {
+func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 
 	// ensure c0 and c1 are boolean constrained
 	cs.MUSTBE_BOOLEAN(c0)
@@ -331,13 +334,13 @@ func (cs *CS) SELECT_LUT(c1, c0 CircuitVariable, lookuptable [4]big.Int) Circuit
 }
 
 // SECRET_INPUT creates a Constraint containing an input
-func (cs *CS) SECRET_INPUT(name string) CircuitVariable {
+func (cs *CS) SECRET_INPUT(name string) Variable {
 	// checks if the name already exists
 	if !cs.registerNamedInput(name) {
 		panic("input " + name + " already declared")
 	}
 
-	toReturn := &constraint{
+	c := &constraint{
 		outputWire: &wire{
 			Name:         name,
 			Tags:         []string{},
@@ -346,26 +349,26 @@ func (cs *CS) SECRET_INPUT(name string) CircuitVariable {
 			ConstraintID: -1,
 			WireID:       -1,
 		}}
-	cs.addConstraint(toReturn)
+	cs.addConstraint(c)
 
-	return toReturn
+	return Variable{constraint: c}
 
 }
 
 // PUBLIC_INPUT creates a Constraint containing an input
-func (cs *CS) PUBLIC_INPUT(name string) CircuitVariable {
+func (cs *CS) PUBLIC_INPUT(name string) Variable {
 	toReturn := cs.SECRET_INPUT(name)
 	toReturn.getOutputWire().IsPrivate = false
 	return toReturn
 }
 
 // ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
-func (cs *CS) ALLOCATE(input interface{}) CircuitVariable {
+func (cs *CS) ALLOCATE(input interface{}) Variable {
 	switch x := input.(type) {
-	case CircuitVariable:
+	case Variable:
 		return x
 	case constraint:
-		return &x
+		return Variable{constraint: &x}
 	default:
 		return cs.constVar(x)
 	}

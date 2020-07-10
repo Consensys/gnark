@@ -65,11 +65,11 @@ func TestVerify(t *testing.T) {
 	rh := circuit.PUBLIC_INPUT("rootHash")
 
 	// private
-	path := make([]frontend.CircuitVariable, len(proof))
+	path := make([]frontend.Variable, len(proof))
 	for i := 0; i < len(proof); i++ {
 		path[i] = circuit.SECRET_INPUT("path" + string(i))
 	}
-	helper := make([]frontend.CircuitVariable, len(proof)-1)
+	helper := make([]frontend.Variable, len(proof)-1)
 	for i := 0; i < len(proof)-1; i++ {
 		helper[i] = circuit.SECRET_INPUT("helper" + string(i))
 	}

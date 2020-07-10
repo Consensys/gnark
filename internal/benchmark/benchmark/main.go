@@ -52,8 +52,8 @@ func main() {
 }
 
 type benchCircuit struct {
-	X frontend.CircuitVariable
-	Y frontend.CircuitVariable `gnark:",public"`
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
 }
 
 func (circuit *benchCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {

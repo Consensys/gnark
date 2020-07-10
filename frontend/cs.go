@@ -42,7 +42,7 @@ func bigOne() big.Int {
 type CS struct {
 
 	// under the key i are all the expressions that must be equal to a single wire
-	Constraints map[uint64]CircuitVariable
+	Constraints map[uint64]*constraint
 
 	// constraints yielding multiple outputs (eg unpacking)
 	MOConstraints []moExpression
@@ -58,7 +58,7 @@ type CS struct {
 func New() CS {
 	// initialize constraint system
 	cs := CS{
-		Constraints: make(map[uint64]CircuitVariable),
+		Constraints: make(map[uint64]*constraint),
 	}
 
 	// The first constraint corresponds to the declaration of
@@ -78,7 +78,7 @@ func New() CS {
 	return cs
 }
 
-func (cs *CS) addConstraint(c CircuitVariable) {
+func (cs *CS) addConstraint(c *constraint) {
 	debug.Assert(c.id() == 0)
 	c.setID(cs.nbConstraints)
 	cs.Constraints[c.id()] = c
@@ -86,7 +86,7 @@ func (cs *CS) addConstraint(c CircuitVariable) {
 }
 
 // MUL multiplies two constraints
-func (cs *CS) mul(c1, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) mul(c1, c2 Variable) Variable {
 
 	expression := &quadraticExpression{
 		left:      linearExpression{term{Wire: c1.getOutputWire(), Coeff: bigOne()}},
@@ -98,7 +98,7 @@ func (cs *CS) mul(c1, c2 CircuitVariable) CircuitVariable {
 }
 
 // mulConstant multiplies by a constant
-func (cs *CS) mulConstant(c CircuitVariable, constant big.Int) CircuitVariable {
+func (cs *CS) mulConstant(c Variable, constant big.Int) Variable {
 	expression := &term{
 		Wire:      c.getOutputWire(),
 		Coeff:     constant,
@@ -108,7 +108,7 @@ func (cs *CS) mulConstant(c CircuitVariable, constant big.Int) CircuitVariable {
 }
 
 // DIV divides two constraints (c1/c2)
-func (cs *CS) div(c1, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) div(c1, c2 Variable) Variable {
 
 	expression := quadraticExpression{
 		left:      linearExpression{term{Wire: c2.getOutputWire(), Coeff: bigOne()}},
@@ -120,7 +120,7 @@ func (cs *CS) div(c1, c2 CircuitVariable) CircuitVariable {
 }
 
 // divConstantRight c1, c2 -> c1/c2, where the right (c2) is a constant
-func (cs *CS) divConstantRight(c1 CircuitVariable, c2 big.Int) CircuitVariable {
+func (cs *CS) divConstantRight(c1 Variable, c2 big.Int) Variable {
 
 	expression := quadraticExpression{
 		left:      linearExpression{term{Wire: cs.Constraints[0].getOutputWire(), Coeff: c2}},
@@ -132,7 +132,7 @@ func (cs *CS) divConstantRight(c1 CircuitVariable, c2 big.Int) CircuitVariable {
 }
 
 // divConstantLeft c1, c2 -> c1/c2, where the left (c1) is a constant
-func (cs *CS) divConstantLeft(c1 big.Int, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) divConstantLeft(c1 big.Int, c2 Variable) Variable {
 
 	expression := quadraticExpression{
 		left:      linearExpression{term{Wire: c2.getOutputWire(), Coeff: bigOne()}},
@@ -144,7 +144,7 @@ func (cs *CS) divConstantLeft(c1 big.Int, c2 CircuitVariable) CircuitVariable {
 }
 
 // inv (e*c1)**-1
-func (cs *CS) inv(c1 CircuitVariable, e big.Int) CircuitVariable {
+func (cs *CS) inv(c1 Variable, e big.Int) Variable {
 	expression := &term{
 		Wire:      c1.getOutputWire(),
 		Coeff:     e,
@@ -154,7 +154,7 @@ func (cs *CS) inv(c1 CircuitVariable, e big.Int) CircuitVariable {
 }
 
 // ADD generic version for adding 2 constraints
-func (cs *CS) add(c1 CircuitVariable, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) add(c1 Variable, c2 Variable) Variable {
 
 	expression := &linearExpression{
 		term{Wire: c1.getOutputWire(), Coeff: bigOne()},
@@ -165,7 +165,7 @@ func (cs *CS) add(c1 CircuitVariable, c2 CircuitVariable) CircuitVariable {
 }
 
 // ADDCST adds a constant to a variable
-func (cs *CS) addConstant(c CircuitVariable, constant big.Int) CircuitVariable {
+func (cs *CS) addConstant(c Variable, constant big.Int) Variable {
 
 	expression := &linearExpression{
 		term{Wire: c.getOutputWire(), Coeff: bigOne()},
@@ -176,7 +176,7 @@ func (cs *CS) addConstant(c CircuitVariable, constant big.Int) CircuitVariable {
 }
 
 // SUB generic version for substracting 2 constraints
-func (cs *CS) sub(c1 CircuitVariable, c2 CircuitVariable) CircuitVariable {
+func (cs *CS) sub(c1 Variable, c2 Variable) Variable {
 
 	var minusOne big.Int
 	one := bigOne()
@@ -190,7 +190,7 @@ func (cs *CS) sub(c1 CircuitVariable, c2 CircuitVariable) CircuitVariable {
 	return newConstraint(cs, expression)
 }
 
-func (cs *CS) subConstant(c CircuitVariable, constant big.Int) CircuitVariable {
+func (cs *CS) subConstant(c Variable, constant big.Int) Variable {
 
 	var minusOne big.Int
 	one := bigOne()
@@ -205,7 +205,7 @@ func (cs *CS) subConstant(c CircuitVariable, constant big.Int) CircuitVariable {
 
 }
 
-func (cs *CS) subConstraint(constant big.Int, c CircuitVariable) CircuitVariable {
+func (cs *CS) subConstraint(constant big.Int, c Variable) Variable {
 
 	var minusOne big.Int
 	one := bigOne()
@@ -221,7 +221,7 @@ func (cs *CS) subConstraint(constant big.Int, c CircuitVariable) CircuitVariable
 }
 
 // divlc divides two linear combination of constraints
-func (cs *CS) divlc(num, den LinearCombination) CircuitVariable {
+func (cs *CS) divlc(num, den LinearCombination) Variable {
 
 	var left, right linearExpression
 	for _, t := range den {
@@ -241,7 +241,7 @@ func (cs *CS) divlc(num, den LinearCombination) CircuitVariable {
 }
 
 // mullc multiplies two linear combination of constraints
-func (cs *CS) mullc(l1, l2 LinearCombination) CircuitVariable {
+func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 	var left, right linearExpression
 	for _, t := range l1 {
 		left = append(left, term{Wire: t.Constraint.getOutputWire(), Coeff: t.Coeff, Operation: mul})
@@ -259,7 +259,7 @@ func (cs *CS) mullc(l1, l2 LinearCombination) CircuitVariable {
 }
 
 // mullcinterface multiplies a linear combination with a coeff (represented as an interface)
-func (cs *CS) mullcinterface(l LinearCombination, c interface{}) CircuitVariable {
+func (cs *CS) mullcinterface(l LinearCombination, c interface{}) Variable {
 	var coeff big.Int
 	coeff.SetUint64(1)
 	right := LinearCombination{Term{Constraint: cs.ALLOCATE(c), Coeff: coeff}}
@@ -267,10 +267,12 @@ func (cs *CS) mullcinterface(l LinearCombination, c interface{}) CircuitVariable
 }
 
 // equal equal constraints
-func (cs *CS) equal(c1, c2 CircuitVariable) error {
-
+func (cs *CS) equal(c1, c2 Variable) error {
+	if c1.constraint == nil || c2.constraint == nil {
+		return errors.New("variable is not compiled")
+	}
 	// ensure we're not doing v1.MUST_EQ(v1)
-	if c1 == c2 {
+	if c1.constraint == c2.constraint {
 		return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input 1 == user input 1) is invalid")
 	}
 
@@ -321,13 +323,13 @@ func (cs *CS) equal(c1, c2 CircuitVariable) error {
 	// *c2 = *c1
 
 	// update c1 in the Constraint System
-	cs.Constraints[c1.id()] = c1
+	cs.Constraints[c1.id()] = c1.constraint
 
 	return nil
 }
 
 // equalConstant Equal a constraint to a constant
-func (cs *CS) equalConstant(c CircuitVariable, constant big.Int) error {
+func (cs *CS) equalConstant(c Variable, constant big.Int) error {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
 	if c.getOutputWire().isUserInput() {
 		return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input == VALUE) is invalid")
@@ -338,7 +340,7 @@ func (cs *CS) equalConstant(c CircuitVariable, constant big.Int) error {
 	return nil
 }
 
-func (cs *CS) mustBeLessOrEqConstant(a CircuitVariable, constant big.Int, nbBits int) error {
+func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) error {
 
 	// TODO assumes fr is alaws 256 bit long, should this elsewhere
 	ci := make([]int, nbBits)
@@ -363,7 +365,7 @@ func (cs *CS) mustBeLessOrEqConstant(a CircuitVariable, constant big.Int, nbBits
 	ai := cs.TO_BINARY(a, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
-	pi := make([]CircuitVariable, nbBits+1)
+	pi := make([]Variable, nbBits+1)
 	pi[nbBits] = cs.constVar(1)
 
 	// Setting the product
@@ -387,14 +389,14 @@ func (cs *CS) mustBeLessOrEqConstant(a CircuitVariable, constant big.Int, nbBits
 	return nil
 }
 
-func (cs *CS) mustBeLessOrEq(a CircuitVariable, c CircuitVariable, nbBits int) error {
+func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 
 	// unpacking the constant bound c and the variable to test a
 	ci := cs.TO_BINARY(c, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
 	ai := cs.TO_BINARY(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
-	pi := make([]CircuitVariable, nbBits+1)
+	pi := make([]Variable, nbBits+1)
 	pi[nbBits] = cs.ALLOCATE(1)
 
 	//spi := "pi_"
@@ -462,7 +464,7 @@ func (cs *CS) registerNamedInput(name string) bool {
 }
 
 // constVar creates a new variable set to a prescribed value
-func (cs *CS) constVar(i1 interface{}) CircuitVariable {
+func (cs *CS) constVar(i1 interface{}) Variable {
 	// parse input
 	constant := backend.FromInterface(i1)
 
@@ -470,7 +472,7 @@ func (cs *CS) constVar(i1 interface{}) CircuitVariable {
 	one := bigOne()
 
 	if constant.Cmp(&one) == 0 {
-		return cs.Constraints[0]
+		return Variable{constraint: cs.Constraints[0]}
 	}
 
 	return newConstraint(cs, &eqConstantExpression{v: constant})

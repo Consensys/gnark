@@ -24,17 +24,17 @@ import (
 
 // G1Proj point in projective coordinates
 type G1Proj struct {
-	X, Y, Z frontend.CircuitVariable
+	X, Y, Z frontend.Variable
 }
 
 // G1Jac point in Jacobian coords
 type G1Jac struct {
-	X, Y, Z frontend.CircuitVariable
+	X, Y, Z frontend.Variable
 }
 
 // G1Aff point in affine coords
 type G1Aff struct {
-	X, Y frontend.CircuitVariable
+	X, Y frontend.Variable
 }
 
 // NewPointG1 creates a new point from interfaces as coordinates
@@ -159,7 +159,7 @@ func (p *G1Aff) Assign(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 func (p *G1Jac) AddAssign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 
 	// get some Element from our pool
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.CircuitVariable
+	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
 
 	Z1Z1 = circuit.MUL(p1.Z, p1.Z)
 
@@ -212,7 +212,7 @@ func (p *G1Jac) AddAssign(circuit *frontend.CS, p1 *G1Jac) *G1Jac {
 // DoubleAssign doubles the receiver point in jacobian coords and returns it
 func (p *G1Jac) DoubleAssign(circuit *frontend.CS) *G1Jac {
 	// get some Element from our pool
-	var XX, YY, YYYY, ZZ, S, M, T frontend.CircuitVariable
+	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
 
 	XX = circuit.MUL(p.X, p.X)
 	YY = circuit.MUL(p.Y, p.Y)
@@ -240,7 +240,7 @@ func (p *G1Jac) DoubleAssign(circuit *frontend.CS) *G1Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G1Aff) Select(circuit *frontend.CS, b frontend.CircuitVariable, p1, p2 *G1Aff) *G1Aff {
+func (p *G1Aff) Select(circuit *frontend.CS, b frontend.Variable, p1, p2 *G1Aff) *G1Aff {
 
 	p.X = circuit.SELECT(b, p1.X, p2.X)
 	p.Y = circuit.SELECT(b, p1.Y, p2.Y)

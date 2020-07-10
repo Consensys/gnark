@@ -29,7 +29,7 @@ type leafHandler func(visibility attrVisibility, name string, tInput reflect.Val
 
 func parseType(input interface{}, baseName string, parentVisibility attrVisibility, handler leafHandler) error {
 	// types we are looking for
-	tCircuitVariable := reflect.TypeOf((*CircuitVariable)(nil)).Elem()
+	tCircuitVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(CS{})
 
 	tValue := reflect.ValueOf(input)
@@ -40,59 +40,63 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 	// and recursively parse members / elements until we find a constraint to allocate in the circuit.
 	switch tInput.Kind() {
 	case reflect.Struct:
-		if tInput.Type() == tConstraintSytem {
-			return nil
-		}
-		for i := 0; i < tInput.NumField(); i++ {
-			field := tInput.Type().Field((i))
-
-			// get gnark tag
-			tag := field.Tag.Get(tagKey)
-			if tag == optOmit {
-				continue // skipping "-"
-			}
-
-			visibility := secret
-			name := field.Name
-			if tag != "" {
-				// gnark tag is set
-				var opts tagOptions
-				name, opts = parseTag(tag)
-				if !isValidTag(name) {
-					name = field.Name
-				}
-
-				if opts.Contains(optSecret) {
-					visibility = secret
-				} else if opts.Contains(optPublic) {
-					visibility = public
-				} else if opts.Contains(optEmbed) {
-					name = ""
-					visibility = unset
-				}
-			}
-			if parentVisibility != unset {
-				visibility = parentVisibility // parent visibility overhides
-			}
-
-			fullName := appendName(baseName, name)
-
-			f := tInput.FieldByName(field.Name)
-			if f.CanAddr() && f.Addr().CanInterface() {
-				value := f.Addr().Interface()
-				if err := parseType(value, fullName, visibility, handler); err != nil {
-					return err
-				}
-			}
-		}
-
-	case reflect.Interface:
 		switch tInput.Type() {
 		case tCircuitVariable:
 			return handler(parentVisibility, baseName, tInput)
-		default:
+		case tConstraintSytem:
 			return nil
+		default:
+			for i := 0; i < tInput.NumField(); i++ {
+				field := tInput.Type().Field((i))
+
+				// get gnark tag
+				tag := field.Tag.Get(tagKey)
+				if tag == optOmit {
+					continue // skipping "-"
+				}
+
+				visibility := secret
+				name := field.Name
+				if tag != "" {
+					// gnark tag is set
+					var opts tagOptions
+					name, opts = parseTag(tag)
+					if !isValidTag(name) {
+						name = field.Name
+					}
+
+					if opts.Contains(optSecret) {
+						visibility = secret
+					} else if opts.Contains(optPublic) {
+						visibility = public
+					} else if opts.Contains(optEmbed) {
+						name = ""
+						visibility = unset
+					}
+				}
+				if parentVisibility != unset {
+					visibility = parentVisibility // parent visibility overhides
+				}
+
+				fullName := appendName(baseName, name)
+
+				f := tInput.FieldByName(field.Name)
+				if f.CanAddr() && f.Addr().CanInterface() {
+					value := f.Addr().Interface()
+					if err := parseType(value, fullName, visibility, handler); err != nil {
+						return err
+					}
+				}
+			}
 		}
+
+	// case reflect.Interface:
+	// 	switch tInput.Type() {
+	// 	case tCircuitVariable:
+	// 		return handler(parentVisibility, baseName, tInput)
+	// 	default:
+	// 		return nil
+	// 	}
 	case reflect.Slice, reflect.Array:
 		if tInput.Len() == 0 {
 			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")

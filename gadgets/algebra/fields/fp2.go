@@ -25,7 +25,7 @@ import (
 
 // Fp2Elmt element in a quadratic extension
 type Fp2Elmt struct {
-	X, Y frontend.CircuitVariable
+	X, Y frontend.Variable
 }
 
 // NewFp2Zero creates a new
@@ -40,7 +40,7 @@ func NewFp2Zero(circuit *frontend.CS) Fp2Elmt {
 func NewFp2Elmt(circuit *frontend.CS, _x, _y interface{}) Fp2Elmt {
 
 	if _x == nil && _y == nil {
-		return Fp2Elmt{nil, nil}
+		return Fp2Elmt{}
 	}
 	res := Fp2Elmt{
 		X: circuit.ALLOCATE(_x),
@@ -140,7 +140,7 @@ func (e *Fp2Elmt) Conjugate(circuit *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
 // Inverse inverses an fp2elmt
 func (e *Fp2Elmt) Inverse(circuit *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
 
-	var a0, a1, t0, t1, t1beta frontend.CircuitVariable
+	var a0, a1, t0, t1, t1beta frontend.Variable
 
 	a0 = e1.X
 	a1 = e1.Y

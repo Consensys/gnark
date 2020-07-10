@@ -1,38 +1,68 @@
 package frontend
 
-type circuitInput struct {
+type Variable struct {
+	*constraint
 	val interface{}
 }
 
-func (cInput *circuitInput) Assign(value interface{}) {
+func (cInput *Variable) Assign(value interface{}) {
 	if cInput.val != nil {
-		panic("val already set")
+		// TODO we may want to enforce that to the circuit-developper
+		// panic("variable was already assigned")
+	}
+	if cInput.constraint != nil {
+		// TODO we may want to enforce that to the circuit-developper
+		// panic("can't assign value in a compiled circuit")
 	}
 	cInput.val = value
 }
 
-func (cInput *circuitInput) Set(CircuitVariable) {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) Set(other Variable) {
+	if cInput.constraint == nil {
+		panic("can't set variable -- circuit is not compiled")
+	}
+	cInput.constraint.Set(other.constraint)
 }
-func (cInput *circuitInput) getExpressions() []expression {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) getExpressions() []expression {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	return cInput.constraint.getExpressions()
 }
-func (cInput *circuitInput) addExpressions(...expression) {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) addExpressions(e ...expression) {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	cInput.constraint.addExpressions(e...)
 }
-func (cInput *circuitInput) setID(uint64) {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) setID(id uint64) {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	cInput.constraint.setID(id)
 }
-func (cInput *circuitInput) id() uint64 {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) id() uint64 {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	return cInput.constraint.id()
 }
-func (cInput *circuitInput) setOutputWire(*wire) {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) setOutputWire(w *wire) {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	cInput.constraint.setOutputWire(w)
 }
-func (cInput *circuitInput) getOutputWire() *wire {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) getOutputWire() *wire {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	return cInput.constraint.getOutputWire()
 }
 
-func (cInput *circuitInput) Tag(string) {
-	panic("not supported: this is not a constraint but a fixed value")
+func (cInput Variable) Tag(tag string) {
+	if cInput.constraint == nil {
+		panic("circuit is not compiled")
+	}
+	cInput.constraint.Tag(tag)
 }

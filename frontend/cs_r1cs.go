@@ -122,7 +122,7 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 	// We can split the constraints into r1cs
 	for _, k := range keys {
 
-		c := circuit.Constraints[k].(*constraint)
+		c := circuit.Constraints[k]
 
 		batchR1CS := c.toR1CS(circuit)
 

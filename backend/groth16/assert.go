@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,11 +26,21 @@ func NewAssert(t *testing.T) *Assert {
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
-func (assert *Assert) NotSolved(r1cs r1cs.R1CS, solution map[string]interface{}) {
+func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
 	pk, _ := Setup(r1cs)
 
-	// prover
+	var solution map[string]interface{}
+
+	switch s := _solution.(type) {
+	case map[string]interface{}:
+		solution = s
+	case frontend.Circuit:
+		solution, _ = frontend.ToAssignment(s)
+	default:
+		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
+	}
+
 	_, err := Prove(r1cs, pk, solution)
 	assert.Error(err, "proving with bad solution should output an error")
 }
@@ -38,7 +49,19 @@ func (assert *Assert) NotSolved(r1cs r1cs.R1CS, solution map[string]interface{})
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
-func (assert *Assert) Solved(r1cs r1cs.R1CS, solution, expectedValues map[string]interface{}) {
+func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
+
+	var solution map[string]interface{}
+
+	switch s := _solution.(type) {
+	case map[string]interface{}:
+		solution = s
+	case frontend.Circuit:
+		solution, _ = frontend.ToAssignment(s)
+	default:
+		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
+	}
+
 	// setup
 	pk, vk := Setup(r1cs)
 

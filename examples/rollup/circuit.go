@@ -49,39 +49,39 @@ type RollupCircuit struct {
 	Transfers [batchSize]TransferConstraints
 
 	// list of proofs corresponding to sender account
-	MerkleProofsSenderBefore      [batchSize][depth]frontend.CircuitVariable
-	MerkleProofsSenderAfter       [batchSize][depth]frontend.CircuitVariable
-	MerkleProofHelperSenderBefore [batchSize][depth - 1]frontend.CircuitVariable
-	MerkleProofHelperSenderAfter  [batchSize][depth - 1]frontend.CircuitVariable
+	MerkleProofsSenderBefore      [batchSize][depth]frontend.Variable
+	MerkleProofsSenderAfter       [batchSize][depth]frontend.Variable
+	MerkleProofHelperSenderBefore [batchSize][depth - 1]frontend.Variable
+	MerkleProofHelperSenderAfter  [batchSize][depth - 1]frontend.Variable
 
 	// list of proofs corresponding to receiver account
-	MerkleProofsReceiverBefore      [batchSize][depth]frontend.CircuitVariable
-	MerkleProofsReceiverAfter       [batchSize][depth]frontend.CircuitVariable
-	MerkleProofHelperReceiverBefore [batchSize][depth - 1]frontend.CircuitVariable
-	MerkleProofHelperReceiverAfter  [batchSize][depth - 1]frontend.CircuitVariable
+	MerkleProofsReceiverBefore      [batchSize][depth]frontend.Variable
+	MerkleProofsReceiverAfter       [batchSize][depth]frontend.Variable
+	MerkleProofHelperReceiverBefore [batchSize][depth - 1]frontend.Variable
+	MerkleProofHelperReceiverAfter  [batchSize][depth - 1]frontend.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// PUBLIC INPUTS
 
 	// list of root hashes
-	RootHashesBefore [batchSize]frontend.CircuitVariable `gnark:",public"`
-	RootHashesAfter  [batchSize]frontend.CircuitVariable `gnark:",public"`
+	RootHashesBefore [batchSize]frontend.Variable `gnark:",public"`
+	RootHashesAfter  [batchSize]frontend.Variable `gnark:",public"`
 }
 
 // AccountConstraints accounts encoded as constraints
 type AccountConstraints struct {
-	Index   frontend.CircuitVariable // index in the tree
-	Nonce   frontend.CircuitVariable // nb transactions done so far from this account
-	Balance frontend.CircuitVariable
+	Index   frontend.Variable // index in the tree
+	Nonce   frontend.Variable // nb transactions done so far from this account
+	Balance frontend.Variable
 	PubKey  eddsa.PublicKeyGadget `gnark:"-"`
 }
 
 // TransferConstraints transfer encoded as constraints
 type TransferConstraints struct {
-	Amount         frontend.CircuitVariable
-	Nonce          frontend.CircuitVariable `gnark:"-"`
-	SenderPubKey   eddsa.PublicKeyGadget    `gnark:"-"`
-	ReceiverPubKey eddsa.PublicKeyGadget    `gnark:"-"`
+	Amount         frontend.Variable
+	Nonce          frontend.Variable     `gnark:"-"`
+	SenderPubKey   eddsa.PublicKeyGadget `gnark:"-"`
+	ReceiverPubKey eddsa.PublicKeyGadget `gnark:"-"`
 	Signature      eddsa.SignatureGadget
 }
 
@@ -168,7 +168,7 @@ func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc 
 }
 
 // checkCorrectLeaf checks if hacc = hFunc(acc)
-func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountConstraints, hacc frontend.CircuitVariable) {
+func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountConstraints, hacc frontend.Variable) {
 
 	// compute the hash of the account, serialized like this:
 	// index || nonce || balance || pubkeyX || pubkeyY
@@ -180,7 +180,7 @@ func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountC
 
 // updateAccountGadget ensures that from, to are correctly updated according to t, h is the gadget hash for checking the signature
 // returns the updated accounts from, to
-func verifyAccountUpdated(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.CircuitVariable) {
+func verifyAccountUpdated(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
 	one := circuit.ALLOCATE(1)

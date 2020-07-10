@@ -19,35 +19,14 @@ type Circuit interface {
 	PostInit(ctx *Context) error
 }
 
-// CircuitVariable is implemented by frontend.constraint and frontend.circuitInput
-// these are either instantiated by Compile(..) or by ALLOCATE()
-type CircuitVariable interface {
-	// Assign is called before executing a circuit, to assign values to user (secret/public) inputs
-	Assign(value interface{})
-
-	// Tag is called when defining the circuit -- add a debugging tag to a constraint
-	Tag(tag string)
-
-	// Set is called when defining the circuit -- self = other.
-	Set(CircuitVariable)
-
-	// no need to expose, constraint setters and getters
-	getExpressions() []expression
-	addExpressions(...expression)
-	setID(uint64)
-	id() uint64
-	setOutputWire(*wire)
-	getOutputWire() *wire
-}
-
 // Compile will parse provided circuit struct members and initialize all leafs that
 // are CircuitVariable with frontend.constraint objects
 // Struct tag options are similar to encoding/json
 // For example:
 // type myCircuit struct {
-//  A frontend.CircuitVariable `gnark:"inputName"` 	// will allocate a secret (default visibility) input with name inputName
-//  B frontend.CircuitVariable `gnark:",public"` 	// will allocate a public input name with "B" (struct member name)
-//  C frontend.CircuitVariable `gnark:"-"` 			// C will not be initialized, and has to be initialized in circuit.PostInit hook
+//  A frontend.Variable `gnark:"inputName"` 	// will allocate a secret (default visibility) input with name inputName
+//  B frontend.Variable `gnark:",public"` 	// will allocate a public input name with "B" (struct member name)
+//  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized in circuit.PostInit hook
 // }
 func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 	// instantiate our constraint system
@@ -57,6 +36,13 @@ func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 	// leafs are constraints that need to be initialized in the context of compiling a circuit
 	var handler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
+			v := tInput.Interface().(Variable)
+			if v.constraint != nil {
+				return errors.New("circuit was already compiled")
+			}
+			if v.val != nil {
+				return errors.New("circuit has some assigned values, can't compile")
+			}
 			switch visibility {
 			case unset, secret:
 				tInput.Set(reflect.ValueOf(cs.SECRET_INPUT(name)))
@@ -102,19 +88,19 @@ func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 // are CircuitVariable with frontend.circuitInput objects
 // see Compile documentation for more info on struct tags
 // TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
-func MakeAssignable(circuit Circuit) error {
-	var inputHandler leafHandler = func(_ attrVisibility, name string, tInput reflect.Value) error {
-		if tInput.CanSet() {
-			tInput.Set(reflect.ValueOf(new(circuitInput)))
-			return nil
-		}
-		return errors.New("can't set input " + name)
-	}
+// func MakeAssignable(circuit Circuit) error {
+// 	var inputHandler leafHandler = func(_ attrVisibility, name string, tInput reflect.Value) error {
+// 		if tInput.CanSet() {
+// 			tInput.Set(reflect.ValueOf(new(Variable)))
+// 			return nil
+// 		}
+// 		return errors.New("can't set input " + name)
+// 	}
 
-	// recursively parse through reflection the circuits members to find all inputs that need to be allocated
-	// (secret or public inputs)
-	return parseType(circuit, "", unset, inputHandler)
-}
+// 	// recursively parse through reflection the circuits members to find all inputs that need to be allocated
+// 	// (secret or public inputs)
+// 	return parseType(circuit, "", unset, inputHandler)
+// }
 
 // ToAssignment will parse provided circuit and extract all values from leaves that are
 // CircuitVariable.
@@ -123,7 +109,7 @@ func MakeAssignable(circuit Circuit) error {
 func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
 	toReturn := make(map[string]interface{})
 	var extractHandler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(CircuitVariable).(*circuitInput)
+		v := tInput.Interface().(Variable)
 		if v.val == nil {
 			return errors.New(name + " has no assigned value.")
 		}
