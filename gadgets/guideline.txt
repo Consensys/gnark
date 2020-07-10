@@ -1,4 +1,0 @@
-API for gadgets:
-----------------
-
-obj.<gadget_func>(*frontend.CS, ... )

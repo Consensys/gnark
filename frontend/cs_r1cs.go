@@ -5,6 +5,10 @@ import (
 )
 
 // NewR1CS builds a R1CS from a system of Constraints
+// note that the return R1CS is untyped and contains big.Int
+// this method should not be called directly in a normal workflow,
+// as it is called by frontend.Compile()
+// it exists for test purposses (backend and integration)
 func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	/*

@@ -97,14 +97,11 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	// TODO clean that up with interfaces and type casts
-	var untypedR1CS r1cs.UntypedR1CS
-
-	if err := gob.Read(circuitPath, &untypedR1CS, curveID); err != nil {
+	r1cs, err := r1cs.Read(circuitPath)
+	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	r1cs := untypedR1CS.ToR1CS(curveID)
 	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.GetNbConstraints())
 	// run setup
 	pk, err := groth16.ReadProvingKey(fPkPath)

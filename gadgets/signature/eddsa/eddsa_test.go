@@ -24,12 +24,12 @@ import (
 	mimc_bn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
 	"github.com/consensys/gnark/frontend"
-	twistededwards_gadget "github.com/consensys/gnark/gadgets/algebra/twistededwards"
+	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gurvy"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
-func TestEddsaGadget(t *testing.T) {
+func TestEddsa(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
 
@@ -60,18 +60,18 @@ func TestEddsaGadget(t *testing.T) {
 	// Set the eddsa circuit and the gadget
 	circuit := frontend.New()
 
-	paramsGadget, err := twistededwards_gadget.NewEdCurveGadget(gurvy.BN256)
+	params, err := twistededwards.NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Allocate the data in the circuit
-	var pubKeyAllocated PublicKeyGadget
+	var pubKeyAllocated PublicKey
 	pubKeyAllocated.A.X = circuit.PUBLIC_INPUT("pubkeyX")
 	pubKeyAllocated.A.Y = circuit.PUBLIC_INPUT("pubkeyY")
-	pubKeyAllocated.Curve = paramsGadget
+	pubKeyAllocated.Curve = params
 
-	var sigAllocated SignatureGadget
+	var sigAllocated Signature
 	sigAllocated.R.A.X = circuit.PUBLIC_INPUT("sigRX")
 	sigAllocated.R.A.Y = circuit.PUBLIC_INPUT("sigRY")
 

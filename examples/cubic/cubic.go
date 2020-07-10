@@ -34,7 +34,7 @@ func main() {
 
 	// init context
 	ctx := frontend.NewContext(gurvy.BN256)
-	// add key values to context, usable by circuit and all used gadgets
+	// add key values to context, usable by circuit and all components
 	// ex: ctx.Set(rho, new(big.Int).Set("..."))
 
 	// compiles our circuit into a R1CS

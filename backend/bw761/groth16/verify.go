@@ -20,11 +20,15 @@ import (
 	curve "github.com/consensys/gurvy/bw761"
 	"github.com/consensys/gurvy/bw761/fr"
 
+	"errors"
+
 	"github.com/consensys/gnark/backend"
 )
 
+var errPairingCheckFailed = errors.New("pairing doesn't match")
+
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool, error) {
+func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
 
 	c := curve.BW761()
 
@@ -47,7 +51,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool
 
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
-		return false, err
+		return err
 	}
 	<-kSum.MultiExp(c, vk.G1.K, kInputs)
 
@@ -60,7 +64,10 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool
 	<-chan1
 	<-chan2
 	right := c.FinalExponentiation(&eKrsδ, &eArBs, &eKvkγ)
-	return vk.E.Equal(&right), nil
+	if !vk.E.Equal(&right) {
+		return errPairingCheckFailed
+	}
+	return nil
 }
 
 // parsePublicInput return the ordered public input values

@@ -51,8 +51,8 @@ func TestIntegration(t *testing.T) {
 		fInputBad := filepath.Join(parentDir, name+".bad.input")
 
 		buildTags := "debug"
-		// 2: input files to disk
 
+		// 2: input files to disk
 		if err := gob.WriteMap(fInputGood, good); err != nil {
 			t.Fatal(err)
 		}
@@ -100,17 +100,22 @@ func TestIntegration(t *testing.T) {
 		pv(fInputBad, false)
 	}
 
+	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256, gurvy.BW761}
+
 	for name, circuit := range circuits.Circuits {
 		if name == "reference_large" {
 			// be nice with circleci.
 			continue
 		}
-		// serialize to disk
-		fCircuit := filepath.Join(parentDir, name+".r1cs")
-		// TODO seems here we serialize frontend.R1CS to disk. why would we ever do that?
-		if err := gob.Write(fCircuit, circuit.R1CS, gurvy.BN256); err != nil {
-			t.Fatal(err)
+		for _, curve := range curves {
+			// serialize to disk
+			fCircuit := filepath.Join(parentDir, name+".r1cs")
+			// TODO seems here we serialize frontend.R1CS to disk. why would we ever do that?
+			typedR1CS := circuit.R1CS.ToR1CS(curve)
+			if err := gob.Write(fCircuit, typedR1CS, curve); err != nil {
+				t.Fatal(err)
+			}
+			spv(name, circuit.Good, circuit.Bad)
 		}
-		spv(name, circuit.Good, circuit.Bad)
 	}
 }

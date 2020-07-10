@@ -10,10 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO update DOC
-
 // Assert is a helper to test circuits
-// it embeds a frontend.Assert object (see gnark/cs/assert)
 type Assert struct {
 	*require.Assertions
 }
@@ -25,7 +22,10 @@ func NewAssert(t *testing.T) *Assert {
 
 // NotSolved check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
-// it runs frontend.Assert.NotSolved and ensure running groth16.Prove and groth16.Verify doesn't return true
+// it creates a groth16.ProvingKey for the r1cs
+// run groth16.Prove (which solves the R1CS) and expects an error
+// provided _solution must either implements frontend.Circuit or be
+// a map[string]interface{}
 func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
 	pk, _ := Setup(r1cs)
@@ -48,9 +48,10 @@ func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 // Solved check that a solution solves a circuit
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
-// it runs frontend.Assert.Solved and ensure running groth16.Prove and groth16.Verify returns true
+// it ensures running groth16.Prove and groth16.Verify returns true
+// provided _solution must either implements frontend.Circuit or be
+// a map[string]interface{}
 func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
-
 	var solution map[string]interface{}
 
 	switch s := _solution.(type) {

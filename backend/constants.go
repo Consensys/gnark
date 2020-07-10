@@ -39,7 +39,8 @@ var (
 	ErrInvalidInputFormat    = errors.New("incorrect input format")
 )
 
-// TODO find a home for this
+// SolvingMethod is used by the R1CS solver
+// note: it is not in backend/r1cs to avoid an import cycle
 type SolvingMethod uint8
 
 const (

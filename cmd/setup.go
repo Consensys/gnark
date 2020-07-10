@@ -82,14 +82,12 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		os.Exit(-1)
 	}
 
-	// TODO clean that up with interfaces and type casts
-	var bigIntR1cs r1cs.UntypedR1CS
-
-	if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
+	r1cs, err := r1cs.Read(circuitPath)
+	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	r1cs := bigIntR1cs.ToR1CS(curveID)
+
 	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.GetNbConstraints())
 	start := time.Now()
 	pk, vk := groth16.Setup(r1cs)

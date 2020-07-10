@@ -1,8 +1,6 @@
 package groth16
 
 import (
-	"errors"
-
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
@@ -33,54 +31,16 @@ type VerifyingKey interface {
 	IsDifferent(interface{}) bool
 }
 
-// var tBN256 = reflect.TypeOf(backend_bn256.R1CS{})
-// var tBLS381 = reflect.TypeOf(backend_bls381.R1CS{})
-// var tBLS377 = reflect.TypeOf(backend_bls377.R1CS{})
-// var tBW761 = reflect.TypeOf(backend_bw761.R1CS{})
-
 func Verify(proof Proof, vk VerifyingKey, solution map[string]interface{}) error {
-	// TODO change Verify signature in Groth16 so that it returns an error = nil if verify failed
 	switch _proof := proof.(type) {
 	case *groth16_bls377.Proof:
-		res, err := groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), solution)
-		if err != nil {
-			return err
-		} else {
-			if !res {
-				return errors.New("verify proof failed")
-			}
-		}
-		return nil
+		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), solution)
 	case *groth16_bls381.Proof:
-		res, err := groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), solution)
-		if err != nil {
-			return err
-		} else {
-			if !res {
-				return errors.New("verify proof failed")
-			}
-		}
-		return nil
+		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), solution)
 	case *groth16_bn256.Proof:
-		res, err := groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), solution)
-		if err != nil {
-			return err
-		} else {
-			if !res {
-				return errors.New("verify proof failed")
-			}
-		}
-		return nil
+		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), solution)
 	case *groth16_bw761.Proof:
-		res, err := groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), solution)
-		if err != nil {
-			return err
-		} else {
-			if !res {
-				return errors.New("verify proof failed")
-			}
-		}
-		return nil
+		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), solution)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

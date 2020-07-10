@@ -58,7 +58,7 @@ const nbBits = 256
 // leafSum returns the hash created from data inserted to form a leaf. Leaf
 // sums are calculated using:
 //		Hash(0x00 || data)
-func leafSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, data frontend.Variable) frontend.Variable {
+func leafSumDeprecated(circuit *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
 	// TODO find a better way than querying the binary decomposition, too many constraints
 	dataBin := circuit.TO_BINARY(data, nbBits)
@@ -77,7 +77,7 @@ func leafSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, data frontend.Va
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data frontend.Variable) frontend.Variable {
+func leafSum(circuit *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
 	res := h.Hash(circuit, data)
 
@@ -87,7 +87,7 @@ func leafSum(circuit *frontend.CS, h mimc.MiMCGadget, data frontend.Variable) fr
 // nodeSum returns the hash created from two sibling nodes being combined into
 // a parent node. Node sums are calculated using:
 //		Hash(0x01 || left sibling sum || right sibling sum)
-func nodeSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, a, b frontend.Variable) frontend.Variable {
+func nodeSumDeprecated(circuit *frontend.CS, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
 	// TODO find a better way than querying the binary decomposition (too many constraints)
 	d1Bin := circuit.TO_BINARY(a, nbBits)
@@ -119,7 +119,7 @@ func nodeSumDeprecated(circuit *frontend.CS, h mimc.MiMCGadget, a, b frontend.Va
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(circuit *frontend.CS, h mimc.MiMCGadget, a, b frontend.Variable) frontend.Variable {
+func nodeSum(circuit *frontend.CS, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
 	res := h.Hash(circuit, a, b)
 
@@ -187,7 +187,7 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(circuit *frontend.CS, h mimc.MiMCGadget, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(circuit *frontend.CS, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
 
 	sum := leafSum(circuit, h, proofSet[0])
 

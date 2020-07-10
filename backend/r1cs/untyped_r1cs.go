@@ -26,6 +26,8 @@ import (
 )
 
 // UntypedR1CS decsribes a set of UntypedR1CS constraint
+// The coefficients from the rank-1 constraint it contains
+// are big.Int and not tied to a curve base field
 type UntypedR1CS struct {
 	// Wires
 	NbWires        int

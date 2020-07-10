@@ -14,8 +14,7 @@ type Circuit interface {
 	Define(ctx *Context, cs *CS) error
 
 	// PostInit is called by frontend.Compile() after the automatic initialization of CircuitVariable
-	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints,
-	// mix visibility in a gadget, ...)
+	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints, ...)
 	PostInit(ctx *Context) error
 }
 
@@ -83,24 +82,6 @@ func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 	return gob.Write(path, r1cs, ctx.CurveID())
 }
-
-// MakeAssignable will parse provided circuit struct members and initialize all leafs that
-// are CircuitVariable with frontend.circuitInput objects
-// see Compile documentation for more info on struct tags
-// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
-// func MakeAssignable(circuit Circuit) error {
-// 	var inputHandler leafHandler = func(_ attrVisibility, name string, tInput reflect.Value) error {
-// 		if tInput.CanSet() {
-// 			tInput.Set(reflect.ValueOf(new(Variable)))
-// 			return nil
-// 		}
-// 		return errors.New("can't set input " + name)
-// 	}
-
-// 	// recursively parse through reflection the circuits members to find all inputs that need to be allocated
-// 	// (secret or public inputs)
-// 	return parseType(circuit, "", unset, inputHandler)
-// }
 
 // ToAssignment will parse provided circuit and extract all values from leaves that are
 // CircuitVariable.

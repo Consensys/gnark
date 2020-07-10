@@ -180,7 +180,7 @@ func BenchmarkVerifier(b *testing.B) {
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16_bw761.Verify(proof, &vk, solution)
+			_ = groth16_bw761.Verify(proof, &vk, solution)
 		}
 	})
 }

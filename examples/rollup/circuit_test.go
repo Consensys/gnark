@@ -32,7 +32,7 @@ type circuitSignature struct {
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitSignature) Define(ctx *frontend.Context, cs *frontend.CS) error {
-	hFunc, err := mimc.NewMiMCGadget("seed", ctx.CurveID())
+	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ type circuitInclusionProof struct {
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitInclusionProof) Define(ctx *frontend.Context, cs *frontend.CS) error {
-	hFunc, err := mimc.NewMiMCGadget("seed", ctx.CurveID())
+	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
 	if err != nil {
 		return err
 	}

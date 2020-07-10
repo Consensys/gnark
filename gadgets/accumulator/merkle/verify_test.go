@@ -74,7 +74,7 @@ func TestVerify(t *testing.T) {
 		helper[i] = circuit.SECRET_INPUT("helper" + string(i))
 	}
 
-	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
+	hFunc, err := mimc.NewMiMC("seed", gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}

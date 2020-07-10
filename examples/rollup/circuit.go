@@ -19,7 +19,7 @@ package rollup
 import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/accumulator/merkle"
-	twistededwards_gadget "github.com/consensys/gnark/gadgets/algebra/twistededwards"
+	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
 	"github.com/consensys/gnark/gadgets/signature/eddsa"
 )
@@ -38,12 +38,12 @@ type RollupCircuit struct {
 	// list of accounts involved before update and their public keys
 	SenderAccountsBefore   [batchSize]AccountConstraints
 	ReceiverAccountsBefore [batchSize]AccountConstraints
-	PublicKeysSender       [batchSize]eddsa.PublicKeyGadget
+	PublicKeysSender       [batchSize]eddsa.PublicKey
 
 	// list of accounts involved after update and their public keys
 	SenderAccountsAfter   [batchSize]AccountConstraints
 	ReceiverAccountsAfter [batchSize]AccountConstraints
-	PublicKeysReceiver    [batchSize]eddsa.PublicKeyGadget
+	PublicKeysReceiver    [batchSize]eddsa.PublicKey
 
 	// list of transactions
 	Transfers [batchSize]TransferConstraints
@@ -73,22 +73,22 @@ type AccountConstraints struct {
 	Index   frontend.Variable // index in the tree
 	Nonce   frontend.Variable // nb transactions done so far from this account
 	Balance frontend.Variable
-	PubKey  eddsa.PublicKeyGadget `gnark:"-"`
+	PubKey  eddsa.PublicKey `gnark:"-"`
 }
 
 // TransferConstraints transfer encoded as constraints
 type TransferConstraints struct {
 	Amount         frontend.Variable
-	Nonce          frontend.Variable     `gnark:"-"`
-	SenderPubKey   eddsa.PublicKeyGadget `gnark:"-"`
-	ReceiverPubKey eddsa.PublicKeyGadget `gnark:"-"`
-	Signature      eddsa.SignatureGadget
+	Nonce          frontend.Variable `gnark:"-"`
+	SenderPubKey   eddsa.PublicKey   `gnark:"-"`
+	ReceiverPubKey eddsa.PublicKey   `gnark:"-"`
+	Signature      eddsa.Signature
 }
 
 func (circuit *RollupCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
 	// hash function for the merkle proof and the eddsa signature
 	// TODO MimC should take ctx only, with seed fed by first caller
-	hFunc, err := mimc.NewMiMCGadget("seed", ctx.CurveID())
+	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
 	if err != nil {
 		return err
 	}
@@ -119,17 +119,17 @@ func (circuit *RollupCircuit) Define(ctx *frontend.Context, cs *frontend.CS) err
 
 func (circuit *RollupCircuit) PostInit(ctx *frontend.Context) error {
 	// edward curve gadget
-	paramsGadget, err := twistededwards_gadget.NewEdCurveGadget(ctx.CurveID())
+	params, err := twistededwards.NewEdCurve(ctx.CurveID())
 	if err != nil {
 		return err
 	}
 
 	for i := 0; i < batchSize; i++ {
 		// setting sender public key
-		circuit.PublicKeysSender[i].Curve = paramsGadget
+		circuit.PublicKeysSender[i].Curve = params
 
 		// setting receiver public key
-		circuit.PublicKeysReceiver[i].Curve = paramsGadget
+		circuit.PublicKeysReceiver[i].Curve = params
 
 		// setting the sender accounts before update
 		circuit.SenderAccountsBefore[i].PubKey = circuit.PublicKeysSender[i]
@@ -147,7 +147,7 @@ func (circuit *RollupCircuit) PostInit(ctx *frontend.Context) error {
 		circuit.Transfers[i].Nonce = circuit.SenderAccountsBefore[i].Nonce
 		circuit.Transfers[i].SenderPubKey = circuit.PublicKeysSender[i]
 		circuit.Transfers[i].ReceiverPubKey = circuit.PublicKeysReceiver[i]
-		circuit.Transfers[i].Signature.R.Curve = paramsGadget
+		circuit.Transfers[i].Signature.R.Curve = params
 
 	}
 
@@ -155,7 +155,7 @@ func (circuit *RollupCircuit) PostInit(ctx *frontend.Context) error {
 }
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
-func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc mimc.MiMCGadget) error {
+func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
 	htransfer := hFunc.Hash(circuit, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
@@ -168,7 +168,7 @@ func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc 
 }
 
 // checkCorrectLeaf checks if hacc = hFunc(acc)
-func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountConstraints, hacc frontend.Variable) {
+func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMC, acc AccountConstraints, hacc frontend.Variable) {
 
 	// compute the hash of the account, serialized like this:
 	// index || nonce || balance || pubkeyX || pubkeyY
@@ -178,8 +178,6 @@ func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMCGadget, acc AccountC
 
 }
 
-// updateAccountGadget ensures that from, to are correctly updated according to t, h is the gadget hash for checking the signature
-// returns the updated accounts from, to
 func verifyAccountUpdated(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated

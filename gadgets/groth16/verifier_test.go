@@ -44,7 +44,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 	// create a mock circuit: knowing the preimage of a hash using mimc
 	circuit := frontend.New()
-	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BLS377)
+	hFunc, err := mimc.NewMiMC("seed", gurvy.BLS377)
 	if err != nil {
 		if t != nil {
 			t.Fatal(err)
@@ -75,15 +75,9 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	proof.Krs = _proof.Krs
 
 	// before returning verifies that the proof passes on bls377
-	proofOk, err := groth16_bls377.Verify(proof, vk, correctAssignment)
-	if err != nil {
+	if err := groth16_bls377.Verify(proof, vk, correctAssignment); err != nil {
 		if t != nil {
 			t.Fatal(err)
-		}
-	}
-	if !proofOk {
-		if t != nil {
-			t.Fatal("error during bls377 proof verification")
 		}
 	}
 

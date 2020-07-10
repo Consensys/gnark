@@ -27,16 +27,16 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMCGadget, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[gurvy.ID]func(string) MiMCGadget
+var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var newMimc map[gurvy.ID]func(string) MiMC
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMCGadget, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
 	encryptFuncs[gurvy.BN256] = encryptBN256
 	encryptFuncs[gurvy.BLS381] = encryptBLS381
 	encryptFuncs[gurvy.BLS377] = encryptBLS377
 
-	newMimc = make(map[gurvy.ID]func(string) MiMCGadget)
+	newMimc = make(map[gurvy.ID]func(string) MiMC)
 	newMimc[gurvy.BN256] = newMimcBN256
 	newMimc[gurvy.BLS381] = newMimcBLS381
 	newMimc[gurvy.BLS377] = newMimcBLS377
@@ -45,37 +45,37 @@ func init() {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string) MiMCGadget {
-	res := MiMCGadget{}
+func newMimcBLS377(seed string) MiMC {
+	res := MiMC{}
 	params := bls377.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
-		res.Params = append(res.Params, cpy)
+		res.params = append(res.params, cpy)
 	}
 	res.id = gurvy.BLS377
 	return res
 }
 
-func newMimcBLS381(seed string) MiMCGadget {
-	res := MiMCGadget{}
+func newMimcBLS381(seed string) MiMC {
+	res := MiMC{}
 	params := bls381.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
-		res.Params = append(res.Params, cpy)
+		res.params = append(res.params, cpy)
 	}
 	res.id = gurvy.BLS381
 	return res
 }
 
-func newMimcBN256(seed string) MiMCGadget {
-	res := MiMCGadget{}
+func newMimcBN256(seed string) MiMC {
+	res := MiMC{}
 	params := bn256.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
-		res.Params = append(res.Params, cpy)
+		res.params = append(res.params, cpy)
 	}
 	res.id = gurvy.BN256
 	return res
@@ -85,13 +85,13 @@ func newMimcBN256(seed string) MiMCGadget {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key frontend.Variable) frontend.Variable {
+func encryptBN256(circuit *frontend.CS, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
 
-	for i := 0; i < len(h.Params); i++ {
+	for i := 0; i < len(h.params); i++ {
 		//for i := 0; i < 1; i++ {
-		tmp := circuit.ADD(res, key, h.Params[i])
+		tmp := circuit.ADD(res, key, h.params[i])
 		// res = (res+k+c)^7
 		res = circuit.MUL(tmp, tmp)
 		res = circuit.MUL(res, tmp)
@@ -104,12 +104,12 @@ func encryptBN256(circuit *frontend.CS, h MiMCGadget, message, key frontend.Vari
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(circuit *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
-	for i := 0; i < len(h.Params); i++ {
-		tmp := circuit.ADD(res, key, h.Params[i])
+	for i := 0; i < len(h.params); i++ {
+		tmp := circuit.ADD(res, key, h.params[i])
 		// res = (res+k+c)^5
 		res = circuit.MUL(tmp, tmp) // square
 		res = circuit.MUL(res, res) // square
@@ -121,10 +121,10 @@ func encryptBLS381(circuit *frontend.CS, h MiMCGadget, message frontend.Variable
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(circuit *frontend.CS, h MiMCGadget, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(circuit *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
-	for i := 0; i < len(h.Params); i++ {
-		tmp := circuit.ADD(res, h.Params[i], key)
+	for i := 0; i < len(h.params); i++ {
+		tmp := circuit.ADD(res, h.params[i], key)
 		// res = (res+key+c)**-1
 		res = circuit.INV(tmp)
 	}

@@ -15,7 +15,7 @@ type MiMCCircuit struct {
 
 func (circuit *MiMCCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
 	// hash function
-	mimc, _ := mimc.NewMiMCGadget("seed", ctx.CurveID())
+	mimc, _ := mimc.NewMiMC("seed", ctx.CurveID())
 
 	// specify constraints
 	// mimc(preImage) == hash
@@ -35,7 +35,7 @@ func main() {
 
 	// init context
 	ctx := frontend.NewContext(gurvy.BN256)
-	// add key values to context, usable by circuit and all used gadgets
+	// add key values to context, usable by circuit and all components
 	// ex: ctx.Set(rho, new(big.Int).Set("..."))
 
 	// compiles our circuit into a R1CS

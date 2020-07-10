@@ -22,21 +22,21 @@ import (
 	"github.com/consensys/gnark/gadgets/hash/mimc"
 )
 
-// PublicKeyGadget stores an eddsa public key in a r1cs
-type PublicKeyGadget struct {
-	A     twistededwards.PointGadget
-	Curve twistededwards.EdCurveGadget
+// PublicKey stores an eddsa public key in a r1cs
+type PublicKey struct {
+	A     twistededwards.Point
+	Curve twistededwards.EdCurve
 }
 
-// SignatureGadget stores a signature as a gadget
-type SignatureGadget struct {
-	R PublicKeyGadget
+// Signature stores a signature as a gadget
+type Signature struct {
+	R PublicKey
 	S frontend.Variable
 }
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(circuit *frontend.CS, sig SignatureGadget, msg frontend.Variable, pubKey PublicKeyGadget) error {
+func Verify(circuit *frontend.CS, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	data := []frontend.Variable{
@@ -47,26 +47,26 @@ func Verify(circuit *frontend.CS, sig SignatureGadget, msg frontend.Variable, pu
 		msg,
 	}
 
-	mimcGadget, err := mimc.NewMiMCGadget("seed", pubKey.Curve.ID)
+	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID)
 	if err != nil {
 		return err
 	}
-	hramAllocated := mimcGadget.Hash(circuit, data...)
+	hramAllocated := hash.Hash(circuit, data...)
 
 	// lhs = cofactor*SB
 	cofactorAllocated := circuit.ALLOCATE(pubKey.Curve.Cofactor)
-	lhs := twistededwards.NewPointGadget(circuit, nil, nil)
+	lhs := twistededwards.NewPoint(circuit, nil, nil)
 
 	lhs.ScalarMulFixedBase(circuit, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
 		ScalarMulNonFixedBase(circuit, &lhs, cofactorAllocated, pubKey.Curve)
-	// TODO adding lhs.IsOnCurveGadget(...) makes the r1cs bug
+	// TODO adding lhs.IsOnCurve(...) makes the r1cs bug
 
 	// rhs = cofactor*(R+H(R,A,M)*A)
-	rhs := twistededwards.NewPointGadget(circuit, nil, nil)
+	rhs := twistededwards.NewPoint(circuit, nil, nil)
 	rhs.ScalarMulNonFixedBase(circuit, &pubKey.A, hramAllocated, pubKey.Curve).
 		AddGeneric(circuit, &rhs, &sig.R.A, pubKey.Curve).
 		ScalarMulNonFixedBase(circuit, &rhs, cofactorAllocated, pubKey.Curve)
-	// TODO adding rhs.IsOnCurveGadget(...) makes the r1cs bug
+	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
 
 	circuit.MUSTBE_EQ(lhs.X, rhs.X)
 	circuit.MUSTBE_EQ(lhs.Y, rhs.Y)

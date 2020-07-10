@@ -25,24 +25,24 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// MiMCGadget contains the params of the Mimc gadget and the curves on which it is implemented
-type MiMCGadget struct {
-	Params []big.Int
+// MiMC contains the params of the Mimc hash func and the curves on which it is implemented
+type MiMC struct {
+	params []big.Int
 	id     gurvy.ID
 }
 
-// NewMiMCGadget returns a MiMC gadget, than can be used in a circuit
-func NewMiMCGadget(seed string, id gurvy.ID) (MiMCGadget, error) {
+// NewMiMC returns a MiMC gadget, than can be used in a circuit
+func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed), nil
 	}
-	return MiMCGadget{}, gadgets.ErrUnknownCurve
+	return MiMC{}, gadgets.ErrUnknownCurve
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition
-func (h MiMCGadget) Hash(circuit *frontend.CS, data ...frontend.Variable) frontend.Variable {
+func (h MiMC) Hash(circuit *frontend.CS, data ...frontend.Variable) frontend.Variable {
 
 	var digest frontend.Variable
 	digest = circuit.ALLOCATE(0)

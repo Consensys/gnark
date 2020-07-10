@@ -6,11 +6,13 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	"github.com/consensys/gnark/backend"
+	"errors"
 )
 
+var errPairingCheckFailed = errors.New("pairing doesn't match")
 
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool, error) {
+func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
 
 	c := {{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}
 
@@ -33,7 +35,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool
 
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
-		return false, err
+		return err
 	}
 	<-kSum.MultiExp(c, vk.G1.K, kInputs)
 
@@ -46,7 +48,10 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool
 	<-chan1
 	<-chan2
 	right := c.FinalExponentiation(&eKrsδ, &eArBs, &eKvkγ)
-	return vk.E.Equal(&right), nil
+	if !vk.E.Equal(&right) {
+		return errPairingCheckFailed
+	}
+	return nil
 }
 
 // parsePublicInput return the ordered public input values
@@ -54,7 +59,6 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) (bool
 // The function is public because it's needed for the recursive snark.
 func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]fr.Element, error) {
 	toReturn := make([]fr.Element, len(expectedNames))
-
 
 	for i := 0; i < len(expectedNames); i++ {
 		if expectedNames[i] == backend.OneWire {
