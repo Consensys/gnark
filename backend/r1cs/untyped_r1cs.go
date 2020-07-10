@@ -43,6 +43,8 @@ type UntypedR1CS struct {
 	Constraints     []R1C
 }
 
+// ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
+// in the basefield of the provided curveID and return a R1CS
 func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 	switch curveID {
 	case gurvy.BN256:
@@ -53,17 +55,18 @@ func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 		return r1cs.toBLS381()
 	case gurvy.BW761:
 		return r1cs.toBW761()
+	default:
+		panic("not implemented")
 	}
-	return nil
 }
 
-// Term ...
+// Term coeff * constraint (ID)
 type Term struct {
 	ID    int64   // index of the constraint used to compute this wire
 	Coeff big.Int // coefficient by which the wire is multiplied
 }
 
-// LinearExpression
+// LinearExpression represent a linear expression of variables
 type LinearExpression []Term
 
 // R1C used to compute the wires

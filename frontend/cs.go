@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// package frontend contains Constraint System representation and R1CS to be used with zero knowledge proof systems in gnark
+// Package frontend contains Constraint System representation and R1CS to be used with zero knowledge proof systems in gnark
 package frontend
 
 import (
@@ -27,16 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/utils/debug"
 )
 
-var (
-	ErrInconsistantConstraint = errors.New("inconsistant constraint")
-)
-
-// TODO find a home for this
-func bigOne() big.Int {
-	var val big.Int
-	val.SetUint64(1)
-	return val
-}
+var errInconsistantConstraint = errors.New("inconsistant constraint")
 
 // CS Constraint System
 type CS struct {
@@ -273,13 +264,13 @@ func (cs *CS) equal(c1, c2 Variable) error {
 	}
 	// ensure we're not doing v1.MUST_EQ(v1)
 	if c1.constraint == c2.constraint {
-		return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input 1 == user input 1) is invalid")
+		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 1) is invalid")
 	}
 
 	// ensure we are not doing x.MUST_EQ(y) , {x, y} being user inputs
 	if c1.getOutputWire() != nil && c2.getOutputWire() != nil {
 		if c1.getOutputWire().isUserInput() && c2.getOutputWire().isUserInput() {
-			return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input 1 == user input 2) is invalid")
+			return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 2) is invalid")
 		}
 	}
 
@@ -332,7 +323,7 @@ func (cs *CS) equal(c1, c2 Variable) error {
 func (cs *CS) equalConstant(c Variable, constant big.Int) error {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
 	if c.getOutputWire().isUserInput() {
-		return fmt.Errorf("%w: %q", ErrInconsistantConstraint, "(user input == VALUE) is invalid")
+		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input == VALUE) is invalid")
 	}
 
 	c.addExpressions(&eqConstantExpression{v: constant})
@@ -497,4 +488,10 @@ func (cs *CS) countWires() int {
 	}
 
 	return len(wires)
+}
+
+func bigOne() big.Int {
+	var val big.Int
+	val.SetUint64(1)
+	return val
 }

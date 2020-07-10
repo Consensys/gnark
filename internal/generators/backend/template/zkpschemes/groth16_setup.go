@@ -285,8 +285,8 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 }
 
 
-// test purposes
-
+// IsDifferent returns true if provided vk is different than self
+// this is used by groth16.Assert to ensure random sampling
 func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
 	vk2 := _other.(*VerifyingKey)
 	for i := 0; i < len(vk.G1.K); i++ {
@@ -300,6 +300,8 @@ func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
+// IsDifferent returns true if provided pk is different than self
+// this is used by groth16.Assert to ensure random sampling
 func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	pk2 := _other.(*ProvingKey)
 
@@ -319,9 +321,6 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 
 	return true
 }
-
-
-	
 
 
 `

@@ -17,6 +17,7 @@
 package backend_bw761
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -170,7 +171,7 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 	for wireID, tags := range r1cs.WireTags {
 		for _, tag := range tags {
 			if _, ok := res[tag]; ok {
-				return nil, backend.ErrDuplicateTag(tag)
+				return nil, errors.New("duplicate tag: " + tag)
 			}
 			v := new(big.Int)
 			res[tag] = *(wireValues[wireID].ToBigIntRegular(v))
@@ -185,14 +186,6 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 
 	return res, nil
 }
-
-// method to solve a r1cs
-type solvingMethod int
-
-const (
-	SingleOutput solvingMethod = iota
-	BinaryDec
-)
 
 // Term lightweight version of a term, no pointers
 type Term struct {
@@ -230,8 +223,8 @@ type R1C struct {
 }
 
 // String helper for a Rank1 Constraint
-func (r R1C) String() string {
-	res := "(" + r.L.String() + ")*(" + r.R.String() + ")=" + r.O.String()
+func (r1c R1C) String() string {
+	res := "(" + r1c.L.String() + ")*(" + r1c.R.String() + ")=" + r1c.O.String()
 	return res
 }
 

@@ -9,12 +9,16 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// R1CS represents a rank 1 constraint system
+// it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
 type R1CS interface {
 	Solve(assignment map[string]interface{}, _a, _b, _c, _wireValues interface{}) error
 	Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error)
 	GetNbConstraints() int
 }
 
+// Read ...
+// TODO likely temporary method, need a clean up pass on serialization things
 func Read(path string) (R1CS, error) {
 	curveID, err := gob.PeekCurveID(path)
 	if err != nil {

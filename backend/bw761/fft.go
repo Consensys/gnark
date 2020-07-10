@@ -108,7 +108,7 @@ func bitReverse(a []fr.Element) {
 	}
 }
 
-// domain with a power of 2 cardinality
+// Domain with a power of 2 cardinality
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
 type Domain struct {
@@ -120,7 +120,7 @@ type Domain struct {
 	CardinalityInv   fr.Element
 }
 
-// newDomain returns a subgroup with a power of 2 cardinality
+// NewDomain returns a subgroup with a power of 2 cardinality
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt

@@ -16,4 +16,5 @@
 
 package cmd
 
+// Version gnark version
 const Version = "v0.2.1-alpha"

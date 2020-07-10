@@ -137,9 +137,8 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 func appendName(baseName, name string) string {
 	if baseName == "" {
 		return name
-	} else {
-		return baseName + "_" + name
 	}
+	return baseName + "_" + name
 }
 
 // Copyright 2011 The Go Authors. All rights reserved.

@@ -54,7 +54,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	return nil
 }
 
-// parsePublicInput return the ordered public input values
+// ParsePublicInput return the ordered public input values
 // in regular form (used as scalars for multi exponentiation).
 // The function is public because it's needed for the recursive snark.
 func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]fr.Element, error) {

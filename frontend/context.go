@@ -6,11 +6,15 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// Context represents a dictionnary of values usable by a Circuit and its components
+// at a minimum, a Context holds a curveID indicating which Curve and Basefield the circuit
+// is meant to use.
 type Context struct {
 	curveID gurvy.ID
 	values  map[string]interface{}
 }
 
+// NewContext returns a new Context object with given curveID
 func NewContext(curveID gurvy.ID) *Context {
 	return &Context{
 		curveID: curveID,
@@ -18,12 +22,14 @@ func NewContext(curveID gurvy.ID) *Context {
 	}
 }
 
+// CurveID returns context curveID
 func (ctx *Context) CurveID() gurvy.ID {
 	return ctx.curveID
 }
 
-// TODO doc similarly to golang context.Context:
-// key definitions must be type key int to avoid key collisions.
+// Set ...
+// TODO see golang context.Context for example doc
+// ex: key definitions must be type key int to avoid key collisions.
 func (ctx *Context) Set(key, value interface{}) {
 	if key == nil {
 		panic("nil key")
@@ -36,6 +42,8 @@ func (ctx *Context) Set(key, value interface{}) {
 
 }
 
+// Value ...
+// TODO
 func (ctx *Context) Value(key interface{}) (interface{}, bool) {
 	k := reflect.TypeOf(key).String()
 	r, ok := ctx.values[k]

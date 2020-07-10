@@ -4,7 +4,7 @@ import (
 	"github.com/consensys/gnark/backend/r1cs"
 )
 
-// NewR1CS builds a R1CS from a system of Constraints
+// ToR1CS builds a R1CS from a system of Constraints
 // note that the return R1CS is untyped and contains big.Int
 // this method should not be called directly in a normal workflow,
 // as it is called by frontend.Compile()

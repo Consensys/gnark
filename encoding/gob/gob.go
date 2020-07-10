@@ -28,9 +28,7 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-var (
-	ErrInvalidCurve = errors.New("trying to deserialize an object serialized with another curve")
-)
+var errInvalidCurve = errors.New("trying to deserialize an object serialized with another curve")
 
 // Write serialize object into file
 // uses gob + gzip
@@ -132,7 +130,7 @@ func Deserialize(f io.Reader, into interface{}, expectedCurveID gurvy.ID) error 
 		return err
 	}
 	if curveID != expectedCurveID {
-		return ErrInvalidCurve
+		return errInvalidCurve
 	}
 
 	if err = decoder.Decode(into); err != nil {
