@@ -13,13 +13,13 @@ type Circuit interface {
 	// Define declares the circuit's constraints
 	Define(ctx *Context, cs *CS) error
 
-	// PostInit is called by frontend.Compile() after the automatic initialization of CircuitVariable
+	// PostInit is called by frontend.Compile() after the automatic initialization of Variable
 	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints, ...)
 	PostInit(ctx *Context) error
 }
 
 // Compile will parse provided circuit struct members and initialize all leafs that
-// are CircuitVariable with frontend.constraint objects
+// are Variable with frontend.constraint objects
 // Struct tag options are similar to encoding/json
 // For example:
 // type myCircuit struct {
@@ -83,10 +83,9 @@ func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 	return gob.Write(path, r1cs, ctx.CurveID())
 }
 
-// ToAssignment will parse provided circuit and extract all values from leaves that are
-// CircuitVariable.
-// if MakeAssignable was not call prior, will panic.
+// ToAssignment will parse provided circuit and extract all values from leaves that are Variable
 // TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
+// this function should not be called in a normal workflow.
 func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
 	toReturn := make(map[string]interface{})
 	var extractHandler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {

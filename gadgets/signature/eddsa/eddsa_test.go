@@ -19,7 +19,6 @@ package eddsa
 import (
 	"testing"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/groth16"
 	mimc_bn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
@@ -94,7 +93,7 @@ func TestEddsa(t *testing.T) {
 
 	good["sigS"] = signature.S
 
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assert.CorrectExecution(r1cs, good, nil)
 

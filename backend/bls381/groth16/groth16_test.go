@@ -59,11 +59,11 @@ func TestCircuits(t *testing.T) {
 		if err := gob.ReadMap(name+".bad", bad); err != nil {
 			t.Fatal(err)
 		}
-		var fr1cs r1cs.UntypedR1CS
-		if err := gob.Read(name+".r1cs", &fr1cs, gurvy.UNKNOWN); err != nil {
+		var untypedR1CS r1cs.UntypedR1CS
+		if err := gob.Read(name+".r1cs", &untypedR1CS, gurvy.UNKNOWN); err != nil {
 			t.Fatal(err)
 		}
-		r1cs := fr1cs.ToR1CS(curve.ID).(*backend_bls381.R1CS)
+		r1cs := untypedR1CS.ToR1CS(curve.ID)
 		assert.NotSolved(r1cs, bad)
 		assert.Solved(r1cs, good, nil)
 	}

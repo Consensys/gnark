@@ -19,11 +19,9 @@ package twistededwards
 import (
 	"testing"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestIsOnCurve(t *testing.T) {
@@ -46,7 +44,7 @@ func TestIsOnCurve(t *testing.T) {
 	inputs["y"] = params.BaseY
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assert.CorrectExecution(r1csbn256, inputs, nil)
 
@@ -77,14 +75,11 @@ func TestAdd(t *testing.T) {
 	inputs["y"] = "11523897191511824241384532572407048303306774918928882376450136656947192273193"
 
 	expectedValues := make(map[string]interface{})
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	expectedv.SetString("18072205942244039714668938595243139985382136665954711533267729308917439031819")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues["xg"] = "4966531224162673480738068143298314346828081427171102366578720605707900725483"
+	expectedValues["yg"] = "18072205942244039714668938595243139985382136665954711533267729308917439031819"
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
@@ -117,14 +112,11 @@ func TestAddGeneric(t *testing.T) {
 	inputs["y2"] = "11523897191511824241384532572407048303306774918928882376450136656947192273193"
 
 	expectedValues := make(map[string]interface{})
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	expectedv.SetString("18072205942244039714668938595243139985382136665954711533267729308917439031819")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues["xg"] = "4966531224162673480738068143298314346828081427171102366578720605707900725483"
+	expectedValues["yg"] = "18072205942244039714668938595243139985382136665954711533267729308917439031819"
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
@@ -153,14 +145,11 @@ func TestDouble(t *testing.T) {
 	inputs["y"] = "16950150798460657717958625567821834550301663161624707787222815936182638968203"
 
 	expectedValues := make(map[string]interface{})
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10031262171927540148667355526369034398030886437092045105752248699557385197826")
-	expectedv.SetString("633281375905621697187330766174974863687049529291089048651929454608812697683")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues["xg"] = "10031262171927540148667355526369034398030886437092045105752248699557385197826"
+	expectedValues["yg"] = "633281375905621697187330766174974863687049529291089048651929454608812697683"
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
@@ -193,14 +182,11 @@ func TestScalarMulFixedBase(t *testing.T) {
 	pointSnark.Y.Tag("yg")
 
 	expectedValues := make(map[string]interface{})
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	expectedv.SetString("7969140283216448215269095418467361784159407896899334866715345504515077887397")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"
+	expectedValues["yg"] = "7969140283216448215269095418467361784159407896899334866715345504515077887397"
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
@@ -233,14 +219,11 @@ func TestScalarMulNonFixedBase(t *testing.T) {
 	pointSnark.Y.Tag("yg")
 
 	expectedValues := make(map[string]interface{})
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	expectedv.SetString("7969140283216448215269095418467361784159407896899334866715345504515077887397")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"
+	expectedValues["yg"] = "7969140283216448215269095418467361784159407896899334866715345504515077887397"
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }

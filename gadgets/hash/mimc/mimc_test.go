@@ -23,7 +23,6 @@ import (
 
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/groth16"
 
 	"github.com/consensys/gnark/frontend"
@@ -71,7 +70,7 @@ func TestMimcBN256(t *testing.T) {
 	inputs["data"] = databn256
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 

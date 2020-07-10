@@ -29,7 +29,7 @@ type leafHandler func(visibility attrVisibility, name string, tInput reflect.Val
 
 func parseType(input interface{}, baseName string, parentVisibility attrVisibility, handler leafHandler) error {
 	// types we are looking for
-	tCircuitVariable := reflect.TypeOf(Variable{})
+	tVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(CS{})
 
 	tValue := reflect.ValueOf(input)
@@ -41,7 +41,7 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 	switch tInput.Kind() {
 	case reflect.Struct:
 		switch tInput.Type() {
-		case tCircuitVariable:
+		case tVariable:
 			return handler(parentVisibility, baseName, tInput)
 		case tConstraintSytem:
 			return nil
@@ -90,13 +90,6 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 			}
 		}
 
-	// case reflect.Interface:
-	// 	switch tInput.Type() {
-	// 	case tCircuitVariable:
-	// 		return handler(parentVisibility, baseName, tInput)
-	// 	default:
-	// 		return nil
-	// 	}
 	case reflect.Slice, reflect.Array:
 		if tInput.Len() == 0 {
 			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")

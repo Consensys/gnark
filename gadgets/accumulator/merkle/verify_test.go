@@ -21,7 +21,6 @@ import (
 	"os"
 	"testing"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
@@ -81,7 +80,7 @@ func TestVerify(t *testing.T) {
 	VerifyProof(&circuit, hFunc, rh, path, helper)
 
 	// compilation of the circuit
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256).(*backend_bn256.R1CS)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assignment := make(map[string]interface{})
 	assignment["rootHash"] = merkleRoot
