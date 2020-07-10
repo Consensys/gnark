@@ -9,7 +9,6 @@ import (
 )
 
 func TestCubicEquation(t *testing.T) {
-
 	assert := groth16.NewAssert(t)
 
 	var cubicCircuit CubicCircuit
