@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
 	"github.com/consensys/gurvy"
 )
 

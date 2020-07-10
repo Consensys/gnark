@@ -23,6 +23,7 @@ import (
 
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -35,35 +36,13 @@ import (
 
 
 func TestCircuits(t *testing.T) {
-	assert := groth16.NewAssert(t)
-	matches, err := filepath.Glob("../../../internal/generators/testcircuits/generated/*.r1cs")
-	
-	if err != nil {
-		t.Fatal(err) 
-	}
-
-	if len(matches) == 0 {
-		t.Fatal("couldn't find test circuits for", curve.ID.String())
-	}
-	for _, name := range matches {
-		name = name[:len(name)-5]
-		t.Log(curve.ID.String(), " -- ", filepath.Base(name))
-
-		good := make(map[string]interface{})
-		if err := gob.ReadMap(name + ".good", good); err != nil {
-			t.Fatal(err)
-		}
-		bad := make(map[string]interface{})
-		if err := gob.ReadMap(name + ".bad", bad); err != nil {
-			t.Fatal(err)
-		}
-		var untypedR1CS r1cs.UntypedR1CS
-		if err := gob.Read(name+".r1cs", &untypedR1CS, gurvy.UNKNOWN); err != nil {
-			t.Fatal(err)
-		}
-		r1cs := untypedR1CS.ToR1CS(curve.ID)
-		assert.NotSolved(r1cs, bad)
-		assert.Solved(r1cs, good, nil)
+	for name, circuit := range circuits.Circuits {
+		t.Run(name, func(t *testing.T) {
+			assert := groth16.NewAssert(t)
+			r1cs := circuit.R1CS.ToR1CS(curve.ID)
+			assert.NotSolved(r1cs, circuit.Bad)
+			assert.Solved(r1cs, circuit.Good, nil)
+		})
 	}
 }
 
