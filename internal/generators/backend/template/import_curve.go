@@ -44,5 +44,7 @@ const ImportCurve = `
 	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761"
 {{end}}
 
+
 {{end}}
+
 `

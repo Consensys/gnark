@@ -23,9 +23,10 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gurvy/bn256/fr"
 
 	"github.com/consensys/gnark/internal/utils/debug"
+
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 // R1CS decsribes a set of R1CS constraint

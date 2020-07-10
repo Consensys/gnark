@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"math/big"
 
 	{{if ne .Curve "GENERIC"}}
 	"github.com/consensys/gnark/backend"
 	{{end}}
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
+
+	{{ template "import_fr" . }}
 )
 
 // R1CS decsribes a set of R1CS constraint 
