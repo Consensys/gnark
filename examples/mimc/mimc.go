@@ -7,7 +7,7 @@ import (
 )
 
 type MiMCCircuit struct {
-	// tagging a constraint is optional
+	// tagging a variable is optional
 	// default uses variable name and secret visibility.
 	PreImage frontend.Variable
 	Hash     frontend.Variable `gnark:",public"`

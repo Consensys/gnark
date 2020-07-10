@@ -6,7 +6,7 @@ import (
 )
 
 type CubicCircuit struct {
-	// tagging a constraint is optional
+	// tagging a variable is optional
 	// default uses variable name and secret visibility.
 	X frontend.Variable `gnark:"x"`
 	Y frontend.Variable `gnark:"y, public"`
