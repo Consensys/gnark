@@ -87,7 +87,6 @@ type TransferConstraints struct {
 
 func (circuit *RollupCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
 	// hash function for the merkle proof and the eddsa signature
-	// TODO MimC should take ctx only, with seed fed by first caller
 	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
 	if err != nil {
 		return err

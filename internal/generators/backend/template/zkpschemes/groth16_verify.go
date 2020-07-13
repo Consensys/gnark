@@ -67,8 +67,9 @@ func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]f
 			toReturn[i].FromMont()
 		} else {
 			if val, ok := input[expectedNames[i]]; ok {
+				// TODO : note, similarly to r1cs.Solve() this need a "fast statically typed path"
 				toReturn[i] = fr.FromInterface(val)
-				toReturn[i].FromMont() // TODO benchmark this non-sense (regular to montgomery to regular)
+				toReturn[i].FromMont() 
 			} else {
 				return nil, backend.ErrInputNotSet
 			}

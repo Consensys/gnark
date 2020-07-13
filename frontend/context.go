@@ -6,6 +6,9 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// TODO WIP, so far, context seems to be only useful to carry the curveID. Unless we force an interface
+// for user's gadgets that takes a context..
+
 // Context represents a dictionnary of values usable by a Circuit and its components
 // at a minimum, a Context holds a curveID indicating which Curve and Basefield the circuit
 // is meant to use.

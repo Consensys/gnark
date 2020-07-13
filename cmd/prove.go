@@ -113,7 +113,6 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
 
 	// parse input file
-	// TODO fix serialization here
 	r1csInput := make(map[string]interface{})
 	if err := backend.ReadVariables(fInputPath, r1csInput); err != nil {
 		fmt.Println("can't parse input", err)

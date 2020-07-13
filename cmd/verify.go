@@ -87,7 +87,6 @@ func cmdVerify(cmd *cobra.Command, args []string) {
 	}
 
 	// parse input file
-	// TODO fix serialization here
 	r1csInput := make(map[string]interface{})
 	if err := backend.ReadVariables(fInputPath, r1csInput); err != nil {
 		fmt.Println("can't parse input", err)

@@ -17,6 +17,7 @@ limitations under the License.
 package groth16
 
 import (
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gnark/gadgets/algebra/sw"
@@ -63,13 +64,13 @@ func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, innerVk Verifyi
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	for k, v := range innerPubInputNames {
-		if v == "ONE_WIRE" {
+		if v == backend.OneWire {
 			psi0.X = innerVk.G1[k].X
 			psi0.Y = innerVk.G1[k].Y
 		}
 	}
 	for k, v := range innerPubInputNames {
-		if v != "ONE_WIRE" {
+		if v != backend.OneWire {
 			tmp.ScalarMul(circuit, &innerVk.G1[k], circuit.PUBLIC_INPUT(v), 377)
 			psi0.AddAssign(circuit, &tmp)
 		}

@@ -169,16 +169,30 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 				panic(err)
 			}
 			return
-		case big.Int: // TODO handle *big.Int ?
+		case big.Int:
 			if err := cs.equalConstant(c1, c2); err != nil {
 				panic(err)
 			}
 			return
+		case *big.Int:
+			if err := cs.equalConstant(c1, *c2); err != nil {
+				panic(err)
+			}
+			return
 		}
-	case big.Int: // TODO handle *big.Int ?
+
+	case big.Int:
 		switch c2 := i2.(type) {
 		case Variable:
 			if err := cs.equalConstant(c2, c1); err != nil {
+				panic(err)
+			}
+			return
+		}
+	case *big.Int:
+		switch c2 := i2.(type) {
+		case Variable:
+			if err := cs.equalConstant(c2, *c1); err != nil {
 				panic(err)
 			}
 			return

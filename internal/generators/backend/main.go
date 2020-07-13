@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark/internal/generators/backend/template/generator"
 )
 
-// TODO should not be there. Need to factorize code genration boilerplate used in goff, ecc and here
 //go:generate go run -tags debug main.go
 func main() {
 
