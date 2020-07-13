@@ -62,8 +62,8 @@ func (c *constraint) getOutputWire() *wire {
 
 // Term coeff*c
 type Term struct {
-	Constraint Variable
-	Coeff      big.Int
+	Variable Variable
+	Coeff    big.Int
 }
 
 // LinearCombination linear combination of constraints

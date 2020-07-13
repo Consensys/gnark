@@ -50,14 +50,14 @@ func NewPoint(circuit *frontend.CS, _x, _y interface{}) Point {
 func (p *Point) MustBeOnCurve(circuit *frontend.CS, curve EdCurve) {
 	one := big.NewInt(1)
 
-	l1 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.A}}
-	l2 := frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
+	l1 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.A}}
+	l2 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
 	axx := circuit.MUL(l1, l2)
 	yy := circuit.MUL(p.Y, p.Y)
 	lhs := circuit.ADD(axx, yy)
 
-	l1 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: curve.D}}
-	l2 = frontend.LinearCombination{frontend.Term{Constraint: p.X, Coeff: *one}}
+	l1 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.D}}
+	l2 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
 	dxx := circuit.MUL(l1, l2)
 	dxxyy := circuit.MUL(dxx, yy)
 	rhs := circuit.ADD(dxxyy, one)
@@ -87,26 +87,26 @@ func (p *Point) AddFixedPoint(circuit *frontend.CS, p1 *Point, x, y interface{},
 
 	// constraint 2
 	den := frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: *one},
-		frontend.Term{Constraint: b, Coeff: duv},
+		frontend.Term{Variable: oneWire, Coeff: *one},
+		frontend.Term{Variable: b, Coeff: duv},
 	}
 	num := frontend.LinearCombination{
-		frontend.Term{Constraint: p1.X, Coeff: Y},
-		frontend.Term{Constraint: p1.Y, Coeff: X},
+		frontend.Term{Variable: p1.X, Coeff: Y},
+		frontend.Term{Variable: p1.Y, Coeff: X},
 	}
 	res.X = circuit.DIV(num, den)
 
 	// constraint 3
 	duv.Neg(&duv)
 	den = frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: *one},
-		frontend.Term{Constraint: b, Coeff: duv},
+		frontend.Term{Variable: oneWire, Coeff: *one},
+		frontend.Term{Variable: b, Coeff: duv},
 	}
 	var tmp big.Int
 	tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
 	num = frontend.LinearCombination{
-		frontend.Term{Constraint: p1.Y, Coeff: Y},
-		frontend.Term{Constraint: p1.X, Coeff: tmp},
+		frontend.Term{Variable: p1.Y, Coeff: Y},
+		frontend.Term{Variable: p1.X, Coeff: tmp},
 	}
 	res.Y = circuit.DIV(num, den)
 
@@ -133,25 +133,25 @@ func (p *Point) AddGeneric(circuit *frontend.CS, p1, p2 *Point, curve EdCurve) *
 	epsilon := circuit.MUL(p1.X, p2.X)
 	tau := circuit.MUL(delta, epsilon)
 	num := frontend.LinearCombination{
-		frontend.Term{Constraint: beta, Coeff: *one},
-		frontend.Term{Constraint: gamma, Coeff: *one},
+		frontend.Term{Variable: beta, Coeff: *one},
+		frontend.Term{Variable: gamma, Coeff: *one},
 	}
 	den := frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: *one},
-		frontend.Term{Constraint: tau, Coeff: curve.D},
+		frontend.Term{Variable: oneWire, Coeff: *one},
+		frontend.Term{Variable: tau, Coeff: curve.D},
 	}
 	res.X = circuit.DIV(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
 	num = frontend.LinearCombination{
-		frontend.Term{Constraint: delta, Coeff: *one},
-		frontend.Term{Constraint: epsilon, Coeff: minusa},
+		frontend.Term{Variable: delta, Coeff: *one},
+		frontend.Term{Variable: epsilon, Coeff: minusa},
 	}
 	var minusd big.Int
 	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
 	den = frontend.LinearCombination{
-		frontend.Term{Constraint: oneWire, Coeff: *one},
-		frontend.Term{Constraint: tau, Coeff: minusd},
+		frontend.Term{Variable: oneWire, Coeff: *one},
+		frontend.Term{Variable: tau, Coeff: minusd},
 	}
 	res.Y = circuit.DIV(num, den)
 

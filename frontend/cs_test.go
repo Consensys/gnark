@@ -325,8 +325,8 @@ func TestDIVLC(t *testing.T) {
 
 	two := backend.FromInterface(2)
 
-	l1 := LinearCombination{Term{Constraint: x, Coeff: two}}
-	l2 := LinearCombination{Term{Constraint: y, Coeff: two}}
+	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
+	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
 	circuit.DIV(l1, l2).Tag("res")
 
@@ -376,8 +376,8 @@ func TestMULLC(t *testing.T) {
 
 	two := backend.FromInterface(2)
 
-	l1 := LinearCombination{Term{Constraint: x, Coeff: two}}
-	l2 := LinearCombination{Term{Constraint: y, Coeff: two}}
+	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
+	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
 	circuit.MUL(l1, l2).Tag("res")
 

@@ -216,10 +216,10 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 
 	var left, right linearExpression
 	for _, t := range den {
-		left = append(left, term{Wire: t.Constraint.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		left = append(left, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
 	}
 	for _, t := range num {
-		right = append(right, term{Wire: t.Constraint.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		right = append(right, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
 	}
 
 	expression := &quadraticExpression{
@@ -235,10 +235,10 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 	var left, right linearExpression
 	for _, t := range l1 {
-		left = append(left, term{Wire: t.Constraint.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		left = append(left, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
 	}
 	for _, t := range l2 {
-		right = append(right, term{Wire: t.Constraint.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		right = append(right, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
 	}
 
 	expression := &quadraticExpression{
@@ -253,7 +253,7 @@ func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 func (cs *CS) mullcinterface(l LinearCombination, c interface{}) Variable {
 	var coeff big.Int
 	coeff.SetUint64(1)
-	right := LinearCombination{Term{Constraint: cs.ALLOCATE(c), Coeff: coeff}}
+	right := LinearCombination{Term{Variable: cs.ALLOCATE(c), Coeff: coeff}}
 	return cs.mullc(l, right)
 }
 

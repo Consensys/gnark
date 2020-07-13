@@ -108,29 +108,29 @@ func (p *G1Aff) AddAssign(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 	c1.SetInt64(1)
 	c2.SetInt64(-1)
 	l1 := frontend.LinearCombination{
-		frontend.Term{Constraint: p1.Y, Coeff: c1},
-		frontend.Term{Constraint: p.Y, Coeff: c2},
+		frontend.Term{Variable: p1.Y, Coeff: c1},
+		frontend.Term{Variable: p.Y, Coeff: c2},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.Term{Constraint: p1.X, Coeff: c1},
-		frontend.Term{Constraint: p.X, Coeff: c2},
+		frontend.Term{Variable: p1.X, Coeff: c1},
+		frontend.Term{Variable: p.X, Coeff: c2},
 	}
 	l := circuit.DIV(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.Term{Constraint: circuit.MUL(l, l), Coeff: c1},
-		frontend.Term{Constraint: p.X, Coeff: c2},
-		frontend.Term{Constraint: p1.X, Coeff: c2},
+		frontend.Term{Variable: circuit.MUL(l, l), Coeff: c1},
+		frontend.Term{Variable: p.X, Coeff: c2},
+		frontend.Term{Variable: p1.X, Coeff: c2},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := circuit.MUL(p.X, l)
 	t2 := circuit.MUL(l, _x)
 	l3 := frontend.LinearCombination{
-		frontend.Term{Constraint: t1, Coeff: c1},
-		frontend.Term{Constraint: t2, Coeff: c2},
-		frontend.Term{Constraint: p.Y, Coeff: c2},
+		frontend.Term{Variable: t1, Coeff: c1},
+		frontend.Term{Variable: t2, Coeff: c2},
+		frontend.Term{Variable: p.Y, Coeff: c2},
 	}
 	p.Y = circuit.MUL(l3, 1)
 
@@ -271,26 +271,26 @@ func (p *G1Aff) Double(circuit *frontend.CS, p1 *G1Aff) *G1Aff {
 	x2 := circuit.MUL(p1.X, p1.X)
 	circuit.MUL(p1.X, p1.X)
 	l1 := frontend.LinearCombination{
-		frontend.Term{Constraint: x2, Coeff: t},
+		frontend.Term{Variable: x2, Coeff: t},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.Term{Constraint: p1.Y, Coeff: d},
+		frontend.Term{Variable: p1.Y, Coeff: d},
 	}
 	l := circuit.DIV(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.Term{Constraint: circuit.MUL(l, l), Coeff: c1},
-		frontend.Term{Constraint: p1.X, Coeff: c2},
+		frontend.Term{Variable: circuit.MUL(l, l), Coeff: c1},
+		frontend.Term{Variable: p1.X, Coeff: c2},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := circuit.MUL(p1.X, l)
 	t2 := circuit.MUL(l, _x)
 	l3 := frontend.LinearCombination{
-		frontend.Term{Constraint: t1, Coeff: c1},
-		frontend.Term{Constraint: t2, Coeff: c3},
-		frontend.Term{Constraint: p1.Y, Coeff: c3},
+		frontend.Term{Variable: t1, Coeff: c1},
+		frontend.Term{Variable: t2, Coeff: c3},
+		frontend.Term{Variable: p1.Y, Coeff: c3},
 	}
 	p.Y = circuit.MUL(l3, 1)
 

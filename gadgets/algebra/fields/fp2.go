@@ -83,12 +83,12 @@ func (e *Fp2Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2
 
 	// 1C
 	l1 := frontend.LinearCombination{
-		frontend.Term{Constraint: e1.X, Coeff: one},
-		frontend.Term{Constraint: e1.Y, Coeff: one},
+		frontend.Term{Variable: e1.X, Coeff: one},
+		frontend.Term{Variable: e1.Y, Coeff: one},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.Term{Constraint: e2.X, Coeff: one},
-		frontend.Term{Constraint: e2.Y, Coeff: one},
+		frontend.Term{Variable: e2.X, Coeff: one},
+		frontend.Term{Variable: e2.Y, Coeff: one},
 	}
 	u := circuit.MUL(l1, l2)
 
@@ -98,16 +98,16 @@ func (e *Fp2Elmt) Mul(circuit *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2
 
 	// 1C
 	l3 := frontend.LinearCombination{
-		frontend.Term{Constraint: u, Coeff: one},
-		frontend.Term{Constraint: ac, Coeff: minusOne},
-		frontend.Term{Constraint: bd, Coeff: minusOne},
+		frontend.Term{Variable: u, Coeff: one},
+		frontend.Term{Variable: ac, Coeff: minusOne},
+		frontend.Term{Variable: bd, Coeff: minusOne},
 	}
 	e.Y = circuit.MUL(l3, 1)
 
 	// 1C
 	l4 := frontend.LinearCombination{
-		frontend.Term{Constraint: ac, Coeff: one},
-		frontend.Term{Constraint: bd, Coeff: backend.FromInterface(ext.uSquare)},
+		frontend.Term{Variable: ac, Coeff: one},
+		frontend.Term{Variable: bd, Coeff: backend.FromInterface(ext.uSquare)},
 	}
 	e.X = circuit.MUL(l4, 1)
 
