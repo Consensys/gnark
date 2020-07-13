@@ -90,11 +90,11 @@ func referenceCircuit() (backend_bw761.R1CS, map[string]interface{}, map[string]
 	name := "../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
 
 	good := make(map[string]interface{})
-	if err := gob.ReadMap(name+".good", good); err != nil {
+	if err := backend.ReadVariables(name+".good", good); err != nil {
 		panic(err)
 	}
 	bad := make(map[string]interface{})
-	if err := gob.ReadMap(name+".bad", bad); err != nil {
+	if err := backend.ReadVariables(name+".bad", bad); err != nil {
 		panic(err)
 	}
 

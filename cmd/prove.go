@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
@@ -114,7 +115,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	// parse input file
 	// TODO fix serialization here
 	r1csInput := make(map[string]interface{})
-	if err := gob.ReadMap(fInputPath, r1csInput); err != nil {
+	if err := backend.ReadVariables(fInputPath, r1csInput); err != nil {
 		fmt.Println("can't parse input", err)
 		os.Exit(-1)
 	}

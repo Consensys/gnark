@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
@@ -53,10 +54,10 @@ func TestIntegration(t *testing.T) {
 		buildTags := "debug"
 
 		// 2: input files to disk
-		if err := gob.WriteMap(fInputGood, good); err != nil {
+		if err := backend.WriteVariables(fInputGood, good); err != nil {
 			t.Fatal(err)
 		}
-		if err := gob.WriteMap(fInputBad, bad); err != nil {
+		if err := backend.WriteVariables(fInputBad, bad); err != nil {
 			t.Fatal(err)
 		}
 
@@ -110,7 +111,6 @@ func TestIntegration(t *testing.T) {
 		for _, curve := range curves {
 			// serialize to disk
 			fCircuit := filepath.Join(parentDir, name+".r1cs")
-			// TODO seems here we serialize frontend.R1CS to disk. why would we ever do that?
 			typedR1CS := circuit.R1CS.ToR1CS(curve)
 			if err := gob.Write(fCircuit, typedR1CS, curve); err != nil {
 				t.Fatal(err)

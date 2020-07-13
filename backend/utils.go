@@ -15,9 +15,15 @@
 package backend
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
 	"math/big"
+	"os"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 type toBigIntInterface interface {
@@ -32,6 +38,10 @@ func FromInterface(i1 interface{}) big.Int {
 	var val big.Int
 
 	switch c1 := i1.(type) {
+	case big.Int:
+		val = c1
+	case *big.Int:
+		val.Set(c1)
 	case uint64:
 		val.SetUint64(c1)
 	case int:
@@ -42,10 +52,6 @@ func FromInterface(i1 interface{}) big.Int {
 		if _, ok := val.SetString(c1, 10); !ok {
 			panic("unable to set big.Int from base10 string")
 		}
-	case big.Int:
-		val = c1
-	case *big.Int:
-		val.Set(c1)
 	case []byte:
 		val.SetBytes(c1)
 	default:
@@ -65,4 +71,81 @@ func FromInterface(i1 interface{}) big.Int {
 	}
 
 	return val
+}
+
+// Write serialize object into file
+// map[string]interface{} --> interface must be convertible to big.Int
+// using backend.FromInterface()
+func WriteVariables(path string, from map[string]interface{}) error {
+	// create file
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return serializeVariables(f, from)
+}
+
+// Read read and deserialize input into object
+// returned object will contain map[string]interface{}
+// keys being variable names and interface{} being big.Int
+func ReadVariables(path string, into map[string]interface{}) error {
+	// open file
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return deserializeVariables(f, into)
+}
+
+func serializeVariables(writer io.Writer, from map[string]interface{}) error {
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "    ")
+
+	toWrite := make(map[string]string)
+	for k, v := range from {
+		b := FromInterface(v)
+		toWrite[k] = "0x" + hex.EncodeToString(b.Bytes())
+	}
+
+	// encode our object
+	if err := encoder.Encode(toWrite); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deserializeVariables(reader io.Reader, into map[string]interface{}) error {
+	decoder := json.NewDecoder(reader)
+
+	toRead := make(map[string]string)
+
+	if err := decoder.Decode(&toRead); err != nil {
+		return err
+	}
+
+	for k, v := range toRead {
+		if strings.HasPrefix(v, "0x") {
+			bytes, err := hex.DecodeString(v[2:])
+			if err != nil {
+				return err
+			}
+			b := new(big.Int).SetBytes(bytes)
+			into[k] = *b
+		} else {
+			// decimal user input
+			b, ok := new(big.Int).SetString(v, 10)
+			if !ok {
+				return errors.New("could read base10 input " + v)
+			}
+			into[k] = *b
+		}
+
+	}
+
+	return nil
 }

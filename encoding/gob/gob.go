@@ -21,10 +21,8 @@ import (
 	"encoding/gob"
 	"errors"
 	"io"
-	"math/big"
 	"os"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gurvy"
 )
 
@@ -135,83 +133,6 @@ func Deserialize(f io.Reader, into interface{}, expectedCurveID gurvy.ID) error 
 
 	if err = decoder.Decode(into); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// Write serialize object into file
-// uses gob + gzip
-func WriteMap(path string, from map[string]interface{}) error {
-	// create file
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return SerializeMap(f, from)
-}
-
-// Read read and deserialize input into object
-// provided interface must be a pointer
-// uses gob + gzip
-func ReadMap(path string, into map[string]interface{}) error {
-	// open file
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return DeserializeMap(f, into)
-}
-
-func SerializeMap(f io.Writer, from map[string]interface{}) error {
-	// create a gzip writer
-	writer := gzip.NewWriter(f)
-	defer writer.Close()
-
-	// gzip writer
-	encoder := gob.NewEncoder(writer)
-
-	// convert our object from map[string]interface{} to string string
-	// TODO that's very dirty and temporary
-
-	toWrite := make(map[string][]byte)
-	for k, v := range from {
-		b := backend.FromInterface(v)
-		toWrite[k] = b.Bytes()
-	}
-
-	// encode our object
-	if err := encoder.Encode(toWrite); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func DeserializeMap(f io.Reader, into map[string]interface{}) error {
-	// create a gzip reader from the opened file
-	reader, err := gzip.NewReader(f)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-
-	// gzip reader
-	decoder := gob.NewDecoder(reader)
-
-	toRead := make(map[string][]byte)
-
-	if err = decoder.Decode(&toRead); err != nil {
-		return err
-	}
-
-	for k, v := range toRead {
-		b := new(big.Int).SetBytes(v)
-		into[k] = *b
 	}
 
 	return nil
