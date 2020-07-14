@@ -106,21 +106,21 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 
 		}
 	case reflect.Map:
-		// TODO untested
-		if tInput.Len() == 0 {
-			fmt.Println("warning, got unitizalized map. Ignoring;")
-			return nil
-		}
-		iter := tInput.MapRange()
-
-		for iter.Next() {
-			val := iter.Value()
-			if val.CanAddr() && val.Addr().CanInterface() {
-				if err := parseType(val.Addr().Interface(), appendName(baseName, iter.Key().String()), parentVisibility, handler); err != nil {
-					return err
-				}
-			}
-		}
+		// TODO we don't support maps for now.
+		fmt.Println("warning: map values are not addressable, ignoring")
+		// if tInput.Len() == 0 {
+		// 	fmt.Println("warning, got unitizalized map. Ignoring;")
+		// 	return nil
+		// }
+		// iter := tInput.MapRange()
+		// for iter.Next() {
+		// 	val := iter.Value()
+		// 	if val.CanAddr() && val.Addr().CanInterface() {
+		// 		if err := parseType(val.Addr().Interface(), appendName(baseName, iter.Key().String()), parentVisibility, handler); err != nil {
+		// 			return err
+		// 		}
+		// 	}
+		// }
 
 	}
 
