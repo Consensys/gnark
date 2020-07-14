@@ -5,6 +5,7 @@ jobs:
       - image: circleci/golang:latest
     steps:
       - checkout
+      - run: mkdir -p  /tmp/test-results
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -13,7 +14,9 @@ jobs:
       - run: go test -v ./cmd/ -run=VersionIsGenerated # ensure version is generated
       - run: go get golang.org/x/tools/cmd/goimports
       - run: go generate ./...
-      - run: go test -v -short -tags debug ./...
+      - run: gotestsum --junitfile  /tmp/test-results/results.xml -- ./... -short -v -tags debug
+      - store_test_results:
+          path: /tmp/test-results
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
