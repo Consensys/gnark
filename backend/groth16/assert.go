@@ -28,7 +28,7 @@ func NewAssert(t *testing.T) *Assert {
 // a map[string]interface{}
 func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
-	pk, _ := Setup(r1cs)
+	pk := DummySetup(r1cs)
 
 	var solution map[string]interface{}
 

@@ -24,6 +24,8 @@ tasks.txt
 *.r1cs
 *.log
 
+**/benchmark 
+
 # generated files during integratrion tests
 integratrion_test/**
 

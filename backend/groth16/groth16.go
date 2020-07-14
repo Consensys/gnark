@@ -103,6 +103,31 @@ func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey) {
 	}
 }
 
+// DummySetup create a random ProvingKey with provided R1CS
+// it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
+func DummySetup(r1cs r1cs.R1CS) ProvingKey {
+	switch _r1cs := r1cs.(type) {
+	case *backend_bls377.R1CS:
+		var pk groth16_bls377.ProvingKey
+		groth16_bls377.DummySetup(_r1cs, &pk)
+		return &pk
+	case *backend_bls381.R1CS:
+		var pk groth16_bls381.ProvingKey
+		groth16_bls381.DummySetup(_r1cs, &pk)
+		return &pk
+	case *backend_bn256.R1CS:
+		var pk groth16_bn256.ProvingKey
+		groth16_bn256.DummySetup(_r1cs, &pk)
+		return &pk
+	case *backend_bw761.R1CS:
+		var pk groth16_bw761.ProvingKey
+		groth16_bw761.DummySetup(_r1cs, &pk)
+		return &pk
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
 // ReadProvingKey ...
 // TODO likely temporary method, need a clean up pass on serialization things
 func ReadProvingKey(path string) (ProvingKey, error) {

@@ -113,6 +113,52 @@ func Setup(r1cs *backend_bls381.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 
 }
 
+// DummySetup fills a random ProvingKey
+// used for test or benchmarking purposes
+func DummySetup(r1cs *backend_bls381.R1CS, pk *ProvingKey) {
+	// get R1CS nb constraints, wires and public/private inputs
+	nbWires := r1cs.NbWires
+	nbConstraints := r1cs.NbConstraints
+
+	// Setting group for fft
+	gateGroup := backend_bls381.NewDomain(root, backend_bls381.MaxOrder, nbConstraints)
+
+	// initialize proving key
+	pk.G1.A = make([]curve.G1Affine, nbWires)
+	pk.G1.B = make([]curve.G1Affine, nbWires)
+	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
+	pk.G1.Z = make([]curve.G1Affine, gateGroup.Cardinality)
+	pk.G2.B = make([]curve.G2Affine, nbWires)
+
+	// samples toxic waste
+	tw := sampleToxicWaste()
+
+	c := curve.BLS381()
+	var r1Jac curve.G1Jac
+	var r1Aff curve.G1Affine
+	r1Jac.ScalarMulByGen(c, tw.alphaReg).ToAffineFromJac(&r1Aff)
+	var r2Jac curve.G2Jac
+	var r2Aff curve.G2Affine
+	r2Jac.ScalarMulByGen(c, tw.alphaReg).ToAffineFromJac(&r2Aff)
+	for i := 0; i < nbWires; i++ {
+		pk.G1.A[i] = r1Aff
+		pk.G1.B[i] = r1Aff
+		pk.G2.B[i] = r2Aff
+	}
+	for i := 0; i < len(pk.G1.Z); i++ {
+		pk.G1.Z[i] = r1Aff
+	}
+	for i := 0; i < len(pk.G1.K); i++ {
+		pk.G1.K[i] = r1Aff
+	}
+	pk.G1.Alpha = r1Aff
+	pk.G1.Beta = r1Aff
+	pk.G1.Delta = r1Aff
+	pk.G2.Beta = r2Aff
+	pk.G2.Delta = r2Aff
+
+}
+
 // toxicWaste toxic waste
 type toxicWaste struct {
 

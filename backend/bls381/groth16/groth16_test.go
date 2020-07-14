@@ -21,9 +21,9 @@ import (
 	"github.com/consensys/gurvy/bls381/fr"
 
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
+	"github.com/consensys/gnark/backend/r1cs"
 
 	"runtime/debug"
-	"strings"
 	"testing"
 
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
@@ -31,7 +31,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/encoding/gob"
 )
 
 func TestCircuits(t *testing.T) {
@@ -85,26 +84,15 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (backend_bls381.R1CS, map[string]interface{}, map[string]interface{}) {
-
-	name := "../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
-
-	good := make(map[string]interface{})
-	if err := backend.ReadVariables(name+".good", good); err != nil {
-		panic(err)
-	}
-	bad := make(map[string]interface{})
-	if err := backend.ReadVariables(name+".bad", bad); err != nil {
-		panic(err)
+func referenceCircuit() (r1cs.R1CS, map[string]interface{}, map[string]interface{}) {
+	for name, circuit := range circuits.Circuits {
+		if name == "reference_large" {
+			r1cs := circuit.R1CS.ToR1CS(curve.ID)
+			return r1cs, circuit.Good, circuit.Bad
+		}
 	}
 
-	var r1cs backend_bls381.R1CS
-
-	if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
-		panic(err)
-	}
-
-	return r1cs, good, bad
+	panic("reference circuit is not defined")
 }
 
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit
@@ -117,7 +105,7 @@ func BenchmarkSetup(b *testing.B) {
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			groth16_bls381.Setup(&r1cs, &pk, &vk)
+			groth16_bls381.Setup(r1cs.(*backend_bls381.R1CS), &pk, &vk)
 		}
 	})
 }
@@ -128,13 +116,12 @@ func BenchmarkProver(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	var pk groth16_bls381.ProvingKey
-	var vk groth16_bls381.VerifyingKey
-	groth16_bls381.Setup(&r1cs, &pk, &vk)
+	groth16_bls381.DummySetup(r1cs.(*backend_bls381.R1CS), &pk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16_bls381.Prove(&r1cs, &pk, solution)
+			_, _ = groth16_bls381.Prove(r1cs.(*backend_bls381.R1CS), &pk, solution)
 		}
 	})
 }
@@ -147,8 +134,8 @@ func BenchmarkVerifier(b *testing.B) {
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	var pk groth16_bls381.ProvingKey
 	var vk groth16_bls381.VerifyingKey
-	groth16_bls381.Setup(&r1cs, &pk, &vk)
-	proof, err := groth16_bls381.Prove(&r1cs, &pk, solution)
+	groth16_bls381.Setup(r1cs.(*backend_bls381.R1CS), &pk, &vk)
+	proof, err := groth16_bls381.Prove(r1cs.(*backend_bls381.R1CS), &pk, solution)
 	if err != nil {
 		panic(err)
 	}

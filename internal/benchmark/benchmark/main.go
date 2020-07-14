@@ -17,7 +17,7 @@ import (
 
 const benchCount = 1
 
-var nbConstraints = []int{1000, 10000, 40000} //, 100000, 1000000, 10000000}
+var nbConstraints = []int{100000, 1000000, 10000000}
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
@@ -93,7 +93,6 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 
 	// ---------------------------------------------------------------------------------------------
 	//  setup
-	pk, _ := groth16.Setup(r1cs)
-
+	pk := groth16.DummySetup(r1cs)
 	return pk, r1cs, solution
 }

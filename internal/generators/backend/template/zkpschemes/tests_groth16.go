@@ -86,30 +86,15 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (backend_{{toLower .Curve}}.R1CS, map[string]interface{}, map[string]interface{}) {
-	{{if eq .Curve "GENERIC"}}
-		name := "./testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
-	{{else}}
-		name := "../../../../backend/groth16/testdata/" + strings.ToLower(curve.ID.String()) + "/reference_large"
-	{{end}}
-	
-	good := make(map[string]interface{})
-	if err := backend.ReadVariables(name + ".good", good); err != nil {
-		panic(err)
-	}
-	bad := make(map[string]interface{})
-	if err := backend.ReadVariables(name + ".bad", bad); err != nil {
-		panic(err)
+func referenceCircuit() (r1cs.R1CS, map[string]interface{}, map[string]interface{}) {
+	for name, circuit := range circuits.Circuits {
+		if name == "reference_large" {
+			r1cs := circuit.R1CS.ToR1CS(curve.ID)
+			return r1cs, circuit.Good, circuit.Bad
+		}
 	}
 
-
-	var r1cs backend_{{toLower .Curve}}.R1CS
-
-	if err := gob.Read(name+".r1cs", &r1cs, curve.ID); err != nil {
-		panic(err)
-	}
-
-	return r1cs, good, bad
+	panic("reference circuit is not defined")
 }
 
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit
@@ -122,7 +107,7 @@ func BenchmarkSetup(b *testing.B) {
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
+			groth16_{{toLower .Curve}}.Setup(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk, &vk)
 		}
 	})
 }
@@ -133,13 +118,12 @@ func BenchmarkProver(b *testing.B) {
 	r1cs, solution, _ := referenceCircuit()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	var pk groth16_{{toLower .Curve}}.ProvingKey
-	var vk groth16_{{toLower .Curve}}.VerifyingKey
-	groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
+	groth16_{{toLower .Curve}}.DummySetup(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16_{{toLower .Curve}}.Prove(&r1cs, &pk, solution)
+			_, _ = groth16_{{toLower .Curve}}.Prove(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk, solution)
 		}
 	})
 }
@@ -152,8 +136,8 @@ func BenchmarkVerifier(b *testing.B) {
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	var pk groth16_{{toLower .Curve}}.ProvingKey
 	var vk groth16_{{toLower .Curve}}.VerifyingKey
-	groth16_{{toLower .Curve}}.Setup(&r1cs, &pk, &vk)
-	proof, err := groth16_{{toLower .Curve}}.Prove(&r1cs, &pk, solution)
+	groth16_{{toLower .Curve}}.Setup(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk, &vk)
+	proof, err := groth16_{{toLower .Curve}}.Prove(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk, solution)
 	if err != nil {
 		panic(err)
 	}
