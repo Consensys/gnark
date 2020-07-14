@@ -18,6 +18,7 @@ src="banner_gnark.png">
 - [x] BLS377
 - [x] BLS381
 - [x] BN256
+- [x] BW761
 
 ## Getting started
 
@@ -53,11 +54,14 @@ To install for use as a Go package:
 4. Run `gnark prove circuit.r1cs --pk circuit.pk --input input`to generate a proof
 5. Run `gnark verify circuit.proof --vk circuit.vk --input input.public` to verify a proof
 
-Note that, currently, the input file has a simple csv-like format:
-```csv
-secret, x, 3
-public, y, 35
+Note that, currently (and it may change), the input file has a the following JSON format:
+```json
+{
+	"x":"3",
+	"y":"0xdeff12"
+}
 ```
+
 
 Using the `gnark` CLI tool is **optional**. Developers may expose circuits through gRPC or REST APIs, export to Solidity, chose their serialization formats, etc. This is ongoing work on our side, but new feature suggestions or PR are welcome.
 
@@ -69,24 +73,84 @@ Run `gnark --help` for a list of available commands.
 
 #### /examples/cubic_equation
 
-```golang
-// x**3 + x + 5  y
-func main() {
-	// create root constraint system
-	circuit := cs.New()
+1. To define a circuit, one must implement the `frontend.Circuit` interface:
 
-	// declare secret and public inputs
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+```golang 
+// Circuit must be implemented by user-defined circuits
+type Circuit interface {
+	// Define declares the circuit's constraints
+	Define(ctx *Context, cs *CS) error
 
-	// specify constraints
-	x3 := circuit.MUL(x, x, x)
-	circuit.MUSTBE_EQ(y, circuit.ADD(x3, x, 5))
-
-	circuit.Write("circuit.r1cs")
+	// PostInit is called by frontend.Compile() after the automatic initialization of Variable
+	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints, ...)
+	PostInit(ctx *Context) error
 }
 ```
 
+2. Here is what `x**3 + x + 5 = y` looks like
+
+```golang
+type CubicCircuit struct {
+	// tagging a variable is optional
+	// default uses variable name and secret visibility.
+	X frontend.Variable `gnark:"x"`
+	Y frontend.Variable `gnark:"y, public"`
+}
+
+func (circuit *CubicCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+	//  x**3 + x + 5 == y
+	x3 := cs.MUL(circuit.X, circuit.X, circuit.X)
+	cs.MUSTBE_EQ(circuit.Y, cs.ADD(x3, circuit.X, 5))
+
+	// we can tag a variable for testing and / or debugging purposes, it has no impact on performances
+	x3.Tag("x^3")
+
+	return nil
+}
+```
+
+3. The circuit is then compiled (into a R1CS)
+
+```golang
+var cubicCircuit CubicCircuit
+// init context
+ctx := frontend.NewContext(gurvy.BN256)
+// add key values to context, usable by circuit and all components
+// ex: ctx.Set(rho, new(big.Int).Set("..."))
+
+// compiles our circuit into a R1CS
+r1cs, err := frontend.Compile(ctx, &cubicCircuit)
+```
+
+Note that in most cases, the user don't need to *allocate* inputs (here X, Y) and it's done by the `frontend.Compile()` method using the struct tags attributes, similarly to `json` or `xml` encoders in Golang. 
+
+4. The circuit can be tested like so:
+```golang
+{
+	cubicCircuit.X.Assign(42)
+	cubicCircuit.Y.Assign(42)
+
+	assert.NotSolved(r1cs, &cubicCircuit)
+}
+
+{
+	cubicCircuit.X.Assign(3)
+	cubicCircuit.Y.Assign(35)
+	expectedValues := make(map[string]interface{})
+	expectedValues["x^3"] = 27
+	expectedValues["x"] = 3
+	assert.Solved(r1cs, &cubicCircuit, expectedValues)
+}
+```
+
+5. The APIs to call Groth16 algorithms:
+```golang
+pk, vk := groth16.Setup(r1cs)
+proof, err := groth16.Prove(r1cs, pk, solution)
+err := groth16.Verify(proof, vk, solution)
+```
+
+6. Using the CLI
 ```
 cd examples/cubic_equation
 go run cubic.go
@@ -94,7 +158,6 @@ gnark setup circuit.r1cs
 gnark prove circuit.r1cs --pk circuit.pk --input input
 gnark verify circuit.proof --vk circuit.vk --input input.public
 ```
-
 
 
 ### API vs DSL
@@ -120,6 +183,7 @@ Currently gnark provides the following gadgets:
 * Merkle tree (binary, without domain separation)
 * Twisted Edwards curve arithmetic (for bn256 and bls381)
 * Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
+* Groth16 verifier (1 layer recursive SNARK with BW761)
 
 ## Benchmarks
 
