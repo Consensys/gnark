@@ -25,7 +25,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils/debug"
 	"github.com/consensys/gnark/internal/utils/parallel"
 )
@@ -50,7 +49,7 @@ func init() {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
+func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	proof := &Proof{}
 
 	// fft domain (computeH)
@@ -129,6 +128,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		scalars = append(scalars, r.ToRegular(), _s, _r)
 		<-chToken
 		chAsync := Krs.MultiExp(curve.BN256(), points, scalars)
+		chToken <- struct{}{}
 		<-chAsync
 		Krs.ToAffineFromJac(&KrsAffine)
 

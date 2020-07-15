@@ -19,39 +19,34 @@ package twistededwards
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestIsOnCurve(t *testing.T) {
-
+	assert := groth16.NewAssert(t)
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
-
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// set the Snark point
-	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+	pointSnark := NewPoint(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
-	pointSnark.MustBeOnCurveGadget(&circuit, edgadget)
+	pointSnark.MustBeOnCurve(&circuit, params)
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x", edgadget.BaseX)
-	inputs.Assign(backend.Secret, "y", edgadget.BaseY)
+	inputs := make(map[string]interface{})
+	inputs["x"] = params.BaseX
+	inputs["y"] = params.BaseY
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, nil)
+	assert.CorrectExecution(r1csbn256, inputs, nil)
 
 }
 
@@ -59,191 +54,176 @@ func TestAdd(t *testing.T) {
 
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// set the Snark point
-	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+	pointSnark := NewPoint(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
 	// add points in circuit (the method updates the underlying plain points as well)
-	resPointSnark := pointSnark.AddFixedPoint(&circuit, &pointSnark, edgadget.BaseX, edgadget.BaseY, edgadget)
+	resPointSnark := pointSnark.AddFixedPoint(&circuit, &pointSnark, params.BaseX, params.BaseY, params)
 	resPointSnark.X.Tag("xg")
 	resPointSnark.Y.Tag("yg")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x", "15132049151119024294202596478829150741889300374007672163496852915064138587014")
-	inputs.Assign(backend.Secret, "y", "11523897191511824241384532572407048303306774918928882376450136656947192273193")
+	inputs := make(map[string]interface{})
+	inputs["x"] = "15132049151119024294202596478829150741889300374007672163496852915064138587014"
+	inputs["y"] = "11523897191511824241384532572407048303306774918928882376450136656947192273193"
 
-	expectedValues := make(map[string]fr_bn256.Element)
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	expectedv.SetString("18072205942244039714668938595243139985382136665954711533267729308917439031819")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues := make(map[string]interface{})
+	expectedValues["xg"] = "4966531224162673480738068143298314346828081427171102366578720605707900725483"
+	expectedValues["yg"] = "18072205942244039714668938595243139985382136665954711533267729308917439031819"
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestAddGeneric(t *testing.T) {
 
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
 	// get edwards curve gadget
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// set the Snark points
-	pointSnark1 := NewPointGadget(&circuit, circuit.SECRET_INPUT("x1"), circuit.SECRET_INPUT("y1"))
-	pointSnark2 := NewPointGadget(&circuit, circuit.SECRET_INPUT("x2"), circuit.SECRET_INPUT("y2"))
+	pointSnark1 := NewPoint(&circuit, circuit.SECRET_INPUT("x1"), circuit.SECRET_INPUT("y1"))
+	pointSnark2 := NewPoint(&circuit, circuit.SECRET_INPUT("x2"), circuit.SECRET_INPUT("y2"))
 
 	// add points in circuit (the method updates the underlying plain points as well)
-	pointSnark1.AddGeneric(&circuit, &pointSnark1, &pointSnark2, edgadget)
+	pointSnark1.AddGeneric(&circuit, &pointSnark1, &pointSnark2, params)
 	pointSnark1.X.Tag("xg")
 	pointSnark1.Y.Tag("yg")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x1", "5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	inputs.Assign(backend.Secret, "y1", "16950150798460657717958625567821834550301663161624707787222815936182638968203")
-	inputs.Assign(backend.Secret, "x2", "15132049151119024294202596478829150741889300374007672163496852915064138587014")
-	inputs.Assign(backend.Secret, "y2", "11523897191511824241384532572407048303306774918928882376450136656947192273193")
+	inputs := make(map[string]interface{})
+	inputs["x1"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
+	inputs["y1"] = "16950150798460657717958625567821834550301663161624707787222815936182638968203"
+	inputs["x2"] = "15132049151119024294202596478829150741889300374007672163496852915064138587014"
+	inputs["y2"] = "11523897191511824241384532572407048303306774918928882376450136656947192273193"
 
-	expectedValues := make(map[string]fr_bn256.Element)
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	expectedv.SetString("18072205942244039714668938595243139985382136665954711533267729308917439031819")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues := make(map[string]interface{})
+	expectedValues["xg"] = "4966531224162673480738068143298314346828081427171102366578720605707900725483"
+	expectedValues["yg"] = "18072205942244039714668938595243139985382136665954711533267729308917439031819"
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestDouble(t *testing.T) {
 
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
-	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+	pointSnark := NewPoint(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// add points in circuit (the method updates the underlying plain points as well)
-	pointSnark.Double(&circuit, &pointSnark, edgadget)
+	pointSnark.Double(&circuit, &pointSnark, params)
 	pointSnark.X.Tag("xg")
 	pointSnark.Y.Tag("yg")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x", "5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	inputs.Assign(backend.Secret, "y", "16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	inputs := make(map[string]interface{})
+	inputs["x"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
+	inputs["y"] = "16950150798460657717958625567821834550301663161624707787222815936182638968203"
 
-	expectedValues := make(map[string]fr_bn256.Element)
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10031262171927540148667355526369034398030886437092045105752248699557385197826")
-	expectedv.SetString("633281375905621697187330766174974863687049529291089048651929454608812697683")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues := make(map[string]interface{})
+	expectedValues["xg"] = "10031262171927540148667355526369034398030886437092045105752248699557385197826"
+	expectedValues["yg"] = "633281375905621697187330766174974863687049529291089048651929454608812697683"
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestScalarMulFixedBase(t *testing.T) {
 
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// set point in the circuit
-	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+	pointSnark := NewPoint(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
 	// set scalar
 	scalar := circuit.ALLOCATE("28242048")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x", "5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	inputs.Assign(backend.Secret, "y", "16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	inputs := make(map[string]interface{})
+	inputs["x"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
+	inputs["y"] = "16950150798460657717958625567821834550301663161624707787222815936182638968203"
 
 	// add points in circuit (the method updates the underlying plain points as well)
-	pointSnark.ScalarMulFixedBase(&circuit, edgadget.BaseX, edgadget.BaseY, scalar, edgadget)
+	pointSnark.ScalarMulFixedBase(&circuit, params.BaseX, params.BaseY, scalar, params)
 	pointSnark.X.Tag("xg")
 	pointSnark.Y.Tag("yg")
 
-	expectedValues := make(map[string]fr_bn256.Element)
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	expectedv.SetString("7969140283216448215269095418467361784159407896899334866715345504515077887397")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues := make(map[string]interface{})
+	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"
+	expectedValues["yg"] = "7969140283216448215269095418467361784159407896899334866715345504515077887397"
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }
 
 func TestScalarMulNonFixedBase(t *testing.T) {
 
 	circuit := frontend.New()
 
-	assertbn256 := groth16_bn256.NewAssert(t)
+	assertbn256 := groth16.NewAssert(t)
 
 	// set curve parameters
-	edgadget, err := NewEdCurveGadget(gurvy.BN256)
+	params, err := NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// set point in the circuit
-	pointSnark := NewPointGadget(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
+	pointSnark := NewPoint(&circuit, circuit.SECRET_INPUT("x"), circuit.SECRET_INPUT("y"))
 
 	// set scalar
 	scalar := circuit.ALLOCATE("28242048")
 
-	inputs := backend.NewAssignment()
-	inputs.Assign(backend.Secret, "x", "5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	inputs.Assign(backend.Secret, "y", "16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	inputs := make(map[string]interface{})
+	inputs["x"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
+	inputs["y"] = "16950150798460657717958625567821834550301663161624707787222815936182638968203"
 
 	// add points in circuit (the method updates the underlying plain points as well)
-	pointSnark.ScalarMulNonFixedBase(&circuit, &pointSnark, scalar, edgadget)
+	pointSnark.ScalarMulNonFixedBase(&circuit, &pointSnark, scalar, params)
 	pointSnark.X.Tag("xg")
 	pointSnark.Y.Tag("yg")
 
-	expectedValues := make(map[string]fr_bn256.Element)
-	var expectedu, expectedv fr_bn256.Element
-	expectedu.SetString("10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	expectedv.SetString("7969140283216448215269095418467361784159407896899334866715345504515077887397")
-	expectedValues["xg"] = expectedu
-	expectedValues["yg"] = expectedv
+	expectedValues := make(map[string]interface{})
+	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"
+	expectedValues["yg"] = "7969140283216448215269095418467361784159407896899334866715345504515077887397"
 
 	// creates r1cs
-	r1csbn256 := backend_bn256.New(&circuit)
+	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assertbn256.CorrectExecution(&r1csbn256, inputs, expectedValues)
+	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 }

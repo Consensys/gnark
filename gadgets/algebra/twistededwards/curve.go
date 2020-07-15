@@ -26,38 +26,38 @@ import (
 	edbn256 "github.com/consensys/gurvy/bn256/twistededwards"
 )
 
-// EdCurveGadget stores the info on the chosen edwards curve
-type EdCurveGadget struct {
+// EdCurve stores the info on the chosen edwards curve
+type EdCurve struct {
 	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
 	ID                                           gurvy.ID
 }
 
-var newTwistedEdwards map[gurvy.ID]func() EdCurveGadget
+var newTwistedEdwards map[gurvy.ID]func() EdCurve
 
 func init() {
-	newTwistedEdwards = make(map[gurvy.ID]func() EdCurveGadget)
+	newTwistedEdwards = make(map[gurvy.ID]func() EdCurve)
 	newTwistedEdwards[gurvy.BLS381] = newEdBLS381
 	newTwistedEdwards[gurvy.BN256] = newEdBN256
 }
 
-// NewEdCurveGadget returns an Edwards curve parameters
-func NewEdCurveGadget(id gurvy.ID) (EdCurveGadget, error) {
+// NewEdCurve returns an Edwards curve parameters
+func NewEdCurve(id gurvy.ID) (EdCurve, error) {
 	if constructor, ok := newTwistedEdwards[id]; ok {
 		return constructor(), nil
 	}
-	return EdCurveGadget{}, gadgets.ErrUnknownCurve
+	return EdCurve{}, gadgets.ErrUnknownCurve
 }
 
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newEdBN256() EdCurveGadget {
+func newEdBN256() EdCurve {
 
 	edcurve := edbn256.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
-	res := EdCurveGadget{
+	res := EdCurve{
 		A:        backend.FromInterface(edcurve.A),
 		D:        backend.FromInterface(edcurve.D),
 		Cofactor: backend.FromInterface(cofactorReg),
@@ -73,13 +73,13 @@ func newEdBN256() EdCurveGadget {
 
 }
 
-func newEdBLS381() EdCurveGadget {
+func newEdBLS381() EdCurve {
 
 	edcurve := edbls381.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
-	res := EdCurveGadget{
+	res := EdCurve{
 		A:        backend.FromInterface(edcurve.A),
 		D:        backend.FromInterface(edcurve.D),
 		Cofactor: backend.FromInterface(cofactorReg),

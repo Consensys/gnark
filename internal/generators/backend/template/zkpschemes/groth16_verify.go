@@ -6,11 +6,13 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	"github.com/consensys/gnark/backend"
+	"errors"
 )
 
+var errPairingCheckFailed = errors.New("pairing doesn't match")
 
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, error) {
+func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
 
 	c := {{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}
 
@@ -31,9 +33,9 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, e
 		chan2 <- true
 	}()
 
-	kInputs, err := parsePublicInput(vk.PublicInputs, inputs)
+	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
-		return false, err
+		return err
 	}
 	<-kSum.MultiExp(c, vk.G1.K, kInputs)
 
@@ -46,16 +48,17 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs backend.Assignments) (bool, e
 	<-chan1
 	<-chan2
 	right := c.FinalExponentiation(&eKrsδ, &eArBs, &eKvkγ)
-	return vk.E.Equal(&right), nil
+	if !vk.E.Equal(&right) {
+		return errPairingCheckFailed
+	}
+	return nil
 }
 
-// parsePublicInput return the ordered public input values
-// in regular form (used as scalars for multi exponentiation)
-func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.Element, error) {
+// ParsePublicInput return the ordered public input values
+// in regular form (used as scalars for multi exponentiation).
+// The function is public because it's needed for the recursive snark.
+func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]fr.Element, error) {
 	toReturn := make([]fr.Element, len(expectedNames))
-
-	// ensure we don't assign private inputs
-	publicInput := input.DiscardSecrets()
 
 	for i := 0; i < len(expectedNames); i++ {
 		if expectedNames[i] == backend.OneWire {
@@ -63,8 +66,10 @@ func parsePublicInput(expectedNames []string, input backend.Assignments) ([]fr.E
 			toReturn[i].SetOne()
 			toReturn[i].FromMont()
 		} else {
-			if val, ok := publicInput[expectedNames[i]]; ok {
-				toReturn[i].SetBigInt(&val.Value).FromMont()
+			if val, ok := input[expectedNames[i]]; ok {
+				// TODO : note, similarly to r1cs.Solve() this need a "fast statically typed path"
+				toReturn[i] = fr.FromInterface(val)
+				toReturn[i].FromMont() 
 			} else {
 				return nil, backend.ErrInputNotSet
 			}

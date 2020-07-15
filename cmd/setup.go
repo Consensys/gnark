@@ -22,15 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	backend_bls377 "github.com/consensys/gnark/backend/bls377"
-	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
-	backend_bls381 "github.com/consensys/gnark/backend/bls381"
-	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
 
@@ -87,87 +81,28 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	// TODO clean that up with interfaces and type casts
-	var bigIntR1cs frontend.R1CS
-	switch curveID {
-	case gurvy.BLS377:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bls377.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bls377.ProvingKey
-		var vk groth16_bls377.VerifyingKey
-		start := time.Now()
-		groth16_bls377.Setup(&r1cs, &pk, &vk)
-		duration := time.Since(start)
-		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 
-		if err := gob.Write(vkPath, &vk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
-		if err := gob.Write(pkPath, &pk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
-	case gurvy.BLS381:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bls381.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bls381.ProvingKey
-		var vk groth16_bls381.VerifyingKey
-		start := time.Now()
-		groth16_bls381.Setup(&r1cs, &pk, &vk)
-		duration := time.Since(start)
-		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
-
-		if err := gob.Write(vkPath, &vk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
-		if err := gob.Write(pkPath, &pk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
-	case gurvy.BN256:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bn256.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bn256.ProvingKey
-		var vk groth16_bn256.VerifyingKey
-		start := time.Now()
-		groth16_bn256.Setup(&r1cs, &pk, &vk)
-		duration := time.Since(start)
-		fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
-
-		if err := gob.Write(vkPath, &vk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
-		if err := gob.Write(pkPath, &pk, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
-	default:
-		fmt.Println("error:", errUnknownCurve)
+	r1cs, err := r1cs.Read(circuitPath)
+	if err != nil {
+		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
+
+	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.GetNbConstraints())
+	start := time.Now()
+	pk, vk := groth16.Setup(r1cs)
+	duration := time.Since(start)
+	fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
+
+	if err := gob.Write(vkPath, vk, curveID); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(-1)
+	}
+	fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
+	if err := gob.Write(pkPath, pk, curveID); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(-1)
+	}
+	fmt.Printf("%-30s %s\n", "generated proving key", pkPath)
 
 }

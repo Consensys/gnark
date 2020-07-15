@@ -19,20 +19,18 @@ package eddsa
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	mimc_bn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
 	"github.com/consensys/gnark/frontend"
-	twistededwards_gadget "github.com/consensys/gnark/gadgets/algebra/twistededwards"
+	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gurvy"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
-func TestEddsaGadget(t *testing.T) {
+func TestEddsa(t *testing.T) {
 
-	assert := groth16_bn256.NewAssert(t)
+	assert := groth16.NewAssert(t)
 
 	var seed [32]byte
 	s := []byte("eddsa")
@@ -61,18 +59,18 @@ func TestEddsaGadget(t *testing.T) {
 	// Set the eddsa circuit and the gadget
 	circuit := frontend.New()
 
-	paramsGadget, err := twistededwards_gadget.NewEdCurveGadget(gurvy.BN256)
+	params, err := twistededwards.NewEdCurve(gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Allocate the data in the circuit
-	var pubKeyAllocated PublicKeyGadget
+	var pubKeyAllocated PublicKey
 	pubKeyAllocated.A.X = circuit.PUBLIC_INPUT("pubkeyX")
 	pubKeyAllocated.A.Y = circuit.PUBLIC_INPUT("pubkeyY")
-	pubKeyAllocated.Curve = paramsGadget
+	pubKeyAllocated.Curve = params
 
-	var sigAllocated SignatureGadget
+	var sigAllocated Signature
 	sigAllocated.R.A.X = circuit.PUBLIC_INPUT("sigRX")
 	sigAllocated.R.A.Y = circuit.PUBLIC_INPUT("sigRY")
 
@@ -84,31 +82,31 @@ func TestEddsaGadget(t *testing.T) {
 	Verify(&circuit, sigAllocated, msgAllocated, pubKeyAllocated)
 
 	// verification with the correct message
-	good := backend.NewAssignment()
-	good.Assign(backend.Public, "message", msg)
+	good := make(map[string]interface{})
+	good["message"] = msg
 
-	good.Assign(backend.Public, "pubkeyX", pubKey.A.X)
-	good.Assign(backend.Public, "pubkeyY", pubKey.A.Y)
+	good["pubkeyX"] = pubKey.A.X
+	good["pubkeyY"] = pubKey.A.Y
 
-	good.Assign(backend.Public, "sigRX", signature.R.X)
-	good.Assign(backend.Public, "sigRY", signature.R.Y)
+	good["sigRX"] = signature.R.X
+	good["sigRY"] = signature.R.Y
 
-	good.Assign(backend.Public, "sigS", signature.S)
+	good["sigS"] = signature.S
 
-	r1cs := backend_bn256.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assert.CorrectExecution(&r1cs, good, nil)
+	assert.CorrectExecution(r1cs, good, nil)
 
 	// verification with incorrect message
-	bad := backend.NewAssignment()
-	bad.Assign(backend.Secret, "message", "44717650746155748460101257525078853138837311576962212923649547644148297035979")
+	bad := make(map[string]interface{})
+	bad["message"] = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
 
-	bad.Assign(backend.Public, "pubkeyX", pubKey.A.X)
-	bad.Assign(backend.Public, "pubkeyY", pubKey.A.Y)
+	bad["pubkeyX"] = pubKey.A.X
+	bad["pubkeyY"] = pubKey.A.Y
 
-	bad.Assign(backend.Public, "sigRX", signature.R.X)
-	bad.Assign(backend.Public, "sigRY", signature.R.Y)
+	bad["sigRX"] = signature.R.X
+	bad["sigRY"] = signature.R.Y
 
-	bad.Assign(backend.Public, "sigS", signature.S)
-	assert.NotSolved(&r1cs, bad)
+	bad["sigS"] = signature.S
+	assert.NotSolved(r1cs, bad)
 }

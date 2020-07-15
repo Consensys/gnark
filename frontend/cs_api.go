@@ -17,27 +17,29 @@ limitations under the License.
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 
 	"github.com/consensys/gnark/backend"
 )
 
 // ADD Adds 2+ inputs and returns resulting Constraint
-func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) *Constraint {
+func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// can add constraint and constants
-	add := func(_i1, _i2 interface{}) *Constraint {
+	add := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
-		case *Constraint:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				return cs.add(c1, c2)
 			default:
 				return cs.addConstant(c1, backend.FromInterface(c2))
 			}
 		default:
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				return cs.addConstant(c2, backend.FromInterface(c1))
 			default:
 				panic("invalid type")
@@ -55,11 +57,11 @@ func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) *Constraint {
 }
 
 // SUB Adds two constraints
-func (cs *CS) SUB(i1, i2 interface{}) *Constraint {
+func (cs *CS) SUB(i1, i2 interface{}) Variable {
 	switch c1 := i1.(type) {
-	case *Constraint:
+	case Variable:
 		switch c2 := i2.(type) {
-		case *Constraint:
+		case Variable:
 			return cs.sub(c1, c2)
 		case big.Int:
 			return cs.subConstant(c1, c2)
@@ -67,7 +69,7 @@ func (cs *CS) SUB(i1, i2 interface{}) *Constraint {
 	default:
 		_c1 := backend.FromInterface(c1)
 		switch c2 := i2.(type) {
-		case *Constraint:
+		case Variable:
 			return cs.subConstraint(_c1, c2)
 		}
 	}
@@ -75,30 +77,33 @@ func (cs *CS) SUB(i1, i2 interface{}) *Constraint {
 }
 
 // MUL Multiplies 2+ constraints together
-func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) *Constraint {
+func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// multiplies 2 terms (constraints, Elements, uint64, int, String)
-	mul := func(_i1, _i2 interface{}) *Constraint {
+	mul := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
 		case LinearCombination:
 			switch c2 := _i2.(type) {
 			case LinearCombination:
 				return cs.mullc(c1, c2)
 			default:
-				panic("invalid type; only support linear expression MUL linear expression")
+				return cs.mullcinterface(c1, c2)
 			}
-		case *Constraint:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				return cs.mul(c1, c2)
+			case LinearCombination:
+				return cs.mullcinterface(c2, c1)
 			default:
 				return cs.mulConstant(c1, backend.FromInterface(c2))
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				return cs.mulConstant(c2, backend.FromInterface(c1))
 			default:
+				fmt.Println(reflect.TypeOf(_i2))
 				panic("invalid type")
 			}
 
@@ -116,9 +121,9 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) *Constraint {
 }
 
 // DIV divides two constraints (i1/i2)
-func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
+func (cs *CS) DIV(i1, i2 interface{}) Variable {
 
-	div := func(_i1, _i2 interface{}) *Constraint {
+	div := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
 		case LinearCombination:
 			switch c2 := _i2.(type) {
@@ -127,9 +132,9 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 			default:
 				panic("invalid type; only support linear expression DIV linear expression")
 			}
-		case *Constraint:
+		case Variable:
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				return cs.div(c1, c2)
 			default:
 				tmp := backend.FromInterface(c2)
@@ -137,7 +142,7 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 			}
 		default: // i1 is not a Constraint type, so c2 must be
 			switch c2 := _i2.(type) {
-			case *Constraint:
+			case Variable:
 				tmp := backend.FromInterface(c1)
 				return cs.divConstantLeft(tmp, c2)
 			default:
@@ -157,23 +162,37 @@ func (cs *CS) DIV(i1, i2 interface{}) *Constraint {
 func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 
 	switch c1 := i1.(type) {
-	case *Constraint:
+	case Variable:
 		switch c2 := i2.(type) {
-		case *Constraint:
+		case Variable:
 			if err := cs.equal(c1, c2); err != nil {
 				panic(err)
 			}
 			return
-		case big.Int: // TODO handle *big.Int ?
+		case big.Int:
 			if err := cs.equalConstant(c1, c2); err != nil {
 				panic(err)
 			}
 			return
+		case *big.Int:
+			if err := cs.equalConstant(c1, *c2); err != nil {
+				panic(err)
+			}
+			return
 		}
-	case big.Int: // TODO handle *big.Int ?
+
+	case big.Int:
 		switch c2 := i2.(type) {
-		case *Constraint:
+		case Variable:
 			if err := cs.equalConstant(c2, c1); err != nil {
+				panic(err)
+			}
+			return
+		}
+	case *big.Int:
+		switch c2 := i2.(type) {
+		case Variable:
+			if err := cs.equalConstant(c2, *c1); err != nil {
 				panic(err)
 			}
 			return
@@ -185,78 +204,82 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 }
 
 // INV inverse a Constraint
-func (cs *CS) INV(c1 *Constraint) *Constraint {
+func (cs *CS) INV(c1 Variable) Variable {
 	return cs.inv(c1, bigOne())
 }
 
 // XOR compute the xor between two constraints
-func (cs *CS) XOR(c1, c2 *Constraint) *Constraint {
+func (cs *CS) XOR(c1, c2 Variable) Variable {
 	// ensure c1 and c2 are already boolean constrained
 	cs.MUSTBE_BOOLEAN(c1)
 	cs.MUSTBE_BOOLEAN(c2)
 
 	expression := xorExpression{
-		a: c1.outputWire,
-		b: c2.outputWire,
+		a: c1.getOutputWire(),
+		b: c2.getOutputWire(),
 	}
 
 	return newConstraint(cs, &expression)
 }
 
 // MUSTBE_BOOLEAN boolean constrains a variable
-func (cs *CS) MUSTBE_BOOLEAN(c *Constraint) {
+func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
+	if c.constraint == nil {
+		panic("variable is not compiled")
+	}
 	// check if the variable is already boolean constrained
 	for i := 0; i < len(cs.NOConstraints); i++ {
 		if bExpression, ok := cs.NOConstraints[i].(*booleanExpression); ok {
-			if bExpression.b == c.outputWire {
+			if bExpression.b == c.getOutputWire() {
 				// this variable is already boolean constrained
 				return
 			}
 		}
 	}
 	// check if the variable is the result of a XOR (a xor b == c --> c is automatically boolean constrained)
-	for _, constraint := range cs.Constraints {
-		if constraint == c {
-			for i := 0; i < len(constraint.expressions); i++ {
-				if _, ok := constraint.expressions[i].(*xorExpression); ok {
+	for _, val := range cs.Constraints {
+		if val == c.constraint {
+			expresions := val.getExpressions()
+			for i := 0; i < len(expresions); i++ {
+				if _, ok := expresions[i].(*xorExpression); ok {
 					// constraint is the result of a xor expression and is already boolean constrained as such
 					return
 				}
 			}
 		}
 	}
-	cs.NOConstraints = append(cs.NOConstraints, &booleanExpression{b: c.outputWire})
+	cs.NOConstraints = append(cs.NOConstraints, &booleanExpression{b: c.getOutputWire()})
 }
 
 // TO_BINARY unpacks a variable in binary, n is the number of bits of the variable
 // The result in in little endian (first bit= lsb)
-func (cs *CS) TO_BINARY(c *Constraint, nbBits int) []*Constraint {
+func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
 
 	// create the expression ensuring the bit decomposition matches c
 	expression := &unpackExpression{
-		res: c.outputWire,
+		res: c.getOutputWire(),
 	}
 	cs.MOConstraints = append(cs.MOConstraints, expression)
 
 	// create our bits constraints
-	bits := make([]*Constraint, nbBits)
+	bits := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
 		bits[i] = newConstraint(cs)
 		cs.MUSTBE_BOOLEAN(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
-		expression.bits = append(expression.bits, bits[i].outputWire)
+		expression.bits = append(expression.bits, bits[i].getOutputWire())
 	}
 
 	return bits
 }
 
 // FROM_BINARY packs b, seen as a fr.Element in little endian
-func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
+func (cs *CS) FROM_BINARY(b ...Variable) Variable {
 
 	expression := packExpression{}
 
 	for _, c := range b {
 		cs.MUSTBE_BOOLEAN(c) // ensure input is boolean constrained
-		expression.bits = append(expression.bits, c.outputWire)
+		expression.bits = append(expression.bits, c.getOutputWire())
 	}
 
 	return newConstraint(cs, &expression)
@@ -264,10 +287,10 @@ func (cs *CS) FROM_BINARY(b ...*Constraint) *Constraint {
 
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 // from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}, nbBits int) {
+func (cs *CS) MUSTBE_LESS_OR_EQ(c Variable, bound interface{}, nbBits int) {
 
 	switch _bound := bound.(type) {
-	case *Constraint:
+	case Variable:
 		cs.mustBeLessOrEq(c, _bound, nbBits)
 	default:
 		b := backend.FromInterface(bound)
@@ -276,19 +299,19 @@ func (cs *CS) MUSTBE_LESS_OR_EQ(c *Constraint, bound interface{}, nbBits int) {
 }
 
 // SELECT if b is true, yields c1 else yields c2
-func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
+func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 
 	// ensure b is boolean constrained
 	cs.MUSTBE_BOOLEAN(b)
 
 	switch c1 := i1.(type) {
-	case *Constraint:
+	case Variable:
 		switch c2 := i2.(type) {
-		case *Constraint:
+		case Variable:
 			expression := selectExpression{
-				b: b.outputWire,
-				x: c1.outputWire,
-				y: c2.outputWire,
+				b: b.getOutputWire(),
+				x: c1.getOutputWire(),
+				y: c2.getOutputWire(),
 			}
 			return newConstraint(cs, &expression)
 		default:
@@ -299,8 +322,8 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 		c2Bigint := backend.FromInterface(i2)
 		c1Bigint.Sub(&c1Bigint, &c2Bigint)
 		expression := linearExpression{
-			term{Wire: b.outputWire, Coeff: c1Bigint, Operation: mul},
-			term{Wire: cs.Constraints[0].outputWire, Coeff: bigOne(), Operation: mul},
+			term{Wire: b.getOutputWire(), Coeff: c1Bigint, Operation: mul},
+			term{Wire: cs.Constraints[0].getOutputWire(), Coeff: bigOne(), Operation: mul},
 		}
 		return newConstraint(cs, &expression)
 	}
@@ -308,15 +331,15 @@ func (cs *CS) SELECT(b *Constraint, i1, i2 interface{}) *Constraint {
 
 // SELECT_LUT select lookuptable[c1*2+c0] where c0 and c1 are boolean constrained
 // cf https://z.cash/technology/jubjub/
-func (cs *CS) SELECT_LUT(c1, c0 *Constraint, lookuptable [4]big.Int) *Constraint {
+func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 
 	// ensure c0 and c1 are boolean constrained
 	cs.MUSTBE_BOOLEAN(c0)
 	cs.MUSTBE_BOOLEAN(c1)
 
 	expression := lutExpression{
-		b0:          c0.outputWire,
-		b1:          c1.outputWire,
+		b0:          c0.getOutputWire(),
+		b1:          c1.getOutputWire(),
 		lookuptable: lookuptable,
 	}
 
@@ -325,13 +348,13 @@ func (cs *CS) SELECT_LUT(c1, c0 *Constraint, lookuptable [4]big.Int) *Constraint
 }
 
 // SECRET_INPUT creates a Constraint containing an input
-func (cs *CS) SECRET_INPUT(name string) *Constraint {
+func (cs *CS) SECRET_INPUT(name string) Variable {
 	// checks if the name already exists
 	if !cs.registerNamedInput(name) {
 		panic("input " + name + " already declared")
 	}
 
-	toReturn := &Constraint{
+	c := &constraint{
 		outputWire: &wire{
 			Name:         name,
 			Tags:         []string{},
@@ -340,26 +363,26 @@ func (cs *CS) SECRET_INPUT(name string) *Constraint {
 			ConstraintID: -1,
 			WireID:       -1,
 		}}
-	cs.addConstraint(toReturn)
+	cs.addConstraint(c)
 
-	return toReturn
+	return Variable{constraint: c}
 
 }
 
 // PUBLIC_INPUT creates a Constraint containing an input
-func (cs *CS) PUBLIC_INPUT(name string) *Constraint {
+func (cs *CS) PUBLIC_INPUT(name string) Variable {
 	toReturn := cs.SECRET_INPUT(name)
-	toReturn.outputWire.IsPrivate = false
+	toReturn.getOutputWire().IsPrivate = false
 	return toReturn
 }
 
 // ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
-func (cs *CS) ALLOCATE(input interface{}) *Constraint {
+func (cs *CS) ALLOCATE(input interface{}) Variable {
 	switch x := input.(type) {
-	case *Constraint:
+	case Variable:
 		return x
-	case Constraint:
-		return &x
+	case constraint:
+		return Variable{constraint: &x}
 	default:
 		return cs.constVar(x)
 	}

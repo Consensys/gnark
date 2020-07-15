@@ -3,51 +3,69 @@ package main
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
 
-func main() {
-	circuit := New()
-	gob.Write("circuit.r1cs", circuit, gurvy.BN256)
-}
-
 const bitSize = 8 // number of bits of exponent
 
-// New return the circuit implementing
+// ExponentiateCircuit
 // y == x**e
 // only the bitSize least significant bits of e are used
-func New() *frontend.R1CS {
+type ExponentiateCircuit struct {
+	// tagging a variable is optional
+	// default uses variable name and secret visibility.
+	X frontend.Variable `gnark:",public"`
+	Y frontend.Variable `gnark:",public"`
 
-	// create root constraint system
-	circuit := frontend.New()
+	E frontend.Variable
+}
 
-	// declare secret and public inputs
-	x := circuit.PUBLIC_INPUT("x")
-	e := circuit.SECRET_INPUT("e")
-	y := circuit.PUBLIC_INPUT("y")
-
+func (circuit *ExponentiateCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
 	// specify constraints
-	output := circuit.ALLOCATE(1)
-	bits := circuit.TO_BINARY(e, bitSize)
+	output := cs.ALLOCATE(1)
+	bits := cs.TO_BINARY(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
 
 		bits[i].Tag(fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
 
 		if i != 0 {
-			output = circuit.MUL(output, output)
+			output = cs.MUL(output, output)
 		}
-		multiply := circuit.MUL(output, x)
-		output = circuit.SELECT(bits[len(bits)-1-i], multiply, output)
+		multiply := cs.MUL(output, circuit.X)
+		output = cs.SELECT(bits[len(bits)-1-i], multiply, output)
 
 		output.Tag(fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
 	}
 
-	circuit.MUSTBE_EQ(y, output)
+	cs.MUSTBE_EQ(circuit.Y, output)
 
-	r1cs := circuit.ToR1CS()
+	return nil
+}
 
-	return r1cs
+func (circuit *ExponentiateCircuit) PostInit(ctx *frontend.Context) error {
+	return nil
+}
+
+func main() {
+	var expCircuit ExponentiateCircuit
+	// init slices if any
+	// ex: cubicCircuit.bar = make([]foo, 12)
+
+	// init context
+	ctx := frontend.NewContext(gurvy.BN256)
+	// add key values to context, usable by circuit and all components
+	// ex: ctx.Set(rho, new(big.Int).Set("..."))
+
+	// compiles our circuit into a R1CS
+	r1cs, err := frontend.Compile(ctx, &expCircuit)
+	if err != nil {
+		panic(err)
+	}
+
+	// save the R1CS to disk
+	if err = frontend.Save(ctx, r1cs, "circuit.r1cs"); err != nil {
+		panic(err)
+	}
 }

@@ -86,7 +86,7 @@ func compareAccount(t *testing.T, acc1, acc2 Account) {
 		t.Fatal("Incorrect nonce")
 	}
 	if !acc1.balance.Equal(&acc2.balance) {
-		t.Log("Incorrect balance")
+		t.Fatal("Incorrect balance")
 	}
 	if !acc1.pubKey.A.X.Equal(&acc2.pubKey.A.X) {
 		t.Fatal("Incorrect public key (X)")

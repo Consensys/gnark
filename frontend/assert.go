@@ -61,18 +61,3 @@ func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 	assert.Equal(expectedR1CS.nbConstraints, r1cs.NbConstraints, "r1cs nbConstraints")
 	assert.Equal(expectedR1CS.nbComputationalConstraints, r1cs.NbCOConstraints, "r1cs computational nbConstraints")
 }
-
-func (assert *Assert) errInputNotSet(circuit CS) {
-	// r := circuit.ToR1CS()
-
-	// nbInputs := r.NbPrivateWires + r.NbPublicWires - 1
-	// if nbInputs > 0 {
-	// 	wireValues := make([]fr.Element, r.NbWires)
-	// 	a := make([]fr.Element, r.NbConstraints)
-	// 	b := make([]fr.Element, r.NbConstraints)
-	// 	c := make([]fr.Element, r.NbConstraints)
-	// 	err := r.Solve(backend.NewAssignment(), a, b, c, wireValues)
-	// 	assert.Error(err, "solving R1CS without assignments should return an error")
-	// 	assert.True(errors.Is(err, backend.ErrInputNotSet), "expected ErrInputNotSet, got %v", err)
-	// }
-}

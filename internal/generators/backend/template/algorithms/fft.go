@@ -20,6 +20,9 @@ const MaxOrder = 32
 {{else if eq .Curve "BN256"}}
 const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
 const MaxOrder = 28
+{{else if eq .Curve "BW761"}}
+const RootOfUnityStr = "32863578547254505029601261939868325669770508939375122462904745766352256812585773382134936404344547323199885654433"
+const MaxOrder = 46
 {{end}}
 
 // FFT computes the discrete Fourier transform of a and stores the result in a.
@@ -101,7 +104,7 @@ func bitReverse(a []fr.Element) {
 	}
 }
 
-// domain with a power of 2 cardinality
+// Domain with a power of 2 cardinality
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
 type Domain struct {
@@ -113,7 +116,7 @@ type Domain struct {
 	CardinalityInv   fr.Element
 }
 
-// newDomain returns a subgroup with a power of 2 cardinality
+// NewDomain returns a subgroup with a power of 2 cardinality
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt

@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/internal/generators/testcircuits/circuits"
 	"github.com/consensys/gurvy"
 )
 
@@ -41,7 +41,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// spv: setup, prove, verify
-	spv := func(name string, good, bad backend.Assignments) {
+	spv := func(name string, good, bad map[string]interface{}) {
 		t.Log("circuit", name)
 		// path for files
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
@@ -52,18 +52,19 @@ func TestIntegration(t *testing.T) {
 		fInputBad := filepath.Join(parentDir, name+".bad.input")
 
 		buildTags := "debug"
+
 		// 2: input files to disk
-		if err := good.WriteFile(fInputGood); err != nil {
+		if err := backend.WriteVariables(fInputGood, good); err != nil {
 			t.Fatal(err)
 		}
-		if err := bad.WriteFile(fInputBad); err != nil {
+		if err := backend.WriteVariables(fInputBad, bad); err != nil {
 			t.Fatal(err)
 		}
 
 		// 3: run setup
 		{
 			cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "setup", fCircuit, "--pk", fPk, "--vk", fVk)
-			out, err := cmd.Output()
+			out, err := cmd.CombinedOutput()
 			t.Log(string(out))
 
 			if err != nil {
@@ -75,7 +76,7 @@ func TestIntegration(t *testing.T) {
 			// 4: run prove
 			{
 				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
-				out, err := cmd.Output()
+				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
 					// proving should pass
@@ -86,7 +87,7 @@ func TestIntegration(t *testing.T) {
 			// 4: run verify
 			{
 				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
-				out, err := cmd.Output()
+				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
 					t.Fatal(err)
@@ -100,16 +101,21 @@ func TestIntegration(t *testing.T) {
 		pv(fInputBad, false)
 	}
 
+	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256, gurvy.BW761}
+
 	for name, circuit := range circuits.Circuits {
 		if name == "reference_large" {
 			// be nice with circleci.
 			continue
 		}
-		// serialize to disk
-		fCircuit := filepath.Join(parentDir, name+".r1cs")
-		if err := gob.Write(fCircuit, circuit.R1CS, gurvy.BN256); err != nil {
-			t.Fatal(err)
+		for _, curve := range curves {
+			// serialize to disk
+			fCircuit := filepath.Join(parentDir, name+".r1cs")
+			typedR1CS := circuit.R1CS.ToR1CS(curve)
+			if err := gob.Write(fCircuit, typedR1CS, curve); err != nil {
+				t.Fatal(err)
+			}
+			spv(name, circuit.Good, circuit.Bad)
 		}
-		spv(name, circuit.Good, circuit.Bad)
 	}
 }

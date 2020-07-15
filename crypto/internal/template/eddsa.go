@@ -14,7 +14,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-var ErrNotOnCurve = errors.New("point not on curve")
+var errNotOnCurve = errors.New("point not on curve")
 
 // Signature represents an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA for notation
@@ -111,7 +111,7 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 	// compute R = randScalar*Base
 	res.R.ScalarMul(&curveParams.Base, randScalar)
 	if !res.R.IsOnCurve() {
-		return Signature{}, ErrNotOnCurve
+		return Signature{}, errNotOnCurve
 	}
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
@@ -152,7 +152,7 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 
 	// verify that pubKey and R are on the curve
 	if !pub.A.IsOnCurve() {
-		return false, ErrNotOnCurve
+		return false, errNotOnCurve
 	}
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
@@ -179,7 +179,7 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 		ScalarMul(&lhs, curveParams.Cofactor)
 
 	if !lhs.IsOnCurve() {
-		return false, ErrNotOnCurve
+		return false, errNotOnCurve
 	}
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
@@ -188,7 +188,7 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 		Add(&rhs, &sig.R).
 		ScalarMul(&rhs, curveParams.Cofactor)
 	if !rhs.IsOnCurve() {
-		return false, ErrNotOnCurve
+		return false, errNotOnCurve
 	}
 
 	// verifies that cofactor*S*Base=cofactor*(R + H(R,A,M)*A)

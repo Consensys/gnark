@@ -17,14 +17,16 @@
 package backend_bls377
 
 import (
+	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gurvy/bls377/fr"
 
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
+
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
 // R1CS decsribes a set of R1CS constraint
@@ -43,63 +45,27 @@ type R1CS struct {
 	Constraints     []R1C
 }
 
-// New return a typed R1CS with the curve from frontend.R1CS
-func New(cs *frontend.CS) R1CS {
-
-	r1cs := cs.ToR1CS()
-
-	return Cast(r1cs)
-}
-
-// Cast casts a frontend.R1CS (whose coefficients are big.Int)
-// into a specialized R1CS whose coefficients are fr elements
-func Cast(r1cs *frontend.R1CS) R1CS {
-
-	toReturn := R1CS{
-		NbWires:         r1cs.NbWires,
-		NbPublicWires:   r1cs.NbPublicWires,
-		NbPrivateWires:  r1cs.NbPrivateWires,
-		PrivateWires:    r1cs.PrivateWires,
-		PublicWires:     r1cs.PublicWires,
-		WireTags:        r1cs.WireTags,
-		NbConstraints:   r1cs.NbConstraints,
-		NbCOConstraints: r1cs.NbCOConstraints,
-	}
-	toReturn.Constraints = make([]R1C, len(r1cs.Constraints))
-	for i := 0; i < len(r1cs.Constraints); i++ {
-		from := r1cs.Constraints[i]
-		to := R1C{
-			Solver: from.Solver,
-			L:      make(LinearExpression, len(from.L)),
-			R:      make(LinearExpression, len(from.R)),
-			O:      make(LinearExpression, len(from.O)),
-		}
-
-		for j := 0; j < len(from.L); j++ {
-			to.L[j].ID = from.L[j].ID
-			to.L[j].Coeff.SetBigInt(&from.L[j].Coeff)
-		}
-		for j := 0; j < len(from.R); j++ {
-			to.R[j].ID = from.R[j].ID
-			to.R[j].Coeff.SetBigInt(&from.R[j].Coeff)
-		}
-		for j := 0; j < len(from.O); j++ {
-			to.O[j].ID = from.O[j].ID
-			to.O[j].Coeff.SetBigInt(&from.O[j].Coeff)
-		}
-
-		toReturn.Constraints[i] = to
-	}
-
-	return toReturn
+// GetNbConstraints returns the number of constraints
+func (r1cs *R1CS) GetNbConstraints() int {
+	return r1cs.NbConstraints
 }
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
+// and must be []fr.Element
 // assignment: map[string]value: contains the input variables
+// TODO : note that currently, there is a convertion from interface{} to fr.Element for each entry in the
+// assignment map. It can cost a SetBigInt() which converts from Regular ton Montgomery rep (1 mul)
+// while it's unlikely to be noticeable compared to the FFT and the MultiExp compute times,
+// there should be a faster (statically typed) path for production deployments.
 // a, b, c vectors: ab-c = hz
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr.Element) error {
+func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValues interface{}) error {
+	// cast our inputs
+	a := _a.([]fr.Element)
+	b := _b.([]fr.Element)
+	c := _c.([]fr.Element)
+	wireValues := _wireValues.([]fr.Element)
 
 	// compute the wires and the a, b, c polynomials
 	debug.Assert(len(a) == r1cs.NbConstraints)
@@ -111,7 +77,7 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 	wireInstantiated := make([]bool, r1cs.NbWires)
 
 	// instantiate the public/ private inputs
-	instantiateInputs := func(offset int, visibility backend.Visibility, inputNames []string) error {
+	instantiateInputs := func(offset int, inputNames []string) error {
 		for i := 0; i < len(inputNames); i++ {
 			name := inputNames[i]
 			if name == backend.OneWire {
@@ -119,10 +85,7 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 				wireInstantiated[i+offset] = true
 			} else {
 				if val, ok := assignment[name]; ok {
-					if visibility == backend.Secret && val.IsPublic || visibility == backend.Public && !val.IsPublic {
-						return fmt.Errorf("%q: %w", name, backend.ErrInputVisiblity)
-					}
-					wireValues[i+offset].SetBigInt(&val.Value)
+					wireValues[i+offset] = fr.FromInterface(val)
 					wireInstantiated[i+offset] = true
 				} else {
 					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)
@@ -136,14 +99,14 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 	debug.Assert(len(r1cs.PublicWires) == r1cs.NbPublicWires)
 	if r1cs.NbPrivateWires != 0 {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
-		if err := instantiateInputs(offset, backend.Secret, r1cs.PrivateWires); err != nil {
+		if err := instantiateInputs(offset, r1cs.PrivateWires); err != nil {
 			return err
 		}
 	}
 	// instantiate public inputs
 	{
 		offset := r1cs.NbWires - r1cs.NbPublicWires // public input start index
-		if err := instantiateInputs(offset, backend.Public, r1cs.PublicWires); err != nil {
+		if err := instantiateInputs(offset, r1cs.PublicWires); err != nil {
 			return err
 		}
 	}
@@ -184,17 +147,14 @@ func (r1cs *R1CS) Solve(assignment backend.Assignments, a, b, c, wireValues []fr
 
 // Inspect returns the tagged variables with their corresponding value
 // If showsInput is set, it also puts in the resulting map the inputs (public and private).
-func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[string]fr.Element, error) {
-
-	res := make(map[string]fr.Element)
-
-	var root fr.Element
-	fftDomain := NewDomain(root, MaxOrder, r1cs.NbConstraints)
+// this is temporary while we refactor map[string]interface{} and use big.Int here.
+func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
+	res := make(map[string]interface{})
 
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	a := make([]fr.Element, r1cs.NbConstraints)
+	b := make([]fr.Element, r1cs.NbConstraints)
+	c := make([]fr.Element, r1cs.NbConstraints)
 
 	err := r1cs.Solve(solution, a, b, c, wireValues)
 
@@ -202,11 +162,13 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[s
 	if showsInputs {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
 		for i := 0; i < len(r1cs.PrivateWires); i++ {
-			res[r1cs.PrivateWires[i]] = wireValues[i+offset]
+			v := new(big.Int)
+			res[r1cs.PrivateWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
 		}
 		offset = r1cs.NbWires - r1cs.NbPublicWires // public input start index
 		for i := 0; i < len(r1cs.PublicWires); i++ {
-			res[r1cs.PublicWires[i]] = wireValues[i+offset]
+			v := new(big.Int)
+			res[r1cs.PublicWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
 		}
 	}
 
@@ -214,10 +176,10 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[s
 	for wireID, tags := range r1cs.WireTags {
 		for _, tag := range tags {
 			if _, ok := res[tag]; ok {
-				// TODO checking duplicates should be done in the frontend, probably in cs.ToR1CS()
-				return nil, backend.ErrDuplicateTag(tag)
+				return nil, errors.New("duplicate tag: " + tag)
 			}
-			res[tag] = wireValues[wireID]
+			v := new(big.Int)
+			res[tag] = *(wireValues[wireID].ToBigIntRegular(v))
 		}
 
 	}
@@ -229,14 +191,6 @@ func (r1cs *R1CS) Inspect(solution backend.Assignments, showsInputs bool) (map[s
 
 	return res, nil
 }
-
-// method to solve a r1cs
-type solvingMethod int
-
-const (
-	SingleOutput solvingMethod = iota
-	BinaryDec
-)
 
 // Term lightweight version of a term, no pointers
 type Term struct {
@@ -270,12 +224,12 @@ type R1C struct {
 	L      LinearExpression
 	R      LinearExpression
 	O      LinearExpression
-	Solver frontend.SolvingMethod
+	Solver backend.SolvingMethod
 }
 
 // String helper for a Rank1 Constraint
-func (r R1C) String() string {
-	res := "(" + r.L.String() + ")*(" + r.R.String() + ")=" + r.O.String()
+func (r1c R1C) String() string {
+	res := "(" + r1c.L.String() + ")*(" + r1c.R.String() + ")=" + r1c.O.String()
 	return res
 }
 
@@ -317,7 +271,7 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 	switch r1c.Solver {
 
 	// in this case we solve a R1C by isolating the uncomputed wire
-	case frontend.SingleOutput:
+	case backend.SingleOutput:
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
@@ -387,7 +341,7 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
-	case frontend.BinaryDec:
+	case backend.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
 		n := wireValues[r1c.O[0].ID].ToRegular()

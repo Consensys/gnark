@@ -17,7 +17,7 @@ func main() {
 	}
 	version := strings.TrimSpace(string(v))
 	src := []string{
-		Version,
+		versionTemplate,
 	}
 
 	if err := bavard.Generate("../../../cmd/version.go", src,
@@ -30,6 +30,7 @@ func main() {
 	}
 }
 
-const Version = `
+const versionTemplate = `
+// Version gnark version
 const Version = "{{.Version}}"
 `

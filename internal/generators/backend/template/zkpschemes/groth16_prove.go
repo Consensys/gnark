@@ -33,7 +33,7 @@ func init() {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution backend.Assignments) (*Proof, error) {
+func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	proof := &Proof{}
 
 	// fft domain (computeH)
@@ -112,6 +112,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		scalars = append(scalars, r.ToRegular(), _s, _r)
 		<-chToken
 		chAsync := Krs.MultiExp({{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}, points, scalars)
+		chToken <- struct{}{}
 		<-chAsync
 		Krs.ToAffineFromJac(&KrsAffine)
 

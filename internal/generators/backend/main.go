@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark/internal/generators/backend/template/generator"
 )
 
-// TODO should not be there. Need to factorize code genration boilerplate used in goff, ecc and here
 //go:generate go run -tags debug main.go
 func main() {
 
@@ -22,7 +21,11 @@ func main() {
 		RootPath: "../../../backend/bn256/",
 		Curve:    "BN256",
 	}
-	datas := []generator.GenerateData{bls377, bls381, bn256}
+	bw761 := generator.GenerateData{
+		RootPath: "../../../backend/bw761/",
+		Curve:    "BW761",
+	}
+	datas := []generator.GenerateData{bls377, bls381, bn256, bw761}
 
 	for _, d := range datas {
 		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {

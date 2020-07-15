@@ -23,15 +23,9 @@ import (
 	"time"
 
 	"github.com/consensys/gnark/backend"
-	backend_bls377 "github.com/consensys/gnark/backend/bls377"
-	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
-	backend_bls381 "github.com/consensys/gnark/backend/bls381"
-	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/encoding/gob"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 	"github.com/spf13/cobra"
 )
 
@@ -104,168 +98,54 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
-	// TODO clean that up with interfaces and type casts
-	var bigIntR1cs frontend.R1CS
-	switch curveID {
-	case gurvy.BLS377:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bls377.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bls377.ProvingKey
-		if err := gob.Read(fPkPath, &pk, curveID); err != nil {
-			fmt.Println("can't load proving key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err = r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// compute proof
-		start := time.Now()
-		proof, err := groth16_bls377.Prove(&r1cs, &pk, r1csInput)
-		if err != nil {
-			fmt.Println("Error proof generation", err)
-			os.Exit(-1)
-		}
-		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bls377.Prove(&r1cs, &pk, r1csInput)
-		}
-		duration := time.Since(start)
-		if fCount > 1 {
-			duration = time.Duration(int64(duration) / int64(fCount))
-		}
-
-		// default proof path
-		proofPath := filepath.Join(".", circuitName+".proof")
-		if fProofPath != "" {
-			proofPath = fProofPath
-		}
-
-		if err := gob.Write(proofPath, proof, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-
-		fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
-	case gurvy.BLS381:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bls381.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bls381.ProvingKey
-		if err := gob.Read(fPkPath, &pk, curveID); err != nil {
-			fmt.Println("can't load proving key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err = r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// compute proof
-		start := time.Now()
-		proof, err := groth16_bls381.Prove(&r1cs, &pk, r1csInput)
-		if err != nil {
-			fmt.Println("Error proof generation", err)
-			os.Exit(-1)
-		}
-		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bls381.Prove(&r1cs, &pk, r1csInput)
-		}
-		duration := time.Since(start)
-		if fCount > 1 {
-			duration = time.Duration(int64(duration) / int64(fCount))
-		}
-
-		// default proof path
-		proofPath := filepath.Join(".", circuitName+".proof")
-		if fProofPath != "" {
-			proofPath = fProofPath
-		}
-
-		if err := gob.Write(proofPath, proof, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-
-		fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
-	case gurvy.BN256:
-		if err := gob.Read(circuitPath, &bigIntR1cs, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-		r1cs := backend_bn256.Cast(&bigIntR1cs)
-		fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.NbConstraints)
-		// run setup
-		var pk groth16_bn256.ProvingKey
-		if err := gob.Read(fPkPath, &pk, curveID); err != nil {
-			fmt.Println("can't load proving key")
-			fmt.Println(err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
-
-		// parse input file
-		r1csInput := backend.NewAssignment()
-		err = r1csInput.ReadFile(fInputPath)
-		if err != nil {
-			fmt.Println("can't parse input", err)
-			os.Exit(-1)
-		}
-		fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
-
-		// compute proof
-		start := time.Now()
-		proof, err := groth16_bn256.Prove(&r1cs, &pk, r1csInput)
-		if err != nil {
-			fmt.Println("Error proof generation", err)
-			os.Exit(-1)
-		}
-		for i := uint(1); i < fCount; i++ {
-			_, _ = groth16_bn256.Prove(&r1cs, &pk, r1csInput)
-		}
-		duration := time.Since(start)
-		if fCount > 1 {
-			duration = time.Duration(int64(duration) / int64(fCount))
-		}
-
-		// default proof path
-		proofPath := filepath.Join(".", circuitName+".proof")
-		if fProofPath != "" {
-			proofPath = fProofPath
-		}
-
-		if err := gob.Write(proofPath, proof, curveID); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(-1)
-		}
-
-		fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
-	default:
-		fmt.Println("error:", errUnknownCurve)
+	r1cs, err := r1cs.Read(circuitPath)
+	if err != nil {
+		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
+	fmt.Printf("%-30s %-30s %-d constraints\n", "loaded circuit", circuitPath, r1cs.GetNbConstraints())
+	// run setup
+	pk, err := groth16.ReadProvingKey(fPkPath)
+	if err != nil {
+		fmt.Println("error:", err)
+		os.Exit(-1)
+	}
+	fmt.Printf("%-30s %-30s\n", "loaded proving key", fPkPath)
+
+	// parse input file
+	r1csInput := make(map[string]interface{})
+	if err := backend.ReadVariables(fInputPath, r1csInput); err != nil {
+		fmt.Println("can't parse input", err)
+		os.Exit(-1)
+	}
+	fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
+
+	// compute proof
+	start := time.Now()
+	proof, err := groth16.Prove(r1cs, pk, r1csInput)
+	if err != nil {
+		fmt.Println("Error proof generation", err)
+		os.Exit(-1)
+	}
+	for i := uint(1); i < fCount; i++ {
+		_, _ = groth16.Prove(r1cs, pk, r1csInput)
+	}
+	duration := time.Since(start)
+	if fCount > 1 {
+		duration = time.Duration(int64(duration) / int64(fCount))
+	}
+
+	// default proof path
+	proofPath := filepath.Join(".", circuitName+".proof")
+	if fProofPath != "" {
+		proofPath = fProofPath
+	}
+
+	if err := gob.Write(proofPath, proof, curveID); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(-1)
+	}
+
+	fmt.Printf("%-30s %-30s %-30s\n", "generated proof", proofPath, duration)
 
 }

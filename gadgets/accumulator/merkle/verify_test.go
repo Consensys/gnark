@@ -21,9 +21,7 @@ import (
 	"os"
 	"testing"
 
-	backend_common "github.com/consensys/gnark/backend"
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	"github.com/consensys/gnark/backend/bn256/groth16"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gnark/frontend"
@@ -66,33 +64,33 @@ func TestVerify(t *testing.T) {
 	rh := circuit.PUBLIC_INPUT("rootHash")
 
 	// private
-	path := make([]*frontend.Constraint, len(proof))
+	path := make([]frontend.Variable, len(proof))
 	for i := 0; i < len(proof); i++ {
 		path[i] = circuit.SECRET_INPUT("path" + string(i))
 	}
-	helper := make([]*frontend.Constraint, len(proof)-1)
+	helper := make([]frontend.Variable, len(proof)-1)
 	for i := 0; i < len(proof)-1; i++ {
 		helper[i] = circuit.SECRET_INPUT("helper" + string(i))
 	}
 
-	hFunc, err := mimc.NewMiMCGadget("seed", gurvy.BN256)
+	hFunc, err := mimc.NewMiMC("seed", gurvy.BN256)
 	if err != nil {
 		t.Fatal(err)
 	}
 	VerifyProof(&circuit, hFunc, rh, path, helper)
 
 	// compilation of the circuit
-	r1cs := backend_bn256.New(&circuit)
+	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
-	assignment := backend_common.NewAssignment()
-	assignment.Assign(backend_common.Public, "rootHash", merkleRoot)
+	assignment := make(map[string]interface{})
+	assignment["rootHash"] = merkleRoot
 	for i := 0; i < len(proof); i++ {
-		assignment.Assign(backend_common.Secret, "path"+string(i), proof[i])
+		assignment["path"+string(i)] = proof[i]
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment.Assign(backend_common.Secret, "helper"+string(i), proofHelper[i])
+		assignment["helper"+string(i)] = proofHelper[i]
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.Solved(&r1cs, assignment, nil)
+	assert.Solved(r1cs, assignment, nil)
 }

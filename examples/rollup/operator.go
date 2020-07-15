@@ -20,9 +20,7 @@ import (
 	"bytes"
 	"hash"
 	"math/big"
-	"strconv"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/gadgets/accumulator/merkle"
 )
@@ -56,14 +54,14 @@ func (q *Queue) Pop() Transfer {
 
 // Operator represents a rollup operator
 type Operator struct {
-	State      []byte              // list of accounts: index || nonce || balance || pubkeyX || pubkeyY, each chunk is 256 bits
-	HashState  []byte              // Hashed version of the state, each chunk is 256bits: ... || H(index || nonce || balance || pubkeyX || pubkeyY)) || ...
-	AccountMap map[string]uint64   // hashmap of all available accounts (the key is the account.pubkey.X), the value is the index of the account in the state
-	nbAccounts int                 // number of accounts managed by this operator
-	h          hash.Hash           // hash function used to build the Merkle Tree
-	q          Queue               // queue of transfers
-	batch      int                 // current number of transactions in a batch
-	witnesses  backend.Assignments // witnesses for the snark cicruit
+	State      []byte            // list of accounts: index || nonce || balance || pubkeyX || pubkeyY, each chunk is 256 bits
+	HashState  []byte            // Hashed version of the state, each chunk is 256bits: ... || H(index || nonce || balance || pubkeyX || pubkeyY)) || ...
+	AccountMap map[string]uint64 // hashmap of all available accounts (the key is the account.pubkey.X), the value is the index of the account in the state
+	nbAccounts int               // number of accounts managed by this operator
+	h          hash.Hash         // hash function used to build the Merkle Tree
+	q          Queue             // queue of transfers
+	batch      int               // current number of transactions in a batch
+	witnesses  RollupCircuit     // witnesses for the snark cicruit
 }
 
 // NewOperator creates a new operator.
@@ -88,7 +86,6 @@ func NewOperator(nbAccounts int, h hash.Hash) Operator {
 	res.h = h
 	res.q = NewQueue(BatchSize)
 	res.batch = 0
-	res.witnesses = backend.NewAssignment()
 	return res
 }
 
@@ -111,7 +108,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	var posSender, posReceiver uint64
 	var ok bool
 
-	ext := strconv.Itoa(numTransfer)
+	// ext := strconv.Itoa(numTransfer)
 	segmentSize := o.h.Size()
 
 	// read sender's account
@@ -133,19 +130,19 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 
 	// set witnesses for the public keys
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountPubkeyx+ext, senderAccount.pubKey.A.X)
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountPubkeyy+ext, senderAccount.pubKey.A.Y)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountPubkeyx+ext, receiverAccount.pubKey.A.X)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountPubkeyy+ext, receiverAccount.pubKey.A.Y)
+	o.witnesses.PublicKeysSender[numTransfer].A.X.Assign(senderAccount.pubKey.A.X)
+	o.witnesses.PublicKeysSender[numTransfer].A.Y.Assign(senderAccount.pubKey.A.Y)
+	o.witnesses.PublicKeysReceiver[numTransfer].A.X.Assign(receiverAccount.pubKey.A.X)
+	o.witnesses.PublicKeysReceiver[numTransfer].A.Y.Assign(receiverAccount.pubKey.A.Y)
 
 	// set witnesses for the accounts before update
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountIndexBefore+ext, senderAccount.index)
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountNonceBefore+ext, senderAccount.nonce)
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountBalanceBefore+ext, senderAccount.balance)
+	o.witnesses.SenderAccountsBefore[numTransfer].Index.Assign(senderAccount.index)
+	o.witnesses.SenderAccountsBefore[numTransfer].Nonce.Assign(senderAccount.nonce)
+	o.witnesses.SenderAccountsBefore[numTransfer].Balance.Assign(senderAccount.balance)
 
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountIndexBefore+ext, receiverAccount.index)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountNonceBefore+ext, receiverAccount.nonce)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountBalanceBefore+ext, receiverAccount.balance)
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Index.Assign(receiverAccount.index)
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Nonce.Assign(receiverAccount.nonce)
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Balance.Assign(receiverAccount.balance)
 
 	//  Set witnesses for the proof of inclusion of sender and receivers account before update
 	var buf bytes.Buffer
@@ -170,22 +167,22 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return err
 	}
 	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
-	o.witnesses.Assign(backend.Public, baseNameRootHashBefore+ext, merkleRootBefore)
+	o.witnesses.RootHashesBefore[numTransfer].Assign(merkleRootBefore)
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
-		o.witnesses.Assign(backend.Secret, baseNameSenderMerkleBefore+ext+strconv.Itoa(i), proofInclusionSenderBefore[i])
-		o.witnesses.Assign(backend.Secret, baseNameReceiverMerkleBefore+ext+strconv.Itoa(i), proofInclusionReceiverBefore[i])
+		o.witnesses.MerkleProofsSenderBefore[numTransfer][i].Assign(proofInclusionSenderBefore[i])
+		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i].Assign(proofInclusionReceiverBefore[i])
 
 		if i < len(proofInclusionReceiverBefore)-1 {
-			o.witnesses.Assign(backend.Secret, baseNameSenderProofHelperBefore+ext+strconv.Itoa(i), merkleProofHelperSenderBefore[i])
-			o.witnesses.Assign(backend.Secret, baseNameReceiverProofHelperBefore+ext+strconv.Itoa(i), merkleProofHelperReceiverBefore[i])
+			o.witnesses.MerkleProofHelperSenderBefore[numTransfer][i].Assign(merkleProofHelperSenderBefore[i])
+			o.witnesses.MerkleProofHelperReceiverBefore[numTransfer][i].Assign(merkleProofHelperReceiverBefore[i])
 		}
 	}
 
 	// set witnesses for the transfer
-	o.witnesses.Assign(backend.Secret, baseNameTransferAmount+ext, t.amount)
-	o.witnesses.Assign(backend.Secret, baseNameTransferSigRx+ext, t.signature.R.X)
-	o.witnesses.Assign(backend.Secret, baseNameTransferSigRy+ext, t.signature.R.Y)
-	o.witnesses.Assign(backend.Secret, baseNameTransferSigS+ext, t.signature.S)
+	o.witnesses.Transfers[numTransfer].Amount.Assign(t.amount)
+	o.witnesses.Transfers[numTransfer].Signature.R.A.X.Assign(t.signature.R.X)
+	o.witnesses.Transfers[numTransfer].Signature.R.A.Y.Assign(t.signature.R.Y)
+	o.witnesses.Transfers[numTransfer].Signature.S.Assign(t.signature.S)
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
 	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)
@@ -220,13 +217,13 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	senderAccount.nonce++
 
 	// set the witnesses for the account after update
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountIndexAfter+ext, senderAccount.index)
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountNonceAfter+ext, senderAccount.nonce)
-	o.witnesses.Assign(backend.Secret, baseNameSenderAccountBalanceAfter+ext, senderAccount.balance)
+	o.witnesses.SenderAccountsAfter[numTransfer].Index.Assign(senderAccount.index)
+	o.witnesses.SenderAccountsAfter[numTransfer].Nonce.Assign(senderAccount.nonce)
+	o.witnesses.SenderAccountsAfter[numTransfer].Balance.Assign(senderAccount.balance)
 
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountIndexAfter+ext, receiverAccount.index)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountNonceAfter+ext, receiverAccount.nonce)
-	o.witnesses.Assign(backend.Secret, baseNameReceiverAccountBalanceAfter+ext, receiverAccount.balance)
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Index.Assign(receiverAccount.index)
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Nonce.Assign(receiverAccount.nonce)
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Balance.Assign(receiverAccount.balance)
 
 	// update the state of the operator
 	copy(o.State[int(posSender)*SizeAccount:], senderAccount.Serialize())
@@ -264,14 +261,14 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 	merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
-	o.witnesses.Assign(backend.Public, baseNameRootHashAfter+ext, merkleRootAfer)
+	o.witnesses.RootHashesAfter[numTransfer].Assign(merkleRootAfer)
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {
-		o.witnesses.Assign(backend.Secret, baseNameSenderMerkleAfter+ext+strconv.Itoa(i), proofInclusionSenderAfter[i])
-		o.witnesses.Assign(backend.Secret, baseNameReceiverMerkleAfter+ext+strconv.Itoa(i), proofInclusionReceiverAfter[i])
+		o.witnesses.MerkleProofsSenderAfter[numTransfer][i].Assign(proofInclusionSenderAfter[i])
+		o.witnesses.MerkleProofsReceiverAfter[numTransfer][i].Assign(proofInclusionReceiverAfter[i])
 
-		if i < len(proofInclusionSenderAfter)-1 {
-			o.witnesses.Assign(backend.Secret, baseNameSenderProofHelperAfter+ext+strconv.Itoa(i), merkleProofHelperSenderAfter[i])
-			o.witnesses.Assign(backend.Secret, baseNameReceiverProofHelperAfter+ext+strconv.Itoa(i), merkleProofHelperReceiverAfter[i])
+		if i < len(proofInclusionReceiverAfter)-1 {
+			o.witnesses.MerkleProofHelperSenderAfter[numTransfer][i].Assign(merkleProofHelperSenderAfter[i])
+			o.witnesses.MerkleProofHelperReceiverAfter[numTransfer][i].Assign(merkleProofHelperReceiverAfter[i])
 		}
 	}
 

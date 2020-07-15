@@ -131,7 +131,7 @@ func TestOperatorUpdateAccount(t *testing.T) {
 
 	sender.nonce++
 	sender.balance.Sub(&sender.balance, &frAmount)
-	receiver.balance.Add(&sender.balance, &frAmount)
+	receiver.balance.Add(&receiver.balance, &frAmount)
 
 	compareAccount(t, newSender, sender)
 	compareHashAccount(t, operator.HashState[0:operator.h.Size()], newSender, operator.h)
