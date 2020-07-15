@@ -2,31 +2,90 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
+	"reflect"
 	"runtime"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bn256/fr"
 	"github.com/pkg/profile"
 )
 
-const benchCount = 1
+const benchCount = 10000
 
-var nbConstraints = []int{100000, 1000000, 10000000}
+var nbConstraints = []int{1000000} //, 1000000, 10000000}
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
+const n = 10000000
+
 // else will output average proving times, in csv format
 func main() {
 	mode := "time"
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
 	}
+	if mode == "generate" {
+		pk, r1cs, r1csInput := generateCircuit(n)
+		gob.Write("pk", pk, gurvy.BN256)
+		gob.Write("circuit", r1cs, gurvy.BN256)
+		backend.WriteVariables("input", r1csInput)
+	} else {
+		pk, _ := groth16.ReadProvingKey("pk")
+		// r1cs, _ := r1cs.Read("circuit")
+		// r1csInput := make(map[string]interface{})
+		// backend.ReadVariables("input", r1csInput)
+
+		{
+			r := reflect.ValueOf(pk).Elem()
+			s := binary.Size(r)
+			fmt.Println("pk", s)
+		}
+
+		// {
+		// 	r := reflect.ValueOf(r1cs)
+		// 	s := binary.Size(r)
+		// 	fmt.Println("r1cs", s)
+		// }
+
+		// {
+		// 	r := reflect.ValueOf(r1csInput)
+		// 	s := binary.Size(r)
+		// 	fmt.Println("r1csInput", s)
+		// }
+
+		// p := profile.Start(profile.MemProfile, profile.ProfilePath("."))
+		// _, _ = groth16.Prove(r1cs, pk, r1csInput)
+		// p.Stop()
+	}
+	os.Exit(0)
+
+	// for name, circuit := range circuits.Circuits {
+	// 	if name != "range" {
+	// 		continue
+	// 	}
+	// 	r1cs := circuit.R1CS.ToR1CS(gurvy.BLS381)
+	// 	fmt.Println(name, " -- nb constraints -- ", r1cs.GetNbConstraints())
+
+	// 	pk := groth16.DummySetup(r1cs)
+	// 	start := time.Now()
+	// 	for i := uint(0); i < benchCount; i++ {
+	// 		_, _ = groth16.Prove(r1cs, pk, circuit.Good)
+
+	// 	}
+	// 	duration := time.Since(start)
+	// 	duration = time.Duration(int64(duration) / int64(benchCount))
+	// 	fmt.Printf("%d,%d\n", r1cs.GetNbConstraints(), duration.Milliseconds())
+	// }
+	// os.Exit(0)
 
 	for _, i := range nbConstraints {
 		pk, r1cs, r1csInput := generateCircuit(i)
@@ -40,10 +99,10 @@ func main() {
 			duration = time.Duration(int64(duration) / int64(benchCount))
 			fmt.Printf("%d,%d\n", r1cs.GetNbConstraints(), duration.Milliseconds())
 		} else {
-			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."))
-			for i := uint(0); i < benchCount; i++ {
-				_, _ = groth16.Prove(r1cs, pk, r1csInput)
-			}
+			p := profile.Start(profile.MemProfileAllocs(), profile.ProfilePath("."))
+			// for i := uint(0); i < benchCount; i++ {
+			_, _ = groth16.Prove(r1cs, pk, r1csInput)
+			// }
 			p.Stop()
 		}
 

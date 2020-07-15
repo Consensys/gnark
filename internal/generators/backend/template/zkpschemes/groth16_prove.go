@@ -112,6 +112,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		scalars = append(scalars, r.ToRegular(), _s, _r)
 		<-chToken
 		chAsync := Krs.MultiExp({{- if eq .Curve "GENERIC"}}curve.GetCurve(){{- else}}curve.{{.Curve}}(){{- end}}, points, scalars)
+		chToken <- struct{}{}
 		<-chAsync
 		Krs.ToAffineFromJac(&KrsAffine)
 
