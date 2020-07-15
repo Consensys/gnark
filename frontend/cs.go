@@ -406,13 +406,7 @@ func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 		notci := cs.SUB(1, ci[i])
 		t1 := cs.MUL(notci, ai[i])
 		t2 := cs.SUB(1, pi[i+1])
-		lin1 := LinearCombination{
-			Term{t1, bigOne()},
-		}
-		lin2 := LinearCombination{
-			Term{cs.SUB(t2, ai[i]), bigOne()},
-		}
-		res := cs.MUL(lin1, lin2)
+		res := cs.MUL(t1, cs.SUB(t2, ai[i]))
 		cs.MUSTBE_EQ(res, zero)
 	}
 	return nil
