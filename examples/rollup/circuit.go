@@ -166,17 +166,6 @@ func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc 
 	return nil
 }
 
-// checkCorrectLeaf checks if hacc = hFunc(acc)
-func ensureCorrectLeaf(circuit *frontend.CS, hFunc mimc.MiMC, acc AccountConstraints, hacc frontend.Variable) {
-
-	// compute the hash of the account, serialized like this:
-	// index || nonce || balance || pubkeyX || pubkeyY
-	haccount := hFunc.Hash(circuit, acc.Index, acc.Nonce, acc.Balance, acc.PubKey.A.X, acc.PubKey.A.Y)
-
-	circuit.MUSTBE_EQ(haccount, hacc)
-
-}
-
 func verifyAccountUpdated(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated

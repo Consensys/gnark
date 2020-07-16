@@ -83,7 +83,7 @@ func TestSignTransfer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err = transfer.Verify(operator.h)
+	_, err = transfer.Verify(operator.h)
 	if err == nil {
 		t.Fatal("Verifying transaction signed with the wrong key should output an error")
 	}

@@ -225,8 +225,7 @@ func TestPairingBLS377(t *testing.T) {
 	expectedValues["pairing11"] = &pairingRes.C1.B2.A1
 
 	// set the circuit
-	var ateLoop uint64
-	ateLoop = 9586122913090633729
+	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
@@ -351,8 +350,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	expectedValues["pairing11"] = &pairingRes.C1.B2.A1
 
 	// set the circuit
-	var ateLoop uint64
-	ateLoop = 9586122913090633729
+	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 

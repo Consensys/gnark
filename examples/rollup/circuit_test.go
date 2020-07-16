@@ -56,8 +56,7 @@ func TestCircuitSignature(t *testing.T) {
 	}
 
 	// create the transfer and sign it
-	var amount uint64
-	amount = 10
+	amount := uint64(10)
 	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
 
 	// sign the transfer
@@ -122,8 +121,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 	}
 
 	// create the transfer and sign it
-	var amount uint64
-	amount = 16
+	amount := uint64(16)
 	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
 
 	// sign the transfer
@@ -180,8 +178,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	}
 
 	// create the transfer and sign it
-	var amount uint64
-	amount = 10
+	amount := uint64(10)
 	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
 
 	// sign the transfer
@@ -226,8 +223,7 @@ func TestCircuitFull(t *testing.T) {
 	}
 
 	// create the transfer and sign it
-	var amount uint64
-	amount = 10
+	amount := uint64(10)
 	transfer := NewTransfer(amount, sender.pubKey, receiver.pubKey, sender.nonce)
 
 	// sign the transfer

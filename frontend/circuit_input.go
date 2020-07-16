@@ -44,12 +44,7 @@ func (cInput Variable) addExpressions(e ...expression) {
 	}
 	cInput.constraint.addExpressions(e...)
 }
-func (cInput Variable) setID(id uint64) {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	cInput.constraint.setID(id)
-}
+
 func (cInput Variable) id() uint64 {
 	if cInput.constraint == nil {
 		panic("circuit is not compiled")

@@ -19,6 +19,5 @@ package cmd
 import "errors"
 
 var (
-	errNotFound     = errors.New("file not found")
-	errUnknownCurve = errors.New("unknown curve id")
+	errNotFound = errors.New("file not found")
 )

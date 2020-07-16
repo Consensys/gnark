@@ -45,35 +45,9 @@ limitations under the License.
 package merkle
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
 )
-
-// nbBits in an Fr element
-// TODO this shouldn't be a constant, but don't know how to to avoid passing it to every function
-const nbBits = 256
-
-// leafSum returns the hash created from data inserted to form a leaf. Leaf
-// sums are calculated using:
-//		Hash(0x00 || data)
-func leafSumDeprecated(circuit *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend.Variable {
-
-	// TODO find a better way than querying the binary decomposition, too many constraints
-	dataBin := circuit.TO_BINARY(data, nbBits)
-
-	// prepending 0x00 means the first chunk to be hashed will consist of the first 31 bytes
-	d1 := circuit.FROM_BINARY(dataBin[8:]...)
-
-	// the lsByte of data will become the lsByte of the second chunk
-	d2 := circuit.FROM_BINARY(dataBin[:8]...)
-
-	res := h.Hash(circuit, d1, d2)
-	//res := h.Hash(circuit, d1)
-
-	return res
-}
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
@@ -82,39 +56,6 @@ func leafSum(circuit *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend
 	res := h.Hash(circuit, data)
 
 	return res
-}
-
-// nodeSum returns the hash created from two sibling nodes being combined into
-// a parent node. Node sums are calculated using:
-//		Hash(0x01 || left sibling sum || right sibling sum)
-func nodeSumDeprecated(circuit *frontend.CS, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
-
-	// TODO find a better way than querying the binary decomposition (too many constraints)
-	d1Bin := circuit.TO_BINARY(a, nbBits)
-	d2Bin := circuit.TO_BINARY(b, nbBits)
-
-	// multiplying by shifter shifts a number by 31*8 bits
-	var shifter big.Int
-	shifter.SetString("452312848583266388373324160190187140051835877600158453279131187530910662656", 10) // 1 << (31*8)
-
-	// pefix 0x01
-	chunk1 := circuit.FROM_BINARY(d1Bin[8:]...)
-	chunk1 = circuit.ADD(chunk1, shifter) // adding shifter is equivalent to prefix chunk1 by 0x01
-
-	// lsByte(a)<<31*8 || (b>>8)
-	chunk2 := circuit.FROM_BINARY(d1Bin[:8]...) // lsByte(a)
-	chunk2 = circuit.MUL(chunk2, shifter)       // chunk2 = lsByte(a)<<31*8
-	tmp := circuit.FROM_BINARY(d2Bin[8:]...)
-	chunk2 = circuit.ADD(chunk2, tmp) // chunk2 = chunk2 || (b>>8)
-
-	// lsByte(b)
-	chunk3 := circuit.FROM_BINARY(d2Bin[:8]...)
-	//chunk3 = circuit.MUL(chunk3, shifter)
-
-	res := h.Hash(circuit, chunk1, chunk2, chunk3)
-
-	return res
-
 }
 
 // nodeSum returns the hash created from data inserted to form a leaf.

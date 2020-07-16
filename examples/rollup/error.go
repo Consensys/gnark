@@ -20,20 +20,20 @@ import "errors"
 
 var (
 	// ErrSizeByteSlice memory checking
-	ErrSizeByteSlice = errors.New("Byte slice size is inconsistant with Account size")
+	ErrSizeByteSlice = errors.New("byte slice size is inconsistant with Account size")
 
 	// ErrNonExistingAccount account not in the database
-	ErrNonExistingAccount = errors.New("The account is not in the rollup database")
+	ErrNonExistingAccount = errors.New("the account is not in the rollup database")
 
 	// ErrNonConsistantAccount account not in the database
-	ErrNonConsistantAccount = errors.New("The account provided exists but is inconsistant with what's in the database")
+	ErrNonConsistantAccount = errors.New("the account provided exists but is inconsistant with what's in the database")
 
 	// ErrWrongSignature wrong signature
-	ErrWrongSignature = errors.New("Invalid signature")
+	ErrWrongSignature = errors.New("invalid signature")
 
 	// ErrAmountTooHigh the amount is bigger than the balance
-	ErrAmountTooHigh = errors.New("Amount is bigger than balance")
+	ErrAmountTooHigh = errors.New("amount is bigger than balance")
 
 	// ErrNonce inconsistant nonce between transfer and account
-	ErrNonce = errors.New("Incorrect nonce")
+	ErrNonce = errors.New("incorrect nonce")
 )

@@ -208,9 +208,9 @@ func (t Term) String() string {
 
 const (
 	specialValueMinusOne uint64 = 0b0001
-	specialValueZero            = 0b0010
-	specialValueOne             = 0b0100
-	specialValueTwo             = 0b1000
+	specialValueZero     uint64 = 0b0010
+	specialValueOne      uint64 = 0b0100
+	specialValueTwo      uint64 = 0b1000
 )
 
 func NewTerm(constraintID, coeffID, specialValue int) Term {
