@@ -34,6 +34,10 @@ func main() {
 		if err := generator.GenerateGroth16(d); err != nil {
 			panic(err)
 		}
+		d.RootPath = "../../../backend/r1cs/"
+		if err := generator.GenerateR1CSConvertor(d); err != nil {
+			panic(err)
+		}
 	}
 
 }

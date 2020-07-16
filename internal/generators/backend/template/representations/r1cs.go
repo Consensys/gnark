@@ -32,6 +32,7 @@ type R1CS struct {
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
 	Constraints     []R1C
+	Coefficients 	[]fr.Element // R1C coefficients indexes point here
 }
 
 // GetNbConstraints returns the number of constraints
@@ -111,7 +112,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValu
 			// computationalGraph : we need to solve the constraint
 			// computationalGraph[i] contains exactly one uncomputed wire (due
 			// to the graph being correctly ordered), we solve it
-			r1cs.Constraints[i].solveR1c(wireInstantiated, wireValues)
+			r1cs.Constraints[i].solveR1c(r1cs, wireInstantiated, wireValues)
 		}
 
 		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
@@ -184,15 +185,20 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 
 // Term lightweight version of a term, no pointers
 type Term struct {
-	ID    int64      // index of the constraint used to compute this wire
-	Coeff fr.Element // coefficient by which the wire is multiplied
+	ID    	int64      	// index of the constraint used to compute this wire
+	CoeffID int 		// coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
 }
 
 // String helper for Term
 func (t Term) String() string {
-	res := ""
-	res = res + t.Coeff.String() + "*:" + strconv.Itoa(int(t.ID))
-	return res
+	// res := ""
+	// res = res + t.Coeff.String() + "*:" + strconv.Itoa(int(t.ID))
+	return "unimplemented"
+}
+
+func (t *Term) MulAdd(r1cs *R1CS, buffer, value, accumulator *fr.Element ) {
+	buffer.Mul(&r1cs.Coefficients[t.CoeffID], value)
+	accumulator.Add(accumulator, buffer)
 }
 
 // LinearExpression lightweight version of linear expression
@@ -231,21 +237,15 @@ func (r1c *R1C) instantiate(r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Ele
 	var tmp fr.Element
 
 	for _, t := range r1c.L {
-		debug.Assert(len(wireValues) > int(t.ID), "trying to access out of bound wire in wiretracker")
-		tmp.Mul(&t.Coeff, &wireValues[t.ID])
-		a.Add(&a, &tmp)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &a)
 	}
 
 	for _, t := range r1c.R {
-		debug.Assert(len(wireValues) > int(t.ID), "trying to access out of bound wire in wiretracker")
-		tmp.Mul(&t.Coeff, &wireValues[t.ID])
-		b.Add(&b, &tmp)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &b)
 	}
 
 	for _, t := range r1c.O {
-		debug.Assert(len(wireValues) > int(t.ID), "trying to access out of bound wire in wiretracker")
-		tmp.Mul(&t.Coeff, &wireValues[t.ID])
-		c.Add(&c, &tmp)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &c)
 	}
 
 	return
@@ -256,7 +256,7 @@ func (r1c *R1C) instantiate(r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Ele
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
+func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.Element) {
 
 	switch r1c.Solver {
 
@@ -271,30 +271,27 @@ func (r1c *R1C) solveR1c(wireInstantiated []bool, wireValues []fr.Element) {
 
 		for _, t := range r1c.L {
 			if wireInstantiated[t.ID] {
-				tmp.Mul(&t.Coeff, &wireValues[t.ID])
-				a.Add(&a, &tmp)
+				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &a)
 			} else {
-				backupCoeff.Set(&t.Coeff)
+				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
 				location[0] = t.ID
 			}
 		}
 
 		for _, t := range r1c.R {
 			if wireInstantiated[t.ID] {
-				tmp.Mul(&t.Coeff, &wireValues[t.ID])
-				b.Add(&b, &tmp)
+				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &b)
 			} else {
-				backupCoeff.Set(&t.Coeff)
+				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
 				location[1] = t.ID
 			}
 		}
 
 		for _, t := range r1c.O {
 			if wireInstantiated[t.ID] {
-				tmp.Mul(&t.Coeff, &wireValues[t.ID])
-				c.Add(&c, &tmp)
+				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &c)
 			} else {
-				backupCoeff.Set(&t.Coeff)
+				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
 				location[2] = t.ID
 			}
 		}

@@ -16,6 +16,29 @@ type GenerateData struct {
 	Curve    string // GENERIC, BLS381, BLS377, BN256
 }
 
+func GenerateR1CSConvertor(d GenerateData) error {
+	if !strings.HasSuffix(d.RootPath, "/") {
+		d.RootPath += "/"
+	}
+	fmt.Println()
+	fmt.Println("generating r1cs convertor for ", d.Curve)
+	fmt.Println()
+	if d.Curve == "GENERIC" {
+		return nil
+	}
+
+	// generate r1cs_curve.go
+	src := []string{
+		templates.ImportCurve,
+		representations.R1CSConvertor,
+	}
+	return bavard.Generate(d.RootPath+"r1cs_"+strings.ToLower(d.Curve)+".go", src, d,
+		bavard.Package("r1cs"),
+		bavard.Apache2("ConsenSys AG", 2020),
+		bavard.GeneratedBy("gnark/internal/generators"),
+	)
+}
+
 func GenerateGroth16(d GenerateData) error {
 	if !strings.HasSuffix(d.RootPath, "/") {
 		d.RootPath += "/"
@@ -27,19 +50,17 @@ func GenerateGroth16(d GenerateData) error {
 		return nil
 	}
 
-	if d.Curve != "GENERIC" {
-		// generate R1CS.go
-		src := []string{
-			templates.ImportCurve,
-			representations.R1CS,
-		}
-		if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
-			bavard.Package("backend_"+strings.ToLower(d.Curve)),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-		); err != nil {
-			return err
-		}
+	// generate R1CS.go
+	src := []string{
+		templates.ImportCurve,
+		representations.R1CS,
+	}
+	if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
+		bavard.Package("backend_"+strings.ToLower(d.Curve)),
+		bavard.Apache2("ConsenSys AG", 2020),
+		bavard.GeneratedBy("gnark/internal/generators"),
+	); err != nil {
+		return err
 	}
 
 	// groth16
