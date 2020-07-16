@@ -193,10 +193,11 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 }
 
 // Term lightweight version of a term, no pointers
-type Term struct {
-	ID      int64 // index of the constraint used to compute this wire
-	CoeffID int   // coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
-}
+// first 4 bits are reserved
+// next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
+// next 30 bits represent the constraint used to compute the wire
+// if we support more than 1 billion constraints, this breaks (not so soon.)
+type Term uint64
 
 // String helper for Term
 func (t Term) String() string {
@@ -205,9 +206,87 @@ func (t Term) String() string {
 	return "unimplemented"
 }
 
-func (t *Term) MulAdd(r1cs *R1CS, buffer, value, accumulator *fr.Element) {
-	buffer.Mul(&r1cs.Coefficients[t.CoeffID], value)
-	accumulator.Add(accumulator, buffer)
+const (
+	specialValueMinusOne uint64 = 0b0001
+	specialValueZero            = 0b0010
+	specialValueOne             = 0b0100
+	specialValueTwo             = 0b1000
+)
+
+func NewTerm(constraintID, coeffID, specialValue int) Term {
+	_constraintID := uint64(constraintID)
+	_coeffID := uint64(coeffID)
+	_coeffID <<= 34
+	_coeffID >>= 4
+	if (_coeffID >> 30) != uint64(coeffID) {
+		panic("coeffID is > 2^30, unsupported")
+	}
+	if ((_constraintID << 34) >> 34) != uint64(constraintID) {
+		panic("constraintID is > 2^30, unsupported")
+	}
+	reserved := uint64(0)
+	switch specialValue {
+	case -1:
+		reserved = specialValueMinusOne
+		reserved <<= 60
+	case 0:
+		reserved = specialValueZero
+		reserved <<= 60
+	case 1:
+		reserved = specialValueOne
+		reserved <<= 60
+	case 2:
+		reserved = specialValueTwo
+		reserved <<= 60
+	}
+
+	return Term(reserved | _constraintID | _coeffID)
+
+}
+
+// ID returns the index of the constraint used to compute this wire
+func (t Term) ID() int {
+	const mask uint64 = 0x3FFFFFFF
+	return int(uint64(t) & mask)
+}
+
+func (t Term) coeffID() int {
+	const mask uint64 = 0xFFFFFFFC0000000
+	return int((uint64(t) & mask) >> 30)
+}
+
+// MulAdd returns accumulator += (value * term.Coefficient)
+func (t Term) MulAdd(r1cs *R1CS, buffer, value, accumulator *fr.Element) {
+	specialValue := uint64(t) >> 60
+	if specialValue == specialValueOne {
+		accumulator.Add(accumulator, value)
+	} else if specialValue == specialValueMinusOne {
+		accumulator.Sub(accumulator, value)
+	} else if specialValue == specialValueZero {
+		return
+	} else if specialValue == specialValueTwo {
+		buffer.Double(value)
+		accumulator.Add(accumulator, buffer)
+	} else {
+		buffer.Mul(&r1cs.Coefficients[t.coeffID()], value)
+		accumulator.Add(accumulator, buffer)
+	}
+}
+
+// mulInto returns into.Mul(into, term.Coefficient)
+func (t Term) mulInto(r1cs *R1CS, into *fr.Element) *fr.Element {
+	specialValue := uint64(t) >> 60
+	if specialValue == specialValueOne {
+		return into
+	} else if specialValue == specialValueMinusOne {
+		return into.Neg(into)
+	} else if specialValue == specialValueZero {
+		return into.SetZero()
+	} else if specialValue == specialValueTwo {
+		return into.Double(into)
+	} else {
+		return into.Mul(into, &r1cs.Coefficients[t.coeffID()])
+	}
 }
 
 // LinearExpression lightweight version of linear expression
@@ -246,18 +325,34 @@ func (r1c *R1C) instantiate(r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Ele
 	var tmp fr.Element
 
 	for _, t := range r1c.L {
-		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &a)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID()], &a)
 	}
 
 	for _, t := range r1c.R {
-		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &b)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID()], &b)
 	}
 
 	for _, t := range r1c.O {
-		t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &c)
+		t.MulAdd(r1cs, &tmp, &wireValues[t.ID()], &c)
 	}
 
 	return
+}
+
+type location uint8
+
+const (
+	locationUnset location = iota
+	locationA
+	locationB
+	locationC
+)
+
+func (l location) set(nloc location) location {
+	if l != locationUnset {
+		panic("location was already set -- we should have only one unset wire")
+	}
+	return nloc
 }
 
 // solveR1c computes a wire by solving a r1cs
@@ -274,65 +369,69 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
-		location := [3]int64{-1, -1, -1}
+		loc := locationUnset
 
-		var tmp, a, b, c, backupCoeff fr.Element
+		var tmp, a, b, c fr.Element
+		var _t Term
 
 		for _, t := range r1c.L {
-			if wireInstantiated[t.ID] {
-				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &a)
+			cID := t.ID()
+			if wireInstantiated[cID] {
+				t.MulAdd(r1cs, &tmp, &wireValues[cID], &a)
 			} else {
-				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
-				location[0] = t.ID
+				_t = t
+				loc = loc.set(locationA)
 			}
 		}
 
 		for _, t := range r1c.R {
-			if wireInstantiated[t.ID] {
-				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &b)
+			cID := t.ID()
+			if wireInstantiated[cID] {
+				t.MulAdd(r1cs, &tmp, &wireValues[cID], &b)
 			} else {
-				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
-				location[1] = t.ID
+				_t = t
+				loc = loc.set(locationB)
 			}
 		}
 
 		for _, t := range r1c.O {
-			if wireInstantiated[t.ID] {
-				t.MulAdd(r1cs, &tmp, &wireValues[t.ID], &c)
+			cID := t.ID()
+			if wireInstantiated[cID] {
+				t.MulAdd(r1cs, &tmp, &wireValues[cID], &c)
 			} else {
-				backupCoeff.Set(&r1cs.Coefficients[t.CoeffID])
-				location[2] = t.ID
+				_t = t
+				loc = loc.set(locationC)
 			}
 		}
 
-		var zero fr.Element
+		// ensure we found the unset wire
+		if loc == locationUnset {
+			// TODO this should panic?
+			// fmt.Println("couldn't find uncomputed wire when solving R1C")
+			return
+		}
 
-		if location[0] != -1 {
-			id := location[0]
-			if b.Equal(&zero) {
-				wireValues[id].SetZero()
-			} else {
-				wireValues[id].Div(&c, &b).
-					Sub(&wireValues[id], &a).
-					Mul(&wireValues[id], &backupCoeff)
+		cID := _t.ID()
+		wireValues[cID].SetZero()
+		wireInstantiated[cID] = true
+
+		switch loc {
+		case locationA:
+			if !b.IsZero() {
+				wireValues[cID].Div(&c, &b).
+					Sub(&wireValues[cID], &a)
+				_t.mulInto(r1cs, &wireValues[cID])
 			}
-			wireInstantiated[id] = true
-		} else if location[1] != -1 {
-			id := location[1]
-			if a.Equal(&zero) {
-				wireValues[id].SetZero()
-			} else {
-				wireValues[id].Div(&c, &a).
-					Sub(&wireValues[id], &b).
-					Mul(&wireValues[id], &backupCoeff)
+		case locationB:
+			if !a.IsZero() {
+				wireValues[cID].Div(&c, &a).
+					Sub(&wireValues[cID], &b)
+				_t.mulInto(r1cs, &wireValues[cID])
 			}
-			wireInstantiated[id] = true
-		} else if location[2] != -1 {
-			id := location[2]
-			wireValues[id].Mul(&a, &b).
-				Sub(&wireValues[id], &c).
-				Mul(&wireValues[id], &backupCoeff)
-			wireInstantiated[id] = true
+		case locationC:
+			wireValues[cID].Mul(&a, &b).
+				Sub(&wireValues[cID], &c)
+			_t.mulInto(r1cs, &wireValues[cID])
 		}
 
 	// in the case the R1C is solved by directly computing the binary decomposition
@@ -340,7 +439,7 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 	case backend.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
-		n := wireValues[r1c.O[0].ID].ToRegular()
+		n := wireValues[r1c.O[0].ID()].ToRegular()
 		nbBits := len(r1c.L)
 
 		// binary decomposition of n
@@ -349,9 +448,10 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 			j = 0
 			for j < 64 && i*64+j < len(r1c.L) {
 				ithbit := (n[i] >> uint(j)) & 1
-				if !wireInstantiated[r1c.L[i*64+j].ID] {
-					wireValues[r1c.L[i*64+j].ID].SetUint64(ithbit)
-					wireInstantiated[r1c.L[i*64+j].ID] = true
+				cID := r1c.L[i*64+j].ID()
+				if !wireInstantiated[cID] {
+					wireValues[cID].SetUint64(ithbit)
+					wireInstantiated[cID] = true
 				}
 				j++
 			}

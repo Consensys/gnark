@@ -40,19 +40,48 @@ func (r1cs *UntypedR1CS) toBN256() *backend_bn256.R1CS {
 	toReturn.Constraints = make([]backend_bn256.R1C, len(r1cs.Constraints))
 
 	lookupTable := make(map[string]int)
-	var e fr.Element
+	var e, eOne, eTwo, eMinusOne fr.Element
+	eOne.SetOne()
+	eMinusOne.Neg(&eOne)
+	eTwo.SetUint64(2)
 
-	getCoeffIdx := func(b *big.Int) int {
+	const maxInt = int(^uint(0) >> 1)
+
+	getCoeffIdx := func(b *big.Int) (coeffID, specialValue int) {
 		e.SetBigInt(b)
+
+		// let's check if wwe have a special value
+		specialValue = maxInt
+		if e.IsZero() {
+			specialValue = 0
+			return
+		} else if e.Equal(&eOne) {
+			specialValue = 1
+			return
+		} else if e.Equal(&eMinusOne) {
+			specialValue = -1
+			return
+		} else if e.Equal(&eTwo) {
+			specialValue = 2
+			return
+		}
+
+		// no special value, let's check if we have encountered the coeff already
+		// note: this is slow. but "offline"
 		key := hex.EncodeToString(e.Bytes())
 		if idx, ok := lookupTable[key]; ok {
-			return idx
+			coeffID = idx
+			return
 		}
-		r := len(toReturn.Coefficients)
+
+		// we didn't find it, let's add it to our coefficients
+		coeffID = len(toReturn.Coefficients)
 		toReturn.Coefficients = append(toReturn.Coefficients, e)
-		lookupTable[key] = r
-		return r
+		lookupTable[key] = coeffID
+		return
 	}
+
+	var cID, specialValue int
 
 	for i := 0; i < len(r1cs.Constraints); i++ {
 		from := r1cs.Constraints[i]
@@ -64,16 +93,16 @@ func (r1cs *UntypedR1CS) toBN256() *backend_bn256.R1CS {
 		}
 
 		for j := 0; j < len(from.L); j++ {
-			to.L[j].ID = from.L[j].ID
-			to.L[j].CoeffID = getCoeffIdx(&from.L[j].Coeff)
+			cID, specialValue = getCoeffIdx(&from.L[j].Coeff)
+			to.L[j] = backend_bn256.NewTerm(int(from.L[j].ID), cID, specialValue)
 		}
 		for j := 0; j < len(from.R); j++ {
-			to.R[j].ID = from.R[j].ID
-			to.R[j].CoeffID = getCoeffIdx(&from.R[j].Coeff)
+			cID, specialValue = getCoeffIdx(&from.R[j].Coeff)
+			to.R[j] = backend_bn256.NewTerm(int(from.R[j].ID), cID, specialValue)
 		}
 		for j := 0; j < len(from.O); j++ {
-			to.O[j].ID = from.O[j].ID
-			to.O[j].CoeffID = getCoeffIdx(&from.O[j].Coeff)
+			cID, specialValue = getCoeffIdx(&from.O[j].Coeff)
+			to.O[j] = backend_bn256.NewTerm(int(from.O[j].ID), cID, specialValue)
 		}
 
 		toReturn.Constraints[i] = to

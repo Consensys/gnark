@@ -21,11 +21,11 @@ import (
 
 const benchCount = 10000
 
-var nbConstraints = []int{1000000} //, 1000000, 10000000}
+var nbConstraints = []int{10000} //, 1000000, 10000000}
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 10000000
+const n = 1000000
 
 // else will output average proving times, in csv format
 func main() {
