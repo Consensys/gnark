@@ -43,6 +43,8 @@ type CS struct {
 
 	// keep track of the number of constraints (ensure each constraint has a unique ID)
 	nbConstraints uint64
+
+	nbPublicInputs, nbSecretInputs int
 }
 
 // New returns a new constraint system
@@ -74,6 +76,13 @@ func (cs *CS) addConstraint(c *constraint) {
 	c.setID(cs.nbConstraints)
 	cs.Constraints[c.id()] = c
 	cs.nbConstraints++
+	if c.outputWire != nil && c.outputWire.isUserInput() {
+		if c.outputWire.IsSecret {
+			cs.nbSecretInputs++
+		} else {
+			cs.nbPublicInputs++
+		}
+	}
 }
 
 // MUL multiplies two constraints

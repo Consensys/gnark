@@ -29,7 +29,7 @@ type wire struct {
 	Name         string // only inputs wires have a name (different from the tags)
 	WireID       int64
 	ConstraintID int64 // ID of the constraint from which the wire is computed (for an input it's -1)
-	IsPrivate    bool
+	IsSecret     bool
 	IsConsumed   bool     // if false it means it is the last wire of the computational graph
 	Tags         []string // if debug is set, the variable can be displayed once the wires are computed
 }

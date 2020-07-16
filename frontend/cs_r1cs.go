@@ -9,7 +9,7 @@ import (
 // this method should not be called directly in a normal workflow,
 // as it is called by frontend.Compile()
 // it exists for test purposses (backend and integration)
-func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
+func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	/*
 		Algorithm to build the r1cs system
@@ -48,20 +48,21 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// those 3 slices store all the wires
 	// those are needed to number the wires, before putting them in the wire tracker
-	var wireTracker, publicInputs, privateInputs []*wire
-	var computationalGraph []r1cs.R1C
+	wireTracker := make([]*wire, 0, cs.nbConstraints)
+	publicInputs := make([]*wire, 0, cs.nbPublicInputs)
+	secretInputs := make([]*wire, 0, cs.nbSecretInputs)
 
 	// we keep track of wire that are "unconstrained" to ignore them at step 2
 	// unconstrained wires can be inputs or wires issued from a MOConstraint (like the i-th bit of a binary decomposition)
 	ignoredConstraints := make(map[uint64]struct{})
 
 	// step 1: fills the tmpwiretracker, public/private inputs tracker
-	for k, c := range circuit.Constraints {
+	for k, c := range cs.Constraints {
 
 		// if it's a user input
 		if c.getOutputWire().isUserInput() {
-			if c.getOutputWire().IsPrivate {
-				privateInputs = append(privateInputs, c.getOutputWire())
+			if c.getOutputWire().IsSecret {
+				secretInputs = append(secretInputs, c.getOutputWire())
 			} else {
 				publicInputs = append(publicInputs, c.getOutputWire())
 			}
@@ -75,13 +76,13 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 	}
 
 	// store the keys of the constraint map to loop in the same order at step 4
-	var keys []uint64
+	keys := make([]uint64, 0, len(cs.Constraints)-len(ignoredConstraints))
 
 	// to keep track of the number of constraints
 	var ccCounter int64
 
 	// step 2: Run through all the constraints, set the constraintID (except the ignored ones, corresponding to inputs), consume the wires
-	for k, c := range circuit.Constraints {
+	for k, c := range cs.Constraints {
 
 		// we ignore monCosntraints in this loop
 		if _, ok := ignoredConstraints[k]; ok {
@@ -95,7 +96,7 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 			ccCounter++
 		}
 	}
-	for _, c := range circuit.MOConstraints {
+	for _, c := range cs.MOConstraints {
 		c.setConstraintID(ccCounter)
 		c.consumeWires() // tells the output wires from which constraint they are computed
 		ccCounter++
@@ -108,13 +109,13 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 	offset := len(wireTracker)
 
 	uR1CS := &r1cs.UntypedR1CS{}
-	uR1CS.PrivateWires = make([]string, len(privateInputs))
-	for i, w := range privateInputs {
+	uR1CS.PrivateWires = make([]string, len(secretInputs))
+	for i, w := range secretInputs {
 		w.WireID = int64(i + offset)
 		uR1CS.PrivateWires[i] = w.Name
 		wireTracker = append(wireTracker, w)
 	}
-	offset += len(privateInputs)
+	offset += len(secretInputs)
 	uR1CS.PublicWires = make([]string, len(publicInputs))
 	for i, w := range publicInputs {
 		w.WireID = int64(i + offset)
@@ -124,11 +125,14 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// step 4: Now the attributes of all wires are synced up, no need of pointers anymore
 	// We can split the constraints into r1cs
+	computationalGraph := make([]r1cs.R1C, 0, cs.nbConstraints)
+	uR1CS.Constraints = make([]r1cs.R1C, 0, cs.nbConstraints)
+
 	for _, k := range keys {
 
-		c := circuit.Constraints[k]
+		c := cs.Constraints[k]
 
-		batchR1CS := c.toR1CS(circuit)
+		batchR1CS := c.toR1CS(cs)
 
 		if c.getOutputWire().isUserInput() {
 			uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS...)
@@ -140,12 +144,12 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 			}
 		}
 	}
-	for _, c := range circuit.MOConstraints {
-		batchR1CS := c.toR1CS(circuit.Constraints[0].getOutputWire())
+	for _, c := range cs.MOConstraints {
+		batchR1CS := c.toR1CS(cs.Constraints[0].getOutputWire())
 		computationalGraph = append(computationalGraph, batchR1CS)
 	}
-	for _, c := range circuit.NOConstraints {
-		batchR1CS := c.toR1CS(circuit.Constraints[0].getOutputWire())
+	for _, c := range cs.NOConstraints {
+		batchR1CS := c.toR1CS(cs.Constraints[0].getOutputWire())
 		uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS)
 	}
 
@@ -171,7 +175,7 @@ func (circuit *CS) ToR1CS() *r1cs.UntypedR1CS {
 	uR1CS.NbConstraints = len(uR1CS.Constraints)
 	uR1CS.NbCOConstraints = len(graphOrdering)
 	uR1CS.NbPublicWires = len(publicInputs)
-	uR1CS.NbPrivateWires = len(privateInputs)
+	uR1CS.NbPrivateWires = len(secretInputs)
 
 	// tags
 	uR1CS.WireTags = make(map[int][]string)

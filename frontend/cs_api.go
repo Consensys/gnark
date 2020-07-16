@@ -358,7 +358,7 @@ func (cs *CS) SECRET_INPUT(name string) Variable {
 		outputWire: &wire{
 			Name:         name,
 			Tags:         []string{},
-			IsPrivate:    true,
+			IsSecret:     true,
 			IsConsumed:   true,
 			ConstraintID: -1,
 			WireID:       -1,
@@ -371,9 +371,23 @@ func (cs *CS) SECRET_INPUT(name string) Variable {
 
 // PUBLIC_INPUT creates a Constraint containing an input
 func (cs *CS) PUBLIC_INPUT(name string) Variable {
-	toReturn := cs.SECRET_INPUT(name)
-	toReturn.getOutputWire().IsPrivate = false
-	return toReturn
+	// checks if the name already exists
+	if !cs.registerNamedInput(name) {
+		panic("input " + name + " already declared")
+	}
+
+	c := &constraint{
+		outputWire: &wire{
+			Name:         name,
+			Tags:         []string{},
+			IsSecret:     false,
+			IsConsumed:   true,
+			ConstraintID: -1,
+			WireID:       -1,
+		}}
+	cs.addConstraint(c)
+
+	return Variable{constraint: c}
 }
 
 // ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}

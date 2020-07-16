@@ -73,7 +73,7 @@ type LinearCombination []Term
 func newConstraint(cs *CS, expressions ...expression) Variable {
 	c := &constraint{
 		outputWire: &wire{
-			IsPrivate:    true,
+			IsSecret:     true,
 			ConstraintID: -1,
 			WireID:       -1,
 		},
