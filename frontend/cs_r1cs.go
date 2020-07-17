@@ -158,7 +158,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// post oder computation graph: these are the constraints that need to be solved first (and in order)
 	rootConstraints := findRootConstraints(wireTracker)
-	var graphOrdering []int64
+	graphOrdering := make([]int64, 0, len(computationalGraph))
 	for _, i := range rootConstraints {
 		graphOrdering = postOrder(i, visited, computationalGraph, graphOrdering, wireTracker)
 	}
@@ -206,11 +206,11 @@ func postOrder(constraintID int64, visited []bool, computationalGraph []r1cs.R1C
 
 	// stackIn stores the unsivisted/non input wires in the order we
 	// visit them
-	stackIn := newStack()
+	stackIn := newStack(len(computationalGraph))
 
 	// stackOut stores the constraint in the order we should visit them to
 	// solve them
-	stackOut := newStack()
+	stackOut := newStack(len(computationalGraph))
 
 	node := constraintID
 
@@ -296,8 +296,8 @@ func postOrder(constraintID int64, visited []bool, computationalGraph []r1cs.R1C
 // helpers for post ordering
 type stack []int64
 
-func newStack() stack {
-	return make([]int64, 0)
+func newStack(cap int) stack {
+	return make([]int64, 0, cap)
 }
 
 func (s stack) push(elmt int64) stack {
