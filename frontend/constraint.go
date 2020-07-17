@@ -35,6 +35,10 @@ type constraint struct {
 	constraintID uint64 // key in CS.Constraints[] map
 }
 
+func (c *constraint) Set(other *constraint) {
+	*c = *other
+}
+
 func (c *constraint) getExpressions() []expression {
 	return c.expressions
 }
