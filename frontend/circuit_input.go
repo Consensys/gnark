@@ -30,7 +30,7 @@ func (cInput Variable) Set(other Variable) {
 	if cInput.constraint == nil {
 		panic("can't set variable -- circuit is not compiled")
 	}
-	cInput.constraint.Set(other.constraint)
+	cInput.constraint = other.constraint
 }
 func (cInput Variable) getExpressions() []expression {
 	if cInput.constraint == nil {

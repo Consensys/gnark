@@ -35,12 +35,6 @@ type constraint struct {
 	constraintID uint64 // key in CS.Constraints[] map
 }
 
-func (c *constraint) Set(other *constraint) {
-	c.expressions = other.getExpressions()
-	c.outputWire = other.getOutputWire()
-	c.constraintID = other.id()
-}
-
 func (c *constraint) getExpressions() []expression {
 	return c.expressions
 }
