@@ -27,8 +27,7 @@ func (circuit *ExponentiateCircuit) Define(ctx *frontend.Context, cs *frontend.C
 	bits := cs.TO_BINARY(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-
-		bits[i].Tag(fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
+		cs.Tag(bits[i], fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
 
 		if i != 0 {
 			output = cs.MUL(output, output)
@@ -36,7 +35,7 @@ func (circuit *ExponentiateCircuit) Define(ctx *frontend.Context, cs *frontend.C
 		multiply := cs.MUL(output, circuit.X)
 		output = cs.SELECT(bits[len(bits)-1-i], multiply, output)
 
-		output.Tag(fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
+		cs.Tag(output, fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
 	}
 
 	cs.MUSTBE_EQ(circuit.Y, output)

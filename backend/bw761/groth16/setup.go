@@ -277,13 +277,13 @@ func setupABC(r1cs *backend_bw761.R1CS, g *backend_bw761.Domain, tw toxicWaste) 
 	for _, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			t.MulAdd(r1cs, &tmp, &ithLagrangePolt, &A[t.ID()])
+			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &A[t.ConstraintID()])
 		}
 		for _, t := range c.R {
-			t.MulAdd(r1cs, &tmp, &ithLagrangePolt, &B[t.ID()])
+			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &B[t.ConstraintID()])
 		}
 		for _, t := range c.O {
-			t.MulAdd(r1cs, &tmp, &ithLagrangePolt, &C[t.ID()])
+			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &C[t.ConstraintID()])
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))

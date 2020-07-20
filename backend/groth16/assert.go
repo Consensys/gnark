@@ -29,7 +29,6 @@ func NewAssert(t *testing.T) *Assert {
 func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
 	pk := DummySetup(r1cs)
-
 	var solution map[string]interface{}
 
 	switch s := _solution.(type) {

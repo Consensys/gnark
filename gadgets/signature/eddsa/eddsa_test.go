@@ -57,7 +57,7 @@ func TestEddsa(t *testing.T) {
 	}
 
 	// Set the eddsa circuit and the gadget
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	params, err := twistededwards.NewEdCurve(gurvy.BN256)
 	if err != nil {

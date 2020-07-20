@@ -17,7 +17,6 @@ limitations under the License.
 package frontend
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -33,10 +32,10 @@ func TestDuplicateSecretInput(t *testing.T) {
 		}
 	}()
 
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	circuit.SECRET_INPUT("x")
-	circuit.SECRET_INPUT("x")
+	cs.SECRET_INPUT("x")
+	cs.SECRET_INPUT("x")
 }
 
 func TestDuplicatePublicInput(t *testing.T) {
@@ -47,10 +46,10 @@ func TestDuplicatePublicInput(t *testing.T) {
 		}
 	}()
 
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	circuit.PUBLIC_INPUT("x")
-	circuit.PUBLIC_INPUT("x")
+	cs.PUBLIC_INPUT("x")
+	cs.PUBLIC_INPUT("x")
 }
 
 func TestInconsistantConstraints1(t *testing.T) {
@@ -60,12 +59,12 @@ func TestInconsistantConstraints1(t *testing.T) {
 		}
 	}()
 
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
 
-	circuit.MUSTBE_EQ(x, y)
+	cs.MUSTBE_EQ(x, y)
 }
 
 func TestInconsistantConstraints2(t *testing.T) {
@@ -75,11 +74,11 @@ func TestInconsistantConstraints2(t *testing.T) {
 		}
 	}()
 
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.MUSTBE_EQ(x, x)
+	cs.MUSTBE_EQ(x, x)
 }
 
 func TestInconsistantConstraints3(t *testing.T) {
@@ -89,28 +88,28 @@ func TestInconsistantConstraints3(t *testing.T) {
 		}
 	}()
 
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.MUSTBE_EQ(x, 3)
+	cs.MUSTBE_EQ(x, 3)
 }
 
 // checks if creation of constraint system works
 func TestOneWireConstraint(t *testing.T) {
 	assert := require.New(t)
-	circuit := New()
-	nbWires := circuit.countWires()
+	cs := NewConstraintSystem()
+	nbWires := cs.countWires()
 
 	assert.Equal(1, nbWires, "Newly created constraint system should have 1 wire")
-	assert.Equal(1, int(circuit.nbConstraints), "Newly created constraint system should have 1 constraint")
+	assert.Equal(1, int(cs.nbConstraints), "Newly created constraint system should have 1 constraint")
 
-	val, ok := circuit.Constraints[0]
-	assert.True(ok, "constraint map should contain ONE_WIRE")
-	assert.Equal(backend.OneWire, val.getOutputWire().Name, "constraint map should contain ONE_WIRE")
+	val := cs.Constraints[ONE_WIRE_ID]
+	oneWire := cs.Wires[val.wireID]
+	assert.Equal(backend.OneWire, oneWire.Name, "constraint map should contain ONE_WIRE")
 
-	_ = circuit.ALLOCATE(1)
-	assert.Equal(1, int(circuit.nbConstraints), "ALLOCATE(1) should return existing ONEWIRE")
+	_ = cs.ALLOCATE(1)
+	assert.Equal(1, int(cs.nbConstraints), "ALLOCATE(1) should return existing ONEWIRE")
 }
 
 func TestADD(t *testing.T) {
@@ -118,19 +117,19 @@ func TestADD(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.ADD(x, x).Tag("x+x")
-	circuit.ADD(x, val).Tag("x+4")
-	circuit.ADD(val, x).Tag("4+x")
+	cs.ADD(x, x)
+	cs.ADD(x, val)
+	cs.ADD(val, x)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         5,
 		nbConstraints:   5,
 		nbMOConstraints: 0,
@@ -138,7 +137,7 @@ func TestADD(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
@@ -159,8 +158,8 @@ func TestADD(t *testing.T) {
 	// expectedValues["x+4"] = 42 + 4
 	// expectedValues["4+x"] = 4 + 42
 
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
+	// assert.NotSolved(cs, bad)
+	// assert.Solved(cs, good, expectedValues)
 }
 
 func TestSUB(t *testing.T) {
@@ -168,19 +167,19 @@ func TestSUB(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.SUB(x, x).Tag("x-x")
-	circuit.SUB(x, val).Tag("x-4")
-	circuit.SUB(val, x).Tag("4-x")
+	cs.SUB(x, x)
+	cs.SUB(x, val)
+	cs.SUB(val, x)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         5,
 		nbConstraints:   5,
 		nbMOConstraints: 0,
@@ -188,7 +187,7 @@ func TestSUB(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
@@ -196,23 +195,6 @@ func TestSUB(t *testing.T) {
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // good solution
-	// good[ "x", 42)
-
-	// // expected values
-	// expectedValues["x"] = 42
-	// expectedValues["x-x"] = 0
-	// expectedValues["x-4"] = 42 - 4
-	// fourMinus42 := backend.FromInterface(42)
-	// fourMinus42.Sub(&val, &fourMinus42)
-	// expectedValues["4-x"] = fourMinus42
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestMUL(t *testing.T) {
@@ -220,19 +202,19 @@ func TestMUL(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.MUL(x, x).Tag("x^2")
-	circuit.MUL(x, val).Tag("x*4")
-	circuit.MUL(val, x).Tag("4*x")
+	cs.MUL(x, x)
+	cs.MUL(x, val)
+	cs.MUL(val, x)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         5,
 		nbConstraints:   5,
 		nbMOConstraints: 0,
@@ -240,7 +222,7 @@ func TestMUL(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
@@ -248,21 +230,6 @@ func TestMUL(t *testing.T) {
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // good solution
-	// good[ "x", 42)
-
-	// // expected values
-	// expectedValues["x"] = 42
-	// expectedValues["x^2"] = 42 * 42
-	// expectedValues["x*4"] = 42 * 4
-	// expectedValues["4*x"] = 4 * 42
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestDIV(t *testing.T) {
@@ -270,15 +237,15 @@ func TestDIV(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
 
-	circuit.DIV(x, y).Tag("x/y")
+	cs.DIV(x, y)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         4,
 		nbConstraints:   4,
 		nbMOConstraints: 0,
@@ -286,7 +253,7 @@ func TestDIV(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
@@ -294,23 +261,6 @@ func TestDIV(t *testing.T) {
 		nbPublicWires:              3,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // good solution
-	// good[ "x", 42)
-	// good[ "y", 142)
-
-	// // expected values
-	// xVal := backend.FromInterface(42)
-	// xDiv := backend.FromInterface(142)
-	// xDiv.Div(&xVal, &xDiv)
-	// expectedValues["x"] = xVal
-	// expectedValues["x/y"] = xDiv
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestDIVLC(t *testing.T) {
@@ -318,20 +268,20 @@ func TestDIVLC(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
 
 	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
 	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
-	circuit.DIV(l1, l2).Tag("res")
+	cs.DIV(l1, l2)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         4,
 		nbConstraints:   4,
 		nbMOConstraints: 0,
@@ -339,7 +289,7 @@ func TestDIVLC(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
@@ -347,21 +297,6 @@ func TestDIVLC(t *testing.T) {
 		nbPublicWires:              3,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // good solution
-	// good[ "x", 8000)
-	// good[ "y", 80)
-
-	// // expected values
-	// expectedValues["x"] = 8000
-	// expectedValues["y"] = 80
-	// expectedValues["res"] = (8000 * 2) / (80 * 2)
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestMULLC(t *testing.T) {
@@ -369,20 +304,20 @@ func TestMULLC(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
 
 	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
 	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
-	circuit.MUL(l1, l2).Tag("res")
+	cs.MUL(l1, l2)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         4,
 		nbConstraints:   4,
 		nbMOConstraints: 0,
@@ -390,7 +325,7 @@ func TestMULLC(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
@@ -398,21 +333,6 @@ func TestMULLC(t *testing.T) {
 		nbPublicWires:              3,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // good solution
-	// good[ "x", 8000)
-	// good[ "y", 80)
-
-	// // expected values
-	// expectedValues["x"] = 8000
-	// expectedValues["y"] = 80
-	// expectedValues["res"] = (8000 * 2) * (80 * 2)
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestSELECT(t *testing.T) {
@@ -420,16 +340,16 @@ func TestSELECT(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-	z := circuit.PUBLIC_INPUT("z")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
+	z := cs.PUBLIC_INPUT("z")
 
-	circuit.SELECT(x, y, z).Tag("res")
+	cs.SELECT(x, y, z)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         5,
 		nbConstraints:   5,
 		nbMOConstraints: 0,
@@ -437,7 +357,7 @@ func TestSELECT(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    5,
 		nbComputationalConstraints: 1,
 		nbConstraints:              2,
@@ -445,28 +365,6 @@ func TestSELECT(t *testing.T) {
 		nbPublicWires:              4,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution (x is not a boolean)
-	// bad[ "x", 10)
-	// bad[ "y", 42)
-	// bad[ "z", 8000)
-
-	// // good solution
-	// good[ "x", 0)
-	// good[ "y", 42)
-	// good[ "z", 8000)
-
-	// // expected values
-	// expectedValues["x"] = 0
-	// expectedValues["y"] = 42
-	// expectedValues["z"] = 8000
-	// expectedValues["res"] = 8000
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestFROM_BINARY(t *testing.T) {
@@ -474,18 +372,18 @@ func TestFROM_BINARY(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	b0 := circuit.PUBLIC_INPUT("b0")
-	b1 := circuit.PUBLIC_INPUT("b1")
-	b2 := circuit.PUBLIC_INPUT("b2")
-	b3 := circuit.PUBLIC_INPUT("b3")
-	b4 := circuit.PUBLIC_INPUT("b4")
+	b0 := cs.PUBLIC_INPUT("b0")
+	b1 := cs.PUBLIC_INPUT("b1")
+	b2 := cs.PUBLIC_INPUT("b2")
+	b3 := cs.PUBLIC_INPUT("b3")
+	b4 := cs.PUBLIC_INPUT("b4")
 
-	circuit.FROM_BINARY(b0, b1, b2, b3, b4).Tag("res")
+	cs.FROM_BINARY(b0, b1, b2, b3, b4)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         7,
 		nbConstraints:   7,
 		nbMOConstraints: 0,
@@ -493,7 +391,7 @@ func TestFROM_BINARY(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    7,
 		nbComputationalConstraints: 1,
 		nbConstraints:              6,
@@ -501,35 +399,6 @@ func TestFROM_BINARY(t *testing.T) {
 		nbPublicWires:              6,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution (b0 == 3, not a bit)
-	// bad[ "b0", 3)
-	// bad[ "b1", 0)
-	// bad[ "b2", 1)
-	// bad[ "b3", 1)
-	// bad[ "b4", 0)
-
-	// // good solution
-	// good[ "b0", 1)
-	// good[ "b1", 0)
-	// good[ "b2", 1)
-	// good[ "b3", 0)
-	// good[ "b4", 1)
-
-	// // expected values
-	// expectedValues["b0"] = 1
-	// expectedValues["b1"] = 0
-	// expectedValues["b2"] = 1
-	// expectedValues["b3"] = 0
-	// expectedValues["b4"] = 1
-
-	// expectedValues["res"] = 1 + 2*0 + 4*1 + 8*0 + 16*1
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestTO_BINARY(t *testing.T) {
@@ -537,17 +406,14 @@ func TestTO_BINARY(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	res := circuit.TO_BINARY(x, 5)
-	for i, r := range res {
-		r.Tag(fmt.Sprintf("res%d", i))
-	}
+	cs.TO_BINARY(x, 5)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         7,
 		nbConstraints:   7,
 		nbMOConstraints: 1,
@@ -555,7 +421,7 @@ func TestTO_BINARY(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    7,
 		nbComputationalConstraints: 5,
 		nbConstraints:              10,
@@ -563,26 +429,6 @@ func TestTO_BINARY(t *testing.T) {
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// bad solution
-	// bad[ "x", 64) // TODO doesn't fit on 5 bits
-
-	// good solution
-	// good[ "x", 17)
-
-	// // expected values
-	// expectedValues["x"] = 17
-	// expectedValues["res0"] = 1
-	// expectedValues["res1"] = 0
-	// expectedValues["res2"] = 0
-	// expectedValues["res3"] = 0
-	// expectedValues["res4"] = 1
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestSELECT_LUT(t *testing.T) {
@@ -590,19 +436,19 @@ func TestSELECT_LUT(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	b0 := circuit.SECRET_INPUT("b0")
-	b1 := circuit.SECRET_INPUT("b1")
+	b0 := cs.SECRET_INPUT("b0")
+	b1 := cs.SECRET_INPUT("b1")
 
 	var lut [4]big.Int
 	lut[0] = backend.FromInterface(42)
 	lut[2] = backend.FromInterface(8000)
 
-	circuit.SELECT_LUT(b0, b1, lut).Tag(("res"))
+	cs.SELECT_LUT(b0, b1, lut)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         4,
 		nbConstraints:   4,
 		nbMOConstraints: 0,
@@ -610,7 +456,7 @@ func TestSELECT_LUT(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              3,
@@ -618,25 +464,6 @@ func TestSELECT_LUT(t *testing.T) {
 		nbPublicWires:              1,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution (non boolean inputs)
-	// bad[ "b0", 22)
-	// bad[ "b1", 22)
-
-	// // good solution
-	// good[ "b0", 1)
-	// good[ "b1", 0)
-
-	// // expected values
-	// expectedValues["b0"] = 1
-	// expectedValues["b1"] = 0
-	// expectedValues["res"] = 8000
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestXOR(t *testing.T) {
@@ -644,22 +471,18 @@ func TestXOR(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-	z := circuit.PUBLIC_INPUT("z")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.PUBLIC_INPUT("y")
+	z := cs.PUBLIC_INPUT("z")
 
-	r0 := circuit.XOR(x, y)
-	r1 := circuit.XOR(x, r0)
-	r2 := circuit.XOR(y, z)
-
-	r0.Tag("r0")
-	r1.Tag("r1")
-	r2.Tag("r2")
+	r0 := cs.XOR(x, y)
+	_ = cs.XOR(x, r0)
+	_ = cs.XOR(y, z)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         7,
 		nbConstraints:   7,
 		nbMOConstraints: 0,
@@ -667,7 +490,7 @@ func TestXOR(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    7,
 		nbComputationalConstraints: 3,
 		nbConstraints:              6,
@@ -675,43 +498,18 @@ func TestXOR(t *testing.T) {
 		nbPublicWires:              4,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution (non boolean inputs)
-	// bad[ "x", 22)
-	// bad[ "y", 22)
-	// bad[ "z", 22)
-
-	// // good solution
-	// good[ "x", 1)
-	// good[ "y", 0)
-	// good[ "z", 0)
-
-	// // expected values
-	// expectedValues["x"] = 1
-	// expectedValues["y"] = 0
-	// expectedValues["z"] = 0
-	// expectedValues["r0"] = 1
-	// expectedValues["r1"] = 0
-	// expectedValues["r2"] = 0
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 func TestALLOC(t *testing.T) {
 	// test helper
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.ALLOCATE(4)
-	x.Tag("x")
+	_ = cs.ALLOCATE(4)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         2,
 		nbConstraints:   2,
 		nbMOConstraints: 0,
@@ -719,7 +517,7 @@ func TestALLOC(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    2,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
@@ -727,14 +525,6 @@ func TestALLOC(t *testing.T) {
 		nbPublicWires:              1,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// expectedValues["x"] = 4
-
-	// // assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestMUSTBE_BOOL(t *testing.T) {
@@ -742,18 +532,18 @@ func TestMUSTBE_BOOL(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.MUSTBE_BOOLEAN(x)
+	cs.MUSTBE_BOOLEAN(x)
 	// TODO add back this test
 	// xx := *x
 	// xx := &
-	// circuit.MUSTBE_BOOLEAN(&xx) // calling MUSTBE_BOOLEAN twice should not add a duplicate constraint
+	// cs.MUSTBE_BOOLEAN(&xx) // calling MUSTBE_BOOLEAN twice should not add a duplicate constraint
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         2,
 		nbConstraints:   2,
 		nbMOConstraints: 0,
@@ -761,7 +551,7 @@ func TestMUSTBE_BOOL(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    2,
 		nbComputationalConstraints: 0,
 		nbConstraints:              1,
@@ -769,21 +559,6 @@ func TestMUSTBE_BOOL(t *testing.T) {
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution
-	// bad[ "x", 12)
-
-	// // good solution
-	// good[ "x", 1)
-
-	// // expected values
-	// expectedValues["x"] = 1
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestXtimes2EqualsY(t *testing.T) {
@@ -791,51 +566,31 @@ func TestXtimes2EqualsY(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
-	y := circuit.SECRET_INPUT("y")
-	cst := circuit.ALLOCATE(2)
-	cst.Tag("cst")
+	x := cs.PUBLIC_INPUT("x")
+	y := cs.SECRET_INPUT("y")
+	cst := cs.ALLOCATE(2)
 
-	circuit.MUSTBE_EQ(circuit.MUL(x, cst), y)
+	cs.MUSTBE_EQ(cs.MUL(x, cst), y)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
-		nbWires:         4,
+	assert.csIsCorrect(cs, expectedCS{
+		nbWires:         5,
 		nbConstraints:   5,
 		nbMOConstraints: 0,
-		nbNOConstraints: 0,
+		nbNOConstraints: 1,
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
-		nbWires:                    4, // TODO why 1 wire for cst?
-		nbComputationalConstraints: 1,
-		nbConstraints:              2,
+	assert.r1csIsCorrect(cs, expectedR1CS{
+		nbWires:                    5,
+		nbComputationalConstraints: 2,
+		nbConstraints:              3,
 		nbPrivateWires:             1,
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution
-	// bad[ "x", 42)
-	// bad[ "y", 42*42)
-
-	// // good solution
-	// good[ "x", 42)
-	// good[ "y", 42*2)
-
-	// // expected values
-	// expectedValues["x"] = 42
-	// expectedValues["y"] = 42 * 2
-	// expectedValues["cst"] = 2
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestINV(t *testing.T) {
@@ -843,14 +598,14 @@ func TestINV(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	x := circuit.PUBLIC_INPUT("x")
+	x := cs.PUBLIC_INPUT("x")
 
-	circuit.INV(x).Tag("x^-1")
+	cs.INV(x)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
+	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         3,
 		nbConstraints:   3,
 		nbMOConstraints: 0,
@@ -858,7 +613,7 @@ func TestINV(t *testing.T) {
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
+	assert.r1csIsCorrect(cs, expectedR1CS{
 		nbWires:                    3,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
@@ -866,28 +621,6 @@ func TestINV(t *testing.T) {
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution
-	// // no input
-
-	// // good solution
-	// good[ "x", 42)
-
-	// expected values
-	// t.Skip("TODO INVERSE")
-	// TODO inverse
-	// xVal := backend.FromInterface(42)
-	// var xInvVal big.Int
-
-	// xInvVal.Inverse(&xVal)
-	// expectedValues["x"] = 42
-	// expectedValues["x^-1"] = xInvVal
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestMerge(t *testing.T) {
@@ -895,65 +628,33 @@ func TestMerge(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	u := circuit.SECRET_INPUT("u")
-	v := circuit.SECRET_INPUT("v")
-	w := circuit.PUBLIC_INPUT("w")
+	u := cs.SECRET_INPUT("u")
+	v := cs.SECRET_INPUT("v")
+	w := cs.PUBLIC_INPUT("w")
 
-	a0 := circuit.INV(u)
-	a0.Tag("a0")
-	a1 := circuit.MUL(a0, v)
-	a1.Tag("a1")
-	circuit.MUSTBE_EQ(w, a1)
+	a0 := cs.INV(u)
+	a1 := cs.MUL(a0, v)
+	cs.MUSTBE_EQ(w, a1)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
-		nbWires:         5,
+	assert.csIsCorrect(cs, expectedCS{
+		nbWires:         6,
 		nbConstraints:   6,
 		nbMOConstraints: 0,
-		nbNOConstraints: 0,
+		nbNOConstraints: 1,
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
-		nbWires:                    5,
-		nbComputationalConstraints: 1,
-		nbConstraints:              2,
+	assert.r1csIsCorrect(cs, expectedR1CS{
+		nbWires:                    6,
+		nbComputationalConstraints: 2,
+		nbConstraints:              3,
 		nbPrivateWires:             2,
 		nbPublicWires:              2,
 	})
-	// TODO missing inverse
-	// t.Skip("missing inverse TODO")
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution
-	// bad[ "u", 42)
-	// bad[ "v", 8000)
-	// bad[ "w", 42)
-
-	// good solution
-	// uVal := backend.FromInterface(2)
-	// var uInvVal big.Int
-	// uInvVal.Inverse(&uVal)
-	// wWal := backend.FromInterface(65536)
-	// wWal.Mul(&wWal, &uInvVal)
-
-	// good[ "u", 2)
-	// good[ "v", 65536)
-	// // good[ "w", wWal)
-
-	// expectedValues["u"] = 2
-	// expectedValues["v"] = 65536
-	// expectedValues["w"] = wWal
-	// // expectedValues["a0"] = uInvVal
-	// expectedValues["a1"] = wWal
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }
 
 func TestMergeMoeNoe(t *testing.T) {
@@ -962,53 +663,30 @@ func TestMergeMoeNoe(t *testing.T) {
 	assert := NewAssert(t)
 
 	// circuit definition
-	circuit := New()
+	cs := NewConstraintSystem()
 
-	u := circuit.SECRET_INPUT("u")
-	w := circuit.PUBLIC_INPUT("w")
+	u := cs.SECRET_INPUT("u")
+	w := cs.PUBLIC_INPUT("w")
 
-	b := circuit.TO_BINARY(w, 3)
-	b[0].Tag("b0")
-	b[1].Tag("b1")
-	b[2].Tag("b2")
+	b := cs.TO_BINARY(w, 3)
 
-	circuit.MUSTBE_EQ(b[0], u)
+	cs.MUSTBE_EQ(b[0], u)
 
 	// tests CS
-	assert.csIsCorrect(circuit, expectedCS{
-		nbWires:         5,
+	assert.csIsCorrect(cs, expectedCS{
+		nbWires:         6,
 		nbConstraints:   6,
 		nbMOConstraints: 1,
-		nbNOConstraints: 3,
+		nbNOConstraints: 4,
 	})
 
 	// tests solving R1CS
-	assert.r1csIsCorrect(circuit, expectedR1CS{
-		nbWires:                    5,
-		nbComputationalConstraints: 2,
-		nbConstraints:              5,
+	assert.r1csIsCorrect(cs, expectedR1CS{
+		nbWires:                    6,
+		nbComputationalConstraints: 3,
+		nbConstraints:              7,
 		nbPrivateWires:             1,
 		nbPublicWires:              2,
 	})
 
-	// bad := make(map[string]interface{})
-	// good := make(map[string]interface{})
-	// expectedValues := make(map[string]interface{})
-
-	// // bad solution
-	// bad[ "u", 0)
-	// bad[ "w", 5)
-
-	// // good solution
-	// good[ "u", 1)
-	// good[ "w", 5)
-
-	// expectedValues["u"] = 1
-	// expectedValues["w"] = 5
-	// expectedValues["b0"] = 1
-	// expectedValues["b1"] = 0
-	// expectedValues["b2"] = 1
-
-	// assert.NotSolved(circuit, bad)
-	// assert.Solved(circuit, good, expectedValues)
 }

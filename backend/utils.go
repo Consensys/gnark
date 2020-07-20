@@ -22,7 +22,6 @@ import (
 	"math/big"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
@@ -45,9 +44,7 @@ func FromInterface(i1 interface{}) big.Int {
 	case uint64:
 		val.SetUint64(c1)
 	case int:
-		if _, ok := val.SetString(strconv.Itoa(c1), 10); !ok {
-			panic("unable to set big.Int from base10 string")
-		}
+		val.SetInt64(int64(c1))
 	case string:
 		if _, ok := val.SetString(c1, 10); !ok {
 			panic("unable to set big.Int from base10 string")

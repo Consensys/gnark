@@ -18,11 +18,12 @@ package r1cs
 
 import (
 	"encoding/hex"
-	"math/big"
 
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 
 	"github.com/consensys/gurvy/bls377/fr"
+
+	"github.com/consensys/gnark/backend/r1cs/term"
 )
 
 func (r1cs *UntypedR1CS) toBLS377() *backend_bls377.R1CS {
@@ -47,11 +48,21 @@ func (r1cs *UntypedR1CS) toBLS377() *backend_bls377.R1CS {
 
 	const maxInt = int(^uint(0) >> 1)
 
-	getCoeffIdx := func(b *big.Int) (coeffID, specialValue int) {
-		e.SetBigInt(b)
+	getCoeffIdx := func(uTerm term.Term) (constraintID, coeffID, specialValue int) {
+		constraintID = uTerm.ConstraintID()
+		specialValue = uTerm.SpecialValueInt()
+		if specialValue != maxInt {
+			// we have a special value, no need to get a coeff ID
+			return
+		}
 
-		// let's check if wwe have a special value
-		specialValue = maxInt
+		// no special value in big.Int format, but it might be one if we set it mod fr.Element
+
+		// get big.Int value
+		b := r1cs.Coefficients[uTerm.CoeffID()]
+		e.SetBigInt(&b)
+
+		// let's check if wwe have a special value mod fr modulus
 		if e.IsZero() {
 			specialValue = 0
 			return
@@ -81,8 +92,6 @@ func (r1cs *UntypedR1CS) toBLS377() *backend_bls377.R1CS {
 		return
 	}
 
-	var cID, specialValue int
-
 	for i := 0; i < len(r1cs.Constraints); i++ {
 		from := r1cs.Constraints[i]
 		to := backend_bls377.R1C{
@@ -93,16 +102,13 @@ func (r1cs *UntypedR1CS) toBLS377() *backend_bls377.R1CS {
 		}
 
 		for j := 0; j < len(from.L); j++ {
-			cID, specialValue = getCoeffIdx(&from.L[j].Coeff)
-			to.L[j] = backend_bls377.NewTerm(int(from.L[j].ID), cID, specialValue)
+			to.L[j] = term.NewTerm(getCoeffIdx(from.L[j]))
 		}
 		for j := 0; j < len(from.R); j++ {
-			cID, specialValue = getCoeffIdx(&from.R[j].Coeff)
-			to.R[j] = backend_bls377.NewTerm(int(from.R[j].ID), cID, specialValue)
+			to.R[j] = term.NewTerm(getCoeffIdx(from.R[j]))
 		}
 		for j := 0; j < len(from.O); j++ {
-			cID, specialValue = getCoeffIdx(&from.O[j].Coeff)
-			to.O[j] = backend_bls377.NewTerm(int(from.O[j].ID), cID, specialValue)
+			to.O[j] = term.NewTerm(getCoeffIdx(from.O[j]))
 		}
 
 		toReturn.Constraints[i] = to

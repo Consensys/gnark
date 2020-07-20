@@ -50,19 +50,19 @@ func newOperandFp12(circuit *frontend.CS, s string) Fp12Elmt {
 	return res
 }
 
-func tagFp12Elmt(e Fp12Elmt, s string) {
-	e.C0.B0.X.Tag(s + "0")
-	e.C0.B0.Y.Tag(s + "1")
-	e.C0.B1.X.Tag(s + "2")
-	e.C0.B1.Y.Tag(s + "3")
-	e.C0.B2.X.Tag(s + "4")
-	e.C0.B2.Y.Tag(s + "5")
-	e.C1.B0.X.Tag(s + "6")
-	e.C1.B0.Y.Tag(s + "7")
-	e.C1.B1.X.Tag(s + "8")
-	e.C1.B1.Y.Tag(s + "9")
-	e.C1.B2.X.Tag(s + "10")
-	e.C1.B2.Y.Tag(s + "11")
+func tagFp12Elmt(cs *frontend.CS, e Fp12Elmt, s string) {
+	cs.Tag(e.C0.B0.X, s+"0")
+	cs.Tag(e.C0.B0.Y, s+"1")
+	cs.Tag(e.C0.B1.X, s+"2")
+	cs.Tag(e.C0.B1.Y, s+"3")
+	cs.Tag(e.C0.B2.X, s+"4")
+	cs.Tag(e.C0.B2.Y, s+"5")
+	cs.Tag(e.C1.B0.X, s+"6")
+	cs.Tag(e.C1.B0.Y, s+"7")
+	cs.Tag(e.C1.B1.X, s+"8")
+	cs.Tag(e.C1.B1.Y, s+"9")
+	cs.Tag(e.C1.B2.X, s+"10")
+	cs.Tag(e.C1.B2.Y, s+"11")
 }
 
 func assignOperandFp12(inputs map[string]interface{}, s string, w bls377.E12) {
@@ -100,7 +100,7 @@ func getExpectedValuesFp12(m map[string]*fp.Element, s string, w bls377.E12) {
 // test
 func TestAddFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E12
@@ -113,7 +113,7 @@ func TestAddFp12(t *testing.T) {
 	fp12b := newOperandFp12(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Add(&circuit, &fp12a, &fp12b)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -141,7 +141,7 @@ func TestAddFp12(t *testing.T) {
 
 func TestSubFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E12
@@ -154,7 +154,7 @@ func TestSubFp12(t *testing.T) {
 	fp12b := newOperandFp12(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Sub(&circuit, &fp12a, &fp12b)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -182,7 +182,7 @@ func TestSubFp12(t *testing.T) {
 
 func TestMulFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -197,7 +197,7 @@ func TestMulFp12(t *testing.T) {
 	fp12b := newOperandFp12(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Mul(&circuit, &fp12a, &fp12b, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -225,7 +225,7 @@ func TestMulFp12(t *testing.T) {
 
 func TestConjugateFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, c bls377.E12
@@ -236,7 +236,7 @@ func TestConjugateFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Conjugate(&circuit, &fp12a)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -263,7 +263,7 @@ func TestConjugateFp12(t *testing.T) {
 
 func TestMulByVFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -279,7 +279,7 @@ func TestMulByVFp12(t *testing.T) {
 	fp2b := newOperandFp2(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.MulByV(&circuit, &fp12a, &fp2b, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -307,7 +307,7 @@ func TestMulByVFp12(t *testing.T) {
 
 func TestMulByVWFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -323,7 +323,7 @@ func TestMulByVWFp12(t *testing.T) {
 	fp2b := newOperandFp2(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.MulByVW(&circuit, &fp12a, &fp2b, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -351,7 +351,7 @@ func TestMulByVWFp12(t *testing.T) {
 
 func TestMulByV2WFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -367,7 +367,7 @@ func TestMulByV2WFp12(t *testing.T) {
 	fp2b := newOperandFp2(&circuit, "b")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.MulByV2W(&circuit, &fp12a, &fp2b, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -395,7 +395,7 @@ func TestMulByV2WFp12(t *testing.T) {
 
 func TestFrobeniusFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -408,7 +408,7 @@ func TestFrobeniusFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Frobenius(&circuit, &fp12a, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -435,7 +435,7 @@ func TestFrobeniusFp12(t *testing.T) {
 
 func TestFrobeniusSquareFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -448,7 +448,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.FrobeniusSquare(&circuit, &fp12a, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -475,7 +475,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 
 func TestFrobeniusCubeFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -488,7 +488,7 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.FrobeniusCube(&circuit, &fp12a, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -515,7 +515,7 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 
 func TestInverseFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -528,7 +528,7 @@ func TestInverseFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.Inverse(&circuit, &fp12a, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -555,7 +555,7 @@ func TestInverseFp12(t *testing.T) {
 
 func TestFixExpoFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 
@@ -569,7 +569,7 @@ func TestFixExpoFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.FixedExponentiation(&circuit, &fp12a, expo, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -596,7 +596,7 @@ func TestFixExpoFp12(t *testing.T) {
 
 func TestFinalExpoBLSFp12(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := GetBLS377ExtensionFp12(&circuit)
 	ateLoop := uint64(9586122913090633729)
@@ -610,7 +610,7 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 	fp12a := newOperandFp12(&circuit, "a")
 	fp12c := NewFp12ElmtNil(&circuit)
 	fp12c.FinalExpoBLS(&circuit, &fp12a, ateLoop, ext)
-	tagFp12Elmt(fp12c, "c")
+	tagFp12Elmt(&circuit, fp12c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})

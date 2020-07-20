@@ -9,7 +9,7 @@ import (
 
 func init() {
 	fmt.Println("init constant_ops")
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")

@@ -30,7 +30,7 @@ import (
 func TestLineEvalBLS377(t *testing.T) {
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
@@ -59,12 +59,12 @@ func TestLineEvalBLS377(t *testing.T) {
 
 	LineEvalBLS377(&circuit, Q, R, P, &lres, ext)
 
-	lres.r0.X.Tag("lr0x")
-	lres.r0.Y.Tag("lr0y")
-	lres.r1.X.Tag("lr1x")
-	lres.r1.Y.Tag("lr1y")
-	lres.r2.X.Tag("lr2x")
-	lres.r2.Y.Tag("lr2y")
+	circuit.Tag(lres.r0.X, "lr0x")
+	circuit.Tag(lres.r0.Y, "lr0y")
+	circuit.Tag(lres.r1.X, "lr1x")
+	circuit.Tag(lres.r1.Y, "lr1y")
+	circuit.Tag(lres.r2.X, "lr2x")
+	circuit.Tag(lres.r2.Y, "lr2y")
 
 	expectedValues := make(map[string]*fp.Element)
 	var expres [6]fp.Element
@@ -105,7 +105,7 @@ func TestLineEvalBLS377(t *testing.T) {
 func TestLineEvalAffineBLS377(t *testing.T) {
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
@@ -129,12 +129,12 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 
 	LineEvalAffineBLS377(&circuit, Q, R, P, &lres, ext)
 
-	lres.r0.X.Tag("lr0x")
-	lres.r0.Y.Tag("lr0y")
-	lres.r1.X.Tag("lr1x")
-	lres.r1.Y.Tag("lr1y")
-	lres.r2.X.Tag("lr2x")
-	lres.r2.Y.Tag("lr2y")
+	circuit.Tag(lres.r0.X, "lr0x")
+	circuit.Tag(lres.r0.Y, "lr0y")
+	circuit.Tag(lres.r1.X, "lr1x")
+	circuit.Tag(lres.r1.Y, "lr1y")
+	circuit.Tag(lres.r2.X, "lr2x")
+	circuit.Tag(lres.r2.Y, "lr2y")
 
 	expectedValues := make(map[string]*fp.Element)
 	var expres [6]fp.Element
@@ -178,7 +178,7 @@ func TestPairingBLS377(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 
 	// create circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// set reference result
 	curve := bls377.BLS377()
@@ -253,35 +253,35 @@ func TestPairingBLS377(t *testing.T) {
 	MillerLoop(&circuit, P, Q, &milrescircuit, pairingInfo)
 
 	// tag the result of the miller loop
-	milrescircuit.C0.B0.X.Tag("millerloop0")
-	milrescircuit.C0.B0.Y.Tag("millerloop1")
-	milrescircuit.C0.B1.X.Tag("millerloop2")
-	milrescircuit.C0.B1.Y.Tag("millerloop3")
-	milrescircuit.C0.B2.X.Tag("millerloop4")
-	milrescircuit.C0.B2.Y.Tag("millerloop5")
-	milrescircuit.C1.B0.X.Tag("millerloop6")
-	milrescircuit.C1.B0.Y.Tag("millerloop7")
-	milrescircuit.C1.B1.X.Tag("millerloop8")
-	milrescircuit.C1.B1.Y.Tag("millerloop9")
-	milrescircuit.C1.B2.X.Tag("millerloop10")
-	milrescircuit.C1.B2.Y.Tag("millerloop11")
+	circuit.Tag(milrescircuit.C0.B0.X, "millerloop0")
+	circuit.Tag(milrescircuit.C0.B0.Y, "millerloop1")
+	circuit.Tag(milrescircuit.C0.B1.X, "millerloop2")
+	circuit.Tag(milrescircuit.C0.B1.Y, "millerloop3")
+	circuit.Tag(milrescircuit.C0.B2.X, "millerloop4")
+	circuit.Tag(milrescircuit.C0.B2.Y, "millerloop5")
+	circuit.Tag(milrescircuit.C1.B0.X, "millerloop6")
+	circuit.Tag(milrescircuit.C1.B0.Y, "millerloop7")
+	circuit.Tag(milrescircuit.C1.B1.X, "millerloop8")
+	circuit.Tag(milrescircuit.C1.B1.Y, "millerloop9")
+	circuit.Tag(milrescircuit.C1.B2.X, "millerloop10")
+	circuit.Tag(milrescircuit.C1.B2.Y, "millerloop11")
 
 	//pairingres := fields.NewFp12ElmtNil(&circuit)
 	milrescircuit.FinalExpoBLS(&circuit, &milrescircuit, uint64(9586122913090633729), ext)
 
 	// tag the result of the pairing loop
-	milrescircuit.C0.B0.X.Tag("pairing0")
-	milrescircuit.C0.B0.Y.Tag("pairing1")
-	milrescircuit.C0.B1.X.Tag("pairing2")
-	milrescircuit.C0.B1.Y.Tag("pairing3")
-	milrescircuit.C0.B2.X.Tag("pairing4")
-	milrescircuit.C0.B2.Y.Tag("pairing5")
-	milrescircuit.C1.B0.X.Tag("pairing6")
-	milrescircuit.C1.B0.Y.Tag("pairing7")
-	milrescircuit.C1.B1.X.Tag("pairing8")
-	milrescircuit.C1.B1.Y.Tag("pairing9")
-	milrescircuit.C1.B2.X.Tag("pairing10")
-	milrescircuit.C1.B2.Y.Tag("pairing11")
+	circuit.Tag(milrescircuit.C0.B0.X, "pairing0")
+	circuit.Tag(milrescircuit.C0.B0.Y, "pairing1")
+	circuit.Tag(milrescircuit.C0.B1.X, "pairing2")
+	circuit.Tag(milrescircuit.C0.B1.Y, "pairing3")
+	circuit.Tag(milrescircuit.C0.B2.X, "pairing4")
+	circuit.Tag(milrescircuit.C0.B2.Y, "pairing5")
+	circuit.Tag(milrescircuit.C1.B0.X, "pairing6")
+	circuit.Tag(milrescircuit.C1.B0.Y, "pairing7")
+	circuit.Tag(milrescircuit.C1.B1.X, "pairing8")
+	circuit.Tag(milrescircuit.C1.B1.Y, "pairing9")
+	circuit.Tag(milrescircuit.C1.B2.X, "pairing10")
+	circuit.Tag(milrescircuit.C1.B2.Y, "pairing11")
 
 	// inspect and compare the results
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
@@ -317,7 +317,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	expectedValues := make(map[string]*fp.Element)
 
 	// create circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// set reference result
 	curve := bls377.BLS377()
@@ -378,18 +378,18 @@ func TestPairingAffineBLS377(t *testing.T) {
 	milrescircuit.FinalExpoBLS(&circuit, &milrescircuit, uint64(9586122913090633729), ext)
 
 	// tag the result of the pairing loop
-	milrescircuit.C0.B0.X.Tag("pairing0")
-	milrescircuit.C0.B0.Y.Tag("pairing1")
-	milrescircuit.C0.B1.X.Tag("pairing2")
-	milrescircuit.C0.B1.Y.Tag("pairing3")
-	milrescircuit.C0.B2.X.Tag("pairing4")
-	milrescircuit.C0.B2.Y.Tag("pairing5")
-	milrescircuit.C1.B0.X.Tag("pairing6")
-	milrescircuit.C1.B0.Y.Tag("pairing7")
-	milrescircuit.C1.B1.X.Tag("pairing8")
-	milrescircuit.C1.B1.Y.Tag("pairing9")
-	milrescircuit.C1.B2.X.Tag("pairing10")
-	milrescircuit.C1.B2.Y.Tag("pairing11")
+	circuit.Tag(milrescircuit.C0.B0.X, "pairing0")
+	circuit.Tag(milrescircuit.C0.B0.Y, "pairing1")
+	circuit.Tag(milrescircuit.C0.B1.X, "pairing2")
+	circuit.Tag(milrescircuit.C0.B1.Y, "pairing3")
+	circuit.Tag(milrescircuit.C0.B2.X, "pairing4")
+	circuit.Tag(milrescircuit.C0.B2.Y, "pairing5")
+	circuit.Tag(milrescircuit.C1.B0.X, "pairing6")
+	circuit.Tag(milrescircuit.C1.B0.Y, "pairing7")
+	circuit.Tag(milrescircuit.C1.B1.X, "pairing8")
+	circuit.Tag(milrescircuit.C1.B1.Y, "pairing9")
+	circuit.Tag(milrescircuit.C1.B2.X, "pairing10")
+	circuit.Tag(milrescircuit.C1.B2.Y, "pairing11")
 
 	// inspect and compare the results
 	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)

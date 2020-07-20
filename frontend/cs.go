@@ -18,22 +18,28 @@ limitations under the License.
 package frontend
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs/term"
 	"github.com/consensys/gnark/internal/utils/debug"
 )
 
 var errInconsistantConstraint = errors.New("inconsistant constraint")
 
+const ONE_WIRE_ID = 1
+const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
+
 // CS Constraint System
 type CS struct {
 
 	// under the key i are all the expressions that must be equal to a single wire
-	Constraints map[uint64]*constraint
+	Constraints        []constraint
+	deletedConstraints map[int]struct{} // Constraints []constraint
+	Wires              []wire
 
 	// constraints yielding multiple outputs (eg unpacking)
 	MOConstraints []moExpression
@@ -42,55 +48,134 @@ type CS struct {
 	NOConstraints []expression
 
 	// keep track of the number of constraints (ensure each constraint has a unique ID)
-	nbConstraints uint64
+	nbConstraints int
 
-	nbPublicInputs, nbSecretInputs int
+	inputNames  map[string]struct{} // ensure no duplicates in input names
+	inputWireID map[int]struct{}
+
+	// coefficients for terms
+	Coefficients      []big.Int
+	coeffsLookUpTable map[string]int
+
+	WireTags map[int][]string // optional tags -- debug info
 }
 
-// New returns a new constraint system
-func New() CS {
+// NewConstraintSystem returns a new constraint system
+func NewConstraintSystem() CS {
 	// initialize constraint system
 	cs := CS{
-		Constraints: make(map[uint64]*constraint),
+		Constraints:        make([]constraint, 1, initialCapacity),
+		Wires:              make([]wire, 1, initialCapacity),
+		Coefficients:       make([]big.Int, 1, initialCapacity),
+		inputNames:         make(map[string]struct{}),
+		deletedConstraints: make(map[int]struct{}),
+		inputWireID:        make(map[int]struct{}),
+		coeffsLookUpTable:  make(map[string]int),
+		WireTags:           make(map[int][]string),
 	}
+	cs.deletedConstraints[0] = struct{}{}
 
 	// The first constraint corresponds to the declaration of
 	// the unconstrained precomputed wire equal to 1
-	oneConstraint := &constraint{
-		outputWire: &wire{
-			Name:         backend.OneWire,
-			WireID:       -1,
-			ConstraintID: -1,
-			IsConsumed:   true, // if false it means it is the last wire of the computational graph
-			Tags:         []string{},
-		},
+	oneConstraint := constraint{
+		wireID: cs.addWire(wire{
+			Name:           backend.OneWire,
+			WireIDOrdering: -1,
+			ConstraintID:   -1,
+		}),
 	}
 
-	cs.addConstraint(oneConstraint)
+	cID := cs.addConstraint(oneConstraint)
+	// ensure name is not overwritten by inputs
+	cs.inputNames[backend.OneWire] = struct{}{}
+	cs.inputWireID[ONE_WIRE_ID] = struct{}{}
+
+	if cID != ONE_WIRE_ID || oneConstraint.wireID != ONE_WIRE_ID {
+		panic("one wire id is incorrect")
+	}
 
 	return cs
 }
 
-func (cs *CS) addConstraint(c *constraint) {
-	debug.Assert(c.id() == 0)
-	c.setID(cs.nbConstraints)
-	cs.Constraints[c.id()] = c
-	cs.nbConstraints++
-	if c.outputWire != nil && c.outputWire.isUserInput() {
-		if c.outputWire.IsSecret {
-			cs.nbSecretInputs++
-		} else {
-			cs.nbPublicInputs++
-		}
+var (
+	bZero     = new(big.Int)
+	bOne      = new(big.Int).SetInt64(1)
+	bTwo      = new(big.Int).SetInt64(2)
+	bMinusOne = new(big.Int).SetInt64(-1)
+)
+
+func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
+	const maxInt = int(^uint(0) >> 1)
+
+	isDivision := false
+	if len(_isDivision) > 0 {
+		isDivision = _isDivision[0]
 	}
+	specialValue := maxInt
+	// let's check if wwe have a special value mod fr modulus
+	if b.Cmp(bZero) == 0 {
+		specialValue = 0
+		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+	} else if b.Cmp(bOne) == 0 {
+		specialValue = 1
+		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+	} else if b.Cmp(bMinusOne) == 0 {
+		specialValue = -1
+		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+	} else if b.Cmp(bTwo) == 0 {
+		specialValue = 2
+		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+	}
+
+	// no special value, let's check if we have encountered the coeff already
+	// note: this is slow. but "offline"
+	var coeffID int
+	key := hex.EncodeToString(b.Bytes())
+	if idx, ok := cs.coeffsLookUpTable[key]; ok {
+		coeffID = idx
+		return term.NewTerm(constraintID, coeffID, specialValue, isDivision)
+	}
+
+	// we didn't find it, let's add it to our coefficients
+	coeffID = len(cs.Coefficients)
+	cs.Coefficients = append(cs.Coefficients, b)
+	cs.coeffsLookUpTable[key] = coeffID
+	return term.NewTerm(constraintID, coeffID, specialValue, isDivision)
+}
+
+func (cs *CS) isUserInput(wireID int) bool {
+	_, ok := cs.inputWireID[wireID]
+	return ok
+}
+
+func (cs *CS) isDeleted(cID int) bool {
+	_, ok := cs.deletedConstraints[cID]
+	return ok
+}
+
+func (cs *CS) addWire(w wire) int {
+	debug.Assert(w.WireIDMap == 0)
+
+	cs.Wires = append(cs.Wires, w)
+	w.WireIDMap = len(cs.Wires) - 1
+
+	return w.WireIDMap
+}
+
+func (cs *CS) addConstraint(c constraint) int {
+	debug.Assert(c.id() == 0)
+	c.setID(len(cs.Constraints))
+	cs.Constraints = append(cs.Constraints, c)
+	cs.nbConstraints++
+
+	return c.id()
 }
 
 // MUL multiplies two constraints
 func (cs *CS) mul(c1, c2 Variable) Variable {
-
 	expression := &quadraticExpression{
-		left:      linearExpression{term{Wire: c1.getOutputWire(), Coeff: bigOne()}},
-		right:     linearExpression{term{Wire: c2.getOutputWire(), Coeff: bigOne()}},
+		left:      linearExpression{cs.term(c1.wireID(cs), *bOne)},
+		right:     linearExpression{cs.term(c2.wireID(cs), *bOne)},
 		operation: mul,
 	}
 
@@ -99,10 +184,8 @@ func (cs *CS) mul(c1, c2 Variable) Variable {
 
 // mulConstant multiplies by a constant
 func (cs *CS) mulConstant(c Variable, constant big.Int) Variable {
-	expression := &term{
-		Wire:      c.getOutputWire(),
-		Coeff:     constant,
-		Operation: mul,
+	expression := &singleTermExpression{
+		cs.term(c.wireID(cs), constant),
 	}
 	return newConstraint(cs, expression)
 }
@@ -111,8 +194,8 @@ func (cs *CS) mulConstant(c Variable, constant big.Int) Variable {
 func (cs *CS) div(c1, c2 Variable) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{term{Wire: c2.getOutputWire(), Coeff: bigOne()}},
-		right:     linearExpression{term{Wire: c1.getOutputWire(), Coeff: bigOne()}},
+		left:      linearExpression{cs.term(c2.wireID(cs), *bOne)},
+		right:     linearExpression{cs.term(c1.wireID(cs), *bOne)},
 		operation: div,
 	}
 
@@ -123,8 +206,8 @@ func (cs *CS) div(c1, c2 Variable) Variable {
 func (cs *CS) divConstantRight(c1 Variable, c2 big.Int) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{term{Wire: cs.Constraints[0].getOutputWire(), Coeff: c2}},
-		right:     linearExpression{term{Wire: c1.getOutputWire(), Coeff: bigOne()}},
+		left:      linearExpression{cs.term(ONE_WIRE_ID, c2)},
+		right:     linearExpression{cs.term(c1.wireID(cs), *bOne)},
 		operation: div,
 	}
 
@@ -135,8 +218,8 @@ func (cs *CS) divConstantRight(c1 Variable, c2 big.Int) Variable {
 func (cs *CS) divConstantLeft(c1 big.Int, c2 Variable) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{term{Wire: c2.getOutputWire(), Coeff: bigOne()}},
-		right:     linearExpression{term{Wire: cs.Constraints[0].getOutputWire(), Coeff: c1}},
+		left:      linearExpression{cs.term(c2.wireID(cs), *bOne)},
+		right:     linearExpression{cs.term(ONE_WIRE_ID, c1)},
 		operation: div,
 	}
 
@@ -145,10 +228,8 @@ func (cs *CS) divConstantLeft(c1 big.Int, c2 Variable) Variable {
 
 // inv (e*c1)**-1
 func (cs *CS) inv(c1 Variable, e big.Int) Variable {
-	expression := &term{
-		Wire:      c1.getOutputWire(),
-		Coeff:     e,
-		Operation: div,
+	expression := &singleTermExpression{
+		cs.term(c1.wireID(cs), e, true),
 	}
 	return newConstraint(cs, expression)
 }
@@ -157,8 +238,8 @@ func (cs *CS) inv(c1 Variable, e big.Int) Variable {
 func (cs *CS) add(c1 Variable, c2 Variable) Variable {
 
 	expression := &linearExpression{
-		term{Wire: c1.getOutputWire(), Coeff: bigOne()},
-		term{Wire: c2.getOutputWire(), Coeff: bigOne()},
+		cs.term(c1.wireID(cs), *bOne),
+		cs.term(c2.wireID(cs), *bOne),
 	}
 
 	return newConstraint(cs, expression)
@@ -168,8 +249,8 @@ func (cs *CS) add(c1 Variable, c2 Variable) Variable {
 func (cs *CS) addConstant(c Variable, constant big.Int) Variable {
 
 	expression := &linearExpression{
-		term{Wire: c.getOutputWire(), Coeff: bigOne()},
-		term{Wire: cs.Constraints[0].getOutputWire(), Coeff: constant},
+		cs.term(c.wireID(cs), *bOne),
+		cs.term(ONE_WIRE_ID, constant),
 	}
 
 	return newConstraint(cs, expression)
@@ -179,12 +260,12 @@ func (cs *CS) addConstant(c Variable, constant big.Int) Variable {
 func (cs *CS) sub(c1 Variable, c2 Variable) Variable {
 
 	var minusOne big.Int
-	one := bigOne()
+	one := *bOne
 	minusOne.Neg(&one)
 
 	expression := &linearExpression{
-		term{Wire: c1.getOutputWire(), Coeff: one},
-		term{Wire: c2.getOutputWire(), Coeff: minusOne},
+		cs.term(c1.wireID(cs), one),
+		cs.term(c2.wireID(cs), minusOne),
 	}
 
 	return newConstraint(cs, expression)
@@ -193,12 +274,12 @@ func (cs *CS) sub(c1 Variable, c2 Variable) Variable {
 func (cs *CS) subConstant(c Variable, constant big.Int) Variable {
 
 	var minusOne big.Int
-	one := bigOne()
+	one := *bOne
 	minusOne.Neg((&constant))
 
 	expression := &linearExpression{
-		term{Wire: c.getOutputWire(), Coeff: one},
-		term{Wire: cs.Constraints[0].getOutputWire(), Coeff: minusOne},
+		cs.term(c.wireID(cs), one),
+		cs.term(ONE_WIRE_ID, minusOne),
 	}
 
 	return newConstraint(cs, expression)
@@ -208,12 +289,12 @@ func (cs *CS) subConstant(c Variable, constant big.Int) Variable {
 func (cs *CS) subConstraint(constant big.Int, c Variable) Variable {
 
 	var minusOne big.Int
-	one := bigOne()
+	one := *bOne
 	minusOne.Neg((&one))
 
 	expression := &linearExpression{
-		term{Wire: cs.Constraints[0].getOutputWire(), Coeff: constant},
-		term{Wire: c.getOutputWire(), Coeff: minusOne},
+		cs.term(ONE_WIRE_ID, constant),
+		cs.term(c.wireID(cs), minusOne),
 	}
 
 	return newConstraint(cs, expression)
@@ -225,10 +306,10 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 
 	var left, right linearExpression
 	for _, t := range den {
-		left = append(left, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		left = append(left, cs.term(t.Variable.wireID(cs), t.Coeff))
 	}
 	for _, t := range num {
-		right = append(right, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		right = append(right, cs.term(t.Variable.wireID(cs), t.Coeff))
 	}
 
 	expression := &quadraticExpression{
@@ -244,10 +325,10 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 	var left, right linearExpression
 	for _, t := range l1 {
-		left = append(left, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		left = append(left, cs.term(t.Variable.wireID(cs), t.Coeff))
 	}
 	for _, t := range l2 {
-		right = append(right, term{Wire: t.Variable.getOutputWire(), Coeff: t.Coeff, Operation: mul})
+		right = append(right, cs.term(t.Variable.wireID(cs), t.Coeff))
 	}
 
 	expression := &quadraticExpression{
@@ -268,62 +349,28 @@ func (cs *CS) mullcinterface(l LinearCombination, c interface{}) Variable {
 
 // equal equal constraints
 func (cs *CS) equal(c1, c2 Variable) error {
-	if c1.constraint == nil || c2.constraint == nil {
+	if c1.cID == 0 || c2.cID == 0 {
 		return errors.New("variable is not compiled")
 	}
 	// ensure we're not doing v1.MUST_EQ(v1)
-	if c1.constraint == c2.constraint {
+	if c1.cID == c2.cID {
 		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 1) is invalid")
 	}
 
-	// ensure we are not doing x.MUST_EQ(y) , {x, y} being user inputs
-	if c1.getOutputWire() != nil && c2.getOutputWire() != nil {
-		if c1.getOutputWire().isUserInput() && c2.getOutputWire().isUserInput() {
-			return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 2) is invalid")
-		}
+	w1, w2 := c1.wireID(cs), c2.wireID(cs)
+	debug.Assert(w1 != 0 && w2 != 0, "wires are not set")
+
+	c1IsUserInput := cs.isUserInput(w1)
+	if c1IsUserInput && cs.isUserInput(w2) {
+		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 2) is invalid")
 	}
 
-	// Since we copy c2's single wire into c1's, the order matters:
-	// if there is an input constraint, make sure it's c2's
-	if c2.getOutputWire() != nil && c1.getOutputWire() != nil {
-		if c1.getOutputWire().isUserInput() {
-			c2, c1 = c1, c2
-		}
+	expression := &equalExpression{
+		a: w1,
+		b: w2,
 	}
 
-	// Merge C1 constraints with C2's into C1
-	c1.addExpressions(c2.getExpressions()...)
-
-	// put c2's single wire in c1's single wire
-	if c2.getOutputWire() != nil && c1.getOutputWire() != nil {
-		wireToReplace := c1.getOutputWire()
-
-		c2.getOutputWire().Tags = append(c2.getOutputWire().Tags, c1.getOutputWire().Tags...)
-		c1.setOutputWire(c2.getOutputWire())
-
-		// replace all occurences of c1's single wire in all expressions by c2's single wire
-		for _, c := range cs.Constraints {
-			for _, e := range c.getExpressions() {
-				e.replaceWire(wireToReplace, c2.getOutputWire())
-			}
-		}
-		for _, moe := range cs.MOConstraints {
-			moe.replaceWire(wireToReplace, c2.getOutputWire())
-		}
-		for _, noe := range cs.NOConstraints {
-			noe.replaceWire(wireToReplace, c2.getOutputWire())
-		}
-	}
-
-	// delete C2 from the list
-	delete(cs.Constraints, c2.id())
-
-	// c2.key = c1.key
-	c2.Set(c1)
-	// *c2 = *c1
-
-	// update c1 in the Constraint System
-	cs.Constraints[c1.id()] = c1.constraint
+	cs.NOConstraints = append(cs.NOConstraints, expression)
 
 	return nil
 }
@@ -331,11 +378,11 @@ func (cs *CS) equal(c1, c2 Variable) error {
 // equalConstant Equal a constraint to a constant
 func (cs *CS) equalConstant(c Variable, constant big.Int) error {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
-	if c.getOutputWire().isUserInput() {
+	if cs.isUserInput(c.wireID(cs)) {
 		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input == VALUE) is invalid")
 	}
 
-	c.addExpressions(&eqConstantExpression{v: constant})
+	cs.NOConstraints = append(cs.NOConstraints, &equalConstantExpression{a: c.wireID(cs), v: constant})
 
 	return nil
 }
@@ -380,7 +427,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 	// constrain the bi
 	for i := nbBits - 1; i >= 0; i-- {
 		if ci[i] == 0 {
-			constraintRes := &implyExpression{b: pi[i+1].getOutputWire(), a: ai[i].getOutputWire()}
+			constraintRes := &implyExpression{b: pi[i+1].wireID(cs), a: ai[i].wireID(cs)}
 			cs.NOConstraints = append(cs.NOConstraints, constraintRes)
 		} else {
 			cs.MUSTBE_BOOLEAN(ai[i])
@@ -400,11 +447,12 @@ func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 	pi[nbBits] = cs.ALLOCATE(1)
 
 	//spi := "pi_"
-	sci := "ci_"
+	// sci := "ci_"
 
 	// Setting the product
 	for i := nbBits - 1; i >= 0; i-- {
-		ci[i].Tag(sci + strconv.Itoa(i))
+		// TODO
+		// ci[i].Tag(cs, sci+strconv.Itoa(i))
 		pi[i] = cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i+1])
 		//pi[i].Tag(spi + strconv.Itoa(i))
 	}
@@ -424,37 +472,29 @@ func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 func (cs *CS) String() string {
 	res := ""
 	res += "SO constraints: \n"
-	res += "----------------\n"
-	for _, c := range cs.Constraints {
-		for _, e := range c.getExpressions() {
-			res += e.string()
-			res += "="
-		}
-		res = res + c.getOutputWire().String() + "\n"
-	}
-	res += "\nMO constraints: \n"
-	res += "----------------\n"
-	for _, c := range cs.MOConstraints {
-		res += c.string()
-		res += "\n"
-	}
-	res += "\nNO constraints: \n"
-	res += "----------------\n"
-	for _, c := range cs.NOConstraints {
-		res += c.string()
-		res += "\n"
-	}
+	// TODO
+	// res += "----------------\n"
+	// for _, c := range cs.Constraints {
+	// 	for _, e := range c.getExpressions() {
+	// 		res += e.string()
+	// 		res += "="
+	// 	}
+	// 	w := cs.Wires[c.wireID]
+	// 	res = res + w.String() + "\n"
+	// }
+	// res += "\nMO constraints: \n"
+	// res += "----------------\n"
+	// for _, c := range cs.MOConstraints {
+	// 	res += c.string()
+	// 	res += "\n"
+	// }
+	// res += "\nNO constraints: \n"
+	// res += "----------------\n"
+	// for _, c := range cs.NOConstraints {
+	// 	res += c.string()
+	// 	res += "\n"
+	// }
 	return res
-}
-
-func (cs *CS) registerNamedInput(name string) bool {
-	// checks if the name already exists
-	for _, c := range cs.Constraints {
-		if c.getOutputWire().Name == name {
-			return false
-		}
-	}
-	return true
 }
 
 // constVar creates a new variable set to a prescribed value
@@ -463,38 +503,9 @@ func (cs *CS) constVar(i1 interface{}) Variable {
 	constant := backend.FromInterface(i1)
 
 	// if constant == 1, we return the ONE_WIRE
-	one := bigOne()
-
-	if constant.Cmp(&one) == 0 {
-		return Variable{constraint: cs.Constraints[0]}
+	if constant.Cmp(bOne) == 0 {
+		return Variable{cID: ONE_WIRE_ID}
 	}
 
-	return newConstraint(cs, &eqConstantExpression{v: constant})
-}
-
-// util function to count the wires of a constraint system
-func (cs *CS) countWires() int {
-
-	var wires []*wire
-
-	for _, c := range cs.Constraints {
-		isCounted := false
-		for _, w := range wires {
-			if w == c.getOutputWire() {
-				isCounted = true
-				continue
-			}
-		}
-		if !isCounted {
-			wires = append(wires, c.getOutputWire())
-		}
-	}
-
-	return len(wires)
-}
-
-func bigOne() big.Int {
-	var val big.Int
-	val.SetUint64(1)
-	return val
+	return newConstraint(cs, &equalConstantExpression{v: constant})
 }

@@ -53,9 +53,9 @@ func TestMimcBN256(t *testing.T) {
 	}
 
 	// minimal circuit res = hash(data)
-	circuit := frontend.New()
-	result := mimc.Hash(&circuit, circuit.PUBLIC_INPUT("data"))
-	result.Tag("res")
+	cs := frontend.NewConstraintSystem()
+	result := mimc.Hash(&cs, cs.PUBLIC_INPUT("data"))
+	cs.Tag(result, "res")
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]interface{})
@@ -70,7 +70,7 @@ func TestMimcBN256(t *testing.T) {
 	inputs["data"] = databn256
 
 	// creates r1cs
-	r1csbn256 := circuit.ToR1CS().ToR1CS(gurvy.BN256)
+	r1csbn256 := cs.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
 
@@ -93,9 +93,9 @@ func TestMimcBLS381(t *testing.T) {
 	}
 
 	// minimal circuit res = hash(data)
-	circuit := frontend.New()
-	result := mimc.Hash(&circuit, circuit.PUBLIC_INPUT("data"))
-	result.Tag("res")
+	cs := frontend.NewConstraintSystem()
+	result := mimc.Hash(&cs, cs.PUBLIC_INPUT("data"))
+	cs.Tag(result, "res")
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]interface{})
@@ -109,7 +109,7 @@ func TestMimcBLS381(t *testing.T) {
 	inputs["data"] = data
 
 	// creates r1cs
-	r1csbls381 := circuit.ToR1CS().ToR1CS(gurvy.BLS381).(*backend_bls381.R1CS)
+	r1csbls381 := cs.ToR1CS().ToR1CS(gurvy.BLS381).(*backend_bls381.R1CS)
 
 	assertbls381.CorrectExecution(r1csbls381, inputs, expectedValues)
 
@@ -132,9 +132,9 @@ func TestMimcBLS377(t *testing.T) {
 	}
 
 	// minimal circuit res = hash(data)
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	result := mimc.Hash(&circuit, circuit.PUBLIC_INPUT("data"))
-	result.Tag("res")
+	circuit.Tag(result, "res")
 
 	// running MiMC (Go)
 	expectedValues := make(map[string]interface{})

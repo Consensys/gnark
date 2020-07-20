@@ -3,11 +3,12 @@ package frontend_test
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
 
-const n = 100000
+const n = 1000000
 
 type _nbConstraintKey int
 
@@ -31,14 +32,17 @@ func (circuit *benchCircuit) PostInit(ctx *frontend.Context) error {
 	return nil
 }
 
+var res r1cs.R1CS
+
 func BenchmarkCircuit(b *testing.B) {
-	var circuit benchCircuit
+
 	ctx := frontend.NewContext(gurvy.BN256)
 	ctx.Set(nbConstraintKey, n)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = frontend.Compile(ctx, &circuit)
+		var circuit benchCircuit
+		res, _ = frontend.Compile(ctx, &circuit)
 	}
 
 }

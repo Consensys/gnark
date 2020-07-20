@@ -9,7 +9,7 @@ import (
 
 func init() {
 	fmt.Println("init div")
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
 	y := circuit.SECRET_INPUT("y")

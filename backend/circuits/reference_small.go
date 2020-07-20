@@ -10,7 +10,7 @@ import (
 func init() {
 	fmt.Println("init reference_small")
 	const nbConstraints = 5
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// declare inputs
 	x := circuit.SECRET_INPUT("x")

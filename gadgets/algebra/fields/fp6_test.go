@@ -44,13 +44,13 @@ func newOperandFp6(circuit *frontend.CS, s string) Fp6Elmt {
 	return res
 }
 
-func tagFp6Elmt(e Fp6Elmt, s string) {
-	e.B0.X.Tag(s + "0")
-	e.B0.Y.Tag(s + "1")
-	e.B1.X.Tag(s + "2")
-	e.B1.Y.Tag(s + "3")
-	e.B2.X.Tag(s + "4")
-	e.B2.Y.Tag(s + "5")
+func tagFp6Elmt(cs *frontend.CS, e Fp6Elmt, s string) {
+	cs.Tag(e.B0.X, s+"0")
+	cs.Tag(e.B0.Y, s+"1")
+	cs.Tag(e.B1.X, s+"2")
+	cs.Tag(e.B1.Y, s+"3")
+	cs.Tag(e.B2.X, s+"4")
+	cs.Tag(e.B2.Y, s+"5")
 }
 
 func assignOperandFp6(inputs map[string]interface{}, s string, w bls377.E6) {
@@ -82,7 +82,7 @@ func getBLS377ExtensionFp6(circuit *frontend.CS) Extension {
 // test
 func TestAddFp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E6
@@ -95,7 +95,7 @@ func TestAddFp6(t *testing.T) {
 	fp6b := newOperandFp6(&circuit, "b")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.Add(&circuit, &fp6a, &fp6b)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -123,7 +123,7 @@ func TestAddFp6(t *testing.T) {
 
 func TestSubFp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E6
@@ -136,7 +136,7 @@ func TestSubFp6(t *testing.T) {
 	fp6b := newOperandFp6(&circuit, "b")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.Sub(&circuit, &fp6a, &fp6b)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -164,7 +164,7 @@ func TestSubFp6(t *testing.T) {
 
 func TestMulFp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := getBLS377ExtensionFp6(&circuit)
 
@@ -179,7 +179,7 @@ func TestMulFp6(t *testing.T) {
 	fp6b := newOperandFp6(&circuit, "b")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.Mul(&circuit, &fp6a, &fp6b, ext)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -207,7 +207,7 @@ func TestMulFp6(t *testing.T) {
 
 func TestMulByFp2Fp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := getBLS377ExtensionFp6(&circuit)
 
@@ -223,7 +223,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	fp2b := newOperandFp2(&circuit, "b")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.MulByFp2(&circuit, &fp6a, &fp2b, ext)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -251,7 +251,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 
 func TestMulByVFp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := getBLS377ExtensionFp6(&circuit)
 
@@ -264,7 +264,7 @@ func TestMulByVFp6(t *testing.T) {
 	fp6a := newOperandFp6(&circuit, "a")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.MulByV(&circuit, &fp6a, ext)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -291,7 +291,7 @@ func TestMulByVFp6(t *testing.T) {
 
 func TestInverseFp6(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	ext := getBLS377ExtensionFp6(&circuit)
 
@@ -304,7 +304,7 @@ func TestInverseFp6(t *testing.T) {
 	fp6a := newOperandFp6(&circuit, "a")
 	fp6c := NewFp6Elmt(&circuit, nil, nil, nil, nil, nil, nil)
 	fp6c.Inverse(&circuit, &fp6a, ext)
-	tagFp6Elmt(fp6c, "c")
+	tagFp6Elmt(&circuit, fp6c, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})

@@ -43,7 +43,7 @@ const publicHash string = "51006531846921202050481602973497147478836519043195285
 func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, proof *groth16_bls377.Proof) []string {
 
 	// create a mock circuit: knowing the preimage of a hash using mimc
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	hFunc, err := mimc.NewMiMC("seed", gurvy.BLS377)
 	if err != nil {
 		if t != nil {
@@ -168,7 +168,7 @@ func TestVerifier(t *testing.T) {
 	inputNamesInnerProof := generateBls377InnerProof(t, &innerVk, &innerProof) // get public inputs of the inner proof
 
 	// create an empty circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// pairing data
 	var pairingInfo sw.PairingContext
@@ -235,7 +235,7 @@ func BenchmarkVerifier(b *testing.B) {
 	inputNamesInnerProof := generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
 
 	// create an empty circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// pairing data
 	var pairingInfo sw.PairingContext

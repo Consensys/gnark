@@ -8,7 +8,7 @@ import (
 
 func init() {
 	fmt.Println("init exp")
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
 	e := circuit.SECRET_INPUT("e")

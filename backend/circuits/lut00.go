@@ -9,7 +9,7 @@ import (
 
 func init() {
 	fmt.Println("init lut00")
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	b0 := circuit.SECRET_INPUT("b0")
 	b1 := circuit.SECRET_INPUT("b1")

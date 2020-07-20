@@ -63,15 +63,15 @@ func newPointCircuitG1Aff(circuit *frontend.CS, s string) *G1Aff {
 	)
 }
 
-func tagPointG1(g *G1Jac, s string) {
-	g.X.Tag(s + "0")
-	g.Y.Tag(s + "1")
-	g.Z.Tag(s + "2")
+func tagPointG1(cs *frontend.CS, g *G1Jac, s string) {
+	cs.Tag(g.X, s+"0")
+	cs.Tag(g.Y, s+"1")
+	cs.Tag(g.Z, s+"2")
 }
 
-func tagPointG1Aff(g *G1Aff, s string) {
-	g.X.Tag(s + "0")
-	g.Y.Tag(s + "1")
+func tagPointG1Aff(cs *frontend.CS, g *G1Aff, s string) {
+	cs.Tag(g.X, s+"0")
+	cs.Tag(g.Y, s+"1")
 }
 
 func assignPointG1(inputs map[string]interface{}, g bls377.G1Jac, s string) {
@@ -99,12 +99,12 @@ func TestAddAssignG1(t *testing.T) {
 	g2 := randomPointG1()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	gc1 := newPointCircuitG1(&circuit, "a")
 	gc2 := newPointCircuitG1(&circuit, "b")
 	gc1.AddAssign(&circuit, gc2)
-	tagPointG1(gc1, "c")
+	tagPointG1(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -145,12 +145,12 @@ func TestAddAssignAffG1(t *testing.T) {
 	g2.ToAffineFromJac(&_g2)
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	gc1 := newPointCircuitG1Aff(&circuit, "a")
 	gc2 := newPointCircuitG1Aff(&circuit, "b")
 	gc1.AddAssign(&circuit, gc2)
-	tagPointG1Aff(gc1, "c")
+	tagPointG1Aff(&circuit, gc1, "c")
 
 	// assign the inputs
 	var one fp.Element
@@ -193,11 +193,11 @@ func TestDoubleG1(t *testing.T) {
 	g1 := randomPointG1()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	gc1 := newPointCircuitG1(&circuit, "a")
 	gc1.DoubleAssign(&circuit)
-	tagPointG1(gc1, "c")
+	tagPointG1(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -233,11 +233,11 @@ func TestDoubleAffG1(t *testing.T) {
 	g1.ToAffineFromJac(&_g1)
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	gc1 := newPointCircuitG1Aff(&circuit, "a")
 	gc1.Double(&circuit, gc1)
-	tagPointG1Aff(gc1, "c")
+	tagPointG1Aff(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -275,11 +275,11 @@ func TestNegG1(t *testing.T) {
 	g1 := randomPointG1()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	gc1 := newPointCircuitG1(&circuit, "a")
 	gc1.Neg(&circuit, gc1)
-	tagPointG1(gc1, "c")
+	tagPointG1(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -321,10 +321,10 @@ func TestScalarMulG1(t *testing.T) {
 	r.SetRandom()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	gc1 := newPointCircuitG1Aff(&circuit, "gc1")
 	gc1.ScalarMul(&circuit, gc1, r.String(), 256)
-	tagPointG1Aff(gc1, "res")
+	tagPointG1Aff(&circuit, gc1, "res")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})

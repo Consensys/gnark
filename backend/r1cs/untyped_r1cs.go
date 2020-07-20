@@ -18,6 +18,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs/term"
 	"github.com/consensys/gurvy"
 )
 
@@ -37,6 +38,7 @@ type UntypedR1CS struct {
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
 	Constraints     []R1C
+	Coefficients    []big.Int
 }
 
 // ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
@@ -56,14 +58,14 @@ func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 	}
 }
 
-// Term coeff * constraint (ID)
-type Term struct {
-	ID    int64   // index of the constraint used to compute this wire
-	Coeff big.Int // coefficient by which the wire is multiplied
-}
+// // Term coeff * constraint (ID)
+// type Term struct {
+// 	ID    int     // index of the constraint used to compute this wire
+// 	Coeff big.Int // coefficient by which the wire is multiplied
+// }
 
 // LinearExpression represent a linear expression of variables
-type LinearExpression []Term
+type LinearExpression []term.Term
 
 // R1C used to compute the wires
 type R1C struct {

@@ -26,7 +26,7 @@ import (
 
 func TestIsOnCurve(t *testing.T) {
 	assert := groth16.NewAssert(t)
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// get edwards curve gadget
 	params, err := NewEdCurve(gurvy.BN256)
@@ -52,7 +52,7 @@ func TestIsOnCurve(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	assertbn256 := groth16.NewAssert(t)
 
@@ -67,8 +67,8 @@ func TestAdd(t *testing.T) {
 
 	// add points in circuit (the method updates the underlying plain points as well)
 	resPointSnark := pointSnark.AddFixedPoint(&circuit, &pointSnark, params.BaseX, params.BaseY, params)
-	resPointSnark.X.Tag("xg")
-	resPointSnark.Y.Tag("yg")
+	circuit.Tag(resPointSnark.X, "xg")
+	circuit.Tag(resPointSnark.Y, "yg")
 
 	inputs := make(map[string]interface{})
 	inputs["x"] = "15132049151119024294202596478829150741889300374007672163496852915064138587014"
@@ -86,7 +86,7 @@ func TestAdd(t *testing.T) {
 
 func TestAddGeneric(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	assertbn256 := groth16.NewAssert(t)
 
@@ -102,8 +102,8 @@ func TestAddGeneric(t *testing.T) {
 
 	// add points in circuit (the method updates the underlying plain points as well)
 	pointSnark1.AddGeneric(&circuit, &pointSnark1, &pointSnark2, params)
-	pointSnark1.X.Tag("xg")
-	pointSnark1.Y.Tag("yg")
+	circuit.Tag(pointSnark1.X, "xg")
+	circuit.Tag(pointSnark1.Y, "yg")
 
 	inputs := make(map[string]interface{})
 	inputs["x1"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
@@ -123,7 +123,7 @@ func TestAddGeneric(t *testing.T) {
 
 func TestDouble(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	assertbn256 := groth16.NewAssert(t)
 
@@ -137,8 +137,8 @@ func TestDouble(t *testing.T) {
 
 	// add points in circuit (the method updates the underlying plain points as well)
 	pointSnark.Double(&circuit, &pointSnark, params)
-	pointSnark.X.Tag("xg")
-	pointSnark.Y.Tag("yg")
+	circuit.Tag(pointSnark.X, "xg")
+	circuit.Tag(pointSnark.Y, "yg")
 
 	inputs := make(map[string]interface{})
 	inputs["x"] = "5299619240641551281634865583518297030282874472190772894086521144482721001553"
@@ -156,7 +156,7 @@ func TestDouble(t *testing.T) {
 
 func TestScalarMulFixedBase(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	assertbn256 := groth16.NewAssert(t)
 
@@ -178,8 +178,8 @@ func TestScalarMulFixedBase(t *testing.T) {
 
 	// add points in circuit (the method updates the underlying plain points as well)
 	pointSnark.ScalarMulFixedBase(&circuit, params.BaseX, params.BaseY, scalar, params)
-	pointSnark.X.Tag("xg")
-	pointSnark.Y.Tag("yg")
+	circuit.Tag(pointSnark.X, "xg")
+	circuit.Tag(pointSnark.Y, "yg")
 
 	expectedValues := make(map[string]interface{})
 	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"
@@ -193,7 +193,7 @@ func TestScalarMulFixedBase(t *testing.T) {
 
 func TestScalarMulNonFixedBase(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	assertbn256 := groth16.NewAssert(t)
 
@@ -215,8 +215,8 @@ func TestScalarMulNonFixedBase(t *testing.T) {
 
 	// add points in circuit (the method updates the underlying plain points as well)
 	pointSnark.ScalarMulNonFixedBase(&circuit, &pointSnark, scalar, params)
-	pointSnark.X.Tag("xg")
-	pointSnark.Y.Tag("yg")
+	circuit.Tag(pointSnark.X, "xg")
+	circuit.Tag(pointSnark.Y, "yg")
 
 	expectedValues := make(map[string]interface{})
 	expectedValues["xg"] = "10190477835300927557649934238820360529458681672073866116232821892325659279502"

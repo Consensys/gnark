@@ -8,7 +8,7 @@ import (
 
 func rangeCheckConstant() {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")
@@ -32,7 +32,7 @@ func rangeCheckConstant() {
 
 func rangeCheck() {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
 	y := circuit.PUBLIC_INPUT("y")

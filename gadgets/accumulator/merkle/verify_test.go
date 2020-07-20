@@ -58,7 +58,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	// create circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// public root hash
 	rh := circuit.PUBLIC_INPUT("rootHash")

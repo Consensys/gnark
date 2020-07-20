@@ -65,20 +65,20 @@ func newPointAffineCircuitG2(circuit *frontend.CS, s string) *G2Aff {
 	return NewPointG2Aff(circuit, x, y)
 }
 
-func tagPointG2(g *G2Jac, s string) {
-	g.X.X.Tag(s + "x0")
-	g.X.Y.Tag(s + "x1")
-	g.Y.X.Tag(s + "y0")
-	g.Y.Y.Tag(s + "y1")
-	g.Z.X.Tag(s + "z0")
-	g.Z.Y.Tag(s + "z1")
+func tagPointG2(cs *frontend.CS, g *G2Jac, s string) {
+	cs.Tag(g.X.X, s+"x0")
+	cs.Tag(g.X.Y, s+"x1")
+	cs.Tag(g.Y.X, s+"y0")
+	cs.Tag(g.Y.Y, s+"y1")
+	cs.Tag(g.Z.X, s+"z0")
+	cs.Tag(g.Z.Y, s+"z1")
 }
 
-func tagPointAffineG2(g *G2Aff, s string) {
-	g.X.X.Tag(s + "x0")
-	g.X.Y.Tag(s + "x1")
-	g.Y.X.Tag(s + "y0")
-	g.Y.Y.Tag(s + "y1")
+func tagPointAffineG2(cs *frontend.CS, g *G2Aff, s string) {
+	cs.Tag(g.X.X, s+"x0")
+	cs.Tag(g.X.Y, s+"x1")
+	cs.Tag(g.Y.X, s+"y0")
+	cs.Tag(g.Y.Y, s+"y1")
 }
 
 func assignPointG2(inputs map[string]interface{}, g bls377.G2Jac, s string) {
@@ -125,13 +125,13 @@ func TestAddAssignG2(t *testing.T) {
 	g2 := randomPointG2()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
 	gc1 := newPointCircuitG2(&circuit, "a")
 	gc2 := newPointCircuitG2(&circuit, "b")
 	gc1.AddAssign(&circuit, gc2, ext)
-	tagPointG2(gc1, "c")
+	tagPointG2(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -172,13 +172,13 @@ func TestAddAffAssignG2(t *testing.T) {
 	g2.ToAffineFromJac(&_g2)
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
 	gc1 := newPointAffineCircuitG2(&circuit, "a")
 	gc2 := newPointAffineCircuitG2(&circuit, "b")
 	gc1.AddAssign(&circuit, gc2, ext)
-	tagPointAffineG2(gc1, "c")
+	tagPointAffineG2(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -216,12 +216,12 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	g1.ToAffineFromJac(&_g1)
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
 	gc1 := newPointAffineCircuitG2(&circuit, "a")
 	gc1.Double(&circuit, gc1, ext)
-	tagPointAffineG2(gc1, "c")
+	tagPointAffineG2(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})
@@ -256,12 +256,12 @@ func TestDoubleG2(t *testing.T) {
 	g1 := randomPointG2()
 
 	// create the circuit
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 	ext := fields.GetBLS377ExtensionFp12(&circuit)
 
 	gc1 := newPointCircuitG2(&circuit, "a")
 	gc1.Double(&circuit, gc1, ext)
-	tagPointG2(gc1, "c")
+	tagPointG2(&circuit, gc1, "c")
 
 	// assign the inputs
 	inputs := make(map[string]interface{})

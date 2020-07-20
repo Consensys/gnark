@@ -18,7 +18,7 @@ func (circuit *CubicCircuit) Define(ctx *frontend.Context, cs *frontend.CS) erro
 	cs.MUSTBE_EQ(circuit.Y, cs.ADD(x3, circuit.X, 5))
 
 	// we can tag a variable for testing and / or debugging purposes, it has no impact on performances
-	x3.Tag("x^3")
+	cs.Tag(x3, "x^3")
 
 	return nil
 }

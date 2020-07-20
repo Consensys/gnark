@@ -39,7 +39,7 @@ func NewAssert(t *testing.T) *Assert {
 
 type expectedCS struct {
 	nbWires, nbMOConstraints, nbNOConstraints int
-	nbConstraints                             uint64
+	nbConstraints                             int
 }
 
 type expectedR1CS struct {
@@ -60,4 +60,28 @@ func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 	assert.Equal(expectedR1CS.nbPublicWires, r1cs.NbPublicWires, "r1cs public nbWires")
 	assert.Equal(expectedR1CS.nbConstraints, r1cs.NbConstraints, "r1cs nbConstraints")
 	assert.Equal(expectedR1CS.nbComputationalConstraints, r1cs.NbCOConstraints, "r1cs computational nbConstraints")
+}
+
+// util function to count the wires of a constraint system
+func (cs *CS) countWires() int {
+
+	var wires []int
+
+	for cID, c := range cs.Constraints {
+		if cs.isDeleted(cID) {
+			continue
+		}
+		isCounted := false
+		for _, w := range wires {
+			if w == c.wireID {
+				isCounted = true
+				continue
+			}
+		}
+		if !isCounted {
+			wires = append(wires, c.wireID)
+		}
+	}
+
+	return len(wires)
 }

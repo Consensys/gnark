@@ -30,32 +30,23 @@ import (
 // under the constraintID i are all the expressions that must be equal
 // under the constraintID i, exactly one Constraint can be single wire and there is at least a linear Constraint or a single wire
 type constraint struct {
-	expressions  []expression
-	outputWire   *wire
-	constraintID uint64 // key in CS.Constraints[] map
+	exp          expression
+	wireID       int
+	constraintID int // key in CS.Constraints[] map
 }
 
 func (c *constraint) Set(other *constraint) {
 	*c = *other
 }
 
-func (c *constraint) getExpressions() []expression {
-	return c.expressions
-}
-func (c *constraint) addExpressions(e ...expression) {
-	c.expressions = append(c.expressions, e...)
-}
-func (c *constraint) setID(id uint64) {
+func (c *constraint) setID(id int) {
 	c.constraintID = id
 }
-func (c *constraint) id() uint64 {
+func (c constraint) id() int {
 	return c.constraintID
 }
-func (c *constraint) setOutputWire(w *wire) {
-	c.outputWire = w
-}
-func (c *constraint) getOutputWire() *wire {
-	return c.outputWire
+func (c *constraint) setOutputWire(wID int) {
+	c.wireID = wID
 }
 
 // Term coeff*c
@@ -68,40 +59,25 @@ type Term struct {
 type LinearCombination []Term
 
 // newConstraint initialize a c with a single wire and adds it to the Constraint System (CS)
-func newConstraint(cs *CS, expressions ...expression) Variable {
-	c := &constraint{
-		outputWire: &wire{
-			IsSecret:     true,
-			ConstraintID: -1,
-			WireID:       -1,
-		},
-		expressions: expressions,
+func newConstraint(cs *CS, exp expression) Variable {
+	c := constraint{
+		wireID: cs.addWire(wire{
+			IsSecret:       true,
+			ConstraintID:   -1,
+			WireIDOrdering: -1,
+		}),
+		exp: exp,
 	}
 
-	cs.addConstraint(c)
-
-	return Variable{constraint: c}
+	return Variable{cID: cs.addConstraint(c)}
 }
 
-// Tag adds a tag to the c's singleWire
-// once the R1CS system is solved
-// r1cs.Inspect() may return a map[string]value of constraints with Tags
-func (c *constraint) Tag(tag string) {
-	for i := 0; i < len(c.outputWire.Tags); i++ {
-		if c.outputWire.Tags[i] == tag {
-			return
-		}
+func (c *constraint) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS) []r1cs.R1C {
+	if c.exp == nil {
+		return make([]r1cs.R1C, 0)
 	}
-	c.outputWire.Tags = append(c.outputWire.Tags, tag)
-}
+	var toReturn [1]r1cs.R1C
+	toReturn[0] = c.exp.toR1CS(uR1CS, cs, cs.Wires[ONE_WIRE_ID].WireIDOrdering, c.wireID)
 
-func (c *constraint) toR1CS(s *CS) []r1cs.R1C {
-	oneWire := s.Constraints[0].getOutputWire()
-
-	toReturn := make([]r1cs.R1C, len(c.expressions))
-	for i := 0; i < len(c.expressions); i++ {
-		toReturn[i] = c.expressions[i].toR1CS(oneWire, c.outputWire)
-	}
-
-	return toReturn
+	return toReturn[:]
 }

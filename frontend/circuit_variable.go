@@ -1,5 +1,7 @@
 package frontend
 
+import "github.com/consensys/gnark/internal/utils/debug"
+
 // Variable is a circuit variable. All circuits and gadgets must declare their inputs
 // as Variable . If frontend.Compile(circuit) is called, circuit's Variable will hold
 // constraints used to build the constraint system and later on the R1CS
@@ -7,7 +9,7 @@ package frontend
 // a value, thus using circuit data's structure to statically assign inputs values before
 // solving the R1CS (Prove) or Verifying a proof.
 type Variable struct {
-	*constraint
+	cID int
 	val interface{}
 }
 
@@ -18,7 +20,7 @@ func (cInput *Variable) Assign(value interface{}) {
 		// TODO we may want to enforce that to the circuit-developper
 		// panic("variable was already assigned")
 	}
-	if cInput.constraint != nil {
+	if cInput.cID != 0 {
 		// TODO we may want to enforce that to the circuit-developper
 		// panic("can't assign value in a compiled circuit")
 	}
@@ -27,48 +29,29 @@ func (cInput *Variable) Assign(value interface{}) {
 
 // Set if the variable was compiled, overwrites its constraint attribute with other
 func (cInput Variable) Set(other Variable) {
-	if cInput.constraint == nil {
+	if cInput.cID == 0 {
 		panic("can't set variable -- circuit is not compiled")
 	}
-	cInput.constraint.Set(other.constraint)
-}
-func (cInput Variable) getExpressions() []expression {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	return cInput.constraint.getExpressions()
-}
-func (cInput Variable) addExpressions(e ...expression) {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	cInput.constraint.addExpressions(e...)
+	cInput.cID = other.cID
+	// cInput.constraint.Set(other.constraint)
 }
 
-func (cInput Variable) id() uint64 {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	return cInput.constraint.id()
-}
-func (cInput Variable) setOutputWire(w *wire) {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	cInput.constraint.setOutputWire(w)
-}
-func (cInput Variable) getOutputWire() *wire {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	return cInput.constraint.getOutputWire()
+func (cInput Variable) getExpressions(cs *CS) expression {
+	debug.Assert(cInput.cID != 0, "circuit not compiled")
+	return cs.Constraints[cInput.cID].exp
 }
 
-// Tag for debugging purposes, allow to add a tag to a variable that was compiled
-// see R1CS.Inspect()
-func (cInput Variable) Tag(tag string) {
-	if cInput.constraint == nil {
-		panic("circuit is not compiled")
-	}
-	cInput.constraint.Tag(tag)
+func (cInput Variable) id() int {
+	debug.Assert(cInput.cID != 0, "circuit not compiled")
+	return cInput.cID
+}
+func (cInput Variable) setOutputWire(cs *CS, wID int) {
+	debug.Assert(cInput.cID != 0, "circuit not compiled")
+	c := cs.Constraints[cInput.cID]
+	c.wireID = wID
+	cs.Constraints[cInput.cID] = c
+}
+func (cInput Variable) wireID(cs *CS) int {
+	debug.Assert(cInput.cID != 0, "circuit not compiled")
+	return cs.Constraints[cInput.cID].wireID
 }

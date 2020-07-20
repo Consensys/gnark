@@ -45,7 +45,7 @@ func assignOperandFp2(inputs map[string]interface{}, s string, w bls377.E2) {
 
 func TestAddFp2(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E2
@@ -59,8 +59,8 @@ func TestAddFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Add(&circuit, &fp2a, &fp2b)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -90,7 +90,7 @@ func TestAddFp2(t *testing.T) {
 
 func TestSubFp2(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E2
@@ -104,8 +104,8 @@ func TestSubFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Sub(&circuit, &fp2a, &fp2b)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -137,7 +137,7 @@ func TestMulFp2(t *testing.T) {
 
 	ext := Extension{uSquare: 5}
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, b, c bls377.E2
@@ -151,8 +151,8 @@ func TestMulFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Mul(&circuit, &fp2a, &fp2b, ext)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -182,7 +182,7 @@ func TestMulFp2(t *testing.T) {
 
 func TestMulByFpFp2(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, c bls377.E2
@@ -197,8 +197,8 @@ func TestMulByFpFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.MulByFp(&circuit, &fp2a, fpb)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -229,7 +229,7 @@ func TestMulByImFp2(t *testing.T) {
 
 	ext := Extension{uSquare: 5}
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, c bls377.E2
@@ -241,8 +241,8 @@ func TestMulByImFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.MulByIm(&circuit, &fp2a, ext)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -270,7 +270,7 @@ func TestMulByImFp2(t *testing.T) {
 
 func TestConjugateFp2(t *testing.T) {
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, c bls377.E2
@@ -282,8 +282,8 @@ func TestConjugateFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Conjugate(&circuit, &fp2a)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()
@@ -313,7 +313,7 @@ func TestInverseFp2(t *testing.T) {
 
 	ext := Extension{uSquare: 5}
 
-	circuit := frontend.New()
+	circuit := frontend.NewConstraintSystem()
 
 	// witness values
 	var a, c bls377.E2
@@ -325,8 +325,8 @@ func TestInverseFp2(t *testing.T) {
 	fp2c := NewFp2Elmt(&circuit, nil, nil)
 	fp2c.Inverse(&circuit, &fp2a, ext)
 
-	fp2c.X.Tag("c0")
-	fp2c.Y.Tag("c1")
+	circuit.Tag(fp2c.X, "c0")
+	circuit.Tag(fp2c.Y, "c1")
 
 	inputs := make(map[string]interface{})
 	inputs["a0"] = a.A0.String()

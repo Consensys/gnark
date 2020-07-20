@@ -26,27 +26,22 @@ import (
 // each Wire will have a Value enabling the solver to determine a solution vector
 // to the rank 1 constraint system
 type wire struct {
-	Name         string // only inputs wires have a name (different from the tags)
-	WireID       int64
-	ConstraintID int64 // ID of the constraint from which the wire is computed (for an input it's -1)
-	IsSecret     bool
-	IsConsumed   bool     // if false it means it is the last wire of the computational graph
-	Tags         []string // if debug is set, the variable can be displayed once the wires are computed
-}
-
-func (w wire) isUserInput() bool {
-	return w.Name != ""
+	Name           string // only inputs wires have a name (different from the tags)
+	WireIDOrdering int
+	WireIDMap      int
+	ConstraintID   int64 // ID of the constraint from which the wire is computed (for an input it's -1)
+	IsSecret       bool
 }
 
 func (w wire) String() string {
 	res := ""
 	if w.Name != "" {
 		res = res + w.Name
-		if w.WireID != -1 {
-			res = res + " (wire_" + strconv.Itoa(int(w.WireID)) + ")"
+		if w.WireIDOrdering != -1 {
+			res = res + " (wire_" + strconv.Itoa(int(w.WireIDOrdering)) + ")"
 		}
 	} else {
-		res = "wire_" + strconv.Itoa(int(w.WireID))
+		res = "wire_" + strconv.Itoa(int(w.WireIDOrdering))
 	}
 	res = res + " (c " + strconv.Itoa(int(w.ConstraintID)) + ")"
 	return res
