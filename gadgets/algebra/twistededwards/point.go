@@ -22,7 +22,6 @@ package twistededwards
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -69,51 +68,54 @@ func (p *Point) MustBeOnCurve(circuit *frontend.CS, curve EdCurve) {
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) AddFixedPoint(circuit *frontend.CS, p1 *Point, x, y interface{}, curve EdCurve) *Point {
-	// cf https://z.cash/technology/jubjub/
-	// or https://eprint.iacr.org/2008/013.pdf
-	res := Point{}
+	X := circuit.ALLOCATE(x)
+	Y := circuit.ALLOCATE(y)
+	return p.AddGeneric(circuit, p1, &Point{X, Y}, curve)
+	// // cf https://z.cash/technology/jubjub/
+	// // or https://eprint.iacr.org/2008/013.pdf
+	// res := Point{}
 
-	// constraint 1
-	b := circuit.MUL(p1.X, p1.Y)
+	// // constraint 1
+	// b := circuit.MUL(p1.X, p1.Y)
 
-	X := backend.FromInterface(x)
-	Y := backend.FromInterface(y)
+	// X := backend.FromInterface(x)
+	// Y := backend.FromInterface(y)
 
-	var duv big.Int
-	duv.Mul(&X, &Y).Mul(&duv, &curve.D)
+	// var duv big.Int
+	// duv.Mul(&X, &Y).Mul(&duv, &curve.D)
 
-	one := big.NewInt(1)
-	oneWire := circuit.ALLOCATE(one)
+	// one := big.NewInt(1)
+	// oneWire := circuit.ALLOCATE(one)
 
-	// constraint 2
-	den := frontend.LinearCombination{
-		frontend.Term{Variable: oneWire, Coeff: *one},
-		frontend.Term{Variable: b, Coeff: duv},
-	}
-	num := frontend.LinearCombination{
-		frontend.Term{Variable: p1.X, Coeff: Y},
-		frontend.Term{Variable: p1.Y, Coeff: X},
-	}
-	res.X = circuit.DIV(num, den)
+	// // constraint 2
+	// den := frontend.LinearCombination{
+	// 	frontend.Term{Variable: oneWire, Coeff: *one},
+	// 	frontend.Term{Variable: b, Coeff: duv},
+	// }
+	// num := frontend.LinearCombination{
+	// 	frontend.Term{Variable: p1.X, Coeff: Y},
+	// 	frontend.Term{Variable: p1.Y, Coeff: X},
+	// }
+	// res.X = circuit.DIV(num, den)
 
-	// constraint 3
-	duv.Neg(&duv)
-	den = frontend.LinearCombination{
-		frontend.Term{Variable: oneWire, Coeff: *one},
-		frontend.Term{Variable: b, Coeff: duv},
-	}
-	var tmp big.Int
-	tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
-	num = frontend.LinearCombination{
-		frontend.Term{Variable: p1.Y, Coeff: Y},
-		frontend.Term{Variable: p1.X, Coeff: tmp},
-	}
-	res.Y = circuit.DIV(num, den)
+	// // constraint 3
+	// duv.Neg(&duv)
+	// den = frontend.LinearCombination{
+	// 	frontend.Term{Variable: oneWire, Coeff: *one},
+	// 	frontend.Term{Variable: b, Coeff: duv},
+	// }
+	// var tmp big.Int
+	// tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
+	// num = frontend.LinearCombination{
+	// 	frontend.Term{Variable: p1.Y, Coeff: Y},
+	// 	frontend.Term{Variable: p1.X, Coeff: X},
+	// }
+	// res.Y = circuit.DIV(num, den)
 
-	p.X = res.X
-	p.Y = res.Y
+	// p.X = res.X
+	// p.Y = res.Y
 
-	return p
+	// return p
 }
 
 // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
