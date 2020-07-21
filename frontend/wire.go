@@ -22,8 +22,10 @@ package frontend
 // each Wire will have a Value enabling the solver to determine a solution vector
 // to the rank 1 constraint system
 type wire struct {
-	wIDOrdered int
-	cIDOrdered int // ID of the constraint from which the wire is computed (for an input it's -1)
+	// note that theses are prefixed "final" because these IDs are computed in
+	// cs.ToR1CS when the wires and constraints are ordered
+	finalWireID       int
+	finalConstraintID int // ID of the constraint from which the wire is computed (for an input it's -1)
 }
 
 // func (w wire) String() string {

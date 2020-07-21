@@ -90,7 +90,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 		}
 
 		c.exp.consumeWires(consumedWires) // only the first exp is consumed, the other might containt root of the computational graph
-		c.cIDOrdered = ccCounter          // tells the output wire from which constraint it is computed
+		c.finalConstraintID = ccCounter   // tells the output wire from which constraint it is computed
 		cs.constraints[cID] = c
 		ccCounter++
 	}
@@ -109,14 +109,14 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	// [non-input wires|secretWires|publicWires]
 	for i, cID := range wireTracker {
 		c := cs.constraints[cID]
-		c.wIDOrdered = i
+		c.finalWireID = i
 		cs.constraints[cID] = c
 	}
 	offset := len(wireTracker)
 
 	for i, cID := range secretInputs {
 		c := cs.constraints[cID]
-		c.wIDOrdered = i + offset
+		c.finalWireID = i + offset
 		cs.constraints[cID] = c
 		uR1CS.PrivateWires[i] = cs.secretWireNames[cID]
 		wireTracker = append(wireTracker, cID)
@@ -124,12 +124,12 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	offset += len(secretInputs)
 	for i, cID := range publicInputs {
 		c := cs.constraints[cID]
-		c.wIDOrdered = i + offset
+		c.finalWireID = i + offset
 		cs.constraints[cID] = c
 		uR1CS.PublicWires[i] = cs.publicWireNames[cID]
 		wireTracker = append(wireTracker, cID)
 	}
-	oneWireIDOrdered := cs.constraints[oneWireID].wIDOrdered
+	oneWireIDOrdered := cs.constraints[oneWireID].finalWireID
 
 	// step 4: Now that the wires are numbered, we can split the constraint into R1C
 	// using final IDs
@@ -203,7 +203,7 @@ func findRootConstraints(cs *CS, wireTracker []int, consumedWires map[int]struct
 	var res []int
 	for _, w := range wireTracker {
 		if _, ok := consumedWires[w]; !ok {
-			res = append(res, cs.constraints[w].cIDOrdered)
+			res = append(res, cs.constraints[w].finalConstraintID)
 		}
 	}
 	return res
@@ -246,7 +246,7 @@ func postOrder(cs *CS, constraintID int, visited []bool, computationalGraph []r1
 
 			// explore left wires
 			for _, l := range c.L {
-				n := cs.constraints[wireTracker[l.ConstraintID()]].cIDOrdered
+				n := cs.constraints[wireTracker[l.ConstraintID()]].finalConstraintID
 				if n != -1 {
 					if n != node && !visited[n] {
 						stackIn = stackIn.push(n)
@@ -259,7 +259,7 @@ func postOrder(cs *CS, constraintID int, visited []bool, computationalGraph []r1
 			// explore right wires
 			if !found {
 				for _, r := range c.R {
-					n := cs.constraints[wireTracker[r.ConstraintID()]].cIDOrdered
+					n := cs.constraints[wireTracker[r.ConstraintID()]].finalConstraintID
 					if n != -1 {
 						if n != node && !visited[n] {
 							stackIn = stackIn.push(n)
@@ -273,7 +273,7 @@ func postOrder(cs *CS, constraintID int, visited []bool, computationalGraph []r1
 			// explore output wires
 			if !found {
 				for _, o := range c.O {
-					n := cs.constraints[wireTracker[o.ConstraintID()]].cIDOrdered
+					n := cs.constraints[wireTracker[o.ConstraintID()]].finalConstraintID
 					if n != -1 {
 						if n != node && !visited[n] {
 							stackIn = stackIn.push(n)
