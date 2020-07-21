@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/term"
 )
 
-// Expression [of constraints] represents the lowest level of circuit design
+// expression [of constraints] represents the lowest level of circuit design
 // Inspired from ZCash specs
 // When designing a circuit, one has access to (in increasing order of level):
 // 	- constraint that generates new inputs (basic constraints)
@@ -42,15 +42,22 @@ import (
 // For the computatinal graph one needs to know which wires are used in a given Expression
 // The bound in the number of expressions is only limited by the fact that we use a r1cs system.
 type expression interface {
-	consumeWires(consumedWires map[int]struct{})                                     // used during the conversion to r1cs: tells what variables are consumed (useful for the post ordering)
-	toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C // turns an expression into a r1cs (ex: toR1cs on a selection constraint x-b(y-x) yields: b(y-x)=z-x)
-	// string() string                                    // implement string interface
+	// used during the conversion to r1cs: tells what variables are consumed (useful for the post ordering)
+	consumeWires(consumedWires map[int]struct{})
+
+	// turns an expression into a r1cs (ex: toR1cs on a selection constraint x-b(y-x) yields: b(y-x)=z-x)
+	toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C
+
+	// string helper
+	string(cs *CS) string
 }
 
-// Multi Output expression
+// moExpression is a multiple output expression
 type moExpression interface {
-	setConstraintID(cs *CS, id int) // set the wire's constraintID to n for the wires that don't have this field set yet
 	expression
+
+	// set the wire's constraintID to n for the wires that don't have this field set yet
+	setConstraintID(cs *CS, id int)
 }
 
 type operationType uint8
@@ -74,7 +81,7 @@ func (t *singleTermExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireID
 	isDivision := t.IsDivision()
 	if !isDivision {
 		L = r1cs.LinearExpression{
-			term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()),
+			term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()),
 		}
 
 		R = r1cs.LinearExpression{
@@ -86,7 +93,7 @@ func (t *singleTermExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireID
 		}
 	} else {
 		L = r1cs.LinearExpression{
-			term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()),
+			term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()),
 		}
 
 		R = r1cs.LinearExpression{
@@ -106,13 +113,13 @@ func (t *singleTermExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireID
 	}
 }
 
-func (t singleTermExpression) string() string {
+func (t singleTermExpression) string(cs *CS) string {
 	res := "not implemeted"
 	// tmp := t.Coeff //.ToRegular()
 	// if t.Operation == mul {
-	// 	res = res + tmp.String() // TODO + t.ConstraintID().String()
+	// 	res = res + tmp.String() + t.ConstraintID().String()
 	// } else {
-	// 	res = res + "(" + res + tmp.String() + /* TODO t.ConstraintID().String() +*/ ")**-1"
+	// 	res = res + "(" + res + tmp.String() +  t.ConstraintID().String() + ")**-1"
 	// }
 	return res
 }
@@ -130,7 +137,7 @@ func (l *linearExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrde
 
 	left := r1cs.LinearExpression{}
 	for _, t := range *l {
-		lwt := term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt())
+		lwt := term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt())
 		left = append(left, lwt)
 	}
 
@@ -145,13 +152,57 @@ func (l *linearExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrde
 	return r1cs.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
 }
 
-func (l *linearExpression) string() string {
+func (l *linearExpression) string(cs *CS) string {
 	res := ""
 	for _, t := range *l {
 		res += t.String()
 		res += "+"
 	}
 	res = res[:len(res)-1]
+	return res
+}
+
+// mulExpression is a quadratic expression of constraints, with only 2 terms.
+type mulExpression struct {
+	left, right term.Term // in case of division, left is the denominator, right the numerator
+}
+
+func (q *mulExpression) consumeWires(consumedWires map[int]struct{}) {
+	consumedWires[q.left.ConstraintID()] = struct{}{}
+	consumedWires[q.right.ConstraintID()] = struct{}{}
+}
+
+func (q *mulExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+
+	specialValue, coeffID, constraintID := q.left.Unpack()
+	constraintID = cs.constraints[constraintID].wIDOrdered
+	L := r1cs.LinearExpression{
+		term.Pack(constraintID, coeffID, specialValue),
+	}
+
+	specialValue, coeffID, constraintID = q.right.Unpack()
+	constraintID = cs.constraints[constraintID].wIDOrdered
+	R := r1cs.LinearExpression{
+		term.Pack(constraintID, coeffID, specialValue),
+	}
+
+	O := r1cs.LinearExpression{
+		cs.term(cs.constraints[w].wIDOrdered, *bOne),
+	}
+
+	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+
+}
+
+func (q *mulExpression) string(cs *CS) string {
+	var res string
+	// if q.operation == mul {
+	// 	res = "("
+	// 	res = res + q.left.string(cs) + ")*(" + q.right.string(cs) + ")"
+	// } else {
+	// 	res = res + q.right.string(cs) + "*" + q.left.string(cs) + "^-1"
+	// 	return res
+	// }
 	return res
 }
 
@@ -172,12 +223,12 @@ func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDO
 	case mul:
 		L := r1cs.LinearExpression{}
 		for _, t := range q.left {
-			L = append(L, term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
+			L = append(L, term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
 		}
 
 		R := r1cs.LinearExpression{}
 		for _, t := range q.right {
-			R = append(R, term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
+			R = append(R, term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
 		}
 
 		O := r1cs.LinearExpression{
@@ -189,7 +240,7 @@ func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDO
 		L := r1cs.LinearExpression{}
 
 		for _, t := range q.left {
-			L = append(L, term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
+			L = append(L, term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
 		}
 
 		R := r1cs.LinearExpression{
@@ -198,7 +249,7 @@ func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDO
 
 		O := r1cs.LinearExpression{}
 		for _, t := range q.right {
-			O = append(O, term.NewTerm(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
+			O = append(O, term.Pack(cs.constraints[t.ConstraintID()].wIDOrdered, t.CoeffID(), t.SpecialValueInt()))
 		}
 
 		return r1cs.R1C{L: L, R: R, O: O}
@@ -207,13 +258,13 @@ func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDO
 	}
 }
 
-func (q *quadraticExpression) string() string {
+func (q *quadraticExpression) string(cs *CS) string {
 	var res string
 	if q.operation == mul {
 		res = "("
-		res = res + q.left.string() + ")*(" + q.right.string() + ")"
+		res = res + q.left.string(cs) + ")*(" + q.right.string(cs) + ")"
 	} else {
-		res = res + q.right.string() + "*" + q.left.string() + "^-1"
+		res = res + q.right.string(cs) + "*" + q.left.string(cs) + "^-1"
 		return res
 	}
 	return res
@@ -253,12 +304,12 @@ func (s *selectExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrde
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
-// func (s *selectExpression) string() string {
-// 	res := ""
-// 	res = res + s.x.String() + "-" + s.b.String()
-// 	res = res + "*(" + s.y.String() + "-" + s.x.String() + ")"
-// 	return res
-// }
+func (s *selectExpression) string(cs *CS) string {
+	res := ""
+	// res = res + s.x.String() + "-" + s.b.String()
+	// res = res + "*(" + s.y.String() + "-" + s.x.String() + ")"
+	return res
+}
 
 // xorExpression expression used to compute the xor between two variables
 // (2*a)b = (a+b-c)
@@ -290,12 +341,12 @@ func (x *xorExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
-// func (x *xorExpression) string() string {
-// 	res := ""
-// 	res = res + x.a.String() + "+" + x.b.String()
-// 	res = res + "-2*" + x.a.String() + "*" + x.b.String()
-// 	return res
-// }
+func (x *xorExpression) string(cs *CS) string {
+	res := ""
+	// res = res + x.a.String() + "+" + x.b.String()
+	// res = res + "-2*" + x.a.String() + "*" + x.b.String()
+	return res
+}
 
 // unpackExpression expression used to unpack a variable in binary (bits[i]*2^i = res)
 type unpackExpression struct {
@@ -340,16 +391,15 @@ func (u *unpackExpression) setConstraintID(cs *CS, n int) {
 	}
 }
 
-// func (u *unpackExpression) string() string {
-
-// 	res := ""
-// 	for i, b := range u.bits {
-// 		res += b.String() + "*2^" + strconv.Itoa(i) + "+"
-// 	}
-// 	res = res[:len(res)-1]
-// 	res += " = " + u.res.String()
-// 	return res
-// }
+func (u *unpackExpression) string(cs *CS) string {
+	res := ""
+	// for i, b := range u.bits {
+	// 	res += b.String() + "*2^" + strconv.Itoa(i) + "+"
+	// }
+	// res = res[:len(res)-1]
+	// res += " = " + u.res.String()
+	return res
+}
 
 // packing expression
 type packExpression struct {
@@ -388,14 +438,14 @@ func (p *packExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdere
 	return r1cs.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
 }
 
-// func (p *packExpression) string() string {
-// 	res := ""
-// 	for i, b := range p.bits {
-// 		res += b.String() + "*2^" + strconv.Itoa(i) + "+"
-// 	}
-// 	res = res[:len(res)-1]
-// 	return res
-// }
+func (p *packExpression) string(cs *CS) string {
+	res := ""
+	// for i, b := range p.bits {
+	// 	res += b.String() + "*2^" + strconv.Itoa(i) + "+"
+	// }
+	// res = res[:len(res)-1]
+	return res
+}
 
 // boolean constraint
 type booleanExpression struct {
@@ -423,12 +473,12 @@ func (b *booleanExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrd
 	return r1cs.R1C{L: L, R: R, O: O}
 }
 
-// func (b *booleanExpression) string() string {
+func (b *booleanExpression) string(cs *CS) string {
 
-// 	res := "(1-"
-// 	res = res + b.b.String() + ")*(" + b.b.String() + ")=0"
-// 	return res
-// }
+	res := "(1-"
+	// res = res + b.b.String() + ")*(" + b.b.String() + ")=0"
+	return res
+}
 
 // equalExpression a - b = 0
 type equalExpression struct {
@@ -456,19 +506,23 @@ func (e *equalExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrder
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
+func (e *equalExpression) string(cs *CS) string {
+	return "todo"
+}
+
 // eqConstExp wire is equal to a constant
 type equalConstantExpression struct {
-	a int
-	v big.Int
+	wire     int
+	constant big.Int
 }
 
 func (e *equalConstantExpression) consumeWires(consumedWires map[int]struct{}) {}
 
-func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C {
 
 	// L
 	L := r1cs.LinearExpression{
-		cs.term(oneWireIDOrdered, e.v),
+		cs.term(oneWireIDOrdered, e.constant),
 	}
 
 	// R
@@ -477,22 +531,19 @@ func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWir
 	}
 
 	// O
-	// TODO that's sa bit dirty.
-	// if a is set, we use a as a wire
-	// if not we use the resulting wire w
-	ww := w
-	if e.a != 0 {
-		ww = e.a
+	// if e.wire is set, equalConstantExpression is being used as a noConstraint (no output), so wire will be == 0
+	if e.wire != 0 {
+		wire = e.wire
 	}
 	O := r1cs.LinearExpression{
-		cs.term(cs.constraints[ww].wIDOrdered, *bOne),
+		cs.term(cs.constraints[wire].wIDOrdered, *bOne),
 	}
 
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
-func (e *equalConstantExpression) string() string {
-	return e.v.String()
+func (e *equalConstantExpression) string(cs *CS) string {
+	return e.constant.String()
 }
 
 // implyExpression implication constraint: if b is 1 then a is 0
@@ -526,11 +577,11 @@ func (i *implyExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrder
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
-// func (i *implyExpression) string() string {
-// 	res := ""
-// 	res = res + "(1 - " + i.b.String() + " - " + i.a.String() + ")*( " + i.a.String() + ")=0"
-// 	return res
-// }
+func (i *implyExpression) string(cs *CS) string {
+	res := ""
+	// res = res + "(1 - " + i.b.String() + " - " + i.a.String() + ")*( " + i.a.String() + ")=0"
+	return res
+}
 
 // lutExpression lookup table constraint, selects the i-th entry in the lookup table where i=2*bit1+bit0
 // cf https://z.cash/technology/jubjub/
@@ -576,20 +627,21 @@ func (win *lutExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrder
 	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 }
 
-// func (win *lutExpression) string() string {
+func (win *lutExpression) string(cs *CS) string {
 
-// 	var lookuptablereg [4]big.Int
-// 	for i := 0; i < 4; i++ {
-// 		lookuptablereg[i] = win.lookuptable[i] //.ToRegular()
-// 	}
+	// var lookuptablereg [4]big.Int
+	// for i := 0; i < 4; i++ {
+	// 	lookuptablereg[i] = win.lookuptable[i] //.ToRegular()
+	// }
 
-// 	res := "(" + win.b0.String() + ")*("
-// 	res = res + "-" + lookuptablereg[0].String()
-// 	res = res + "+" + lookuptablereg[0].String() + "*" + win.b1.String() + "+" + lookuptablereg[1].String()
-// 	res = res + "-" + lookuptablereg[1].String() + "*" + win.b1.String()
-// 	res = res + "-" + lookuptablereg[2].String() + "*" + win.b1.String()
-// 	res = res + "+" + lookuptablereg[3].String() + "*" + win.b1.String() + ")="
-// 	res = res + lookuptablereg[0].String() + "-" + lookuptablereg[0].String() + "*" + win.b1.String()
-// 	res = res + "+" + lookuptablereg[2].String() + "*" + win.b1.String()
-// 	return res
-// }
+	// res := "(" + win.b0.String() + ")*("
+	// res = res + "-" + lookuptablereg[0].String()
+	// res = res + "+" + lookuptablereg[0].String() + "*" + win.b1.String() + "+" + lookuptablereg[1].String()
+	// res = res + "-" + lookuptablereg[1].String() + "*" + win.b1.String()
+	// res = res + "-" + lookuptablereg[2].String() + "*" + win.b1.String()
+	// res = res + "+" + lookuptablereg[3].String() + "*" + win.b1.String() + ")="
+	// res = res + lookuptablereg[0].String() + "-" + lookuptablereg[0].String() + "*" + win.b1.String()
+	// res = res + "+" + lookuptablereg[2].String() + "*" + win.b1.String()
+	// return res
+	return ""
+}

@@ -28,9 +28,9 @@ type Assert struct {
 	*require.Assertions
 }
 
-// NewAssert returns an helper to test Constraint Systems
+// newAssert returns an helper to test Constraint Systems
 // this helper embeds a stretch/testify Assert object for convenience
-func NewAssert(t *testing.T) *Assert {
+func newAssert(t *testing.T) *Assert {
 	return &Assert{t, require.New(t)}
 }
 
@@ -49,8 +49,8 @@ type expectedR1CS struct {
 func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
 	assert.Equal(expectedCS.nbWires, circuit.countWires(), "cs nbWires")
 	assert.Equal(expectedCS.nbConstraints, circuit.nbConstraints(), "cs nbConstraints")
-	assert.Equal(expectedCS.nbMOConstraints, len(circuit.moConstraints), "cs nb MOConstraints")
-	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noConstraints), "cs nb NOConstraints")
+	assert.Equal(expectedCS.nbMOConstraints, len(circuit.moExpressions), "cs nb MOConstraints")
+	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noExpressions), "cs nb NOConstraints")
 }
 
 func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {

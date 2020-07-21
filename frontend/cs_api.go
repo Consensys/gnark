@@ -165,42 +165,30 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 	case Variable:
 		switch c2 := i2.(type) {
 		case Variable:
-			if err := cs.equal(c1, c2); err != nil {
-				panic(err)
-			}
+			cs.equal(c1, c2)
 			return
 		case big.Int:
-			if err := cs.equalConstant(c1, c2); err != nil {
-				panic(err)
-			}
+			cs.equalConstant(c1, c2)
 			return
 		case *big.Int:
-			if err := cs.equalConstant(c1, *c2); err != nil {
-				panic(err)
-			}
+			cs.equalConstant(c1, *c2)
 			return
 		}
 
 	case big.Int:
 		switch c2 := i2.(type) {
 		case Variable:
-			if err := cs.equalConstant(c2, c1); err != nil {
-				panic(err)
-			}
+			cs.equalConstant(c2, c1)
 			return
 		}
 	case *big.Int:
 		switch c2 := i2.(type) {
 		case Variable:
-			if err := cs.equalConstant(c2, *c1); err != nil {
-				panic(err)
-			}
+			cs.equalConstant(c2, *c1)
 			return
 		}
 	}
-
-	panic("invalid type")
-
+	panic("invalid type: MUSTBE_EQ takes Variables and big.Int only")
 }
 
 // INV inverse a Constraint
@@ -215,22 +203,19 @@ func (cs *CS) XOR(c1, c2 Variable) Variable {
 	cs.MUSTBE_BOOLEAN(c2)
 
 	expression := xorExpression{
-		a: c1.id(cs),
-		b: c2.id(cs),
+		a: c1.id(),
+		b: c2.id(),
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 }
 
 // MUSTBE_BOOLEAN boolean constrains a variable
 func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
-	if c.constraintID == 0 {
-		panic("variable is not compiled")
-	}
 	// check if the variable is already boolean constrained
-	for i := 0; i < len(cs.noConstraints); i++ {
-		if bExpression, ok := cs.noConstraints[i].(*booleanExpression); ok {
-			if bExpression.b == c.id(cs) {
+	for i := 0; i < len(cs.noExpressions); i++ {
+		if bExpression, ok := cs.noExpressions[i].(*booleanExpression); ok {
+			if bExpression.b == c.id() {
 				// this variable is already boolean constrained
 				return
 			}
@@ -241,14 +226,14 @@ func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
 		if cID == 0 {
 			continue // skipping first entry, reserved
 		}
-		if cID == c.constraintID {
+		if cID == c.id() {
 			if _, ok := val.exp.(*xorExpression); ok {
 				// constraint is the result of a xor expression and is already boolean constrained as such
 				return
 			}
 		}
 	}
-	cs.noConstraints = append(cs.noConstraints, &booleanExpression{b: c.id(cs)})
+	cs.noExpressions = append(cs.noExpressions, &booleanExpression{b: c.id()})
 }
 
 // TO_BINARY unpacks a variable in binary, n is the number of bits of the variable
@@ -257,16 +242,16 @@ func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
 
 	// create the expression ensuring the bit decomposition matches c
 	expression := &unpackExpression{
-		res: c.id(cs),
+		res: c.id(),
 	}
-	cs.moConstraints = append(cs.moConstraints, expression)
+	cs.moExpressions = append(cs.moExpressions, expression)
 
 	// create our bits constraints
 	bits := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		bits[i] = newConstraint(cs, nil)
+		bits[i] = cs.addConstraint(nil)
 		cs.MUSTBE_BOOLEAN(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
-		expression.bits = append(expression.bits, bits[i].id(cs))
+		expression.bits = append(expression.bits, bits[i].id())
 	}
 
 	return bits
@@ -279,10 +264,10 @@ func (cs *CS) FROM_BINARY(b ...Variable) Variable {
 
 	for _, c := range b {
 		cs.MUSTBE_BOOLEAN(c) // ensure input is boolean constrained
-		expression.bits = append(expression.bits, c.id(cs))
+		expression.bits = append(expression.bits, c.id())
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 }
 
 // MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
@@ -309,11 +294,11 @@ func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 		switch c2 := i2.(type) {
 		case Variable:
 			expression := selectExpression{
-				b: b.id(cs),
-				x: c1.id(cs),
-				y: c2.id(cs),
+				b: b.id(),
+				x: c1.id(),
+				y: c2.id(),
 			}
-			return newConstraint(cs, &expression)
+			return cs.addConstraint(&expression)
 		default:
 			panic("invalid type")
 		}
@@ -322,10 +307,10 @@ func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 		c2Bigint := backend.FromInterface(i2)
 		c1Bigint.Sub(&c1Bigint, &c2Bigint)
 		expression := linearExpression{
-			cs.term(b.id(cs), c1Bigint),
+			cs.term(b.id(), c1Bigint),
 			cs.term(oneWireID, *bOne),
 		}
-		return newConstraint(cs, &expression)
+		return cs.addConstraint(&expression)
 	}
 }
 
@@ -338,53 +323,50 @@ func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 	cs.MUSTBE_BOOLEAN(c1)
 
 	expression := lutExpression{
-		b0:          c0.id(cs),
-		b1:          c1.id(cs),
+		b0:          c0.id(),
+		b1:          c1.id(),
 		lookuptable: lookuptable,
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 
 }
 
 // SECRET_INPUT creates a Constraint containing an input
 func (cs *CS) SECRET_INPUT(name string) Variable {
-	c := constraint{
-		wire: uninitializedWire,
+	if name == "" {
+		panic("can't initialize nameless input")
 	}
 
-	cID := cs.addConstraint(c)
+	v := cs.addConstraint(nil)
 	// ensure name is not duplicate
-	if name != "" {
-		if _, ok := cs.wireNames[name]; ok {
-			panic("duplicate input name")
-		} else {
-			cs.wireNames[name] = struct{}{}
-			cs.secretWireNames[cID] = name
-		}
+	if _, ok := cs.wireNames[name]; ok {
+		panic("duplicate input name")
+	} else {
+		cs.wireNames[name] = struct{}{}
+		cs.secretWireNames[v.id()] = name
 	}
 
-	return Variable{constraintID: cID}
+	return v
 
 }
 
 // PUBLIC_INPUT creates a Constraint containing an input
 func (cs *CS) PUBLIC_INPUT(name string) Variable {
-	c := constraint{
-		wire: uninitializedWire,
-	}
-	cID := cs.addConstraint(c)
-	// ensure name is not duplicate
-	if name != "" {
-		if _, ok := cs.wireNames[name]; ok {
-			panic("duplicate input name")
-		} else {
-			cs.wireNames[name] = struct{}{}
-			cs.publicWireNames[cID] = name
-		}
+	if name == "" {
+		panic("can't initialize nameless input")
 	}
 
-	return Variable{constraintID: cID}
+	v := cs.addConstraint(nil)
+	// ensure name is not duplicate
+	if _, ok := cs.wireNames[name]; ok {
+		panic("duplicate input name")
+	} else {
+		cs.wireNames[name] = struct{}{}
+		cs.publicWireNames[v.id()] = name
+	}
+
+	return v
 }
 
 // ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
@@ -400,9 +382,6 @@ func (cs *CS) ALLOCATE(input interface{}) Variable {
 // Tag tags variable v with tag
 // useful for debug purposes, and retrieve intermediate values once through r1cs.Inspect() method
 func (cs *CS) Tag(v Variable, tag string) {
-	if v.constraintID == 0 {
-		panic("can't tag -- circuit not compiled")
-	}
 	for _, v := range cs.wireTags {
 		for _, t := range v {
 			if tag == t {
@@ -410,8 +389,8 @@ func (cs *CS) Tag(v Variable, tag string) {
 			}
 		}
 	}
-	wID := v.id(cs)
-	tags := cs.wireTags[wID]
+	cID := v.id()
+	tags := cs.wireTags[cID]
 	tags = append(tags, tag)
-	cs.wireTags[wID] = tags
+	cs.wireTags[cID] = tags
 }

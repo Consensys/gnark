@@ -16,12 +16,6 @@ limitations under the License.
 
 package frontend
 
-import (
-	"math/big"
-
-	"github.com/consensys/gnark/backend/r1cs"
-)
-
 // Constraint list of expressions that must be equal+an output wire, that can be computed out of the inputs wire.
 // A Constraint is a list of expressions that are equal.
 // Each expression yields the value of another wire.
@@ -31,55 +25,21 @@ import (
 // under the constraintID i, exactly one Constraint can be single wire and there is at least a linear Constraint or a single wire
 type constraint struct {
 	wire
-	// note to self:
 	// exp can be nil. If it is nil, it is "unconstrained"
-	// meaning it's not a constraint but the output wire of a constraint.
-	// seems like a confusing double purpose for this struct.
+	// meaning it's not a constraint but only the computed output wire of a constraint.
+	// for exp == nil, we still need a constraint to reference inside the Variable and re-constraint later on
+	// in a circuit.
 	exp expression
 	ID  int
 }
 
-// TODO keeping that for retrocompatibility purposes.
-// if we're sure of ourselves, then, no need to have "unitialized" wire, we will loop through them all
-// and initialize them.
-var uninitializedWire = wire{-1, -1}
-
-type wire struct {
-	// ex wire
-	// Wire is analogous to a circuit's physical Wire
-	// each constraint (ie gate) will have a single output Wire
-	// when the circuit is instantiated and fed an input
-	// each Wire will have a Value enabling the solver to determine a solution vector
-	// to the rank 1 constraint system
-	wIDOrdered int
-	cIDOrdered int // ID of the constraint from which the wire is computed (for an input it's -1)
-}
-
-// Term coeff*c
-type Term struct {
-	Variable Variable
-	Coeff    big.Int
-}
-
-// LinearCombination linear combination of constraints
-type LinearCombination []Term
-
-// newConstraint initialize a c with a single wire and adds it to the Constraint System (CS)
-func newConstraint(cs *CS, exp expression) Variable {
+// addConstraint initialize a c with a single wire and adds it to the Constraint System (CS)
+func (cs *CS) addConstraint(exp expression) Variable {
 	c := constraint{
-		wire: uninitializedWire,
-		exp:  exp,
+		exp: exp,
+		ID:  len(cs.constraints),
 	}
+	cs.constraints = append(cs.constraints, c)
 
-	return Variable{constraintID: cs.addConstraint(c)}
-}
-
-func (c *constraint) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS) []r1cs.R1C {
-	if c.exp == nil {
-		return make([]r1cs.R1C, 0)
-	}
-	var toReturn [1]r1cs.R1C
-	toReturn[0] = c.exp.toR1CS(uR1CS, cs, cs.constraints[oneWireID].wIDOrdered, c.ID)
-
-	return toReturn[:]
+	return Variable{constraintID: c.ID}
 }

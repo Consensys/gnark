@@ -83,8 +83,8 @@ func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
 }
 
 // ToAssignment will parse provided circuit and extract all values from leaves that are Variable
-// TODO note, this is likely going to dissapear in a future refactoring. This method exist to provide compatibility with map[string]interface{}
-// this function should not be called in a normal workflow.
+// This method exist to provide compatibility with map[string]interface{}
+// Should not be called in a normal workflow.
 func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
 	toReturn := make(map[string]interface{})
 	var extractHandler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {

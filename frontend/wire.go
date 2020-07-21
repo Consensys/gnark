@@ -16,18 +16,17 @@ limitations under the License.
 
 package frontend
 
-// Wire is analogous to a circuit's physical Wire
+// wire is analogous to a circuit's physical Wire
 // each constraint (ie gate) will have a single output Wire
 // when the circuit is instantiated and fed an input
 // each Wire will have a Value enabling the solver to determine a solution vector
 // to the rank 1 constraint system
-// type wire struct {
-// 	wIDOrdered int
-// 	cIDOrdered int // ID of the constraint from which the wire is computed (for an input it's -1)
-// }
+type wire struct {
+	wIDOrdered int
+	cIDOrdered int // ID of the constraint from which the wire is computed (for an input it's -1)
+}
 
 // func (w wire) String() string {
-// 	// TODO
 // 	res := "unimplemeted"
 // 	// if w.Name != "" {
 // 	// 	res = res + w.Name

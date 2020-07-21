@@ -102,13 +102,13 @@ func (r1cs *UntypedR1CS) toBW761() *backend_bw761.R1CS {
 		}
 
 		for j := 0; j < len(from.L); j++ {
-			to.L[j] = term.NewTerm(getCoeffIdx(from.L[j]))
+			to.L[j] = term.Pack(getCoeffIdx(from.L[j]))
 		}
 		for j := 0; j < len(from.R); j++ {
-			to.R[j] = term.NewTerm(getCoeffIdx(from.R[j]))
+			to.R[j] = term.Pack(getCoeffIdx(from.R[j]))
 		}
 		for j := 0; j < len(from.O); j++ {
-			to.O[j] = term.NewTerm(getCoeffIdx(from.O[j]))
+			to.O[j] = term.Pack(getCoeffIdx(from.O[j]))
 		}
 
 		toReturn.Constraints[i] = to

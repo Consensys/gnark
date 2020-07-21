@@ -19,19 +19,22 @@ package frontend
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/term"
-	"github.com/consensys/gnark/internal/utils/debug"
 )
-
-var errInconsistantConstraint = errors.New("inconsistant constraint")
 
 const oneWireID = 1
 const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
+
+func init() {
+	if bits.UintSize != 64 {
+		panic("gnark only support 64bits architectures")
+	}
+}
 
 // CS Constraint System
 type CS struct {
@@ -39,10 +42,10 @@ type CS struct {
 	constraints []constraint
 
 	// constraints yielding multiple outputs (eg unpacking)
-	moConstraints []moExpression
+	moExpressions []moExpression
 
 	// constraints yielding no outputs (eg boolean constraints)
-	noConstraints []expression
+	noExpressions []expression
 
 	// coeffs for terms
 	coeffs    []big.Int
@@ -70,11 +73,8 @@ func NewConstraintSystem() CS {
 
 	// The first constraint corresponds to the declaration of
 	// the unconstrained precomputed wire equal to 1
-	oneConstraint := constraint{
-		wire: uninitializedWire,
-	}
 
-	cID := cs.addConstraint(oneConstraint)
+	cID := cs.addConstraint(nil).id()
 	// ensure name is not overwritten by inputs
 	cs.wireNames[backend.OneWire] = struct{}{}
 	cs.publicWireNames[oneWireID] = backend.OneWire
@@ -104,16 +104,16 @@ func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
 	// let's check if wwe have a special value mod fr modulus
 	if b.Cmp(bZero) == 0 {
 		specialValue = 0
-		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+		return term.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bOne) == 0 {
 		specialValue = 1
-		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+		return term.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bMinusOne) == 0 {
 		specialValue = -1
-		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+		return term.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bTwo) == 0 {
 		specialValue = 2
-		return term.NewTerm(constraintID, 0, specialValue, isDivision)
+		return term.Pack(constraintID, 0, specialValue, isDivision)
 	}
 
 	// no special value, let's check if we have encountered the coeff already
@@ -122,118 +122,109 @@ func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
 	key := hex.EncodeToString(b.Bytes())
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		coeffID = idx
-		return term.NewTerm(constraintID, coeffID, specialValue, isDivision)
+		return term.Pack(constraintID, coeffID, specialValue, isDivision)
 	}
 
 	// we didn't find it, let's add it to our coefficients
 	coeffID = len(cs.coeffs)
 	cs.coeffs = append(cs.coeffs, b)
 	cs.coeffsIDs[key] = coeffID
-	return term.NewTerm(constraintID, coeffID, specialValue, isDivision)
+	return term.Pack(constraintID, coeffID, specialValue, isDivision)
 }
 
 func (cs *CS) isUserInput(wireID int) bool {
 	if _, ok := cs.publicWireNames[wireID]; ok {
 		return ok
-	} else {
-		_, ok := cs.secretWireNames[wireID]
-		return ok
 	}
+	_, ok := cs.secretWireNames[wireID]
+	return ok
 }
 
 func (cs *CS) nbConstraints() int {
 	return len(cs.constraints) - 1 // - 1 because we reserve cs.Constraints[0] for uncompiled variables
 }
 
-func (cs *CS) addConstraint(c constraint) int {
-	c.ID = len(cs.constraints)
-	cs.constraints = append(cs.constraints, c)
-	return c.ID
-}
-
-// MUL multiplies two constraints
-func (cs *CS) mul(c1, c2 Variable) Variable {
-	expression := &quadraticExpression{
-		left:      linearExpression{cs.term(c1.id(cs), *bOne)},
-		right:     linearExpression{cs.term(c2.id(cs), *bOne)},
-		operation: mul,
+func (cs *CS) mul(v1, v2 Variable) Variable {
+	expression := &mulExpression{
+		left:  cs.term(v1.id(), *bOne),
+		right: cs.term(v2.id(), *bOne),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // mulConstant multiplies by a constant
-func (cs *CS) mulConstant(c Variable, constant big.Int) Variable {
+func (cs *CS) mulConstant(v Variable, constant big.Int) Variable {
 	expression := &singleTermExpression{
-		cs.term(c.id(cs), constant),
+		cs.term(v.id(), constant),
 	}
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // DIV divides two constraints (c1/c2)
-func (cs *CS) div(c1, c2 Variable) Variable {
+func (cs *CS) div(v1, v2 Variable) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{cs.term(c2.id(cs), *bOne)},
-		right:     linearExpression{cs.term(c1.id(cs), *bOne)},
+		left:      linearExpression{cs.term(v2.id(), *bOne)},
+		right:     linearExpression{cs.term(v1.id(), *bOne)},
 		operation: div,
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 }
 
 // divConstantRight c1, c2 -> c1/c2, where the right (c2) is a constant
-func (cs *CS) divConstantRight(c1 Variable, c2 big.Int) Variable {
+func (cs *CS) divConstantRight(v1 Variable, v2 big.Int) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{cs.term(oneWireID, c2)},
-		right:     linearExpression{cs.term(c1.id(cs), *bOne)},
+		left:      linearExpression{cs.term(oneWireID, v2)},
+		right:     linearExpression{cs.term(v1.id(), *bOne)},
 		operation: div,
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 }
 
 // divConstantLeft c1, c2 -> c1/c2, where the left (c1) is a constant
 func (cs *CS) divConstantLeft(c1 big.Int, c2 Variable) Variable {
 
 	expression := quadraticExpression{
-		left:      linearExpression{cs.term(c2.id(cs), *bOne)},
+		left:      linearExpression{cs.term(c2.id(), *bOne)},
 		right:     linearExpression{cs.term(oneWireID, c1)},
 		operation: div,
 	}
 
-	return newConstraint(cs, &expression)
+	return cs.addConstraint(&expression)
 }
 
 // inv (e*c1)**-1
 func (cs *CS) inv(c1 Variable, e big.Int) Variable {
 	expression := &singleTermExpression{
-		cs.term(c1.id(cs), e, true),
+		cs.term(c1.id(), e, true),
 	}
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // ADD generic version for adding 2 constraints
 func (cs *CS) add(c1 Variable, c2 Variable) Variable {
 
 	expression := &linearExpression{
-		cs.term(c1.id(cs), *bOne),
-		cs.term(c2.id(cs), *bOne),
+		cs.term(c1.id(), *bOne),
+		cs.term(c2.id(), *bOne),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // ADDCST adds a constant to a variable
 func (cs *CS) addConstant(c Variable, constant big.Int) Variable {
 
 	expression := &linearExpression{
-		cs.term(c.id(cs), *bOne),
+		cs.term(c.id(), *bOne),
 		cs.term(oneWireID, constant),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // SUB generic version for substracting 2 constraints
@@ -244,11 +235,11 @@ func (cs *CS) sub(c1 Variable, c2 Variable) Variable {
 	minusOne.Neg(&one)
 
 	expression := &linearExpression{
-		cs.term(c1.id(cs), one),
-		cs.term(c2.id(cs), minusOne),
+		cs.term(c1.id(), one),
+		cs.term(c2.id(), minusOne),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 func (cs *CS) subConstant(c Variable, constant big.Int) Variable {
@@ -258,11 +249,11 @@ func (cs *CS) subConstant(c Variable, constant big.Int) Variable {
 	minusOne.Neg((&constant))
 
 	expression := &linearExpression{
-		cs.term(c.id(cs), one),
+		cs.term(c.id(), one),
 		cs.term(oneWireID, minusOne),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 
 }
 
@@ -274,10 +265,10 @@ func (cs *CS) subConstraint(constant big.Int, c Variable) Variable {
 
 	expression := &linearExpression{
 		cs.term(oneWireID, constant),
-		cs.term(c.id(cs), minusOne),
+		cs.term(c.id(), minusOne),
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 
 }
 
@@ -286,10 +277,10 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 
 	var left, right linearExpression
 	for _, t := range den {
-		left = append(left, cs.term(t.Variable.id(cs), t.Coeff))
+		left = append(left, cs.term(t.Variable.id(), t.Coeff))
 	}
 	for _, t := range num {
-		right = append(right, cs.term(t.Variable.id(cs), t.Coeff))
+		right = append(right, cs.term(t.Variable.id(), t.Coeff))
 	}
 
 	expression := &quadraticExpression{
@@ -298,17 +289,17 @@ func (cs *CS) divlc(num, den LinearCombination) Variable {
 		operation: div,
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // mullc multiplies two linear combination of constraints
 func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 	var left, right linearExpression
 	for _, t := range l1 {
-		left = append(left, cs.term(t.Variable.id(cs), t.Coeff))
+		left = append(left, cs.term(t.Variable.id(), t.Coeff))
 	}
 	for _, t := range l2 {
-		right = append(right, cs.term(t.Variable.id(cs), t.Coeff))
+		right = append(right, cs.term(t.Variable.id(), t.Coeff))
 	}
 
 	expression := &quadraticExpression{
@@ -316,7 +307,7 @@ func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 		right: right,
 	}
 
-	return newConstraint(cs, expression)
+	return cs.addConstraint(expression)
 }
 
 // mullcinterface multiplies a linear combination with a coeff (represented as an interface)
@@ -328,43 +319,32 @@ func (cs *CS) mullcinterface(l LinearCombination, c interface{}) Variable {
 }
 
 // equal equal constraints
-func (cs *CS) equal(c1, c2 Variable) error {
-	if c1.constraintID == 0 || c2.constraintID == 0 {
-		return errors.New("variable is not compiled")
-	}
+func (cs *CS) equal(c1, c2 Variable) {
+	idC1, idC2 := c1.id(), c2.id()
+
 	// ensure we're not doing v1.MUST_EQ(v1)
-	if c1.constraintID == c2.constraintID {
-		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 1) is invalid")
-	}
-
-	w1, w2 := c1.id(cs), c2.id(cs)
-	debug.Assert(w1 != 0 && w2 != 0, "wires are not set")
-
-	c1IsUserInput := cs.isUserInput(w1)
-	if c1IsUserInput && cs.isUserInput(w2) {
-		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input 1 == user input 2) is invalid")
+	if idC1 == idC2 {
+		fmt.Println("warning: calling MUSTBE_EQ between 2 inputs")
+		return
 	}
 
 	expression := &equalExpression{
-		a: w1,
-		b: w2,
+		a: idC1,
+		b: idC2,
 	}
 
-	cs.noConstraints = append(cs.noConstraints, expression)
-
-	return nil
+	cs.noExpressions = append(cs.noExpressions, expression)
 }
 
 // equalConstant Equal a constraint to a constant
-func (cs *CS) equalConstant(c Variable, constant big.Int) error {
+func (cs *CS) equalConstant(c Variable, constant big.Int) {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
-	if cs.isUserInput(c.id(cs)) {
-		return fmt.Errorf("%w: %q", errInconsistantConstraint, "(user input == VALUE) is invalid")
+	if cs.isUserInput(c.id()) {
+		fmt.Println("warning: calling MUSTBE_EQ on a input")
+		return
 	}
 
-	cs.noConstraints = append(cs.noConstraints, &equalConstantExpression{a: c.id(cs), v: constant})
-
-	return nil
+	cs.noExpressions = append(cs.noExpressions, &equalConstantExpression{wire: c.id(), constant: constant})
 }
 
 func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) error {
@@ -383,7 +363,6 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 
 	for i := 0; i < nbWords; i++ {
 		for j := 0; j < 64; j++ {
-			// TODO fix me assumes big.Int.Word is 64 bits
 			ci[i*64+j] = int(uint64(words[i]) >> uint64(j) & uint64(1))
 		}
 	}
@@ -407,8 +386,8 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 	// constrain the bi
 	for i := nbBits - 1; i >= 0; i-- {
 		if ci[i] == 0 {
-			constraintRes := &implyExpression{b: pi[i+1].id(cs), a: ai[i].id(cs)}
-			cs.noConstraints = append(cs.noConstraints, constraintRes)
+			constraintRes := &implyExpression{b: pi[i+1].id(), a: ai[i].id()}
+			cs.noExpressions = append(cs.noExpressions, constraintRes)
 		} else {
 			cs.MUSTBE_BOOLEAN(ai[i])
 		}
@@ -417,7 +396,6 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 }
 
 func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
-
 	// unpacking the constant bound c and the variable to test a
 	ci := cs.TO_BINARY(c, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
 	ai := cs.TO_BINARY(a, nbBits)
@@ -426,15 +404,9 @@ func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 	pi := make([]Variable, nbBits+1)
 	pi[nbBits] = cs.ALLOCATE(1)
 
-	//spi := "pi_"
-	// sci := "ci_"
-
 	// Setting the product
 	for i := nbBits - 1; i >= 0; i-- {
-		// TODO
-		// ci[i].Tag(cs, sci+strconv.Itoa(i))
 		pi[i] = cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i+1])
-		//pi[i].Tag(spi + strconv.Itoa(i))
 	}
 
 	// constrain the bi
@@ -452,7 +424,6 @@ func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 func (cs *CS) String() string {
 	res := ""
 	res += "SO constraints: \n"
-	// TODO
 	// res += "----------------\n"
 	// for _, c := range cs.Constraints {
 	// 	for _, e := range c.getExpressions() {
@@ -487,5 +458,5 @@ func (cs *CS) constVar(i1 interface{}) Variable {
 		return Variable{constraintID: oneWireID}
 	}
 
-	return newConstraint(cs, &equalConstantExpression{v: constant})
+	return cs.addConstraint(&equalConstantExpression{constant: constant})
 }

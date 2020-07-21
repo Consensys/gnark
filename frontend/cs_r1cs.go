@@ -8,7 +8,7 @@ import (
 // note that the return R1CS is untyped and contains big.Int
 // this method should not be called directly in a normal workflow,
 // as it is called by frontend.Compile()
-// it exists for test purposses (backend and integration)
+// it is exposed for test purposses (backend and integration)
 func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	/*
@@ -49,22 +49,24 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	// those 3 slices store all the wires
 	// those are needed to number the wires, before putting them in the wire tracker
 	wireTracker := make([]int, 0, len(cs.constraints))
-	publicInputs := make([]int, 0)
-	secretInputs := make([]int, 0)
+	publicInputs := make([]int, 0, len(cs.publicWireNames))
+	secretInputs := make([]int, 0, len(cs.secretWireNames))
 
-	// we keep track of wire that are "unconstrained" to ignore them at step 2
-	// unconstrained wires can be inputs or wires issued from a MOConstraint (like the i-th bit of a binary decomposition)
-	ignoredConstraints := make(map[int]struct{})
+	// initialize R1CS to return
+	uR1CS := &r1cs.UntypedR1CS{
+		Constraints:    make([]r1cs.R1C, 0, len(cs.constraints)),
+		PrivateWires:   make([]string, len(cs.secretWireNames)),
+		PublicWires:    make([]string, len(cs.publicWireNames)),
+		NbPublicWires:  len(cs.publicWireNames),
+		NbPrivateWires: len(cs.secretWireNames),
+		WireTags:       make(map[int][]string),
+	}
 
 	// keep track of consumed wires (one wire and user inputs should be there to start with, as they can't be roots.)
 	consumedWires := make(map[int]struct{})
 
 	// step 1: fills the tmpwiretracker, public/private inputs tracker
-	for cID, c := range cs.constraints {
-		if cID == 0 {
-			continue // skipping first entry, reserved
-		}
-		// if it's a user input
+	for cID := 1; cID < len(cs.constraints); cID++ {
 		if _, ok := cs.secretWireNames[cID]; ok {
 			consumedWires[cID] = struct{}{}
 			secretInputs = append(secretInputs, cID)
@@ -73,100 +75,94 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 			publicInputs = append(publicInputs, cID)
 		} else {
 			wireTracker = append(wireTracker, cID)
-			// it is a unconstrained wire, we will ignore the constraint on step2
-			if c.exp == nil {
-				ignoredConstraints[cID] = struct{}{}
-			}
 		}
 	}
-
-	// store the keys of the constraint map to loop in the same order at step 4
-	keys := make([]int, 0, len(cs.constraints)-len(ignoredConstraints))
 
 	// to keep track of the number of constraints
 	var ccCounter int
 
 	// step 2: Run through all the constraints, set the constraintID (except the ignored ones, corresponding to inputs), consume the wires
-	for cID, c := range cs.constraints {
-		if cID == 0 {
-			continue // skipping first entry, reserved
-		}
-		// we ignore monCosntraints in this loop
-		if _, ok := ignoredConstraints[cID]; ok {
+	for cID := 1; cID < len(cs.constraints); cID++ {
+		c := cs.constraints[cID]
+		if c.exp == nil {
+			// we ignore unconstrained wires (moConstraints) and user inputs, as they don't yield a R1C
 			continue
 		}
-		keys = append(keys, cID)
 
-		if !cs.isUserInput(cID) {
-			c.exp.consumeWires(consumedWires) // only the first exp is consumed, the other might containt root of the computational graph
-			c.cIDOrdered = ccCounter          // tells the output wire from which constraint it is computed
-			cs.constraints[cID] = c
-			ccCounter++
-		}
+		c.exp.consumeWires(consumedWires) // only the first exp is consumed, the other might containt root of the computational graph
+		c.cIDOrdered = ccCounter          // tells the output wire from which constraint it is computed
+		cs.constraints[cID] = c
+		ccCounter++
 	}
-	for _, c := range cs.moConstraints {
+	for _, c := range cs.moExpressions {
 		c.setConstraintID(cs, ccCounter)
 		c.consumeWires(consumedWires) // tells the output wires from which constraint they are computed
 		ccCounter++
 	}
+	lenComputationalGraph := ccCounter
 
 	// step 3: number the wires and fill the wire tracker
-	for i, w := range wireTracker {
-		ww := cs.constraints[w]
-		ww.wIDOrdered = i
-		cs.constraints[w] = ww
+	// note that contrary to the constraint numbering, we don't ignore moConstraints and user inputs here
+	// as they are wires (without being constrained)
+	// so the wire numbering and the constraint numbering will differ.
+	// wires ordering is arbitrary, we chose:
+	// [non-input wires|secretWires|publicWires]
+	for i, cID := range wireTracker {
+		c := cs.constraints[cID]
+		c.wIDOrdered = i
+		cs.constraints[cID] = c
 	}
 	offset := len(wireTracker)
 
-	uR1CS := &r1cs.UntypedR1CS{}
-	uR1CS.PrivateWires = make([]string, len(secretInputs))
-	for i, w := range secretInputs {
-		ww := cs.constraints[w]
-		ww.wIDOrdered = i + offset
-		cs.constraints[w] = ww
-		uR1CS.PrivateWires[i] = cs.secretWireNames[w]
-		wireTracker = append(wireTracker, w)
+	for i, cID := range secretInputs {
+		c := cs.constraints[cID]
+		c.wIDOrdered = i + offset
+		cs.constraints[cID] = c
+		uR1CS.PrivateWires[i] = cs.secretWireNames[cID]
+		wireTracker = append(wireTracker, cID)
 	}
 	offset += len(secretInputs)
-	uR1CS.PublicWires = make([]string, len(publicInputs))
-	for i, w := range publicInputs {
-		ww := cs.constraints[w]
-		ww.wIDOrdered = i + offset
-		cs.constraints[w] = ww
-		uR1CS.PublicWires[i] = cs.publicWireNames[w]
-		wireTracker = append(wireTracker, w)
+	for i, cID := range publicInputs {
+		c := cs.constraints[cID]
+		c.wIDOrdered = i + offset
+		cs.constraints[cID] = c
+		uR1CS.PublicWires[i] = cs.publicWireNames[cID]
+		wireTracker = append(wireTracker, cID)
 	}
 	oneWireIDOrdered := cs.constraints[oneWireID].wIDOrdered
 
-	// step 4: Now the attributes of all wires are synced up, no need of pointers anymore
-	// We can split the constraints into r1cs
-	computationalGraph := make([]r1cs.R1C, 0, len(cs.constraints))
-	uR1CS.Constraints = make([]r1cs.R1C, 0, len(cs.constraints))
+	// step 4: Now that the wires are numbered, we can split the constraint into R1C
+	// using final IDs
+	computationalGraph := make([]r1cs.R1C, lenComputationalGraph)
+	computationalGraphIdx := 0
 
-	for _, cID := range keys {
-
+	for cID := 1; cID < len(cs.constraints); cID++ {
 		c := cs.constraints[cID]
-
-		batchR1CS := c.toR1CS(uR1CS, cs)
-
-		if cs.isUserInput(cID) {
-			uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS...)
-		} else {
-			computationalGraph = append(computationalGraph, batchR1CS[0])
-
-			if len(batchR1CS) > 1 {
-				uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS[1:]...)
-			}
+		if c.exp == nil {
+			// we ignore unconstrained wires (moConstraints) and user inputs, as they don't yield a R1C
+			continue
 		}
+
+		// convert underlying constraint's expression into R1C
+		computationalGraph[computationalGraphIdx] = c.exp.toR1CS(uR1CS, cs, oneWireIDOrdered, c.ID)
+		computationalGraphIdx++
 	}
-	for _, c := range cs.moConstraints {
-		batchR1CS := c.toR1CS(uR1CS, cs, oneWireIDOrdered, -1)
-		computationalGraph = append(computationalGraph, batchR1CS)
+	for i := 0; i < len(cs.moExpressions); i++ {
+		e := cs.moExpressions[i]
+		computationalGraph[computationalGraphIdx] = e.toR1CS(uR1CS, cs, oneWireIDOrdered, -1)
+		computationalGraphIdx++
 	}
-	for _, c := range cs.noConstraints {
-		batchR1CS := c.toR1CS(uR1CS, cs, oneWireIDOrdered, -1)
-		uR1CS.Constraints = append(uR1CS.Constraints, batchR1CS)
+
+	// note that no output constraints yields no output, and hence, don't need to be in the computation graph
+	// we directly add the R1C to the R1CS constraint list
+	var r1c r1cs.R1C
+	for i := 0; i < len(cs.noExpressions); i++ {
+		e := cs.noExpressions[i]
+		r1c = e.toR1CS(uR1CS, cs, oneWireIDOrdered, -1)
+		uR1CS.Constraints = append(uR1CS.Constraints, r1c)
 	}
+
+	// set big.Int coefficient table
 	uR1CS.Coefficients = cs.coeffs
 
 	// Keeps track of the visited constraints, useful to build the computational graph
@@ -190,11 +186,8 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	uR1CS.NbWires = len(wireTracker)
 	uR1CS.NbConstraints = len(uR1CS.Constraints)
 	uR1CS.NbCOConstraints = len(graphOrdering)
-	uR1CS.NbPublicWires = len(publicInputs)
-	uR1CS.NbPrivateWires = len(secretInputs)
 
 	// tags
-	uR1CS.WireTags = make(map[int][]string)
 	for i, w := range wireTracker {
 		tags := cs.wireTags[w]
 		if len(tags) > 0 {

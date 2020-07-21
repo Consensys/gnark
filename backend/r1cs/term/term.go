@@ -23,7 +23,7 @@ const (
 	specialValueDiv      uint64 = 0x8000000000000000
 )
 
-func NewTerm(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
+func Pack(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
 	_constraintID := uint64(constraintID)
 	_coeffID := uint64(coeffID)
 	_coeffID <<= 34
@@ -58,6 +58,13 @@ func NewTerm(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
 }
 
 const maxInt = int(^uint(0) >> 1)
+
+func (t Term) Unpack() (specialValueInt, coeffID, constraintID int) {
+	specialValueInt = t.SpecialValueInt()
+	coeffID = t.CoeffID()
+	constraintID = t.ConstraintID()
+	return
+}
 
 func (t Term) SpecialValueInt() int {
 	specialValue := uint64(t<<1) >> 61
