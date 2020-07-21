@@ -215,8 +215,8 @@ func (cs *CS) XOR(c1, c2 Variable) Variable {
 	cs.MUSTBE_BOOLEAN(c2)
 
 	expression := xorExpression{
-		a: c1.wireID(cs),
-		b: c2.wireID(cs),
+		a: c1.id(cs),
+		b: c2.id(cs),
 	}
 
 	return newConstraint(cs, &expression)
@@ -224,31 +224,31 @@ func (cs *CS) XOR(c1, c2 Variable) Variable {
 
 // MUSTBE_BOOLEAN boolean constrains a variable
 func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
-	if c.cID == 0 {
+	if c.constraintID == 0 {
 		panic("variable is not compiled")
 	}
 	// check if the variable is already boolean constrained
-	for i := 0; i < len(cs.NOConstraints); i++ {
-		if bExpression, ok := cs.NOConstraints[i].(*booleanExpression); ok {
-			if bExpression.b == c.wireID(cs) {
+	for i := 0; i < len(cs.noConstraints); i++ {
+		if bExpression, ok := cs.noConstraints[i].(*booleanExpression); ok {
+			if bExpression.b == c.id(cs) {
 				// this variable is already boolean constrained
 				return
 			}
 		}
 	}
 	// check if the variable is the result of a XOR (a xor b == c --> c is automatically boolean constrained)
-	for cID, val := range cs.Constraints {
-		if cs.isDeleted(cID) {
-			continue
+	for cID, val := range cs.constraints {
+		if cID == 0 {
+			continue // skipping first entry, reserved
 		}
-		if val.constraintID == c.cID {
+		if cID == c.constraintID {
 			if _, ok := val.exp.(*xorExpression); ok {
 				// constraint is the result of a xor expression and is already boolean constrained as such
 				return
 			}
 		}
 	}
-	cs.NOConstraints = append(cs.NOConstraints, &booleanExpression{b: c.wireID(cs)})
+	cs.noConstraints = append(cs.noConstraints, &booleanExpression{b: c.id(cs)})
 }
 
 // TO_BINARY unpacks a variable in binary, n is the number of bits of the variable
@@ -257,16 +257,16 @@ func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
 
 	// create the expression ensuring the bit decomposition matches c
 	expression := &unpackExpression{
-		res: c.wireID(cs),
+		res: c.id(cs),
 	}
-	cs.MOConstraints = append(cs.MOConstraints, expression)
+	cs.moConstraints = append(cs.moConstraints, expression)
 
 	// create our bits constraints
 	bits := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
 		bits[i] = newConstraint(cs, nil)
 		cs.MUSTBE_BOOLEAN(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
-		expression.bits = append(expression.bits, bits[i].wireID(cs))
+		expression.bits = append(expression.bits, bits[i].id(cs))
 	}
 
 	return bits
@@ -279,7 +279,7 @@ func (cs *CS) FROM_BINARY(b ...Variable) Variable {
 
 	for _, c := range b {
 		cs.MUSTBE_BOOLEAN(c) // ensure input is boolean constrained
-		expression.bits = append(expression.bits, c.wireID(cs))
+		expression.bits = append(expression.bits, c.id(cs))
 	}
 
 	return newConstraint(cs, &expression)
@@ -309,9 +309,9 @@ func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 		switch c2 := i2.(type) {
 		case Variable:
 			expression := selectExpression{
-				b: b.wireID(cs),
-				x: c1.wireID(cs),
-				y: c2.wireID(cs),
+				b: b.id(cs),
+				x: c1.id(cs),
+				y: c2.id(cs),
 			}
 			return newConstraint(cs, &expression)
 		default:
@@ -322,8 +322,8 @@ func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 		c2Bigint := backend.FromInterface(i2)
 		c1Bigint.Sub(&c1Bigint, &c2Bigint)
 		expression := linearExpression{
-			cs.term(b.wireID(cs), c1Bigint),
-			cs.term(ONE_WIRE_ID, *bOne),
+			cs.term(b.id(cs), c1Bigint),
+			cs.term(oneWireID, *bOne),
 		}
 		return newConstraint(cs, &expression)
 	}
@@ -338,8 +338,8 @@ func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 	cs.MUSTBE_BOOLEAN(c1)
 
 	expression := lutExpression{
-		b0:          c0.wireID(cs),
-		b1:          c1.wireID(cs),
+		b0:          c0.id(cs),
+		b1:          c1.id(cs),
 		lookuptable: lookuptable,
 	}
 
@@ -349,50 +349,42 @@ func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 
 // SECRET_INPUT creates a Constraint containing an input
 func (cs *CS) SECRET_INPUT(name string) Variable {
-
 	c := constraint{
-		wireID: cs.addWire(wire{
-			Name:           name,
-			IsSecret:       true,
-			ConstraintID:   -1,
-			WireIDOrdering: -1,
-		})}
+		wire: uninitializedWire,
+	}
 
+	cID := cs.addConstraint(c)
 	// ensure name is not duplicate
 	if name != "" {
-		if _, ok := cs.inputNames[name]; ok {
+		if _, ok := cs.wireNames[name]; ok {
 			panic("duplicate input name")
 		} else {
-			cs.inputNames[name] = struct{}{}
-			cs.inputWireID[c.wireID] = struct{}{}
+			cs.wireNames[name] = struct{}{}
+			cs.secretWireNames[cID] = name
 		}
 	}
 
-	return Variable{cID: cs.addConstraint(c)}
+	return Variable{constraintID: cID}
 
 }
 
 // PUBLIC_INPUT creates a Constraint containing an input
 func (cs *CS) PUBLIC_INPUT(name string) Variable {
 	c := constraint{
-		wireID: cs.addWire(wire{
-			Name:           name,
-			IsSecret:       false,
-			ConstraintID:   -1,
-			WireIDOrdering: -1,
-		})}
-
+		wire: uninitializedWire,
+	}
+	cID := cs.addConstraint(c)
 	// ensure name is not duplicate
 	if name != "" {
-		if _, ok := cs.inputNames[name]; ok {
+		if _, ok := cs.wireNames[name]; ok {
 			panic("duplicate input name")
 		} else {
-			cs.inputNames[name] = struct{}{}
-			cs.inputWireID[c.wireID] = struct{}{}
+			cs.wireNames[name] = struct{}{}
+			cs.publicWireNames[cID] = name
 		}
 	}
 
-	return Variable{cID: cs.addConstraint(c)}
+	return Variable{constraintID: cID}
 }
 
 // ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
@@ -400,26 +392,26 @@ func (cs *CS) ALLOCATE(input interface{}) Variable {
 	switch x := input.(type) {
 	case Variable:
 		return x
-	case constraint:
-		return Variable{cID: x.constraintID}
 	default:
 		return cs.constVar(x)
 	}
 }
 
+// Tag tags variable v with tag
+// useful for debug purposes, and retrieve intermediate values once through r1cs.Inspect() method
 func (cs *CS) Tag(v Variable, tag string) {
-	if v.cID == 0 {
+	if v.constraintID == 0 {
 		panic("can't tag -- circuit not compiled")
 	}
-	for _, v := range cs.WireTags {
+	for _, v := range cs.wireTags {
 		for _, t := range v {
 			if tag == t {
 				panic("duplicate tag " + tag)
 			}
 		}
 	}
-	wID := v.wireID(cs)
-	tags := cs.WireTags[wID]
+	wID := v.id(cs)
+	tags := cs.wireTags[wID]
 	tags = append(tags, tag)
-	cs.WireTags[wID] = tags
+	cs.wireTags[wID] = tags
 }

@@ -136,10 +136,12 @@ func DummySetup(r1cs *backend_bw761.R1CS, pk *ProvingKey) {
 	c := curve.BW761()
 	var r1Jac curve.G1Jac
 	var r1Aff curve.G1Affine
-	r1Jac.ScalarMulByGen(c, tw.alphaReg).ToAffineFromJac(&r1Aff)
+	r1Jac.ScalarMulByGen(c, tw.alphaReg)
+	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac
 	var r2Aff curve.G2Affine
-	r2Jac.ScalarMulByGen(c, tw.alphaReg).ToAffineFromJac(&r2Aff)
+	r2Jac.ScalarMulByGen(c, tw.alphaReg)
+	r2Aff.FromJacobian(&r2Jac)
 	for i := 0; i < nbWires; i++ {
 		pk.G1.A[i] = r1Aff
 		pk.G1.B[i] = r1Aff
@@ -197,20 +199,25 @@ func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
 	var pkG2Beta, pkG2Delta curve.G2Jac
 
 	// sets pk: [α]1, [β]1, [β]2, [δ]1, [δ]2
-	pkG1Alpha.ScalarMulByGen(c, tw.alphaReg).ToAffineFromJac(&pk.G1.Alpha)
-	pkG1Beta.ScalarMulByGen(c, tw.betaReg).ToAffineFromJac(&pk.G1.Beta)
-	pkG2Beta.ScalarMulByGen(c, tw.betaReg).ToAffineFromJac(&pk.G2.Beta)
-	pkG1Delta.ScalarMulByGen(c, tw.deltaReg).ToAffineFromJac(&pk.G1.Delta)
-	pkG2Delta.ScalarMulByGen(c, tw.deltaReg).ToAffineFromJac(&pk.G2.Delta)
+	pkG1Alpha.ScalarMulByGen(c, tw.alphaReg)
+	pk.G1.Alpha.FromJacobian(&pkG1Alpha)
+	pkG1Beta.ScalarMulByGen(c, tw.betaReg)
+	pk.G1.Beta.FromJacobian(&pkG1Beta)
+	pkG2Beta.ScalarMulByGen(c, tw.betaReg)
+	pk.G2.Beta.FromJacobian(&pkG2Beta)
+	pkG1Delta.ScalarMulByGen(c, tw.deltaReg)
+	pk.G1.Delta.FromJacobian(&pkG1Delta)
+	pkG2Delta.ScalarMulByGen(c, tw.deltaReg)
+	pk.G2.Delta.FromJacobian(&pkG2Delta)
 
 	// sets vk: -[δ]2, -[γ]2
 	vkG2JacDeltaNeg.ScalarMulByGen(c, tw.deltaReg)
 	vkG2JacGammaNeg.ScalarMulByGen(c, tw.gammaReg)
 
-	vkG2JacDeltaNeg.Neg(&vkG2JacDeltaNeg).
-		ToAffineFromJac(&vk.G2.DeltaNeg)
-	vkG2JacGammaNeg.Neg(&vkG2JacGammaNeg).
-		ToAffineFromJac(&vk.G2.GammaNeg)
+	vkG2JacDeltaNeg.Neg(&vkG2JacDeltaNeg)
+	vk.G2.DeltaNeg.FromJacobian(&vkG2JacDeltaNeg)
+	vkG2JacGammaNeg.Neg(&vkG2JacGammaNeg)
+	vk.G2.GammaNeg.FromJacobian(&vkG2JacGammaNeg)
 
 	vk.E = c.FinalExponentiation(c.MillerLoop(pk.G1.Alpha, pk.G2.Beta, &vk.E))
 
@@ -240,7 +247,7 @@ func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *backend_bw761.Doma
 		var pkG1Z curve.G1Jac
 		for j := start; j < end; j++ {
 			pkG1Z.ScalarMulByGen(c, Zdt[j])
-			pkG1Z.ToAffineFromJac(&pk.G1.Z[j])
+			pk.G1.Z[j].FromJacobian(&pkG1Z)
 		}
 	})
 
@@ -310,8 +317,8 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 		var pkG1A, pkG1K, vkG1K curve.G1Jac
 		for i := start; i < end; i++ {
 
-			pkG1A.ScalarMulByGen(c, A[i].ToRegular()).
-				ToAffineFromJac(&pk.G1.A[i])
+			pkG1A.ScalarMulByGen(c, A[i].ToRegular())
+			pk.G1.A[i].FromJacobian(&pkG1A)
 
 			A[i].MulAssign(&tw.beta)
 			tt.Mul(&B[i], &tw.alpha)
@@ -320,11 +327,12 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 
 			if i < publicStartIndex {
 				A[i].Div(&A[i], &tw.delta).FromMont()
-				pkG1K.ScalarMulByGen(c, A[i]).
-					ToAffineFromJac(&pk.G1.K[i])
+				pkG1K.ScalarMulByGen(c, A[i])
+				pk.G1.K[i].FromJacobian(&pkG1K)
 			} else {
 				A[i].Div(&A[i], &tw.gamma).FromMont()
-				vkG1K.ScalarMulByGen(c, A[i]).ToAffineFromJac(&vk.G1.K[i-publicStartIndex])
+				vkG1K.ScalarMulByGen(c, A[i])
+				vk.G1.K[i-publicStartIndex].FromJacobian(&vkG1K)
 			}
 		}
 	})
@@ -335,10 +343,10 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 		var pkG2B curve.G2Jac
 		for i := start; i < end; i++ {
 			B[i].FromMont()
-			pkG1B.ScalarMulByGen(c, B[i]).
-				ToAffineFromJac(&pk.G1.B[i])
-			pkG2B.ScalarMulByGen(c, B[i]).
-				ToAffineFromJac(&pk.G2.B[i])
+			pkG1B.ScalarMulByGen(c, B[i])
+			pk.G1.B[i].FromJacobian(&pkG1B)
+			pkG2B.ScalarMulByGen(c, B[i])
+			pk.G2.B[i].FromJacobian(&pkG2B)
 		}
 	})
 

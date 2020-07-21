@@ -48,9 +48,9 @@ type expectedR1CS struct {
 
 func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
 	assert.Equal(expectedCS.nbWires, circuit.countWires(), "cs nbWires")
-	assert.Equal(expectedCS.nbConstraints, circuit.nbConstraints, "cs nbConstraints")
-	assert.Equal(expectedCS.nbMOConstraints, len(circuit.MOConstraints), "cs nb MOConstraints")
-	assert.Equal(expectedCS.nbNOConstraints, len(circuit.NOConstraints), "cs nb NOConstraints")
+	assert.Equal(expectedCS.nbConstraints, circuit.nbConstraints(), "cs nbConstraints")
+	assert.Equal(expectedCS.nbMOConstraints, len(circuit.moConstraints), "cs nb MOConstraints")
+	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noConstraints), "cs nb NOConstraints")
 }
 
 func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
@@ -67,19 +67,19 @@ func (cs *CS) countWires() int {
 
 	var wires []int
 
-	for cID, c := range cs.Constraints {
-		if cs.isDeleted(cID) {
-			continue
+	for cID, c := range cs.constraints {
+		if cID == 0 {
+			continue // skipping first entry, reserved
 		}
 		isCounted := false
 		for _, w := range wires {
-			if w == c.wireID {
+			if w == c.ID {
 				isCounted = true
 				continue
 			}
 		}
 		if !isCounted {
-			wires = append(wires, c.wireID)
+			wires = append(wires, c.ID)
 		}
 	}
 

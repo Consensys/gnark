@@ -131,8 +131,9 @@ func TestAddFp12(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var _v fp.Element
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error AddFp12")
 		}
@@ -173,7 +174,8 @@ func TestSubFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error SubFp12")
 		}
@@ -216,7 +218,8 @@ func TestMulFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulFp12")
 		}
@@ -254,7 +257,8 @@ func TestConjugateFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error ConjugateFp12")
 		}
@@ -298,7 +302,8 @@ func TestMulByVFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
@@ -342,7 +347,8 @@ func TestMulByVWFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
@@ -386,7 +392,8 @@ func TestMulByV2WFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error MulByVFp12")
 		}
@@ -426,7 +433,8 @@ func TestFrobeniusFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusFp12")
 		}
@@ -466,7 +474,8 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
@@ -506,7 +515,8 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
@@ -546,7 +556,8 @@ func TestInverseFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error FrobeniusSquareFp12")
 		}
@@ -587,7 +598,8 @@ func TestFixExpoFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error Final exponentiation bls")
 		}
@@ -628,7 +640,8 @@ func TestFinalExpoBLSFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error ExponentiationFp12")
 		}

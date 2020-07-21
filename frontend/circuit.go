@@ -36,7 +36,7 @@ func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 	var handler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
-			if v.cID != 0 {
+			if v.constraintID != 0 {
 				return errors.New("circuit was already compiled")
 			}
 			if v.val != nil {

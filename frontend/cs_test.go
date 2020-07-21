@@ -102,14 +102,14 @@ func TestOneWireConstraint(t *testing.T) {
 	nbWires := cs.countWires()
 
 	assert.Equal(1, nbWires, "Newly created constraint system should have 1 wire")
-	assert.Equal(1, int(cs.nbConstraints), "Newly created constraint system should have 1 constraint")
+	assert.Equal(1, int(cs.nbConstraints()), "Newly created constraint system should have 1 constraint")
 
-	val := cs.Constraints[ONE_WIRE_ID]
-	oneWire := cs.Wires[val.wireID]
-	assert.Equal(backend.OneWire, oneWire.Name, "constraint map should contain ONE_WIRE")
+	val := cs.constraints[oneWireID]
+	oneWire := cs.publicWireNames[val.ID]
+	assert.Equal(backend.OneWire, oneWire, "constraint map should contain ONE_WIRE")
 
 	_ = cs.ALLOCATE(1)
-	assert.Equal(1, int(cs.nbConstraints), "ALLOCATE(1) should return existing ONEWIRE")
+	assert.Equal(1, int(cs.nbConstraints()), "ALLOCATE(1) should return existing ONEWIRE")
 }
 
 func TestADD(t *testing.T) {

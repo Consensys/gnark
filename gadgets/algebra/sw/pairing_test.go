@@ -95,7 +95,8 @@ func TestLineEvalBLS377(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error Line eval jac")
 		}
@@ -165,7 +166,8 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error line eval affine")
 		}
@@ -295,7 +297,8 @@ func TestPairingBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixMillerLoop + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := fp.FromInterface(res[entry])
+		var s2 fp.Element
+		s2.SetInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error miller loop")
 		}
@@ -303,7 +306,8 @@ func TestPairingBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixPairing + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := fp.FromInterface(res[entry])
+		var s2 fp.Element
+		s2.SetInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error pairing")
 		}
@@ -403,7 +407,8 @@ func TestPairingAffineBLS377(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		entry := prefixPairing + strconv.Itoa(i)
 		s1 := expectedValues[entry].String()
-		s2 := fp.FromInterface(res[entry])
+		var s2 fp.Element
+		s2.SetInterface(res[entry])
 		if s1 != s2.String() {
 			t.Fatal("error pairing")
 		}

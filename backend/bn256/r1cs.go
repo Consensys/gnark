@@ -86,7 +86,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValu
 				wireInstantiated[i+offset] = true
 			} else {
 				if val, ok := assignment[name]; ok {
-					wireValues[i+offset] = fr.FromInterface(val)
+					wireValues[i+offset].SetInterface(val)
 					wireInstantiated[i+offset] = true
 				} else {
 					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)

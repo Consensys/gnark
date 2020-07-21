@@ -130,7 +130,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		chAsync := Krs.MultiExp(curve.BW761(), points, scalars)
 		chToken <- struct{}{}
 		<-chAsync
-		Krs.ToAffineFromJac(&KrsAffine)
+		KrsAffine.FromJacobian(&Krs)
 
 		chResult <- KrsAffine
 		close(chResult)
@@ -150,7 +150,7 @@ func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chToken 
 		chToken <- struct{}{}
 		<-chAsync
 		Bs.AddMixed(&pk.G2.Beta)
-		Bs.ToAffineFromJac(&BsAffine)
+		BsAffine.FromJacobian(&Bs)
 		chResult <- BsAffine
 		close(chResult)
 	}()
@@ -170,7 +170,7 @@ func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chTokenA
 		chTokenB <- struct{}{}
 		<-chAsync
 		bs1.AddMixed(&pk.G1.Beta)
-		bs1.ToAffineFromJac(&bs1Affine)
+		bs1Affine.FromJacobian(&bs1)
 
 		chResult <- bs1Affine
 		close(chResult)
@@ -189,7 +189,7 @@ func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken 
 		chToken <- struct{}{}
 		<-chAsync
 		ar.AddMixed(&pk.G1.Alpha)
-		ar.ToAffineFromJac(&arAffine)
+		arAffine.FromJacobian(&ar)
 		chResult <- arAffine
 		close(chResult)
 	}()

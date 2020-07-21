@@ -12,7 +12,7 @@ func TestConstraintTag(t *testing.T) {
 	cs := NewConstraintSystem()
 
 	tagLen := func(cs *CS, v Variable) int {
-		return len(cs.WireTags[v.wireID(cs)])
+		return len(cs.wireTags[v.id(cs)])
 	}
 
 	a := cs.ALLOCATE(12)
@@ -40,7 +40,7 @@ func TestDuplicateTag(t *testing.T) {
 	cs := NewConstraintSystem()
 
 	tagLen := func(cs *CS, v Variable) int {
-		return len(cs.WireTags[v.wireID(cs)])
+		return len(cs.wireTags[v.id(cs)])
 	}
 
 	a := cs.ALLOCATE(12)

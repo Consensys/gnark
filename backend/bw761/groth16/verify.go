@@ -57,7 +57,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine
-	kSum.ToAffineFromJac(&kSumAff)
+	kSumAff.FromJacobian(&kSum)
 
 	c.MillerLoop(kSumAff, vk.G2.GammaNeg, &eKvkγ)
 
@@ -84,7 +84,7 @@ func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]f
 		} else {
 			if val, ok := input[expectedNames[i]]; ok {
 				// TODO : note, similarly to r1cs.Solve() this need a "fast statically typed path"
-				toReturn[i] = fr.FromInterface(val)
+				toReturn[i].SetInterface(val)
 				toReturn[i].FromMont()
 			} else {
 				return nil, backend.ErrInputNotSet

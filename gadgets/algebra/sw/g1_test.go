@@ -112,7 +112,7 @@ func TestAddAssignG1(t *testing.T) {
 	assignPointG1(inputs, g2, "b")
 
 	// compute the result
-	g1.Add(curve, &g2)
+	g1.AddAssign(curve, &g2)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -126,7 +126,8 @@ func TestAddAssignG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}
@@ -141,8 +142,8 @@ func TestAddAssignAffG1(t *testing.T) {
 	g1 := randomPointG1()
 	g2 := randomPointG1()
 	var _g1, _g2 bls377.G1Affine
-	g1.ToAffineFromJac(&_g1)
-	g2.ToAffineFromJac(&_g2)
+	_g1.FromJacobian(&g1)
+	_g2.FromJacobian(&g2)
 
 	// create the circuit
 	circuit := frontend.NewConstraintSystem()
@@ -164,8 +165,8 @@ func TestAddAssignAffG1(t *testing.T) {
 
 	// compute the result
 	var _gres bls377.G1Affine
-	g1.Add(curve, &g2)
-	g1.ToAffineFromJac(&_gres)
+	g1.AddAssign(curve, &g2)
+	_gres.FromJacobian(&g1)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -180,7 +181,8 @@ func TestAddAssignAffG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1 (affine)")
 		}
@@ -204,7 +206,7 @@ func TestDoubleG1(t *testing.T) {
 	assignPointG1(inputs, g1, "a")
 
 	// compute the result
-	g1.Double()
+	g1.DoubleAssign()
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -218,7 +220,8 @@ func TestDoubleG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error double g1")
 		}
@@ -230,7 +233,7 @@ func TestDoubleAffG1(t *testing.T) {
 	// sample a random points
 	g1 := randomPointG1()
 	var _g1 bls377.G1Affine
-	g1.ToAffineFromJac(&_g1)
+	_g1.FromJacobian(&g1)
 
 	// create the circuit
 	circuit := frontend.NewConstraintSystem()
@@ -246,8 +249,8 @@ func TestDoubleAffG1(t *testing.T) {
 
 	// compute the reference result
 	var _gres bls377.G1Affine
-	g1.Double()
-	g1.ToAffineFromJac(&_gres)
+	g1.DoubleAssign()
+	_gres.FromJacobian(&g1)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -262,7 +265,8 @@ func TestDoubleAffG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error double g1 (affine)")
 		}
@@ -299,7 +303,8 @@ func TestNegG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error neg g1")
 		}
@@ -314,7 +319,7 @@ func TestScalarMulG1(t *testing.T) {
 	// sample a random points
 	g1 := randomPointG1()
 	var g1Aff bls377.G1Affine
-	g1.ToAffineFromJac(&g1Aff)
+	g1Aff.FromJacobian(&g1)
 
 	// random scalar
 	var r fr.Element
@@ -334,7 +339,7 @@ func TestScalarMulG1(t *testing.T) {
 	// compute the result
 	r.FromMont()
 	g1.ScalarMul(curve, &g1, r)
-	g1.ToAffineFromJac(&g1Aff)
+	g1Aff.FromJacobian(&g1)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -349,7 +354,8 @@ func TestScalarMulG1(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error scalar mul g1")
 		}

@@ -30,23 +30,29 @@ import (
 // under the constraintID i are all the expressions that must be equal
 // under the constraintID i, exactly one Constraint can be single wire and there is at least a linear Constraint or a single wire
 type constraint struct {
-	exp          expression
-	wireID       int
-	constraintID int // key in CS.Constraints[] map
+	wire
+	// note to self:
+	// exp can be nil. If it is nil, it is "unconstrained"
+	// meaning it's not a constraint but the output wire of a constraint.
+	// seems like a confusing double purpose for this struct.
+	exp expression
+	ID  int
 }
 
-func (c *constraint) Set(other *constraint) {
-	*c = *other
-}
+// TODO keeping that for retrocompatibility purposes.
+// if we're sure of ourselves, then, no need to have "unitialized" wire, we will loop through them all
+// and initialize them.
+var uninitializedWire = wire{-1, -1}
 
-func (c *constraint) setID(id int) {
-	c.constraintID = id
-}
-func (c constraint) id() int {
-	return c.constraintID
-}
-func (c *constraint) setOutputWire(wID int) {
-	c.wireID = wID
+type wire struct {
+	// ex wire
+	// Wire is analogous to a circuit's physical Wire
+	// each constraint (ie gate) will have a single output Wire
+	// when the circuit is instantiated and fed an input
+	// each Wire will have a Value enabling the solver to determine a solution vector
+	// to the rank 1 constraint system
+	wIDOrdered int
+	cIDOrdered int // ID of the constraint from which the wire is computed (for an input it's -1)
 }
 
 // Term coeff*c
@@ -61,15 +67,11 @@ type LinearCombination []Term
 // newConstraint initialize a c with a single wire and adds it to the Constraint System (CS)
 func newConstraint(cs *CS, exp expression) Variable {
 	c := constraint{
-		wireID: cs.addWire(wire{
-			IsSecret:       true,
-			ConstraintID:   -1,
-			WireIDOrdering: -1,
-		}),
-		exp: exp,
+		wire: uninitializedWire,
+		exp:  exp,
 	}
 
-	return Variable{cID: cs.addConstraint(c)}
+	return Variable{constraintID: cs.addConstraint(c)}
 }
 
 func (c *constraint) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS) []r1cs.R1C {
@@ -77,7 +79,7 @@ func (c *constraint) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS) []r1cs.R1C {
 		return make([]r1cs.R1C, 0)
 	}
 	var toReturn [1]r1cs.R1C
-	toReturn[0] = c.exp.toR1CS(uR1CS, cs, cs.Wires[ONE_WIRE_ID].WireIDOrdering, c.wireID)
+	toReturn[0] = c.exp.toR1CS(uR1CS, cs, cs.constraints[oneWireID].wIDOrdered, c.ID)
 
 	return toReturn[:]
 }

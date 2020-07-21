@@ -139,7 +139,7 @@ func TestAddAssignG2(t *testing.T) {
 	assignPointG2(inputs, g2, "b")
 
 	// compute the result
-	g1.Add(curve, &g2)
+	g1.AddAssign(curve, &g2)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -153,7 +153,8 @@ func TestAddAssignG2(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}
@@ -168,8 +169,8 @@ func TestAddAffAssignG2(t *testing.T) {
 	var _g1, _g2 bls377.G2Affine
 	g1 := randomPointG2()
 	g2 := randomPointG2()
-	g1.ToAffineFromJac(&_g1)
-	g2.ToAffineFromJac(&_g2)
+	_g1.FromJacobian(&g1)
+	_g2.FromJacobian(&g2)
 
 	// create the circuit
 	circuit := frontend.NewConstraintSystem()
@@ -186,8 +187,8 @@ func TestAddAffAssignG2(t *testing.T) {
 	assignPointAffineG2(inputs, _g2, "b")
 
 	// compute the result
-	g1.Add(curve, &g2)
-	g1.ToAffineFromJac(&_g1)
+	g1.AddAssign(curve, &g2)
+	_g1.FromJacobian(&g1)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -201,7 +202,8 @@ func TestAddAffAssignG2(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add affine g1")
 		}
@@ -213,7 +215,7 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	// sample 2 random points
 	var _g1 bls377.G2Affine
 	g1 := randomPointG2()
-	g1.ToAffineFromJac(&_g1)
+	_g1.FromJacobian(&g1)
 
 	// create the circuit
 	circuit := frontend.NewConstraintSystem()
@@ -228,8 +230,8 @@ func TestDoubleAffAssignG2(t *testing.T) {
 	assignPointAffineG2(inputs, _g1, "a")
 
 	// compute the result
-	g1.Double()
-	g1.ToAffineFromJac(&_g1)
+	g1.DoubleAssign()
+	_g1.FromJacobian(&g1)
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -243,7 +245,8 @@ func TestDoubleAffAssignG2(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add affine g1")
 		}
@@ -268,7 +271,7 @@ func TestDoubleG2(t *testing.T) {
 	assignPointG2(inputs, g1, "a")
 
 	// compute the result
-	g1.Double()
+	g1.DoubleAssign()
 
 	// assign the exepected values
 	expectedValues := make(map[string]*fp.Element)
@@ -282,7 +285,8 @@ func TestDoubleG2(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range res {
-		_v := fp.FromInterface(v)
+		var _v fp.Element
+		_v.SetInterface(v)
 		if !expectedValues[k].Equal(&_v) {
 			t.Fatal("error add g1")
 		}

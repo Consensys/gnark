@@ -61,7 +61,8 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	}
 
 	// compute expected Y
-	expectedY := fr.FromInterface(2)
+	var expectedY fr.Element
+	expectedY.SetInterface(2)
 	for i := 0; i < nbConstraints; i++ {
 		expectedY.MulAssign(&expectedY)
 	}
