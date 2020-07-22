@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
@@ -55,12 +57,12 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// initialize R1CS to return
 	uR1CS := &r1cs.UntypedR1CS{
-		Constraints:    make([]r1c.R1C, 0, len(cs.constraints)),
-		PrivateWires:   make([]string, len(cs.secretWireNames)),
-		PublicWires:    make([]string, len(cs.publicWireNames)),
-		NbPublicWires:  len(cs.publicWireNames),
-		NbPrivateWires: len(cs.secretWireNames),
-		WireTags:       make(map[int][]string),
+		Constraints:   make([]r1c.R1C, 0, len(cs.constraints)),
+		SecretWires:   make([]string, len(cs.secretWireNames)),
+		PublicWires:   make([]string, len(cs.publicWireNames)),
+		NbPublicWires: len(cs.publicWireNames),
+		NbSecretWires: len(cs.secretWireNames),
+		WireTags:      make(map[int][]string),
 	}
 
 	// keep track of consumed wires (one wire and user inputs should be there to start with, as they can't be roots.)
@@ -119,7 +121,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 		c := cs.constraints[cID]
 		c.finalWireID = i + offset
 		cs.constraints[cID] = c
-		uR1CS.PrivateWires[i] = cs.secretWireNames[cID]
+		uR1CS.SecretWires[i] = cs.secretWireNames[cID]
 		wireTracker = append(wireTracker, cID)
 	}
 	offset += len(secretInputs)
@@ -162,7 +164,8 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	}
 
 	// set big.Int coefficient table
-	uR1CS.Coefficients = cs.coeffs
+	uR1CS.Coefficients = make([]big.Int, len(cs.coeffs))
+	copy(uR1CS.Coefficients, cs.coeffs)
 
 	// Keeps track of the visited constraints, useful to build the computational graph
 	visited := make([]bool, len(computationalGraph))

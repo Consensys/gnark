@@ -26,12 +26,12 @@ import (
 // are big.Int and not tied to a curve base field
 type UntypedR1CS struct {
 	// Wires
-	NbWires        int
-	NbPublicWires  int // includes ONE wire
-	NbPrivateWires int
-	PrivateWires   []string         // private wire names
-	PublicWires    []string         // public wire names
-	WireTags       map[int][]string // optional tags -- debug info
+	NbWires       int
+	NbPublicWires int // includes ONE wire
+	NbSecretWires int
+	SecretWires   []string         // private wire names
+	PublicWires   []string         // public wire names
+	WireTags      map[int][]string // optional tags -- debug info
 
 	// Constraints
 	NbConstraints   int // total number of constraints

@@ -2,6 +2,9 @@
 package main
 
 import (
+	"fmt"
+	"runtime"
+
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
@@ -9,24 +12,33 @@ import (
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
-const benchCount = 10000
+const benchCount = 4
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
+}
+func PrintMemUsage(header string) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Println("________________________________________________________")
+	fmt.Println(header)
+	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 5000000
+const n = 500000
 
 // else will output average proving times, in csv format
 func main() {
-	var circuit benchCircuit
-	ctx := frontend.NewContext(gurvy.BN256)
-	ctx.Set(nbConstraintKey, n)
-
-	r1cs, err := frontend.Compile(ctx, &circuit)
-
-	if err != nil {
-		panic(err)
-	}
-	frontend.Save(ctx, r1cs, "circuit.r1cs")
+	PrintMemUsage("init")
+	pk, r1cs, input := generateCircuit(n)
+	_, _ = groth16.Prove(r1cs, pk, input)
+	PrintMemUsage("after prove")
 }
 
 type benchCircuit struct {
@@ -55,7 +67,10 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	var circuit benchCircuit
 	ctx := frontend.NewContext(gurvy.BN256)
 	ctx.Set(nbConstraintKey, nbConstraints)
+
+	PrintMemUsage("before compile")
 	r1cs, err := frontend.Compile(ctx, &circuit)
+	PrintMemUsage("after compile")
 	if err != nil {
 		panic(err)
 	}
@@ -73,5 +88,6 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	// ---------------------------------------------------------------------------------------------
 	//  setup
 	pk := groth16.DummySetup(r1cs)
+	PrintMemUsage("after setup")
 	return pk, r1cs, solution
 }

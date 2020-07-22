@@ -13,8 +13,8 @@ func (r1cs *UntypedR1CS) to{{toUpper .Curve}}() *backend_{{toLower .Curve}}.R1CS
 	toReturn := backend_{{toLower .Curve}}.R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
-		NbPrivateWires:  r1cs.NbPrivateWires,
-		PrivateWires:    r1cs.PrivateWires,
+		NbSecretWires:  r1cs.NbSecretWires,
+		SecretWires:    r1cs.SecretWires,
 		PublicWires:     r1cs.PublicWires,
 		WireTags:        r1cs.WireTags,
 		NbConstraints:   r1cs.NbConstraints,

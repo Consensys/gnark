@@ -27,8 +27,8 @@ func (r1cs *UntypedR1CS) toBW761() *backend_bw761.R1CS {
 	toReturn := backend_bw761.R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
-		NbPrivateWires:  r1cs.NbPrivateWires,
-		PrivateWires:    r1cs.PrivateWires,
+		NbSecretWires:   r1cs.NbSecretWires,
+		SecretWires:     r1cs.SecretWires,
 		PublicWires:     r1cs.PublicWires,
 		WireTags:        r1cs.WireTags,
 		NbConstraints:   r1cs.NbConstraints,

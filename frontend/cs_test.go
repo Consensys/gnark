@@ -123,7 +123,7 @@ func TestADD(t *testing.T) {
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -173,7 +173,7 @@ func TestSUB(t *testing.T) {
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -208,7 +208,7 @@ func TestMUL(t *testing.T) {
 		nbWires:                    5,
 		nbComputationalConstraints: 3,
 		nbConstraints:              3,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -239,7 +239,7 @@ func TestDIV(t *testing.T) {
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              3,
 	})
 
@@ -275,7 +275,7 @@ func TestDIVLC(t *testing.T) {
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              3,
 	})
 
@@ -311,7 +311,7 @@ func TestMULLC(t *testing.T) {
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              3,
 	})
 
@@ -343,7 +343,7 @@ func TestSELECT(t *testing.T) {
 		nbWires:                    5,
 		nbComputationalConstraints: 1,
 		nbConstraints:              2,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              4,
 	})
 
@@ -377,7 +377,7 @@ func TestFROM_BINARY(t *testing.T) {
 		nbWires:                    7,
 		nbComputationalConstraints: 1,
 		nbConstraints:              6,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              6,
 	})
 
@@ -407,7 +407,7 @@ func TestTO_BINARY(t *testing.T) {
 		nbWires:                    7,
 		nbComputationalConstraints: 5,
 		nbConstraints:              10,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -442,7 +442,7 @@ func TestSELECT_LUT(t *testing.T) {
 		nbWires:                    4,
 		nbComputationalConstraints: 1,
 		nbConstraints:              3,
-		nbPrivateWires:             2,
+		nbSecretWires:              2,
 		nbPublicWires:              1,
 	})
 
@@ -476,7 +476,7 @@ func TestXOR(t *testing.T) {
 		nbWires:                    7,
 		nbComputationalConstraints: 3,
 		nbConstraints:              6,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              4,
 	})
 
@@ -503,7 +503,7 @@ func TestALLOC(t *testing.T) {
 		nbWires:                    2,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              1,
 	})
 
@@ -533,7 +533,7 @@ func TestMUSTBE_BOOL(t *testing.T) {
 		nbWires:                    2,
 		nbComputationalConstraints: 0,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -565,7 +565,7 @@ func TestXtimes2EqualsY(t *testing.T) {
 		nbWires:                    5,
 		nbComputationalConstraints: 2,
 		nbConstraints:              3,
-		nbPrivateWires:             1,
+		nbSecretWires:              1,
 		nbPublicWires:              2,
 	})
 
@@ -595,7 +595,7 @@ func TestINV(t *testing.T) {
 		nbWires:                    3,
 		nbComputationalConstraints: 1,
 		nbConstraints:              1,
-		nbPrivateWires:             0,
+		nbSecretWires:              0,
 		nbPublicWires:              2,
 	})
 
@@ -629,7 +629,7 @@ func TestMerge(t *testing.T) {
 		nbWires:                    6,
 		nbComputationalConstraints: 2,
 		nbConstraints:              3,
-		nbPrivateWires:             2,
+		nbSecretWires:              2,
 		nbPublicWires:              2,
 	})
 
@@ -663,7 +663,7 @@ func TestMergeMoeNoe(t *testing.T) {
 		nbWires:                    6,
 		nbComputationalConstraints: 3,
 		nbConstraints:              7,
-		nbPrivateWires:             1,
+		nbSecretWires:              1,
 		nbPublicWires:              2,
 	})
 

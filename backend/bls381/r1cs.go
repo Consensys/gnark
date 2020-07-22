@@ -32,12 +32,12 @@ import (
 // R1CS decsribes a set of R1CS constraint
 type R1CS struct {
 	// Wires
-	NbWires        int
-	NbPublicWires  int // includes ONE wire
-	NbPrivateWires int
-	PrivateWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	PublicWires    []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	WireTags       map[int][]string // optional tags -- debug info
+	NbWires       int
+	NbPublicWires int // includes ONE wire
+	NbSecretWires int
+	SecretWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
+	PublicWires   []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
+	WireTags      map[int][]string // optional tags -- debug info
 
 	// Constraints
 	NbConstraints   int // total number of constraints
@@ -96,11 +96,11 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValu
 		return nil
 	}
 	// instantiate private inputs
-	debug.Assert(len(r1cs.PrivateWires) == r1cs.NbPrivateWires)
+	debug.Assert(len(r1cs.SecretWires) == r1cs.NbSecretWires)
 	debug.Assert(len(r1cs.PublicWires) == r1cs.NbPublicWires)
-	if r1cs.NbPrivateWires != 0 {
-		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
-		if err := instantiateInputs(offset, r1cs.PrivateWires); err != nil {
+	if r1cs.NbSecretWires != 0 {
+		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
+		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {
 			return err
 		}
 	}
@@ -161,10 +161,10 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 
 	// showsInput is set, put the inputs in the resulting map
 	if showsInputs {
-		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbPrivateWires // private input start index
-		for i := 0; i < len(r1cs.PrivateWires); i++ {
+		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
+		for i := 0; i < len(r1cs.SecretWires); i++ {
 			v := new(big.Int)
-			res[r1cs.PrivateWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
+			res[r1cs.SecretWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
 		}
 		offset = r1cs.NbWires - r1cs.NbPublicWires // public input start index
 		for i := 0; i < len(r1cs.PublicWires); i++ {
