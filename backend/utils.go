@@ -70,7 +70,7 @@ func FromInterface(i1 interface{}) big.Int {
 	return val
 }
 
-// Write serialize object into file
+// WriteVariables serialize object into file
 // map[string]interface{} --> interface must be convertible to big.Int
 // using backend.FromInterface()
 func WriteVariables(path string, from map[string]interface{}) error {
@@ -84,7 +84,7 @@ func WriteVariables(path string, from map[string]interface{}) error {
 	return serializeVariables(f, from)
 }
 
-// Read read and deserialize input into object
+// ReadVariables read and deserialize input into object
 // returned object will contain map[string]interface{}
 // keys being variable names and interface{} being big.Int
 func ReadVariables(path string, into map[string]interface{}) error {

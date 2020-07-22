@@ -153,11 +153,11 @@ func (l *linearExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrde
 
 func (l *linearExpression) string(cs *CS) string {
 	res := ""
-	for _, t := range *l {
-		res += t.String()
-		res += "+"
-	}
-	res = res[:len(res)-1]
+	// for _, t := range *l {
+	// 	res += t.String()
+	// 	res += "+"
+	// }
+	// res = res[:len(res)-1]
 	return res
 }
 

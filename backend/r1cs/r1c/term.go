@@ -7,13 +7,6 @@ package r1c
 // if we support more than 1 billion constraints, this breaks (not so soon.)
 type Term uint64
 
-// String helper for Term
-func (t Term) String() string {
-	// res := ""
-	// res = res + t.Coeff.String() + "*:" + strconv.Itoa(int(t.ID))
-	return "unimplemented"
-}
-
 const (
 	_                    uint64 = 0b0000
 	specialValueMinusOne uint64 = 0b0001
@@ -23,6 +16,11 @@ const (
 	specialValueDiv      uint64 = 0x8000000000000000
 )
 
+// Pack packs constraintID, coeffID and specialValue into Term
+// first 4 bits are reserved
+// next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
+// next 30 bits represent the constraint used to compute the wire
+// if we support more than 1 billion constraints, this breaks (not so soon.)
 func Pack(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
 	_constraintID := uint64(constraintID)
 	_coeffID := uint64(coeffID)
@@ -59,6 +57,7 @@ func Pack(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
 
 const maxInt = int(^uint(0) >> 1)
 
+// Unpack returns specialValue, coeffID and constraintID
 func (t Term) Unpack() (specialValueInt, coeffID, constraintID int) {
 	specialValueInt = t.SpecialValueInt()
 	coeffID = t.CoeffID()
@@ -66,6 +65,8 @@ func (t Term) Unpack() (specialValueInt, coeffID, constraintID int) {
 	return
 }
 
+// SpecialValueInt return maxInt if no special value is set
+// if set, returns either -1, 0, 1 or 2
 func (t Term) SpecialValueInt() int {
 	specialValue := uint64(t<<1) >> 61
 	switch specialValue {
@@ -81,6 +82,8 @@ func (t Term) SpecialValueInt() int {
 		return maxInt
 	}
 }
+
+// SetConstraintID update the bits correponding to the constraintID with cID
 func (t *Term) SetConstraintID(cID int) {
 	_constraintID := uint64(cID)
 	if ((_constraintID << 34) >> 34) != uint64(cID) {
@@ -90,17 +93,19 @@ func (t *Term) SetConstraintID(cID int) {
 	*t = Term((uint64(*t) | mask) | _constraintID)
 }
 
-// ID returns the index of the constraint used to compute this wire
+// ConstraintID returns the constraintID (see R1CS data structure)
 func (t Term) ConstraintID() int {
 	const mask uint64 = 0x3FFFFFFF
 	return int(uint64(t) & mask)
 }
 
+// CoeffID returns the coefficient id (see R1CS data structure)
 func (t Term) CoeffID() int {
 	const mask uint64 = 0xFFFFFFFC0000000
 	return int((uint64(t) & mask) >> 30)
 }
 
+// IsDivision returns true if this term was encoded with the property "isDivision"
 func (t Term) IsDivision() bool {
 	return (uint64(t) >> 63) != 0
 }
