@@ -21,23 +21,25 @@ func PrintMemUsage(header string) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Println("________________________________________________________")
+	fmt.Println("________________________________________________________________________________________________________________")
 	fmt.Println(header)
 	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
 	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tmallocs = %v ", m.Mallocs)
+	fmt.Printf("\tfrees = %v ", m.Frees)
 	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
 	fmt.Printf("\tNumGC = %v\n", m.NumGC)
 }
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 500000
+const n = 1000000
 
 // else will output average proving times, in csv format
 func main() {
-	PrintMemUsage("init")
 	pk, r1cs, input := generateCircuit(n)
 	_, _ = groth16.Prove(r1cs, pk, input)
+	runtime.GC()
 	PrintMemUsage("after prove")
 }
 

@@ -29,65 +29,68 @@ import (
 const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
 const MaxOrder = 32
 
+const fftParallelThreshold = 64
+
+var numCpus = uint(runtime.NumCPU())
+
 // FFT computes the discrete Fourier transform of a and stores the result in a.
 // The result is in bit-reversed order.
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
 // The algorithm is recursive, decimation-in-frequency. [cite]
 func FFT(a []fr.Element, w fr.Element) {
 	var wg sync.WaitGroup
-	asyncFFT(a, w, &wg, 1)
+	asyncFFT(a, w, &wg, 1, false)
 	wg.Wait()
 	bitReverse(a)
 }
 
-func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint) {
+func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, deferDone bool) {
+	if deferDone {
+		defer wg.Done()
+	}
 	n := len(a)
 	if n == 1 {
 		return
 	}
 	m := n >> 1
 
-	// wPow == w^1
-	wPow := w
-
 	// i == 0
 	t := a[0]
-	a[0].AddAssign(&a[m])
+	a[0].Add(&a[0], &a[m])
 	a[m].Sub(&t, &a[m])
-
-	for i := 1; i < m; i++ {
-		t = a[i]
-		a[i].AddAssign(&a[i+m])
-
-		a[i+m].
-			Sub(&t, &a[i+m]).
-			MulAssign(&wPow)
-
-		wPow.MulAssign(&w)
-	}
 
 	// if m == 1, then next iteration ends, no need to call 2 extra functions for that
 	if m == 1 {
 		return
 	}
 
+	// wPow == w^1
+	wPow := w
+
+	for i := 1; i < m; i++ {
+		t = a[i]
+		a[i].Add(&a[i], &a[i+m])
+
+		a[i+m].
+			Sub(&t, &a[i+m]).
+			Mul(&a[i+m], &wPow)
+
+		wPow.Mul(&wPow, &w)
+	}
+
 	// note: w is passed by value
 	w.Square(&w)
 
-	const parallelThreshold = 64
-	serial := splits > uint(runtime.NumCPU()) || m <= parallelThreshold
+	serial := (splits<<1) > numCpus || m <= fftParallelThreshold
 
 	if serial {
-		asyncFFT(a[0:m], w, nil, splits)
-		asyncFFT(a[m:n], w, nil, splits)
+		asyncFFT(a[0:m], w, nil, splits, false)
+		asyncFFT(a[m:n], w, nil, splits, false)
 	} else {
 		splits <<= 1
 		wg.Add(1)
-		go func() {
-			asyncFFT(a[m:n], w, wg, splits)
-			wg.Done()
-		}()
-		asyncFFT(a[0:m], w, wg, splits)
+		go asyncFFT(a[m:n], w, wg, splits, true)
+		asyncFFT(a[0:m], w, wg, splits, false)
 	}
 }
 
