@@ -11,7 +11,7 @@ import (
 
 	{{if ne .Curve "GENERIC"}}
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/term"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 	{{end}}
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils/debug"
@@ -32,7 +32,7 @@ type R1CS struct {
 	// Constraints
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []R1C
+	Constraints     []r1c.R1C
 	Coefficients 	[]fr.Element // R1C coefficients indexes point here
 }
 
@@ -113,12 +113,12 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, _a, _b, _c, _wireValu
 			// computationalGraph : we need to solve the constraint
 			// computationalGraph[i] contains exactly one uncomputed wire (due
 			// to the graph being correctly ordered), we solve it
-			r1cs.Constraints[i].solveR1c(r1cs, wireInstantiated, wireValues)
+			solveR1C(&r1cs.Constraints[i], r1cs, wireInstantiated, wireValues)
 		}
 
 		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
 		// at the previous step)
-		a[i], b[i], c[i] = r1c.instantiate(r1cs, wireValues)
+		a[i], b[i], c[i] = instantiateR1C(&r1c, r1cs, wireValues)
 
 		// check that the constraint is satisfied
 		check.Mul(&a[i], &b[i])
@@ -185,7 +185,7 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 }
 
 // MulAdd returns accumulator += (value * term.Coefficient)
-func MulAdd(t term.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
+func MulAdd(t r1c.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
 	specialValue := t.SpecialValueInt()
 	switch specialValue {
 	case 1:
@@ -204,7 +204,7 @@ func MulAdd(t term.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
 }
 
 // mulInto returns into.Mul(into, term.Coefficient)
-func mulInto(t term.Term, r1cs *R1CS, into *fr.Element ) *fr.Element {
+func mulInto(t r1c.Term, r1cs *R1CS, into *fr.Element ) *fr.Element {
 	specialValue := t.SpecialValueInt()
 	switch specialValue {
 	case 1:
@@ -220,50 +220,23 @@ func mulInto(t term.Term, r1cs *R1CS, into *fr.Element ) *fr.Element {
 	}
 }
 
-// LinearExpression lightweight version of linear expression
-type LinearExpression []term.Term
-
-// String helper for LinearExpression
-func (l LinearExpression) String() string {
-	res := ""
-	for _, t := range l {
-		res += t.String()
-		res += "+ "
-	}
-	res = res[:len(res)-2]
-	return res
-}
-
-// R1C used to compute the wires (wo pointers)
-type R1C struct {
-	L      LinearExpression
-	R      LinearExpression
-	O      LinearExpression
-	Solver backend.SolvingMethod
-}
-
-// String helper for a Rank1 Constraint
-func (r1c R1C) String() string {
-	res := "(" + r1c.L.String() + ")*(" + r1c.R.String() + ")=" + r1c.O.String()
-	return res
-}
 
 // compute left, right, o part of a r1cs constraint
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
-func (r1c *R1C) instantiate(r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
+func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
 
 	var tmp fr.Element
 
-	for _, t := range r1c.L {
+	for _, t := range r.L {
 		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &a)
 	}
 
-	for _, t := range r1c.R {
+	for _, t := range r.R {
 		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &b)
 	}
 
-	for _, t := range r1c.O {
+	for _, t := range r.O {
 		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &c)
 	}
 
@@ -290,21 +263,21 @@ func (l location) set(nloc location) location {
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.Element) {
+func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.Element) {
 
-	switch r1c.Solver {
+	switch r.Solver {
 
 	// in this case we solve a R1C by isolating the uncomputed wire
-	case backend.SingleOutput:
+	case r1c.SingleOutput:
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
 		loc := locationUnset
 
 		var tmp, a, b, c fr.Element
-		var _t term.Term
+		var _t r1c.Term
 
-		for _, t := range r1c.L {
+		for _, t := range r.L {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
 				MulAdd(t, r1cs, &tmp, &wireValues[cID], &a)
@@ -314,7 +287,7 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 			}
 		}
 
-		for _, t := range r1c.R {
+		for _, t := range r.R {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
 				MulAdd(t, r1cs, &tmp, &wireValues[cID], &b)
@@ -324,7 +297,7 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 			}
 		}
 
-		for _, t := range r1c.O {
+		for _, t := range r.O {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
 				MulAdd(t, r1cs, &tmp, &wireValues[cID], &c)
@@ -366,19 +339,19 @@ func (r1c *R1C) solveR1c(r1cs *R1CS, wireInstantiated []bool, wireValues []fr.El
 	
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
-	case backend.BinaryDec:
+	case r1c.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
-		n := wireValues[r1c.O[0].ConstraintID()].ToRegular()
-		nbBits := len(r1c.L)
+		n := wireValues[r.O[0].ConstraintID()].ToRegular()
+		nbBits := len(r.L)
 
 		// binary decomposition of n
 		var i, j int
 		for i*64 < nbBits {
 			j = 0
-			for j < 64 && i*64+j < len(r1c.L) {
+			for j < 64 && i*64+j < len(r.L) {
 				ithbit := (n[i] >> uint(j)) & 1
-				cID := r1c.L[i*64+j].ConstraintID()
+				cID := r.L[i*64+j].ConstraintID()
 				if !wireInstantiated[cID] {
 					wireValues[cID].SetUint64(ithbit)
 					wireInstantiated[cID] = true

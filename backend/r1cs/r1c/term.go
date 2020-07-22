@@ -1,4 +1,4 @@
-package term
+package r1c
 
 // Term lightweight version of a term, no pointers
 // first 4 bits are reserved

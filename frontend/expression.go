@@ -19,9 +19,8 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/backend/r1cs/term"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
 // expression [of constraints] represents the lowest level of circuit design
@@ -46,7 +45,7 @@ type expression interface {
 	consumeWires(consumedWires map[int]struct{})
 
 	// turns an expression into a r1cs (ex: toR1cs on a selection constraint x-b(y-x) yields: b(y-x)=z-x)
-	toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C
+	toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1c.R1C
 
 	// string helper
 	string(cs *CS) string
@@ -69,47 +68,47 @@ const (
 
 // singleTermExpression expression of type coef*wire
 type singleTermExpression struct {
-	term.Term
+	r1c.Term
 }
 
 func (t *singleTermExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[t.ConstraintID()] = struct{}{}
 }
 
-func (t *singleTermExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C {
-	var L, R, O r1cs.LinearExpression
+func (t *singleTermExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1c.R1C {
+	var L, R, O r1c.LinearExpression
 	isDivision := t.IsDivision()
 	if !isDivision {
-		L = r1cs.LinearExpression{
-			term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()),
+		L = r1c.LinearExpression{
+			r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()),
 		}
 
-		R = r1cs.LinearExpression{
+		R = r1c.LinearExpression{
 			cs.term(oneWireIDOrdered, *bOne),
 		}
 
-		O = r1cs.LinearExpression{
+		O = r1c.LinearExpression{
 			cs.term(cs.constraints[wire].finalWireID, *bOne),
 		}
 	} else {
-		L = r1cs.LinearExpression{
-			term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()),
+		L = r1c.LinearExpression{
+			r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()),
 		}
 
-		R = r1cs.LinearExpression{
+		R = r1c.LinearExpression{
 			cs.term(cs.constraints[wire].finalWireID, *bOne),
 		}
 
-		O = r1cs.LinearExpression{
+		O = r1c.LinearExpression{
 			cs.term(oneWireIDOrdered, *bOne),
 		}
 	}
 
-	return r1cs.R1C{
+	return r1c.R1C{
 		L:      L,
 		R:      R,
 		O:      O,
-		Solver: backend.SingleOutput,
+		Solver: r1c.SingleOutput,
 	}
 }
 
@@ -125,7 +124,7 @@ func (t singleTermExpression) string(cs *CS) string {
 }
 
 // linearExpression linear expression of constraints
-type linearExpression []term.Term
+type linearExpression []r1c.Term
 
 func (l *linearExpression) consumeWires(consumedWires map[int]struct{}) {
 	for _, t := range *l {
@@ -133,23 +132,23 @@ func (l *linearExpression) consumeWires(consumedWires map[int]struct{}) {
 	}
 }
 
-func (l *linearExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (l *linearExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
-	left := r1cs.LinearExpression{}
+	left := r1c.LinearExpression{}
 	for _, t := range *l {
-		lwt := term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt())
+		lwt := r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt())
 		left = append(left, lwt)
 	}
 
-	right := r1cs.LinearExpression{
+	right := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 	}
 
-	o := r1cs.LinearExpression{
+	o := r1c.LinearExpression{
 		cs.term(cs.constraints[w].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
+	return r1c.R1C{L: left, R: right, O: o, Solver: r1c.SingleOutput}
 }
 
 func (l *linearExpression) string(cs *CS) string {
@@ -164,7 +163,7 @@ func (l *linearExpression) string(cs *CS) string {
 
 // mulExpression is a quadratic expression of constraints, with only 2 terms.
 type mulExpression struct {
-	left, right term.Term // in case of division, left is the denominator, right the numerator
+	left, right r1c.Term // in case of division, left is the denominator, right the numerator
 }
 
 func (q *mulExpression) consumeWires(consumedWires map[int]struct{}) {
@@ -172,25 +171,25 @@ func (q *mulExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[q.right.ConstraintID()] = struct{}{}
 }
 
-func (q *mulExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (q *mulExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	specialValue, coeffID, constraintID := q.left.Unpack()
 	constraintID = cs.constraints[constraintID].finalWireID
-	L := r1cs.LinearExpression{
-		term.Pack(constraintID, coeffID, specialValue),
+	L := r1c.LinearExpression{
+		r1c.Pack(constraintID, coeffID, specialValue),
 	}
 
 	specialValue, coeffID, constraintID = q.right.Unpack()
 	constraintID = cs.constraints[constraintID].finalWireID
-	R := r1cs.LinearExpression{
-		term.Pack(constraintID, coeffID, specialValue),
+	R := r1c.LinearExpression{
+		r1c.Pack(constraintID, coeffID, specialValue),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(cs.constraints[w].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
 }
 
@@ -217,42 +216,42 @@ func (q *quadraticExpression) consumeWires(consumedWires map[int]struct{}) {
 	q.right.consumeWires(consumedWires)
 }
 
-func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (q *quadraticExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	switch q.operation {
 	case mul:
-		L := r1cs.LinearExpression{}
+		L := r1c.LinearExpression{}
 		for _, t := range q.left {
-			L = append(L, term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
+			L = append(L, r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
 		}
 
-		R := r1cs.LinearExpression{}
+		R := r1c.LinearExpression{}
 		for _, t := range q.right {
-			R = append(R, term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
+			R = append(R, r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
 		}
 
-		O := r1cs.LinearExpression{
+		O := r1c.LinearExpression{
 			cs.term(cs.constraints[w].finalWireID, *bOne),
 		}
 
-		return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+		return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 	case div:
-		L := r1cs.LinearExpression{}
+		L := r1c.LinearExpression{}
 
 		for _, t := range q.left {
-			L = append(L, term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
+			L = append(L, r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
 		}
 
-		R := r1cs.LinearExpression{
+		R := r1c.LinearExpression{
 			cs.term(cs.constraints[w].finalWireID, *bOne),
 		}
 
-		O := r1cs.LinearExpression{}
+		O := r1c.LinearExpression{}
 		for _, t := range q.right {
-			O = append(O, term.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
+			O = append(O, r1c.Pack(cs.constraints[t.ConstraintID()].finalWireID, t.CoeffID(), t.SpecialValueInt()))
 		}
 
-		return r1cs.R1C{L: L, R: R, O: O}
+		return r1c.R1C{L: L, R: R, O: O}
 	default:
 		panic("unimplemented operation")
 	}
@@ -282,26 +281,26 @@ func (s *selectExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[s.y] = struct{}{}
 }
 
-func (s *selectExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (s *selectExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	var minusOne big.Int
 	one := *bOne
 	minusOne.Neg(&one)
 
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(cs.constraints[s.b].finalWireID, one),
 	}
 
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(cs.constraints[s.y].finalWireID, one),
 		cs.term(cs.constraints[s.x].finalWireID, minusOne),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(cs.constraints[s.y].finalWireID, one),
 		cs.term(cs.constraints[w].finalWireID, minusOne),
 	}
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (s *selectExpression) string(cs *CS) string {
@@ -322,23 +321,23 @@ func (x *xorExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[x.b] = struct{}{}
 }
 
-func (x *xorExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (x *xorExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(cs.constraints[x.a].finalWireID, *bTwo),
 	}
 
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(cs.constraints[x.b].finalWireID, *bOne),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(cs.constraints[x.a].finalWireID, *bOne),
 		cs.term(cs.constraints[x.b].finalWireID, *bOne),
 		cs.term(cs.constraints[w].finalWireID, *bMinusOne),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (x *xorExpression) string(cs *CS) string {
@@ -358,10 +357,10 @@ func (u *unpackExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[u.res] = struct{}{}
 }
 
-func (u *unpackExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (u *unpackExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	// L
-	left := r1cs.LinearExpression{}
+	left := r1c.LinearExpression{}
 	acc := *bOne
 	for _, b := range u.bits {
 		var tmp big.Int
@@ -371,16 +370,16 @@ func (u *unpackExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrde
 	}
 
 	// R
-	right := r1cs.LinearExpression{
+	right := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 	}
 
 	// O
-	o := r1cs.LinearExpression{
+	o := r1c.LinearExpression{
 		cs.term(cs.constraints[u.res].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: left, R: right, O: o, Solver: backend.BinaryDec}
+	return r1c.R1C{L: left, R: right, O: o, Solver: r1c.BinaryDec}
 }
 
 func (u *unpackExpression) setConstraintID(cs *CS, n int) {
@@ -412,10 +411,10 @@ func (p *packExpression) consumeWires(consumedWires map[int]struct{}) {
 	}
 }
 
-func (p *packExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (p *packExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	// L
-	left := r1cs.LinearExpression{}
+	left := r1c.LinearExpression{}
 	acc := *bOne
 	for _, b := range p.bits {
 		var tmp big.Int
@@ -426,16 +425,16 @@ func (p *packExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdere
 	}
 
 	// R
-	right := r1cs.LinearExpression{
+	right := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 	}
 
 	// O
-	o := r1cs.LinearExpression{
+	o := r1c.LinearExpression{
 		cs.term(cs.constraints[w].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: left, R: right, O: o, Solver: backend.SingleOutput}
+	return r1c.R1C{L: left, R: right, O: o, Solver: r1c.SingleOutput}
 }
 
 func (p *packExpression) string(cs *CS) string {
@@ -455,22 +454,22 @@ type booleanExpression struct {
 func (b *booleanExpression) consumeWires(consumedWires map[int]struct{}) {
 }
 
-func (b *booleanExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (b *booleanExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 		cs.term(cs.constraints[b.b].finalWireID, *bMinusOne),
 	}
 
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(cs.constraints[b.b].finalWireID, *bOne),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bZero),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O}
+	return r1c.R1C{L: L, R: R, O: O}
 }
 
 func (b *booleanExpression) string(cs *CS) string {
@@ -488,22 +487,22 @@ type equalExpression struct {
 func (e *equalExpression) consumeWires(consumedWires map[int]struct{}) {
 }
 
-func (e *equalExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (e *equalExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(cs.constraints[e.a].finalWireID, *bOne),
 		cs.term(cs.constraints[e.b].finalWireID, *bMinusOne),
 	}
 
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bZero),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (e *equalExpression) string(cs *CS) string {
@@ -518,15 +517,15 @@ type equalConstantExpression struct {
 
 func (e *equalConstantExpression) consumeWires(consumedWires map[int]struct{}) {}
 
-func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1cs.R1C {
+func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, wire int) r1c.R1C {
 
 	// L
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, e.constant),
 	}
 
 	// R
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, *bOne),
 	}
 
@@ -535,11 +534,11 @@ func (e *equalConstantExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWir
 	if e.wire != 0 {
 		wire = e.wire
 	}
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(cs.constraints[wire].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (e *equalConstantExpression) string(cs *CS) string {
@@ -554,27 +553,27 @@ type implyExpression struct {
 func (i *implyExpression) consumeWires(consumedWires map[int]struct{}) {
 }
 
-func (i *implyExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (i *implyExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 
 	var one, minusOne, zero big.Int
 	one.SetUint64(1)
 	minusOne.Neg(&one)
 
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, one),
 		cs.term(cs.constraints[i.b].finalWireID, minusOne),
 		cs.term(cs.constraints[i.a].finalWireID, minusOne),
 	}
 
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(cs.constraints[i.a].finalWireID, one),
 	}
 
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, zero),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (i *implyExpression) string(cs *CS) string {
@@ -595,11 +594,11 @@ func (win *lutExpression) consumeWires(consumedWires map[int]struct{}) {
 	consumedWires[win.b1] = struct{}{}
 }
 
-func (win *lutExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1cs.R1C {
+func (win *lutExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrdered int, w int) r1c.R1C {
 	var t0, t1, t2, t3 big.Int
 
 	// L
-	L := r1cs.LinearExpression{
+	L := r1c.LinearExpression{
 		cs.term(cs.constraints[win.b0].finalWireID, *bOne),
 	}
 
@@ -609,7 +608,7 @@ func (win *lutExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrder
 		Sub(&t1, &win.lookuptable[2]).
 		Add(&t1, &win.lookuptable[3])
 	// R
-	R := r1cs.LinearExpression{
+	R := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, t0),
 		cs.term(cs.constraints[win.b1].finalWireID, t1),
 	}
@@ -618,13 +617,13 @@ func (win *lutExpression) toR1CS(uR1CS *r1cs.UntypedR1CS, cs *CS, oneWireIDOrder
 	t3.Set(&win.lookuptable[0])
 	t3.Sub(&t3, &win.lookuptable[2])
 	// O
-	O := r1cs.LinearExpression{
+	O := r1c.LinearExpression{
 		cs.term(oneWireIDOrdered, t2),
 		cs.term(cs.constraints[win.b1].finalWireID, t3),
 		cs.term(cs.constraints[w].finalWireID, *bOne),
 	}
 
-	return r1cs.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
+	return r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 }
 
 func (win *lutExpression) string(cs *CS) string {

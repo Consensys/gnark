@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
 // ToR1CS builds a R1CS from a system of Constraints
@@ -54,7 +55,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// initialize R1CS to return
 	uR1CS := &r1cs.UntypedR1CS{
-		Constraints:    make([]r1cs.R1C, 0, len(cs.constraints)),
+		Constraints:    make([]r1c.R1C, 0, len(cs.constraints)),
 		PrivateWires:   make([]string, len(cs.secretWireNames)),
 		PublicWires:    make([]string, len(cs.publicWireNames)),
 		NbPublicWires:  len(cs.publicWireNames),
@@ -133,7 +134,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// step 4: Now that the wires are numbered, we can split the constraint into R1C
 	// using final IDs
-	computationalGraph := make([]r1cs.R1C, lenComputationalGraph)
+	computationalGraph := make([]r1c.R1C, lenComputationalGraph)
 	computationalGraphIdx := 0
 
 	for cID := 1; cID < len(cs.constraints); cID++ {
@@ -155,11 +156,9 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 
 	// note that no output constraints yields no output, and hence, don't need to be in the computation graph
 	// we directly add the R1C to the R1CS constraint list
-	var r1c r1cs.R1C
 	for i := 0; i < len(cs.noExpressions); i++ {
 		e := cs.noExpressions[i]
-		r1c = e.toR1CS(uR1CS, cs, oneWireIDOrdered, -1)
-		uR1CS.Constraints = append(uR1CS.Constraints, r1c)
+		uR1CS.Constraints = append(uR1CS.Constraints, e.toR1CS(uR1CS, cs, oneWireIDOrdered, -1))
 	}
 
 	// set big.Int coefficient table
@@ -176,7 +175,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	}
 
 	// re-order the constraints
-	constraints := make([]r1cs.R1C, len(graphOrdering))
+	constraints := make([]r1c.R1C, len(graphOrdering))
 	for i := 0; i < len(graphOrdering); i++ {
 		constraints[i] = computationalGraph[graphOrdering[i]]
 	}
@@ -211,7 +210,7 @@ func findRootConstraints(cs *CS, wireTracker []int, consumedWires map[int]struct
 
 // postOrder post order traversal the computational graph; i is the index of the constraint currently visited
 // linear in the number of constraints (with visit each constraint once)
-func postOrder(cs *CS, constraintID int, visited []bool, computationalGraph []r1cs.R1C, graphOrdering []int, wireTracker []int) []int {
+func postOrder(cs *CS, constraintID int, visited []bool, computationalGraph []r1c.R1C, graphOrdering []int, wireTracker []int) []int {
 
 	// stackIn stores the unsivisted/non input wires in the order we
 	// visit them

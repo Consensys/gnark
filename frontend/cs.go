@@ -24,7 +24,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/term"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
 const oneWireID = 1
@@ -93,7 +93,7 @@ var (
 	bMinusOne = new(big.Int).SetInt64(-1)
 )
 
-func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
+func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) r1c.Term {
 	const maxInt = int(^uint(0) >> 1)
 
 	isDivision := false
@@ -104,16 +104,16 @@ func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
 	// let's check if wwe have a special value mod fr modulus
 	if b.Cmp(bZero) == 0 {
 		specialValue = 0
-		return term.Pack(constraintID, 0, specialValue, isDivision)
+		return r1c.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bOne) == 0 {
 		specialValue = 1
-		return term.Pack(constraintID, 0, specialValue, isDivision)
+		return r1c.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bMinusOne) == 0 {
 		specialValue = -1
-		return term.Pack(constraintID, 0, specialValue, isDivision)
+		return r1c.Pack(constraintID, 0, specialValue, isDivision)
 	} else if b.Cmp(bTwo) == 0 {
 		specialValue = 2
-		return term.Pack(constraintID, 0, specialValue, isDivision)
+		return r1c.Pack(constraintID, 0, specialValue, isDivision)
 	}
 
 	// no special value, let's check if we have encountered the coeff already
@@ -122,14 +122,14 @@ func (cs *CS) term(constraintID int, b big.Int, _isDivision ...bool) term.Term {
 	key := hex.EncodeToString(b.Bytes())
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		coeffID = idx
-		return term.Pack(constraintID, coeffID, specialValue, isDivision)
+		return r1c.Pack(constraintID, coeffID, specialValue, isDivision)
 	}
 
 	// we didn't find it, let's add it to our coefficients
 	coeffID = len(cs.coeffs)
 	cs.coeffs = append(cs.coeffs, b)
 	cs.coeffsIDs[key] = coeffID
-	return term.Pack(constraintID, coeffID, specialValue, isDivision)
+	return r1c.Pack(constraintID, coeffID, specialValue, isDivision)
 }
 
 func (cs *CS) isUserInput(wireID int) bool {

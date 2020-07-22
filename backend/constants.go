@@ -33,13 +33,3 @@ var ErrInputNotSet = errors.New("input not set")
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
-
-// SolvingMethod is used by the R1CS solver
-// note: it is not in backend/r1cs to avoid an import cycle
-type SolvingMethod uint8
-
-// SingleOuput and BinaryDec are types of solving method for rank-1 constraints
-const (
-	SingleOutput SolvingMethod = iota
-	BinaryDec
-)

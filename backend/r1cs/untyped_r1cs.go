@@ -17,8 +17,7 @@ package r1cs
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/term"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 )
 
@@ -37,7 +36,7 @@ type UntypedR1CS struct {
 	// Constraints
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []R1C
+	Constraints     []r1c.R1C
 	Coefficients    []big.Int
 }
 
@@ -56,21 +55,4 @@ func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 	default:
 		panic("not implemented")
 	}
-}
-
-// // Term coeff * constraint (ID)
-// type Term struct {
-// 	ID    int     // index of the constraint used to compute this wire
-// 	Coeff big.Int // coefficient by which the wire is multiplied
-// }
-
-// LinearExpression represent a linear expression of variables
-type LinearExpression []term.Term
-
-// R1C used to compute the wires
-type R1C struct {
-	L      LinearExpression
-	R      LinearExpression
-	O      LinearExpression
-	Solver backend.SolvingMethod
 }
