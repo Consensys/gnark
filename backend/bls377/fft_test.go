@@ -84,11 +84,9 @@ func TestBitReverse(t *testing.T) {
 }
 
 func BenchmarkFFT(b *testing.B) {
-	var rootOfUnity fr.Element
-	rootOfUnity.SetString(RootOfUnityStr)
 
 	const nbGates = 500000
-	subGroup := NewDomain(rootOfUnity, MaxOrder, nbGates)
+	subGroup := NewDomain(nbGates)
 
 	a := make([]fr.Element, subGroup.Cardinality)
 	for i := 0; i < len(a); i++ {
@@ -103,9 +101,6 @@ func BenchmarkFFT(b *testing.B) {
 
 func TestNewDomain(t *testing.T) {
 
-	var rootOfUnity fr.Element
-	rootOfUnity.SetString(RootOfUnityStr)
-
 	var one fr.Element
 	one.SetOne()
 
@@ -113,7 +108,7 @@ func TestNewDomain(t *testing.T) {
 	for i := uint(0); i < uint(25); i++ {
 		m := 1 << i // m = 2^i
 
-		S := NewDomain(rootOfUnity, MaxOrder, m)
+		S := NewDomain(m)
 
 		// test S.GeneratorSqRt^2 == S.Generator
 		var generatorSqRtSq fr.Element

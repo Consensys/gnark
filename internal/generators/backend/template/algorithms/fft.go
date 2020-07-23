@@ -10,20 +10,7 @@ import (
 	{{ template "import_curve" . }}
 )
 
-// TODO this should not be in fft.go
-{{if eq .Curve "BLS377"}}
-const RootOfUnityStr = "8065159656716812877374967518403273466521432693661810619979959746626482506078"
-const MaxOrder = 47
-{{else if eq .Curve "BLS381"}}
-const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
-const MaxOrder = 32
-{{else if eq .Curve "BN256"}}
-const RootOfUnityStr = "19103219067921713944291392827692070036145651957329286315305642004821462161904"
-const MaxOrder = 28
-{{else if eq .Curve "BW761"}}
-const RootOfUnityStr = "32863578547254505029601261939868325669770508939375122462904745766352256812585773382134936404344547323199885654433"
-const MaxOrder = 46
-{{end}}
+
 const fftParallelThreshold = 64
 
 var numCpus = uint(runtime.NumCPU())
@@ -122,7 +109,25 @@ type Domain struct {
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
-func NewDomain(rootOfUnity fr.Element, maxOrderRoot uint, m int) *Domain {
+func NewDomain(m int) *Domain {
+
+	// generator of the largest 2-adic subgroup
+	var rootOfUnity fr.Element
+	{{if eq .Curve "BLS377"}}
+		rootOfUnity.SetString("8065159656716812877374967518403273466521432693661810619979959746626482506078")
+		const maxOrderRoot uint = 47
+	{{else if eq .Curve "BLS381"}}
+		rootOfUnity.SetString("10238227357739495823651030575849232062558860180284477541189508159991286009131")
+		const maxOrderRoot uint = 32
+	{{else if eq .Curve "BN256"}}
+		rootOfUnity.SetString("19103219067921713944291392827692070036145651957329286315305642004821462161904")
+		const maxOrderRoot uint = 28
+	{{else if eq .Curve "BW761"}}
+		rootOfUnity.SetString("32863578547254505029601261939868325669770508939375122462904745766352256812585773382134936404344547323199885654433")
+		const maxOrderRoot uint = 46
+	{{end}}
+	
+
 	subGroup := &Domain{}
 	x := nextPowerOfTwo(uint(m))
 

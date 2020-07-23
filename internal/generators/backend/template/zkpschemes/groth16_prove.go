@@ -21,12 +21,10 @@ type Proof struct {
 }
 
 var (
-	root        fr.Element
 	minusTwoInv fr.Element
 )
 
 func init() {
-	root.SetString(backend_{{toLower .Curve}}.RootOfUnityStr)
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
@@ -37,7 +35,7 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 	proof := &Proof{}
 
 	// fft domain (computeH)
-	fftDomain := backend_{{toLower .Curve}}.NewDomain(root, backend_{{toLower .Curve}}.MaxOrder, r1cs.NbConstraints)
+	fftDomain := backend_{{toLower .Curve}}.NewDomain(r1cs.NbConstraints)
 
 	// sample random r and s
 	var r, s, _r, _s fr.Element

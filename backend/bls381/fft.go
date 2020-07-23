@@ -24,11 +24,6 @@ import (
 	"github.com/consensys/gurvy/bls381/fr"
 )
 
-// TODO this should not be in fft.go
-
-const RootOfUnityStr = "10238227357739495823651030575849232062558860180284477541189508159991286009131"
-const MaxOrder = 32
-
 const fftParallelThreshold = 64
 
 var numCpus = uint(runtime.NumCPU())
@@ -127,7 +122,14 @@ type Domain struct {
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
-func NewDomain(rootOfUnity fr.Element, maxOrderRoot uint, m int) *Domain {
+func NewDomain(m int) *Domain {
+
+	// generator of the largest 2-adic subgroup
+	var rootOfUnity fr.Element
+
+	rootOfUnity.SetString("10238227357739495823651030575849232062558860180284477541189508159991286009131")
+	const maxOrderRoot uint = 32
+
 	subGroup := &Domain{}
 	x := nextPowerOfTwo(uint(m))
 

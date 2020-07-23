@@ -73,9 +73,7 @@ func TestComputeH(t *testing.T) {
 	expectedH[13].SetString("3031952431061688597913922713543624406818694349737393722449744612497314671271")
 	expectedH[14].SetString("5823956675647904867599193233987686189497459491984483713315208960253899989011")
 	expectedH[15].SetString("3920524502188845982638454764913867261210845354831386460279061209446868519983")
-	var rootOfUnity fr.Element
-	rootOfUnity.SetString(backend_bls377.RootOfUnityStr)
-	fftDomain := backend_bls377.NewDomain(rootOfUnity, backend_bls377.MaxOrder, n)
+	fftDomain := backend_bls377.NewDomain(n)
 	h := <-computeH(A, B, C, fftDomain)
 	for i := 0; i < len(h); i++ {
 		if !h[i].Equal(&expectedH[i]) {
@@ -95,9 +93,7 @@ func BenchmarkComputeH(b *testing.B) {
 		B[i].SetRandom()
 		C[i].SetRandom()
 	}
-	var rootOfUnity fr.Element
-	rootOfUnity.SetString(backend_bls377.RootOfUnityStr)
-	fftDomain := backend_bls377.NewDomain(rootOfUnity, backend_bls377.MaxOrder, n)
+	fftDomain := backend_bls377.NewDomain(n)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

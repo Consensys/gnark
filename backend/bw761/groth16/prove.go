@@ -37,12 +37,10 @@ type Proof struct {
 }
 
 var (
-	root        fr.Element
 	minusTwoInv fr.Element
 )
 
 func init() {
-	root.SetString(backend_bw761.RootOfUnityStr)
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
@@ -53,7 +51,7 @@ func Prove(r1cs *backend_bw761.R1CS, pk *ProvingKey, solution map[string]interfa
 	proof := &Proof{}
 
 	// fft domain (computeH)
-	fftDomain := backend_bw761.NewDomain(root, backend_bw761.MaxOrder, r1cs.NbConstraints)
+	fftDomain := backend_bw761.NewDomain(r1cs.NbConstraints)
 
 	// sample random r and s
 	var r, s, _r, _s fr.Element

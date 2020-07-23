@@ -81,7 +81,7 @@ func Setup(r1cs *backend_bw761.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := backend_bw761.NewDomain(root, backend_bw761.MaxOrder, nbConstraints)
+	gateGroup := backend_bw761.NewDomain(nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
@@ -121,7 +121,7 @@ func DummySetup(r1cs *backend_bw761.R1CS, pk *ProvingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := backend_bw761.NewDomain(root, backend_bw761.MaxOrder, nbConstraints)
+	gateGroup := backend_bw761.NewDomain(nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
