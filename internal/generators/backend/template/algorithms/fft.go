@@ -27,11 +27,11 @@ func FFT(a []fr.Element, w fr.Element) {
 }
 
 func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, deferDone bool) {
-	if deferDone {
-		defer wg.Done()
-	}
 	n := len(a)
 	if n == 1 {
+		if deferDone {
+			wg.Done()
+		}
 		return
 	}
 	m := n >> 1
@@ -43,6 +43,9 @@ func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, def
 
 	// if m == 1, then next iteration ends, no need to call 2 extra functions for that
 	if m == 1 {
+		if deferDone {
+			wg.Done()
+		}
 		return
 	}
 
@@ -73,6 +76,10 @@ func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, def
 		wg.Add(1)
 		go asyncFFT(a[m:n], w, wg, splits, true)
 		asyncFFT(a[0:m], w, wg, splits, false)
+	}
+
+	if deferDone {
+		wg.Done()
 	}
 }
 
