@@ -30,22 +30,20 @@ var errPairingCheckFailed = errors.New("pairing doesn't match")
 // Verify verifies a proof
 func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
 
-	c := curve.BN256()
-
 	var kSum curve.G1Jac
-	var eKrsδ, eArBs, eKvkγ curve.PairingResult
+	var eKrsδ, eArBs *curve.PairingResult
 	chan1 := make(chan bool, 1)
 	chan2 := make(chan bool, 1)
 
 	// e([Krs]1, -[δ]2)
 	go func() {
-		c.MillerLoop(proof.Krs, vk.G2.DeltaNeg, &eKrsδ)
+		eKrsδ = curve.MillerLoop(proof.Krs, vk.G2.DeltaNeg)
 		chan1 <- true
 	}()
 
 	// e([Ar]1, [Bs]2)
 	go func() {
-		c.MillerLoop(proof.Ar, proof.Bs, &eArBs)
+		eArBs = curve.MillerLoop(proof.Ar, proof.Bs)
 		chan2 <- true
 	}()
 
@@ -53,17 +51,17 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	if err != nil {
 		return err
 	}
-	<-kSum.MultiExp(c, vk.G1.K, kInputs)
+	<-kSum.MultiExp(vk.G1.K, kInputs)
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 
-	c.MillerLoop(kSumAff, vk.G2.GammaNeg, &eKvkγ)
+	eKvkγ := curve.MillerLoop(kSumAff, vk.G2.GammaNeg)
 
 	<-chan1
 	<-chan2
-	right := c.FinalExponentiation(&eKrsδ, &eArBs, &eKvkγ)
+	right := curve.FinalExponentiation(eKrsδ, eArBs, eKvkγ)
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}

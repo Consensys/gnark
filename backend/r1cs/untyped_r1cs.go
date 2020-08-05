@@ -50,8 +50,6 @@ func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 		return r1cs.toBLS377()
 	case gurvy.BLS381:
 		return r1cs.toBLS381()
-	case gurvy.BW761:
-		return r1cs.toBW761()
 	default:
 		panic("not implemented")
 	}

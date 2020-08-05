@@ -101,7 +101,7 @@ func TestIntegration(t *testing.T) {
 		pv(fInputBad, false)
 	}
 
-	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256, gurvy.BW761}
+	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256}
 
 	for name, circuit := range circuits.Circuits {
 		if name == "reference_large" {

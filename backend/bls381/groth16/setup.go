@@ -17,6 +17,8 @@
 package groth16
 
 import (
+	"math/big"
+
 	curve "github.com/consensys/gurvy/bls381"
 	"github.com/consensys/gurvy/bls381/fr"
 
@@ -133,14 +135,13 @@ func DummySetup(r1cs *backend_bls381.R1CS, pk *ProvingKey) {
 	// samples toxic waste
 	tw := sampleToxicWaste()
 
-	c := curve.BLS381()
 	var r1Jac curve.G1Jac
 	var r1Aff curve.G1Affine
-	r1Jac.ScalarMulByGen(c, tw.alphaReg)
+	r1Jac.ScalarMulByGen(&tw.alphaReg)
 	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac
 	var r2Aff curve.G2Affine
-	r2Jac.ScalarMulByGen(c, tw.alphaReg)
+	r2Jac.ScalarMulByGen(&tw.alphaReg)
 	r2Aff.FromJacobian(&r2Jac)
 	for i := 0; i < nbWires; i++ {
 		pk.G1.A[i] = r1Aff
@@ -168,7 +169,7 @@ type toxicWaste struct {
 	t, alpha, beta, gamma, delta fr.Element
 
 	// Non Montgomery form of params
-	alphaReg, betaReg, gammaReg, deltaReg fr.Element
+	alphaReg, betaReg, gammaReg, deltaReg big.Int
 }
 
 func sampleToxicWaste() toxicWaste {
@@ -181,17 +182,15 @@ func sampleToxicWaste() toxicWaste {
 	res.gamma.SetRandom()
 	res.delta.SetRandom()
 
-	res.alphaReg = res.alpha.ToRegular()
-	res.betaReg = res.beta.ToRegular()
-	res.gammaReg = res.gamma.ToRegular()
-	res.deltaReg = res.delta.ToRegular()
+	res.alpha.ToBigIntRegular(&res.alphaReg)
+	res.beta.ToBigIntRegular(&res.betaReg)
+	res.gamma.ToBigIntRegular(&res.gammaReg)
+	res.delta.ToBigIntRegular(&res.deltaReg)
 
 	return res
 }
 
 func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
-
-	c := curve.BLS381()
 
 	var vkG2JacDeltaNeg, vkG2JacGammaNeg curve.G2Jac
 
@@ -199,46 +198,44 @@ func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
 	var pkG2Beta, pkG2Delta curve.G2Jac
 
 	// sets pk: [α]1, [β]1, [β]2, [δ]1, [δ]2
-	pkG1Alpha.ScalarMulByGen(c, tw.alphaReg)
+	pkG1Alpha.ScalarMulByGen(&tw.alphaReg)
 	pk.G1.Alpha.FromJacobian(&pkG1Alpha)
-	pkG1Beta.ScalarMulByGen(c, tw.betaReg)
+	pkG1Beta.ScalarMulByGen(&tw.betaReg)
 	pk.G1.Beta.FromJacobian(&pkG1Beta)
-	pkG2Beta.ScalarMulByGen(c, tw.betaReg)
+	pkG2Beta.ScalarMulByGen(&tw.betaReg)
 	pk.G2.Beta.FromJacobian(&pkG2Beta)
-	pkG1Delta.ScalarMulByGen(c, tw.deltaReg)
+	pkG1Delta.ScalarMulByGen(&tw.deltaReg)
 	pk.G1.Delta.FromJacobian(&pkG1Delta)
-	pkG2Delta.ScalarMulByGen(c, tw.deltaReg)
+	pkG2Delta.ScalarMulByGen(&tw.deltaReg)
 	pk.G2.Delta.FromJacobian(&pkG2Delta)
 
 	// sets vk: -[δ]2, -[γ]2
-	vkG2JacDeltaNeg.ScalarMulByGen(c, tw.deltaReg)
-	vkG2JacGammaNeg.ScalarMulByGen(c, tw.gammaReg)
+	vkG2JacDeltaNeg.ScalarMulByGen(&tw.deltaReg)
+	vkG2JacGammaNeg.ScalarMulByGen(&tw.gammaReg)
 
 	vkG2JacDeltaNeg.Neg(&vkG2JacDeltaNeg)
 	vk.G2.DeltaNeg.FromJacobian(&vkG2JacDeltaNeg)
 	vkG2JacGammaNeg.Neg(&vkG2JacGammaNeg)
 	vk.G2.GammaNeg.FromJacobian(&vkG2JacGammaNeg)
 
-	vk.E = c.FinalExponentiation(c.MillerLoop(pk.G1.Alpha, pk.G2.Beta, &vk.E))
+	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
 
 }
 
 func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *backend_bls381.Domain) {
-
-	c := curve.BLS381()
 
 	var one fr.Element
 	one.SetOne()
 
 	var zdt fr.Element
 
-	zdt.Exp(tw.t, uint64(g.Cardinality)).
+	zdt.Exp(tw.t, new(big.Int).SetUint64(uint64(g.Cardinality))).
 		Sub(&zdt, &one).
 		Div(&zdt, &tw.delta) // sets Zdt to Zdt/delta
 
-	Zdt := make([]fr.Element, g.Cardinality)
+	Zdt := make([]big.Int, g.Cardinality)
 	for i := 0; i < g.Cardinality; i++ {
-		Zdt[i] = zdt.ToRegular()
+		zdt.ToBigIntRegular(&Zdt[i])
 		zdt.MulAssign(&tw.t)
 	}
 
@@ -246,7 +243,7 @@ func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *backend_bls381.Dom
 	parallel.Execute(g.Cardinality, func(start, end int) {
 		var pkG1Z curve.G1Jac
 		for j := start; j < end; j++ {
-			pkG1Z.ScalarMulByGen(c, Zdt[j])
+			pkG1Z.ScalarMulByGen(&Zdt[j])
 			pk.G1.Z[j].FromJacobian(&pkG1Z)
 		}
 	})
@@ -274,7 +271,7 @@ func setupABC(r1cs *backend_bls381.R1CS, g *backend_bls381.Domain, tw toxicWaste
 
 	// Setting L0
 	ithLagrangePolt.Set(&tw.t)
-	ithLagrangePolt.Exp(ithLagrangePolt, uint64(g.Cardinality)).
+	ithLagrangePolt.Exp(ithLagrangePolt, new(big.Int).SetUint64(uint64(g.Cardinality))).
 		Sub(&ithLagrangePolt, &one)
 	tmp.Set(&tw.t).Sub(&tmp, &one)
 	ithLagrangePolt.Div(&ithLagrangePolt, &tmp).
@@ -307,17 +304,15 @@ func setupABC(r1cs *backend_bls381.R1CS, g *backend_bls381.Domain, tw toxicWaste
 
 func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw toxicWaste, r1cs *backend_bls381.R1CS) {
 
-	c := curve.BLS381()
-
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	publicStartIndex := r1cs.NbWires - r1cs.NbPublicWires
 	parallel.Execute(nbWires, func(start, end int) {
 		var tt fr.Element
 		var pkG1A, pkG1K, vkG1K curve.G1Jac
+		var bpkG1A big.Int
 		for i := start; i < end; i++ {
-
-			pkG1A.ScalarMulByGen(c, A[i].ToRegular())
+			pkG1A.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
 			pk.G1.A[i].FromJacobian(&pkG1A)
 
 			A[i].MulAssign(&tw.beta)
@@ -326,12 +321,12 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 				Add(&A[i], &C[i])
 
 			if i < publicStartIndex {
-				A[i].Div(&A[i], &tw.delta).FromMont()
-				pkG1K.ScalarMulByGen(c, A[i])
+				A[i].Div(&A[i], &tw.delta) //.FromMont()
+				pkG1K.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
 				pk.G1.K[i].FromJacobian(&pkG1K)
 			} else {
-				A[i].Div(&A[i], &tw.gamma).FromMont()
-				vkG1K.ScalarMulByGen(c, A[i])
+				A[i].Div(&A[i], &tw.gamma) //.FromMont()
+				vkG1K.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
 				vk.G1.K[i-publicStartIndex].FromJacobian(&vkG1K)
 			}
 		}
@@ -341,11 +336,12 @@ func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw 
 	parallel.Execute(nbWires, func(start, end int) {
 		var pkG1B curve.G1Jac
 		var pkG2B curve.G2Jac
+		var bB big.Int
 		for i := start; i < end; i++ {
-			B[i].FromMont()
-			pkG1B.ScalarMulByGen(c, B[i])
+			B[i].ToBigIntRegular(&bB)
+			pkG1B.ScalarMulByGen(&bB)
 			pk.G1.B[i].FromJacobian(&pkG1B)
-			pkG2B.ScalarMulByGen(c, B[i])
+			pkG2B.ScalarMulByGen(&bB)
 			pk.G2.B[i].FromJacobian(&pkG2B)
 		}
 	})

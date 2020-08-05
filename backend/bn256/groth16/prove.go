@@ -17,6 +17,8 @@
 package groth16
 
 import (
+	"math/big"
+
 	curve "github.com/consensys/gurvy/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
 
@@ -125,7 +127,7 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		points = append(points, pk.G1.Delta, ar, bs)
 		scalars = append(scalars, r.ToRegular(), _s, _r)
 		<-chToken
-		chAsync := Krs.MultiExp(curve.BN256(), points, scalars)
+		chAsync := Krs.MultiExp(points, scalars)
 		chToken <- struct{}{}
 		<-chAsync
 		KrsAffine.FromJacobian(&Krs)
@@ -144,7 +146,7 @@ func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chToken 
 		points2 := append(pk.G2.B, pk.G2.Delta)
 		scalars2 := append(wireValues, _s)
 		<-chToken
-		chAsync := Bs.MultiExp(curve.BN256(), points2, scalars2)
+		chAsync := Bs.MultiExp(points2, scalars2)
 		chToken <- struct{}{}
 		<-chAsync
 		Bs.AddMixed(&pk.G2.Beta)
@@ -164,7 +166,7 @@ func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chTokenA
 		points := append(pk.G1.B, pk.G1.Delta)
 		scalars := append(wireValues, _s)
 		<-chTokenA
-		chAsync := bs1.MultiExp(curve.BN256(), points, scalars)
+		chAsync := bs1.MultiExp(points, scalars)
 		chTokenB <- struct{}{}
 		<-chAsync
 		bs1.AddMixed(&pk.G1.Beta)
@@ -183,7 +185,7 @@ func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken 
 		var arAffine curve.G1Affine
 		points := append(pk.G1.A, pk.G1.Delta)
 		scalars := append(wireValues, _r)
-		chAsync := ar.MultiExp(curve.BN256(), points, scalars)
+		chAsync := ar.MultiExp(points, scalars)
 		chToken <- struct{}{}
 		<-chAsync
 		ar.AddMixed(&pk.G1.Alpha)
@@ -323,7 +325,7 @@ func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) 
 }
 
 func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Element) {
-	table[0].Exp(w, power)
+	table[0].Exp(w, new(big.Int).SetUint64(power))
 	table[0].MulAssign(&scale)
 	for i := 1; i < len(table); i++ {
 		table[i].Mul(&table[i-1], &w)

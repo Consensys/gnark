@@ -17,6 +17,7 @@
 package backend_bn256
 
 import (
+	"math/big"
 	"math/bits"
 	"runtime"
 	"sync"
@@ -148,7 +149,8 @@ func NewDomain(m int) *Domain {
 		panic("m is too big: the required root of unity does not exist")
 	}
 	expo := uint64(1 << (maxOrderRoot - logx - 1))
-	subGroup.GeneratorSqRt.Exp(rootOfUnity, expo)
+	bExpo := new(big.Int).SetUint64(expo)
+	subGroup.GeneratorSqRt.Exp(rootOfUnity, bExpo)
 
 	// Generator = GeneratorSqRt^2 has order x
 	subGroup.Generator.Mul(&subGroup.GeneratorSqRt, &subGroup.GeneratorSqRt) // order x

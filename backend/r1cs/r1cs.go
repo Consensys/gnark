@@ -4,7 +4,6 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gurvy"
 )
@@ -32,8 +31,6 @@ func Read(path string) (R1CS, error) {
 		r1cs = &backend_bls377.R1CS{}
 	case gurvy.BLS381:
 		r1cs = &backend_bls381.R1CS{}
-	case gurvy.BW761:
-		r1cs = &backend_bw761.R1CS{}
 	default:
 		panic("not implemented")
 	}
