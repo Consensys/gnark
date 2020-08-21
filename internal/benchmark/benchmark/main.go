@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
@@ -33,14 +34,15 @@ func PrintMemUsage(header string) {
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 1000000
+const n = 40000
 
 // else will output average proving times, in csv format
 func main() {
 	pk, r1cs, input := generateCircuit(n)
+	start := time.Now()
 	_, _ = groth16.Prove(r1cs, pk, input)
-	runtime.GC()
-	PrintMemUsage("after prove")
+	took := time.Since(start)
+	fmt.Println("took", took.Milliseconds())
 }
 
 type benchCircuit struct {
@@ -70,9 +72,7 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	ctx := frontend.NewContext(gurvy.BN256)
 	ctx.Set(nbConstraintKey, nbConstraints)
 
-	PrintMemUsage("before compile")
 	r1cs, err := frontend.Compile(ctx, &circuit)
-	PrintMemUsage("after compile")
 	if err != nil {
 		panic(err)
 	}
@@ -90,6 +90,5 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	// ---------------------------------------------------------------------------------------------
 	//  setup
 	pk := groth16.DummySetup(r1cs)
-	PrintMemUsage("after setup")
 	return pk, r1cs, solution
 }

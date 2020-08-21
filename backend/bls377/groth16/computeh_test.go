@@ -74,7 +74,7 @@ func TestComputeH(t *testing.T) {
 	expectedH[14].SetString("5823956675647904867599193233987686189497459491984483713315208960253899989011")
 	expectedH[15].SetString("3920524502188845982638454764913867261210845354831386460279061209446868519983")
 	fftDomain := backend_bls377.NewDomain(n)
-	h := <-computeH(A, B, C, fftDomain)
+	h := computeH(A, B, C, fftDomain)
 	for i := 0; i < len(h); i++ {
 		if !h[i].Equal(&expectedH[i]) {
 			t.Fatal("incorrect result")
@@ -97,7 +97,7 @@ func BenchmarkComputeH(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		<-computeH(A, B, C, fftDomain)
+		computeH(A, B, C, fftDomain)
 	}
 
 }

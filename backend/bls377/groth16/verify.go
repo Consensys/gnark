@@ -51,7 +51,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	if err != nil {
 		return err
 	}
-	<-kSum.MultiExp(vk.G1.K, kInputs)
+	kSum.MultiExp(vk.G1.K, kInputs)
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine

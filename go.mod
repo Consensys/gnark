@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/consensys/bavard v0.1.3
-	github.com/consensys/gurvy v0.2.1-0.20200805193104-cce203596387
+	github.com/consensys/gurvy v0.2.1-0.20200821232443-5496af7cda9e
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899

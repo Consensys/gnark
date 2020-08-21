@@ -67,37 +67,25 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 	// G2 multiexp is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
-	chH := computeH(a, b, c, fftDomain)
+	h := computeH(a, b, c, fftDomain)
 
-	// these tokens ensure multiExp tasks are enqueue in order in the pool
-	// so that bs2 doesn't compete with ar1 and bs1 for resources
-	// hence delaying Krs compute longer than needed
-	chTokenA := make(chan struct{}, 1)
-	chTokenB := make(chan struct{}, 1)
 
 	// Ar1 (1 multi exp G1 - size = len(wires))
-	chAr1 := computeAr1(pk, _r, wireValues, chTokenA)
+	proof.Ar = computeAr1(pk, _r, wireValues)
 
 	// Bs1 (1 multi exp G1 - size = len(wires))
-	chBs1 := computeBs1(pk, _s, wireValues, chTokenA, chTokenB)
+	bs1 := computeBs1(pk, _s, wireValues)
 
 	// Bs2 (1 multi exp G2 - size = len(wires))
-	chBs2 := computeBs2(pk, _s, wireValues, chTokenB)
+	proof.Bs = computeBs2(pk, _s, wireValues)
 
 	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-	h := <-chH
-	proof.Ar = <-chAr1
-	bs := <-chBs1
-	proof.Krs = <-computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs, h, r1cs.NbWires-r1cs.NbPublicWires, chTokenB)
-
-	proof.Bs = <-chBs2
+	proof.Krs = computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs1, h, r1cs.NbWires-r1cs.NbPublicWires)
 
 	return proof, nil
 }
 
-func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element, ar, bs curve.G1Affine, h []fr.Element, kIndex int, chToken chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
+func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element, ar, bs curve.G1Affine, h []fr.Element, kIndex int) curve.G1Affine {
 		var Krs curve.G1Jac
 		var KrsAffine curve.G1Affine
 
@@ -108,79 +96,61 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 		// Krs random part
 		points = append(points, pk.G1.Delta, ar, bs)
 		scalars = append(scalars, r.ToRegular(), _s, _r)
-		<-chToken
-		chAsync := Krs.MultiExp( points, scalars)
-		chToken <- struct{}{}
-		<-chAsync
+		
+		Krs.MultiExp( points, scalars)
+		
+		
 		KrsAffine.FromJacobian(&Krs)
 
-		chResult <- KrsAffine
-		close(chResult)
-	}()
-	return chResult
+		return KrsAffine
 }
 
-func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chToken chan struct{}) <-chan curve.G2Affine {
-	chResult := make(chan curve.G2Affine, 1)
-	go func() {
+func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2Affine {
+
 		var Bs curve.G2Jac
 		var BsAffine curve.G2Affine
 		points2 := append(pk.G2.B, pk.G2.Delta)
 		scalars2 := append(wireValues, _s)
-		<-chToken
-		chAsync := Bs.MultiExp( points2, scalars2)
-		chToken <- struct{}{}
-		<-chAsync
+		
+		Bs.MultiExp( points2, scalars2)
+		
+		
 		Bs.AddMixed(&pk.G2.Beta)
 		BsAffine.FromJacobian(&Bs)
-		chResult <- BsAffine
-		close(chResult)
-	}()
-	return chResult
+		return BsAffine
 }
 
-func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chTokenA, chTokenB chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
+func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G1Affine {
+	
 		var bs1 curve.G1Jac
 		var bs1Affine curve.G1Affine
 
 		points := append(pk.G1.B, pk.G1.Delta)
 		scalars := append(wireValues, _s)
-		<-chTokenA
-		chAsync := bs1.MultiExp( points, scalars)
-		chTokenB <- struct{}{}
-		<-chAsync
+		bs1.MultiExp( points, scalars)
+		
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1Affine.FromJacobian(&bs1)
-
-		chResult <- bs1Affine
-		close(chResult)
-	}()
-	return chResult
+		return bs1Affine
+	
 }
 
-func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
+func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element) curve.G1Affine {
+	
 		var ar curve.G1Jac
 		var arAffine curve.G1Affine
 		points := append(pk.G1.A, pk.G1.Delta)
 		scalars := append(wireValues, _r)
-		chAsync := ar.MultiExp( points, scalars)
-		chToken <- struct{}{}
-		<-chAsync
+		ar.MultiExp( points, scalars)
+		
+		
 		ar.AddMixed(&pk.G1.Alpha)
 		arAffine.FromJacobian(&ar)
-		chResult <- arAffine
-		close(chResult)
-	}()
-	return chResult
+		return  arAffine
+	
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain) <-chan []fr.Element {
-	chResult := make(chan []fr.Element, 1)
-	go func() {
+func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain) []fr.Element {
 		// H part of Krs
 		// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -268,11 +238,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 			}
 		})
 
-		chResult <- a
-		close(chResult)
-	}()
-
-	return chResult
+		return a
 }
 
 func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) {

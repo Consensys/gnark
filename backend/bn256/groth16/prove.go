@@ -85,212 +85,174 @@ func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution map[string]interfa
 	// G2 multiexp is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
-	chH := computeH(a, b, c, fftDomain)
-
-	// these tokens ensure multiExp tasks are enqueue in order in the pool
-	// so that bs2 doesn't compete with ar1 and bs1 for resources
-	// hence delaying Krs compute longer than needed
-	chTokenA := make(chan struct{}, 1)
-	chTokenB := make(chan struct{}, 1)
+	h := computeH(a, b, c, fftDomain)
 
 	// Ar1 (1 multi exp G1 - size = len(wires))
-	chAr1 := computeAr1(pk, _r, wireValues, chTokenA)
+	proof.Ar = computeAr1(pk, _r, wireValues)
 
 	// Bs1 (1 multi exp G1 - size = len(wires))
-	chBs1 := computeBs1(pk, _s, wireValues, chTokenA, chTokenB)
+	bs1 := computeBs1(pk, _s, wireValues)
 
 	// Bs2 (1 multi exp G2 - size = len(wires))
-	chBs2 := computeBs2(pk, _s, wireValues, chTokenB)
+	proof.Bs = computeBs2(pk, _s, wireValues)
 
 	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-	h := <-chH
-	proof.Ar = <-chAr1
-	bs := <-chBs1
-	proof.Krs = <-computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs, h, r1cs.NbWires-r1cs.NbPublicWires, chTokenB)
-
-	proof.Bs = <-chBs2
+	proof.Krs = computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs1, h, r1cs.NbWires-r1cs.NbPublicWires)
 
 	return proof, nil
 }
 
-func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element, ar, bs curve.G1Affine, h []fr.Element, kIndex int, chToken chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
-		var Krs curve.G1Jac
-		var KrsAffine curve.G1Affine
+func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element, ar, bs curve.G1Affine, h []fr.Element, kIndex int) curve.G1Affine {
+	var Krs curve.G1Jac
+	var KrsAffine curve.G1Affine
 
-		// Krs (H part + priv part)
-		r.Mul(&r, &s).Neg(&r)
-		points := append(pk.G1.Z, pk.G1.K[:kIndex]...) //, Ar, bs1, pk.G1.Delta)
-		scalars := append(h, wireValues[:kIndex]...)   //, _s, _r, r.ToRegular())
-		// Krs random part
-		points = append(points, pk.G1.Delta, ar, bs)
-		scalars = append(scalars, r.ToRegular(), _s, _r)
-		<-chToken
-		chAsync := Krs.MultiExp(points, scalars)
-		chToken <- struct{}{}
-		<-chAsync
-		KrsAffine.FromJacobian(&Krs)
+	// Krs (H part + priv part)
+	r.Mul(&r, &s).Neg(&r)
+	points := append(pk.G1.Z, pk.G1.K[:kIndex]...) //, Ar, bs1, pk.G1.Delta)
+	scalars := append(h, wireValues[:kIndex]...)   //, _s, _r, r.ToRegular())
+	// Krs random part
+	points = append(points, pk.G1.Delta, ar, bs)
+	scalars = append(scalars, r.ToRegular(), _s, _r)
 
-		chResult <- KrsAffine
-		close(chResult)
-	}()
-	return chResult
+	Krs.MultiExp(points, scalars)
+
+	KrsAffine.FromJacobian(&Krs)
+
+	return KrsAffine
 }
 
-func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chToken chan struct{}) <-chan curve.G2Affine {
-	chResult := make(chan curve.G2Affine, 1)
-	go func() {
-		var Bs curve.G2Jac
-		var BsAffine curve.G2Affine
-		points2 := append(pk.G2.B, pk.G2.Delta)
-		scalars2 := append(wireValues, _s)
-		<-chToken
-		chAsync := Bs.MultiExp(points2, scalars2)
-		chToken <- struct{}{}
-		<-chAsync
-		Bs.AddMixed(&pk.G2.Beta)
-		BsAffine.FromJacobian(&Bs)
-		chResult <- BsAffine
-		close(chResult)
-	}()
-	return chResult
+func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2Affine {
+
+	var Bs curve.G2Jac
+	var BsAffine curve.G2Affine
+	points2 := append(pk.G2.B, pk.G2.Delta)
+	scalars2 := append(wireValues, _s)
+
+	Bs.MultiExp(points2, scalars2)
+
+	Bs.AddMixed(&pk.G2.Beta)
+	BsAffine.FromJacobian(&Bs)
+	return BsAffine
 }
 
-func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element, chTokenA, chTokenB chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
-		var bs1 curve.G1Jac
-		var bs1Affine curve.G1Affine
+func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G1Affine {
 
-		points := append(pk.G1.B, pk.G1.Delta)
-		scalars := append(wireValues, _s)
-		<-chTokenA
-		chAsync := bs1.MultiExp(points, scalars)
-		chTokenB <- struct{}{}
-		<-chAsync
-		bs1.AddMixed(&pk.G1.Beta)
-		bs1Affine.FromJacobian(&bs1)
+	var bs1 curve.G1Jac
+	var bs1Affine curve.G1Affine
 
-		chResult <- bs1Affine
-		close(chResult)
-	}()
-	return chResult
+	points := append(pk.G1.B, pk.G1.Delta)
+	scalars := append(wireValues, _s)
+	bs1.MultiExp(points, scalars)
+
+	bs1.AddMixed(&pk.G1.Beta)
+	bs1Affine.FromJacobian(&bs1)
+	return bs1Affine
+
 }
 
-func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element, chToken chan struct{}) <-chan curve.G1Affine {
-	chResult := make(chan curve.G1Affine, 1)
-	go func() {
-		var ar curve.G1Jac
-		var arAffine curve.G1Affine
-		points := append(pk.G1.A, pk.G1.Delta)
-		scalars := append(wireValues, _r)
-		chAsync := ar.MultiExp(points, scalars)
-		chToken <- struct{}{}
-		<-chAsync
-		ar.AddMixed(&pk.G1.Alpha)
-		arAffine.FromJacobian(&ar)
-		chResult <- arAffine
-		close(chResult)
-	}()
-	return chResult
+func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element) curve.G1Affine {
+
+	var ar curve.G1Jac
+	var arAffine curve.G1Affine
+	points := append(pk.G1.A, pk.G1.Delta)
+	scalars := append(wireValues, _r)
+	ar.MultiExp(points, scalars)
+
+	ar.AddMixed(&pk.G1.Alpha)
+	arAffine.FromJacobian(&ar)
+	return arAffine
+
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) <-chan []fr.Element {
-	chResult := make(chan []fr.Element, 1)
-	go func() {
-		// H part of Krs
-		// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
-		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
-		// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
-		// 	3 - h = ifft_coset(ca o cb - cc)
+func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) []fr.Element {
+	// H part of Krs
+	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
+	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
+	// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
+	// 	3 - h = ifft_coset(ca o cb - cc)
 
-		n := len(a)
-		debug.Assert((n == len(b)) && (n == len(c)))
+	n := len(a)
+	debug.Assert((n == len(b)) && (n == len(c)))
 
-		// add padding
-		padding := make([]fr.Element, fftDomain.Cardinality-n)
-		a = append(a, padding...)
-		b = append(b, padding...)
-		c = append(c, padding...)
-		n = len(a)
+	// add padding
+	padding := make([]fr.Element, fftDomain.Cardinality-n)
+	a = append(a, padding...)
+	b = append(b, padding...)
+	c = append(c, padding...)
+	n = len(a)
 
-		// exptable = scale by inverse of n + coset
-		// ifft(a) would normaly do FFT(a, wInv) then scale by CardinalityInv
-		// fft_coset(a) would normaly mutliply a with expTable of fftDomain.GeneratorSqRt
-		// this pre-computed expTable do both in one pass --> it contains
-		// expTable[0] = fftDomain.CardinalityInv
-		// expTable[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
-		// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
-		// ...
-		expTable := make([]fr.Element, n)
-		expTable[0] = fftDomain.CardinalityInv
+	// exptable = scale by inverse of n + coset
+	// ifft(a) would normaly do FFT(a, wInv) then scale by CardinalityInv
+	// fft_coset(a) would normaly mutliply a with expTable of fftDomain.GeneratorSqRt
+	// this pre-computed expTable do both in one pass --> it contains
+	// expTable[0] = fftDomain.CardinalityInv
+	// expTable[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
+	// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
+	// ...
+	expTable := make([]fr.Element, n)
+	expTable[0] = fftDomain.CardinalityInv
 
-		var wgExpTable sync.WaitGroup
+	var wgExpTable sync.WaitGroup
 
-		// to ensure the pool is busy while the FFT splits, we schedule precomputation of the exp table
-		// before the FFTs
-		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable, &wgExpTable)
+	// to ensure the pool is busy while the FFT splits, we schedule precomputation of the exp table
+	// before the FFTs
+	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable, &wgExpTable)
 
-		var wg sync.WaitGroup
-		FFTa := func(s []fr.Element) {
-			// FFT inverse
-			backend_bn256.FFT(s, fftDomain.GeneratorInv)
+	var wg sync.WaitGroup
+	FFTa := func(s []fr.Element) {
+		// FFT inverse
+		backend_bn256.FFT(s, fftDomain.GeneratorInv)
 
-			// wait for the expTable to be pre-computed
-			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
-			wgExpTable.Wait()
-			parallel.Execute(n, func(start, end int) {
-				for i := start; i < end; i++ {
-					s[i].MulAssign(&expTable[i])
-				}
-			})
+		// wait for the expTable to be pre-computed
+		// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
+		wgExpTable.Wait()
+		parallel.Execute(n, func(start, end int) {
+			for i := start; i < end; i++ {
+				s[i].MulAssign(&expTable[i])
+			}
+		})
 
-			// FFT coset
-			backend_bn256.FFT(s, fftDomain.Generator)
-			wg.Done()
+		// FFT coset
+		backend_bn256.FFT(s, fftDomain.Generator)
+		wg.Done()
+	}
+	wg.Add(3)
+	go FFTa(a)
+	go FFTa(b)
+	FFTa(c)
+
+	// wait for first step (ifft + fft_coset) to be done
+	wg.Wait()
+
+	// h = ifft_coset(ca o cb - cc)
+	// reusing a to avoid unecessary memalloc
+	parallel.Execute(n, func(start, end int) {
+		for i := start; i < end; i++ {
+			a[i].Mul(&a[i], &b[i]).
+				SubAssign(&c[i]).
+				MulAssign(&minusTwoInv)
 		}
-		wg.Add(3)
-		go FFTa(a)
-		go FFTa(b)
-		FFTa(c)
+	})
 
-		// wait for first step (ifft + fft_coset) to be done
-		wg.Wait()
+	// before computing the ifft_coset, we schedule the expTable precompute of the ifft_coset
+	// to ensure the pool is busy while the FFT splits
+	// similar reasoning as in ifft pass -->
+	// expTable[0] = fftDomain.CardinalityInv
+	// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
+	// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
+	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
 
-		// h = ifft_coset(ca o cb - cc)
-		// reusing a to avoid unecessary memalloc
-		parallel.Execute(n, func(start, end int) {
-			for i := start; i < end; i++ {
-				a[i].Mul(&a[i], &b[i]).
-					SubAssign(&c[i]).
-					MulAssign(&minusTwoInv)
-			}
-		})
+	// ifft_coset
+	backend_bn256.FFT(a, fftDomain.GeneratorInv)
 
-		// before computing the ifft_coset, we schedule the expTable precompute of the ifft_coset
-		// to ensure the pool is busy while the FFT splits
-		// similar reasoning as in ifft pass -->
-		// expTable[0] = fftDomain.CardinalityInv
-		// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
-		// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
-		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
+	wgExpTable.Wait() // wait for pre-computation of exp table to be done
+	parallel.Execute(n, func(start, end int) {
+		for i := start; i < end; i++ {
+			a[i].MulAssign(&expTable[i]).FromMont()
+		}
+	})
 
-		// ifft_coset
-		backend_bn256.FFT(a, fftDomain.GeneratorInv)
-
-		wgExpTable.Wait() // wait for pre-computation of exp table to be done
-		parallel.Execute(n, func(start, end int) {
-			for i := start; i < end; i++ {
-				a[i].MulAssign(&expTable[i]).FromMont()
-			}
-		})
-
-		chResult <- a
-		close(chResult)
-	}()
-
-	return chResult
+	return a
 }
 
 func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) {
