@@ -85,21 +85,54 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (r1cs.R1CS, map[string]interface{}, map[string]interface{}) {
-	for name, circuit := range circuits.Circuits {
-		if name == "reference_large" {
-			r1cs := circuit.R1CS.ToR1CS(curve.ID)
-			return r1cs, circuit.Good, circuit.Bad
-		}
+type refCircuit struct {
+	nbConstraints int 
+	X frontend.Variable
+	Y frontend.Variable ` + "`" + "gnark:\",public\"" + "`" + `
+}
+
+func (circuit *refCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+	for i := 0; i < circuit.nbConstraints; i++ {
+		circuit.X = cs.MUL(circuit.X, circuit.X)
+	}
+	cs.MUSTBE_EQ(circuit.X, circuit.Y)
+	return nil 
+}
+
+func (circuit *refCircuit) PostInit(ctx *frontend.Context) error {
+	return nil
+}
+func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
+	const nbConstraints = 40000
+	circuit := refCircuit{
+		nbConstraints: nbConstraints,
+	}
+	ctx := frontend.NewContext(curve.ID)
+	r1cs, err := frontend.Compile(ctx, &circuit)
+	if err != nil {
+		panic(err)
+	}
+	
+	good := make(map[string]interface{})
+	good["X"] = 2
+
+	// compute expected Y
+	var expectedY fr.Element
+	expectedY.SetUint64(2)
+
+	for i := 0; i < nbConstraints; i++ {
+		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	panic("reference circuit is not defined")
+	good["Y"] = expectedY
+
+	return r1cs, good
 }
 
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
-	r1cs, _, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, _ := referenceCircuit()
+	
 	var pk groth16_{{toLower .Curve}}.ProvingKey
 	var vk groth16_{{toLower .Curve}}.VerifyingKey
 	b.ResetTimer()
@@ -114,8 +147,8 @@ func BenchmarkSetup(b *testing.B) {
 // BenchmarkProver is a helper to benchmark Prove on a given circuit
 // it will run the Setup, reset the benchmark timer and benchmark the prover
 func BenchmarkProver(b *testing.B) {
-	r1cs, solution, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, solution := referenceCircuit()
+	
 	var pk groth16_{{toLower .Curve}}.ProvingKey
 	groth16_{{toLower .Curve}}.DummySetup(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk)
 
@@ -131,8 +164,8 @@ func BenchmarkProver(b *testing.B) {
 // it will run the Setup, the Prover and reset the benchmark timer and benchmark the verifier
 // the provided solution will be filtered to keep only public inputs
 func BenchmarkVerifier(b *testing.B) {
-	r1cs, solution, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, solution := referenceCircuit()
+	
 	var pk groth16_{{toLower .Curve}}.ProvingKey
 	var vk groth16_{{toLower .Curve}}.VerifyingKey
 	groth16_{{toLower .Curve}}.Setup(r1cs.(*backend_{{toLower .Curve}}.R1CS), &pk, &vk)

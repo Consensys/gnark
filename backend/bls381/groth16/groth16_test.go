@@ -23,7 +23,6 @@ import (
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	"github.com/consensys/gnark/backend/r1cs"
 
-	"runtime/debug"
 	"testing"
 
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
@@ -31,6 +30,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
 )
 
 func TestCircuits(t *testing.T) {
@@ -84,21 +84,54 @@ func TestParsePublicInput(t *testing.T) {
 //     benches		  //
 //--------------------//
 
-func referenceCircuit() (r1cs.R1CS, map[string]interface{}, map[string]interface{}) {
-	for name, circuit := range circuits.Circuits {
-		if name == "reference_large" {
-			r1cs := circuit.R1CS.ToR1CS(curve.ID)
-			return r1cs, circuit.Good, circuit.Bad
-		}
+type refCircuit struct {
+	nbConstraints int
+	X             frontend.Variable
+	Y             frontend.Variable `gnark:",public"`
+}
+
+func (circuit *refCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+	for i := 0; i < circuit.nbConstraints; i++ {
+		circuit.X = cs.MUL(circuit.X, circuit.X)
+	}
+	cs.MUSTBE_EQ(circuit.X, circuit.Y)
+	return nil
+}
+
+func (circuit *refCircuit) PostInit(ctx *frontend.Context) error {
+	return nil
+}
+func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
+	const nbConstraints = 40000
+	circuit := refCircuit{
+		nbConstraints: nbConstraints,
+	}
+	ctx := frontend.NewContext(curve.ID)
+	r1cs, err := frontend.Compile(ctx, &circuit)
+	if err != nil {
+		panic(err)
 	}
 
-	panic("reference circuit is not defined")
+	good := make(map[string]interface{})
+	good["X"] = 2
+
+	// compute expected Y
+	var expectedY fr.Element
+	expectedY.SetUint64(2)
+
+	for i := 0; i < nbConstraints; i++ {
+		expectedY.Mul(&expectedY, &expectedY)
+	}
+
+	good["Y"] = expectedY
+
+	return r1cs, good
 }
 
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
-	r1cs, _, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, _ := referenceCircuit()
+
 	var pk groth16_bls381.ProvingKey
 	var vk groth16_bls381.VerifyingKey
 	b.ResetTimer()
@@ -113,8 +146,8 @@ func BenchmarkSetup(b *testing.B) {
 // BenchmarkProver is a helper to benchmark Prove on a given circuit
 // it will run the Setup, reset the benchmark timer and benchmark the prover
 func BenchmarkProver(b *testing.B) {
-	r1cs, solution, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, solution := referenceCircuit()
+
 	var pk groth16_bls381.ProvingKey
 	groth16_bls381.DummySetup(r1cs.(*backend_bls381.R1CS), &pk)
 
@@ -130,8 +163,8 @@ func BenchmarkProver(b *testing.B) {
 // it will run the Setup, the Prover and reset the benchmark timer and benchmark the verifier
 // the provided solution will be filtered to keep only public inputs
 func BenchmarkVerifier(b *testing.B) {
-	r1cs, solution, _ := referenceCircuit()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	r1cs, solution := referenceCircuit()
+
 	var pk groth16_bls381.ProvingKey
 	var vk groth16_bls381.VerifyingKey
 	groth16_bls381.Setup(r1cs.(*backend_bls381.R1CS), &pk, &vk)

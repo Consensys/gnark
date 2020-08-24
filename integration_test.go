@@ -104,10 +104,6 @@ func TestIntegration(t *testing.T) {
 	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256}
 
 	for name, circuit := range circuits.Circuits {
-		if name == "reference_large" {
-			// be nice with circleci.
-			continue
-		}
 		for _, curve := range curves {
 			// serialize to disk
 			fCircuit := filepath.Join(parentDir, name+".r1cs")
