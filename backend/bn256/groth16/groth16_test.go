@@ -128,6 +128,15 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 	return r1cs, good
 }
 
+func TestReferenceCircuit(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+	assert := groth16.NewAssert(t)
+	r1cs, solution := referenceCircuit()
+	assert.Solved(r1cs, solution, nil)
+}
+
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
