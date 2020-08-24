@@ -18,6 +18,7 @@ package merkle
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 
@@ -66,11 +67,11 @@ func TestVerify(t *testing.T) {
 	// private
 	path := make([]frontend.Variable, len(proof))
 	for i := 0; i < len(proof); i++ {
-		path[i] = circuit.SECRET_INPUT("path" + string(i))
+		path[i] = circuit.SECRET_INPUT(fmt.Sprintf("path%d", i))
 	}
 	helper := make([]frontend.Variable, len(proof)-1)
 	for i := 0; i < len(proof)-1; i++ {
-		helper[i] = circuit.SECRET_INPUT("helper" + string(i))
+		helper[i] = circuit.SECRET_INPUT(fmt.Sprintf("helper%d", i))
 	}
 
 	hFunc, err := mimc.NewMiMC("seed", gurvy.BN256)
@@ -85,10 +86,10 @@ func TestVerify(t *testing.T) {
 	assignment := make(map[string]interface{})
 	assignment["rootHash"] = merkleRoot
 	for i := 0; i < len(proof); i++ {
-		assignment["path"+string(i)] = proof[i]
+		assignment[fmt.Sprintf("path%d", i)] = proof[i]
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment["helper"+string(i)] = proofHelper[i]
+		assignment[fmt.Sprintf("helper%d", i)] = proofHelper[i]
 	}
 
 	assert := groth16.NewAssert(t)
