@@ -4,7 +4,7 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gurvy"
 
 	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
@@ -109,7 +109,7 @@ func DummySetup(r1cs r1cs.R1CS) ProvingKey {
 // ReadProvingKey ...
 // TODO likely temporary method, need a clean up pass on serialization things
 func ReadProvingKey(path string) (ProvingKey, error) {
-	curveID, err := gob.PeekCurveID(path)
+	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func ReadProvingKey(path string) (ProvingKey, error) {
 		panic("not implemented")
 	}
 
-	if err := gob.Read(path, pk, curveID); err != nil {
+	if err := encoding.Read(path, pk, curveID); err != nil {
 		return nil, err
 	}
 	return pk, err
@@ -134,7 +134,7 @@ func ReadProvingKey(path string) (ProvingKey, error) {
 // ReadVerifyingKey ...
 // TODO likely temporary method, need a clean up pass on serialization things
 func ReadVerifyingKey(path string) (VerifyingKey, error) {
-	curveID, err := gob.PeekCurveID(path)
+	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func ReadVerifyingKey(path string) (VerifyingKey, error) {
 		panic("not implemented")
 	}
 
-	if err := gob.Read(path, vk, curveID); err != nil {
+	if err := encoding.Read(path, vk, curveID); err != nil {
 		return nil, err
 	}
 	return vk, err
@@ -159,7 +159,7 @@ func ReadVerifyingKey(path string) (VerifyingKey, error) {
 // ReadProof ...
 // TODO likely temporary method, need a clean up pass on serialization things
 func ReadProof(path string) (Proof, error) {
-	curveID, err := gob.PeekCurveID(path)
+	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func ReadProof(path string) (Proof, error) {
 		panic("not implemented")
 	}
 
-	if err := gob.Read(path, proof, curveID); err != nil {
+	if err := encoding.Read(path, proof, curveID); err != nil {
 		return nil, err
 	}
 	return proof, err

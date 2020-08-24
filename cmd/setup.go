@@ -24,7 +24,7 @@ import (
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +75,7 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 	}
 
 	// check curve ID (TODO is curve.ID necessary now? Because the circuits are serialized with big.Int, here the curve.ID is "unknown")
-	curveID, err := gob.PeekCurveID(circuitPath)
+	curveID, err := encoding.PeekCurveID(circuitPath)
 	fmt.Println("test-----" + curveID.String())
 	if err != nil {
 		fmt.Println("error:", err)
@@ -94,12 +94,12 @@ func cmdSetup(cmd *cobra.Command, args []string) {
 	duration := time.Since(start)
 	fmt.Printf("%-30s %-30s %-30s\n", "setup completed", "", duration)
 
-	if err := gob.Write(vkPath, vk, curveID); err != nil {
+	if err := encoding.Write(vkPath, vk, curveID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}
 	fmt.Printf("%-30s %s\n", "generated verifying key", vkPath)
-	if err := gob.Write(pkPath, pk, curveID); err != nil {
+	if err := encoding.Write(pkPath, pk, curveID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}

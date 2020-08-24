@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 	"github.com/spf13/cobra"
 )
 
@@ -93,7 +93,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	}
 
 	// check curve ID
-	curveID, err := gob.PeekCurveID(circuitPath)
+	curveID, err := encoding.PeekCurveID(circuitPath)
 	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
@@ -141,7 +141,7 @@ func cmdProve(cmd *cobra.Command, args []string) {
 		proofPath = fProofPath
 	}
 
-	if err := gob.Write(proofPath, proof, curveID); err != nil {
+	if err := encoding.Write(proofPath, proof, curveID); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(-1)
 	}

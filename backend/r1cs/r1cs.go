@@ -4,7 +4,7 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gurvy"
 )
 
@@ -19,7 +19,7 @@ type R1CS interface {
 // Read ...
 // TODO likely temporary method, need a clean up pass on serialization things
 func Read(path string) (R1CS, error) {
-	curveID, err := gob.PeekCurveID(path)
+	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func Read(path string) (R1CS, error) {
 		panic("not implemented")
 	}
 
-	if err := gob.Read(path, r1cs, curveID); err != nil {
+	if err := encoding.Read(path, r1cs, curveID); err != nil {
 		return nil, err
 	}
 	return r1cs, err

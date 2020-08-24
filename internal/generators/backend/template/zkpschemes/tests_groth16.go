@@ -21,7 +21,6 @@ import (
 		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761/groth16"
 	{{end}}
 
-	"github.com/consensys/gnark/encoding/gob"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"

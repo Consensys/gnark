@@ -34,7 +34,7 @@ func PrintMemUsage(header string) {
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 40000
+const n = 1000000
 
 // else will output average proving times, in csv format
 func main() {

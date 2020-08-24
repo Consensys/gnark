@@ -24,7 +24,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/circuits"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gurvy"
 )
 
@@ -112,7 +112,7 @@ func TestIntegration(t *testing.T) {
 			// serialize to disk
 			fCircuit := filepath.Join(parentDir, name+".r1cs")
 			typedR1CS := circuit.R1CS.ToR1CS(curve)
-			if err := gob.Write(fCircuit, typedR1CS, curve); err != nil {
+			if err := encoding.Write(fCircuit, typedR1CS, curve); err != nil {
 				t.Fatal(err)
 			}
 			spv(name, circuit.Good, circuit.Bad)

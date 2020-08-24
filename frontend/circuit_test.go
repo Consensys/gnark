@@ -1,9 +1,11 @@
 package frontend_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
@@ -39,10 +41,17 @@ func BenchmarkCircuit(b *testing.B) {
 	ctx := frontend.NewContext(gurvy.BN256)
 	ctx.Set(nbConstraintKey, n)
 
+	var circuit benchCircuit
+	res, _ = frontend.Compile(ctx, &circuit)
+
+	var buff bytes.Buffer
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var circuit benchCircuit
-		res, _ = frontend.Compile(ctx, &circuit)
+		encoding.Serialize(&buff, res, gurvy.BN256)
+		b.StopTimer()
+		buff.Reset()
+		b.StartTimer()
 	}
 
 }

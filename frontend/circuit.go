@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/encoding"
 )
 
 // Circuit must be implemented by user-defined circuits
@@ -79,7 +79,7 @@ func Compile(ctx *Context, circuit Circuit) (r1cs.R1CS, error) {
 
 // Save will serialize the provided R1CS to path
 func Save(ctx *Context, r1cs r1cs.R1CS, path string) error {
-	return gob.Write(path, r1cs, ctx.CurveID())
+	return encoding.Write(path, r1cs, ctx.CurveID())
 }
 
 // ToAssignment will parse provided circuit and extract all values from leaves that are Variable
