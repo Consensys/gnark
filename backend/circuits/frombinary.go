@@ -1,13 +1,10 @@
 package circuits
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
-	fmt.Println("init from binary")
 	circuit := frontend.NewConstraintSystem()
 
 	b0 := circuit.SECRET_INPUT("b0")

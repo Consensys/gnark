@@ -1,14 +1,12 @@
 package circuits
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
-	fmt.Println("init reference_small")
 	const nbConstraints = 5
 	circuit := frontend.NewConstraintSystem()
 

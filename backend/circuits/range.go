@@ -1,8 +1,6 @@
 package circuits
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -58,8 +56,6 @@ func rangeCheck() {
 }
 
 func init() {
-
-	fmt.Println("init range")
 
 	rangeCheckConstant()
 

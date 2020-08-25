@@ -108,11 +108,15 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 
 	// Krs (H part + priv part)
 	r.Mul(&r, &s).Neg(&r)
-	points := append(pk.G1.Z, pk.G1.K[:kIndex]...) //, Ar, bs1, pk.G1.Delta)
-	scalars := append(h, wireValues[:kIndex]...)   //, _s, _r, r.ToRegular())
-	// Krs random part
-	points = append(points, pk.G1.Delta, ar, bs)
-	scalars = append(scalars, r.ToRegular(), _s, _r)
+	points := make([]curve.G1Affine, 0, len(pk.G1.Z)+kIndex+3)
+	points = append(points, pk.G1.Z...)
+	points = append(points, pk.G1.K[:kIndex]...)
+	points = append(points, pk.G1.Delta, ar, bs) // Krs random part
+
+	scalars := make([]fr.Element, 0, len(pk.G1.Z)+kIndex+3)
+	scalars = append(scalars, h...)
+	scalars = append(scalars, wireValues[:kIndex]...)
+	scalars = append(scalars, r.ToRegular(), _s, _r) // Krs random part
 
 	Krs.MultiExp(points, scalars)
 
@@ -123,12 +127,15 @@ func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element
 
 func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2Affine {
 
-	var Bs curve.G2Jac
+	var Bs, deltaS curve.G2Jac
 	var BsAffine curve.G2Affine
-	points2 := append(pk.G2.B, pk.G2.Delta)
-	scalars2 := append(wireValues, _s)
 
-	Bs.MultiExp(points2, scalars2)
+	Bs.MultiExp(pk.G2.B, wireValues)
+
+	var tmp big.Int
+	deltaS.ScalarMulGLV(&pk.G2.Delta, _s.ToBigInt(&tmp))
+
+	Bs.AddAssign(&deltaS)
 
 	Bs.AddMixed(&pk.G2.Beta)
 	BsAffine.FromJacobian(&Bs)
@@ -137,12 +144,14 @@ func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2
 
 func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G1Affine {
 
-	var bs1 curve.G1Jac
+	var bs1, deltaS curve.G1Jac
 	var bs1Affine curve.G1Affine
 
-	points := append(pk.G1.B, pk.G1.Delta)
-	scalars := append(wireValues, _s)
-	bs1.MultiExp(points, scalars)
+	bs1.MultiExp(pk.G1.B, wireValues)
+
+	var tmp big.Int
+	deltaS.ScalarMulGLV(&pk.G1.Delta, _s.ToBigInt(&tmp))
+	bs1.AddAssign(&deltaS)
 
 	bs1.AddMixed(&pk.G1.Beta)
 	bs1Affine.FromJacobian(&bs1)
@@ -152,11 +161,13 @@ func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G1
 
 func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element) curve.G1Affine {
 
-	var ar curve.G1Jac
+	var ar, deltaR curve.G1Jac
 	var arAffine curve.G1Affine
-	points := append(pk.G1.A, pk.G1.Delta)
-	scalars := append(wireValues, _r)
-	ar.MultiExp(points, scalars)
+	ar.MultiExp(pk.G1.A, wireValues)
+
+	var tmp big.Int
+	deltaR.ScalarMulGLV(&pk.G1.Delta, _r.ToBigInt(&tmp))
+	ar.AddAssign(&deltaR)
 
 	ar.AddMixed(&pk.G1.Alpha)
 	arAffine.FromJacobian(&ar)

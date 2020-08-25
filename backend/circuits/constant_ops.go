@@ -1,14 +1,12 @@
 package circuits
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
-	fmt.Println("init constant_ops")
 	circuit := frontend.NewConstraintSystem()
 
 	x := circuit.SECRET_INPUT("x")
