@@ -22,148 +22,142 @@ type Proof struct {
 
 var (
 	minusTwoInv fr.Element
+	nnn int
 )
 
 func init() {
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
+	nnn = (runtime.NumCPU() / 2 ) + 1
 }
 
 // Prove creates proof from a circuit
 func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
-	proof := &Proof{}
+	nbPrivateWires := r1cs.NbWires-r1cs.NbPublicWires
 
 	// fft domain (computeH)
 	fftDomain := backend_{{toLower .Curve}}.NewDomain(r1cs.NbConstraints)
 
 	// sample random r and s
-	var r, s, kr big.Int
-	{
-		var _r, _s, _kr fr.Element
-		_r.SetRandom()
-		_s.SetRandom()
-		_kr.Mul(&_r, &_s).Neg(&_kr)
+	var r, s big.Int
+	var _r, _s, _kr fr.Element
+	_r.SetRandom()
+	_s.SetRandom()
+	_kr.Mul(&_r, &_s).Neg(&_kr)
 
-		_r.ToBigIntRegular(&r)
-		_s.ToBigIntRegular(&s)
-		_kr.ToBigIntRegular(&kr)
-	}
+	_r.FromMont()
+	_s.FromMont()
+	_kr.FromMont()
+	_r.ToBigInt(&r)
+	_s.ToBigInt(&s)
 
 	// Solve the R1CS and compute the a, b, c vectors
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality) 
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality+nbPrivateWires) 
 	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
 	err := r1cs.Solve(solution, a, b, c, wireValues)
 	if err != nil {
 		return nil, err
 	}
-
-
 	// set the wire values in regular form
 	for i := 0; i < len(wireValues); i++ {
 		wireValues[i].FromMont()
 	}
+
+	// async waits
+	chHDone := make(chan struct{}, 1)
+	chKrsDone := make(chan struct{}, 1)
+	chArDone:= make(chan struct{}, 1)
+	chBs1Done := make(chan struct{}, 1)
+
+	// init a CPU semaphore with enough tokens
+	// note: it seems adding to the number of CPUs here, effectively making the MultiExp compete for resources
+	// yields better performances -- this needs to be re-checked on large circuits, as cache eviction cost may become very noticeable.
+	nCpus := runtime.NumCPU()
+	nCpus += nCpus/2
+	chCpus := make(chan struct{}, nCpus)
+	for i:=0; i < nCpus; i++ {
+		chCpus <- struct{}{}
+	}
+
+	var h []fr.Element
+	
+	go func() {
+		// H (witness reduction / FFT part)
+		h = computeH(a, b, c, fftDomain)
+		h = append(h, wireValues[:nbPrivateWires]...)
+		h = curve.PartitionScalars(h)
+		chHDone <- struct{}{}
+	}()
+
+	// keep busy while the fft splits its go routines
+	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r,_s,_kr})
+
+	// wait for FFT to end, as it uses (almost) all our CPUs
+	<-chHDone
+
 	// preprocess them once for the multiExps (Ar1, Bs1, Bs2)
 	processedWireValues := curve.PartitionScalars(wireValues)
 
 	// compute proof elements
 	// 4 multiexp + 1 FFT
+	proof := &Proof{}
+	var bs1Affine curve.G1Affine
 
-	// H (witness reduction / FFT part)
-	h := computeH(a, b, c, fftDomain)
+	
+	go func() {
+		var ar curve.G1Jac
+		ar.MultiExp(pk.G1.A, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+		ar.AddMixed(&pk.G1.Alpha)
+		ar.AddMixed(&deltas[0])
+		proof.Ar.FromJacobian(&ar)
+		chArDone <- struct{}{}
+	}()
+	
 
-	// Ar1 (1 multi exp G1 - size = len(wires))
-	ar := computeAr1(pk,  processedWireValues)
+	go func() {
+		var bs1 curve.G1Jac
+		bs1.MultiExp(pk.G1.B, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+		bs1.AddMixed(&pk.G1.Beta)
+		bs1.AddMixed(&deltas[1])
+		bs1Affine.FromJacobian(&bs1)
+		chBs1Done <- struct{}{}
+	}()
 
-	// Bs1 (1 multi exp G1 - size = len(wires))
-	bs1 := computeBs1(pk, processedWireValues)
+	go func() {
+		var krs, p1 curve.G1Jac
+		krs.MultiExp( append(pk.G1.Z, pk.G1.K[:nbPrivateWires]...), h, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+		krs.AddMixed(&deltas[2])
+		<-chArDone
+		p1.ScalarMulGLV(&proof.Ar, &s)
+		krs.AddAssign(&p1)
+		<-chBs1Done
+		p1.ScalarMulGLV(&bs1Affine, &r)
+		krs.AddAssign(&p1)
+	
+		proof.Krs.FromJacobian(&krs)
 
-	// Krs -- computeKrs go routine will wait for H to be done
-	krs := computeKrs(pk,  wireValues, h, r1cs.NbWires-r1cs.NbPublicWires)
+		chKrsDone <- struct{}{}
+	}()
+
 
 	// Bs2 (1 multi exp G2 - size = len(wires))
-	proof.Bs = computeBs2(pk, &s, processedWireValues)
+	var Bs, deltaS curve.G2Jac
+	Bs.MultiExp(pk.G2.B, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+	deltaS.ScalarMulGLV(&pk.G2.Delta, &s)
+	Bs.AddAssign(&deltaS)
+	Bs.AddMixed(&pk.G2.Beta)
+	proof.Bs.FromJacobian(&Bs)
 
 
-	var p1 curve.G1Jac
-	p1.ScalarMulGLV (&pk.G1.Delta, &s)
-	bs1.AddAssign(&p1)
-
-	p1.ScalarMulGLV (&pk.G1.Delta, &r)
-	ar.AddAssign(&p1)
-
-
-
-	proof.Ar.FromJacobian(&ar)
-	var bs1Affine curve.G1Affine
-	bs1Affine.FromJacobian(&bs1)
-
-
-	p1.ScalarMulGLV(&pk.G1.Delta,& kr)
-	krs.AddAssign(&p1)
-	p1.ScalarMulGLV(&proof.Ar,& s)
-	krs.AddAssign(&p1)
-	p1.ScalarMulGLV(&bs1Affine, &r)
-	krs.AddAssign(&p1)
-
-	proof.Krs.FromJacobian(&krs)
+	// wait for all parts of the proof to be computed.
+	<-chKrsDone
 
 	return proof, nil
 }
 
-func computeKrs(pk *ProvingKey, wireValues []fr.Element, h []fr.Element, kIndex int) curve.G1Jac {
-		var Krs curve.G1Jac
-
-		// Krs (H part + priv part)
-		points := make([]curve.G1Affine, 0, len(pk.G1.Z) + kIndex + 1)
-		points = append(points, pk.G1.Z...)
-		points = append(points, pk.G1.K[:kIndex]...)
-
-		scalars := make([]fr.Element,0, len(pk.G1.Z) + kIndex + 3 )
-		scalars = append(scalars, h...)
-		scalars = append(scalars, wireValues[:kIndex]...)  
-		
-		Krs.MultiExp( points, scalars)
-
-		return Krs
-}
-
-func computeBs2(pk *ProvingKey, s *big.Int, wireValues []fr.Element) curve.G2Affine {
-
-		var Bs, deltaS curve.G2Jac
-		var BsAffine curve.G2Affine
-		
-		Bs.MultiExp(pk.G2.B, wireValues, curve.MultiExpOptions{IsPartitionned: true})
-		
-		deltaS.ScalarMulGLV( &pk.G2.Delta, s)
-		
-		Bs.AddAssign(&deltaS)
-		
-		Bs.AddMixed(&pk.G2.Beta)
-		BsAffine.FromJacobian(&Bs)
-		return BsAffine
-}
-
-func computeBs1(pk *ProvingKey, wireValues []fr.Element) curve.G1Jac {
-	
-		var bs1 curve.G1Jac
-
-		bs1.MultiExp( pk.G1.B, wireValues, curve.MultiExpOptions{IsPartitionned: true})
-		bs1.AddMixed(&pk.G1.Beta)
-		
-		return bs1
-}
-
-func computeAr1(pk *ProvingKey, wireValues []fr.Element) curve.G1Jac {
-	
-		var ar curve.G1Jac
-		ar.MultiExp( pk.G1.A, wireValues, curve.MultiExpOptions{IsPartitionned: true})
-		ar.AddMixed(&pk.G1.Alpha)
-
-		return ar 
-}
 
 func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain) []fr.Element {
 		// H part of Krs
