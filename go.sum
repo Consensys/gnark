@@ -14,6 +14,12 @@ github.com/consensys/bavard v0.1.3/go.mod h1:ffZkLPNQSN3E6u+zpArQSleJ/lsraMwKPCH
 github.com/consensys/goff v0.3.2-0.20200819221738-3c1b80455b85/go.mod h1:ot+gW+dCttfe27wGF2jyrgF3z+QlAb87o+9r+pGpqmY=
 github.com/consensys/gurvy v0.2.1-0.20200826030836-926dfd0d954a h1:wUFSZ/ncbTnikjaTwpK7aS3XTGzpnc0I030D/g/LYfs=
 github.com/consensys/gurvy v0.2.1-0.20200826030836-926dfd0d954a/go.mod h1:ErDP9aCEdMjHFCPZ69Pvow7VpGkJmtkAuXRTWZj5ZUw=
+github.com/consensys/gurvy v0.2.1-0.20200826201545-b0a84697ae44 h1:n0fo5U7hKXAXnvYI6WC2HHXvHE3d0+dFf9fAo90G2PU=
+github.com/consensys/gurvy v0.2.1-0.20200826201545-b0a84697ae44/go.mod h1:ErDP9aCEdMjHFCPZ69Pvow7VpGkJmtkAuXRTWZj5ZUw=
+github.com/consensys/gurvy v0.2.1-0.20200826204244-2a0a691bb44a h1:4zkBY02qr4XsBdAJj7T0BgWMJcHGcKwaMAgkNC1b3q4=
+github.com/consensys/gurvy v0.2.1-0.20200826204244-2a0a691bb44a/go.mod h1:ErDP9aCEdMjHFCPZ69Pvow7VpGkJmtkAuXRTWZj5ZUw=
+github.com/consensys/gurvy v0.2.1-0.20200826205214-ecce15afe2fa h1:CFKHtR6/wnskaPJWCeucTD2vx1hO9wjd5iDjilUYKbM=
+github.com/consensys/gurvy v0.2.1-0.20200826205214-ecce15afe2fa/go.mod h1:ErDP9aCEdMjHFCPZ69Pvow7VpGkJmtkAuXRTWZj5ZUw=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
@@ -40,6 +46,7 @@ github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfU
 github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef/go.mod h1:cIg4eruTrX1D+g88fzRXU5OdNfaM+9IcxsU14FzY7Hc=
 github.com/golang/mock v1.1.1/go.mod h1:oTYuIxOrZwtPieC+H1uAHpcLFnEyAGVDL/k47Jfbm0A=
 github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+github.com/golang/protobuf v1.3.1 h1:YF8+flBXS5eO826T4nzqPrxfhQThhXl0YzfuUPu4SBg=
 github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=

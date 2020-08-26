@@ -56,11 +56,17 @@ func Prove(r1cs *backend_bw761.R1CS, pk *ProvingKey, solution map[string]interfa
 	fftDomain := backend_bw761.NewDomain(r1cs.NbConstraints)
 
 	// sample random r and s
-	var r, s, _r, _s fr.Element
-	r.SetRandom()
-	s.SetRandom()
-	_r = r.ToRegular()
-	_s = s.ToRegular()
+	var r, s, kr big.Int
+	{
+		var _r, _s, _kr fr.Element
+		_r.SetRandom()
+		_s.SetRandom()
+		_kr.Mul(&_r, &_s).Neg(&_kr)
+
+		_r.ToBigIntRegular(&r)
+		_s.ToBigIntRegular(&s)
+		_kr.ToBigIntRegular(&kr)
+	}
 
 	// Solve the R1CS and compute the a, b, c vectors
 	wireValues := make([]fr.Element, r1cs.NbWires)
@@ -71,69 +77,80 @@ func Prove(r1cs *backend_bw761.R1CS, pk *ProvingKey, solution map[string]interfa
 	if err != nil {
 		return nil, err
 	}
-	// get the wire values in regular form
-	// wireValues := make([]fr.Element, len(r1cs.WireValues))
-	work := func(start, end int) {
-		for i := start; i < end; i++ {
-			wireValues[i].FromMont()
-		}
+
+	// set the wire values in regular form
+	for i := 0; i < len(wireValues); i++ {
+		wireValues[i].FromMont()
 	}
-	parallel.Execute(len(wireValues), work)
+	// preprocess them once for the multiExps (Ar1, Bs1, Bs2)
+	processedWireValues := curve.PartitionScalars(wireValues)
 
 	// compute proof elements
 	// 4 multiexp + 1 FFT
-	// G2 multiexp is likely the most compute intensive task here
 
 	// H (witness reduction / FFT part)
 	h := computeH(a, b, c, fftDomain)
 
 	// Ar1 (1 multi exp G1 - size = len(wires))
-	proof.Ar = computeAr1(pk, _r, wireValues)
+	ar := computeAr1(pk, processedWireValues)
 
 	// Bs1 (1 multi exp G1 - size = len(wires))
-	bs1 := computeBs1(pk, _s, wireValues)
+	bs1 := computeBs1(pk, processedWireValues)
+
+	// Krs -- computeKrs go routine will wait for H to be done
+	krs := computeKrs(pk, wireValues, h, r1cs.NbWires-r1cs.NbPublicWires)
 
 	// Bs2 (1 multi exp G2 - size = len(wires))
-	proof.Bs = computeBs2(pk, _s, wireValues)
+	proof.Bs = computeBs2(pk, &s, processedWireValues)
 
-	// Krs -- computeKrs go routine will wait for H, Ar1 and Bs1 to be done
-	proof.Krs = computeKrs(pk, r, s, _r, _s, wireValues, proof.Ar, bs1, h, r1cs.NbWires-r1cs.NbPublicWires)
+	var p1 curve.G1Jac
+	p1.ScalarMulGLV(&pk.G1.Delta, &s)
+	bs1.AddAssign(&p1)
+
+	p1.ScalarMulGLV(&pk.G1.Delta, &r)
+	ar.AddAssign(&p1)
+
+	proof.Ar.FromJacobian(&ar)
+	var bs1Affine curve.G1Affine
+	bs1Affine.FromJacobian(&bs1)
+
+	p1.ScalarMulGLV(&pk.G1.Delta, &kr)
+	krs.AddAssign(&p1)
+	p1.ScalarMulGLV(&proof.Ar, &s)
+	krs.AddAssign(&p1)
+	p1.ScalarMulGLV(&bs1Affine, &r)
+	krs.AddAssign(&p1)
+
+	proof.Krs.FromJacobian(&krs)
 
 	return proof, nil
 }
 
-func computeKrs(pk *ProvingKey, r, s, _r, _s fr.Element, wireValues []fr.Element, ar, bs curve.G1Affine, h []fr.Element, kIndex int) curve.G1Affine {
+func computeKrs(pk *ProvingKey, wireValues []fr.Element, h []fr.Element, kIndex int) curve.G1Jac {
 	var Krs curve.G1Jac
-	var KrsAffine curve.G1Affine
 
 	// Krs (H part + priv part)
-	r.Mul(&r, &s).Neg(&r)
-	points := make([]curve.G1Affine, 0, len(pk.G1.Z)+kIndex+3)
+	points := make([]curve.G1Affine, 0, len(pk.G1.Z)+kIndex+1)
 	points = append(points, pk.G1.Z...)
 	points = append(points, pk.G1.K[:kIndex]...)
-	points = append(points, pk.G1.Delta, ar, bs) // Krs random part
 
 	scalars := make([]fr.Element, 0, len(pk.G1.Z)+kIndex+3)
 	scalars = append(scalars, h...)
 	scalars = append(scalars, wireValues[:kIndex]...)
-	scalars = append(scalars, r.ToRegular(), _s, _r) // Krs random part
 
 	Krs.MultiExp(points, scalars)
 
-	KrsAffine.FromJacobian(&Krs)
-
-	return KrsAffine
+	return Krs
 }
 
-func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2Affine {
+func computeBs2(pk *ProvingKey, s *big.Int, wireValues []fr.Element) curve.G2Affine {
 
 	var Bs, deltaS curve.G2Jac
 	var BsAffine curve.G2Affine
 
-	Bs.MultiExp(pk.G2.B, wireValues)
+	Bs.MultiExp(pk.G2.B, wireValues, curve.MultiExpOptions{IsPartitionned: true})
 
-	var tmp big.Int
-	deltaS.ScalarMulGLV(&pk.G2.Delta, _s.ToBigInt(&tmp))
+	deltaS.ScalarMulGLV(&pk.G2.Delta, s)
 
 	Bs.AddAssign(&deltaS)
 
@@ -142,37 +159,23 @@ func computeBs2(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G2
 	return BsAffine
 }
 
-func computeBs1(pk *ProvingKey, _s fr.Element, wireValues []fr.Element) curve.G1Affine {
+func computeBs1(pk *ProvingKey, wireValues []fr.Element) curve.G1Jac {
 
-	var bs1, deltaS curve.G1Jac
-	var bs1Affine curve.G1Affine
+	var bs1 curve.G1Jac
 
-	bs1.MultiExp(pk.G1.B, wireValues)
-
-	var tmp big.Int
-	deltaS.ScalarMulGLV(&pk.G1.Delta, _s.ToBigInt(&tmp))
-	bs1.AddAssign(&deltaS)
-
+	bs1.MultiExp(pk.G1.B, wireValues, curve.MultiExpOptions{IsPartitionned: true})
 	bs1.AddMixed(&pk.G1.Beta)
-	bs1Affine.FromJacobian(&bs1)
-	return bs1Affine
 
+	return bs1
 }
 
-func computeAr1(pk *ProvingKey, _r fr.Element, wireValues []fr.Element) curve.G1Affine {
+func computeAr1(pk *ProvingKey, wireValues []fr.Element) curve.G1Jac {
 
-	var ar, deltaR curve.G1Jac
-	var arAffine curve.G1Affine
-	ar.MultiExp(pk.G1.A, wireValues)
-
-	var tmp big.Int
-	deltaR.ScalarMulGLV(&pk.G1.Delta, _r.ToBigInt(&tmp))
-	ar.AddAssign(&deltaR)
-
+	var ar curve.G1Jac
+	ar.MultiExp(pk.G1.A, wireValues, curve.MultiExpOptions{IsPartitionned: true})
 	ar.AddMixed(&pk.G1.Alpha)
-	arAffine.FromJacobian(&ar)
-	return arAffine
 
+	return ar
 }
 
 func computeH(a, b, c []fr.Element, fftDomain *backend_bw761.Domain) []fr.Element {
