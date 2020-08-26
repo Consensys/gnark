@@ -61,182 +61,158 @@ func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingK
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	nbPublicWires := r1cs.NbPublicWires
+	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	gateGroup := backend_{{toLower .Curve}}.NewDomain( nbConstraints)
-
-	// initialize proving key
-	pk.G1.A = make([]curve.G1Affine, nbWires)
-	pk.G1.B = make([]curve.G1Affine, nbWires)
-	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
-	pk.G1.Z = make([]curve.G1Affine, gateGroup.Cardinality)
-	pk.G2.B = make([]curve.G2Affine, nbWires)
-
-	// initialize verifying key
-	vk.G1.K = make([]curve.G1Affine, nbPublicWires)
-
-	// samples toxic waste
-	toxicWaste := sampleToxicWaste()
+	domain := backend_{{toLower .Curve}}.NewDomain( nbConstraints)
 
 	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
 	vk.PublicInputs = r1cs.PublicWires
 
-	// setup the alpha, beta, gamma, delta part of verifying & proving key
-	setupToxicWaste(pk, vk, toxicWaste)
-
-	// setup Z part of the proving key
-	setupWitnessPolynomial(pk, toxicWaste, gateGroup)
+	// samples toxic waste
+	toxicWaste := sampleToxicWaste()
 
 	// Setup coeffs to compute pk.G1.A, pk.G1.B, pk.G1.K
-	A, B, C := setupABC(r1cs, gateGroup, toxicWaste)
+	A, B, C := setupABC(r1cs, domain, toxicWaste)
 
-	// Set the vector of points in the verifying & proving key from the coefficients
-	setupKeyVectors(A, B, C, pk, vk, toxicWaste, r1cs)
+	// To fill in the Proving and Verifying keys, we need to perform a lot of ecc scalar multiplication (with generator)
+	// and convert the resulting points to affine
+	// this is done using the curve.BatchScalarMultiplicationGX API, which takes as input the base point
+	// (in our case the generator) and the list of scalars, and outputs a list of points (len(points) == len(scalars))
+	// to use this batch call, we need to order our scalars in the same slice
+	// we have 1 batch call for G1 and 1 batch call for G1
+	// scalars are fr.Element in non montgomery form
 
-}
+	g1, g2 := curve.Generators()
 
-// DummySetup fills a random ProvingKey
-// used for test or benchmarking purposes
-func DummySetup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey) {
-	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbWires
-	nbConstraints := r1cs.NbConstraints
+	// ---------------------------------------------------------------------------------------------
+	// G1 scalars
 
-	// Setting group for fft
-	gateGroup := backend_{{toLower .Curve}}.NewDomain(nbConstraints)
+	// the G1 scalars are ordered (arbitrary) as follow:
+	// 
+	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
+	// len(A) == len(B) == nbWires
+	// len(pk.K) == nbPrivateWires
+	// len(vk.K) == nbPublicWires
+	// len(Z) == domain.Cardinality
 
-	// initialize proving key
-	pk.G1.A = make([]curve.G1Affine, nbWires)
-	pk.G1.B = make([]curve.G1Affine, nbWires)
-	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
-	pk.G1.Z = make([]curve.G1Affine, gateGroup.Cardinality)
-	pk.G2.B = make([]curve.G2Affine, nbWires)
+	// compute scalars for pkK and vkK
+	pkK := make([]fr.Element,nbPrivateWires)
+	vkK := make([]fr.Element,nbPublicWires)
 
-	// samples toxic waste
-	tw := sampleToxicWaste()
 
-	
-	var r1Jac curve.G1Jac
-	var r1Aff curve.G1Affine
-	r1Jac.ScalarMulByGen(&tw.alphaReg)
-	r1Aff.FromJacobian(&r1Jac)
-	var r2Jac curve.G2Jac
-	var r2Aff curve.G2Affine
-	r2Jac.ScalarMulByGen(&tw.alphaReg)
-	r2Aff.FromJacobian(&r2Jac)
-	for i := 0; i < nbWires; i++ {
-		pk.G1.A[i] = r1Aff
-		pk.G1.B[i] = r1Aff
-		pk.G2.B[i] = r2Aff
+	var t0, t1 fr.Element
+	for i := 0; i < nbPrivateWires; i++ {
+		t1.Mul(&A[i], &toxicWaste.beta)
+		t0.Mul(&B[i], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i]).
+			Div(&t1, &toxicWaste.delta)
+		pkK[i] = t1.ToRegular()
 	}
-	for i := 0; i < len(pk.G1.Z); i++ {
-		pk.G1.Z[i] = r1Aff
+
+	for i := 0; i < nbPublicWires; i++ {
+		t1.Mul(&A[i+nbPrivateWires], &toxicWaste.beta)
+		t0.Mul(&B[i+nbPrivateWires], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i+nbPrivateWires]).
+			Div(&t1, &toxicWaste.gamma)
+		vkK[i] = t1.ToRegular()
 	}
-	for i := 0; i < len(pk.G1.K); i++ {
-		pk.G1.K[i] = r1Aff
+
+	// convert A and B to regular form
+	for i:=0; i < nbWires; i++ {
+		A[i].FromMont()
 	}
-	pk.G1.Alpha = r1Aff
-	pk.G1.Beta = r1Aff
-	pk.G1.Delta = r1Aff
-	pk.G2.Beta = r2Aff
-	pk.G2.Delta = r2Aff
+	for i:=0; i < nbWires; i++ {
+		B[i].FromMont()
+	}
 
-}
-
-// toxicWaste toxic waste
-type toxicWaste struct {
-
-	// Montgomery form of params
-	t, alpha, beta, gamma, delta fr.Element
-
-	// Non Montgomery form of params
-	alphaReg, betaReg, gammaReg, deltaReg big.Int
-}
-
-func sampleToxicWaste() toxicWaste {
-
-	res := toxicWaste{}
-
-	res.t.SetRandom()
-	res.alpha.SetRandom()
-	res.beta.SetRandom()
-	res.gamma.SetRandom()
-	res.delta.SetRandom()
-
-	res.alpha.ToBigIntRegular(&res.alphaReg)
-	res.beta.ToBigIntRegular(&res.betaReg)
-	res.gamma.ToBigIntRegular(&res.gammaReg)
-	res.delta.ToBigIntRegular(&res.deltaReg)
-
-	return res
-}
-
-func setupToxicWaste(pk *ProvingKey, vk *VerifyingKey, tw toxicWaste) {
-
-	
-
-	var vkG2JacDeltaNeg, vkG2JacGammaNeg curve.G2Jac
-
-	var pkG1Alpha, pkG1Beta, pkG1Delta curve.G1Jac
-	var pkG2Beta, pkG2Delta curve.G2Jac
-
-	// sets pk: [α]1, [β]1, [β]2, [δ]1, [δ]2
-	pkG1Alpha.ScalarMulByGen(&tw.alphaReg)
-	pk.G1.Alpha.FromJacobian(&pkG1Alpha)
-	pkG1Beta.ScalarMulByGen(&tw.betaReg)
-	pk.G1.Beta.FromJacobian(&pkG1Beta)
-	pkG2Beta.ScalarMulByGen(&tw.betaReg)
-	pk.G2.Beta.FromJacobian(&pkG2Beta)
-	pkG1Delta.ScalarMulByGen(&tw.deltaReg)
-	pk.G1.Delta.FromJacobian(&pkG1Delta)
-	pkG2Delta.ScalarMulByGen(&tw.deltaReg)
-	pk.G2.Delta.FromJacobian(&pkG2Delta)
-
-	// sets vk: -[δ]2, -[γ]2
-	vkG2JacDeltaNeg.ScalarMulByGen(&tw.deltaReg)
-	vkG2JacGammaNeg.ScalarMulByGen(&tw.gammaReg)
-
-	vkG2JacDeltaNeg.Neg(&vkG2JacDeltaNeg)
-	vk.G2.DeltaNeg.FromJacobian(&vkG2JacDeltaNeg)
-	vkG2JacGammaNeg.Neg(&vkG2JacGammaNeg)
-	vk.G2.GammaNeg.FromJacobian(&vkG2JacGammaNeg)
-
-	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
-
-}
-
-func setupWitnessPolynomial(pk *ProvingKey, tw toxicWaste, g *backend_{{toLower .Curve}}.Domain) {
-
-	
-
-	var one fr.Element
-	one.SetOne()
-
+	// Z part of the proving key (scalars)
+	Z := make([]fr.Element, domain.Cardinality)
+	one := fr.One()
 	var zdt fr.Element
 
-	zdt.Exp(tw.t, new(big.Int).SetUint64(uint64(g.Cardinality))).
+	zdt.Exp(toxicWaste.t, new(big.Int).SetUint64(uint64(domain.Cardinality))).
 		Sub(&zdt, &one).
-		Div(&zdt, &tw.delta) // sets Zdt to Zdt/delta
+		Div(&zdt, &toxicWaste.delta) // sets Zdt to Zdt/delta
 
-	Zdt := make([]big.Int, g.Cardinality)
-	for i := 0; i < g.Cardinality; i++ {
-		zdt.ToBigIntRegular(&Zdt[i])
-		zdt.MulAssign(&tw.t)
+	
+	for i := 0; i < domain.Cardinality; i++ {
+		Z[i] = zdt.ToRegular()
+		zdt.MulAssign(&toxicWaste.t)
 	}
 
-	// Z(t) = [(t^j*Zd(t) / delta)]
-	parallel.Execute( g.Cardinality, func(start, end int) {
-		var pkG1Z curve.G1Jac
-		for j := start; j < end; j++ {
-			pkG1Z.ScalarMulByGen(&Zdt[j])
-			pk.G1.Z[j].FromJacobian(&pkG1Z)
-		}
-	})
 
+	// compute our batch scalar multiplication with g1 elements
+	g1Scalars := make([]fr.Element,0, (nbWires*3) + domain.Cardinality + 3)
+	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
+	g1Scalars = append(g1Scalars, A...)
+	g1Scalars = append(g1Scalars, B...)
+	g1Scalars = append(g1Scalars, pkK...)
+	g1Scalars = append(g1Scalars, Z...)
+	g1Scalars = append(g1Scalars, vkK...)
+
+	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+
+	// sets pk: [α]1, [β]1, [δ]1
+	pk.G1.Alpha = g1PointsAff[0]
+	pk.G1.Beta = g1PointsAff[1]
+	pk.G1.Delta = g1PointsAff[2]
+
+
+	offset := 3
+	pk.G1.A = g1PointsAff[offset:offset+nbWires]
+	offset += nbWires
+
+	pk.G1.B = g1PointsAff[offset:offset+nbWires]
+	offset += nbWires
+
+	pk.G1.K = g1PointsAff[offset:offset+nbPrivateWires]
+	offset += nbPrivateWires
+
+	pk.G1.Z = g1PointsAff[offset:offset+domain.Cardinality]
+	offset += domain.Cardinality
+
+	vk.G1.K = g1PointsAff[offset:]
+
+	// ---------------------------------------------------------------------------------------------
+	// G2 scalars
+
+	// the G2 scalars are ordered as follow:
+	//
+	// [[B(i)], [β], [δ], [γ]]
+	// len(B) == nbWires
+
+
+	// compute our batch scalar multiplication with g2 elements
+	g2Scalars := make([]fr.Element,0, nbWires+3)
+	g2Scalars = append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
+	
+	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
+
+	pk.G2.B = g2PointsAff[:nbWires]
+
+	// sets pk: [β]2, [δ]2
+	pk.G2.Beta = g2PointsAff[nbWires+0]
+	pk.G2.Delta = g2PointsAff[nbWires+1]
+
+	// sets vk: -[δ]2, -[γ]2
+	vk.G2.DeltaNeg = g2PointsAff[nbWires+1]
+	vk.G2.GammaNeg = g2PointsAff[nbWires+2]
+	vk.G2.DeltaNeg.Neg(&vk.G2.DeltaNeg)
+	vk.G2.GammaNeg.Neg(&vk.G2.GammaNeg)
+
+
+	// ---------------------------------------------------------------------------------------------
+	// Pairing: vk.E
+	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
 }
 
-func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve}}.Domain, tw toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+
+
+func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve}}.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbWires
 
@@ -256,10 +232,10 @@ func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve
 	wi.SetOne()
 
 	// Setting L0
-	ithLagrangePolt.Set(&tw.t)
+	ithLagrangePolt.Set(&toxicWaste.t)
 	ithLagrangePolt.Exp(ithLagrangePolt, new(big.Int).SetUint64(uint64(g.Cardinality))).
 		Sub(&ithLagrangePolt, &one)
-	tmp.Set(&tw.t).Sub(&tmp, &one)
+	tmp.Set(&toxicWaste.t).Sub(&tmp, &one)
 	ithLagrangePolt.Div(&ithLagrangePolt, &tmp).
 		Mul(&ithLagrangePolt, &g.CardinalityInv)
 
@@ -278,61 +254,94 @@ func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 		ithLagrangePolt.MulAssign(&w)
-		tmp.Sub(&tw.t, &wi)
+		tmp.Sub(&toxicWaste.t, &wi)
 		ithLagrangePolt.MulAssign(&tmp)
 		wi.MulAssign(&w)
-		tmp.Sub(&tw.t, &wi)
+		tmp.Sub(&toxicWaste.t, &wi)
 		ithLagrangePolt.Div(&ithLagrangePolt, &tmp)
 	}
 	return
 
 }
 
-func setupKeyVectors(A, B, C []fr.Element, pk *ProvingKey, vk *VerifyingKey, tw toxicWaste, r1cs *backend_{{toLower .Curve}}.R1CS) {
 
-	
+// toxicWaste toxic waste
+type toxicWaste struct {
 
+	// Montgomery form of params
+	t, alpha, beta, gamma, delta fr.Element
+
+	// Non Montgomery form of params
+	alphaReg, betaReg, gammaReg, deltaReg fr.Element
+}
+
+func sampleToxicWaste() toxicWaste {
+
+	res := toxicWaste{}
+
+	res.t.SetRandom()
+	res.alpha.SetRandom()
+	res.beta.SetRandom()
+	res.gamma.SetRandom()
+	res.delta.SetRandom()
+
+	res.alphaReg = res.alpha.ToRegular()
+	res.betaReg = res.beta.ToRegular()
+	res.gammaReg = res.gamma.ToRegular()
+	res.deltaReg = res.delta.ToRegular()
+
+	return res
+}
+
+
+
+// DummySetup fills a random ProvingKey
+// used for test or benchmarking purposes
+func DummySetup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey) {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
-	publicStartIndex := r1cs.NbWires - r1cs.NbPublicWires
-	parallel.Execute( nbWires, func(start, end int) {
-		var tt fr.Element
-		var pkG1A, pkG1K, vkG1K curve.G1Jac
-		var bpkG1A big.Int
-		for i := start; i < end; i++ {
-			pkG1A.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
-			pk.G1.A[i].FromJacobian(&pkG1A)
+	nbConstraints := r1cs.NbConstraints
 
-			A[i].MulAssign(&tw.beta)
-			tt.Mul(&B[i], &tw.alpha)
-			A[i].Add(&A[i], &tt).
-				Add(&A[i], &C[i])
+	// Setting group for fft
+	domain := backend_{{toLower .Curve}}.NewDomain(nbConstraints)
 
-			if i < publicStartIndex {
-				A[i].Div(&A[i], &tw.delta) //.FromMont()
-				pkG1K.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
-				pk.G1.K[i].FromJacobian(&pkG1K)
-			} else {
-				A[i].Div(&A[i], &tw.gamma) //.FromMont()
-				vkG1K.ScalarMulByGen(A[i].ToBigIntRegular(&bpkG1A))
-				vk.G1.K[i-publicStartIndex].FromJacobian(&vkG1K)
-			}
-		}
-	})
+	// initialize proving key
+	pk.G1.A = make([]curve.G1Affine, nbWires)
+	pk.G1.B = make([]curve.G1Affine, nbWires)
+	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
+	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
+	pk.G2.B = make([]curve.G2Affine, nbWires)
 
-	// Set the points from the coefficients
-	parallel.Execute( nbWires, func(start, end int) {
-		var pkG1B curve.G1Jac
-		var pkG2B curve.G2Jac
-		var bB big.Int
-		for i := start; i < end; i++ {
-			B[i].ToBigIntRegular(&bB)
-			pkG1B.ScalarMulByGen(&bB)
-			pk.G1.B[i].FromJacobian(&pkG1B)
-			pkG2B.ScalarMulByGen(&bB)
-			pk.G2.B[i].FromJacobian(&pkG2B)
-		}
-	})
+	// samples toxic waste
+	toxicWaste := sampleToxicWaste()
+
+	
+	var r1Jac curve.G1Jac
+	var r1Aff curve.G1Affine
+	var b big.Int
+	g1, g2 := curve.Generators()
+	r1Jac.ScalarMultiplication(&g1, toxicWaste.alphaReg.ToBigInt(&b))
+	r1Aff.FromJacobian(&r1Jac)
+	var r2Jac curve.G2Jac
+	var r2Aff curve.G2Affine
+	r2Jac.ScalarMultiplication(&g2, &b)
+	r2Aff.FromJacobian(&r2Jac)
+	for i := 0; i < nbWires; i++ {
+		pk.G1.A[i] = r1Aff
+		pk.G1.B[i] = r1Aff
+		pk.G2.B[i] = r2Aff
+	}
+	for i := 0; i < len(pk.G1.Z); i++ {
+		pk.G1.Z[i] = r1Aff
+	}
+	for i := 0; i < len(pk.G1.K); i++ {
+		pk.G1.K[i] = r1Aff
+	}
+	pk.G1.Alpha = r1Aff
+	pk.G1.Beta = r1Aff
+	pk.G1.Delta = r1Aff
+	pk.G2.Beta = r2Aff
+	pk.G2.Delta = r2Aff
 
 }
 
