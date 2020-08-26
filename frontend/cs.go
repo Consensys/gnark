@@ -324,7 +324,7 @@ func (cs *CS) equal(c1, c2 Variable) {
 
 	// ensure we're not doing v1.MUST_EQ(v1)
 	if idC1 == idC2 {
-		fmt.Println("warning: calling MUSTBE_EQ between 2 inputs")
+		fmt.Println("warning: calling MUSTBE_EQ between the same inputs")
 		return
 	}
 

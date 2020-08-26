@@ -68,7 +68,11 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	// keep track of consumed wires (one wire and user inputs should be there to start with, as they can't be roots.)
 	consumedWires := make(map[int]struct{})
 
-	// step 1: fills the tmpwiretracker, public/private inputs tracker
+	// step 1: fills the tmpwiretracker, public/private inputs tracker.
+	// During this step the constraints are seen as variables: there is
+	// a one-to-one correspondence between the content of the wireTracker
+	// and non-inputs contraints. The wireTracker contains only wires that
+	// are computed, ie all wires except the user inputs.
 	for cID := 1; cID < len(cs.constraints); cID++ {
 		if _, ok := cs.secretWireNames[cID]; ok {
 			consumedWires[cID] = struct{}{}
@@ -81,23 +85,29 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 		}
 	}
 
-	// to keep track of the number of constraints
+	// to keep track of the number of computational constraints
+	// (constraints leading to a new wire)
 	var ccCounter int
 
-	// step 2: Run through all the constraints, set the constraintID (except the ignored ones, corresponding to inputs), consume the wires
+	// step 2: the computational constraints (ie those yielding a new variables)
+	// are recorded and numbered according to their order of appearance. Those
+	// constraints are exactly the moconstraints, plus the constraints having c.exp
+	// field filled. When such a constraint is found, the wires in c.exp leading the
+	// the computation of c.wire are recorded as 'consumed' in the consumedWires slice.
 	for cID := 1; cID < len(cs.constraints); cID++ {
 		c := cs.constraints[cID]
+
+		// no expression leading to it: it's an input or the output of a moconstraint
 		if c.exp == nil {
-			// we ignore unconstrained wires (moConstraints) and user inputs, as they don't yield a R1C
 			continue
 		}
 
-		c.exp.consumeWires(consumedWires) // only the first exp is consumed, the other might containt root of the computational graph
-		c.finalConstraintID = ccCounter   // tells the output wire from which constraint it is computed
+		c.exp.consumeWires(consumedWires)
+		c.finalConstraintID = ccCounter // tells the output wire from which constraint it is computed
 		cs.constraints[cID] = c
 		ccCounter++
 	}
-	for _, c := range cs.moExpressions {
+	for _, c := range cs.moExpressions { // a moconstraint yields new variables
 		c.setConstraintID(cs, ccCounter)
 		c.consumeWires(consumedWires) // tells the output wires from which constraint they are computed
 		ccCounter++
@@ -110,7 +120,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	// so the wire numbering and the constraint numbering will differ.
 	// wires ordering is arbitrary, we chose:
 	// [non-input wires|secretWires|publicWires]
-	for i, cID := range wireTracker {
+	for i, cID := range wireTracker { // only non input wires in the wireTracker
 		c := cs.constraints[cID]
 		c.finalWireID = i
 		cs.constraints[cID] = c
@@ -142,7 +152,7 @@ func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
 	for cID := 1; cID < len(cs.constraints); cID++ {
 		c := cs.constraints[cID]
 		if c.exp == nil {
-			// we ignore unconstrained wires (moConstraints) and user inputs, as they don't yield a R1C
+			// we ignore unconstrained wires (moConstraints or user inputs), as they don't yield a R1C
 			continue
 		}
 
