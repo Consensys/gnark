@@ -4,12 +4,14 @@ import (
 	backend_bls377 "github.com/consensys/gnark/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gurvy"
 
 	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
 	groth16_bls381 "github.com/consensys/gnark/backend/bls381/groth16"
 	groth16_bn256 "github.com/consensys/gnark/backend/bn256/groth16"
+	groth16_bw761 "github.com/consensys/gnark/backend/bw761/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
 )
 
@@ -39,6 +41,8 @@ func Verify(proof Proof, vk VerifyingKey, solution map[string]interface{}) error
 		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), solution)
 	case *groth16_bn256.Proof:
 		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), solution)
+	case *groth16_bw761.Proof:
+		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), solution)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -55,6 +59,8 @@ func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution map[string]interface{}) (Proo
 		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), solution)
 	case *backend_bn256.R1CS:
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), solution)
+	case *backend_bw761.R1CS:
+		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), solution)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -80,6 +86,11 @@ func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey) {
 		var vk groth16_bn256.VerifyingKey
 		groth16_bn256.Setup(_r1cs, &pk, &vk)
 		return &pk, &vk
+	case *backend_bw761.R1CS:
+		var pk groth16_bw761.ProvingKey
+		var vk groth16_bw761.VerifyingKey
+		groth16_bw761.Setup(_r1cs, &pk, &vk)
+		return &pk, &vk
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -101,6 +112,10 @@ func DummySetup(r1cs r1cs.R1CS) ProvingKey {
 		var pk groth16_bn256.ProvingKey
 		groth16_bn256.DummySetup(_r1cs, &pk)
 		return &pk
+	case *backend_bw761.R1CS:
+		var pk groth16_bw761.ProvingKey
+		groth16_bw761.DummySetup(_r1cs, &pk)
+		return &pk
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -121,6 +136,8 @@ func ReadProvingKey(path string) (ProvingKey, error) {
 		pk = &groth16_bls377.ProvingKey{}
 	case gurvy.BLS381:
 		pk = &groth16_bls381.ProvingKey{}
+	case gurvy.BW761:
+		pk = &groth16_bw761.ProvingKey{}
 	default:
 		panic("not implemented")
 	}
@@ -146,6 +163,8 @@ func ReadVerifyingKey(path string) (VerifyingKey, error) {
 		vk = &groth16_bls377.VerifyingKey{}
 	case gurvy.BLS381:
 		vk = &groth16_bls381.VerifyingKey{}
+	case gurvy.BW761:
+		vk = &groth16_bw761.VerifyingKey{}
 	default:
 		panic("not implemented")
 	}
@@ -171,6 +190,8 @@ func ReadProof(path string) (Proof, error) {
 		proof = &groth16_bls377.Proof{}
 	case gurvy.BLS381:
 		proof = &groth16_bls381.Proof{}
+	case gurvy.BW761:
+		proof = &groth16_bw761.Proof{}
 	default:
 		panic("not implemented")
 	}
