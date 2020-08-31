@@ -35,7 +35,6 @@ import (
 func randomPointG2() bls377.G2Jac {
 
 	var p2 bls377.G2Jac
-	var _p2 bls377.G2Affine
 
 	p2.X.A0.SetString("129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
 	p2.X.A1.SetString("218164455698855406745723400799886985937129266327098023241324696183914328661520330195732120783615155502387891913936")
@@ -47,8 +46,7 @@ func randomPointG2() bls377.G2Jac {
 	var r1 fr.Element
 	var b big.Int
 	r1.SetRandom()
-	_p2.FromJacobian(&p2)
-	p2.ScalarMultiplication(&_p2, r1.ToBigIntRegular(&b))
+	p2.ScalarMultiplication(&p2, r1.ToBigIntRegular(&b))
 
 	return p2
 }

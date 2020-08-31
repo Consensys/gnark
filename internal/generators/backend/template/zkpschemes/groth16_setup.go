@@ -186,8 +186,7 @@ func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingK
 
 
 	// compute our batch scalar multiplication with g2 elements
-	g2Scalars := make([]fr.Element,0, nbWires+3)
-	g2Scalars = append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
+	g2Scalars := append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
 	
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 

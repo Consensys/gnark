@@ -34,7 +34,6 @@ import (
 func randomPointG1() bls377.G1Jac {
 
 	var p1 bls377.G1Jac
-	var _p1 bls377.G1Affine
 
 	p1.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
 	p1.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
@@ -43,8 +42,7 @@ func randomPointG1() bls377.G1Jac {
 	var r1 fr.Element
 	var b big.Int
 	r1.SetRandom()
-	_p1.FromJacobian(&p1)
-	p1.ScalarMultiplication(&_p1, r1.ToBigIntRegular(&b))
+	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1
 }
@@ -334,8 +332,7 @@ func TestScalarMulG1(t *testing.T) {
 	// compute the result
 	r.FromMont()
 	var br big.Int
-	g1Aff.FromJacobian(&g1)
-	g1.ScalarMultiplication(&g1Aff, r.ToBigInt(&br))
+	g1.ScalarMultiplication(&g1, r.ToBigInt(&br))
 	g1Aff.FromJacobian(&g1)
 
 	// assign the exepected values

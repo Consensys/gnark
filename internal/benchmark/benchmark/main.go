@@ -2,7 +2,7 @@
 package main
 
 import (
-	"fmt"
+	"encoding/csv"
 	"os"
 	"runtime"
 	"strconv"
@@ -16,51 +16,45 @@ import (
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
-const benchCount = 4
-
-func bToMb(b uint64) uint64 {
-	return b / 1024 / 1024
-}
-func PrintMemUsage(header string) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Println("________________________________________________________________________________________________________________")
-	fmt.Println(header)
-	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-	fmt.Printf("\tmallocs = %v ", m.Mallocs)
-	fmt.Printf("\tfrees = %v ", m.Frees)
-	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
 // /!\ internal use /!\
-// running it with "trace" will output trace.out file
-// const n = 1000000
 
-// else will output average proving times, in csv format
 func main() {
 	n, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("processing with %d constraints as input, %d cpus\n", n, runtime.NumCPU())
+
+	// generate dummy circuit
 	pk, r1cs, input := generateCircuit(n)
 	_r1cs := r1cs.(*backend_bn256.R1CS)
-	fmt.Println("r1cs nb wires", _r1cs.NbWires)
-	fmt.Println("r1cs nb constraints", _r1cs.NbConstraints)
-	fmt.Println("r1cs different coeffs", len(_r1cs.Coefficients))
-	fmt.Println()
-	PrintMemUsage("after r1cs compile + dummy setup")
-	fmt.Println()
+
+	// measure proving time
 	start := time.Now()
 	_, _ = groth16.Prove(r1cs, pk, input)
 	took := time.Since(start)
-	PrintMemUsage("after prove")
-	fmt.Println()
-	fmt.Println("took", took.Milliseconds())
-	fmt.Println("____________________________")
+
+	// check memory usage, max ram requested from OS
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	bData := benchData{
+		NbCpus:         runtime.NumCPU(),
+		NbCoefficients: len(_r1cs.Coefficients),
+		NbConstraints:  _r1cs.NbConstraints,
+		NbWires:        _r1cs.NbWires,
+		RunTime:        took.Milliseconds(),
+		MaxRAM:         (m.Sys / 1024 / 1024),
+	}
+
+	// write to stdout
+	w := csv.NewWriter(os.Stdout)
+	if err := w.Write(bData.headers()); err != nil {
+		panic(err)
+	}
+	if err := w.Write(bData.values()); err != nil {
+		panic(err)
+	}
+	w.Flush()
 }
 
 type benchCircuit struct {
@@ -109,4 +103,27 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS, map[stri
 	//  setup
 	pk := groth16.DummySetup(r1cs)
 	return pk, r1cs, solution
+}
+
+type benchData struct {
+	NbConstraints  int
+	NbWires        int
+	NbCoefficients int
+	MaxRAM         uint64
+	RunTime        int64
+	NbCpus         int
+}
+
+func (bData benchData) headers() []string {
+	return []string{"nbConstraints", "nbWires", "nbCoefficients", "ram(mb)", "time(ms)", "nbCpus"}
+}
+func (bData benchData) values() []string {
+	return []string{
+		strconv.Itoa(bData.NbConstraints),
+		strconv.Itoa(bData.NbWires),
+		strconv.Itoa(bData.NbCoefficients),
+		strconv.Itoa(int(bData.MaxRAM)),
+		strconv.Itoa(int(bData.RunTime)),
+		strconv.Itoa(bData.NbCpus),
+	}
 }
