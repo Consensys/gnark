@@ -8,7 +8,7 @@ jobs:
       - run: mkdir -p  /tmp/test-results
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
       - run: if [[ -n $(gofmt -l .) ]]; then echo "Please run gofmt"; exit 1; fi
       - run: go vet -v ./...
       - run: go test -v ./cmd/ -run=VersionIsGenerated # ensure version is generated
@@ -18,6 +18,6 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
