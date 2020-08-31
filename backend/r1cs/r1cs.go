@@ -13,6 +13,8 @@ import (
 type R1CS interface {
 	Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error)
 	GetNbConstraints() int
+	GetNbWires() int
+	GetNbCoefficients() int
 }
 
 // Read ...

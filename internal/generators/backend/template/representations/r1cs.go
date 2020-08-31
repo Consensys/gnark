@@ -41,6 +41,16 @@ func (r1cs *R1CS) GetNbConstraints() int {
 	return r1cs.NbConstraints
 }
 
+// GetNbWires returns the number of wires
+func (r1cs *R1CS) GetNbWires() int {
+	return r1cs.NbWires
+}
+
+// GetNbCoefficients return the number of (different) coefficients needed in the R1CS
+func (r1cs *R1CS) GetNbCoefficients() int {
+	return len(r1cs.Coefficients)
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // assignment: map[string]value: contains the input variables
