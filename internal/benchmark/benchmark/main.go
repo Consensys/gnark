@@ -3,9 +3,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	"strconv"
 	"time"
 
+	backend_bn256 "github.com/consensys/gnark/backend/bn256"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
@@ -34,15 +37,30 @@ func PrintMemUsage(header string) {
 
 // /!\ internal use /!\
 // running it with "trace" will output trace.out file
-const n = 1000000
+// const n = 1000000
 
 // else will output average proving times, in csv format
 func main() {
+	n, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("processing with %d constraints as input, %d cpus\n", n, runtime.NumCPU())
 	pk, r1cs, input := generateCircuit(n)
+	_r1cs := r1cs.(*backend_bn256.R1CS)
+	fmt.Println("r1cs nb wires", _r1cs.NbWires)
+	fmt.Println("r1cs nb constraints", _r1cs.NbConstraints)
+	fmt.Println("r1cs different coeffs", len(_r1cs.Coefficients))
+	fmt.Println()
+	PrintMemUsage("after r1cs compile + dummy setup")
+	fmt.Println()
 	start := time.Now()
 	_, _ = groth16.Prove(r1cs, pk, input)
 	took := time.Since(start)
+	PrintMemUsage("after prove")
+	fmt.Println()
 	fmt.Println("took", took.Milliseconds())
+	fmt.Println("____________________________")
 }
 
 type benchCircuit struct {

@@ -100,8 +100,7 @@ func Setup(r1cs *backend_bn256.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	// to use this batch call, we need to order our scalars in the same slice
 	// we have 1 batch call for G1 and 1 batch call for G1
 	// scalars are fr.Element in non montgomery form
-
-	g1, g2 := curve.Generators()
+	_, _, g1, g2 := curve.Generators()
 
 	// ---------------------------------------------------------------------------------------------
 	// G1 scalars
@@ -324,7 +323,7 @@ func DummySetup(r1cs *backend_bn256.R1CS, pk *ProvingKey) {
 	var r1Jac curve.G1Jac
 	var r1Aff curve.G1Affine
 	var b big.Int
-	g1, g2 := curve.Generators()
+	g1, g2, _, _ := curve.Generators()
 	r1Jac.ScalarMultiplication(&g1, toxicWaste.alphaReg.ToBigInt(&b))
 	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac

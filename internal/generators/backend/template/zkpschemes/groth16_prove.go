@@ -20,17 +20,6 @@ type Proof struct {
 	Bs      curve.G2Affine
 }
 
-var (
-	minusTwoInv fr.Element
-	nnn int
-)
-
-func init() {
-	minusTwoInv.SetUint64(2)
-	minusTwoInv.Neg(&minusTwoInv).
-		Inverse(&minusTwoInv)
-	nnn = (runtime.NumCPU() / 2 ) + 1
-}
 
 // Prove creates proof from a circuit
 func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
@@ -38,6 +27,34 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 
 	// fft domain (computeH)
 	fftDomain := backend_{{toLower .Curve}}.NewDomain(r1cs.NbConstraints)
+
+	// solve the R1CS and compute the a, b, c vectors
+	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality) 
+	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil {
+		return nil, err
+	}
+
+	// set the wire values in regular form
+	parallel.Execute(len(wireValues), func(start, end int){
+		for i := start; i < end; i++ {
+			wireValues[i].FromMont()
+		}
+	})
+	
+
+	// H (witness reduction / FFT part)
+	var h []fr.Element
+	chHDone := make(chan struct{}, 1)
+	go func() {
+		h = computeH(a, b, c, fftDomain)
+		a = nil
+		b = nil 
+		c = nil 
+		chHDone <- struct{}{}
+	}()
 
 	// sample random r and s
 	var r, s big.Int
@@ -52,105 +69,112 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 	_r.ToBigInt(&r)
 	_s.ToBigInt(&s)
 
-	// Solve the R1CS and compute the a, b, c vectors
-	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality+nbPrivateWires) 
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	err := r1cs.Solve(solution, a, b, c, wireValues)
-	if err != nil {
-		return nil, err
-	}
-	// set the wire values in regular form
-	for i := 0; i < len(wireValues); i++ {
-		wireValues[i].FromMont()
-	}
-
-	// async waits
-	chHDone := make(chan struct{}, 1)
-	chKrsDone := make(chan struct{}, 1)
-	chArDone:= make(chan struct{}, 1)
-	chBs1Done := make(chan struct{}, 1)
-
-	// init a CPU semaphore with enough tokens
-	// note: it seems adding to the number of CPUs here, effectively making the MultiExp compete for resources
-	// yields better performances -- this needs to be re-checked on large circuits, as cache eviction cost may become very noticeable.
-	nCpus := runtime.NumCPU()
-	nCpus += nCpus/2
-	chCpus := make(chan struct{}, nCpus)
-	for i:=0; i < nCpus; i++ {
-		chCpus <- struct{}{}
-	}
-
-	var h []fr.Element
-	
-	go func() {
-		// H (witness reduction / FFT part)
-		h = computeH(a, b, c, fftDomain)
-		h = append(h, wireValues[:nbPrivateWires]...)
-		h = curve.PartitionScalars(h)
-		chHDone <- struct{}{}
-	}()
-
-	// keep busy while the fft splits its go routines
+	// computes r[δ], s[δ], kr[δ] 
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r,_s,_kr})
 
-	// wait for FFT to end, as it uses (almost) all our CPUs
+
+	// wait for FFT to end, as it uses all our CPUs
 	<-chHDone
 
-	// preprocess them once for the multiExps (Ar1, Bs1, Bs2)
-	processedWireValues := curve.PartitionScalars(wireValues)
-
-	// compute proof elements
-	// 4 multiexp + 1 FFT
 	proof := &Proof{}
-	var bs1Affine curve.G1Affine
+	var bs1, ar curve.G1Jac
 
-	
-	go func() {
-		var ar curve.G1Jac
-		ar.MultiExp(pk.G1.A, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+	// using this ensures that our multiExps running in parallel won't use more than
+	// provided CPUs
+	opt := curve.NewMultiExpOptions(runtime.NumCPU())
+
+
+	chBs1Done := make(chan struct{}, 1)
+	computeBS1 := func() {
+		bs1.MultiExp(pk.G1.B, wireValues, opt)
+		bs1.AddMixed(&pk.G1.Beta)
+		bs1.AddMixed(&deltas[1])
+		chBs1Done <- struct{}{}
+	}
+
+	chArDone:= make(chan struct{}, 1)
+	computeAR1 := func() {
+		ar.MultiExp(pk.G1.A, wireValues, opt)
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
 		chArDone <- struct{}{}
-	}()
-	
+	}
 
-	go func() {
-		var bs1 curve.G1Jac
-		bs1.MultiExp(pk.G1.B, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
-		bs1.AddMixed(&pk.G1.Beta)
-		bs1.AddMixed(&deltas[1])
-		bs1Affine.FromJacobian(&bs1)
-		chBs1Done <- struct{}{}
-	}()
+	chKrsDone := make(chan struct{}, 1)
+	computeKRS := func() {
+		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
+		// however, having similar lengths for our tasks helps with parallelism 
 
-	go func() {
-		var krs, p1 curve.G1Jac
-		krs.MultiExp( append(pk.G1.Z, pk.G1.K[:nbPrivateWires]...), h, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
+		var krs, krs2, p1 curve.G1Jac
+		chKrs2Done := make(chan struct{}, 1)
+		go func() {
+			krs2.MultiExp( pk.G1.Z, h, opt)
+			chKrs2Done <- struct{}{}
+		}()
+		krs.MultiExp(pk.G1.K[:nbPrivateWires], wireValues[:nbPrivateWires], opt)
 		krs.AddMixed(&deltas[2])
-		<-chArDone
-		p1.ScalarMulGLV(&proof.Ar, &s)
-		krs.AddAssign(&p1)
-		<-chBs1Done
-		p1.ScalarMulGLV(&bs1Affine, &r)
-		krs.AddAssign(&p1)
-	
+		n := 3
+		for n!=0 {
+			select {
+			case <-chKrs2Done:
+				krs.AddAssign(&krs2)
+			case <-chArDone:
+				p1.ScalarMulGLV(&ar, &s)
+				krs.AddAssign(&p1)
+			case <-chBs1Done:
+				p1.ScalarMulGLV(&bs1, &r)
+				krs.AddAssign(&p1)
+			}
+			n--
+		}
+		
 		proof.Krs.FromJacobian(&krs)
-
 		chKrsDone <- struct{}{}
-	}()
+	}
 
+	// schedule our proof part computations
+	go computeKRS()
+	go computeAR1()
+	go computeBS1()
 
-	// Bs2 (1 multi exp G2 - size = len(wires))
-	var Bs, deltaS curve.G2Jac
-	Bs.MultiExp(pk.G2.B, processedWireValues, curve.MultiExpOptions{IsPartitionned: true, ChCpus: chCpus})
-	deltaS.ScalarMulGLV(&pk.G2.Delta, &s)
-	Bs.AddAssign(&deltaS)
-	Bs.AddMixed(&pk.G2.Beta)
-	proof.Bs.FromJacobian(&Bs)
+	{
+		// Bs2 (1 multi exp G2 - size = len(wires))
+		var Bs, deltaS curve.G2Jac
+	
+		// splitting Bs2 in 3 ensures all our go routines in the prover have similar running time
+		// and is good for parallelism. However, on a machine with limited CPUs, this may not be
+		// a good idea, as the MultiExp scales slightly better than linearly
+		bsSplit := len(pk.G2.B) / 3
+		if bsSplit > 10 {
+			chDone1 := make(chan struct{}, 1)
+			chDone2 := make(chan struct{}, 1)
+			var bs1,bs2 curve.G2Jac
+			go func() {
+				bs1.MultiExp(pk.G2.B[:bsSplit], wireValues[:bsSplit], opt)
+				chDone1 <- struct{}{}
+			}()
+			go func() {
+				bs2.MultiExp(pk.G2.B[bsSplit:bsSplit*2], wireValues[bsSplit:bsSplit*2], opt)
+				chDone2 <- struct{}{}
+			}()
+			Bs.MultiExp(pk.G2.B[bsSplit*2:], wireValues[bsSplit*2:], opt)
+			
+			<-chDone1 
+			Bs.AddAssign(&bs1)
+			<-chDone2
+			Bs.AddAssign(&bs2)
+		} else {
+			Bs.MultiExp(pk.G2.B, wireValues, opt)
+		}
+	
+		deltaS.FromAffine(&pk.G2.Delta)
+		deltaS.ScalarMulGLV(&deltaS, &s)
+		Bs.AddAssign(&deltaS)
+		Bs.AddMixed(&pk.G2.Beta)
 
+		proof.Bs.FromJacobian(&Bs)
+	}
 
 	// wait for all parts of the proof to be computed.
 	<-chKrsDone
@@ -203,7 +227,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 			wgExpTable.Wait()
 			parallel.Execute( n, func(start, end int) {
 				for i := start; i < end; i++ {
-					s[i].MulAssign(&expTable[i])
+					s[i].Mul(&s[i], &expTable[i])
 				}
 			})
 
@@ -216,6 +240,12 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		go FFTa(b)
 		FFTa(c)
 
+
+		var minusTwoInv fr.Element
+		minusTwoInv.SetUint64(2)
+		minusTwoInv.Neg(&minusTwoInv).
+			Inverse(&minusTwoInv)
+
 		// wait for first step (ifft + fft_coset) to be done
 		wg.Wait()
 
@@ -224,8 +254,8 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		parallel.Execute( n, func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &b[i]).
-					SubAssign(&c[i]).
-					MulAssign(&minusTwoInv)
+					Sub(&a[i], &c[i]).
+					Mul(&a[i], &minusTwoInv)
 			}
 		})
 
@@ -243,7 +273,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		wgExpTable.Wait() // wait for pre-computation of exp table to be done
 		parallel.Execute( n, func(start, end int) {
 			for i := start; i < end; i++ {
-				a[i].MulAssign(&expTable[i]).FromMont()
+				a[i].Mul(&a[i], &expTable[i]).FromMont()
 			}
 		})
 
@@ -283,7 +313,7 @@ func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) 
 
 func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Element) {
 	table[0].Exp(w, new(big.Int).SetUint64(power))
-	table[0].MulAssign(&scale)
+	table[0].Mul(&table[0], &scale)
 	for i := 1; i < len(table); i++ {
 		table[i].Mul(&table[i-1], &w)
 	}
