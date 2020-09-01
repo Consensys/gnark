@@ -12,17 +12,17 @@ import (
 
 
 	{{if eq .Curve "BLS377"}}
-		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls377/groth16"
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	{{else if eq .Curve "BLS381"}}
-		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls381/groth16"
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bls381/groth16"
 	{{else if eq .Curve "BN256"}}
-		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bn256/groth16"
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bn256/groth16"
 	{{ else if eq .Curve "BW761"}}
-		groth16_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761/groth16"
+		groth16_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bw761/groth16"
 	{{end}}
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/circuits"
+	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"

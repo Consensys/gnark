@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/encoding"
+	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 )
 

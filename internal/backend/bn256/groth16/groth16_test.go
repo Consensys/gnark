@@ -17,20 +17,20 @@
 package groth16_test
 
 import (
-	curve "github.com/consensys/gurvy/bw761"
-	"github.com/consensys/gurvy/bw761/fr"
+	curve "github.com/consensys/gurvy/bn256"
+	"github.com/consensys/gurvy/bn256/fr"
 
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
-	"github.com/consensys/gnark/backend/r1cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 
 	"testing"
 
-	groth16_bw761 "github.com/consensys/gnark/backend/bw761/groth16"
+	groth16_bn256 "github.com/consensys/gnark/internal/backend/bn256/groth16"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/circuits"
 )
 
 func TestCircuits(t *testing.T) {
@@ -50,18 +50,18 @@ func TestParsePublicInput(t *testing.T) {
 
 	inputOneWire := make(map[string]interface{})
 	inputOneWire[backend.OneWire] = 3
-	if _, err := groth16_bw761.ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
+	if _, err := groth16_bn256.ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
 		t.Fatal("expected ErrMissingAssigment error")
 	}
 
 	missingInput := make(map[string]interface{})
-	if _, err := groth16_bw761.ParsePublicInput(expectedNames[:], missingInput); err == nil {
+	if _, err := groth16_bn256.ParsePublicInput(expectedNames[:], missingInput); err == nil {
 		t.Fatal("expected ErrMissingAssigment")
 	}
 
 	correctInput := make(map[string]interface{})
 	correctInput["data"] = 3
-	got, err := groth16_bw761.ParsePublicInput(expectedNames[:], correctInput)
+	got, err := groth16_bn256.ParsePublicInput(expectedNames[:], correctInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +141,13 @@ func TestReferenceCircuit(t *testing.T) {
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 
-	var pk groth16_bw761.ProvingKey
-	var vk groth16_bw761.VerifyingKey
+	var pk groth16_bn256.ProvingKey
+	var vk groth16_bn256.VerifyingKey
 	b.ResetTimer()
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			groth16_bw761.Setup(r1cs.(*backend_bw761.R1CS), &pk, &vk)
+			groth16_bn256.Setup(r1cs.(*backend_bn256.R1CS), &pk, &vk)
 		}
 	})
 }
@@ -157,13 +157,13 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 
-	var pk groth16_bw761.ProvingKey
-	groth16_bw761.DummySetup(r1cs.(*backend_bw761.R1CS), &pk)
+	var pk groth16_bn256.ProvingKey
+	groth16_bn256.DummySetup(r1cs.(*backend_bn256.R1CS), &pk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = groth16_bw761.Prove(r1cs.(*backend_bw761.R1CS), &pk, solution)
+			_, _ = groth16_bn256.Prove(r1cs.(*backend_bn256.R1CS), &pk, solution)
 		}
 	})
 }
@@ -174,10 +174,10 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 
-	var pk groth16_bw761.ProvingKey
-	var vk groth16_bw761.VerifyingKey
-	groth16_bw761.Setup(r1cs.(*backend_bw761.R1CS), &pk, &vk)
-	proof, err := groth16_bw761.Prove(r1cs.(*backend_bw761.R1CS), &pk, solution)
+	var pk groth16_bn256.ProvingKey
+	var vk groth16_bn256.VerifyingKey
+	groth16_bn256.Setup(r1cs.(*backend_bn256.R1CS), &pk, &vk)
+	proof, err := groth16_bn256.Prove(r1cs.(*backend_bn256.R1CS), &pk, solution)
 	if err != nil {
 		panic(err)
 	}
@@ -185,7 +185,7 @@ func BenchmarkVerifier(b *testing.B) {
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = groth16_bw761.Verify(proof, &vk, solution)
+			_ = groth16_bn256.Verify(proof, &vk, solution)
 		}
 	})
 }

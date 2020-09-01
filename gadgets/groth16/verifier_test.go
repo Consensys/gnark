@@ -19,10 +19,10 @@ package groth16
 import (
 	"testing"
 
-	backend_bls377 "github.com/consensys/gnark/backend/bls377"
-	groth16_bls377 "github.com/consensys/gnark/backend/bls377/groth16"
-	backend_bw761 "github.com/consensys/gnark/backend/bw761"
 	"github.com/consensys/gnark/backend/groth16"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
+	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"

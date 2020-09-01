@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"sync"
 	"github.com/consensys/gnark/internal/utils/debug"
-	"github.com/consensys/gnark/internal/utils/parallel"
 	"github.com/consensys/gnark/backend"
 )
 
@@ -38,7 +37,7 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 	}
 
 	// set the wire values in regular form
-	parallel.Execute(len(wireValues), func(start, end int){
+	execute(len(wireValues), func(start, end int){
 		for i := start; i < end; i++ {
 			wireValues[i].FromMont()
 		}
@@ -225,7 +224,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 			// wait for the expTable to be pre-computed
 			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
 			wgExpTable.Wait()
-			parallel.Execute( n, func(start, end int) {
+			execute( n, func(start, end int) {
 				for i := start; i < end; i++ {
 					s[i].Mul(&s[i], &expTable[i])
 				}
@@ -251,7 +250,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 
 		// h = ifft_coset(ca o cb - cc)
 		// reusing a to avoid unecessary memalloc
-		parallel.Execute( n, func(start, end int) {
+		execute( n, func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &b[i]).
 					Sub(&a[i], &c[i]).
@@ -271,7 +270,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		backend_{{toLower .Curve}}.FFT(a, fftDomain.GeneratorInv)
 
 		wgExpTable.Wait() // wait for pre-computation of exp table to be done
-		parallel.Execute( n, func(start, end int) {
+		execute( n, func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &expTable[i]).FromMont()
 			}
@@ -317,6 +316,43 @@ func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Eleme
 	for i := 1; i < len(table); i++ {
 		table[i].Mul(&table[i-1], &w)
 	}
+}
+
+
+
+// execute process in parallel the work function, using all available CPUs
+func execute(nbIterations int, work func(int, int)) {
+
+	nbTasks := runtime.NumCPU()
+	nbIterationsPerCpus := nbIterations / nbTasks
+
+	// more CPUs than tasks: a CPU will work on exactly one iteration
+	if nbIterationsPerCpus < 1 {
+		nbIterationsPerCpus = 1
+		nbTasks = nbIterations
+	}
+
+	var wg sync.WaitGroup
+
+	extraTasks := nbIterations - (nbTasks * nbIterationsPerCpus)
+	extraTasksOffset := 0
+
+	for i := 0; i < nbTasks; i++ {
+		wg.Add(1)
+		_start := i*nbIterationsPerCpus + extraTasksOffset
+		_end := _start + nbIterationsPerCpus
+		if extraTasks > 0 {
+			_end++
+			extraTasks--
+			extraTasksOffset++
+		}
+		go func() {
+			work(_start, _end)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 

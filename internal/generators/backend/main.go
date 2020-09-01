@@ -10,20 +10,20 @@ import (
 func main() {
 
 	bls377 := generator.GenerateData{
-		RootPath: "../../../backend/bls377/",
+		RootPath: "../../../internal/backend/bls377/",
 		Curve:    "BLS377",
 	}
 	bls381 := generator.GenerateData{
-		RootPath: "../../../backend/bls381/",
+		RootPath: "../../../internal/backend/bls381/",
 		Curve:    "BLS381",
 	}
 	bn256 := generator.GenerateData{
-		RootPath: "../../../backend/bn256/",
+		RootPath: "../../../internal/backend/bn256/",
 		Curve:    "BN256",
 	}
 
 	bw761 := generator.GenerateData{
-		RootPath: "../../../backend/bw761/",
+		RootPath: "../../../internal/backend/bw761/",
 		Curve:    "BW761",
 	}
 

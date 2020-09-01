@@ -21,9 +21,9 @@ import (
 	"math/big"
 	"testing"
 
-	backend_bls377 "github.com/consensys/gnark/backend/bls377"
-	backend_bls381 "github.com/consensys/gnark/backend/bls381"
 	"github.com/consensys/gnark/backend/groth16"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"

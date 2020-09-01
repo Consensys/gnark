@@ -35,13 +35,13 @@ const ImportCurve = `
 
 {{ define "import_backend" }}
 {{if eq .Curve "BLS377"}}
-	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls377"
+	backend_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bls377"
 {{else if eq .Curve "BLS381"}}
-	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bls381"
+	backend_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bls381"
 {{else if eq .Curve "BN256"}}
-	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bn256"
+	backend_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bn256"
 {{ else if eq .Curve "BW761"}}
-	backend_{{toLower .Curve}} "github.com/consensys/gnark/backend/bw761"
+	backend_{{toLower .Curve}} "github.com/consensys/gnark/internal/backend/bw761"
 {{end}}
 
 

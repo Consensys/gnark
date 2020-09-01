@@ -19,16 +19,15 @@ package groth16
 import (
 	"math/big"
 
-	curve "github.com/consensys/gurvy/bn256"
-	"github.com/consensys/gurvy/bn256/fr"
+	curve "github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gurvy/bls377/fr"
 
-	backend_bn256 "github.com/consensys/gnark/backend/bn256"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 
 	"runtime"
 	"sync"
 
 	"github.com/consensys/gnark/internal/utils/debug"
-	"github.com/consensys/gnark/internal/utils/parallel"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -39,11 +38,11 @@ type Proof struct {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+func Prove(r1cs *backend_bls377.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// fft domain (computeH)
-	fftDomain := backend_bn256.NewDomain(r1cs.NbConstraints)
+	fftDomain := backend_bls377.NewDomain(r1cs.NbConstraints)
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
@@ -55,7 +54,7 @@ func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution map[string]interfa
 	}
 
 	// set the wire values in regular form
-	parallel.Execute(len(wireValues), func(start, end int) {
+	execute(len(wireValues), func(start, end int) {
 		for i := start; i < end; i++ {
 			wireValues[i].FromMont()
 		}
@@ -196,7 +195,7 @@ func Prove(r1cs *backend_bn256.R1CS, pk *ProvingKey, solution map[string]interfa
 	return proof, nil
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *backend_bls377.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -233,19 +232,19 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) []fr.Elemen
 	var wg sync.WaitGroup
 	FFTa := func(s []fr.Element) {
 		// FFT inverse
-		backend_bn256.FFT(s, fftDomain.GeneratorInv)
+		backend_bls377.FFT(s, fftDomain.GeneratorInv)
 
 		// wait for the expTable to be pre-computed
 		// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
 		wgExpTable.Wait()
-		parallel.Execute(n, func(start, end int) {
+		execute(n, func(start, end int) {
 			for i := start; i < end; i++ {
 				s[i].Mul(&s[i], &expTable[i])
 			}
 		})
 
 		// FFT coset
-		backend_bn256.FFT(s, fftDomain.Generator)
+		backend_bls377.FFT(s, fftDomain.Generator)
 		wg.Done()
 	}
 	wg.Add(3)
@@ -263,7 +262,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) []fr.Elemen
 
 	// h = ifft_coset(ca o cb - cc)
 	// reusing a to avoid unecessary memalloc
-	parallel.Execute(n, func(start, end int) {
+	execute(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).
 				Sub(&a[i], &c[i]).
@@ -280,10 +279,10 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bn256.Domain) []fr.Elemen
 	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
 
 	// ifft_coset
-	backend_bn256.FFT(a, fftDomain.GeneratorInv)
+	backend_bls377.FFT(a, fftDomain.GeneratorInv)
 
 	wgExpTable.Wait() // wait for pre-computation of exp table to be done
-	parallel.Execute(n, func(start, end int) {
+	execute(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &expTable[i]).FromMont()
 		}
@@ -329,4 +328,39 @@ func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Eleme
 	for i := 1; i < len(table); i++ {
 		table[i].Mul(&table[i-1], &w)
 	}
+}
+
+// execute process in parallel the work function, using all available CPUs
+func execute(nbIterations int, work func(int, int)) {
+
+	nbTasks := runtime.NumCPU()
+	nbIterationsPerCpus := nbIterations / nbTasks
+
+	// more CPUs than tasks: a CPU will work on exactly one iteration
+	if nbIterationsPerCpus < 1 {
+		nbIterationsPerCpus = 1
+		nbTasks = nbIterations
+	}
+
+	var wg sync.WaitGroup
+
+	extraTasks := nbIterations - (nbTasks * nbIterationsPerCpus)
+	extraTasksOffset := 0
+
+	for i := 0; i < nbTasks; i++ {
+		wg.Add(1)
+		_start := i*nbIterationsPerCpus + extraTasksOffset
+		_end := _start + nbIterationsPerCpus
+		if extraTasks > 0 {
+			_end++
+			extraTasks--
+			extraTasksOffset++
+		}
+		go func() {
+			work(_start, _end)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
