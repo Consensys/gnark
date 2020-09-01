@@ -13,9 +13,9 @@ type MiMCCircuit struct {
 	Hash     frontend.Variable `gnark:",public"`
 }
 
-func (circuit *MiMCCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (circuit *MiMCCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// hash function
-	mimc, _ := mimc.NewMiMC("seed", ctx.CurveID())
+	mimc, _ := mimc.NewMiMC("seed", curveID)
 
 	// specify constraints
 	// mimc(preImage) == hash
@@ -24,7 +24,7 @@ func (circuit *MiMCCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error
 	return nil
 }
 
-func (circuit *MiMCCircuit) PostInit(ctx *frontend.Context) error {
+func (circuit *MiMCCircuit) PostInit(curveID gurvy.ID) error {
 	return nil
 }
 
@@ -33,19 +33,14 @@ func main() {
 	// init slices if any
 	// ex: cubicCircuit.bar = make([]foo, 12)
 
-	// init context
-	ctx := frontend.NewContext(gurvy.BN256)
-	// add key values to context, usable by circuit and all components
-	// ex: ctx.Set(rho, new(big.Int).Set("..."))
-
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(ctx, &mimcCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &mimcCircuit)
 	if err != nil {
 		panic(err)
 	}
 
 	// save the R1CS to disk
-	if err = frontend.Save(ctx, r1cs, "circuit.r1cs"); err != nil {
+	if err = frontend.Save(r1cs, "circuit.r1cs"); err != nil {
 		panic(err)
 	}
 }

@@ -31,8 +31,8 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(ctx *frontend.Context, cs *frontend.CS) error {
-	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
+func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &signatureCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &signatureCircuit)
 	assert.NoError(err)
 
 	assert.Solved(r1cs, &operator.witnesses, nil)
@@ -87,8 +87,8 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(ctx *frontend.Context, cs *frontend.CS) error {
-	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
+func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var inclusionProofCircuit circuitInclusionProof
-	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &inclusionProofCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &inclusionProofCircuit)
 	assert.NoError(err)
 
 	assert.Solved(r1cs, &operator.witnesses, nil)
@@ -152,7 +152,7 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (t *circuitUpdateAccount) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	verifyAccountUpdated(cs, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
 		t.SenderAccountsAfter[0], t.ReceiverAccountsAfter[0], t.Transfers[0].Amount)
 	return nil
@@ -196,7 +196,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var updateAccountCircuit circuitUpdateAccount
-	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &updateAccountCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &updateAccountCircuit)
 	assert.NoError(err)
 
 	assert.Solved(r1cs, &operator.witnesses, nil)
@@ -242,7 +242,7 @@ func TestCircuitFull(t *testing.T) {
 	// verifies the proofs of inclusion of the transfer
 
 	var rollupCircuit RollupCircuit
-	r1cs, err := frontend.Compile(frontend.NewContext(gurvy.BN256), &rollupCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &rollupCircuit)
 	assert.NoError(err)
 
 	assert.Solved(r1cs, &operator.witnesses, nil)

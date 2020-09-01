@@ -51,6 +51,11 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
+// GetCurveID returns the curveID of this R1CS
+func (r1cs *R1CS) GetCurveID() gurvy.ID {
+	return gurvy.{{.Curve}}
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // assignment: map[string]value: contains the input variables

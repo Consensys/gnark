@@ -31,6 +31,7 @@ import (
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gurvy"
 )
 
 func TestCircuits(t *testing.T) {
@@ -90,7 +91,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = cs.MUL(circuit.X, circuit.X)
 	}
@@ -98,7 +99,7 @@ func (circuit *refCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error 
 	return nil
 }
 
-func (circuit *refCircuit) PostInit(ctx *frontend.Context) error {
+func (circuit *refCircuit) PostInit(curveID gurvy.ID) error {
 	return nil
 }
 func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
@@ -106,8 +107,7 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ctx := frontend.NewContext(curve.ID)
-	r1cs, err := frontend.Compile(ctx, &circuit)
+	r1cs, err := frontend.Compile(curve.ID, &circuit)
 	if err != nil {
 		panic(err)
 	}

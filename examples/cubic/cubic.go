@@ -12,7 +12,7 @@ type CubicCircuit struct {
 	Y frontend.Variable `gnark:"y, public"`
 }
 
-func (circuit *CubicCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	//  x**3 + x + 5 == y
 	x3 := cs.MUL(circuit.X, circuit.X, circuit.X)
 	cs.MUSTBE_EQ(circuit.Y, cs.ADD(x3, circuit.X, 5))
@@ -23,7 +23,7 @@ func (circuit *CubicCircuit) Define(ctx *frontend.Context, cs *frontend.CS) erro
 	return nil
 }
 
-func (cubic *CubicCircuit) PostInit(ctx *frontend.Context) error {
+func (cubic *CubicCircuit) PostInit(curveID gurvy.ID) error {
 	return nil
 }
 
@@ -32,19 +32,14 @@ func main() {
 	// init slices if any
 	// ex: cubicCircuit.bar = make([]foo, 12)
 
-	// init context
-	ctx := frontend.NewContext(gurvy.BN256)
-	// add key values to context, usable by circuit and all components
-	// ex: ctx.Set(rho, new(big.Int).Set("..."))
-
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(ctx, &cubicCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &cubicCircuit)
 	if err != nil {
 		panic(err)
 	}
 
 	// save the R1CS to disk
-	if err = frontend.Save(ctx, r1cs, "circuit.r1cs"); err != nil {
+	if err = frontend.Save(r1cs, "circuit.r1cs"); err != nil {
 		panic(err)
 	}
 }

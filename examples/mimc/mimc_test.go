@@ -14,8 +14,7 @@ func TestPreimage(t *testing.T) {
 
 	var mimcCircuit MiMCCircuit
 
-	ctx := frontend.NewContext(gurvy.BN256)
-	r1cs, err := frontend.Compile(ctx, &mimcCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &mimcCircuit)
 	assert.NoError(err)
 
 	{

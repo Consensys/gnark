@@ -16,6 +16,7 @@ type R1CS interface {
 	GetNbConstraints() int
 	GetNbWires() int
 	GetNbCoefficients() int
+	GetCurveID() gurvy.ID
 }
 
 // Read ...

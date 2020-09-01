@@ -12,10 +12,8 @@ func TestExponentiate(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var expCircuit ExponentiateCircuit
-	// init context
-	ctx := frontend.NewContext(gurvy.BN256)
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(ctx, &expCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &expCircuit)
 	if err != nil {
 		t.Fatal(err)
 	}

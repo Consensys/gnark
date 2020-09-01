@@ -13,11 +13,8 @@ func TestCubicEquation(t *testing.T) {
 
 	var cubicCircuit CubicCircuit
 
-	// init context
-	ctx := frontend.NewContext(gurvy.BN256)
-
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(ctx, &cubicCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &cubicCircuit)
 	assert.NoError(err)
 
 	{

@@ -21,7 +21,7 @@ type ExponentiateCircuit struct {
 	E frontend.Variable
 }
 
-func (circuit *ExponentiateCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// specify constraints
 	output := cs.ALLOCATE(1)
 	bits := cs.TO_BINARY(circuit.E, bitSize)
@@ -43,7 +43,7 @@ func (circuit *ExponentiateCircuit) Define(ctx *frontend.Context, cs *frontend.C
 	return nil
 }
 
-func (circuit *ExponentiateCircuit) PostInit(ctx *frontend.Context) error {
+func (circuit *ExponentiateCircuit) PostInit(curveID gurvy.ID) error {
 	return nil
 }
 
@@ -52,19 +52,14 @@ func main() {
 	// init slices if any
 	// ex: cubicCircuit.bar = make([]foo, 12)
 
-	// init context
-	ctx := frontend.NewContext(gurvy.BN256)
-	// add key values to context, usable by circuit and all components
-	// ex: ctx.Set(rho, new(big.Int).Set("..."))
-
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(ctx, &expCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &expCircuit)
 	if err != nil {
 		panic(err)
 	}
 
 	// save the R1CS to disk
-	if err = frontend.Save(ctx, r1cs, "circuit.r1cs"); err != nil {
+	if err = frontend.Save(r1cs, "circuit.r1cs"); err != nil {
 		panic(err)
 	}
 }

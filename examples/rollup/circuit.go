@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
 	"github.com/consensys/gnark/gadgets/hash/mimc"
 	"github.com/consensys/gnark/gadgets/signature/eddsa"
+	"github.com/consensys/gurvy"
 )
 
 // TODO think about doing this as variable / paramter
@@ -85,9 +86,9 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *RollupCircuit) Define(ctx *frontend.Context, cs *frontend.CS) error {
+func (circuit *RollupCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", ctx.CurveID())
+	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
 	}
@@ -116,9 +117,9 @@ func (circuit *RollupCircuit) Define(ctx *frontend.Context, cs *frontend.CS) err
 	return nil
 }
 
-func (circuit *RollupCircuit) PostInit(ctx *frontend.Context) error {
+func (circuit *RollupCircuit) PostInit(curveID gurvy.ID) error {
 	// edward curve gadget
-	params, err := twistededwards.NewEdCurve(ctx.CurveID())
+	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
 		return err
 	}
