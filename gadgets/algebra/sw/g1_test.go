@@ -20,24 +20,296 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bls377/fr"
 
 	"github.com/consensys/gurvy/bls377"
 )
 
-//--------------------------------------------------------------------
-// utils
+// -------------------------------------------------------------------------------------------------
+// Add jacobian
+
+type g1AddAssign struct {
+	A, B G1Jac
+	C    G1Jac `gnark:",public"`
+}
+
+func (circuit *g1AddAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := circuit.A
+	expected.AddAssign(cs, &circuit.B)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestAddAssignG1(t *testing.T) {
+
+	// sample 2 random points
+	a := randomPointG1()
+	b := randomPointG1()
+
+	// create the cs
+	var circuit, witness g1AddAssign
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// compute the result
+	a.AddAssign(&b)
+	witness.C.Assign(&a)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Add affine
+
+type g1AddAssignAffine struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+}
+
+func (circuit *g1AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := circuit.A
+	expected.AddAssign(cs, &circuit.B)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestAddAssignAffineG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls377.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1AddAssignAffine
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// compute the result
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Double Jacobian
+
+type g1DoubleAssign struct {
+	A G1Jac
+	C G1Jac `gnark:",public"`
+}
+
+func (circuit *g1DoubleAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := circuit.A
+	expected.DoubleAssign(cs)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestDoubleAssignG1(t *testing.T) {
+
+	// sample 2 random points
+	a := randomPointG1()
+
+	// create the cs
+	var circuit, witness g1DoubleAssign
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	// compute the result
+	a.DoubleAssign()
+	witness.C.Assign(&a)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Double affine
+
+type g1DoubleAffine struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+}
+
+func (circuit *g1DoubleAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := circuit.A
+	expected.Double(cs, &circuit.A)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestDoubleAffineG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	var a, c bls377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1DoubleAffine
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	// compute the result
+	_a.DoubleAssign()
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Neg
+
+type g1Neg struct {
+	A G1Jac
+	C G1Jac `gnark:",public"`
+}
+
+func (circuit *g1Neg) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := G1Jac{}
+	expected.Neg(cs, &circuit.A)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestNegG1(t *testing.T) {
+
+	// sample 2 random points
+	a := randomPointG1()
+
+	// create the cs
+	var circuit, witness g1Neg
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	// compute the result
+	a.Neg(&a)
+	witness.C.Assign(&a)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Scalar multiplication
+
+type g1ScalarMul struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	r fr.Element
+}
+
+func (circuit *g1ScalarMul) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := G1Affine{}
+	expected.ScalarMul(cs, &circuit.A, circuit.r.String(), 256)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
+}
+
+func TestScalarMulG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	var a, c bls377.G1Affine
+	a.FromJacobian(&_a)
+
+	// random scalar
+	var r fr.Element
+	r.SetRandom()
+
+	// create the cs
+	var circuit, witness g1ScalarMul
+	circuit.r = r
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+
+}
 
 func randomPointG1() bls377.G1Jac {
 
-	var p1 bls377.G1Jac
-
-	p1.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
-	p1.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
-	p1.Z.SetString("1")
+	p1, _, _, _ := bls377.Generators()
 
 	var r1 fr.Element
 	var b big.Int
@@ -45,313 +317,4 @@ func randomPointG1() bls377.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1
-}
-
-func newPointCircuitG1(circuit *frontend.CS, s string) *G1Jac {
-	return NewPointG1(circuit,
-		circuit.SECRET_INPUT(s+"0"),
-		circuit.SECRET_INPUT(s+"1"),
-		circuit.SECRET_INPUT(s+"2"),
-	)
-}
-
-func newPointCircuitG1Aff(circuit *frontend.CS, s string) *G1Aff {
-	return NewPointG1Aff(circuit,
-		circuit.SECRET_INPUT(s+"0"),
-		circuit.SECRET_INPUT(s+"1"),
-	)
-}
-
-func tagPointG1(cs *frontend.CS, g *G1Jac, s string) {
-	cs.Tag(g.X, s+"0")
-	cs.Tag(g.Y, s+"1")
-	cs.Tag(g.Z, s+"2")
-}
-
-func tagPointG1Aff(cs *frontend.CS, g *G1Aff, s string) {
-	cs.Tag(g.X, s+"0")
-	cs.Tag(g.Y, s+"1")
-}
-
-func assignPointG1(inputs map[string]interface{}, g bls377.G1Jac, s string) {
-	inputs[s+"0"] = g.X.String()
-	inputs[s+"1"] = g.Y.String()
-	inputs[s+"2"] = g.Z.String()
-
-}
-
-func getExpectedValuesG1(m map[string]*fp.Element, s string, g bls377.G1Jac) {
-	m[s+"0"] = &g.X
-	m[s+"1"] = &g.Y
-	m[s+"2"] = &g.Z
-}
-
-//--------------------------------------------------------------------
-// test
-
-func TestAddAssignG1(t *testing.T) {
-
-	// sample 2 random points
-	g1 := randomPointG1()
-	g2 := randomPointG1()
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-
-	gc1 := newPointCircuitG1(&circuit, "a")
-	gc2 := newPointCircuitG1(&circuit, "b")
-	gc1.AddAssign(&circuit, gc2)
-	tagPointG1(&circuit, gc1, "c")
-
-	// assign the inputs
-	inputs := make(map[string]interface{})
-	assignPointG1(inputs, g1, "a")
-	assignPointG1(inputs, g2, "b")
-
-	// compute the result
-	g1.AddAssign(&g2)
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	getExpectedValuesG1(expectedValues, "c", g1)
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error add g1")
-		}
-	}
-}
-
-func TestAddAssignAffG1(t *testing.T) {
-
-	// sample 2 random points
-	g1 := randomPointG1()
-	g2 := randomPointG1()
-	var _g1, _g2 bls377.G1Affine
-	_g1.FromJacobian(&g1)
-	_g2.FromJacobian(&g2)
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-
-	gc1 := newPointCircuitG1Aff(&circuit, "a")
-	gc2 := newPointCircuitG1Aff(&circuit, "b")
-	gc1.AddAssign(&circuit, gc2)
-	tagPointG1Aff(&circuit, gc1, "c")
-
-	// assign the inputs
-	var one fp.Element
-	one.SetUint64(1)
-	inputs := make(map[string]interface{})
-	inputs["a0"] = _g1.X.String()
-	inputs["a1"] = _g1.Y.String()
-
-	inputs["b0"] = _g2.X.String()
-	inputs["b1"] = _g2.Y.String()
-
-	// compute the result
-	var _gres bls377.G1Affine
-	g1.AddAssign(&g2)
-	_gres.FromJacobian(&g1)
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &_gres.X
-	expectedValues["c1"] = &_gres.Y
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error add g1 (affine)")
-		}
-	}
-}
-
-func TestDoubleG1(t *testing.T) {
-
-	// sample 2 random points
-	g1 := randomPointG1()
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-
-	gc1 := newPointCircuitG1(&circuit, "a")
-	gc1.DoubleAssign(&circuit)
-	tagPointG1(&circuit, gc1, "c")
-
-	// assign the inputs
-	inputs := make(map[string]interface{})
-	assignPointG1(inputs, g1, "a")
-
-	// compute the result
-	g1.DoubleAssign()
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	getExpectedValuesG1(expectedValues, "c", g1)
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-	res, err := r1cs.Inspect(inputs, false)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error double g1")
-		}
-	}
-}
-
-func TestDoubleAffG1(t *testing.T) {
-
-	// sample a random points
-	g1 := randomPointG1()
-	var _g1 bls377.G1Affine
-	_g1.FromJacobian(&g1)
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-
-	gc1 := newPointCircuitG1Aff(&circuit, "a")
-	gc1.Double(&circuit, gc1)
-	tagPointG1Aff(&circuit, gc1, "c")
-
-	// assign the inputs
-	inputs := make(map[string]interface{})
-	inputs["a0"] = _g1.X.String()
-	inputs["a1"] = _g1.Y.String()
-
-	// compute the reference result
-	var _gres bls377.G1Affine
-	g1.DoubleAssign()
-	_gres.FromJacobian(&g1)
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &_gres.X
-	expectedValues["c1"] = &_gres.Y
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error double g1 (affine)")
-		}
-	}
-}
-
-func TestNegG1(t *testing.T) {
-
-	// sample 2 random points
-	g1 := randomPointG1()
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-
-	gc1 := newPointCircuitG1(&circuit, "a")
-	gc1.Neg(&circuit, gc1)
-	tagPointG1(&circuit, gc1, "c")
-
-	// assign the inputs
-	inputs := make(map[string]interface{})
-	assignPointG1(inputs, g1, "a")
-
-	// compute the result
-	g1.Neg(&g1)
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	getExpectedValuesG1(expectedValues, "c", g1)
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error neg g1")
-		}
-	}
-
-}
-
-func TestScalarMulG1(t *testing.T) {
-
-	// sample a random points
-	g1 := randomPointG1()
-	var g1Aff bls377.G1Affine
-	g1Aff.FromJacobian(&g1)
-
-	// random scalar
-	var r fr.Element
-	r.SetRandom()
-
-	// create the circuit
-	circuit := frontend.NewConstraintSystem()
-	gc1 := newPointCircuitG1Aff(&circuit, "gc1")
-	gc1.ScalarMul(&circuit, gc1, r.String(), 256)
-	tagPointG1Aff(&circuit, gc1, "res")
-
-	// assign the inputs
-	inputs := make(map[string]interface{})
-	inputs["gc10"] = g1Aff.X.String()
-	inputs["gc11"] = g1Aff.Y.String()
-
-	// compute the result
-	r.FromMont()
-	var br big.Int
-	g1.ScalarMultiplication(&g1, r.ToBigInt(&br))
-	g1Aff.FromJacobian(&g1)
-
-	// assign the exepected values
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["res0"] = &g1Aff.X
-	expectedValues["res1"] = &g1Aff.Y
-
-	// check expected result
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error scalar mul g1")
-		}
-	}
 }

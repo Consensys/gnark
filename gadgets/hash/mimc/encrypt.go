@@ -85,50 +85,50 @@ func newMimcBN256(seed string) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(circuit *frontend.CS, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN256(cs *frontend.CS, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
 		//for i := 0; i < 1; i++ {
-		tmp := circuit.ADD(res, key, h.params[i])
+		tmp := cs.ADD(res, key, h.params[i])
 		// res = (res+k+c)^7
-		res = circuit.MUL(tmp, tmp)
-		res = circuit.MUL(res, tmp)
-		res = circuit.MUL(res, res)
-		res = circuit.MUL(res, tmp)
+		res = cs.MUL(tmp, tmp)
+		res = cs.MUL(res, tmp)
+		res = cs.MUL(res, res)
+		res = cs.MUL(res, tmp)
 	}
-	res = circuit.ADD(res, key)
+	res = cs.ADD(res, key)
 	return res
 
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(circuit *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(cs *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		tmp := circuit.ADD(res, key, h.params[i])
+		tmp := cs.ADD(res, key, h.params[i])
 		// res = (res+k+c)^5
-		res = circuit.MUL(tmp, tmp) // square
-		res = circuit.MUL(res, res) // square
-		res = circuit.MUL(res, tmp) // mul
+		res = cs.MUL(tmp, tmp) // square
+		res = cs.MUL(res, res) // square
+		res = cs.MUL(res, tmp) // mul
 	}
-	res = circuit.ADD(res, key)
+	res = cs.ADD(res, key)
 	return res
 
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(circuit *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(cs *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
-		tmp := circuit.ADD(res, h.params[i], key)
+		tmp := cs.ADD(res, h.params[i], key)
 		// res = (res+key+c)**-1
-		res = circuit.INV(tmp)
+		res = cs.INV(tmp)
 	}
-	res = circuit.ADD(res, key)
+	res = cs.ADD(res, key)
 	return res
 
 }

@@ -32,6 +32,9 @@ type circuitSignature struct {
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	if err := t.postInit(curveID, cs); err != nil {
+		return err
+	}
 	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -88,6 +91,9 @@ type circuitInclusionProof struct {
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	if err := t.postInit(curveID, cs); err != nil {
+		return err
+	}
 	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -153,6 +159,9 @@ type circuitUpdateAccount struct {
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitUpdateAccount) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	if err := t.postInit(curveID, cs); err != nil {
+		return err
+	}
 	verifyAccountUpdated(cs, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
 		t.SenderAccountsAfter[0], t.ReceiverAccountsAfter[0], t.Transfers[0].Amount)
 	return nil

@@ -99,9 +99,6 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	return nil
 }
 
-func (circuit *refCircuit) PostInit(curveID gurvy.ID) error {
-	return nil
-}
 func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 	const nbConstraints = 40000
 	circuit := refCircuit{

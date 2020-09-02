@@ -36,7 +36,7 @@ type Signature struct {
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(circuit *frontend.CS, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
+func Verify(cs *frontend.CS, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	data := []frontend.Variable{
@@ -51,25 +51,25 @@ func Verify(circuit *frontend.CS, sig Signature, msg frontend.Variable, pubKey P
 	if err != nil {
 		return err
 	}
-	hramAllocated := hash.Hash(circuit, data...)
+	hramAllocated := hash.Hash(cs, data...)
 
 	// lhs = cofactor*SB
-	cofactorAllocated := circuit.ALLOCATE(pubKey.Curve.Cofactor)
-	lhs := twistededwards.NewPoint(circuit, nil, nil)
+	cofactorAllocated := cs.ALLOCATE(pubKey.Curve.Cofactor)
+	lhs := twistededwards.Point{}
 
-	lhs.ScalarMulFixedBase(circuit, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
-		ScalarMulNonFixedBase(circuit, &lhs, cofactorAllocated, pubKey.Curve)
+	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
+		ScalarMulNonFixedBase(cs, &lhs, cofactorAllocated, pubKey.Curve)
 	// TODO adding lhs.IsOnCurve(...) makes the r1cs bug
 
 	// rhs = cofactor*(R+H(R,A,M)*A)
-	rhs := twistededwards.NewPoint(circuit, nil, nil)
-	rhs.ScalarMulNonFixedBase(circuit, &pubKey.A, hramAllocated, pubKey.Curve).
-		AddGeneric(circuit, &rhs, &sig.R.A, pubKey.Curve).
-		ScalarMulNonFixedBase(circuit, &rhs, cofactorAllocated, pubKey.Curve)
+	rhs := twistededwards.Point{}
+	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramAllocated, pubKey.Curve).
+		AddGeneric(cs, &rhs, &sig.R.A, pubKey.Curve).
+		ScalarMulNonFixedBase(cs, &rhs, cofactorAllocated, pubKey.Curve)
 	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
 
-	circuit.MUSTBE_EQ(lhs.X, rhs.X)
-	circuit.MUSTBE_EQ(lhs.Y, rhs.Y)
+	cs.MUSTBE_EQ(lhs.X, rhs.X)
+	cs.MUSTBE_EQ(lhs.Y, rhs.Y)
 
 	return nil
 }

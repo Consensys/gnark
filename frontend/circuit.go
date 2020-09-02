@@ -13,10 +13,6 @@ import (
 type Circuit interface {
 	// Define declares the circuit's constraints
 	Define(curveID gurvy.ID, cs *CS) error
-
-	// PostInit is called by frontend.Compile() after the automatic initialization of Variable
-	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints, ...)
-	PostInit(curveID gurvy.ID) error
 }
 
 // Compile will parse provided circuit struct members and initialize all leafs that
@@ -26,11 +22,11 @@ type Circuit interface {
 // type myCircuit struct {
 //  A frontend.Variable `gnark:"inputName"` 	// will allocate a secret (default visibility) input with name inputName
 //  B frontend.Variable `gnark:",public"` 	// will allocate a public input name with "B" (struct member name)
-//  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized in circuit.PostInit hook
+//  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized "manually"
 // }
 func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	// instantiate our constraint system
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are constraints that need to be initialized in the context of compiling a circuit
@@ -61,11 +57,6 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return nil, err
 	}
 
-	// allow user circuit to perform custom allocations / init clean up.
-	if err := circuit.PostInit(curveID); err != nil {
-		return nil, err
-	}
-
 	// TODO maybe lock input variables allocations to forbid user to call circuit.SECRET_INPUT() inside the Circuit() method
 
 	// call Define() to fill in the constraints
@@ -74,12 +65,21 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	}
 	// return R1CS
 
-	// we have in our context object the curve, so we can type our R1CS to the curve base field elements
-	return cs.ToR1CS().ToR1CS(curveID), nil
+	if curveID == gurvy.UNKNOWN {
+		// return untyped R1CS
+		return cs.toR1CS(), nil
+	} else {
+		// we have in our context object the curve, so we can type our R1CS to the curve base field elements
+		return cs.toR1CS().ToR1CS(curveID), nil
+	}
+
 }
 
 // Save will serialize the provided R1CS to path
 func Save(r1cs r1cs.R1CS, path string) error {
+	if r1cs.GetCurveID() == gurvy.UNKNOWN {
+		return errors.New("trying to serialize untyped R1CS")
+	}
 	return encoding.Write(path, r1cs, r1cs.GetCurveID())
 }
 

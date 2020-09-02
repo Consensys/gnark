@@ -24,10 +24,6 @@ func (circuit *MiMCCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	return nil
 }
 
-func (circuit *MiMCCircuit) PostInit(curveID gurvy.ID) error {
-	return nil
-}
-
 func main() {
 	var mimcCircuit MiMCCircuit
 	// init slices if any

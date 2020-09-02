@@ -31,7 +31,7 @@ type MiMC struct {
 	id     gurvy.ID
 }
 
-// NewMiMC returns a MiMC gadget, than can be used in a circuit
+// NewMiMC returns a MiMC gadget, than can be used in a cs
 func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed), nil
@@ -42,14 +42,14 @@ func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition
-func (h MiMC) Hash(circuit *frontend.CS, data ...frontend.Variable) frontend.Variable {
+func (h MiMC) Hash(cs *frontend.CS, data ...frontend.Variable) frontend.Variable {
 
 	var digest frontend.Variable
-	digest = circuit.ALLOCATE(0)
+	digest = cs.ALLOCATE(0)
 
 	for _, stream := range data {
-		digest = encryptFuncs[h.id](circuit, h, stream, digest)
-		digest = circuit.ADD(digest, stream)
+		digest = encryptFuncs[h.id](cs, h, stream, digest)
+		digest = cs.ADD(digest, stream)
 	}
 
 	return digest

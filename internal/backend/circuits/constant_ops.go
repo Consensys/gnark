@@ -4,32 +4,38 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 )
 
-func init() {
-	circuit := frontend.NewConstraintSystem()
+type constantOpsCircuit struct {
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
+}
 
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-
+func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	elmts := make([]big.Int, 3)
 	for i := 0; i < 3; i++ {
 		elmts[i].SetUint64(uint64(i) + 10)
 	}
-	c := circuit.ADD(x, elmts[0])
-	c = circuit.MUL(c, elmts[1])
-	c = circuit.SUB(c, elmts[2])
-	circuit.MUSTBE_EQ(c, y)
+	c := cs.ADD(circuit.X, elmts[0])
+	c = cs.MUL(c, elmts[1])
+	c = cs.SUB(c, elmts[2])
+	cs.MUSTBE_EQ(c, circuit.Y)
+	return nil
+}
 
-	good := make(map[string]interface{})
-	good["x"] = 12
-	good["y"] = 230
+func init() {
+	var circuit, good, bad constantOpsCircuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
 
-	bad := make(map[string]interface{})
-	bad["x"] = 12
-	bad["y"] = 228
+	good.X.Assign(12)
+	good.Y.Assign(230)
 
-	r1cs := circuit.ToR1CS()
+	bad.X.Assign(12)
+	bad.Y.Assign(228)
 
-	addEntry("constant_ops", r1cs, good, bad)
+	addEntry("constant_ops", r1cs, &good, &bad)
 }

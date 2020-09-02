@@ -19,33 +19,32 @@ package fields
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 )
 
-//--------------------------------------------------------------------
-// utils
-
-func newOperandFp2(circuit *frontend.CS, s string) Fp2Elmt {
-	res := NewFp2Elmt(circuit,
-		circuit.SECRET_INPUT(s+"0"),
-		circuit.SECRET_INPUT(s+"1"))
-	return res
+type fp2Add struct {
+	A, B Fp2Elmt
+	C    Fp2Elmt `gnark:",public"`
 }
 
-func assignOperandFp2(inputs map[string]interface{}, s string, w bls377.E2) {
-	inputs[s+"0"] = w.A0.String()
-	inputs[s+"1"] = w.A1.String()
+func (circuit *fp2Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := Fp2Elmt{}
+	expected.Add(cs, &circuit.A, &circuit.B)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
-
-//--------------------------------------------------------------------
-// tests
 
 func TestAddFp2(t *testing.T) {
 
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2Add
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, b, c bls377.E2
@@ -53,45 +52,38 @@ func TestAddFp2(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
-	fp2b := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("b0"), circuit.SECRET_INPUT("b1"))
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.Add(&circuit, &fp2a, &fp2b)
-
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-	inputs["b0"] = b.A0.String()
-	inputs["b1"] = b.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error AddFp2")
-		}
-	}
+}
+
+type fp2Sub struct {
+	A, B Fp2Elmt
+	C    Fp2Elmt `gnark:",public"`
+}
+
+func (circuit *fp2Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := Fp2Elmt{}
+	expected.Sub(cs, &circuit.A, &circuit.B)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
 
 func TestSubFp2(t *testing.T) {
 
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2Sub
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, b, c bls377.E2
@@ -99,47 +91,39 @@ func TestSubFp2(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
-	fp2b := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("b0"), circuit.SECRET_INPUT("b1"))
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.Sub(&circuit, &fp2a, &fp2b)
-
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-	inputs["b0"] = b.A0.String()
-	inputs["b1"] = b.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error SubFp2")
-		}
-	}
+}
+
+type fp2Mul struct {
+	A, B Fp2Elmt
+	C    Fp2Elmt `gnark:",public"`
+}
+
+func (circuit *fp2Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	ext := Extension{uSquare: 5}
+	expected := Fp2Elmt{}
+	expected.Mul(cs, &circuit.A, &circuit.B, ext)
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
 
 func TestMulFp2(t *testing.T) {
 
-	ext := Extension{uSquare: 5}
-
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2Mul
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, b, c bls377.E2
@@ -147,45 +131,40 @@ func TestMulFp2(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
-	fp2b := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("b0"), circuit.SECRET_INPUT("b1"))
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.Mul(&circuit, &fp2a, &fp2b, ext)
-
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-	inputs["b0"] = b.A0.String()
-	inputs["b1"] = b.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error MulFp2")
-		}
-	}
+}
+
+type fp2MulByFp struct {
+	A Fp2Elmt
+	B frontend.Variable
+	C Fp2Elmt `gnark:",public"`
+}
+
+func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := Fp2Elmt{}
+	expected.MulByFp(cs, &circuit.A, circuit.B)
+
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
 
 func TestMulByFpFp2(t *testing.T) {
 
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2MulByFp
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, c bls377.E2
@@ -194,168 +173,128 @@ func TestMulByFpFp2(t *testing.T) {
 	b.SetRandom()
 	c.MulByElement(&a, &b)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
-	fpb := circuit.SECRET_INPUT("b0")
+	witness.A.Assign(&a)
+	witness.B.Assign(bls377FpTobw761fr(&b))
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.MulByFp(&circuit, &fp2a, fpb)
+	witness.C.Assign(&c)
 
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-	inputs["b0"] = b.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error MulByFpFp2")
-		}
-	}
 }
 
-func TestMulByImFp2(t *testing.T) {
+type fp2Conjugate struct {
+	A Fp2Elmt
+	C Fp2Elmt `gnark:",public"`
+}
 
-	ext := Extension{uSquare: 5}
+func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	expected := Fp2Elmt{}
+	expected.Conjugate(cs, &circuit.A)
 
-	circuit := frontend.NewConstraintSystem()
-
-	// witness values
-	var a, c bls377.E2
-	a.SetRandom()
-	t.Skip("missing e2.MulByNonSquare")
-	// TODO c.MulByNonSquare(&a)
-
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
-
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.MulByIm(&circuit, &fp2a, ext)
-
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error MulByImFp2")
-		}
-	}
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
 
 func TestConjugateFp2(t *testing.T) {
 
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2Conjugate
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, c bls377.E2
 	a.SetRandom()
 	c.Conjugate(&a)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
+	witness.A.Assign(&a)
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.Conjugate(&circuit, &fp2a)
+	witness.C.Assign(&c)
 
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
+}
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error ConjugateFp2")
-		}
-	}
+type fp2Inverse struct {
+	A Fp2Elmt
+	C Fp2Elmt `gnark:",public"`
+}
+
+func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	ext := Extension{uSquare: 5}
+	expected := Fp2Elmt{}
+	expected.Inverse(cs, &circuit.A, ext)
+
+	expected.MUSTBE_EQ(cs, circuit.C)
+	return nil
 }
 
 func TestInverseFp2(t *testing.T) {
 
-	ext := Extension{uSquare: 5}
-
-	circuit := frontend.NewConstraintSystem()
+	var circuit, witness fp2Inverse
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// witness values
 	var a, c bls377.E2
 	a.SetRandom()
 	c.Inverse(&a)
 
-	fp2a := NewFp2Elmt(&circuit, circuit.SECRET_INPUT("a0"), circuit.SECRET_INPUT("a1"))
+	witness.A.Assign(&a)
 
-	fp2c := NewFp2Elmt(&circuit, nil, nil)
-	fp2c.Inverse(&circuit, &fp2a, ext)
+	witness.C.Assign(&c)
 
-	circuit.Tag(fp2c.X, "c0")
-	circuit.Tag(fp2c.Y, "c1")
-
-	inputs := make(map[string]interface{})
-	inputs["a0"] = a.A0.String()
-	inputs["a1"] = a.A1.String()
-
-	expectedValues := make(map[string]*fp.Element)
-	expectedValues["c0"] = &c.A0
-	expectedValues["c1"] = &c.A1
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BW761)
-
-	res, err := r1cs.Inspect(inputs, false)
+	assert := groth16.NewAssert(t)
+	assignment, err := frontend.ToAssignment(&witness)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.CorrectExecution(r1cs, assignment, nil)
 
-	// TODO here we use string because we can't compare bls377.fp to bw761.fr elmts (add a raw cast?)
-	for k, v := range res {
-		var _v fp.Element
-		_v.SetInterface(v)
-		if !expectedValues[k].Equal(&_v) {
-			t.Fatal("error InverseFp2")
-		}
-	}
+}
+
+func TestMulByImFp2(t *testing.T) {
+	t.Skip("missing e2.MulByNonSquare")
+	// ext := Extension{uSquare: 5}
+
+	// var circuit, witness XXXX
+	// r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+
+	// // witness values
+	// var a, c bls377.E2
+	// a.SetRandom()
+
+	// // TODO c.MulByNonSquare(&a)
+
+	// fp2a := NewFp2Elmt(&cs, cs.SECRET_INPUT("a0"), cs.SECRET_INPUT("a1"))
+
+	// fp2c := NewFp2Elmt(&cs, nil, nil)
+	// fp2c.MulByIm(&cs, &fp2a, ext)
+
+	// cs.Tag(fp2c.X, "c0")
+	// cs.Tag(fp2c.Y, "c1")
+
+	//
+	// witness.A.A0.Assign(a.A0)
+	// witness.A.A1.Assign(a.A1)
+
+	//
+	// witness.C.A0.Assign(c.A0)
+	// witness.C.A1.Assign(c.A1)
+
 }

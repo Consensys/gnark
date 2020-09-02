@@ -40,6 +40,22 @@ type UntypedR1CS struct {
 	Coefficients    []big.Int
 }
 
+func (r1cs *UntypedR1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
+	panic("not implemented")
+}
+func (r1cs *UntypedR1CS) GetNbConstraints() int {
+	return r1cs.NbConstraints
+}
+func (r1cs *UntypedR1CS) GetNbWires() int {
+	return r1cs.NbWires
+}
+func (r1cs *UntypedR1CS) GetNbCoefficients() int {
+	return len(r1cs.Coefficients)
+}
+func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
+	return gurvy.UNKNOWN
+}
+
 // ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
 // in the basefield of the provided curveID and return a R1CS
 func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {

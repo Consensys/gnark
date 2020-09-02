@@ -58,8 +58,8 @@ type CS struct {
 	wireNames       map[string]struct{} // ensure no duplicates in input names
 }
 
-// NewConstraintSystem returns a new constraint system
-func NewConstraintSystem() CS {
+// newConstraintSystem returns a new constraint system
+func newConstraintSystem() CS {
 	// initialize constraint system
 	cs := CS{
 		constraints:     make([]constraint, 1, initialCapacity),

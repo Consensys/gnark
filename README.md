@@ -81,9 +81,6 @@ type Circuit interface {
 	// Define declares the circuit's constraints
 	Define(ctx *Context, cs *CS) error
 
-	// PostInit is called by frontend.Compile() after the automatic initialization of Variable
-	// In some cases, we may have custom allocations to do (foreign keys, alias in constraints, ...)
-	PostInit(ctx *Context) error
 }
 ```
 

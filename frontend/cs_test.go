@@ -32,7 +32,7 @@ func TestDuplicateSecretInput(t *testing.T) {
 		}
 	}()
 
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	cs.SECRET_INPUT("x")
 	cs.SECRET_INPUT("x")
@@ -46,14 +46,14 @@ func TestDuplicatePublicInput(t *testing.T) {
 		}
 	}()
 
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	cs.PUBLIC_INPUT("x")
 	cs.PUBLIC_INPUT("x")
 }
 
 func TestInconsistantConstraints2(t *testing.T) {
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 
@@ -63,24 +63,10 @@ func TestInconsistantConstraints2(t *testing.T) {
 	}
 }
 
-func TestInconsistantConstraints3(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatalf("user input == 3 is pointless")
-		}
-	}()
-
-	cs := NewConstraintSystem()
-
-	x := cs.PUBLIC_INPUT("x")
-
-	cs.MUSTBE_EQ(x, 3)
-}
-
 // checks if creation of constraint system works
 func TestOneWireConstraint(t *testing.T) {
 	assert := require.New(t)
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 	nbWires := cs.countWires()
 
 	assert.Equal(1, nbWires, "Newly created constraint system should have 1 wire")
@@ -99,7 +85,7 @@ func TestADD(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
@@ -149,7 +135,7 @@ func TestSUB(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
@@ -184,7 +170,7 @@ func TestMUL(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	var val big.Int
 	val.SetUint64(4)
@@ -219,7 +205,7 @@ func TestDIV(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.PUBLIC_INPUT("y")
@@ -250,7 +236,7 @@ func TestDIVLC(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.PUBLIC_INPUT("y")
@@ -286,7 +272,7 @@ func TestMULLC(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.PUBLIC_INPUT("y")
@@ -322,7 +308,7 @@ func TestSELECT(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.PUBLIC_INPUT("y")
@@ -354,7 +340,7 @@ func TestFROM_BINARY(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	b0 := cs.PUBLIC_INPUT("b0")
 	b1 := cs.PUBLIC_INPUT("b1")
@@ -388,7 +374,7 @@ func TestTO_BINARY(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 
@@ -418,7 +404,7 @@ func TestSELECT_LUT(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	b0 := cs.SECRET_INPUT("b0")
 	b1 := cs.SECRET_INPUT("b1")
@@ -453,7 +439,7 @@ func TestXOR(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.PUBLIC_INPUT("y")
@@ -486,7 +472,7 @@ func TestALLOC(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	_ = cs.ALLOCATE(4)
 
@@ -514,7 +500,7 @@ func TestMUSTBE_BOOL(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 
@@ -544,7 +530,7 @@ func TestXtimes2EqualsY(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 	y := cs.SECRET_INPUT("y")
@@ -576,7 +562,7 @@ func TestINV(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	x := cs.PUBLIC_INPUT("x")
 
@@ -606,7 +592,7 @@ func TestMerge(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	u := cs.SECRET_INPUT("u")
 	v := cs.SECRET_INPUT("v")
@@ -641,7 +627,7 @@ func TestMergeMoeNoe(t *testing.T) {
 	assert := newAssert(t)
 
 	// circuit definition
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	u := cs.SECRET_INPUT("u")
 	w := cs.PUBLIC_INPUT("w")
@@ -672,7 +658,7 @@ func TestMergeMoeNoe(t *testing.T) {
 func TestConstraintTag(t *testing.T) {
 	assert := require.New(t)
 
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	tagLen := func(cs *CS, v Variable) int {
 		return len(cs.wireTags[v.id()])
@@ -700,7 +686,7 @@ func TestDuplicateTag(t *testing.T) {
 
 	assert := require.New(t)
 
-	cs := NewConstraintSystem()
+	cs := newConstraintSystem()
 
 	tagLen := func(cs *CS, v Variable) int {
 		return len(cs.wireTags[v.id()])

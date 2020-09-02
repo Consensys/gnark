@@ -86,38 +86,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *RollupCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", curveID)
-	if err != nil {
-		return err
-	}
-
-	// creation of the circuit
-	for i := 0; i < batchSize; i++ {
-
-		// verify the sender and receiver accounts exist before the update
-		merkle.VerifyProof(cs, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
-		merkle.VerifyProof(cs, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
-
-		// verify the sender and receiver accounts exist after the update
-		merkle.VerifyProof(cs, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
-		merkle.VerifyProof(cs, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
-
-		// verify the transaction transfer
-		err := verifyTransferSignature(cs, circuit.Transfers[i], hFunc)
-		if err != nil {
-			return err
-		}
-
-		// update the accounts
-		verifyAccountUpdated(cs, circuit.SenderAccountsBefore[i], circuit.ReceiverAccountsBefore[i], circuit.SenderAccountsAfter[i], circuit.ReceiverAccountsAfter[i], circuit.Transfers[i].Amount)
-	}
-
-	return nil
-}
-
-func (circuit *RollupCircuit) PostInit(curveID gurvy.ID) error {
+func (circuit *RollupCircuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
 	// edward curve gadget
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -150,38 +119,71 @@ func (circuit *RollupCircuit) PostInit(curveID gurvy.ID) error {
 		circuit.Transfers[i].Signature.R.Curve = params
 
 	}
+	return nil
+}
+
+func (circuit *RollupCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	if err := circuit.postInit(curveID, cs); err != nil {
+		return err
+	}
+	// hash function for the merkle proof and the eddsa signature
+	hFunc, err := mimc.NewMiMC("seed", curveID)
+	if err != nil {
+		return err
+	}
+
+	// creation of the circuit
+	for i := 0; i < batchSize; i++ {
+
+		// verify the sender and receiver accounts exist before the update
+		merkle.VerifyProof(cs, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
+		merkle.VerifyProof(cs, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
+
+		// verify the sender and receiver accounts exist after the update
+		merkle.VerifyProof(cs, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
+		merkle.VerifyProof(cs, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
+
+		// verify the transaction transfer
+		err := verifyTransferSignature(cs, circuit.Transfers[i], hFunc)
+		if err != nil {
+			return err
+		}
+
+		// update the accounts
+		verifyAccountUpdated(cs, circuit.SenderAccountsBefore[i], circuit.ReceiverAccountsBefore[i], circuit.SenderAccountsAfter[i], circuit.ReceiverAccountsAfter[i], circuit.Transfers[i].Amount)
+	}
 
 	return nil
 }
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
-func verifyTransferSignature(circuit *frontend.CS, t TransferConstraints, hFunc mimc.MiMC) error {
+func verifyTransferSignature(cs *frontend.CS, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
-	htransfer := hFunc.Hash(circuit, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
+	htransfer := hFunc.Hash(cs, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 
-	err := eddsa.Verify(circuit, t.Signature, htransfer, t.SenderPubKey)
+	err := eddsa.Verify(cs, t.Signature, htransfer, t.SenderPubKey)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func verifyAccountUpdated(circuit *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
+func verifyAccountUpdated(cs *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := circuit.ALLOCATE(1)
-	nonceUpdated := circuit.ADD(from.Nonce, one)
-	circuit.MUSTBE_EQ(nonceUpdated, fromUpdated.Nonce)
+	one := cs.ALLOCATE(1)
+	nonceUpdated := cs.ADD(from.Nonce, one)
+	cs.MUSTBE_EQ(nonceUpdated, fromUpdated.Nonce)
 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
-	circuit.MUSTBE_LESS_OR_EQ(amount, from.Balance, 256)
+	cs.MUSTBE_LESS_OR_EQ(amount, from.Balance, 256)
 
 	// ensure that balance is correctly updated
-	fromBalanceUpdated := circuit.SUB(from.Balance, amount)
-	circuit.MUSTBE_EQ(fromBalanceUpdated, fromUpdated.Balance)
+	fromBalanceUpdated := cs.SUB(from.Balance, amount)
+	cs.MUSTBE_EQ(fromBalanceUpdated, fromUpdated.Balance)
 
-	toBalanceUpdated := circuit.ADD(to.Balance, amount)
-	circuit.MUSTBE_EQ(toBalanceUpdated, toUpdated.Balance)
+	toBalanceUpdated := cs.ADD(to.Balance, amount)
+	cs.MUSTBE_EQ(toBalanceUpdated, toUpdated.Balance)
 
 }

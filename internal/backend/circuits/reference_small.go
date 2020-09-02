@@ -4,39 +4,45 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 )
 
-func init() {
-	const nbConstraints = 5
-	circuit := frontend.NewConstraintSystem()
+const nbConstraintsRefSmall = 5
 
-	// declare inputs
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+type referenceSmallCircuit struct {
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
+}
 
-	for i := 0; i < nbConstraints; i++ {
-		x = circuit.MUL(x, x)
+func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	for i := 0; i < nbConstraintsRefSmall; i++ {
+		circuit.X = cs.MUL(circuit.X, circuit.X)
 	}
-	circuit.MUSTBE_EQ(x, y)
+	cs.MUSTBE_EQ(circuit.X, circuit.Y)
+	return nil
+}
 
-	good := make(map[string]interface{})
-	good["x"] = 2
+func init() {
+	var circuit, good, bad referenceSmallCircuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
+
+	good.X.Assign(2)
 
 	// compute expected Y
 	var expectedY big.Int
 	expectedY.SetUint64(2)
 
-	for i := 0; i < nbConstraints; i++ {
+	for i := 0; i < nbConstraintsRefSmall; i++ {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good["y"] = expectedY
+	good.Y.Assign(expectedY)
 
-	bad := make(map[string]interface{})
-	bad["x"] = 2
-	bad["y"] = 0
+	bad.X.Assign(2)
+	bad.Y.Assign(0)
 
-	r1cs := circuit.ToR1CS()
-
-	addEntry("reference_small", r1cs, good, bad)
+	addEntry("reference_small", r1cs, &good, &bad)
 }

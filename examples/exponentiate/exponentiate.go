@@ -43,10 +43,6 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) er
 	return nil
 }
 
-func (circuit *ExponentiateCircuit) PostInit(curveID gurvy.ID) error {
-	return nil
-}
-
 func main() {
 	var expCircuit ExponentiateCircuit
 	// init slices if any

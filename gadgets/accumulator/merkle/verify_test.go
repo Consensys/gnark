@@ -31,6 +31,20 @@ import (
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
+type merkleCircuit struct {
+	RootHash     frontend.Variable `gnark:",public"`
+	Path, Helper []frontend.Variable
+}
+
+func (circuit *merkleCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	hFunc, err := mimc.NewMiMC("seed", curveID)
+	if err != nil {
+		return err
+	}
+	VerifyProof(cs, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
+	return nil
+}
+
 func TestVerify(t *testing.T) {
 
 	// generate random data
@@ -58,38 +72,22 @@ func TestVerify(t *testing.T) {
 		t.Fatal("The merkle proof in plain go should pass")
 	}
 
-	// create circuit
-	circuit := frontend.NewConstraintSystem()
-
-	// public root hash
-	rh := circuit.PUBLIC_INPUT("rootHash")
-
-	// private
-	path := make([]frontend.Variable, len(proof))
-	for i := 0; i < len(proof); i++ {
-		path[i] = circuit.SECRET_INPUT(fmt.Sprintf("path%d", i))
-	}
-	helper := make([]frontend.Variable, len(proof)-1)
-	for i := 0; i < len(proof)-1; i++ {
-		helper[i] = circuit.SECRET_INPUT(fmt.Sprintf("helper%d", i))
-	}
-
-	hFunc, err := mimc.NewMiMC("seed", gurvy.BN256)
+	// create cs
+	var circuit merkleCircuit
+	circuit.Path = make([]frontend.Variable, len(proof))
+	circuit.Helper = make([]frontend.Variable, len(proof)-1)
+	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	VerifyProof(&circuit, hFunc, rh, path, helper)
-
-	// compilation of the circuit
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
 
 	assignment := make(map[string]interface{})
-	assignment["rootHash"] = merkleRoot
+	assignment["RootHash"] = merkleRoot
 	for i := 0; i < len(proof); i++ {
-		assignment[fmt.Sprintf("path%d", i)] = proof[i]
+		assignment[fmt.Sprintf("Path_%d", i)] = proof[i]
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment[fmt.Sprintf("helper%d", i)] = proofHelper[i]
+		assignment[fmt.Sprintf("Helper_%d", i)] = proofHelper[i]
 	}
 
 	assert := groth16.NewAssert(t)

@@ -25,8 +25,8 @@ import (
 
 // Proof represents a groth16 proof in a r1cs
 type Proof struct {
-	Ar, Krs sw.G1Aff // πA, πC in https://eprint.iacr.org/2020/278.pdf
-	Bs      sw.G2Aff // πB in https://eprint.iacr.org/2020/278.pdf
+	Ar, Krs sw.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
+	Bs      sw.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
 }
 
 // VerifyingKey represents the groth16 verifying key in a r1cs
@@ -37,30 +37,30 @@ type VerifyingKey struct {
 
 	// -[γ]2, -[δ]2
 	G2 struct {
-		GammaNeg, DeltaNeg sw.G2Aff
+		GammaNeg, DeltaNeg sw.G2Affine
 	}
 
 	// [Kvk]1 (part of the verifying key yielding psi0, cf https://eprint.iacr.org/2020/278.pdf)
-	G1 []sw.G1Aff // The indexes correspond to the public wires
+	G1 []sw.G1Affine // The indexes correspond to the public wires
 }
 
 // Verify implements the verification function of groth16.
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputNames []string) {
+func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputNames []string) {
 
 	var eπCdelta, eπAπB, epsigamma fields.Fp12Elmt
 
 	// e(-πC, -δ)
-	sw.MillerLoopAffine(circuit, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoopAffine(circuit, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
-	var psi0, tmp sw.G1Aff
+	var psi0, tmp sw.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	for k, v := range innerPubInputNames {
@@ -71,24 +71,24 @@ func Verify(circuit *frontend.CS, pairingInfo sw.PairingContext, innerVk Verifyi
 	}
 	for k, v := range innerPubInputNames {
 		if v != backend.OneWire {
-			tmp.ScalarMul(circuit, &innerVk.G1[k], circuit.PUBLIC_INPUT(v), 377)
-			psi0.AddAssign(circuit, &tmp)
+			tmp.ScalarMul(cs, &innerVk.G1[k], cs.PUBLIC_INPUT(v), 377)
+			psi0.AddAssign(cs, &tmp)
 		}
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoopAffine(circuit, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.Fp12Elmt
-	preFinalExpo.Mul(circuit, &eπCdelta, &eπAπB, pairingInfo.Extension).
-		Mul(circuit, &preFinalExpo, &epsigamma, pairingInfo.Extension)
+	preFinalExpo.Mul(cs, &eπCdelta, &eπAπB, pairingInfo.Extension).
+		Mul(cs, &preFinalExpo, &epsigamma, pairingInfo.Extension)
 
 	// performs the final expo
 	var resPairing fields.Fp12Elmt
-	resPairing.FinalExpoBLS(circuit, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExpoBLS(cs, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MustBeEq(circuit, &resPairing)
+	innerVk.E.MustBeEq(cs, &resPairing)
 
 }

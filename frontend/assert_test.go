@@ -54,7 +54,7 @@ func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
 }
 
 func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
-	r1cs := circuit.ToR1CS()
+	r1cs := circuit.toR1CS()
 	assert.Equal(expectedR1CS.nbWires, r1cs.NbWires, "r1cs nbWires")
 	assert.Equal(expectedR1CS.nbSecretWires, r1cs.NbSecretWires, "r1cs private nbWires")
 	assert.Equal(expectedR1CS.nbPublicWires, r1cs.NbPublicWires, "r1cs public nbWires")

@@ -25,10 +25,6 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	return nil
 }
 
-func (circuit *benchCircuit) PostInit(curveID gurvy.ID) error {
-	return nil
-}
-
 var res r1cs.R1CS
 
 func BenchmarkCircuit(b *testing.B) {

@@ -51,18 +51,18 @@ import (
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(circuit *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend.Variable {
+func leafSum(cs *frontend.CS, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
-	res := h.Hash(circuit, data)
+	res := h.Hash(cs, data)
 
 	return res
 }
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(circuit *frontend.CS, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
+func nodeSum(cs *frontend.CS, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
-	res := h.Hash(circuit, a, b)
+	res := h.Hash(cs, a, b)
 
 	return res
 }
@@ -128,18 +128,18 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(circuit *frontend.CS, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(cs *frontend.CS, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
 
-	sum := leafSum(circuit, h, proofSet[0])
+	sum := leafSum(cs, h, proofSet[0])
 
 	for i := 1; i < len(proofSet); i++ {
-		circuit.MUSTBE_BOOLEAN(helper[i-1])
-		d1 := circuit.SELECT(helper[i-1], sum, proofSet[i])
-		d2 := circuit.SELECT(helper[i-1], proofSet[i], sum)
-		sum = nodeSum(circuit, h, d1, d2)
+		cs.MUSTBE_BOOLEAN(helper[i-1])
+		d1 := cs.SELECT(helper[i-1], sum, proofSet[i])
+		d2 := cs.SELECT(helper[i-1], proofSet[i], sum)
+		sum = nodeSum(cs, h, d1, d2)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
-	circuit.MUSTBE_EQ(sum, merkleRoot)
+	cs.MUSTBE_EQ(sum, merkleRoot)
 
 }

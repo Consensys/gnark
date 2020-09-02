@@ -7,12 +7,12 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// ToR1CS builds a R1CS from a system of Constraints
+// toR1CS builds a R1CS from a system of Constraints
 // note that the return R1CS is untyped and contains big.Int
 // this method should not be called directly in a normal workflow,
 // as it is called by frontend.Compile()
 // it is exposed for test purposses (backend and integration)
-func (cs *CS) ToR1CS() *r1cs.UntypedR1CS {
+func (cs *CS) toR1CS() *r1cs.UntypedR1CS {
 
 	/*
 		Algorithm to build the r1cs system

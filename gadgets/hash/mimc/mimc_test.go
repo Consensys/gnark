@@ -17,13 +17,9 @@ limitations under the License.
 package mimc
 
 import (
-	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -37,119 +33,106 @@ import (
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
-// TODO need tests on MiMC edge cases, bad or un-allocated inputs, and errors
-func TestMimcBN256(t *testing.T) {
-
-	assertbn256 := groth16.NewAssert(t)
-
-	// input
-	var databn256 fr_bn256.Element
-	databn256.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
-
-	// running MiMC (R1CS)
-	mimc, err := NewMiMC("seed", gurvy.BN256)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// minimal circuit res = hash(data)
-	cs := frontend.NewConstraintSystem()
-	result := mimc.Hash(&cs, cs.PUBLIC_INPUT("data"))
-	cs.Tag(result, "res")
-
-	// running MiMC (Go)
-	expectedValues := make(map[string]interface{})
-	b := mimcbn256.Sum("seed", databn256.Bytes())
-	var tmp fr_bn256.Element
-	tmp.SetBytes(b)
-	fmt.Println(tmp.String())
-	expectedValues["res"] = tmp
-
-	// provide inputs to the circuit
-	inputs := make(map[string]interface{})
-	inputs["data"] = databn256
-
-	// creates r1cs
-	r1csbn256 := cs.ToR1CS().ToR1CS(gurvy.BN256)
-
-	assertbn256.CorrectExecution(r1csbn256, inputs, expectedValues)
-
+type mimcCircuit struct {
+	Data frontend.Variable `gnark:"data,public"`
 }
 
-func TestMimcBLS381(t *testing.T) {
+func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	mimc, err := NewMiMC("seed", curveID)
+	if err != nil {
+		return err
+	}
+	result := mimc.Hash(cs, circuit.Data)
+	cs.Tag(result, "res")
+	return nil
+}
 
-	assertbls381 := groth16.NewAssert(t)
+// TODO need tests on MiMC edge cases, bad or un-allocated inputs, and errors
+func TestMimcBN256(t *testing.T) {
+	assert := groth16.NewAssert(t)
 
 	// input
-	var data big.Int
-	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487", 10)
-	var databls381 fr_bls381.Element
-	databls381.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
+	var data fr_bn256.Element
+	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
-	// running MiMC (R1CS)
-	mimc, err := NewMiMC("seed", gurvy.BLS381)
+	// minimal cs res = hash(data)
+	var circuit mimcCircuit
+	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// minimal circuit res = hash(data)
-	cs := frontend.NewConstraintSystem()
-	result := mimc.Hash(&cs, cs.PUBLIC_INPUT("data"))
-	cs.Tag(result, "res")
-
 	// running MiMC (Go)
 	expectedValues := make(map[string]interface{})
-	b := mimcbls381.Sum("seed", databls381.Bytes())
-	var tmp fr_bls381.Element
+	b := mimcbn256.Sum("seed", data.Bytes())
+	var tmp fr_bn256.Element
 	tmp.SetBytes(b)
 	expectedValues["res"] = tmp
 
-	// provide inputs to the circuit
+	// provide inputs to the cs
 	inputs := make(map[string]interface{})
 	inputs["data"] = data
 
 	// creates r1cs
-	r1csbls381 := cs.ToR1CS().ToR1CS(gurvy.BLS381).(*backend_bls381.R1CS)
+	assert.CorrectExecution(r1cs, inputs, expectedValues)
+}
 
-	assertbls381.CorrectExecution(r1csbls381, inputs, expectedValues)
+func TestMimcBLS381(t *testing.T) {
+
+	assert := groth16.NewAssert(t)
+
+	// input
+	var data fr_bls381.Element
+	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
+
+	// minimal cs res = hash(data)
+	var circuit mimcCircuit
+	r1cs, err := frontend.Compile(gurvy.BLS381, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// running MiMC (Go)
+	expectedValues := make(map[string]interface{})
+	b := mimcbls381.Sum("seed", data.Bytes())
+	var tmp fr_bls381.Element
+	tmp.SetBytes(b)
+	expectedValues["res"] = tmp
+
+	// provide inputs to the cs
+	inputs := make(map[string]interface{})
+	inputs["data"] = data
+
+	assert.CorrectExecution(r1cs, inputs, expectedValues)
 
 }
 
 func TestMimcBLS377(t *testing.T) {
 
-	assertbls377 := groth16.NewAssert(t)
+	assert := groth16.NewAssert(t)
 
 	// input
-	var data big.Int
-	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487", 10)
-	var databls377 fr_bls377.Element
-	databls377.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
+	var data fr_bls377.Element
+	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
-	// running MiMC (R1CS)
-	mimc, err := NewMiMC("seed", gurvy.BLS377)
+	// minimal cs res = hash(data)
+	var circuit mimcCircuit
+	r1cs, err := frontend.Compile(gurvy.BLS377, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// minimal circuit res = hash(data)
-	circuit := frontend.NewConstraintSystem()
-	result := mimc.Hash(&circuit, circuit.PUBLIC_INPUT("data"))
-	circuit.Tag(result, "res")
-
 	// running MiMC (Go)
 	expectedValues := make(map[string]interface{})
-	b := mimcbls377.Sum("seed", databls377.Bytes())
+	b := mimcbls377.Sum("seed", data.Bytes())
 	var tmp fr_bls377.Element
 	tmp.SetBytes(b)
 	expectedValues["res"] = tmp
 
-	// provide inputs to the circuit
+	// provide inputs to the cs
 	inputs := make(map[string]interface{})
 	inputs["data"] = data
 
-	// creates r1cs
-	r1csbls377 := circuit.ToR1CS().ToR1CS(gurvy.BLS377).(*backend_bls377.R1CS)
-
-	assertbls377.CorrectExecution(r1csbls377, inputs, expectedValues)
+	assert.CorrectExecution(r1cs, inputs, expectedValues)
 
 }

@@ -167,24 +167,16 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 		case Variable:
 			cs.equal(c1, c2)
 			return
-		case big.Int:
-			cs.equalConstant(c1, c2)
-			return
-		case *big.Int:
-			cs.equalConstant(c1, *c2)
+		default:
+			b2 := backend.FromInterface(i2)
+			cs.equalConstant(c1, b2)
 			return
 		}
-
-	case big.Int:
+	default:
+		b1 := backend.FromInterface(i1)
 		switch c2 := i2.(type) {
 		case Variable:
-			cs.equalConstant(c2, c1)
-			return
-		}
-	case *big.Int:
-		switch c2 := i2.(type) {
-		case Variable:
-			cs.equalConstant(c2, *c1)
+			cs.equalConstant(c2, b1)
 			return
 		}
 	}

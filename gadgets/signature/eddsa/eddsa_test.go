@@ -28,6 +28,25 @@ import (
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
 
+type eddsaCircuit struct {
+	PublicKey PublicKey         `gnark:",public"`
+	Signature Signature         `gnark:",public"`
+	Message   frontend.Variable `gnark:",public"`
+}
+
+func (circuit *eddsaCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	params, err := twistededwards.NewEdCurve(gurvy.BN256)
+	if err != nil {
+		return err
+	}
+	circuit.PublicKey.Curve = params
+
+	// verify the signature in the cs
+	Verify(cs, circuit.Signature, circuit.Message, circuit.PublicKey)
+
+	return nil
+}
+
 func TestEddsa(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
@@ -40,7 +59,7 @@ func TestEddsa(t *testing.T) {
 
 	hFunc := mimc_bn256.NewMiMC("seed")
 
-	// create eddsa obj and sign a message
+	// create eddsa obj and sign a Message
 	pubKey, privKey := eddsa_bn256.New(seed, hFunc)
 	var msg fr_bn256.Element
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
@@ -56,57 +75,37 @@ func TestEddsa(t *testing.T) {
 		t.Fatal("Verifying the signature should return true")
 	}
 
-	// Set the eddsa circuit and the gadget
-	circuit := frontend.NewConstraintSystem()
-
-	params, err := twistededwards.NewEdCurve(gurvy.BN256)
+	// Set the eddsa cs and the gadget
+	var circuit eddsaCircuit
+	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Allocate the data in the circuit
-	var pubKeyAllocated PublicKey
-	pubKeyAllocated.A.X = circuit.PUBLIC_INPUT("pubkeyX")
-	pubKeyAllocated.A.Y = circuit.PUBLIC_INPUT("pubkeyY")
-	pubKeyAllocated.Curve = params
-
-	var sigAllocated Signature
-	sigAllocated.R.A.X = circuit.PUBLIC_INPUT("sigRX")
-	sigAllocated.R.A.Y = circuit.PUBLIC_INPUT("sigRY")
-
-	sigAllocated.S = circuit.PUBLIC_INPUT("sigS")
-
-	msgAllocated := circuit.PUBLIC_INPUT("message")
-
-	// verify the signature in the circuit
-	Verify(&circuit, sigAllocated, msgAllocated, pubKeyAllocated)
-
-	// verification with the correct message
+	// verification with the correct Message
 	good := make(map[string]interface{})
-	good["message"] = msg
+	good["Message"] = msg
 
-	good["pubkeyX"] = pubKey.A.X
-	good["pubkeyY"] = pubKey.A.Y
+	good["PublicKey_A_X"] = pubKey.A.X
+	good["PublicKey_A_Y"] = pubKey.A.Y
 
-	good["sigRX"] = signature.R.X
-	good["sigRY"] = signature.R.Y
+	good["Signature_R_A_X"] = signature.R.X
+	good["Signature_R_A_Y"] = signature.R.Y
 
-	good["sigS"] = signature.S
-
-	r1cs := circuit.ToR1CS().ToR1CS(gurvy.BN256)
+	good["Signature_S"] = signature.S
 
 	assert.CorrectExecution(r1cs, good, nil)
 
-	// verification with incorrect message
+	// verification with incorrect Message
 	bad := make(map[string]interface{})
-	bad["message"] = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
+	bad["Message"] = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
 
-	bad["pubkeyX"] = pubKey.A.X
-	bad["pubkeyY"] = pubKey.A.Y
+	bad["PublicKey_A_X"] = pubKey.A.X
+	bad["PublicKey_A_Y"] = pubKey.A.Y
 
-	bad["sigRX"] = signature.R.X
-	bad["sigRY"] = signature.R.Y
+	bad["Signature_R_A_X"] = signature.R.X
+	bad["Signature_R_A_Y"] = signature.R.Y
 
-	bad["sigS"] = signature.S
+	bad["Signature_S"] = signature.S
 	assert.NotSolved(r1cs, bad)
 }

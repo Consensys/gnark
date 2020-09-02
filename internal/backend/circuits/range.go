@@ -2,63 +2,72 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 )
 
+type rangeCheckConstantCircuit struct {
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
+}
+
+func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	c1 := cs.MUL(circuit.X, circuit.Y)
+	c2 := cs.MUL(c1, circuit.Y)
+
+	cs.MUSTBE_LESS_OR_EQ(c2, 161, 256)
+	return nil
+}
+
 func rangeCheckConstant() {
+	var circuit, good, bad rangeCheckConstantCircuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
 
-	circuit := frontend.NewConstraintSystem()
+	good.X.Assign(10)
+	good.Y.Assign(4)
 
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
+	bad.X.Assign(10)
+	bad.Y.Assign(5)
 
-	c1 := circuit.MUL(x, y)
-	c2 := circuit.MUL(c1, y)
+	addEntry("range_constant", r1cs, &good, &bad)
+}
 
-	circuit.MUSTBE_LESS_OR_EQ(c2, 161, 256)
+type rangeCheckCircuit struct {
+	X        frontend.Variable
+	Y, Bound frontend.Variable `gnark:",public"`
+}
 
-	good := make(map[string]interface{})
-	good["x"] = 10
-	good["y"] = 4
+func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	c1 := cs.MUL(circuit.X, circuit.Y)
+	c2 := cs.MUL(c1, circuit.Y)
 
-	bad := make(map[string]interface{})
-	bad["x"] = 10
-	bad["y"] = 5
+	cs.MUSTBE_LESS_OR_EQ(c2, circuit.Bound, 256)
 
-	r1cs := circuit.ToR1CS()
-	addEntry("range_constant", r1cs, good, bad)
+	return nil
 }
 
 func rangeCheck() {
 
-	circuit := frontend.NewConstraintSystem()
+	var circuit, good, bad rangeCheckCircuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
 
-	x := circuit.SECRET_INPUT("x")
-	y := circuit.PUBLIC_INPUT("y")
-	bound := circuit.PUBLIC_INPUT("bound")
+	good.X.Assign(10)
+	good.Y.Assign(4)
+	good.Bound.Assign(161)
 
-	c1 := circuit.MUL(x, y)
-	c2 := circuit.MUL(c1, y)
+	bad.X.Assign(10)
+	bad.Y.Assign(5)
+	bad.Bound.Assign(161)
 
-	circuit.MUSTBE_LESS_OR_EQ(c2, bound, 256)
-
-	good := make(map[string]interface{})
-	good["x"] = 10
-	good["y"] = 4
-	good["bound"] = 161
-
-	bad := make(map[string]interface{})
-	bad["x"] = 10
-	bad["y"] = 5
-	bad["bound"] = 161
-
-	r1cs := circuit.ToR1CS()
-	addEntry("range", r1cs, good, bad)
+	addEntry("range", r1cs, &good, &bad)
 }
 
 func init() {
-
 	rangeCheckConstant()
-
 	rangeCheck()
-
 }

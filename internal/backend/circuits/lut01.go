@@ -4,18 +4,17 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 )
 
-func init() {
-	circuit := frontend.NewConstraintSystem()
+type lut01Circuit struct {
+	B0, B1 frontend.Variable
+	Z      frontend.Variable `gnark:",public"`
+}
 
-	b0 := circuit.SECRET_INPUT("b0")
-	b1 := circuit.SECRET_INPUT("b1")
-
-	z := circuit.PUBLIC_INPUT("z")
-
-	circuit.MUSTBE_BOOLEAN(b0)
-	circuit.MUSTBE_BOOLEAN(b1)
+func (circuit *lut01Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	cs.MUSTBE_BOOLEAN(circuit.B0)
+	cs.MUSTBE_BOOLEAN(circuit.B1)
 
 	var lookuptable [4]big.Int
 
@@ -24,20 +23,26 @@ func init() {
 	lookuptable[2].SetUint64(22)
 	lookuptable[3].SetUint64(7)
 
-	r := circuit.SELECT_LUT(b1, b0, lookuptable)
+	r := cs.SELECT_LUT(circuit.B1, circuit.B0, lookuptable)
 
-	circuit.MUSTBE_EQ(r, z)
+	cs.MUSTBE_EQ(r, circuit.Z)
+	return nil
+}
 
-	good := make(map[string]interface{})
-	good["b0"] = 1
-	good["b1"] = 0
-	good["z"] = 12
+func init() {
+	var circuit, good, bad lut01Circuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
 
-	bad := make(map[string]interface{})
-	bad["b0"] = 1
-	bad["b1"] = 0
-	bad["z"] = 10
+	good.B0.Assign(1)
+	good.B1.Assign(0)
+	good.Z.Assign(12)
 
-	r1cs := circuit.ToR1CS()
-	addEntry("lut01", r1cs, good, bad)
+	bad.B0.Assign(1)
+	bad.B1.Assign(0)
+	bad.Z.Assign(10)
+
+	addEntry("lut01", r1cs, &good, &bad)
 }

@@ -23,10 +23,6 @@ func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	return nil
 }
 
-func (cubic *CubicCircuit) PostInit(curveID gurvy.ID) error {
-	return nil
-}
-
 func main() {
 	var cubicCircuit CubicCircuit
 	// init slices if any
