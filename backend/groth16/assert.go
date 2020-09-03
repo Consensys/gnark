@@ -82,13 +82,14 @@ func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, _solution interface{}, ex
 	solution := assert.parseSolution(_solution)
 
 	// In inspect the r1cs is solved, if an error occurs it is caught here
-	res, err := r1cs.Inspect(solution, true)
+	res, err := r1cs.Inspect(solution, false)
 	assert.NoError(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 	for k, v := range expectedValues {
 		val, ok := res[k]
+		assert.True(ok, "Variable to test <"+k+"> is not tagged")
 		_v := backend.FromInterface(v)
 		_val := backend.FromInterface(val)
-		assert.True(ok, "Variable to test <"+k+"> is not tagged")
+
 		assert.True(_val.Cmp(&_v) == 0, "Tagged variable <"+k+"> does not have the expected value\nexpected: "+_v.String()+"\ngot:\t  "+_val.String())
 	}
 }

@@ -109,7 +109,7 @@ func (e *E6) MulByFp2(cs *frontend.CS, e1 *E6, e2 *E2, ext Extension) *E6 {
 // MulByNonResidue multiplies e by the imaginary elmt of Fp6 (noted a+bV+cV where V**3 in F^2)
 func (e *E6) MulByNonResidue(cs *frontend.CS, e1 *E6, ext Extension) *E6 {
 	res := E6{}
-	res.B0.Mul(cs, &e1.B2, &ext.vCube, ext)
+	res.B0.Mul(cs, &e1.B2, ext.vCube, ext)
 	e.B1 = e1.B0
 	e.B2 = e1.B1
 	e.B0 = res.B0

@@ -28,7 +28,7 @@ import (
 func getBLS377ExtensionFp6(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
+	res.vCube = &E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
 	return res
 }
 

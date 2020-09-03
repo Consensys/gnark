@@ -26,8 +26,8 @@ type Extension struct {
 
 	// generators of each sub field
 	uSquare interface{}
-	vCube   E2
-	wSquare E6
+	vCube   *E2
+	wSquare *E6
 
 	// frobenius applied to generators
 	frobv   interface{} // v**p  = (v**6)**(p-1/6)*v, frobv=(v**6)**(p-1/6), belongs to Fp)
@@ -61,8 +61,8 @@ type E12 struct {
 func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
-	res.wSquare = E6{
+	res.vCube = &E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
+	res.wSquare = &E6{
 		B0: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
 		B1: E2{cs.ALLOCATE(1), cs.ALLOCATE(0)},
 		B2: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
@@ -139,8 +139,8 @@ func (e *E12) Mul(cs *frontend.CS, e1, e2 *E12, ext Extension) *E12 {
 	bd.Mul(cs, &e1.C1, &e2.C1, ext)           // 61C
 	e.C1.Sub(cs, &v, &ac).Sub(cs, &e.C1, &bd) // 12C
 
-	bd.Mul(cs, &bd, &ext.wSquare, ext) // 6C
-	e.C0.Add(cs, &ac, &bd)             // 6C
+	bd.Mul(cs, &bd, ext.wSquare, ext) // 6C
+	e.C0.Add(cs, &ac, &bd)            // 6C
 
 	return e
 }
@@ -326,13 +326,13 @@ func (e *E12) FixedExponentiation(cs *frontend.CS, e1 *E12, exponent uint64, ext
 }
 
 // FinalExpoBLS final  exponentation for curves of the bls family (t is the parameter used to generate the curve)
-func (e *E12) FinalExpoBLS(cs *frontend.CS, e1 E12, genT uint64, ext Extension) E12 {
+func (e *E12) FinalExpoBLS(cs *frontend.CS, e1 *E12, genT uint64, ext Extension) *E12 {
 
-	res := e1
+	res := *e1
 
 	var t [6]E12
 
-	t[0].FrobeniusCube(cs, &e1, ext).FrobeniusCube(cs, &t[0], ext)
+	t[0].FrobeniusCube(cs, e1, ext).FrobeniusCube(cs, &t[0], ext)
 
 	res.Inverse(cs, &res, ext)
 	t[0].Mul(cs, &t[0], &res, ext)
@@ -369,7 +369,7 @@ func (e *E12) FinalExpoBLS(cs *frontend.CS, e1 E12, genT uint64, ext Extension) 
 	t[5].Mul(cs, &t[5], &t[1], ext)
 
 	*e = t[5]
-	return *e
+	return e
 }
 
 // Assign a value to self (witness assignment)

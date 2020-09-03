@@ -418,7 +418,7 @@ func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
-	expected.FinalExpoBLS(cs, circuit.A, expo, ext)
+	expected.FinalExpoBLS(cs, &circuit.A, expo, ext)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
 }

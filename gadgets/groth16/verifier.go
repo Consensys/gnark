@@ -17,7 +17,6 @@ limitations under the License.
 package groth16
 
 import (
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gadgets/algebra/fields"
 	"github.com/consensys/gnark/gadgets/algebra/sw"
@@ -48,36 +47,32 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputNames []string) {
+func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, eπCdelta, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, eπAπB, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
 	var psi0, tmp sw.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
-	for k, v := range innerPubInputNames {
-		if v == backend.OneWire {
-			psi0.X = innerVk.G1[k].X
-			psi0.Y = innerVk.G1[k].Y
-		}
-	}
-	for k, v := range innerPubInputNames {
-		if v != backend.OneWire {
-			tmp.ScalarMul(cs, &innerVk.G1[k], cs.PUBLIC_INPUT(v), 377)
-			psi0.AddAssign(cs, &tmp)
-		}
+	// TODO this assumes ONE_WIRE is at position 0
+	psi0.X = innerVk.G1[0].X
+	psi0.Y = innerVk.G1[0].Y
+
+	for k, v := range innerPubInputs {
+		tmp.ScalarMul(cs, &innerVk.G1[k], v, 377)
+		psi0.AddAssign(cs, &tmp)
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, epsigamma, pairingInfo)
+	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12
@@ -86,7 +81,7 @@ func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExpoBLS(cs, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExpoBLS(cs, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MUSTBE_EQ(cs, resPairing)

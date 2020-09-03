@@ -102,7 +102,7 @@ func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.E12, ext fields.Exten
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo PairingContext) fields.E12 {
+func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
@@ -128,23 +128,23 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo P
 		QNext.Double(cs, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(cs, &QNext)
 
-		res.Mul(cs, &res, &res, pairingInfo.Extension)
+		res.Mul(cs, res, res, pairingInfo.Extension)
 
 		// evaluates line though Qcur,2Qcur at P
 		LineEvalBLS377(cs, QCur, QNextNeg, P, &lEval, pairingInfo.Extension)
-		lEval.MulAssign(cs, &res, pairingInfo.Extension)
+		lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 		if ateLoopNaf[i] == 1 {
 			// evaluates line through 2Qcur, Q at P
 			LineEvalBLS377(cs, QNext, Q, P, &lEval, pairingInfo.Extension)
-			lEval.MulAssign(cs, &res, pairingInfo.Extension)
+			lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 			QNext.AddAssign(cs, &Q, pairingInfo.Extension)
 
 		} else if ateLoopNaf[i] == -1 {
 			// evaluates line through 2Qcur, -Q at P
 			LineEvalBLS377(cs, QNext, QNeg, P, &lEval, pairingInfo.Extension)
-			lEval.MulAssign(cs, &res, pairingInfo.Extension)
+			lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 			QNext.AddAssign(cs, &QNeg, pairingInfo.Extension)
 		}
@@ -157,7 +157,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo P
 
 // MillerLoopAffine computes the miller loop, with points in affine
 // When neither Q nor P are the point at infinity
-func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, pairingInfo PairingContext) fields.E12 {
+func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
@@ -183,23 +183,23 @@ func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, p
 		QNext.Double(cs, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(cs, &QNext)
 
-		res.Mul(cs, &res, &res, pairingInfo.Extension)
+		res.Mul(cs, res, res, pairingInfo.Extension)
 
 		// evaluates line though Qcur,2Qcur at P
 		LineEvalAffineBLS377(cs, QCur, QNextNeg, P, &lEval, pairingInfo.Extension)
-		lEval.MulAssign(cs, &res, pairingInfo.Extension)
+		lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 		if ateLoopNaf[i] == 1 {
 			// evaluates line through 2Qcur, Q at P
 			LineEvalAffineBLS377(cs, QNext, Q, P, &lEval, pairingInfo.Extension)
-			lEval.MulAssign(cs, &res, pairingInfo.Extension)
+			lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 			QNext.AddAssign(cs, &Q, pairingInfo.Extension)
 
 		} else if ateLoopNaf[i] == -1 {
 			// evaluates line through 2Qcur, -Q at P
 			LineEvalAffineBLS377(cs, QNext, QNeg, P, &lEval, pairingInfo.Extension)
-			lEval.MulAssign(cs, &res, pairingInfo.Extension)
+			lEval.MulAssign(cs, res, pairingInfo.Extension)
 
 			QNext.AddAssign(cs, &QNeg, pairingInfo.Extension)
 		}

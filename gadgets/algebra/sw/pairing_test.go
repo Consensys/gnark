@@ -146,10 +146,10 @@ func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) er
 	milRes := fields.E12{}
 	pairingRes := fields.E12{}
 
-	milRes = MillerLoopAffine(cs, circuit.P, circuit.Q, milRes, pairingInfo)
-	pairingRes = pairingRes.FinalExpoBLS(cs, milRes, ateLoop, ext)
+	MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
-	// mustbeEq(cs, milRes, &circuit.milRes, "milres")
+	mustbeEq(cs, milRes, &circuit.milRes, "milres")
 	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
 
 	return nil
@@ -177,7 +177,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedValues := make(map[string]interface{})
-	// addExpectedFP12(&milRes, "milres", expectedValues)
+	addExpectedFP12(&milRes, "milres", expectedValues)
 	addExpectedFP12(&pairingRes, "pairingres", expectedValues)
 	assert.CorrectExecution(r1cs, good, expectedValues)
 
@@ -196,10 +196,10 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
 	milRes := fields.E12{}
-	milRes = MillerLoop(cs, circuit.P, circuit.Q, milRes, pairingInfo)
+	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
-	pairingRes = pairingRes.FinalExpoBLS(cs, milRes, ateLoop, ext)
+	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
 	// mustbeEq(cs, milRes, &circuit.milRes, "milres")
 	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
