@@ -28,7 +28,7 @@ import (
 func getBLS377ExtensionFp6(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = Fp2Elmt{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
+	res.vCube = E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
 	return res
 }
 
@@ -36,12 +36,12 @@ func getBLS377ExtensionFp6(cs *frontend.CS) Extension {
 // test
 
 type fp6Add struct {
-	A, B Fp6Elmt
-	C    Fp6Elmt `gnark:",public"`
+	A, B E6
+	C    E6 `gnark:",public"`
 }
 
 func (circuit *fp6Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp6Elmt{}
+	expected := E6{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -75,12 +75,12 @@ func TestAddFp6(t *testing.T) {
 }
 
 type fp6Sub struct {
-	A, B Fp6Elmt
-	C    Fp6Elmt `gnark:",public"`
+	A, B E6
+	C    E6 `gnark:",public"`
 }
 
 func (circuit *fp6Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp6Elmt{}
+	expected := E6{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -114,12 +114,12 @@ func TestSubFp6(t *testing.T) {
 }
 
 type fp6Mul struct {
-	A, B Fp6Elmt
-	C    Fp6Elmt `gnark:",public"`
+	A, B E6
+	C    E6 `gnark:",public"`
 }
 
 func (circuit *fp6Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp6Elmt{}
+	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
 	expected.MUSTBE_EQ(cs, circuit.C)
@@ -154,12 +154,12 @@ func TestMulFp6(t *testing.T) {
 }
 
 type fp6MulByNonResidue struct {
-	A Fp6Elmt
-	C Fp6Elmt `gnark:",public"`
+	A E6
+	C E6 `gnark:",public"`
 }
 
 func (circuit *fp6MulByNonResidue) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp6Elmt{}
+	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.MulByNonResidue(cs, &circuit.A, ext)
 
@@ -194,12 +194,12 @@ func TestMulByNonResidueFp6(t *testing.T) {
 }
 
 type fp6Inverse struct {
-	A Fp6Elmt
-	C Fp6Elmt `gnark:",public"`
+	A E6
+	C E6 `gnark:",public"`
 }
 
 func (circuit *fp6Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp6Elmt{}
+	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Inverse(cs, &circuit.A, ext)
 

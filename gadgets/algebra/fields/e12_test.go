@@ -30,12 +30,12 @@ import (
 // test
 
 type fp12Add struct {
-	A, B Fp12Elmt
-	C    Fp12Elmt `gnark:",public"`
+	A, B E12
+	C    E12 `gnark:",public"`
 }
 
 func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -69,12 +69,12 @@ func TestAddFp12(t *testing.T) {
 }
 
 type fp12Sub struct {
-	A, B Fp12Elmt
-	C    Fp12Elmt `gnark:",public"`
+	A, B E12
+	C    E12 `gnark:",public"`
 }
 
 func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -108,12 +108,12 @@ func TestSubFp12(t *testing.T) {
 }
 
 type fp12Mul struct {
-	A, B Fp12Elmt
-	C    Fp12Elmt `gnark:",public"`
+	A, B E12
+	C    E12 `gnark:",public"`
 }
 
 func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
 	expected.MUSTBE_EQ(cs, circuit.C)
@@ -148,12 +148,12 @@ func TestMulFp12(t *testing.T) {
 }
 
 type fp12Conjugate struct {
-	A Fp12Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	expected.Conjugate(cs, &circuit.A)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -185,13 +185,13 @@ func TestConjugateFp12(t *testing.T) {
 }
 
 type fp12MulByV struct {
-	A Fp12Elmt
-	B Fp2Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	B E2
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV(cs, &circuit.A, &circuit.B, ext)
 
@@ -229,13 +229,13 @@ func TestMulByVFp12(t *testing.T) {
 }
 
 type fp12MulByV2W struct {
-	A Fp12Elmt
-	B Fp2Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	B E2
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV2W(cs, &circuit.A, &circuit.B, ext)
 
@@ -273,13 +273,13 @@ func TestMulByV2WFp12(t *testing.T) {
 }
 
 type fp12MulByVW struct {
-	A Fp12Elmt
-	B Fp2Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	B E2
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByVW(cs, &circuit.A, &circuit.B, ext)
 
@@ -317,21 +317,21 @@ func TestMulByVWFp12(t *testing.T) {
 }
 
 type fp12Frobenius struct {
-	A       Fp12Elmt
-	C, D, E Fp12Elmt `gnark:",public"`
+	A       E12
+	C, D, E E12 `gnark:",public"`
 }
 
 func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
-	fb := Fp12Elmt{}
+	fb := E12{}
 	fb.Frobenius(cs, &circuit.A, ext)
 	fb.MUSTBE_EQ(cs, circuit.C)
 
-	fbSquare := Fp12Elmt{}
+	fbSquare := E12{}
 	fbSquare.FrobeniusSquare(cs, &circuit.A, ext)
 	fbSquare.MUSTBE_EQ(cs, circuit.D)
 
-	fbCube := Fp12Elmt{}
+	fbCube := E12{}
 	fbCube.FrobeniusCube(cs, &circuit.A, ext)
 	fbCube.MUSTBE_EQ(cs, circuit.E)
 	return nil
@@ -367,12 +367,12 @@ func TestFrobeniusFp12(t *testing.T) {
 }
 
 type fp12Inverse struct {
-	A Fp12Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Inverse(cs, &circuit.A, ext)
 	expected.MUSTBE_EQ(cs, circuit.C)
@@ -405,12 +405,12 @@ func TestInverseFp12(t *testing.T) {
 }
 
 type fp12FixedExpo struct {
-	A Fp12Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
 	expected.FixedExponentiation(cs, &circuit.A, expo, ext)
@@ -446,12 +446,12 @@ func TestExpFixedExpoFp12(t *testing.T) {
 }
 
 type fp12FinalExpo struct {
-	A Fp12Elmt
-	C Fp12Elmt `gnark:",public"`
+	A E12
+	C E12 `gnark:",public"`
 }
 
 func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp12Elmt{}
+	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
 	expected.FinalExpoBLS(cs, circuit.A, expo, ext)

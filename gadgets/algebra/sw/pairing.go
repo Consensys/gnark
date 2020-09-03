@@ -32,7 +32,7 @@ type PairingContext struct {
 
 // LineEvalRes represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvalRes struct {
-	r0, r1, r2 fields.Fp2Elmt
+	r0, r1, r2 fields.E2
 }
 
 // LineEvalBLS377 computes f(P) where div(f) = (P)+(R)+(-(P+R))-3O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
@@ -83,7 +83,7 @@ func LineEvalAffineBLS377(cs *frontend.CS, Q, R G2Affine, P G1Affine, result *Li
 	result.r0.Sub(cs, &R.X, &Q.X)
 	result.r2.Mul(cs, &Q.X, &R.Y, ext)
 
-	var tmp fields.Fp2Elmt
+	var tmp fields.E2
 	tmp.Mul(cs, &Q.Y, &R.X, ext)
 	result.r2.Sub(cs, &result.r2, &tmp)
 
@@ -93,8 +93,8 @@ func LineEvalAffineBLS377(cs *frontend.CS, Q, R G2Affine, P G1Affine, result *Li
 }
 
 // MulAssign multiplies the result of a line evaluation to the current Fp12 accumulator
-func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.Fp12Elmt, ext fields.Extension) {
-	var a, b, c fields.Fp12Elmt
+func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.E12, ext fields.Extension) {
+	var a, b, c fields.E12
 	a.MulByVW(cs, z, &l.r1, ext)
 	b.MulByV(cs, z, &l.r0, ext)
 	c.MulByV2W(cs, z, &l.r2, ext)
@@ -102,7 +102,7 @@ func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.Fp12Elmt, ext fields.
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.Fp12Elmt, pairingInfo PairingContext) fields.Fp12Elmt {
+func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo PairingContext) fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
@@ -157,7 +157,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.Fp12Elmt, pairingI
 
 // MillerLoopAffine computes the miller loop, with points in affine
 // When neither Q nor P are the point at infinity
-func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.Fp12Elmt, pairingInfo PairingContext) fields.Fp12Elmt {
+func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, pairingInfo PairingContext) fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int

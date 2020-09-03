@@ -24,12 +24,12 @@ import (
 
 // G2Jac point in Jacobian coords
 type G2Jac struct {
-	X, Y, Z fields.Fp2Elmt
+	X, Y, Z fields.E2
 }
 
 // G2Aff point in Jacobian coords
 type G2Affine struct {
-	X, Y fields.Fp2Elmt
+	X, Y fields.E2
 }
 
 func (p *G2Jac) Assign(p1 *bls377.G2Jac) {
@@ -73,7 +73,7 @@ func (p *G2Affine) AssignToRefactor(cs *frontend.CS, p1 *G2Affine) *G2Affine {
 func (p *G2Jac) ToProj(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 	p.X.Mul(cs, &p1.X, &p1.Z, ext)
 	p.Y = p1.Y
-	var t fields.Fp2Elmt
+	var t fields.E2
 	t.Mul(cs, &p1.Z, &p1.Z, ext)
 	p.Z.Mul(cs, &p.Z, &t, ext)
 	return p
@@ -98,7 +98,7 @@ func (p *G2Affine) Neg(cs *frontend.CS, p1 *G2Affine) *G2Affine {
 // p=p, a=p1
 func (p *G2Jac) AddAssign(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields.Fp2Elmt
+	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields.E2
 
 	Z1Z1.Mul(cs, &p1.Z, &p1.Z, ext)
 
@@ -151,7 +151,7 @@ func (p *G2Jac) AddAssign(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2J
 // AddAssign add p1 to p and return p
 func (p *G2Affine) AddAssign(cs *frontend.CS, p1 *G2Affine, ext fields.Extension) *G2Affine {
 
-	var n, d, l, xr, yr fields.Fp2Elmt
+	var n, d, l, xr, yr fields.E2
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 	n.Sub(cs, &p1.Y, &p.Y)
@@ -177,7 +177,7 @@ func (p *G2Affine) AddAssign(cs *frontend.CS, p1 *G2Affine, ext fields.Extension
 // Only for curve with j invariant 0 (a=0).
 func (p *G2Affine) Double(cs *frontend.CS, p1 *G2Affine, ext fields.Extension) *G2Affine {
 
-	var n, d, l, xr, yr fields.Fp2Elmt
+	var n, d, l, xr, yr fields.E2
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Mul(cs, &p1.X, &p1.X, ext).MulByFp(cs, &n, 3)
@@ -204,7 +204,7 @@ func (p *G2Affine) Double(cs *frontend.CS, p1 *G2Affine, ext fields.Extension) *
 // Double doubles a point in jacobian coords
 func (p *G2Jac) Double(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 
-	var XX, YY, YYYY, ZZ, S, M, T fields.Fp2Elmt
+	var XX, YY, YYYY, ZZ, S, M, T fields.E2
 
 	XX.Mul(cs, &p.X, &p.X, ext)
 	YY.Mul(cs, &p.Y, &p.Y, ext)

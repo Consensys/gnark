@@ -21,25 +21,25 @@ import (
 	"github.com/consensys/gurvy/bls377"
 )
 
-// Fp6Elmt element in a quadratic extension
-type Fp6Elmt struct {
-	B0, B1, B2 Fp2Elmt
+// E6 element in a quadratic extension
+type E6 struct {
+	B0, B1, B2 E2
 }
 
-func (e *Fp6Elmt) Assign(a *bls377.E6) {
+func (e *E6) Assign(a *bls377.E6) {
 	e.B0.Assign(&a.B0)
 	e.B1.Assign(&a.B1)
 	e.B2.Assign(&a.B2)
 }
 
-func (e *Fp6Elmt) MUSTBE_EQ(cs *frontend.CS, other Fp6Elmt) {
+func (e *E6) MUSTBE_EQ(cs *frontend.CS, other E6) {
 	e.B0.MUSTBE_EQ(cs, other.B0)
 	e.B1.MUSTBE_EQ(cs, other.B1)
 	e.B2.MUSTBE_EQ(cs, other.B2)
 }
 
 // Add creates a fp6elmt from fp elmts
-func (e *Fp6Elmt) Add(cs *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
+func (e *E6) Add(cs *frontend.CS, e1, e2 *E6) *E6 {
 
 	e.B0.Add(cs, &e1.B0, &e2.B0)
 	e.B1.Add(cs, &e1.B1, &e2.B1)
@@ -49,16 +49,16 @@ func (e *Fp6Elmt) Add(cs *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
 }
 
 // NewFp6Zero creates a new
-func NewFp6Zero(cs *frontend.CS) Fp6Elmt {
-	return Fp6Elmt{
-		B0: Fp2Elmt{cs.ALLOCATE(0), cs.ALLOCATE(0)},
-		B1: Fp2Elmt{cs.ALLOCATE(0), cs.ALLOCATE(0)},
-		B2: Fp2Elmt{cs.ALLOCATE(0), cs.ALLOCATE(0)},
+func NewFp6Zero(cs *frontend.CS) E6 {
+	return E6{
+		B0: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
+		B1: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
+		B2: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
 	}
 }
 
 // Sub creates a fp6elmt from fp elmts
-func (e *Fp6Elmt) Sub(cs *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
+func (e *E6) Sub(cs *frontend.CS, e1, e2 *E6) *E6 {
 
 	e.B0.Sub(cs, &e1.B0, &e2.B0)
 	e.B1.Sub(cs, &e1.B1, &e2.B1)
@@ -68,7 +68,7 @@ func (e *Fp6Elmt) Sub(cs *frontend.CS, e1, e2 *Fp6Elmt) *Fp6Elmt {
 }
 
 // Neg negates an Fp6 elmt
-func (e *Fp6Elmt) Neg(cs *frontend.CS, e1 *Fp6Elmt) *Fp6Elmt {
+func (e *E6) Neg(cs *frontend.CS, e1 *E6) *E6 {
 	e.B0.Neg(cs, &e1.B0)
 	e.B1.Neg(cs, &e1.B1)
 	e.B2.Neg(cs, &e1.B2)
@@ -77,20 +77,20 @@ func (e *Fp6Elmt) Neg(cs *frontend.CS, e1 *Fp6Elmt) *Fp6Elmt {
 
 // Mul creates a fp6elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *Fp6Elmt) Mul(cs *frontend.CS, e1, e2 *Fp6Elmt, ext Extension) *Fp6Elmt {
+func (e *E6) Mul(cs *frontend.CS, e1, e2 *E6, ext Extension) *E6 {
 
 	// notations: (a+bv+cv2)*(d+ev+fe2)
-	var ad, bf, ce Fp2Elmt
+	var ad, bf, ce E2
 	ad.Mul(cs, &e1.B0, &e2.B0, ext)                       // 5C
 	bf.Mul(cs, &e1.B1, &e2.B2, ext).MulByIm(cs, &bf, ext) // 6C
 	ce.Mul(cs, &e1.B2, &e2.B1, ext).MulByIm(cs, &ce, ext) // 6C
 
-	var cf, ae, bd Fp2Elmt
+	var cf, ae, bd E2
 	cf.Mul(cs, &e1.B2, &e2.B2, ext).MulByIm(cs, &cf, ext) // 6C
 	ae.Mul(cs, &e1.B0, &e2.B1, ext)                       // 5C
 	bd.Mul(cs, &e1.B1, &e2.B0, ext)                       // 5C
 
-	var af, be, cd Fp2Elmt
+	var af, be, cd E2
 	af.Mul(cs, &e1.B0, &e2.B2, ext) // 5C
 	be.Mul(cs, &e1.B1, &e2.B1, ext) // 5C
 	cd.Mul(cs, &e1.B2, &e2.B0, ext) // 5C
@@ -104,8 +104,8 @@ func (e *Fp6Elmt) Mul(cs *frontend.CS, e1, e2 *Fp6Elmt, ext Extension) *Fp6Elmt 
 
 // MulByFp2 creates a fp6elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *Fp6Elmt) MulByFp2(cs *frontend.CS, e1 *Fp6Elmt, e2 *Fp2Elmt, ext Extension) *Fp6Elmt {
-	res := Fp6Elmt{}
+func (e *E6) MulByFp2(cs *frontend.CS, e1 *E6, e2 *E2, ext Extension) *E6 {
+	res := E6{}
 
 	res.B0.Mul(cs, &e1.B0, e2, ext)
 	res.B1.Mul(cs, &e1.B1, e2, ext)
@@ -119,8 +119,8 @@ func (e *Fp6Elmt) MulByFp2(cs *frontend.CS, e1 *Fp6Elmt, e2 *Fp2Elmt, ext Extens
 }
 
 // MulByNonResidue multiplies e by the imaginary elmt of Fp6 (noted a+bV+cV where V**3 in F^2)
-func (e *Fp6Elmt) MulByNonResidue(cs *frontend.CS, e1 *Fp6Elmt, ext Extension) *Fp6Elmt {
-	res := Fp6Elmt{}
+func (e *E6) MulByNonResidue(cs *frontend.CS, e1 *E6, ext Extension) *E6 {
+	res := E6{}
 	res.B0.Mul(cs, &e1.B2, &ext.vCube, ext)
 	e.B1 = e1.B0
 	e.B2 = e1.B1
@@ -129,11 +129,11 @@ func (e *Fp6Elmt) MulByNonResidue(cs *frontend.CS, e1 *Fp6Elmt, ext Extension) *
 }
 
 // Inverse inverses an Fp2 elmt
-func (e *Fp6Elmt) Inverse(cs *frontend.CS, e1 *Fp6Elmt, ext Extension) *Fp6Elmt {
+func (e *E6) Inverse(cs *frontend.CS, e1 *E6, ext Extension) *E6 {
 
-	var t [7]Fp2Elmt
-	var c [3]Fp2Elmt
-	var buf Fp2Elmt
+	var t [7]E2
+	var c [3]E2
+	var buf E2
 
 	t[0].Mul(cs, &e1.B0, &e1.B0, ext)
 	t[1].Mul(cs, &e1.B1, &e1.B1, ext)

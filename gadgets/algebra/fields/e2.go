@@ -26,8 +26,8 @@ import (
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
-// Fp2Elmt element in a quadratic extension
-type Fp2Elmt struct {
+// E2 element in a quadratic extension
+type E2 struct {
 	A0, A1 frontend.Variable
 }
 
@@ -38,25 +38,25 @@ func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
 	return
 }
 
-func (e *Fp2Elmt) Assign(a *bls377.E2) {
+func (e *E2) Assign(a *bls377.E2) {
 	e.A0.Assign(bls377FpTobw761fr(&a.A0))
 	e.A1.Assign(bls377FpTobw761fr(&a.A1))
 }
 
-func (e *Fp2Elmt) MUSTBE_EQ(cs *frontend.CS, other Fp2Elmt) {
+func (e *E2) MUSTBE_EQ(cs *frontend.CS, other E2) {
 	cs.MUSTBE_EQ(e.A0, other.A0)
 	cs.MUSTBE_EQ(e.A1, other.A1)
 }
 
 // Neg negates a e2 elmt
-func (e *Fp2Elmt) Neg(cs *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
+func (e *E2) Neg(cs *frontend.CS, e1 *E2) *E2 {
 	e.A0 = cs.SUB(0, e1.A0)
 	e.A1 = cs.SUB(0, e1.A1)
 	return e
 }
 
 // Add e2 elmts
-func (e *Fp2Elmt) Add(cs *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
+func (e *E2) Add(cs *frontend.CS, e1, e2 *E2) *E2 {
 	x := cs.ADD(e1.A0, e2.A0)
 	y := cs.ADD(e1.A1, e2.A1)
 	e.A0 = x
@@ -65,7 +65,7 @@ func (e *Fp2Elmt) Add(cs *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
 }
 
 // Sub e2 elmts
-func (e *Fp2Elmt) Sub(cs *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
+func (e *E2) Sub(cs *frontend.CS, e1, e2 *E2) *E2 {
 	x := cs.SUB(e1.A0, e2.A0)
 	y := cs.SUB(e1.A1, e2.A1)
 	e.A0 = x
@@ -74,7 +74,7 @@ func (e *Fp2Elmt) Sub(cs *frontend.CS, e1, e2 *Fp2Elmt) *Fp2Elmt {
 }
 
 // Mul e2 elmts: 5C
-func (e *Fp2Elmt) Mul(cs *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2Elmt {
+func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 
 	var one, minusOne big.Int
 	one.SetUint64(1)
@@ -114,7 +114,7 @@ func (e *Fp2Elmt) Mul(cs *frontend.CS, e1, e2 *Fp2Elmt, ext Extension) *Fp2Elmt 
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
-func (e *Fp2Elmt) MulByFp(cs *frontend.CS, e1 *Fp2Elmt, c interface{}) *Fp2Elmt {
+func (e *E2) MulByFp(cs *frontend.CS, e1 *E2, c interface{}) *E2 {
 	e.A0 = cs.MUL(e1.A0, c)
 	e.A1 = cs.MUL(e1.A1, c)
 	return e
@@ -122,7 +122,7 @@ func (e *Fp2Elmt) MulByFp(cs *frontend.CS, e1 *Fp2Elmt, c interface{}) *Fp2Elmt 
 
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *Fp2Elmt) MulByIm(cs *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
+func (e *E2) MulByIm(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 	x := e1.A0
 	e.A0 = cs.MUL(e1.A1, ext.uSquare)
 	e.A1 = x
@@ -130,14 +130,14 @@ func (e *Fp2Elmt) MulByIm(cs *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt 
 }
 
 // Conjugate conjugation of an e2 elmt
-func (e *Fp2Elmt) Conjugate(cs *frontend.CS, e1 *Fp2Elmt) *Fp2Elmt {
+func (e *E2) Conjugate(cs *frontend.CS, e1 *E2) *E2 {
 	e.A0 = e1.A0
 	e.A1 = cs.SUB(0, e1.A1)
 	return e
 }
 
 // Inverse inverses an fp2elmt
-func (e *Fp2Elmt) Inverse(cs *frontend.CS, e1 *Fp2Elmt, ext Extension) *Fp2Elmt {
+func (e *E2) Inverse(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 
 	var a0, a1, t0, t1, t1beta frontend.Variable
 

@@ -27,12 +27,12 @@ import (
 )
 
 type fp2Add struct {
-	A, B Fp2Elmt
-	C    Fp2Elmt `gnark:",public"`
+	A, B E2
+	C    E2 `gnark:",public"`
 }
 
 func (circuit *fp2Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -66,12 +66,12 @@ func TestAddFp2(t *testing.T) {
 }
 
 type fp2Sub struct {
-	A, B Fp2Elmt
-	C    Fp2Elmt `gnark:",public"`
+	A, B E2
+	C    E2 `gnark:",public"`
 }
 
 func (circuit *fp2Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -105,13 +105,13 @@ func TestSubFp2(t *testing.T) {
 }
 
 type fp2Mul struct {
-	A, B Fp2Elmt
-	C    Fp2Elmt `gnark:",public"`
+	A, B E2
+	C    E2 `gnark:",public"`
 }
 
 func (circuit *fp2Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := Extension{uSquare: 5}
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
 	expected.MUSTBE_EQ(cs, circuit.C)
 	return nil
@@ -145,13 +145,13 @@ func TestMulFp2(t *testing.T) {
 }
 
 type fp2MulByFp struct {
-	A Fp2Elmt
+	A E2
 	B frontend.Variable
-	C Fp2Elmt `gnark:",public"`
+	C E2 `gnark:",public"`
 }
 
 func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.MulByFp(cs, &circuit.A, circuit.B)
 
 	expected.MUSTBE_EQ(cs, circuit.C)
@@ -188,12 +188,12 @@ func TestMulByFpFp2(t *testing.T) {
 }
 
 type fp2Conjugate struct {
-	A Fp2Elmt
-	C Fp2Elmt `gnark:",public"`
+	A E2
+	C E2 `gnark:",public"`
 }
 
 func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.Conjugate(cs, &circuit.A)
 
 	expected.MUSTBE_EQ(cs, circuit.C)
@@ -226,13 +226,13 @@ func TestConjugateFp2(t *testing.T) {
 }
 
 type fp2Inverse struct {
-	A Fp2Elmt
-	C Fp2Elmt `gnark:",public"`
+	A E2
+	C E2 `gnark:",public"`
 }
 
 func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := Extension{uSquare: 5}
-	expected := Fp2Elmt{}
+	expected := E2{}
 	expected.Inverse(cs, &circuit.A, ext)
 
 	expected.MUSTBE_EQ(cs, circuit.C)

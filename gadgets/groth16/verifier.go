@@ -33,7 +33,7 @@ type Proof struct {
 type VerifyingKey struct {
 
 	// e(α, β)
-	E fields.Fp12Elmt
+	E fields.E12
 
 	// -[γ]2, -[δ]2
 	G2 struct {
@@ -50,7 +50,7 @@ type VerifyingKey struct {
 // Notations and naming are from https://eprint.iacr.org/2020/278.
 func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputNames []string) {
 
-	var eπCdelta, eπAπB, epsigamma fields.Fp12Elmt
+	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
 	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, eπCdelta, pairingInfo)
@@ -80,12 +80,12 @@ func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey
 	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
-	var preFinalExpo fields.Fp12Elmt
+	var preFinalExpo fields.E12
 	preFinalExpo.Mul(cs, &eπCdelta, &eπAπB, pairingInfo.Extension).
 		Mul(cs, &preFinalExpo, &epsigamma, pairingInfo.Extension)
 
 	// performs the final expo
-	var resPairing fields.Fp12Elmt
+	var resPairing fields.E12
 	resPairing.FinalExpoBLS(cs, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing

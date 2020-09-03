@@ -151,8 +151,8 @@ func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) er
 	ext := fields.GetBLS377ExtensionFp12(cs)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
-	milRes := fields.Fp12Elmt{}
-	pairingRes := fields.Fp12Elmt{}
+	milRes := fields.E12{}
+	pairingRes := fields.E12{}
 
 	milRes = MillerLoopAffine(cs, circuit.P, circuit.Q, milRes, pairingInfo)
 	pairingRes = pairingRes.FinalExpoBLS(cs, milRes, ateLoop, ext)
@@ -203,10 +203,10 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := fields.GetBLS377ExtensionFp12(cs)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 
-	milRes := fields.Fp12Elmt{}
+	milRes := fields.E12{}
 	milRes = MillerLoop(cs, circuit.P, circuit.Q, milRes, pairingInfo)
 
-	pairingRes := fields.Fp12Elmt{}
+	pairingRes := fields.E12{}
 	pairingRes = pairingRes.FinalExpoBLS(cs, milRes, ateLoop, ext)
 
 	// mustbeEq(cs, milRes, &circuit.milRes, "milres")
@@ -278,7 +278,7 @@ func addExpectedFP12(e12 *bls377.PairingResult, tagPrefix string, expectedValues
 	expectedValues[tagPrefix+".C1.B2.A1"] = e12.C1.B2.A1
 }
 
-func mustbeEq(cs *frontend.CS, fp12 fields.Fp12Elmt, e12 *bls377.PairingResult, tagPrefix string) {
+func mustbeEq(cs *frontend.CS, fp12 fields.E12, e12 *bls377.PairingResult, tagPrefix string) {
 	cs.Tag(fp12.C0.B0.A0, tagPrefix+".C0.B0.A0")
 	cs.Tag(fp12.C0.B0.A1, tagPrefix+".C0.B0.A1")
 	cs.Tag(fp12.C0.B1.A0, tagPrefix+".C0.B1.A0")
