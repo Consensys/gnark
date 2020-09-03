@@ -77,11 +77,7 @@ func TestLineEvalBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type lineEvalAffineBLS377 struct {
@@ -132,11 +128,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type pairingAffineBLS377 struct {

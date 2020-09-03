@@ -57,16 +57,6 @@ type E12 struct {
 	C0, C1 E6
 }
 
-func (e *E12) Assign(a *bls377.E12) {
-	e.C0.Assign(&a.C0)
-	e.C1.Assign(&a.C1)
-}
-
-func (e *E12) MUSTBE_EQ(cs *frontend.CS, other E12) {
-	e.C0.MUSTBE_EQ(cs, other.C0)
-	e.C1.MUSTBE_EQ(cs, other.C1)
-}
-
 // GetBLS377ExtensionFp12 get extension field parameters for bls377
 func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 	res := Extension{}
@@ -97,45 +87,6 @@ func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 	res.frob3v2w = "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499"
 
 	return res
-}
-
-// NewFp12Elmt creates a fp6elmt from fp elmts
-func NewFp12Elmt(cs *frontend.CS, a, b, c, d, e, f, g, h, i, j, k, l interface{}) E12 {
-
-	var res E12
-
-	res.C0.B0.A0 = cs.ALLOCATE(a)
-	res.C0.B0.A1 = cs.ALLOCATE(b)
-	res.C0.B1.A0 = cs.ALLOCATE(c)
-	res.C0.B1.A1 = cs.ALLOCATE(d)
-	res.C0.B2.A0 = cs.ALLOCATE(e)
-	res.C0.B2.A1 = cs.ALLOCATE(f)
-	res.C1.B0.A0 = cs.ALLOCATE(g)
-	res.C1.B0.A1 = cs.ALLOCATE(h)
-	res.C1.B1.A0 = cs.ALLOCATE(i)
-	res.C1.B1.A1 = cs.ALLOCATE(j)
-	res.C1.B2.A0 = cs.ALLOCATE(k)
-	res.C1.B2.A1 = cs.ALLOCATE(l)
-
-	return res
-}
-
-// MustBeEq constrains p1 and p2 to be equal (it's a constraint, not a variable assignment)
-func (e *E12) MustBeEq(cs *frontend.CS, e1 *E12) {
-
-	cs.MUSTBE_EQ(e.C0.B0.A0, e1.C0.B0.A0)
-	cs.MUSTBE_EQ(e.C0.B0.A1, e1.C0.B0.A1)
-	cs.MUSTBE_EQ(e.C0.B1.A0, e1.C0.B1.A0)
-	cs.MUSTBE_EQ(e.C0.B1.A1, e1.C0.B1.A1)
-	cs.MUSTBE_EQ(e.C0.B2.A0, e1.C0.B2.A0)
-	cs.MUSTBE_EQ(e.C0.B2.A1, e1.C0.B2.A1)
-
-	cs.MUSTBE_EQ(e.C1.B0.A0, e1.C1.B0.A0)
-	cs.MUSTBE_EQ(e.C1.B0.A1, e1.C1.B0.A1)
-	cs.MUSTBE_EQ(e.C1.B1.A0, e1.C1.B1.A0)
-	cs.MUSTBE_EQ(e.C1.B1.A1, e1.C1.B1.A1)
-	cs.MUSTBE_EQ(e.C1.B2.A0, e1.C1.B2.A0)
-	cs.MUSTBE_EQ(e.C1.B2.A1, e1.C1.B2.A1)
 }
 
 // SetOne returns a newly allocated element equal to 1
@@ -360,7 +311,8 @@ func (e *E12) FixedExponentiation(cs *frontend.CS, e1 *E12, exponent uint64, ext
 		expoBin[i] = uint8((exponent >> (63 - i))) & 1
 	}
 
-	res := NewFp12Elmt(cs, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	res := E12{}
+	res.SetOne(cs)
 
 	for i := 0; i < 64; i++ {
 		res.Mul(cs, &res, &res, ext)
@@ -418,4 +370,16 @@ func (e *E12) FinalExpoBLS(cs *frontend.CS, e1 E12, genT uint64, ext Extension) 
 
 	*e = t[5]
 	return *e
+}
+
+// Assign a value to self (witness assignment)
+func (e *E12) Assign(a *bls377.E12) {
+	e.C0.Assign(&a.C0)
+	e.C1.Assign(&a.C1)
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (e *E12) MUSTBE_EQ(cs *frontend.CS, other E12) {
+	e.C0.MUSTBE_EQ(cs, other.C0)
+	e.C1.MUSTBE_EQ(cs, other.C1)
 }

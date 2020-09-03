@@ -26,21 +26,27 @@ import (
 	"github.com/consensys/gurvy/bls377/fp"
 )
 
-type fp2Add struct {
-	A, B E2
-	C    E2 `gnark:",public"`
+type e2TestCircuit struct {
+	A, B, C E2
+	define  func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error
 }
 
-func (circuit *fp2Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := E2{}
-	expected.Add(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
-	return nil
+func (circuit *e2TestCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	return circuit.define(curveID, cs, circuit.A, circuit.B, circuit.C)
 }
 
 func TestAddFp2(t *testing.T) {
+	// test circuit
+	circuit := e2TestCircuit{
+		define: func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error {
+			expected := E2{}
+			expected.Add(cs, &A, &B)
+			expected.MUSTBE_EQ(cs, C)
+			return nil
+		},
+	}
 
-	var circuit, witness fp2Add
+	// compile it into a R1CS
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -52,34 +58,28 @@ func TestAddFp2(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
+	var witness e2TestCircuit
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
-}
-
-type fp2Sub struct {
-	A, B E2
-	C    E2 `gnark:",public"`
-}
-
-func (circuit *fp2Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	expected := E2{}
-	expected.Sub(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
-	return nil
 }
 
 func TestSubFp2(t *testing.T) {
+	// test circuit
+	circuit := e2TestCircuit{
+		define: func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error {
+			expected := E2{}
+			expected.Sub(cs, &A, &B)
+			expected.MUSTBE_EQ(cs, C)
+			return nil
+		},
+	}
 
-	var circuit, witness fp2Sub
+	// compile it into a R1CS
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -91,35 +91,29 @@ func TestSubFp2(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
+	var witness e2TestCircuit
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
-}
-
-type fp2Mul struct {
-	A, B E2
-	C    E2 `gnark:",public"`
-}
-
-func (circuit *fp2Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	ext := Extension{uSquare: 5}
-	expected := E2{}
-	expected.Mul(cs, &circuit.A, &circuit.B, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
-	return nil
 }
 
 func TestMulFp2(t *testing.T) {
+	// test circuit
+	circuit := e2TestCircuit{
+		define: func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error {
+			ext := Extension{uSquare: 5}
+			expected := E2{}
+			expected.Mul(cs, &A, &B, ext)
+			expected.MUSTBE_EQ(cs, C)
+			return nil
+		},
+	}
 
-	var circuit, witness fp2Mul
+	// compile it into a R1CS
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -131,17 +125,13 @@ func TestMulFp2(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
+	var witness e2TestCircuit
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
-
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp2MulByFp struct {
@@ -179,11 +169,7 @@ func TestMulByFpFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -218,11 +204,7 @@ func TestConjugateFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp2Inverse struct {
@@ -257,15 +239,12 @@ func TestInverseFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
 func TestMulByImFp2(t *testing.T) {
+	// TODO fixme
 	t.Skip("missing e2.MulByNonSquare")
 	// ext := Extension{uSquare: 5}
 

@@ -348,8 +348,6 @@ func (cs *CS) equalConstant(c Variable, constant big.Int) {
 }
 
 func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) error {
-
-	// TODO assumes fr is alaws 256 bit long, should this elsewhere
 	ci := make([]int, nbBits)
 
 	// query the decomposition of constant, ensuring it's 256 bits long (this constant should set elsewhere)
@@ -368,7 +366,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 	}
 
 	// unpacking the Constraint c
-	ai := cs.TO_BINARY(a, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+	ai := cs.TO_BINARY(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
 	pi := make([]Variable, nbBits+1)
@@ -397,7 +395,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 
 func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 	// unpacking the constant bound c and the variable to test a
-	ci := cs.TO_BINARY(c, nbBits) // TODO assumes fr is alaws 256 bit long, should this elsewhere
+	ci := cs.TO_BINARY(c, nbBits)
 	ai := cs.TO_BINARY(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)

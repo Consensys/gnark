@@ -26,18 +26,6 @@ type E6 struct {
 	B0, B1, B2 E2
 }
 
-func (e *E6) Assign(a *bls377.E6) {
-	e.B0.Assign(&a.B0)
-	e.B1.Assign(&a.B1)
-	e.B2.Assign(&a.B2)
-}
-
-func (e *E6) MUSTBE_EQ(cs *frontend.CS, other E6) {
-	e.B0.MUSTBE_EQ(cs, other.B0)
-	e.B1.MUSTBE_EQ(cs, other.B1)
-	e.B2.MUSTBE_EQ(cs, other.B2)
-}
-
 // Add creates a fp6elmt from fp elmts
 func (e *E6) Add(cs *frontend.CS, e1, e2 *E6) *E6 {
 
@@ -166,4 +154,18 @@ func (e *E6) Inverse(cs *frontend.CS, e1 *E6, ext Extension) *E6 {
 
 	return e
 
+}
+
+// Assign a value to self (witness assignment)
+func (e *E6) Assign(a *bls377.E6) {
+	e.B0.Assign(&a.B0)
+	e.B1.Assign(&a.B1)
+	e.B2.Assign(&a.B2)
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (e *E6) MUSTBE_EQ(cs *frontend.CS, other E6) {
+	e.B0.MUSTBE_EQ(cs, other.B0)
+	e.B1.MUSTBE_EQ(cs, other.B1)
+	e.B2.MUSTBE_EQ(cs, other.B2)
 }

@@ -1,7 +1,7 @@
 package circuits
 
 func init() {
-	// TODO inv here
+	// TODO fixme
 	//fmt.Println("init inv")
 	// circuit := frontend.New()
 

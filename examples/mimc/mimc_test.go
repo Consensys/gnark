@@ -18,15 +18,17 @@ func TestPreimage(t *testing.T) {
 	assert.NoError(err)
 
 	{
-		mimcCircuit.Hash.Assign(42)
-		mimcCircuit.PreImage.Assign(42)
-		assert.NotSolved(r1cs, &mimcCircuit)
+		var witness MiMCCircuit
+		witness.Hash.Assign(42)
+		witness.PreImage.Assign(42)
+		assert.NotSolved(r1cs, &witness)
 	}
 
 	{
-		mimcCircuit.PreImage.Assign(35)
-		mimcCircuit.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
-		assert.Solved(r1cs, &mimcCircuit, nil)
+		var witness MiMCCircuit
+		witness.PreImage.Assign(35)
+		witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
+		assert.Solved(r1cs, &witness, nil)
 	}
 
 }

@@ -15,6 +15,12 @@ type Variable struct {
 
 // Assign value to self. Doesn't check if the variable was "compiled" through frontend.Compile(circuit)
 func (v *Variable) Assign(value interface{}) {
+	if v.val != nil {
+		panic("variable already assigned")
+	}
+	if v.constraintID != 0 {
+		panic("circuit was compiled, can't be used as a witness")
+	}
 	v.val = value
 }
 

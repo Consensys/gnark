@@ -31,23 +31,6 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
-func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
-	for i, v := range a {
-		r[i] = v
-	}
-	return
-}
-
-func (e *E2) Assign(a *bls377.E2) {
-	e.A0.Assign(bls377FpTobw761fr(&a.A0))
-	e.A1.Assign(bls377FpTobw761fr(&a.A1))
-}
-
-func (e *E2) MUSTBE_EQ(cs *frontend.CS, other E2) {
-	cs.MUSTBE_EQ(e.A0, other.A0)
-	cs.MUSTBE_EQ(e.A1, other.A1)
-}
-
 // Neg negates a e2 elmt
 func (e *E2) Neg(cs *frontend.CS, e1 *E2) *E2 {
 	e.A0 = cs.SUB(0, e1.A0)
@@ -57,19 +40,15 @@ func (e *E2) Neg(cs *frontend.CS, e1 *E2) *E2 {
 
 // Add e2 elmts
 func (e *E2) Add(cs *frontend.CS, e1, e2 *E2) *E2 {
-	x := cs.ADD(e1.A0, e2.A0)
-	y := cs.ADD(e1.A1, e2.A1)
-	e.A0 = x
-	e.A1 = y
+	e.A0 = cs.ADD(e1.A0, e2.A0)
+	e.A1 = cs.ADD(e1.A1, e2.A1)
 	return e
 }
 
 // Sub e2 elmts
 func (e *E2) Sub(cs *frontend.CS, e1, e2 *E2) *E2 {
-	x := cs.SUB(e1.A0, e2.A0)
-	y := cs.SUB(e1.A1, e2.A1)
-	e.A0 = x
-	e.A1 = y
+	e.A0 = cs.SUB(e1.A0, e2.A0)
+	e.A1 = cs.SUB(e1.A1, e2.A1)
 	return e
 }
 
@@ -155,4 +134,23 @@ func (e *E2) Inverse(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 	e.A1 = cs.MUL(e.A1, t1)
 
 	return e
+}
+
+// Assign a value to self (witness assignment)
+func (e *E2) Assign(a *bls377.E2) {
+	e.A0.Assign(bls377FpTobw761fr(&a.A0))
+	e.A1.Assign(bls377FpTobw761fr(&a.A1))
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (e *E2) MUSTBE_EQ(cs *frontend.CS, other E2) {
+	cs.MUSTBE_EQ(e.A0, other.A0)
+	cs.MUSTBE_EQ(e.A1, other.A1)
+}
+
+func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
+	for i, v := range a {
+		r[i] = v
+	}
+	return
 }

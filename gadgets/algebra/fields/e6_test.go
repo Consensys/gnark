@@ -67,11 +67,7 @@ func TestAddFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp6Sub struct {
@@ -106,11 +102,7 @@ func TestSubFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp6Mul struct {
@@ -146,11 +138,7 @@ func TestMulFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp6MulByNonResidue struct {
@@ -185,11 +173,7 @@ func TestMulByNonResidueFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -225,15 +209,12 @@ func TestInverseFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
 func TestMulByFp2Fp6(t *testing.T) {
+	// TODO fixme
 	t.Skip("missing e6.MulByE2")
 	// var circuit, witness XXXX
 	// r1cs, err := frontend.Compile(gurvy.BW761, &circuit)

@@ -57,6 +57,8 @@ func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curv
 	X := cs.ALLOCATE(x)
 	Y := cs.ALLOCATE(y)
 	return p.AddGeneric(cs, p1, &Point{X, Y}, curve)
+
+	// TODO fixme
 	// // cf https://z.cash/technology/jubjub/
 	// // or https://eprint.iacr.org/2008/013.pdf
 	// res := Point{}
@@ -187,7 +189,6 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar fronten
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-// TODO passing a point a x, y interface{} is a bit ugly, but on the other hand creating a special struct{x, y interface{}} only for general point seems too much
 func (p *Point) ScalarMulFixedBase(cs *frontend.CS, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar

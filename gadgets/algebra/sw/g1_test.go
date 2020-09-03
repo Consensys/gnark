@@ -65,11 +65,7 @@ func TestAddAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -114,11 +110,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -157,11 +149,7 @@ func TestDoubleAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -203,11 +191,7 @@ func TestDoubleAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -246,11 +230,7 @@ func TestNegG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -299,11 +279,7 @@ func TestScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 

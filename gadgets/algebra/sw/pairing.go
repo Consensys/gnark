@@ -115,7 +115,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo P
 	var QCur, QNext, QNextNeg G2Jac
 	var QNeg G2Jac
 
-	QCur.AssignToRefactor(cs, &Q)
+	QCur = Q
 
 	// Stores -Q
 	QNeg.Neg(cs, &Q)
@@ -124,7 +124,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo P
 
 	// Miller loop
 	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
-		QNext.AssignToRefactor(cs, &QCur)
+		QNext = QCur
 		QNext.Double(cs, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(cs, &QNext)
 
@@ -149,7 +149,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res fields.E12, pairingInfo P
 			QNext.AddAssign(cs, &QNeg, pairingInfo.Extension)
 		}
 
-		QCur.AssignToRefactor(cs, &QNext)
+		QCur = QNext
 	}
 
 	return res
@@ -170,7 +170,7 @@ func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, p
 	var QCur, QNext, QNextNeg G2Affine
 	var QNeg G2Affine
 
-	QCur.AssignToRefactor(cs, &Q)
+	QCur = Q
 
 	// Stores -Q
 	QNeg.Neg(cs, &Q)
@@ -179,7 +179,7 @@ func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, p
 
 	// Miller loop
 	for i := len(ateLoopNaf) - 2; i >= 0; i-- {
-		QNext.AssignToRefactor(cs, &QCur)
+		QNext = QCur
 		QNext.Double(cs, &QNext, pairingInfo.Extension)
 		QNextNeg.Neg(cs, &QNext)
 
@@ -204,7 +204,7 @@ func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res fields.E12, p
 			QNext.AddAssign(cs, &QNeg, pairingInfo.Extension)
 		}
 
-		QCur.AssignToRefactor(cs, &QNext)
+		QCur = QNext
 	}
 
 	return res

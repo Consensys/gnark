@@ -32,43 +32,6 @@ type G2Affine struct {
 	X, Y fields.E2
 }
 
-func (p *G2Jac) Assign(p1 *bls377.G2Jac) {
-	p.X.Assign(&p1.X)
-	p.Y.Assign(&p1.Y)
-	p.Z.Assign(&p1.Z)
-}
-
-func (p *G2Jac) MUSTBE_EQ(cs *frontend.CS, other G2Jac) {
-	p.X.MUSTBE_EQ(cs, other.X)
-	p.Y.MUSTBE_EQ(cs, other.Y)
-	p.Z.MUSTBE_EQ(cs, other.Z)
-}
-
-func (p *G2Affine) Assign(p1 *bls377.G2Affine) {
-	p.X.Assign(&p1.X)
-	p.Y.Assign(&p1.Y)
-}
-
-func (p *G2Affine) MUSTBE_EQ(cs *frontend.CS, other G2Affine) {
-	p.X.MUSTBE_EQ(cs, other.X)
-	p.Y.MUSTBE_EQ(cs, other.Y)
-}
-
-// AssignToRefactor assigns p to p1 and return it
-func (p *G2Jac) AssignToRefactor(cs *frontend.CS, p1 *G2Jac) *G2Jac {
-	p.X = p1.X
-	p.Y = p1.Y
-	p.Z = p1.Z
-	return p
-}
-
-// AssignToRefactor assigns p to p1 and return it
-func (p *G2Affine) AssignToRefactor(cs *frontend.CS, p1 *G2Affine) *G2Affine {
-	p.X = p1.X
-	p.Y = p1.Y
-	return p
-}
-
 // ToProj sets p to p1 in projective coords and return it
 func (p *G2Jac) ToProj(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac {
 	p.X.Mul(cs, &p1.X, &p1.Z, ext)
@@ -229,4 +192,30 @@ func (p *G2Jac) Double(cs *frontend.CS, p1 *G2Jac, ext fields.Extension) *G2Jac 
 	p.Y.Sub(cs, &p.Y, &YYYY)
 
 	return p
+}
+
+// Assign a value to self (witness assignment)
+func (p *G2Jac) Assign(p1 *bls377.G2Jac) {
+	p.X.Assign(&p1.X)
+	p.Y.Assign(&p1.Y)
+	p.Z.Assign(&p1.Z)
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (p *G2Jac) MUSTBE_EQ(cs *frontend.CS, other G2Jac) {
+	p.X.MUSTBE_EQ(cs, other.X)
+	p.Y.MUSTBE_EQ(cs, other.Y)
+	p.Z.MUSTBE_EQ(cs, other.Z)
+}
+
+// Assign a value to self (witness assignment)
+func (p *G2Affine) Assign(p1 *bls377.G2Affine) {
+	p.X.Assign(&p1.X)
+	p.Y.Assign(&p1.Y)
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (p *G2Affine) MUSTBE_EQ(cs *frontend.CS, other G2Affine) {
+	p.X.MUSTBE_EQ(cs, other.X)
+	p.Y.MUSTBE_EQ(cs, other.Y)
 }

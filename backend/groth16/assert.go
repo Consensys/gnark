@@ -29,16 +29,7 @@ func NewAssert(t *testing.T) *Assert {
 func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
 	pk := DummySetup(r1cs)
-	var solution map[string]interface{}
-
-	switch s := _solution.(type) {
-	case map[string]interface{}:
-		solution = s
-	case frontend.Circuit:
-		solution, _ = frontend.ToAssignment(s)
-	default:
-		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
-	}
+	solution := assert.parseSolution(_solution)
 
 	_, err := Prove(r1cs, pk, solution)
 	assert.Error(err, "proving with bad solution should output an error")
@@ -51,16 +42,7 @@ func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 // provided _solution must either implements frontend.Circuit or be
 // a map[string]interface{}
 func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
-	var solution map[string]interface{}
-
-	switch s := _solution.(type) {
-	case map[string]interface{}:
-		solution = s
-	case frontend.Circuit:
-		solution, _ = frontend.ToAssignment(s)
-	default:
-		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
-	}
+	solution := assert.parseSolution(_solution)
 
 	// setup
 	pk, vk := Setup(r1cs)
@@ -79,27 +61,29 @@ func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValu
 
 	// prover
 	proof, err := Prove(r1cs, pk, solution)
-	assert.Nil(err, "proving with good solution should not output an error")
+	assert.NoError(err, "proving with good solution should not output an error")
 
 	// ensure random sampling; calling prove twice with same input should produce different proof
 	{
 		proof2, err := Prove(r1cs, pk, solution)
-		assert.Nil(err, "proving with good solution should not output an error")
+		assert.NoError(err, "proving with good solution should not output an error")
 		assert.False(reflect.DeepEqual(proof, proof2), "calling prove twice with same input should produce different proof")
 	}
 
 	// verifier
 	{
 		err := Verify(proof, vk, solution)
-		assert.Nil(err, "verifying proof with good solution should not output an error")
+		assert.NoError(err, "verifying proof with good solution should not output an error")
 	}
 }
 
 // CorrectExecution Verifies that the expected solution matches the solved variables
-func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, solution, expectedValues map[string]interface{}) {
+func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
+	solution := assert.parseSolution(_solution)
+
 	// In inspect the r1cs is solved, if an error occurs it is caught here
 	res, err := r1cs.Inspect(solution, true)
-	assert.Nil(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
+	assert.NoError(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
 	for k, v := range expectedValues {
 		val, ok := res[k]
 		_v := backend.FromInterface(v)
@@ -107,4 +91,19 @@ func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, solution, expectedValues 
 		assert.True(ok, "Variable to test <"+k+"> is not tagged")
 		assert.True(_val.Cmp(&_v) == 0, "Tagged variable <"+k+"> does not have the expected value\nexpected: "+_v.String()+"\ngot:\t  "+_val.String())
 	}
+}
+
+func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {
+	var solution map[string]interface{}
+	var err error
+	switch s := _solution.(type) {
+	case map[string]interface{}:
+		solution = s
+	case frontend.Circuit:
+		solution, err = frontend.ToAssignment(s)
+		assert.NoError(err)
+	default:
+		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
+	}
+	return solution
 }

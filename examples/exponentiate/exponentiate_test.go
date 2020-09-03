@@ -20,16 +20,18 @@ func TestExponentiate(t *testing.T) {
 
 	// TODO bigger numbers
 	{
-		expCircuit.X.Assign(2)
-		expCircuit.E.Assign(12)
-		expCircuit.Y.Assign(4095)
-		assert.NotSolved(r1cs, &expCircuit) // y != x**e
+		var witness ExponentiateCircuit
+		witness.X.Assign(2)
+		witness.E.Assign(12)
+		witness.Y.Assign(4095)
+		assert.NotSolved(r1cs, &witness) // y != x**e
 	}
 
 	{
-		expCircuit.X.Assign(2)
-		expCircuit.E.Assign(12)
-		expCircuit.Y.Assign(4096)
+		var witness ExponentiateCircuit
+		witness.X.Assign(2)
+		witness.E.Assign(12)
+		witness.Y.Assign(4096)
 		expectedValues := make(map[string]interface{})
 		expectedValues["e[0]"] = 0
 		expectedValues["e[1]"] = 0
@@ -39,7 +41,7 @@ func TestExponentiate(t *testing.T) {
 		expectedValues["e[5]"] = 0
 		expectedValues["e[6]"] = 0
 		expectedValues["e[7]"] = 0
-		assert.Solved(r1cs, &expCircuit, expectedValues)
+		assert.Solved(r1cs, &witness, expectedValues)
 	}
 
 }

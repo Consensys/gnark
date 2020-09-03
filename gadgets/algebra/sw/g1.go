@@ -40,35 +40,6 @@ type G1Affine struct {
 	X, Y frontend.Variable
 }
 
-func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
-	for i, v := range a {
-		r[i] = v
-	}
-	return
-}
-
-func (p *G1Jac) Assign(p1 *bls377.G1Jac) {
-	p.X.Assign(bls377FpTobw761fr(&p1.X))
-	p.Y.Assign(bls377FpTobw761fr(&p1.Y))
-	p.Z.Assign(bls377FpTobw761fr(&p1.Z))
-}
-
-func (p *G1Jac) MUSTBE_EQ(cs *frontend.CS, other G1Jac) {
-	cs.MUSTBE_EQ(p.X, other.X)
-	cs.MUSTBE_EQ(p.Y, other.Y)
-	cs.MUSTBE_EQ(p.Z, other.Z)
-}
-
-func (p *G1Affine) Assign(p1 *bls377.G1Affine) {
-	p.X.Assign(bls377FpTobw761fr(&p1.X))
-	p.Y.Assign(bls377FpTobw761fr(&p1.Y))
-}
-
-func (p *G1Affine) MUSTBE_EQ(cs *frontend.CS, other G1Affine) {
-	cs.MUSTBE_EQ(p.X, other.X)
-	cs.MUSTBE_EQ(p.Y, other.Y)
-}
-
 // ToProj sets p to the projective rep of p1 and return it
 func (p *G1Jac) ToProj(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 	p.X = cs.MUL(p1.X, p1.Z)
@@ -297,7 +268,6 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
 func (p *G1Affine) ScalarMul(cs *frontend.CS, p1 *G1Affine, s interface{}, n int) *G1Affine {
-
 	scalar := cs.ALLOCATE(s)
 
 	var base, res G1Affine
@@ -323,4 +293,37 @@ func (p *G1Affine) ScalarMul(cs *frontend.CS, p1 *G1Affine, s interface{}, n int
 
 	return p
 
+}
+
+func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
+	for i, v := range a {
+		r[i] = v
+	}
+	return
+}
+
+// Assign a value to self (witness assignment)
+func (p *G1Jac) Assign(p1 *bls377.G1Jac) {
+	p.X.Assign(bls377FpTobw761fr(&p1.X))
+	p.Y.Assign(bls377FpTobw761fr(&p1.Y))
+	p.Z.Assign(bls377FpTobw761fr(&p1.Z))
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (p *G1Jac) MUSTBE_EQ(cs *frontend.CS, other G1Jac) {
+	cs.MUSTBE_EQ(p.X, other.X)
+	cs.MUSTBE_EQ(p.Y, other.Y)
+	cs.MUSTBE_EQ(p.Z, other.Z)
+}
+
+// Assign a value to self (witness assignment)
+func (p *G1Affine) Assign(p1 *bls377.G1Affine) {
+	p.X.Assign(bls377FpTobw761fr(&p1.X))
+	p.Y.Assign(bls377FpTobw761fr(&p1.Y))
+}
+
+// MUSTBE_EQ constraint self to be equal to other into the given constraint system
+func (p *G1Affine) MUSTBE_EQ(cs *frontend.CS, other G1Affine) {
+	cs.MUSTBE_EQ(p.X, other.X)
+	cs.MUSTBE_EQ(p.Y, other.Y)
 }

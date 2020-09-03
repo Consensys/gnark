@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/gadgets"
 	"github.com/consensys/gurvy"
 	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
+	"github.com/consensys/gurvy/bn256/fr"
 	edbn256 "github.com/consensys/gurvy/bn256/twistededwards"
 )
 
@@ -66,8 +67,7 @@ func newEdBN256() EdCurve {
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
 		ID:       gurvy.BN256,
 	}
-	// TODO use the modulus soon-to-be exported by goff
-	res.Modulus.SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10)
+	res.Modulus.Set(fr.Modulus())
 
 	return res
 

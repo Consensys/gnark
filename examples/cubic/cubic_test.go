@@ -18,19 +18,21 @@ func TestCubicEquation(t *testing.T) {
 	assert.NoError(err)
 
 	{
-		cubicCircuit.X.Assign(42)
-		cubicCircuit.Y.Assign(42)
+		var witness CubicCircuit
+		witness.X.Assign(42)
+		witness.Y.Assign(42)
 
-		assert.NotSolved(r1cs, &cubicCircuit)
+		assert.NotSolved(r1cs, &witness)
 	}
 
 	{
-		cubicCircuit.X.Assign(3)
-		cubicCircuit.Y.Assign(35)
+		var witness CubicCircuit
+		witness.X.Assign(3)
+		witness.Y.Assign(35)
 		expectedValues := make(map[string]interface{})
 		expectedValues["x^3"] = 27
 		expectedValues["x"] = 3
-		assert.Solved(r1cs, &cubicCircuit, expectedValues)
+		assert.Solved(r1cs, &witness, expectedValues)
 	}
 
 }

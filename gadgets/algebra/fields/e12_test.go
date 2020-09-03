@@ -61,11 +61,7 @@ func TestAddFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12Sub struct {
@@ -100,11 +96,7 @@ func TestSubFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12Mul struct {
@@ -140,11 +132,7 @@ func TestMulFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12Conjugate struct {
@@ -177,11 +165,7 @@ func TestConjugateFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12MulByV struct {
@@ -220,11 +204,7 @@ func TestMulByVFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -264,11 +244,7 @@ func TestMulByV2WFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -308,11 +284,7 @@ func TestMulByVWFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 
 }
 
@@ -359,11 +331,7 @@ func TestFrobeniusFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12Inverse struct {
@@ -397,11 +365,7 @@ func TestInverseFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assignment, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.CorrectExecution(r1cs, assignment, nil)
+	assert.CorrectExecution(r1cs, &witness, nil)
 }
 
 type fp12FixedExpo struct {
