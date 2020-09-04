@@ -21,12 +21,12 @@ import (
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/algebra/fields"
-	"github.com/consensys/gnark/gadgets/algebra/sw"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/sw"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
 )
 

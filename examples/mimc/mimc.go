@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
 )
 

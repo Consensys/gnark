@@ -18,8 +18,8 @@ package groth16
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/algebra/fields"
-	"github.com/consensys/gnark/gadgets/algebra/sw"
+	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/sw"
 )
 
 // Proof represents a groth16 proof in a r1cs

@@ -27,7 +27,7 @@ import (
 // Inspired from ZCash specs
 // When designing a circuit, one has access to (in increasing order of level):
 // 	- constraint that generates new inputs (basic constraints)
-// 	- gadgets (built out of basic constraints, such as boolean constraint)
+// 	- gnark/std (built out of basic constraints, such as boolean constraint)
 // An Expression is a mathematical Expression in given number of variables that can be evaluated,
 // and whose result is another wire. At most, quadratic operations appear in an Expression.
 // The goal of an Expression is to exploit the R1cs struct in all way possible.

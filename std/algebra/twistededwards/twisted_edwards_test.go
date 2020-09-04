@@ -29,7 +29,7 @@ type mustBeOnCurve struct {
 }
 
 func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// get edwards curve gadget
+	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ type add struct {
 }
 
 func (circuit *add) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// get edwards curve gadget
+	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ type addGeneric struct {
 }
 
 func (circuit *addGeneric) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// get edwards curve gadget
+	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err
@@ -150,7 +150,7 @@ type double struct {
 }
 
 func (circuit *double) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// get edwards curve gadget
+	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ type scalarMul struct {
 }
 
 func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	// get edwards curve gadget
+	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err

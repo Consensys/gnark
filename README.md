@@ -174,7 +174,7 @@ TODO (field overflows, etc)
 
 #### `gnark` standard library
 
-Currently gnark provides the following gadgets:
+Currently gnark provides the following components in its circuit library:
 
 * The Mimc hash function
 * Merkle tree (binary, without domain separation)

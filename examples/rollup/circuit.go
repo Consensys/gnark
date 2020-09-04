@@ -18,10 +18,10 @@ package rollup
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/accumulator/merkle"
-	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
-	"github.com/consensys/gnark/gadgets/signature/eddsa"
+	"github.com/consensys/gnark/std/accumulator/merkle"
+	"github.com/consensys/gnark/std/algebra/twistededwards"
+	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/signature/eddsa"
 	"github.com/consensys/gurvy"
 )
 
@@ -88,7 +88,7 @@ type TransferConstraints struct {
 }
 
 func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
-	// edward curve gadget
+	// edward curve params
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
 		return err

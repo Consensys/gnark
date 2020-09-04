@@ -22,7 +22,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
-	"github.com/consensys/gnark/gadgets/accumulator/merkle"
+	"github.com/consensys/gnark/std/accumulator/merkle"
 )
 
 // BatchSize size of a batch of transactions to put in a snark

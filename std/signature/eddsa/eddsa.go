@@ -18,17 +18,17 @@ package eddsa
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gnark/std/algebra/twistededwards"
+	"github.com/consensys/gnark/std/hash/mimc"
 )
 
-// PublicKey stores an eddsa public key in a r1cs
+// PublicKey stores an eddsa public key (to be used in gnark circuit)
 type PublicKey struct {
 	A     twistededwards.Point
 	Curve twistededwards.EdCurve
 }
 
-// Signature stores a signature as a gadget
+// Signature stores a signature  (to be used in gnark circuit)
 type Signature struct {
 	R PublicKey
 	S frontend.Variable

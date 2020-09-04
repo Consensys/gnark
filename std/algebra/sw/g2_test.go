@@ -22,7 +22,7 @@ import (
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bls377/fr"
 

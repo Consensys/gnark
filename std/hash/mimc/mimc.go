@@ -31,7 +31,7 @@ type MiMC struct {
 	id     gurvy.ID
 }
 
-// NewMiMC returns a MiMC gadget, than can be used in a cs
+// NewMiMC returns a MiMC instance, than can be used in a gnark circuit
 func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed), nil

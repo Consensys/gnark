@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
 	"github.com/consensys/gurvy/bn256/fr"
 )

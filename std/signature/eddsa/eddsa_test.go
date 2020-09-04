@@ -23,7 +23,7 @@ import (
 	mimc_bn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	eddsa_bn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/algebra/twistededwards"
+	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gurvy"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
 )
@@ -75,7 +75,6 @@ func TestEddsa(t *testing.T) {
 		t.Fatal("Verifying the signature should return true")
 	}
 
-	// Set the eddsa cs and the gadget
 	var circuit eddsaCircuit
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {

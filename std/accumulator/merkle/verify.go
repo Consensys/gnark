@@ -46,7 +46,7 @@ package merkle
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets/hash/mimc"
+	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // leafSum returns the hash created from data inserted to form a leaf.

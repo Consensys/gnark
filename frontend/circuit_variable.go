@@ -2,7 +2,7 @@ package frontend
 
 import "math/big"
 
-// Variable is a circuit variable. All circuits and gadgets must declare their inputs
+// Variable is a circuit variable. All circuits must declare their inputs
 // as Variable . If frontend.Compile(circuit) is called, circuit's Variable will hold
 // constraints used to build the constraint system and later on the R1CS
 // if frontend.Compile() is not called (default value), a Variable can be assigned (Assign)
