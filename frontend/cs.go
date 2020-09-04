@@ -205,7 +205,7 @@ func (cs *CS) inverse(c1 Variable, e big.Int) Variable {
 	return cs.addConstraint(expression)
 }
 
-// ADD generic version for adding 2 constraints
+// Add generic version for adding 2 constraints
 func (cs *CS) add(c1 Variable, c2 Variable) Variable {
 
 	expression := &linearExpression{
@@ -324,7 +324,7 @@ func (cs *CS) equal(c1, c2 Variable) {
 
 	// ensure we're not doing v1.MUST_EQ(v1)
 	if idC1 == idC2 {
-		fmt.Println("warning: calling MUSTBE_EQ between the same inputs")
+		fmt.Println("warning: calling MustBeEqual between the same inputs")
 		return
 	}
 
@@ -340,7 +340,7 @@ func (cs *CS) equal(c1, c2 Variable) {
 func (cs *CS) equalConstant(c Variable, constant big.Int) {
 	// ensure we're not doing x.MUST_EQ(a), x being a user input
 	if cs.isUserInput(c.id()) {
-		fmt.Println("warning: calling MUSTBE_EQ on a input")
+		fmt.Println("warning: calling MustBeEqual on a input")
 		return
 	}
 

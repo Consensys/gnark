@@ -180,7 +180,7 @@ func (cs *CS) MustBeEqual(i1, i2 interface{}) {
 			return
 		}
 	}
-	panic("invalid type: MUSTBE_EQ takes Variables and big.Int only")
+	panic("invalid type: MustBeEqual takes Variables and big.Int only")
 }
 
 // Inverse inverse a Constraint

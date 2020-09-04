@@ -4,7 +4,7 @@ Technically, inside **gnark**, a circuit is implemented in a `ConstraintSystem`.
 
 A `ConstraintSystem` is (mostly) a collection of `Constraint`. In a circuit, those would be "gates": a box that takes "wires" in, and outputs a single "wire". As we will see, a `Constraint` is a more abstract and more general representation.
 
-In **gnark**, when we design a circuit, we declare inputs (i.e `x := circuit.SECRET_INPUT("x")`) and use [gnark API]() to describe the circuit (i.e `a := circuit.ADD(x, 3)`).
+In **gnark**, when we design a circuit, we declare inputs (i.e `x := circuit.SECRET_INPUT("x")`) and use [gnark API]() to describe the circuit (i.e `a := circuit.Add(x, 3)`).
 
 This phase fills the data structure of the `ConstraintSystem`. 
 
@@ -24,7 +24,7 @@ An `expression` is an arithmetic statement (at most, operations are quadratic) `
 
 For example, 
 ```golang
-x := circuit.ADD(y, z)
+x := circuit.Add(y, z)
 ```
 
 creates the expression `y * 1 + z * 1`:
@@ -64,9 +64,9 @@ The constraints involved in the computational graph have been isolated in the pr
 
     x := s.SECRET_INPUT("x")
 
-    v1 := s.MUL(x, x)
-    v2 := s.MUL(v1, v1)
-    s.ADD(v1, v2)
+    v1 := s.Mul(x, x)
+    v2 := s.Mul(v1, v1)
+    s.Add(v1, v2)
 
     r1cs := cs.NewR1CS(&s)
 ```

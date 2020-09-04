@@ -7,9 +7,9 @@ func init() {
 
 	// x := cs.SECRET_INPUT("x")
 	// y := cs.PUBLIC_INPUT("y")
-	// m := cs.MUL(x, x)
+	// m := cs.Mul(x, x)
 	// Z := cs.INV(m)
-	// cs.MUSTBE_EQ(y, Z)
+	// cs.MustBeEqual(y, Z)
 
 	// // expected Z
 	// expectedY := fr.Element{}

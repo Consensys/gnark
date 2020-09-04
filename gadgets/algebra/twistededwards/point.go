@@ -64,7 +64,7 @@ func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curv
 	// res := Point{}
 
 	// // constraint 1
-	// b := cs.MUL(p1.X, p1.Y)
+	// b := cs.Mul(p1.X, p1.Y)
 
 	// X := backend.FromInterface(x)
 	// Y := backend.FromInterface(y)
