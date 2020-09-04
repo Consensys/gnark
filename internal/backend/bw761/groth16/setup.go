@@ -22,7 +22,7 @@ import (
 	curve "github.com/consensys/gurvy/bw761"
 	"github.com/consensys/gurvy/bw761/fr"
 
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	bw761backend "github.com/consensys/gnark/internal/backend/bw761"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -63,7 +63,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *backend_bw761.R1CS, pk *ProvingKey, vk *VerifyingKey) {
+func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 
 	/*
 		Setup
@@ -82,7 +82,7 @@ func Setup(r1cs *backend_bw761.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := backend_bw761.NewDomain(nbConstraints)
+	domain := bw761backend.NewDomain(nbConstraints)
 
 	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
 	vk.PublicInputs = r1cs.PublicWires
@@ -219,7 +219,7 @@ func Setup(r1cs *backend_bw761.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
 }
 
-func setupABC(r1cs *backend_bw761.R1CS, g *backend_bw761.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *bw761backend.R1CS, g *bw761backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbWires
 
@@ -250,13 +250,13 @@ func setupABC(r1cs *backend_bw761.R1CS, g *backend_bw761.Domain, toxicWaste toxi
 	for _, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &A[t.ConstraintID()])
+			bw761backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &A[t.ConstraintID()])
 		}
 		for _, t := range c.R {
-			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &B[t.ConstraintID()])
+			bw761backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &B[t.ConstraintID()])
 		}
 		for _, t := range c.O {
-			backend_bw761.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &C[t.ConstraintID()])
+			bw761backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &C[t.ConstraintID()])
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
@@ -301,13 +301,13 @@ func sampleToxicWaste() toxicWaste {
 
 // DummySetup fills a random ProvingKey
 // used for test or benchmarking purposes
-func DummySetup(r1cs *backend_bw761.R1CS, pk *ProvingKey) {
+func DummySetup(r1cs *bw761backend.R1CS, pk *ProvingKey) {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := backend_bw761.NewDomain(nbConstraints)
+	domain := bw761backend.NewDomain(nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

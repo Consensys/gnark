@@ -27,7 +27,7 @@ type G2Jac struct {
 	X, Y, Z fields.E2
 }
 
-// G2Aff point in Jacobian coords
+// G2Affine point in affine coords
 type G2Affine struct {
 	X, Y fields.E2
 }

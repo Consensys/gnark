@@ -61,7 +61,7 @@ type Operator struct {
 	h          hash.Hash         // hash function used to build the Merkle Tree
 	q          Queue             // queue of transfers
 	batch      int               // current number of transactions in a batch
-	witnesses  RollupCircuit     // witnesses for the snark cicruit
+	witnesses  Circuit           // witnesses for the snark cicruit
 }
 
 // NewOperator creates a new operator.

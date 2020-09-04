@@ -68,11 +68,10 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	if curveID == gurvy.UNKNOWN {
 		// return untyped R1CS
 		return cs.toR1CS(), nil
-	} else {
-		// we have in our context object the curve, so we can type our R1CS to the curve base field elements
-		return cs.toR1CS().ToR1CS(curveID), nil
 	}
 
+	// we have in our context object the curve, so we can type our R1CS to the curve base field elements
+	return cs.toR1CS().ToR1CS(curveID), nil
 }
 
 // Save will serialize the provided R1CS to path

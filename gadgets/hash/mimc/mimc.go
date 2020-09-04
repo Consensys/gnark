@@ -17,10 +17,10 @@ limitations under the License.
 package mimc
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gadgets"
 
 	"github.com/consensys/gurvy"
 )
@@ -36,7 +36,7 @@ func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed), nil
 	}
-	return MiMC{}, gadgets.ErrUnknownCurve
+	return MiMC{}, errors.New("unknown curve id")
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:

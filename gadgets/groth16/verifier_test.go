@@ -28,7 +28,6 @@ import (
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
 	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
 )
 
 //--------------------------------------------------------------------
@@ -86,42 +85,6 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	if err := groth16_bls377.Verify(proof, vk, correctAssignment); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func allocateInnerVk(cs *frontend.CS, vk *groth16_bls377.VerifyingKey, innerVk *VerifyingKey) {
-
-	innerVk.E.C0.B0.A0 = cs.Allocate(vk.E.C0.B0.A0)
-	innerVk.E.C0.B0.A1 = cs.Allocate(vk.E.C0.B0.A1)
-	innerVk.E.C0.B1.A0 = cs.Allocate(vk.E.C0.B1.A0)
-	innerVk.E.C0.B1.A1 = cs.Allocate(vk.E.C0.B1.A1)
-	innerVk.E.C0.B2.A0 = cs.Allocate(vk.E.C0.B2.A0)
-	innerVk.E.C0.B2.A1 = cs.Allocate(vk.E.C0.B2.A1)
-	innerVk.E.C1.B0.A0 = cs.Allocate(vk.E.C1.B0.A0)
-	innerVk.E.C1.B0.A1 = cs.Allocate(vk.E.C1.B0.A1)
-	innerVk.E.C1.B1.A0 = cs.Allocate(vk.E.C1.B1.A0)
-	innerVk.E.C1.B1.A1 = cs.Allocate(vk.E.C1.B1.A1)
-	innerVk.E.C1.B2.A0 = cs.Allocate(vk.E.C1.B2.A0)
-	innerVk.E.C1.B2.A1 = cs.Allocate(vk.E.C1.B2.A1)
-
-	allocateG2(cs, &innerVk.G2.DeltaNeg, &vk.G2.DeltaNeg)
-	allocateG2(cs, &innerVk.G2.GammaNeg, &vk.G2.GammaNeg)
-
-	innerVk.G1 = make([]sw.G1Affine, len(vk.G1.K))
-	for i := 0; i < len(vk.G1.K); i++ {
-		allocateG1(cs, &innerVk.G1[i], &vk.G1.K[i])
-	}
-}
-
-func allocateG2(cs *frontend.CS, g2 *sw.G2Affine, g2Circuit *bls377.G2Affine) {
-	g2.X.A0 = cs.Allocate(g2Circuit.X.A0)
-	g2.X.A1 = cs.Allocate(g2Circuit.X.A1)
-	g2.Y.A0 = cs.Allocate(g2Circuit.Y.A0)
-	g2.Y.A1 = cs.Allocate(g2Circuit.Y.A1)
-}
-
-func allocateG1(cs *frontend.CS, g1 *sw.G1Affine, g1Circuit *bls377.G1Affine) {
-	g1.X = cs.Allocate(g1Circuit.X)
-	g1.Y = cs.Allocate(g1Circuit.Y)
 }
 
 type verifierCircuit struct {

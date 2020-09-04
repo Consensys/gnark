@@ -9,8 +9,7 @@ import (
 
 const bitSize = 8 // number of bits of exponent
 
-// ExponentiateCircuit
-// y == x**e
+// ExponentiateCircuit y == x**e
 // only the bitSize least significant bits of e are used
 type ExponentiateCircuit struct {
 	// tagging a variable is optional
@@ -21,13 +20,15 @@ type ExponentiateCircuit struct {
 	E frontend.Variable
 }
 
+// Define declares the circuit's constraints
+// y == x**e
 func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// specify constraints
 	output := cs.Allocate(1)
 	bits := cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		cs.Tag(bits[i], fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
+		cs.Tag(bits[i], fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes
 
 		if i != 0 {
 			output = cs.Mul(output, output)

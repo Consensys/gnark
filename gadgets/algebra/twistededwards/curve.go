@@ -17,10 +17,10 @@ limitations under the License.
 package twistededwards
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/gadgets"
 	"github.com/consensys/gurvy"
 	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
 	"github.com/consensys/gurvy/bn256/fr"
@@ -46,7 +46,7 @@ func NewEdCurve(id gurvy.ID) (EdCurve, error) {
 	if constructor, ok := newTwistedEdwards[id]; ok {
 		return constructor(), nil
 	}
-	return EdCurve{}, gadgets.ErrUnknownCurve
+	return EdCurve{}, errors.New("unknown curve id")
 }
 
 // -------------------------------------------------------------------------------------------------

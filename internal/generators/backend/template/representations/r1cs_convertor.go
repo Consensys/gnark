@@ -1,5 +1,6 @@
 package representations
 
+// R1CSConvertor ...
 const R1CSConvertor = `
 
 
@@ -8,9 +9,9 @@ import (
 	{{ template "import_fr" . }}
 )
 
-func (r1cs *UntypedR1CS) to{{toUpper .Curve}}() *backend_{{toLower .Curve}}.R1CS {
+func (r1cs *UntypedR1CS) to{{toUpper .Curve}}() *{{toLower .Curve}}backend.R1CS {
 
-	toReturn := backend_{{toLower .Curve}}.R1CS{
+	toReturn := {{toLower .Curve}}backend.R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
 		NbSecretWires:  r1cs.NbSecretWires,

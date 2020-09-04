@@ -17,14 +17,14 @@
 package r1cs
 
 import (
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
+	bls377backend "github.com/consensys/gnark/internal/backend/bls377"
 
 	"github.com/consensys/gurvy/bls377/fr"
 )
 
-func (r1cs *UntypedR1CS) toBLS377() *backend_bls377.R1CS {
+func (r1cs *UntypedR1CS) toBLS377() *bls377backend.R1CS {
 
-	toReturn := backend_bls377.R1CS{
+	toReturn := bls377backend.R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
 		NbSecretWires:   r1cs.NbSecretWires,

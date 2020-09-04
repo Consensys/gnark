@@ -6,13 +6,17 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// MiMCCircuit defines a pre-image knowledge proof
+// mimc(secret preImage) = public hash
 type MiMCCircuit struct {
-	// tagging a variable is optional
+	// struct tag on a variable is optional
 	// default uses variable name and secret visibility.
 	PreImage frontend.Variable
 	Hash     frontend.Variable `gnark:",public"`
 }
 
+// Define declares the circuit's constraints
+// Hash = mimc(PreImage)
 func (circuit *MiMCCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// hash function
 	mimc, _ := mimc.NewMiMC("seed", curveID)

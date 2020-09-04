@@ -1,5 +1,6 @@
 package zkpschemes
 
+// Groth16Setup ...
 const Groth16Setup = `
 
 import (
@@ -46,7 +47,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingKey) {
+func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 
 	/*
 		Setup
@@ -65,7 +66,7 @@ func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingK
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := backend_{{toLower .Curve}}.NewDomain( nbConstraints)
+	domain := {{toLower .Curve}}backend.NewDomain( nbConstraints)
 
 	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
 	vk.PublicInputs = r1cs.PublicWires
@@ -210,7 +211,7 @@ func Setup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, vk *VerifyingK
 
 
 
-func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve}}.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *{{toLower .Curve}}backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbWires
 
@@ -241,13 +242,13 @@ func setupABC(r1cs *backend_{{toLower .Curve}}.R1CS, g *backend_{{toLower .Curve
 	for _, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			backend_{{toLower .Curve}}.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&A[t.ConstraintID()])
+			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&A[t.ConstraintID()])
 		}
 		for _, t := range c.R {
-			backend_{{toLower .Curve}}.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&B[t.ConstraintID()])
+			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&B[t.ConstraintID()])
 		}
 		for _, t := range c.O {
-			backend_{{toLower .Curve}}.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&C[t.ConstraintID()])
+			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&C[t.ConstraintID()])
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
@@ -295,13 +296,13 @@ func sampleToxicWaste() toxicWaste {
 
 // DummySetup fills a random ProvingKey
 // used for test or benchmarking purposes
-func DummySetup(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey) {
+func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := backend_{{toLower .Curve}}.NewDomain(nbConstraints)
+	domain := {{toLower .Curve}}backend.NewDomain(nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

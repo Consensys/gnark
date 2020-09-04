@@ -22,7 +22,7 @@ import (
 	curve "github.com/consensys/gurvy/bw761"
 	"github.com/consensys/gurvy/bw761/fr"
 
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	bw761backend "github.com/consensys/gnark/internal/backend/bw761"
 
 	"runtime"
 	"sync"
@@ -38,11 +38,11 @@ type Proof struct {
 }
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_bw761.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// fft domain (computeH)
-	fftDomain := backend_bw761.NewDomain(r1cs.NbConstraints)
+	fftDomain := bw761backend.NewDomain(r1cs.NbConstraints)
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
@@ -195,7 +195,7 @@ func Prove(r1cs *backend_bw761.R1CS, pk *ProvingKey, solution map[string]interfa
 	return proof, nil
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *backend_bw761.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *bw761backend.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -232,7 +232,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bw761.Domain) []fr.Elemen
 	var wg sync.WaitGroup
 	FFTa := func(s []fr.Element) {
 		// FFT inverse
-		backend_bw761.FFT(s, fftDomain.GeneratorInv)
+		bw761backend.FFT(s, fftDomain.GeneratorInv)
 
 		// wait for the expTable to be pre-computed
 		// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
@@ -244,7 +244,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bw761.Domain) []fr.Elemen
 		})
 
 		// FFT coset
-		backend_bw761.FFT(s, fftDomain.Generator)
+		bw761backend.FFT(s, fftDomain.Generator)
 		wg.Done()
 	}
 	wg.Add(3)
@@ -279,7 +279,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_bw761.Domain) []fr.Elemen
 	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
 
 	// ifft_coset
-	backend_bw761.FFT(a, fftDomain.GeneratorInv)
+	bw761backend.FFT(a, fftDomain.GeneratorInv)
 
 	wgExpTable.Wait() // wait for pre-computation of exp table to be done
 	execute(n, func(start, end int) {

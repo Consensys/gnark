@@ -95,7 +95,7 @@ func generateGroth16(d templateData) error {
 		representations.R1CS,
 	}
 	if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
-		bavard.Package("backend_"+strings.ToLower(d.Curve)),
+		bavard.Package("backend"),
 		bavard.Apache2("ConsenSys AG", 2020),
 		bavard.GeneratedBy("gnark/internal/generators"),
 	); err != nil {
@@ -154,7 +154,7 @@ func generateGroth16(d templateData) error {
 			algorithms.FFT,
 		}
 		if err := bavard.Generate(d.RootPath+"fft.go", src, d,
-			bavard.Package("backend_"+strings.ToLower(d.Curve)),
+			bavard.Package("backend"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {

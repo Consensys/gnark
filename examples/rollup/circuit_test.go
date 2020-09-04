@@ -27,7 +27,7 @@ import (
 )
 
 type circuitSignature struct {
-	RollupCircuit `gnark:",embed"`
+	Circuit `gnark:",embed"`
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
@@ -86,7 +86,7 @@ func TestCircuitSignature(t *testing.T) {
 }
 
 type circuitInclusionProof struct {
-	RollupCircuit `gnark:",embed"`
+	Circuit `gnark:",embed"`
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
@@ -154,7 +154,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 }
 
 type circuitUpdateAccount struct {
-	RollupCircuit `gnark:",embed"`
+	Circuit `gnark:",embed"`
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
@@ -250,7 +250,7 @@ func TestCircuitFull(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	// verifies the proofs of inclusion of the transfer
 
-	var rollupCircuit RollupCircuit
+	var rollupCircuit Circuit
 	r1cs, err := frontend.Compile(gurvy.BN256, &rollupCircuit)
 	assert.NoError(err)
 

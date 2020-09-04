@@ -1,5 +1,6 @@
 package zkpschemes
 
+// Groth16Prove ...
 const Groth16Prove = `
 
 import (
@@ -21,11 +22,11 @@ type Proof struct {
 
 
 // Prove creates proof from a circuit
-func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires-r1cs.NbPublicWires
 
 	// fft domain (computeH)
-	fftDomain := backend_{{toLower .Curve}}.NewDomain(r1cs.NbConstraints)
+	fftDomain := {{toLower .Curve}}backend.NewDomain(r1cs.NbConstraints)
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality) 
@@ -182,7 +183,7 @@ func Prove(r1cs *backend_{{toLower .Curve}}.R1CS, pk *ProvingKey, solution map[s
 }
 
 
-func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain) []fr.Element {
 		// H part of Krs
 		// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -219,7 +220,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		var wg sync.WaitGroup
 		FFTa := func(s []fr.Element) {
 			// FFT inverse
-			backend_{{toLower .Curve}}.FFT(s, fftDomain.GeneratorInv)
+			{{toLower .Curve}}backend.FFT(s, fftDomain.GeneratorInv)
 
 			// wait for the expTable to be pre-computed
 			// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
@@ -231,7 +232,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 			})
 
 			// FFT coset
-			backend_{{toLower .Curve}}.FFT(s, fftDomain.Generator)
+			{{toLower .Curve}}backend.FFT(s, fftDomain.Generator)
 			wg.Done()
 		}
 		wg.Add(3)
@@ -267,7 +268,7 @@ func computeH(a, b, c []fr.Element, fftDomain *backend_{{toLower .Curve}}.Domain
 		asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
 
 		// ifft_coset
-		backend_{{toLower .Curve}}.FFT(a, fftDomain.GeneratorInv)
+		{{toLower .Curve}}backend.FFT(a, fftDomain.GeneratorInv)
 
 		wgExpTable.Wait() // wait for pre-computation of exp table to be done
 		execute( n, func(start, end int) {

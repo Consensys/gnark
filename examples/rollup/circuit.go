@@ -25,14 +25,15 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// TODO think about doing this as variable / paramter
 const (
 	nbAccounts = 16 // 16 accounts so we know that the proof length is 5
 	depth      = 5  // size fo the inclusion proofs
 	batchSize  = 1  // nbTranfers to batch in a proof
 )
 
-type RollupCircuit struct {
+// Circuit "toy" rollup circuit where an operator can generate a proof that he processed
+// some transactions
+type Circuit struct {
 	// ---------------------------------------------------------------------------------------------
 	// SECRET INPUTS
 
@@ -86,7 +87,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *RollupCircuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
 	// edward curve gadget
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -122,7 +123,8 @@ func (circuit *RollupCircuit) postInit(curveID gurvy.ID, cs *frontend.CS) error 
 	return nil
 }
 
-func (circuit *RollupCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+// Define declares the circuit's constraints
+func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	if err := circuit.postInit(curveID, cs); err != nil {
 		return err
 	}

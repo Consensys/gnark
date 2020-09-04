@@ -1,5 +1,6 @@
 package zkpschemes
 
+// Groth16Verify ...
 const Groth16Verify = `
 
 import (

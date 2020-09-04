@@ -17,14 +17,14 @@
 package r1cs
 
 import (
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
+	bn256backend "github.com/consensys/gnark/internal/backend/bn256"
 
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
-func (r1cs *UntypedR1CS) toBN256() *backend_bn256.R1CS {
+func (r1cs *UntypedR1CS) toBN256() *bn256backend.R1CS {
 
-	toReturn := backend_bn256.R1CS{
+	toReturn := bn256backend.R1CS{
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
 		NbSecretWires:   r1cs.NbSecretWires,

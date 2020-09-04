@@ -1,5 +1,6 @@
 package algorithms
 
+// FFT ...
 const FFT = `
 
 import (
