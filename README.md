@@ -24,7 +24,7 @@ src="banner_gnark.png">
 
 ### Prerequisites
 
-`gnark` is optimized for Unix (Linux / macOS) 64bits platforms (and not tested on other architectures). 
+`gnark` is optimized for `amd64` targets and tested on Unix (Linux / macOS).
 You'll need to [install Go](https://golang.org/doc/install).
 
 ### Install `gnark` 
