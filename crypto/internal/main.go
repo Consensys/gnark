@@ -1,10 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
-	"github.com/consensys/gnark/crypto/internal/generator"
-	"github.com/consensys/gnark/crypto/internal/template"
+	"github.com/consensys/bavard"
 )
 
 //go:generate go run -tags debug main.go
@@ -12,63 +13,63 @@ func main() {
 
 	// -----------------------------------------------------
 	// eddsa files
-	eddsabls381 := generator.Data{
+	eddsabls381 := templateData{
 		Curve:    "BLS381",
 		Path:     "../signature/eddsa/bls381/",
 		FileName: "eddsa.go",
-		Src:      []string{template.EddsaTemplate},
+		Src:      []string{eddsaTemplate},
 		Package:  "eddsa",
 	}
-	eddsabls381Test := generator.Data{
+	eddsabls381Test := templateData{
 		Curve:    "BLS381",
 		Path:     "../signature/eddsa/bls381/",
 		FileName: "eddsa_test.go",
-		Src:      []string{template.EddsaTest},
+		Src:      []string{eddsaTestTemplate},
 		Package:  "eddsa",
 	}
 
-	eddsabn256 := generator.Data{
+	eddsabn256 := templateData{
 		Curve:    "BN256",
 		Path:     "../signature/eddsa/bn256/",
 		FileName: "eddsa.go",
-		Src:      []string{template.EddsaTemplate},
+		Src:      []string{eddsaTemplate},
 		Package:  "eddsa",
 	}
-	eddsabn256Test := generator.Data{
+	eddsabn256Test := templateData{
 		Curve:    "BN256",
 		Path:     "../signature/eddsa/bn256/",
 		FileName: "eddsa_test.go",
-		Src:      []string{template.EddsaTest},
+		Src:      []string{eddsaTestTemplate},
 		Package:  "eddsa",
 	}
 
 	// -----------------------------------------------------
 	// mimc files
-	mimcbn256 := generator.Data{
+	mimcbn256 := templateData{
 		Curve:    "BN256",
 		Path:     "../hash/mimc/bn256/",
 		FileName: "mimc_bn256.go",
-		Src:      []string{template.MimcCommon, template.MimcPerCurve, template.Encrypt},
+		Src:      []string{mimcCommonTemplate, mimcCurveTemplate, mimcEncryptTemplate},
 		Package:  "bn256",
 	}
 
-	mimcbls381 := generator.Data{
+	mimcbls381 := templateData{
 		Curve:    "BLS381",
 		Path:     "../hash/mimc/bls381/",
 		FileName: "mimc_bls381.go",
-		Src:      []string{template.MimcCommon, template.MimcPerCurve, template.Encrypt},
+		Src:      []string{mimcCommonTemplate, mimcCurveTemplate, mimcEncryptTemplate},
 		Package:  "bls381",
 	}
 
-	mimcbls377 := generator.Data{
+	mimcbls377 := templateData{
 		Curve:    "BLS377",
 		Path:     "../hash/mimc/bls377/",
 		FileName: "mimc_bls377.go",
-		Src:      []string{template.MimcCommon, template.MimcPerCurve, template.Encrypt},
+		Src:      []string{mimcCommonTemplate, mimcCurveTemplate, mimcEncryptTemplate},
 		Package:  "bls377",
 	}
 
-	data := []generator.Data{
+	data := []templateData{
 		eddsabls381,
 		eddsabls381Test,
 		eddsabn256,
@@ -82,7 +83,37 @@ func main() {
 		if err := os.MkdirAll(d.Path, 0700); err != nil {
 			panic(err)
 		}
-		generator.Generate(d)
+		generate(d)
 	}
 
+}
+
+// templateData meta data for template generation
+type templateData struct {
+	Curve    string
+	Path     string
+	FileName string
+	Src      []string
+	Package  string
+}
+
+// generate template generator
+func generate(d templateData) error {
+
+	if !strings.HasSuffix(d.Path, "/") {
+		d.Path += "/"
+	}
+	fmt.Println()
+	fmt.Println("generating crpyptolib for ", d.Curve)
+	fmt.Println()
+
+	if err := bavard.Generate(d.Path+d.FileName, d.Src, d,
+		bavard.Package(d.Package),
+		bavard.Apache2("ConsenSys AG", 2020),
+		bavard.GeneratedBy("gnark/crypto/internal/generator"),
+	); err != nil {
+		return err
+	}
+
+	return nil
 }

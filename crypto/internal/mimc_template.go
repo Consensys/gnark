@@ -1,6 +1,6 @@
-package template
+package main
 
-const Encrypt = `
+const mimcEncryptTemplate = `
 
 {{ define "encrypt" }}
 
@@ -58,7 +58,7 @@ const Encrypt = `
 
 `
 
-const MimcPerCurve = `
+const mimcCurveTemplate = `
 
 {{ define "mimc_custom" }}
 
@@ -172,7 +172,7 @@ const MimcPerCurve = `
 {{end}}
 `
 
-const MimcCommon = `
+const mimcCommonTemplate = `
 
 {{ template "mimc_custom" . }}
 

@@ -1,6 +1,6 @@
-package template
+package main
 
-const EddsaTemplate = `
+const eddsaTemplate = `
 
 import (
 	"bytes"

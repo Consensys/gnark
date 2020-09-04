@@ -1,6 +1,6 @@
-package template
+package main
 
-const EddsaTest = `
+const eddsaTestTemplate = `
 
 import (
 	"testing"

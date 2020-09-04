@@ -40,12 +40,17 @@ type UntypedR1CS struct {
 	Coefficients    []big.Int
 }
 
+// GetNbConstraints returns the number of constraints
 func (r1cs *UntypedR1CS) GetNbConstraints() int {
 	return r1cs.NbConstraints
 }
+
+// GetNbWires returns the number of wires
 func (r1cs *UntypedR1CS) GetNbWires() int {
 	return r1cs.NbWires
 }
+
+// GetNbCoefficients return the number of (different) coefficients needed in the R1CS
 func (r1cs *UntypedR1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
@@ -55,6 +60,7 @@ func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
+// Inspect call will panic as we can't solve a UntypedR1CS, we can't inspect the result either
 func (r1cs *UntypedR1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
 	panic("not implemented")
 }
