@@ -42,17 +42,17 @@ type G1Affine struct {
 
 // ToProj sets p to the projective rep of p1 and return it
 func (p *G1Jac) ToProj(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.MUL(p1.X, p1.Z)
+	p.X = cs.Mul(p1.X, p1.Z)
 	p.Y = p1.Y
-	t := cs.MUL(p1.Z, p1.Z)
-	p.Z = cs.MUL(p1.Z, t)
+	t := cs.Mul(p1.Z, p1.Z)
+	p.Z = cs.Mul(p1.Z, t)
 	return p
 }
 
 // Neg outputs -p
 func (p *G1Jac) Neg(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 	p.X = p1.X
-	p.Y = cs.SUB(0, p1.Y)
+	p.Y = cs.Sub(0, p1.Y)
 	p.Z = p1.Z
 	return p
 }
@@ -60,7 +60,7 @@ func (p *G1Jac) Neg(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 // Neg outputs -p
 func (p *G1Affine) Neg(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 	p.X = p1.X
-	p.Y = cs.SUB(0, p1.Y)
+	p.Y = cs.Sub(0, p1.Y)
 	return p
 }
 
@@ -79,42 +79,42 @@ func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 		frontend.Term{Variable: p1.X, Coeff: c1},
 		frontend.Term{Variable: p.X, Coeff: c2},
 	}
-	l := cs.DIV(l1, l2)
+	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.Term{Variable: cs.MUL(l, l), Coeff: c1},
+		frontend.Term{Variable: cs.Mul(l, l), Coeff: c1},
 		frontend.Term{Variable: p.X, Coeff: c2},
 		frontend.Term{Variable: p1.X, Coeff: c2},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
-	t1 := cs.MUL(p.X, l)
-	t2 := cs.MUL(l, _x)
+	t1 := cs.Mul(p.X, l)
+	t2 := cs.Mul(l, _x)
 	l3 := frontend.LinearCombination{
 		frontend.Term{Variable: t1, Coeff: c1},
 		frontend.Term{Variable: t2, Coeff: c2},
 		frontend.Term{Variable: p.Y, Coeff: c2},
 	}
-	p.Y = cs.MUL(l3, 1)
+	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr
-	p.X = cs.MUL(_x, 1)
+	p.X = cs.Mul(_x, 1)
 	return p
 }
 
 // AssignToRefactor sets p to p1 and return it
 func (p *G1Jac) AssignToRefactor(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.ALLOCATE(p1.X)
-	p.Y = cs.ALLOCATE(p1.Y)
-	p.Z = cs.ALLOCATE(p1.Z)
+	p.X = cs.Allocate(p1.X)
+	p.Y = cs.Allocate(p1.Y)
+	p.Z = cs.Allocate(p1.Z)
 	return p
 }
 
 // AssignToRefactor sets p to p1 and return it
 func (p *G1Affine) AssignToRefactor(cs *frontend.CS, p1 *G1Affine) *G1Affine {
-	p.X = cs.ALLOCATE(p1.X)
-	p.Y = cs.ALLOCATE(p1.Y)
+	p.X = cs.Allocate(p1.X)
+	p.Y = cs.Allocate(p1.Y)
 	return p
 }
 
@@ -125,50 +125,50 @@ func (p *G1Jac) AddAssign(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 	// get some Element from our pool
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
 
-	Z1Z1 = cs.MUL(p1.Z, p1.Z)
+	Z1Z1 = cs.Mul(p1.Z, p1.Z)
 
-	Z2Z2 = cs.MUL(p.Z, p.Z)
+	Z2Z2 = cs.Mul(p.Z, p.Z)
 
-	U1 = cs.MUL(p1.X, Z2Z2)
+	U1 = cs.Mul(p1.X, Z2Z2)
 
-	U2 = cs.MUL(p.X, Z1Z1)
+	U2 = cs.Mul(p.X, Z1Z1)
 
-	S1 = cs.MUL(p1.Y, p.Z)
-	S1 = cs.MUL(S1, Z2Z2)
+	S1 = cs.Mul(p1.Y, p.Z)
+	S1 = cs.Mul(S1, Z2Z2)
 
-	S2 = cs.MUL(p.Y, p1.Z)
-	S2 = cs.MUL(S2, Z1Z1)
+	S2 = cs.Mul(p.Y, p1.Z)
+	S2 = cs.Mul(S2, Z1Z1)
 
-	H = cs.SUB(U2, U1)
+	H = cs.Sub(U2, U1)
 
-	I = cs.ADD(H, H)
-	I = cs.MUL(I, I)
+	I = cs.Add(H, H)
+	I = cs.Mul(I, I)
 
-	J = cs.MUL(H, I)
+	J = cs.Mul(H, I)
 
-	r = cs.SUB(S2, S1)
-	r = cs.ADD(r, r)
+	r = cs.Sub(S2, S1)
+	r = cs.Add(r, r)
 
-	V = cs.MUL(U1, I)
+	V = cs.Mul(U1, I)
 
-	p.X = cs.MUL(r, r)
-	p.X = cs.SUB(p.X, J)
-	p.X = cs.SUB(p.X, V)
-	p.X = cs.SUB(p.X, V)
+	p.X = cs.Mul(r, r)
+	p.X = cs.Sub(p.X, J)
+	p.X = cs.Sub(p.X, V)
+	p.X = cs.Sub(p.X, V)
 
-	p.Y = cs.SUB(V, p.X)
-	p.Y = cs.MUL(p.Y, r)
+	p.Y = cs.Sub(V, p.X)
+	p.Y = cs.Mul(p.Y, r)
 
-	S1 = cs.MUL(J, S1)
-	S1 = cs.ADD(S1, S1)
+	S1 = cs.Mul(J, S1)
+	S1 = cs.Add(S1, S1)
 
-	p.Y = cs.SUB(p.Y, S1)
+	p.Y = cs.Sub(p.Y, S1)
 
-	p.Z = cs.ADD(p.Z, p1.Z)
-	p.Z = cs.MUL(p.Z, p.Z)
-	p.Z = cs.SUB(p.Z, Z1Z1)
-	p.Z = cs.SUB(p.Z, Z2Z2)
-	p.Z = cs.MUL(p.Z, H)
+	p.Z = cs.Add(p.Z, p1.Z)
+	p.Z = cs.Mul(p.Z, p.Z)
+	p.Z = cs.Sub(p.Z, Z1Z1)
+	p.Z = cs.Sub(p.Z, Z2Z2)
+	p.Z = cs.Mul(p.Z, H)
 
 	return p
 }
@@ -178,27 +178,27 @@ func (p *G1Jac) DoubleAssign(cs *frontend.CS) *G1Jac {
 	// get some Element from our pool
 	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
 
-	XX = cs.MUL(p.X, p.X)
-	YY = cs.MUL(p.Y, p.Y)
-	YYYY = cs.MUL(YY, YY)
-	ZZ = cs.MUL(p.Z, p.Z)
-	S = cs.ADD(p.X, YY)
-	S = cs.MUL(S, S)
-	S = cs.SUB(S, XX)
-	S = cs.SUB(S, YYYY)
-	S = cs.ADD(S, S)
-	M = cs.MUL(XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
-	p.Z = cs.ADD(p.Z, p.Y)
-	p.Z = cs.MUL(p.Z, p.Z)
-	p.Z = cs.SUB(p.Z, YY)
-	p.Z = cs.SUB(p.Z, ZZ)
-	p.X = cs.MUL(M, M)
-	T = cs.ADD(S, S)
-	p.X = cs.SUB(p.X, T)
-	p.Y = cs.SUB(S, p.X)
-	p.Y = cs.MUL(p.Y, M)
-	YYYY = cs.MUL(YYYY, 8)
-	p.Y = cs.SUB(p.Y, YYYY)
+	XX = cs.Mul(p.X, p.X)
+	YY = cs.Mul(p.Y, p.Y)
+	YYYY = cs.Mul(YY, YY)
+	ZZ = cs.Mul(p.Z, p.Z)
+	S = cs.Add(p.X, YY)
+	S = cs.Mul(S, S)
+	S = cs.Sub(S, XX)
+	S = cs.Sub(S, YYYY)
+	S = cs.Add(S, S)
+	M = cs.Mul(XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
+	p.Z = cs.Add(p.Z, p.Y)
+	p.Z = cs.Mul(p.Z, p.Z)
+	p.Z = cs.Sub(p.Z, YY)
+	p.Z = cs.Sub(p.Z, ZZ)
+	p.X = cs.Mul(M, M)
+	T = cs.Add(S, S)
+	p.X = cs.Sub(p.X, T)
+	p.Y = cs.Sub(S, p.X)
+	p.Y = cs.Mul(p.Y, M)
+	YYYY = cs.Mul(YYYY, 8)
+	p.Y = cs.Sub(p.Y, YYYY)
 
 	return p
 }
@@ -206,8 +206,8 @@ func (p *G1Jac) DoubleAssign(cs *frontend.CS) *G1Jac {
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
 func (p *G1Affine) Select(cs *frontend.CS, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
 
-	p.X = cs.SELECT(b, p1.X, p2.X)
-	p.Y = cs.SELECT(b, p1.Y, p2.Y)
+	p.X = cs.Select(b, p1.X, p2.X)
+	p.Y = cs.Select(b, p1.Y, p2.Y)
 
 	return p
 
@@ -215,9 +215,9 @@ func (p *G1Affine) Select(cs *frontend.CS, b frontend.Variable, p1, p2 *G1Affine
 
 // FromJac sets p to p1 in affine and returns it
 func (p *G1Affine) FromJac(cs *frontend.CS, p1 *G1Jac) *G1Affine {
-	s := cs.MUL(p1.Z, p1.Z)
-	p.X = cs.DIV(p1.X, s)
-	p.Y = cs.DIV(p1.Y, cs.MUL(s, p1.Z))
+	s := cs.Mul(p1.Z, p1.Z)
+	p.X = cs.Div(p1.X, s)
+	p.Y = cs.Div(p1.Y, cs.Mul(s, p1.Z))
 	return p
 }
 
@@ -232,34 +232,34 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 	c3.SetInt64(-1)
 
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
-	x2 := cs.MUL(p1.X, p1.X)
-	cs.MUL(p1.X, p1.X)
+	x2 := cs.Mul(p1.X, p1.X)
+	cs.Mul(p1.X, p1.X)
 	l1 := frontend.LinearCombination{
 		frontend.Term{Variable: x2, Coeff: t},
 	}
 	l2 := frontend.LinearCombination{
 		frontend.Term{Variable: p1.Y, Coeff: d},
 	}
-	l := cs.DIV(l1, l2)
+	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.Term{Variable: cs.MUL(l, l), Coeff: c1},
+		frontend.Term{Variable: cs.Mul(l, l), Coeff: c1},
 		frontend.Term{Variable: p1.X, Coeff: c2},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
-	t1 := cs.MUL(p1.X, l)
-	t2 := cs.MUL(l, _x)
+	t1 := cs.Mul(p1.X, l)
+	t2 := cs.Mul(l, _x)
 	l3 := frontend.LinearCombination{
 		frontend.Term{Variable: t1, Coeff: c1},
 		frontend.Term{Variable: t2, Coeff: c3},
 		frontend.Term{Variable: p1.Y, Coeff: c3},
 	}
-	p.Y = cs.MUL(l3, 1)
+	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr
-	p.X = cs.MUL(_x, 1)
+	p.X = cs.Mul(_x, 1)
 	return p
 }
 
@@ -268,13 +268,13 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
 func (p *G1Affine) ScalarMul(cs *frontend.CS, p1 *G1Affine, s interface{}, n int) *G1Affine {
-	scalar := cs.ALLOCATE(s)
+	scalar := cs.Allocate(s)
 
 	var base, res G1Affine
 	base.Double(cs, p1)
 	res.AssignToRefactor(cs, p1)
 
-	b := cs.TO_BINARY(scalar, n)
+	b := cs.ToBinary(scalar, n)
 
 	var tmp G1Affine
 
@@ -309,11 +309,11 @@ func (p *G1Jac) Assign(p1 *bls377.G1Jac) {
 	p.Z.Assign(bls377FpTobw761fr(&p1.Z))
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (p *G1Jac) MUSTBE_EQ(cs *frontend.CS, other G1Jac) {
-	cs.MUSTBE_EQ(p.X, other.X)
-	cs.MUSTBE_EQ(p.Y, other.Y)
-	cs.MUSTBE_EQ(p.Z, other.Z)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (p *G1Jac) MustBeEqual(cs *frontend.CS, other G1Jac) {
+	cs.MustBeEqual(p.X, other.X)
+	cs.MustBeEqual(p.Y, other.Y)
+	cs.MustBeEqual(p.Z, other.Z)
 }
 
 // Assign a value to self (witness assignment)
@@ -322,8 +322,8 @@ func (p *G1Affine) Assign(p1 *bls377.G1Affine) {
 	p.Y.Assign(bls377FpTobw761fr(&p1.Y))
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (p *G1Affine) MUSTBE_EQ(cs *frontend.CS, other G1Affine) {
-	cs.MUSTBE_EQ(p.X, other.X)
-	cs.MUSTBE_EQ(p.Y, other.Y)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (p *G1Affine) MustBeEqual(cs *frontend.CS, other G1Affine) {
+	cs.MustBeEqual(p.X, other.X)
+	cs.MustBeEqual(p.Y, other.Y)
 }

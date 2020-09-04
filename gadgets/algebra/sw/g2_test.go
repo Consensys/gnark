@@ -40,7 +40,7 @@ type g2AddAssign struct {
 func (circuit *g2AddAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -81,7 +81,7 @@ type g2AddAssignAffine struct {
 func (circuit *g2AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -126,7 +126,7 @@ type g2DoubleAssign struct {
 func (circuit *g2DoubleAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -165,7 +165,7 @@ type g2DoubleAffine struct {
 func (circuit *g2DoubleAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -207,7 +207,7 @@ type g2Neg struct {
 func (circuit *g2Neg) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := G2Jac{}
 	expected.Neg(cs, &circuit.A)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 

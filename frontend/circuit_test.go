@@ -19,9 +19,9 @@ type benchCircuit struct {
 
 func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	for i := 0; i < n; i++ {
-		circuit.X = cs.MUL(circuit.X, circuit.X)
+		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
-	cs.MUSTBE_EQ(circuit.X, circuit.Y)
+	cs.MustBeEqual(circuit.X, circuit.Y)
 	return nil
 }
 

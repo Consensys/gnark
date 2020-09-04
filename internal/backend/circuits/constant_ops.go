@@ -17,10 +17,10 @@ func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.CS) err
 	for i := 0; i < 3; i++ {
 		elmts[i].SetUint64(uint64(i) + 10)
 	}
-	c := cs.ADD(circuit.X, elmts[0])
-	c = cs.MUL(c, elmts[1])
-	c = cs.SUB(c, elmts[2])
-	cs.MUSTBE_EQ(c, circuit.Y)
+	c := cs.Add(circuit.X, elmts[0])
+	c = cs.Mul(c, elmts[1])
+	c = cs.Sub(c, elmts[2])
+	cs.MustBeEqual(c, circuit.Y)
 	return nil
 }
 

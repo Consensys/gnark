@@ -11,12 +11,12 @@ type xorCircuit struct {
 }
 
 func (circuit *xorCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	cs.MUSTBE_BOOLEAN(circuit.B0)
-	cs.MUSTBE_BOOLEAN(circuit.B1)
+	cs.MustBeBoolean(circuit.B0)
+	cs.MustBeBoolean(circuit.B1)
 
 	z0 := cs.XOR(circuit.B0, circuit.B1)
 
-	cs.MUSTBE_EQ(z0, circuit.Y0)
+	cs.MustBeEqual(z0, circuit.Y0)
 
 	return nil
 }

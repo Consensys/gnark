@@ -13,8 +13,8 @@ type lut00Circuit struct {
 }
 
 func (circuit *lut00Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	cs.MUSTBE_BOOLEAN(circuit.B0)
-	cs.MUSTBE_BOOLEAN(circuit.B1)
+	cs.MustBeBoolean(circuit.B0)
+	cs.MustBeBoolean(circuit.B1)
 
 	var lookuptable [4]big.Int
 
@@ -23,9 +23,9 @@ func (circuit *lut00Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	lookuptable[2].SetUint64(22)
 	lookuptable[3].SetUint64(7)
 
-	r := cs.SELECT_LUT(circuit.B1, circuit.B0, lookuptable)
+	r := cs.SelectLUT(circuit.B1, circuit.B0, lookuptable)
 
-	cs.MUSTBE_EQ(r, circuit.Z)
+	cs.MustBeEqual(r, circuit.Z)
 	return nil
 }
 

@@ -54,7 +54,7 @@ func Verify(cs *frontend.CS, sig Signature, msg frontend.Variable, pubKey Public
 	hramAllocated := hash.Hash(cs, data...)
 
 	// lhs = cofactor*SB
-	cofactorAllocated := cs.ALLOCATE(pubKey.Curve.Cofactor)
+	cofactorAllocated := cs.Allocate(pubKey.Curve.Cofactor)
 	lhs := twistededwards.Point{}
 
 	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
@@ -68,8 +68,8 @@ func Verify(cs *frontend.CS, sig Signature, msg frontend.Variable, pubKey Public
 		ScalarMulNonFixedBase(cs, &rhs, cofactorAllocated, pubKey.Curve)
 	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
 
-	cs.MUSTBE_EQ(lhs.X, rhs.X)
-	cs.MUSTBE_EQ(lhs.Y, rhs.Y)
+	cs.MustBeEqual(lhs.X, rhs.X)
+	cs.MustBeEqual(lhs.Y, rhs.Y)
 
 	return nil
 }

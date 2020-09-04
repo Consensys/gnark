@@ -19,7 +19,7 @@ func (circuit *MiMCCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 
 	// specify constraints
 	// mimc(preImage) == hash
-	cs.MUSTBE_EQ(circuit.Hash, mimc.Hash(cs, circuit.PreImage))
+	cs.MustBeEqual(circuit.Hash, mimc.Hash(cs, circuit.PreImage))
 
 	return nil
 }

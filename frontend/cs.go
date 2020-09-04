@@ -198,7 +198,7 @@ func (cs *CS) divConstantLeft(c1 big.Int, c2 Variable) Variable {
 }
 
 // inv (e*c1)**-1
-func (cs *CS) inv(c1 Variable, e big.Int) Variable {
+func (cs *CS) inverse(c1 Variable, e big.Int) Variable {
 	expression := &singleTermExpression{
 		cs.term(c1.id(), e, true),
 	}
@@ -314,7 +314,7 @@ func (cs *CS) mullc(l1, l2 LinearCombination) Variable {
 func (cs *CS) mullcinterface(l LinearCombination, c interface{}) Variable {
 	var coeff big.Int
 	coeff.SetUint64(1)
-	right := LinearCombination{Term{Variable: cs.ALLOCATE(c), Coeff: coeff}}
+	right := LinearCombination{Term{Variable: cs.Allocate(c), Coeff: coeff}}
 	return cs.mullc(l, right)
 }
 
@@ -366,7 +366,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 	}
 
 	// unpacking the Constraint c
-	ai := cs.TO_BINARY(a, nbBits)
+	ai := cs.ToBinary(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
 	pi := make([]Variable, nbBits+1)
@@ -375,7 +375,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 	// Setting the product
 	for i := nbBits - 1; i >= 0; i-- {
 		if ci[i] == 1 {
-			pi[i] = cs.MUL(pi[i+1], ai[i])
+			pi[i] = cs.Mul(pi[i+1], ai[i])
 		} else {
 			pi[i] = pi[i+1]
 		}
@@ -387,7 +387,7 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 			constraintRes := &implyExpression{b: pi[i+1].id(), a: ai[i].id()}
 			cs.noExpressions = append(cs.noExpressions, constraintRes)
 		} else {
-			cs.MUSTBE_BOOLEAN(ai[i])
+			cs.MustBeBoolean(ai[i])
 		}
 	}
 	return nil
@@ -395,26 +395,26 @@ func (cs *CS) mustBeLessOrEqConstant(a Variable, constant big.Int, nbBits int) e
 
 func (cs *CS) mustBeLessOrEq(a Variable, c Variable, nbBits int) error {
 	// unpacking the constant bound c and the variable to test a
-	ci := cs.TO_BINARY(c, nbBits)
-	ai := cs.TO_BINARY(a, nbBits)
+	ci := cs.ToBinary(c, nbBits)
+	ai := cs.ToBinary(a, nbBits)
 
 	// building the product (assume bit length is 257 so highest bit is set to 1 for the cst & the variable for consistancy comparison)
 	pi := make([]Variable, nbBits+1)
-	pi[nbBits] = cs.ALLOCATE(1)
+	pi[nbBits] = cs.Allocate(1)
 
 	// Setting the product
 	for i := nbBits - 1; i >= 0; i-- {
-		pi[i] = cs.SELECT(ci[i], cs.MUL(pi[i+1], ai[i]), pi[i+1])
+		pi[i] = cs.Select(ci[i], cs.Mul(pi[i+1], ai[i]), pi[i+1])
 	}
 
 	// constrain the bi
-	zero := cs.ALLOCATE(0)
+	zero := cs.Allocate(0)
 	for i := nbBits - 1; i >= 0; i-- {
-		notci := cs.SUB(1, ci[i])
-		t1 := cs.MUL(notci, ai[i])
-		t2 := cs.SUB(1, pi[i+1])
-		res := cs.MUL(t1, cs.SUB(t2, ai[i]))
-		cs.MUSTBE_EQ(res, zero)
+		notci := cs.Sub(1, ci[i])
+		t1 := cs.Mul(notci, ai[i])
+		t2 := cs.Sub(1, pi[i+1])
+		res := cs.Mul(t1, cs.Sub(t2, ai[i]))
+		cs.MustBeEqual(res, zero)
 	}
 	return nil
 }

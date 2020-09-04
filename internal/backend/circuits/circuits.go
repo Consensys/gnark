@@ -1,4 +1,4 @@
-// This package contains test circuits
+// Package circuits contains test circuits
 package circuits
 
 import (

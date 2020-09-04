@@ -41,7 +41,7 @@ func TestAddFp2(t *testing.T) {
 		define: func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error {
 			expected := E2{}
 			expected.Add(cs, &A, &B)
-			expected.MUSTBE_EQ(cs, C)
+			expected.MustBeEqual(cs, C)
 			return nil
 		},
 	}
@@ -74,7 +74,7 @@ func TestSubFp2(t *testing.T) {
 		define: func(curveID gurvy.ID, cs *frontend.CS, A, B, C E2) error {
 			expected := E2{}
 			expected.Sub(cs, &A, &B)
-			expected.MUSTBE_EQ(cs, C)
+			expected.MustBeEqual(cs, C)
 			return nil
 		},
 	}
@@ -108,7 +108,7 @@ func TestMulFp2(t *testing.T) {
 			ext := Extension{uSquare: 5}
 			expected := E2{}
 			expected.Mul(cs, &A, &B, ext)
-			expected.MUSTBE_EQ(cs, C)
+			expected.MustBeEqual(cs, C)
 			return nil
 		},
 	}
@@ -144,7 +144,7 @@ func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E2{}
 	expected.MulByFp(cs, &circuit.A, circuit.B)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -182,7 +182,7 @@ func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E2{}
 	expected.Conjugate(cs, &circuit.A)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -217,7 +217,7 @@ func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E2{}
 	expected.Inverse(cs, &circuit.A, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 

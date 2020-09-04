@@ -23,22 +23,22 @@ type ExponentiateCircuit struct {
 
 func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// specify constraints
-	output := cs.ALLOCATE(1)
-	bits := cs.TO_BINARY(circuit.E, bitSize)
+	output := cs.Allocate(1)
+	bits := cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
 		cs.Tag(bits[i], fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes, it has no impact on performances
 
 		if i != 0 {
-			output = cs.MUL(output, output)
+			output = cs.Mul(output, output)
 		}
-		multiply := cs.MUL(output, circuit.X)
-		output = cs.SELECT(bits[len(bits)-1-i], multiply, output)
+		multiply := cs.Mul(output, circuit.X)
+		output = cs.Select(bits[len(bits)-1-i], multiply, output)
 
 		cs.Tag(output, fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
 	}
 
-	cs.MUSTBE_EQ(circuit.Y, output)
+	cs.MustBeEqual(circuit.Y, output)
 
 	return nil
 }

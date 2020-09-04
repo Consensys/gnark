@@ -39,7 +39,7 @@ type g1AddAssign struct {
 func (circuit *g1AddAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -80,7 +80,7 @@ type g1AddAssignAffine struct {
 func (circuit *g1AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -125,7 +125,7 @@ type g1DoubleAssign struct {
 func (circuit *g1DoubleAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.DoubleAssign(cs)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -164,7 +164,7 @@ type g1DoubleAffine struct {
 func (circuit *g1DoubleAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -206,7 +206,7 @@ type g1Neg struct {
 func (circuit *g1Neg) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := G1Jac{}
 	expected.Neg(cs, &circuit.A)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -246,7 +246,7 @@ type g1ScalarMul struct {
 func (circuit *g1ScalarMul) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := G1Affine{}
 	expected.ScalarMul(cs, &circuit.A, circuit.r.String(), 256)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 

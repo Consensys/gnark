@@ -39,9 +39,9 @@ func (e *E6) Add(cs *frontend.CS, e1, e2 *E6) *E6 {
 // NewFp6Zero creates a new
 func NewFp6Zero(cs *frontend.CS) E6 {
 	return E6{
-		B0: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
-		B1: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
-		B2: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
+		B0: E2{cs.Allocate(0), cs.Allocate(0)},
+		B1: E2{cs.Allocate(0), cs.Allocate(0)},
+		B2: E2{cs.Allocate(0), cs.Allocate(0)},
 	}
 }
 
@@ -163,9 +163,9 @@ func (e *E6) Assign(a *bls377.E6) {
 	e.B2.Assign(&a.B2)
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (e *E6) MUSTBE_EQ(cs *frontend.CS, other E6) {
-	e.B0.MUSTBE_EQ(cs, other.B0)
-	e.B1.MUSTBE_EQ(cs, other.B1)
-	e.B2.MUSTBE_EQ(cs, other.B2)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (e *E6) MustBeEqual(cs *frontend.CS, other E6) {
+	e.B0.MustBeEqual(cs, other.B0)
+	e.B1.MustBeEqual(cs, other.B1)
+	e.B2.MustBeEqual(cs, other.B2)
 }

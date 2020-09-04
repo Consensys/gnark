@@ -33,22 +33,22 @@ type E2 struct {
 
 // Neg negates a e2 elmt
 func (e *E2) Neg(cs *frontend.CS, e1 *E2) *E2 {
-	e.A0 = cs.SUB(0, e1.A0)
-	e.A1 = cs.SUB(0, e1.A1)
+	e.A0 = cs.Sub(0, e1.A0)
+	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
 // Add e2 elmts
 func (e *E2) Add(cs *frontend.CS, e1, e2 *E2) *E2 {
-	e.A0 = cs.ADD(e1.A0, e2.A0)
-	e.A1 = cs.ADD(e1.A1, e2.A1)
+	e.A0 = cs.Add(e1.A0, e2.A0)
+	e.A1 = cs.Add(e1.A1, e2.A1)
 	return e
 }
 
 // Sub e2 elmts
 func (e *E2) Sub(cs *frontend.CS, e1, e2 *E2) *E2 {
-	e.A0 = cs.SUB(e1.A0, e2.A0)
-	e.A1 = cs.SUB(e1.A1, e2.A1)
+	e.A0 = cs.Sub(e1.A0, e2.A0)
+	e.A1 = cs.Sub(e1.A1, e2.A1)
 	return e
 }
 
@@ -68,11 +68,11 @@ func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 		frontend.Term{Variable: e2.A0, Coeff: one},
 		frontend.Term{Variable: e2.A1, Coeff: one},
 	}
-	u := cs.MUL(l1, l2)
+	u := cs.Mul(l1, l2)
 
 	// 2C
-	ac := cs.MUL(e1.A0, e2.A0)
-	bd := cs.MUL(e1.A1, e2.A1)
+	ac := cs.Mul(e1.A0, e2.A0)
+	bd := cs.Mul(e1.A1, e2.A1)
 
 	// 1C
 	l3 := frontend.LinearCombination{
@@ -80,22 +80,22 @@ func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 		frontend.Term{Variable: ac, Coeff: minusOne},
 		frontend.Term{Variable: bd, Coeff: minusOne},
 	}
-	e.A1 = cs.MUL(l3, 1)
+	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
 	l4 := frontend.LinearCombination{
 		frontend.Term{Variable: ac, Coeff: one},
 		frontend.Term{Variable: bd, Coeff: backend.FromInterface(ext.uSquare)},
 	}
-	e.A0 = cs.MUL(l4, 1)
+	e.A0 = cs.Mul(l4, 1)
 
 	return e
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
 func (e *E2) MulByFp(cs *frontend.CS, e1 *E2, c interface{}) *E2 {
-	e.A0 = cs.MUL(e1.A0, c)
-	e.A1 = cs.MUL(e1.A1, c)
+	e.A0 = cs.Mul(e1.A0, c)
+	e.A1 = cs.Mul(e1.A1, c)
 	return e
 }
 
@@ -103,7 +103,7 @@ func (e *E2) MulByFp(cs *frontend.CS, e1 *E2, c interface{}) *E2 {
 // ext.uSquare is the square of the imaginary root
 func (e *E2) MulByIm(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 	x := e1.A0
-	e.A0 = cs.MUL(e1.A1, ext.uSquare)
+	e.A0 = cs.Mul(e1.A1, ext.uSquare)
 	e.A1 = x
 	return e
 }
@@ -111,7 +111,7 @@ func (e *E2) MulByIm(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 // Conjugate conjugation of an e2 elmt
 func (e *E2) Conjugate(cs *frontend.CS, e1 *E2) *E2 {
 	e.A0 = e1.A0
-	e.A1 = cs.SUB(0, e1.A1)
+	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
@@ -123,15 +123,15 @@ func (e *E2) Inverse(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 	a0 = e1.A0
 	a1 = e1.A1
 
-	t0 = cs.MUL(e1.A0, e1.A0)
-	t1 = cs.MUL(e1.A1, e1.A1)
+	t0 = cs.Mul(e1.A0, e1.A0)
+	t1 = cs.Mul(e1.A1, e1.A1)
 
-	t1beta = cs.MUL(t1, ext.uSquare)
-	t0 = cs.SUB(t0, t1beta)
-	t1 = cs.INV(t0)
-	e.A0 = cs.MUL(a0, t1)
-	e.A1 = cs.SUB(0, a1)
-	e.A1 = cs.MUL(e.A1, t1)
+	t1beta = cs.Mul(t1, ext.uSquare)
+	t0 = cs.Sub(t0, t1beta)
+	t1 = cs.Inverse(t0)
+	e.A0 = cs.Mul(a0, t1)
+	e.A1 = cs.Sub(0, a1)
+	e.A1 = cs.Mul(e.A1, t1)
 
 	return e
 }
@@ -142,10 +142,10 @@ func (e *E2) Assign(a *bls377.E2) {
 	e.A1.Assign(bls377FpTobw761fr(&a.A1))
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (e *E2) MUSTBE_EQ(cs *frontend.CS, other E2) {
-	cs.MUSTBE_EQ(e.A0, other.A0)
-	cs.MUSTBE_EQ(e.A1, other.A1)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (e *E2) MustBeEqual(cs *frontend.CS, other E2) {
+	cs.MustBeEqual(e.A0, other.A0)
+	cs.MustBeEqual(e.A1, other.A1)
 }
 
 func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {

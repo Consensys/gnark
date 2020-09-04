@@ -201,11 +201,11 @@ func (p *G2Jac) Assign(p1 *bls377.G2Jac) {
 	p.Z.Assign(&p1.Z)
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (p *G2Jac) MUSTBE_EQ(cs *frontend.CS, other G2Jac) {
-	p.X.MUSTBE_EQ(cs, other.X)
-	p.Y.MUSTBE_EQ(cs, other.Y)
-	p.Z.MUSTBE_EQ(cs, other.Z)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (p *G2Jac) MustBeEqual(cs *frontend.CS, other G2Jac) {
+	p.X.MustBeEqual(cs, other.X)
+	p.Y.MustBeEqual(cs, other.Y)
+	p.Z.MustBeEqual(cs, other.Z)
 }
 
 // Assign a value to self (witness assignment)
@@ -214,8 +214,8 @@ func (p *G2Affine) Assign(p1 *bls377.G2Affine) {
 	p.Y.Assign(&p1.Y)
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (p *G2Affine) MUSTBE_EQ(cs *frontend.CS, other G2Affine) {
-	p.X.MUSTBE_EQ(cs, other.X)
-	p.Y.MUSTBE_EQ(cs, other.Y)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (p *G2Affine) MustBeEqual(cs *frontend.CS, other G2Affine) {
+	p.X.MustBeEqual(cs, other.X)
+	p.Y.MustBeEqual(cs, other.Y)
 }

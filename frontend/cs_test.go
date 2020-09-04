@@ -34,8 +34,8 @@ func TestDuplicateSecretInput(t *testing.T) {
 
 	cs := newConstraintSystem()
 
-	cs.SECRET_INPUT("x")
-	cs.SECRET_INPUT("x")
+	cs.SecretInput("x")
+	cs.SecretInput("x")
 }
 
 func TestDuplicatePublicInput(t *testing.T) {
@@ -48,16 +48,16 @@ func TestDuplicatePublicInput(t *testing.T) {
 
 	cs := newConstraintSystem()
 
-	cs.PUBLIC_INPUT("x")
-	cs.PUBLIC_INPUT("x")
+	cs.PublicInput("x")
+	cs.PublicInput("x")
 }
 
 func TestInconsistantConstraints2(t *testing.T) {
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.MUSTBE_EQ(x, x)
+	cs.MustBeEqual(x, x)
 	if cs.nbConstraints() != 2 { // one wire and x
 		t.Fatal("x == x shouldn't add a constraint")
 	}
@@ -76,7 +76,7 @@ func TestOneWireConstraint(t *testing.T) {
 	oneWire := cs.publicWireNames[val.ID]
 	assert.Equal(backend.OneWire, oneWire, "constraint map should contain ONE_WIRE")
 
-	_ = cs.ALLOCATE(1)
+	_ = cs.Allocate(1)
 	assert.Equal(1, int(cs.nbConstraints()), "ALLOCATE(1) should return existing ONEWIRE")
 }
 
@@ -90,11 +90,11 @@ func TestADD(t *testing.T) {
 	var val big.Int
 	val.SetUint64(4)
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.ADD(x, x)
-	cs.ADD(x, val)
-	cs.ADD(val, x)
+	cs.Add(x, x)
+	cs.Add(x, val)
+	cs.Add(val, x)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -140,11 +140,11 @@ func TestSUB(t *testing.T) {
 	var val big.Int
 	val.SetUint64(4)
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.SUB(x, x)
-	cs.SUB(x, val)
-	cs.SUB(val, x)
+	cs.Sub(x, x)
+	cs.Sub(x, val)
+	cs.Sub(val, x)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -175,11 +175,11 @@ func TestMUL(t *testing.T) {
 	var val big.Int
 	val.SetUint64(4)
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.MUL(x, x)
-	cs.MUL(x, val)
-	cs.MUL(val, x)
+	cs.Mul(x, x)
+	cs.Mul(x, val)
+	cs.Mul(val, x)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -207,10 +207,10 @@ func TestDIV(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.PUBLIC_INPUT("y")
+	x := cs.PublicInput("x")
+	y := cs.PublicInput("y")
 
-	cs.DIV(x, y)
+	cs.Div(x, y)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -238,15 +238,15 @@ func TestDIVLC(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.PUBLIC_INPUT("y")
+	x := cs.PublicInput("x")
+	y := cs.PublicInput("y")
 
 	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
 	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
-	cs.DIV(l1, l2)
+	cs.Div(l1, l2)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -274,15 +274,15 @@ func TestMULLC(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.PUBLIC_INPUT("y")
+	x := cs.PublicInput("x")
+	y := cs.PublicInput("y")
 
 	two := backend.FromInterface(2)
 
 	l1 := LinearCombination{Term{Variable: x, Coeff: two}}
 	l2 := LinearCombination{Term{Variable: y, Coeff: two}}
 
-	cs.MUL(l1, l2)
+	cs.Mul(l1, l2)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -310,11 +310,11 @@ func TestSELECT(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.PUBLIC_INPUT("y")
-	z := cs.PUBLIC_INPUT("z")
+	x := cs.PublicInput("x")
+	y := cs.PublicInput("y")
+	z := cs.PublicInput("z")
 
-	cs.SELECT(x, y, z)
+	cs.Select(x, y, z)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -342,13 +342,13 @@ func TestFROM_BINARY(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	b0 := cs.PUBLIC_INPUT("b0")
-	b1 := cs.PUBLIC_INPUT("b1")
-	b2 := cs.PUBLIC_INPUT("b2")
-	b3 := cs.PUBLIC_INPUT("b3")
-	b4 := cs.PUBLIC_INPUT("b4")
+	b0 := cs.PublicInput("b0")
+	b1 := cs.PublicInput("b1")
+	b2 := cs.PublicInput("b2")
+	b3 := cs.PublicInput("b3")
+	b4 := cs.PublicInput("b4")
 
-	cs.FROM_BINARY(b0, b1, b2, b3, b4)
+	cs.FromBinary(b0, b1, b2, b3, b4)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -376,9 +376,9 @@ func TestTO_BINARY(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.TO_BINARY(x, 5)
+	cs.ToBinary(x, 5)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -406,14 +406,14 @@ func TestSELECT_LUT(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	b0 := cs.SECRET_INPUT("b0")
-	b1 := cs.SECRET_INPUT("b1")
+	b0 := cs.SecretInput("b0")
+	b1 := cs.SecretInput("b1")
 
 	var lut [4]big.Int
 	lut[0] = backend.FromInterface(42)
 	lut[2] = backend.FromInterface(8000)
 
-	cs.SELECT_LUT(b0, b1, lut)
+	cs.SelectLUT(b0, b1, lut)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -441,9 +441,9 @@ func TestXOR(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.PUBLIC_INPUT("y")
-	z := cs.PUBLIC_INPUT("z")
+	x := cs.PublicInput("x")
+	y := cs.PublicInput("y")
+	z := cs.PublicInput("z")
 
 	r0 := cs.XOR(x, y)
 	_ = cs.XOR(x, r0)
@@ -474,7 +474,7 @@ func TestALLOC(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	_ = cs.ALLOCATE(4)
+	_ = cs.Allocate(4)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -502,10 +502,10 @@ func TestMUSTBE_BOOL(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.MUSTBE_BOOLEAN(x)
-	cs.MUSTBE_BOOLEAN(x)
+	cs.MustBeBoolean(x)
+	cs.MustBeBoolean(x)
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
 		nbWires:         2,
@@ -532,11 +532,11 @@ func TestXtimes2EqualsY(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
-	y := cs.SECRET_INPUT("y")
-	cst := cs.ALLOCATE(2)
+	x := cs.PublicInput("x")
+	y := cs.SecretInput("y")
+	cst := cs.Allocate(2)
 
-	cs.MUSTBE_EQ(cs.MUL(x, cst), y)
+	cs.MustBeEqual(cs.Mul(x, cst), y)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -564,9 +564,9 @@ func TestINV(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 
-	cs.INV(x)
+	cs.Inverse(x)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -594,13 +594,13 @@ func TestMerge(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	u := cs.SECRET_INPUT("u")
-	v := cs.SECRET_INPUT("v")
-	w := cs.PUBLIC_INPUT("w")
+	u := cs.SecretInput("u")
+	v := cs.SecretInput("v")
+	w := cs.PublicInput("w")
 
-	a0 := cs.INV(u)
-	a1 := cs.MUL(a0, v)
-	cs.MUSTBE_EQ(w, a1)
+	a0 := cs.Inverse(u)
+	a1 := cs.Mul(a0, v)
+	cs.MustBeEqual(w, a1)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -629,12 +629,12 @@ func TestMergeMoeNoe(t *testing.T) {
 	// circuit definition
 	cs := newConstraintSystem()
 
-	u := cs.SECRET_INPUT("u")
-	w := cs.PUBLIC_INPUT("w")
+	u := cs.SecretInput("u")
+	w := cs.PublicInput("w")
 
-	b := cs.TO_BINARY(w, 3)
+	b := cs.ToBinary(w, 3)
 
-	cs.MUSTBE_EQ(b[0], u)
+	cs.MustBeEqual(b[0], u)
 
 	// tests CS
 	assert.csIsCorrect(cs, expectedCS{
@@ -664,14 +664,14 @@ func TestConstraintTag(t *testing.T) {
 		return len(cs.wireTags[v.id()])
 	}
 
-	a := cs.ALLOCATE(12)
+	a := cs.Allocate(12)
 	assert.True(tagLen(&cs, a) == 0, "untagged constraint shouldn't have tags")
 	cs.Tag(a, "a")
 	assert.True(tagLen(&cs, a) == 1, "a should have 1 tag")
 	cs.Tag(a, "b")
 	assert.True(tagLen(&cs, a) == 2, "a should have 2 tag")
 
-	x := cs.PUBLIC_INPUT("x")
+	x := cs.PublicInput("x")
 	assert.True(tagLen(&cs, x) == 0, "a secret/public is not tagged by default")
 
 }
@@ -692,7 +692,7 @@ func TestDuplicateTag(t *testing.T) {
 		return len(cs.wireTags[v.id()])
 	}
 
-	a := cs.ALLOCATE(12)
+	a := cs.Allocate(12)
 	assert.True(tagLen(&cs, a) == 0, "untagged constraint shouldn't have tags")
 	cs.Tag(a, "a")
 	assert.True(tagLen(&cs, a) == 1, "a should have 1 tag")

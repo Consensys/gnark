@@ -48,7 +48,7 @@ func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 		return err
 	}
 	result := mimc.Hash(cs, circuit.Data)
-	cs.MUSTBE_EQ(result, circuit.Hash)
+	cs.MustBeEqual(result, circuit.Hash)
 	return nil
 }
 
@@ -90,18 +90,18 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 func allocateInnerVk(cs *frontend.CS, vk *groth16_bls377.VerifyingKey, innerVk *VerifyingKey) {
 
-	innerVk.E.C0.B0.A0 = cs.ALLOCATE(vk.E.C0.B0.A0)
-	innerVk.E.C0.B0.A1 = cs.ALLOCATE(vk.E.C0.B0.A1)
-	innerVk.E.C0.B1.A0 = cs.ALLOCATE(vk.E.C0.B1.A0)
-	innerVk.E.C0.B1.A1 = cs.ALLOCATE(vk.E.C0.B1.A1)
-	innerVk.E.C0.B2.A0 = cs.ALLOCATE(vk.E.C0.B2.A0)
-	innerVk.E.C0.B2.A1 = cs.ALLOCATE(vk.E.C0.B2.A1)
-	innerVk.E.C1.B0.A0 = cs.ALLOCATE(vk.E.C1.B0.A0)
-	innerVk.E.C1.B0.A1 = cs.ALLOCATE(vk.E.C1.B0.A1)
-	innerVk.E.C1.B1.A0 = cs.ALLOCATE(vk.E.C1.B1.A0)
-	innerVk.E.C1.B1.A1 = cs.ALLOCATE(vk.E.C1.B1.A1)
-	innerVk.E.C1.B2.A0 = cs.ALLOCATE(vk.E.C1.B2.A0)
-	innerVk.E.C1.B2.A1 = cs.ALLOCATE(vk.E.C1.B2.A1)
+	innerVk.E.C0.B0.A0 = cs.Allocate(vk.E.C0.B0.A0)
+	innerVk.E.C0.B0.A1 = cs.Allocate(vk.E.C0.B0.A1)
+	innerVk.E.C0.B1.A0 = cs.Allocate(vk.E.C0.B1.A0)
+	innerVk.E.C0.B1.A1 = cs.Allocate(vk.E.C0.B1.A1)
+	innerVk.E.C0.B2.A0 = cs.Allocate(vk.E.C0.B2.A0)
+	innerVk.E.C0.B2.A1 = cs.Allocate(vk.E.C0.B2.A1)
+	innerVk.E.C1.B0.A0 = cs.Allocate(vk.E.C1.B0.A0)
+	innerVk.E.C1.B0.A1 = cs.Allocate(vk.E.C1.B0.A1)
+	innerVk.E.C1.B1.A0 = cs.Allocate(vk.E.C1.B1.A0)
+	innerVk.E.C1.B1.A1 = cs.Allocate(vk.E.C1.B1.A1)
+	innerVk.E.C1.B2.A0 = cs.Allocate(vk.E.C1.B2.A0)
+	innerVk.E.C1.B2.A1 = cs.Allocate(vk.E.C1.B2.A1)
 
 	allocateG2(cs, &innerVk.G2.DeltaNeg, &vk.G2.DeltaNeg)
 	allocateG2(cs, &innerVk.G2.GammaNeg, &vk.G2.GammaNeg)
@@ -113,15 +113,15 @@ func allocateInnerVk(cs *frontend.CS, vk *groth16_bls377.VerifyingKey, innerVk *
 }
 
 func allocateG2(cs *frontend.CS, g2 *sw.G2Affine, g2Circuit *bls377.G2Affine) {
-	g2.X.A0 = cs.ALLOCATE(g2Circuit.X.A0)
-	g2.X.A1 = cs.ALLOCATE(g2Circuit.X.A1)
-	g2.Y.A0 = cs.ALLOCATE(g2Circuit.Y.A0)
-	g2.Y.A1 = cs.ALLOCATE(g2Circuit.Y.A1)
+	g2.X.A0 = cs.Allocate(g2Circuit.X.A0)
+	g2.X.A1 = cs.Allocate(g2Circuit.X.A1)
+	g2.Y.A0 = cs.Allocate(g2Circuit.Y.A0)
+	g2.Y.A1 = cs.Allocate(g2Circuit.Y.A1)
 }
 
 func allocateG1(cs *frontend.CS, g1 *sw.G1Affine, g1Circuit *bls377.G1Affine) {
-	g1.X = cs.ALLOCATE(g1Circuit.X)
-	g1.Y = cs.ALLOCATE(g1Circuit.Y)
+	g1.X = cs.Allocate(g1Circuit.X)
+	g1.Y = cs.Allocate(g1Circuit.Y)
 }
 
 type verifierCircuit struct {

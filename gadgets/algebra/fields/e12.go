@@ -61,11 +61,11 @@ type E12 struct {
 func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = &E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
+	res.vCube = &E2{A0: cs.Allocate(0), A1: cs.Allocate(1)}
 	res.wSquare = &E6{
-		B0: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
-		B1: E2{cs.ALLOCATE(1), cs.ALLOCATE(0)},
-		B2: E2{cs.ALLOCATE(0), cs.ALLOCATE(0)},
+		B0: E2{cs.Allocate(0), cs.Allocate(0)},
+		B1: E2{cs.Allocate(1), cs.Allocate(0)},
+		B2: E2{cs.Allocate(0), cs.Allocate(0)},
 	}
 
 	res.frobv = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
@@ -91,18 +91,18 @@ func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E12) SetOne(cs *frontend.CS) *E12 {
-	e.C0.B0.A0 = cs.ALLOCATE(1)
-	e.C0.B0.A1 = cs.ALLOCATE(0)
-	e.C0.B1.A0 = cs.ALLOCATE(0)
-	e.C0.B1.A1 = cs.ALLOCATE(0)
-	e.C0.B2.A0 = cs.ALLOCATE(0)
-	e.C0.B2.A1 = cs.ALLOCATE(0)
-	e.C1.B0.A0 = cs.ALLOCATE(0)
-	e.C1.B0.A1 = cs.ALLOCATE(0)
-	e.C1.B1.A0 = cs.ALLOCATE(0)
-	e.C1.B1.A1 = cs.ALLOCATE(0)
-	e.C1.B2.A0 = cs.ALLOCATE(0)
-	e.C1.B2.A1 = cs.ALLOCATE(0)
+	e.C0.B0.A0 = cs.Allocate(1)
+	e.C0.B0.A1 = cs.Allocate(0)
+	e.C0.B1.A0 = cs.Allocate(0)
+	e.C0.B1.A1 = cs.Allocate(0)
+	e.C0.B2.A0 = cs.Allocate(0)
+	e.C0.B2.A1 = cs.Allocate(0)
+	e.C1.B0.A0 = cs.Allocate(0)
+	e.C1.B0.A1 = cs.Allocate(0)
+	e.C1.B1.A0 = cs.Allocate(0)
+	e.C1.B1.A1 = cs.Allocate(0)
+	e.C1.B2.A0 = cs.Allocate(0)
+	e.C1.B2.A1 = cs.Allocate(0)
 	return e
 }
 
@@ -285,18 +285,18 @@ func (e *E12) ConjugateFp12(cs *frontend.CS, e1 *E12) *E12 {
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E12) Select(cs *frontend.CS, b frontend.Variable, r1, r2 *E12) *E12 {
 
-	e.C0.B0.A0 = cs.SELECT(b, r1.C0.B0.A0, r2.C0.B0.A0)
-	e.C0.B0.A1 = cs.SELECT(b, r1.C0.B0.A1, r2.C0.B0.A1)
-	e.C0.B1.A0 = cs.SELECT(b, r1.C0.B1.A0, r2.C0.B1.A0)
-	e.C0.B1.A1 = cs.SELECT(b, r1.C0.B1.A1, r2.C0.B1.A1)
-	e.C0.B2.A0 = cs.SELECT(b, r1.C0.B2.A0, r2.C0.B2.A0)
-	e.C0.B2.A1 = cs.SELECT(b, r1.C0.B2.A1, r2.C0.B2.A1)
-	e.C1.B0.A0 = cs.SELECT(b, r1.C1.B0.A0, r2.C1.B0.A0)
-	e.C1.B0.A1 = cs.SELECT(b, r1.C1.B0.A1, r2.C1.B0.A1)
-	e.C1.B1.A0 = cs.SELECT(b, r1.C1.B1.A0, r2.C1.B1.A0)
-	e.C1.B1.A1 = cs.SELECT(b, r1.C1.B1.A1, r2.C1.B1.A1)
-	e.C1.B2.A0 = cs.SELECT(b, r1.C1.B2.A0, r2.C1.B2.A0)
-	e.C1.B2.A1 = cs.SELECT(b, r1.C1.B2.A1, r2.C1.B2.A1)
+	e.C0.B0.A0 = cs.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
+	e.C0.B0.A1 = cs.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)
+	e.C0.B1.A0 = cs.Select(b, r1.C0.B1.A0, r2.C0.B1.A0)
+	e.C0.B1.A1 = cs.Select(b, r1.C0.B1.A1, r2.C0.B1.A1)
+	e.C0.B2.A0 = cs.Select(b, r1.C0.B2.A0, r2.C0.B2.A0)
+	e.C0.B2.A1 = cs.Select(b, r1.C0.B2.A1, r2.C0.B2.A1)
+	e.C1.B0.A0 = cs.Select(b, r1.C1.B0.A0, r2.C1.B0.A0)
+	e.C1.B0.A1 = cs.Select(b, r1.C1.B0.A1, r2.C1.B0.A1)
+	e.C1.B1.A0 = cs.Select(b, r1.C1.B1.A0, r2.C1.B1.A0)
+	e.C1.B1.A1 = cs.Select(b, r1.C1.B1.A1, r2.C1.B1.A1)
+	e.C1.B2.A0 = cs.Select(b, r1.C1.B2.A0, r2.C1.B2.A0)
+	e.C1.B2.A1 = cs.Select(b, r1.C1.B2.A1, r2.C1.B2.A1)
 
 	return e
 }
@@ -378,8 +378,8 @@ func (e *E12) Assign(a *bls377.E12) {
 	e.C1.Assign(&a.C1)
 }
 
-// MUSTBE_EQ constraint self to be equal to other into the given constraint system
-func (e *E12) MUSTBE_EQ(cs *frontend.CS, other E12) {
-	e.C0.MUSTBE_EQ(cs, other.C0)
-	e.C1.MUSTBE_EQ(cs, other.C1)
+// MustBeEqual constraint self to be equal to other into the given constraint system
+func (e *E12) MustBeEqual(cs *frontend.CS, other E12) {
+	e.C0.MustBeEqual(cs, other.C0)
+	e.C1.MustBeEqual(cs, other.C1)
 }

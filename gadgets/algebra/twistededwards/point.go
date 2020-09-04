@@ -37,25 +37,25 @@ func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
 
 	l1 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.A}}
 	l2 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
-	axx := cs.MUL(l1, l2)
-	yy := cs.MUL(p.Y, p.Y)
-	lhs := cs.ADD(axx, yy)
+	axx := cs.Mul(l1, l2)
+	yy := cs.Mul(p.Y, p.Y)
+	lhs := cs.Add(axx, yy)
 
 	l1 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.D}}
 	l2 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
-	dxx := cs.MUL(l1, l2)
-	dxxyy := cs.MUL(dxx, yy)
-	rhs := cs.ADD(dxxyy, one)
+	dxx := cs.Mul(l1, l2)
+	dxxyy := cs.Mul(dxx, yy)
+	rhs := cs.Add(dxxyy, one)
 
-	cs.MUSTBE_EQ(lhs, rhs)
+	cs.MustBeEqual(lhs, rhs)
 
 }
 
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curve EdCurve) *Point {
-	X := cs.ALLOCATE(x)
-	Y := cs.ALLOCATE(y)
+	X := cs.Allocate(x)
+	Y := cs.Allocate(y)
 	return p.AddGeneric(cs, p1, &Point{X, Y}, curve)
 
 	// TODO fixme
@@ -115,13 +115,13 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	res := Point{}
 
 	one := big.NewInt(1)
-	oneWire := cs.ALLOCATE(one)
+	oneWire := cs.Allocate(one)
 
-	beta := cs.MUL(p1.X, p2.Y)
-	gamma := cs.MUL(p1.Y, p2.X)
-	delta := cs.MUL(p1.Y, p2.Y)
-	epsilon := cs.MUL(p1.X, p2.X)
-	tau := cs.MUL(delta, epsilon)
+	beta := cs.Mul(p1.X, p2.Y)
+	gamma := cs.Mul(p1.Y, p2.X)
+	delta := cs.Mul(p1.Y, p2.Y)
+	epsilon := cs.Mul(p1.X, p2.X)
+	tau := cs.Mul(delta, epsilon)
 	num := frontend.LinearCombination{
 		frontend.Term{Variable: beta, Coeff: *one},
 		frontend.Term{Variable: gamma, Coeff: *one},
@@ -130,7 +130,7 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 		frontend.Term{Variable: oneWire, Coeff: *one},
 		frontend.Term{Variable: tau, Coeff: curve.D},
 	}
-	res.X = cs.DIV(num, den)
+	res.X = cs.Div(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
 	num = frontend.LinearCombination{
@@ -143,7 +143,7 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 		frontend.Term{Variable: oneWire, Coeff: *one},
 		frontend.Term{Variable: tau, Coeff: minusd},
 	}
-	res.Y = cs.DIV(num, den)
+	res.Y = cs.Div(num, den)
 
 	p.X = res.X
 	p.Y = res.Y
@@ -164,19 +164,19 @@ func (p *Point) Double(cs *frontend.CS, p1 *Point, curve EdCurve) *Point {
 func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
-	b := cs.TO_BINARY(scalar, 256)
+	b := cs.ToBinary(scalar, 256)
 
 	res := Point{
-		cs.ALLOCATE(0),
-		cs.ALLOCATE(1),
+		cs.Allocate(0),
+		cs.Allocate(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
 		res.Double(cs, &res, curve)
 		tmp := Point{}
 		tmp.AddGeneric(cs, &res, p1, curve)
-		res.X = cs.SELECT(b[i], tmp.X, res.X)
-		res.Y = cs.SELECT(b[i], tmp.Y, res.Y)
+		res.X = cs.Select(b[i], tmp.X, res.X)
+		res.Y = cs.Select(b[i], tmp.Y, res.Y)
 	}
 
 	p.X = res.X
@@ -192,19 +192,19 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar fronten
 func (p *Point) ScalarMulFixedBase(cs *frontend.CS, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
-	b := cs.TO_BINARY(scalar, 256)
+	b := cs.ToBinary(scalar, 256)
 
 	res := Point{
-		cs.ALLOCATE(0),
-		cs.ALLOCATE(1),
+		cs.Allocate(0),
+		cs.Allocate(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
 		res.Double(cs, &res, curve)
 		tmp := Point{}
 		tmp.AddFixedPoint(cs, &res, x, y, curve)
-		res.X = cs.SELECT(b[i], tmp.X, res.X)
-		res.Y = cs.SELECT(b[i], tmp.Y, res.Y)
+		res.X = cs.Select(b[i], tmp.X, res.X)
+		res.Y = cs.Select(b[i], tmp.Y, res.Y)
 	}
 
 	p.X = res.X

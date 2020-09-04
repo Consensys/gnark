@@ -11,10 +11,10 @@ type rangeCheckConstantCircuit struct {
 }
 
 func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	c1 := cs.MUL(circuit.X, circuit.Y)
-	c2 := cs.MUL(c1, circuit.Y)
+	c1 := cs.Mul(circuit.X, circuit.Y)
+	c2 := cs.Mul(c1, circuit.Y)
 
-	cs.MUSTBE_LESS_OR_EQ(c2, 161, 256)
+	cs.MustBeLessOrEqual(c2, 161, 256)
 	return nil
 }
 
@@ -40,10 +40,10 @@ type rangeCheckCircuit struct {
 }
 
 func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	c1 := cs.MUL(circuit.X, circuit.Y)
-	c2 := cs.MUL(c1, circuit.Y)
+	c1 := cs.Mul(circuit.X, circuit.Y)
+	c2 := cs.Mul(c1, circuit.Y)
 
-	cs.MUSTBE_LESS_OR_EQ(c2, circuit.Bound, 256)
+	cs.MustBeLessOrEqual(c2, circuit.Bound, 256)
 
 	return nil
 }

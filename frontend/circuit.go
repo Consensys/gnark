@@ -41,9 +41,9 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 			}
 			switch visibility {
 			case unset, secret:
-				tInput.Set(reflect.ValueOf(cs.SECRET_INPUT(name)))
+				tInput.Set(reflect.ValueOf(cs.SecretInput(name)))
 			case public:
-				tInput.Set(reflect.ValueOf(cs.PUBLIC_INPUT(name)))
+				tInput.Set(reflect.ValueOf(cs.PublicInput(name)))
 			}
 
 			return nil

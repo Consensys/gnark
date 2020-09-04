@@ -37,7 +37,7 @@ type fp12Add struct {
 func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	expected.Add(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -72,7 +72,7 @@ type fp12Sub struct {
 func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -108,7 +108,7 @@ func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -143,7 +143,7 @@ type fp12Conjugate struct {
 func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	expected.Conjugate(cs, &circuit.A)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -179,7 +179,7 @@ func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV(cs, &circuit.A, &circuit.B, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -219,7 +219,7 @@ func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV2W(cs, &circuit.A, &circuit.B, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -259,7 +259,7 @@ func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByVW(cs, &circuit.A, &circuit.B, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -297,15 +297,15 @@ func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	fb := E12{}
 	fb.Frobenius(cs, &circuit.A, ext)
-	fb.MUSTBE_EQ(cs, circuit.C)
+	fb.MustBeEqual(cs, circuit.C)
 
 	fbSquare := E12{}
 	fbSquare.FrobeniusSquare(cs, &circuit.A, ext)
-	fbSquare.MUSTBE_EQ(cs, circuit.D)
+	fbSquare.MustBeEqual(cs, circuit.D)
 
 	fbCube := E12{}
 	fbCube.FrobeniusCube(cs, &circuit.A, ext)
-	fbCube.MUSTBE_EQ(cs, circuit.E)
+	fbCube.MustBeEqual(cs, circuit.E)
 	return nil
 }
 
@@ -343,7 +343,7 @@ func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Inverse(cs, &circuit.A, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -378,7 +378,7 @@ func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
 	expected.FixedExponentiation(cs, &circuit.A, expo, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -419,7 +419,7 @@ func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
 	expected.FinalExpoBLS(cs, &circuit.A, expo, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 

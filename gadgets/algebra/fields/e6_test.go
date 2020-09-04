@@ -28,7 +28,7 @@ import (
 func getBLS377ExtensionFp6(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = &E2{A0: cs.ALLOCATE(0), A1: cs.ALLOCATE(1)}
+	res.vCube = &E2{A0: cs.Allocate(0), A1: cs.Allocate(1)}
 	return res
 }
 
@@ -43,7 +43,7 @@ type fp6Add struct {
 func (circuit *fp6Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E6{}
 	expected.Add(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -78,7 +78,7 @@ type fp6Sub struct {
 func (circuit *fp6Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E6{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -114,7 +114,7 @@ func (circuit *fp6Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -151,7 +151,7 @@ func (circuit *fp6MulByNonResidue) Define(curveID gurvy.ID, cs *frontend.CS) err
 	ext := getBLS377ExtensionFp6(cs)
 	expected.MulByNonResidue(cs, &circuit.A, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (circuit *fp6Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Inverse(cs, &circuit.A, ext)
 
-	expected.MUSTBE_EQ(cs, circuit.C)
+	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
 

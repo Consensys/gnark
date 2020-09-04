@@ -11,18 +11,18 @@ type expCircuit struct {
 }
 
 func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	o := cs.ALLOCATE(1)
-	b := cs.TO_BINARY(circuit.E, 4)
+	o := cs.Allocate(1)
+	b := cs.ToBinary(circuit.E, 4)
 
 	var i int
 	for i < len(b) {
-		o = cs.MUL(o, o)
-		mu := cs.MUL(o, circuit.X)
-		o = cs.SELECT(b[len(b)-1-i], mu, o)
+		o = cs.Mul(o, o)
+		mu := cs.Mul(o, circuit.X)
+		o = cs.Select(b[len(b)-1-i], mu, o)
 		i++
 	}
 
-	cs.MUSTBE_EQ(circuit.Y, o)
+	cs.MustBeEqual(circuit.Y, o)
 	return nil
 }
 

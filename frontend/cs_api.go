@@ -24,8 +24,8 @@ import (
 	"github.com/consensys/gnark/backend"
 )
 
-// ADD Adds 2+ inputs and returns resulting Constraint
-func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) Variable {
+// Add Adds 2+ inputs and returns resulting Constraint
+func (cs *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// can add constraint and constants
 	add := func(_i1, _i2 interface{}) Variable {
@@ -56,8 +56,8 @@ func (cs *CS) ADD(i1, i2 interface{}, in ...interface{}) Variable {
 	return res
 }
 
-// SUB Adds two constraints
-func (cs *CS) SUB(i1, i2 interface{}) Variable {
+// Sub Adds two constraints
+func (cs *CS) Sub(i1, i2 interface{}) Variable {
 	switch c1 := i1.(type) {
 	case Variable:
 		switch c2 := i2.(type) {
@@ -76,8 +76,8 @@ func (cs *CS) SUB(i1, i2 interface{}) Variable {
 	panic("invalid type")
 }
 
-// MUL Multiplies 2+ constraints together
-func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) Variable {
+// Mul Multiplies 2+ constraints together
+func (cs *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// multiplies 2 terms (constraints, Elements, uint64, int, String)
 	mul := func(_i1, _i2 interface{}) Variable {
@@ -120,8 +120,8 @@ func (cs *CS) MUL(i1, i2 interface{}, in ...interface{}) Variable {
 
 }
 
-// DIV divides two constraints (i1/i2)
-func (cs *CS) DIV(i1, i2 interface{}) Variable {
+// Div divides two constraints (i1/i2)
+func (cs *CS) Div(i1, i2 interface{}) Variable {
 
 	div := func(_i1, _i2 interface{}) Variable {
 		switch c1 := _i1.(type) {
@@ -158,8 +158,8 @@ func (cs *CS) DIV(i1, i2 interface{}) Variable {
 
 }
 
-// MUSTBE_EQ equalizes two constraints
-func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
+// MustBeEqual equalizes two constraints
+func (cs *CS) MustBeEqual(i1, i2 interface{}) {
 
 	switch c1 := i1.(type) {
 	case Variable:
@@ -183,16 +183,16 @@ func (cs *CS) MUSTBE_EQ(i1, i2 interface{}) {
 	panic("invalid type: MUSTBE_EQ takes Variables and big.Int only")
 }
 
-// INV inverse a Constraint
-func (cs *CS) INV(c1 Variable) Variable {
-	return cs.inv(c1, *bOne)
+// Inverse inverse a Constraint
+func (cs *CS) Inverse(c1 Variable) Variable {
+	return cs.inverse(c1, *bOne)
 }
 
 // XOR compute the xor between two constraints
 func (cs *CS) XOR(c1, c2 Variable) Variable {
 	// ensure c1 and c2 are already boolean constrained
-	cs.MUSTBE_BOOLEAN(c1)
-	cs.MUSTBE_BOOLEAN(c2)
+	cs.MustBeBoolean(c1)
+	cs.MustBeBoolean(c2)
 
 	expression := xorExpression{
 		a: c1.id(),
@@ -202,8 +202,8 @@ func (cs *CS) XOR(c1, c2 Variable) Variable {
 	return cs.addConstraint(&expression)
 }
 
-// MUSTBE_BOOLEAN boolean constrains a variable
-func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
+// MustBeBoolean boolean constrains a variable
+func (cs *CS) MustBeBoolean(c Variable) {
 	// check if the variable is already boolean constrained
 	for i := 0; i < len(cs.noExpressions); i++ {
 		if bExpression, ok := cs.noExpressions[i].(*booleanExpression); ok {
@@ -228,9 +228,9 @@ func (cs *CS) MUSTBE_BOOLEAN(c Variable) {
 	cs.noExpressions = append(cs.noExpressions, &booleanExpression{b: c.id()})
 }
 
-// TO_BINARY unpacks a variable in binary, n is the number of bits of the variable
+// ToBinary unpacks a variable in binary, n is the number of bits of the variable
 // The result in in little endian (first bit= lsb)
-func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
+func (cs *CS) ToBinary(c Variable, nbBits int) []Variable {
 
 	// create the expression ensuring the bit decomposition matches c
 	expression := &unpackExpression{
@@ -242,29 +242,29 @@ func (cs *CS) TO_BINARY(c Variable, nbBits int) []Variable {
 	bits := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
 		bits[i] = cs.addConstraint(nil)
-		cs.MUSTBE_BOOLEAN(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
+		cs.MustBeBoolean(bits[i]) // (MUSTBE_BOOLEAN check for duplicate constraints)
 		expression.bits = append(expression.bits, bits[i].id())
 	}
 
 	return bits
 }
 
-// FROM_BINARY packs b, seen as a fr.Element in little endian
-func (cs *CS) FROM_BINARY(b ...Variable) Variable {
+// FromBinary packs b, seen as a fr.Element in little endian
+func (cs *CS) FromBinary(b ...Variable) Variable {
 
 	expression := packExpression{}
 
 	for _, c := range b {
-		cs.MUSTBE_BOOLEAN(c) // ensure input is boolean constrained
+		cs.MustBeBoolean(c) // ensure input is boolean constrained
 		expression.bits = append(expression.bits, c.id())
 	}
 
 	return cs.addConstraint(&expression)
 }
 
-// MUSTBE_LESS_OR_EQ constrains c to be less or equal than e (taken as lifted Integer values from Fr)
+// MustBeLessOrEqual constrains c to be less or equal than e (taken as lifted Integer values from Fr)
 // from https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-func (cs *CS) MUSTBE_LESS_OR_EQ(c Variable, bound interface{}, nbBits int) {
+func (cs *CS) MustBeLessOrEqual(c Variable, bound interface{}, nbBits int) {
 
 	switch _bound := bound.(type) {
 	case Variable:
@@ -275,11 +275,11 @@ func (cs *CS) MUSTBE_LESS_OR_EQ(c Variable, bound interface{}, nbBits int) {
 	}
 }
 
-// SELECT if b is true, yields c1 else yields c2
-func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
+// Select if b is true, yields c1 else yields c2
+func (cs *CS) Select(b Variable, i1, i2 interface{}) Variable {
 
 	// ensure b is boolean constrained
-	cs.MUSTBE_BOOLEAN(b)
+	cs.MustBeBoolean(b)
 
 	switch c1 := i1.(type) {
 	case Variable:
@@ -306,13 +306,13 @@ func (cs *CS) SELECT(b Variable, i1, i2 interface{}) Variable {
 	}
 }
 
-// SELECT_LUT select lookuptable[c1*2+c0] where c0 and c1 are boolean constrained
+// SelectLUT select lookuptable[c1*2+c0] where c0 and c1 are boolean constrained
 // cf https://z.cash/technology/jubjub/
-func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
+func (cs *CS) SelectLUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 
 	// ensure c0 and c1 are boolean constrained
-	cs.MUSTBE_BOOLEAN(c0)
-	cs.MUSTBE_BOOLEAN(c1)
+	cs.MustBeBoolean(c0)
+	cs.MustBeBoolean(c1)
 
 	expression := lutExpression{
 		b0:          c0.id(),
@@ -324,8 +324,8 @@ func (cs *CS) SELECT_LUT(c1, c0 Variable, lookuptable [4]big.Int) Variable {
 
 }
 
-// SECRET_INPUT creates a Constraint containing an input
-func (cs *CS) SECRET_INPUT(name string) Variable {
+// SecretInput creates a Constraint containing an input
+func (cs *CS) SecretInput(name string) Variable {
 	if name == "" {
 		panic("can't initialize nameless input")
 	}
@@ -343,8 +343,8 @@ func (cs *CS) SECRET_INPUT(name string) Variable {
 
 }
 
-// PUBLIC_INPUT creates a Constraint containing an input
-func (cs *CS) PUBLIC_INPUT(name string) Variable {
+// PublicInput creates a Constraint containing an input
+func (cs *CS) PublicInput(name string) Variable {
 	if name == "" {
 		panic("can't initialize nameless input")
 	}
@@ -361,8 +361,8 @@ func (cs *CS) PUBLIC_INPUT(name string) Variable {
 	return v
 }
 
-// ALLOCATE will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
-func (cs *CS) ALLOCATE(input interface{}) Variable {
+// Allocate will return an allocated cs.Constraint from input {Constraint, element, uint64, int, ...}
+func (cs *CS) Allocate(input interface{}) Variable {
 	switch x := input.(type) {
 	case Variable:
 		return x

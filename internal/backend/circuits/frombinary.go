@@ -11,14 +11,14 @@ type fromBinaryCircuit struct {
 }
 
 func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
-	cs.MUSTBE_BOOLEAN(circuit.B0)
-	cs.MUSTBE_BOOLEAN(circuit.B1)
-	cs.MUSTBE_BOOLEAN(circuit.B2)
-	cs.MUSTBE_BOOLEAN(circuit.B3)
+	cs.MustBeBoolean(circuit.B0)
+	cs.MustBeBoolean(circuit.B1)
+	cs.MustBeBoolean(circuit.B2)
+	cs.MustBeBoolean(circuit.B3)
 
-	r := cs.FROM_BINARY(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
+	r := cs.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
 
-	cs.MUSTBE_EQ(circuit.Y, r)
+	cs.MustBeEqual(circuit.Y, r)
 	return nil
 }
 

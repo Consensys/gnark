@@ -91,14 +91,14 @@ func encryptBN256(cs *frontend.CS, h MiMC, message, key frontend.Variable) front
 
 	for i := 0; i < len(h.params); i++ {
 		//for i := 0; i < 1; i++ {
-		tmp := cs.ADD(res, key, h.params[i])
+		tmp := cs.Add(res, key, h.params[i])
 		// res = (res+k+c)^7
-		res = cs.MUL(tmp, tmp)
-		res = cs.MUL(res, tmp)
-		res = cs.MUL(res, res)
-		res = cs.MUL(res, tmp)
+		res = cs.Mul(tmp, tmp)
+		res = cs.Mul(res, tmp)
+		res = cs.Mul(res, res)
+		res = cs.Mul(res, tmp)
 	}
-	res = cs.ADD(res, key)
+	res = cs.Add(res, key)
 	return res
 
 }
@@ -109,13 +109,13 @@ func encryptBLS381(cs *frontend.CS, h MiMC, message frontend.Variable, key front
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		tmp := cs.ADD(res, key, h.params[i])
+		tmp := cs.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
-		res = cs.MUL(tmp, tmp) // square
-		res = cs.MUL(res, res) // square
-		res = cs.MUL(res, tmp) // mul
+		res = cs.Mul(tmp, tmp) // square
+		res = cs.Mul(res, res) // square
+		res = cs.Mul(res, tmp) // mul
 	}
-	res = cs.ADD(res, key)
+	res = cs.Add(res, key)
 	return res
 
 }
@@ -124,11 +124,11 @@ func encryptBLS381(cs *frontend.CS, h MiMC, message frontend.Variable, key front
 func encryptBLS377(cs *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
-		tmp := cs.ADD(res, h.params[i], key)
+		tmp := cs.Add(res, h.params[i], key)
 		// res = (res+key+c)**-1
-		res = cs.INV(tmp)
+		res = cs.Inverse(tmp)
 	}
-	res = cs.ADD(res, key)
+	res = cs.Add(res, key)
 	return res
 
 }

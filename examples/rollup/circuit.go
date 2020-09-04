@@ -172,18 +172,18 @@ func verifyTransferSignature(cs *frontend.CS, t TransferConstraints, hFunc mimc.
 func verifyAccountUpdated(cs *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := cs.ALLOCATE(1)
-	nonceUpdated := cs.ADD(from.Nonce, one)
-	cs.MUSTBE_EQ(nonceUpdated, fromUpdated.Nonce)
+	one := cs.Allocate(1)
+	nonceUpdated := cs.Add(from.Nonce, one)
+	cs.MustBeEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
-	cs.MUSTBE_LESS_OR_EQ(amount, from.Balance, 256)
+	cs.MustBeLessOrEqual(amount, from.Balance, 256)
 
 	// ensure that balance is correctly updated
-	fromBalanceUpdated := cs.SUB(from.Balance, amount)
-	cs.MUSTBE_EQ(fromBalanceUpdated, fromUpdated.Balance)
+	fromBalanceUpdated := cs.Sub(from.Balance, amount)
+	cs.MustBeEqual(fromBalanceUpdated, fromUpdated.Balance)
 
-	toBalanceUpdated := cs.ADD(to.Balance, amount)
-	cs.MUSTBE_EQ(toBalanceUpdated, toUpdated.Balance)
+	toBalanceUpdated := cs.Add(to.Balance, amount)
+	cs.MustBeEqual(toBalanceUpdated, toUpdated.Balance)
 
 }

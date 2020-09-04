@@ -84,6 +84,6 @@ func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey
 	resPairing.FinalExpoBLS(cs, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MUSTBE_EQ(cs, resPairing)
+	innerVk.E.MustBeEqual(cs, resPairing)
 
 }
