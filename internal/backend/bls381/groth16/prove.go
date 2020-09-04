@@ -133,10 +133,10 @@ func Prove(r1cs *bls381backend.R1CS, pk *ProvingKey, solution map[string]interfa
 			case <-chKrs2Done:
 				krs.AddAssign(&krs2)
 			case <-chArDone:
-				p1.ScalarMulGLV(&ar, &s)
+				p1.ScalarMultiplication(&ar, &s)
 				krs.AddAssign(&p1)
 			case <-chBs1Done:
-				p1.ScalarMulGLV(&bs1, &r)
+				p1.ScalarMultiplication(&bs1, &r)
 				krs.AddAssign(&p1)
 			}
 			n--
@@ -182,7 +182,7 @@ func Prove(r1cs *bls381backend.R1CS, pk *ProvingKey, solution map[string]interfa
 		}
 
 		deltaS.FromAffine(&pk.G2.Delta)
-		deltaS.ScalarMulGLV(&deltaS, &s)
+		deltaS.ScalarMultiplication(&deltaS, &s)
 		Bs.AddAssign(&deltaS)
 		Bs.AddMixed(&pk.G2.Beta)
 
