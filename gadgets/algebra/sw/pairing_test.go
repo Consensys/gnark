@@ -132,9 +132,9 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 }
 
 type pairingAffineBLS377 struct {
-	Q                  G2Affine
-	P                  G1Affine `gnark:",public"`
-	milRes, pairingRes bls377.PairingResult
+	Q          G2Affine
+	P          G1Affine `gnark:",public"`
+	pairingRes bls377.PairingResult
 }
 
 func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
@@ -149,18 +149,16 @@ func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) er
 	MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
-	mustbeEq(cs, milRes, &circuit.milRes, "milres")
 	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
 
 	return nil
 }
 
 func TestPairingAffineBLS377(t *testing.T) {
-	P, Q, milRes, pairingRes := pairingData()
+	P, Q, pairingRes := pairingData()
 
 	// create cs
 	var circuit, witness pairingAffineBLS377
-	circuit.milRes = milRes
 	circuit.pairingRes = pairingRes
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
@@ -172,21 +170,16 @@ func TestPairingAffineBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	expectedValues := make(map[string]interface{})
-	addExpectedFP12(&milRes, "milres", expectedValues)
 	addExpectedFP12(&pairingRes, "pairingres", expectedValues)
-	assert.CorrectExecution(r1cs, good, expectedValues)
+	assert.CorrectExecution(r1cs, &witness, expectedValues)
 
 }
 
 type pairingBLS377 struct {
-	Q                  G2Jac
-	P                  G1Jac `gnark:",public"`
-	milRes, pairingRes bls377.PairingResult
+	Q          G2Jac
+	P          G1Jac `gnark:",public"`
+	pairingRes bls377.PairingResult
 }
 
 func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
@@ -201,7 +194,6 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	pairingRes := fields.E12{}
 	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
-	// mustbeEq(cs, milRes, &circuit.milRes, "milres")
 	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
 
 	return nil
@@ -209,7 +201,7 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
 
 func TestPairingBLS377(t *testing.T) {
 	// pairing test data
-	_P, _Q, milRes, pairingRes := pairingData()
+	_P, _Q, pairingRes := pairingData()
 	var Q bls377.G2Jac
 	var P bls377.G1Jac
 	P.FromAffine(&_P)
@@ -217,7 +209,6 @@ func TestPairingBLS377(t *testing.T) {
 
 	// create cs
 	var circuit, witness pairingBLS377
-	circuit.milRes = milRes
 	circuit.pairingRes = pairingRes
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
@@ -229,18 +220,13 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	expectedValues := make(map[string]interface{})
-	// addExpectedFP12(&milRes, "milres", expectedValues)
 	addExpectedFP12(&pairingRes, "pairingres", expectedValues)
-	assert.CorrectExecution(r1cs, good, expectedValues)
+	assert.CorrectExecution(r1cs, &witness, expectedValues)
 
 }
 
-func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, milRes bls377.PairingResult, pairingRes bls377.PairingResult) {
+func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, pairingRes bls377.PairingResult) {
 	P.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
 	P.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
 
@@ -249,8 +235,8 @@ func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, milRes bls377.PairingR
 	Q.Y.A0.SetString("178797786102020318006939402153521323286173305074858025240458924050651930669327663166574060567346617543016897467207")
 	Q.Y.A1.SetString("246194676937700783734853490842104812127151341609821057456393698060154678349106147660301543343243364716364400889778")
 
-	milRes = *bls377.MillerLoop(P, Q)
-	pairingRes = bls377.FinalExponentiation(&milRes)
+	milRes := bls377.MillerLoop(P, Q)
+	pairingRes = bls377.FinalExponentiation(milRes)
 
 	return
 }
@@ -283,16 +269,16 @@ func mustbeEq(cs *frontend.CS, fp12 fields.E12, e12 *bls377.PairingResult, tagPr
 	cs.Tag(fp12.C1.B1.A1, tagPrefix+".C1.B1.A1")
 	cs.Tag(fp12.C1.B2.A0, tagPrefix+".C1.B2.A0")
 	cs.Tag(fp12.C1.B2.A1, tagPrefix+".C1.B2.A1")
-	// cs.MUSTBE_EQ(fp12.C0.B0.A0, e12.C0.B0.A0)
-	// cs.MUSTBE_EQ(fp12.C0.B0.A1, e12.C0.B0.A1)
-	// cs.MUSTBE_EQ(fp12.C0.B1.A0, e12.C0.B1.A0)
-	// cs.MUSTBE_EQ(fp12.C0.B1.A1, e12.C0.B1.A1)
-	// cs.MUSTBE_EQ(fp12.C0.B2.A0, e12.C0.B2.A0)
-	// cs.MUSTBE_EQ(fp12.C0.B2.A1, e12.C0.B2.A1)
-	// cs.MUSTBE_EQ(fp12.C1.B0.A0, e12.C1.B0.A0)
-	// cs.MUSTBE_EQ(fp12.C1.B0.A1, e12.C1.B0.A1)
-	// cs.MUSTBE_EQ(fp12.C1.B1.A0, e12.C1.B1.A0)
-	// cs.MUSTBE_EQ(fp12.C1.B1.A1, e12.C1.B1.A1)
-	// cs.MUSTBE_EQ(fp12.C1.B2.A0, e12.C1.B2.A0)
-	// cs.MUSTBE_EQ(fp12.C1.B2.A1, e12.C1.B2.A1)
+	cs.MUSTBE_EQ(fp12.C0.B0.A0, e12.C0.B0.A0)
+	cs.MUSTBE_EQ(fp12.C0.B0.A1, e12.C0.B0.A1)
+	cs.MUSTBE_EQ(fp12.C0.B1.A0, e12.C0.B1.A0)
+	cs.MUSTBE_EQ(fp12.C0.B1.A1, e12.C0.B1.A1)
+	cs.MUSTBE_EQ(fp12.C0.B2.A0, e12.C0.B2.A0)
+	cs.MUSTBE_EQ(fp12.C0.B2.A1, e12.C0.B2.A1)
+	cs.MUSTBE_EQ(fp12.C1.B0.A0, e12.C1.B0.A0)
+	cs.MUSTBE_EQ(fp12.C1.B0.A1, e12.C1.B0.A1)
+	cs.MUSTBE_EQ(fp12.C1.B1.A0, e12.C1.B1.A0)
+	cs.MUSTBE_EQ(fp12.C1.B1.A1, e12.C1.B1.A1)
+	cs.MUSTBE_EQ(fp12.C1.B2.A0, e12.C1.B2.A0)
+	cs.MUSTBE_EQ(fp12.C1.B2.A1, e12.C1.B2.A1)
 }

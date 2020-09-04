@@ -67,7 +67,7 @@ func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey
 	psi0.Y = innerVk.G1[0].Y
 
 	for k, v := range innerPubInputs {
-		tmp.ScalarMul(cs, &innerVk.G1[k], v, 377)
+		tmp.ScalarMul(cs, &innerVk.G1[k+1], v, 377)
 		psi0.AddAssign(cs, &tmp)
 	}
 
