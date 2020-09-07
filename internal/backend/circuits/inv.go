@@ -1,30 +1,37 @@
 package circuits
 
+import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
+)
+
+type invCircuit struct {
+	X, Y, Z frontend.Variable
+}
+
+func (circuit *invCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+	m := cs.Mul(circuit.X, circuit.Y)
+	u := cs.Inverse(circuit.Y)
+	v := cs.Mul(m, u)
+	cs.MustBeEqual(v, circuit.Z)
+	return nil
+}
+
 func init() {
-	// TODO fixme
-	//fmt.Println("init inv")
-	// circuit := frontend.New()
 
-	// x := cs.SECRET_INPUT("x")
-	// y := cs.PUBLIC_INPUT("y")
-	// m := cs.Mul(x, x)
-	// Z := cs.INV(m)
-	// cs.MustBeEqual(y, Z)
+	var circuit, good, bad invCircuit
+	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
+	if err != nil {
+		panic(err)
+	}
 
-	// // expected Z
-	// expectedY := fr.Element{}
-	// expectedY.SetUint64(4)
-	// expectedY.MulAssign(&expectedY).Inverse(&expectedY)
+	good.X.Assign(6)
+	good.Y.Assign(12)
+	good.Z.Assign(6)
 
-	//
-	// good[ "x", 4)
-	// good[ "y", expectedY)
+	bad.X.Assign(4)
+	bad.Y.Assign(12)
+	bad.Z.Assign(5)
 
-	//
-	// bad[ "x", 4)
-	// bad[ "y", 42)
-
-	//
-
-	// addEntry("inv", r1cs, &good, &bad)
+	addEntry("inv", r1cs, &good, &bad)
 }
