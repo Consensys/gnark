@@ -28,10 +28,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 
-	{{if ne .Curve "GENERIC"}}
 	"reflect"
 	"github.com/stretchr/testify/require"
-	{{end}}
 )
 
 

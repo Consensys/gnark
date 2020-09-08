@@ -25,8 +25,6 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 
-	"github.com/consensys/gnark/internal/utils/debug"
-
 	"github.com/consensys/gurvy/bls377/fr"
 )
 
@@ -78,10 +76,9 @@ func (r1cs *R1CS) GetCurveID() gurvy.ID {
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
 func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
 	// compute the wires and the a, b, c polynomials
-	debug.Assert(len(a) == r1cs.NbConstraints)
-	debug.Assert(len(b) == r1cs.NbConstraints)
-	debug.Assert(len(c) == r1cs.NbConstraints)
-	debug.Assert(len(wireValues) == r1cs.NbWires)
+	if len(a) == r1cs.NbConstraints || len(b) == r1cs.NbConstraints || len(c) == r1cs.NbConstraints || len(wireValues) == r1cs.NbWires {
+		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
+	}
 
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
@@ -105,8 +102,6 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 		return nil
 	}
 	// instantiate private inputs
-	debug.Assert(len(r1cs.SecretWires) == r1cs.NbSecretWires)
-	debug.Assert(len(r1cs.PublicWires) == r1cs.NbPublicWires)
 	if r1cs.NbSecretWires != 0 {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
 		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {

@@ -51,8 +51,6 @@ func TestIntegration(t *testing.T) {
 		fInputGood := filepath.Join(parentDir, name+".good.input")
 		fInputBad := filepath.Join(parentDir, name+".bad.input")
 
-		buildTags := "debug"
-
 		// 2: input files to disk
 		if err := backend.WriteVariables(fInputGood, good); err != nil {
 			t.Fatal(err)
@@ -63,7 +61,7 @@ func TestIntegration(t *testing.T) {
 
 		// 3: run setup
 		{
-			cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "setup", fCircuit, "--pk", fPk, "--vk", fVk)
+			cmd := exec.Command("go", "run", "main.go", "setup", fCircuit, "--pk", fPk, "--vk", fVk)
 			out, err := cmd.CombinedOutput()
 			t.Log(string(out))
 
@@ -75,7 +73,7 @@ func TestIntegration(t *testing.T) {
 		pv := func(fInput string, expectedVerifyResult bool) {
 			// 4: run prove
 			{
-				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
+				cmd := exec.Command("go", "run", "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
 				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
@@ -86,7 +84,7 @@ func TestIntegration(t *testing.T) {
 
 			// 4: run verify
 			{
-				cmd := exec.Command("go", "run", "-tags", buildTags, "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
+				cmd := exec.Command("go", "run", "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
 				out, err := cmd.CombinedOutput()
 				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
