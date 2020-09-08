@@ -76,7 +76,7 @@ func (r1cs *R1CS) GetCurveID() gurvy.ID {
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
 func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
 	// compute the wires and the a, b, c polynomials
-	if len(a) == r1cs.NbConstraints || len(b) == r1cs.NbConstraints || len(c) == r1cs.NbConstraints || len(wireValues) == r1cs.NbWires {
+	if len(a) != r1cs.NbConstraints || len(b) != r1cs.NbConstraints || len(c) != r1cs.NbConstraints || len(wireValues) != r1cs.NbWires {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
 
