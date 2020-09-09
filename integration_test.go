@@ -29,9 +29,6 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration tests for circleCI")
-	}
 	// create temporary dir for integration test
 	parentDir := "./integration_test"
 	os.RemoveAll(parentDir)
@@ -80,6 +77,8 @@ func TestIntegration(t *testing.T) {
 				}
 			}
 
+			// note: here we ain't testing much when the prover failed. verify will not find a proof file, and that's it.
+
 			// 4: run verify
 			{
 				cmd := exec.Command("go", "run", "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
@@ -98,9 +97,14 @@ func TestIntegration(t *testing.T) {
 		pv(fInputBad, false)
 	}
 
-	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256}
+	curves := []gurvy.ID{gurvy.BLS377, gurvy.BLS381, gurvy.BN256, gurvy.BW761}
 
 	for name, circuit := range circuits.Circuits {
+		if testing.Short() {
+			if name != "lut01" && name != "frombinary" {
+				continue
+			}
+		}
 		for _, curve := range curves {
 			// serialize to disk
 			fCircuit := filepath.Join(parentDir, name+".r1cs")
