@@ -25,11 +25,6 @@ import (
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
-// G1Proj point in projective coordinates
-type G1Proj struct {
-	X, Y, Z frontend.Variable
-}
-
 // G1Jac point in Jacobian coords
 type G1Jac struct {
 	X, Y, Z frontend.Variable
@@ -38,15 +33,6 @@ type G1Jac struct {
 // G1Affine point in affine coords
 type G1Affine struct {
 	X, Y frontend.Variable
-}
-
-// ToProj sets p to the projective rep of p1 and return it
-func (p *G1Jac) ToProj(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.Mul(p1.X, p1.Z)
-	p.Y = p1.Y
-	t := cs.Mul(p1.Z, p1.Z)
-	p.Z = cs.Mul(p1.Z, t)
-	return p
 }
 
 // Neg outputs -p
@@ -100,14 +86,6 @@ func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 
 	//p.x = xr
 	p.X = cs.Mul(_x, 1)
-	return p
-}
-
-// AssignToRefactor sets p to p1 and return it
-func (p *G1Jac) AssignToRefactor(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.Allocate(p1.X)
-	p.Y = cs.Allocate(p1.Y)
-	p.Z = cs.Allocate(p1.Z)
 	return p
 }
 
