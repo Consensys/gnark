@@ -25,17 +25,18 @@ type Circuit interface {
 //  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized "manually"
 // }
 func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
+
 	// instantiate our constraint system
-	cs := newConstraintSystem()
+	cs := newCS()
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are constraints that need to be initialized in the context of compiling a circuit
 	var handler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
-			if v.constraintID != 0 {
-				return errors.New("circuit was already compiled")
-			}
+			// if v.constraintID != 0 {
+			// 	return errors.New("circuit was already compiled")
+			// }
 			if v.val != nil {
 				return errors.New("circuit has some assigned values, can't compile")
 			}
@@ -64,14 +65,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return nil, err
 	}
 	// return R1CS
-
-	if curveID == gurvy.UNKNOWN {
-		// return untyped R1CS
-		return cs.toR1CS(), nil
-	}
-
-	// we have in our context object the curve, so we can type our R1CS to the curve base field elements
-	return cs.toR1CS().ToR1CS(curveID), nil
+	return cs.toR1cs(curveID), nil
 }
 
 // Save will serialize the provided R1CS to path

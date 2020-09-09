@@ -179,7 +179,7 @@ func verifyAccountUpdated(cs *frontend.CS, from, to, fromUpdated, toUpdated Acco
 	cs.MustBeEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
-	cs.MustBeLessOrEqual(amount, from.Balance, 256)
+	cs.MustBeLessOrEqual(amount, from.Balance)
 
 	// ensure that balance is correctly updated
 	fromBalanceUpdated := cs.Sub(from.Balance, amount)

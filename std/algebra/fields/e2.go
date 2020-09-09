@@ -55,18 +55,19 @@ func (e *E2) Sub(cs *frontend.CS, e1, e2 *E2) *E2 {
 // Mul e2 elmts: 5C
 func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 
-	var one, minusOne big.Int
-	one.SetUint64(1)
-	minusOne.Neg(&one)
+	one := big.NewInt(1)
+	minusOne := big.NewInt(-1)
+	idxone := cs.GetCoeffID(one)
+	idxminusone := cs.GetCoeffID(minusOne)
 
 	// 1C
 	l1 := frontend.LinearCombination{
-		frontend.Term{Variable: e1.A0, Coeff: one},
-		frontend.Term{Variable: e1.A1, Coeff: one},
+		frontend.LinearTerm{Variable: e1.A0, Coeff: idxone},
+		frontend.LinearTerm{Variable: e1.A1, Coeff: idxone},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.Term{Variable: e2.A0, Coeff: one},
-		frontend.Term{Variable: e2.A1, Coeff: one},
+		frontend.LinearTerm{Variable: e2.A0, Coeff: idxone},
+		frontend.LinearTerm{Variable: e2.A1, Coeff: idxone},
 	}
 	u := cs.Mul(l1, l2)
 
@@ -76,16 +77,18 @@ func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 
 	// 1C
 	l3 := frontend.LinearCombination{
-		frontend.Term{Variable: u, Coeff: one},
-		frontend.Term{Variable: ac, Coeff: minusOne},
-		frontend.Term{Variable: bd, Coeff: minusOne},
+		frontend.LinearTerm{Variable: u, Coeff: idxone},
+		frontend.LinearTerm{Variable: ac, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: bd, Coeff: idxminusone},
 	}
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
+	buSquare := backend.FromInterface(ext.uSquare)
+	idxuSquare := cs.GetCoeffID(&buSquare)
 	l4 := frontend.LinearCombination{
-		frontend.Term{Variable: ac, Coeff: one},
-		frontend.Term{Variable: bd, Coeff: backend.FromInterface(ext.uSquare)},
+		frontend.LinearTerm{Variable: ac, Coeff: idxone},
+		frontend.LinearTerm{Variable: bd, Coeff: idxuSquare},
 	}
 	e.A0 = cs.Mul(l4, 1)
 

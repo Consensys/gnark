@@ -16,9 +16,6 @@ limitations under the License.
 
 package twistededwards
 
-// version of bn256
-// https://github.com/matter-labs/pairing/blob/master/src/bn256/fq.rs
-
 import (
 	"math/big"
 
@@ -33,16 +30,20 @@ type Point struct {
 // MustBeOnCurve checks if a point is on the twisted Edwards curve
 // ax^2 + y^2 = 1 + d*x^2*y^2
 func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
-	one := big.NewInt(1)
 
-	l1 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.A}}
-	l2 := frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
+	one := big.NewInt(1)
+	idxone := cs.GetCoeffID(one)
+	idxA := cs.GetCoeffID(&curve.A)
+	idxD := cs.GetCoeffID(&curve.D)
+
+	l1 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxA}}
+	l2 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxone}}
 	axx := cs.Mul(l1, l2)
 	yy := cs.Mul(p.Y, p.Y)
 	lhs := cs.Add(axx, yy)
 
-	l1 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: curve.D}}
-	l2 = frontend.LinearCombination{frontend.Term{Variable: p.X, Coeff: *one}}
+	l1 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxD}}
+	l2 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxone}}
 	dxx := cs.Mul(l1, l2)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
@@ -77,26 +78,26 @@ func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curv
 
 	// // constraint 2
 	// den := frontend.LinearCombination{
-	// 	frontend.Term{Variable: oneWire, Coeff: *one},
-	// 	frontend.Term{Variable: b, Coeff: duv},
+	// 	frontend.LinearTerm{Variable: oneWire, Coeff: *one},
+	// 	frontend.LinearTerm{Variable: b, Coeff: duv},
 	// }
 	// num := frontend.LinearCombination{
-	// 	frontend.Term{Variable: p1.X, Coeff: Y},
-	// 	frontend.Term{Variable: p1.Y, Coeff: X},
+	// 	frontend.LinearTerm{Variable: p1.X, Coeff: Y},
+	// 	frontend.LinearTerm{Variable: p1.Y, Coeff: X},
 	// }
 	// res.X = cs.DIV(num, den)
 
 	// // constraint 3
 	// duv.Neg(&duv)
 	// den = frontend.LinearCombination{
-	// 	frontend.Term{Variable: oneWire, Coeff: *one},
-	// 	frontend.Term{Variable: b, Coeff: duv},
+	// 	frontend.LinearTerm{Variable: oneWire, Coeff: *one},
+	// 	frontend.LinearTerm{Variable: b, Coeff: duv},
 	// }
 	// var tmp big.Int
 	// tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
 	// num = frontend.LinearCombination{
-	// 	frontend.Term{Variable: p1.Y, Coeff: Y},
-	// 	frontend.Term{Variable: p1.X, Coeff: X},
+	// 	frontend.LinearTerm{Variable: p1.Y, Coeff: Y},
+	// 	frontend.LinearTerm{Variable: p1.X, Coeff: X},
 	// }
 	// res.Y = cs.DIV(num, den)
 
@@ -115,6 +116,9 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	res := Point{}
 
 	one := big.NewInt(1)
+	idxone := cs.GetCoeffID(one)
+	idxD := cs.GetCoeffID(&curve.D)
+
 	oneWire := cs.Allocate(one)
 
 	beta := cs.Mul(p1.X, p2.Y)
@@ -123,25 +127,27 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	epsilon := cs.Mul(p1.X, p2.X)
 	tau := cs.Mul(delta, epsilon)
 	num := frontend.LinearCombination{
-		frontend.Term{Variable: beta, Coeff: *one},
-		frontend.Term{Variable: gamma, Coeff: *one},
+		frontend.LinearTerm{Variable: beta, Coeff: idxone},
+		frontend.LinearTerm{Variable: gamma, Coeff: idxone},
 	}
 	den := frontend.LinearCombination{
-		frontend.Term{Variable: oneWire, Coeff: *one},
-		frontend.Term{Variable: tau, Coeff: curve.D},
+		frontend.LinearTerm{Variable: oneWire, Coeff: idxone},
+		frontend.LinearTerm{Variable: tau, Coeff: idxD},
 	}
 	res.X = cs.Div(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
+	idxminusa := cs.GetCoeffID(&minusa)
 	num = frontend.LinearCombination{
-		frontend.Term{Variable: delta, Coeff: *one},
-		frontend.Term{Variable: epsilon, Coeff: minusa},
+		frontend.LinearTerm{Variable: delta, Coeff: idxone},
+		frontend.LinearTerm{Variable: epsilon, Coeff: idxminusa},
 	}
 	var minusd big.Int
 	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
+	idxminusd := cs.GetCoeffID(&minusd)
 	den = frontend.LinearCombination{
-		frontend.Term{Variable: oneWire, Coeff: *one},
-		frontend.Term{Variable: tau, Coeff: minusd},
+		frontend.LinearTerm{Variable: oneWire, Coeff: idxone},
+		frontend.LinearTerm{Variable: tau, Coeff: idxminusd},
 	}
 	res.Y = cs.Div(num, den)
 

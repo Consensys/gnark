@@ -14,7 +14,7 @@ func (circuit *xorCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	cs.MustBeBoolean(circuit.B0)
 	cs.MustBeBoolean(circuit.B1)
 
-	z0 := cs.XOR(circuit.B0, circuit.B1)
+	z0 := cs.Xor(circuit.B0, circuit.B1)
 
 	cs.MustBeEqual(z0, circuit.Y0)
 

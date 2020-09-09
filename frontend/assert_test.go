@@ -19,6 +19,8 @@ package frontend
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gurvy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,15 +48,16 @@ type expectedR1CS struct {
 	nbWires, nbComputationalConstraints, nbConstraints, nbSecretWires, nbPublicWires int
 }
 
-func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
-	assert.Equal(expectedCS.nbWires, circuit.countWires(), "cs nbWires")
-	assert.Equal(expectedCS.nbConstraints, circuit.nbConstraints(), "cs nbConstraints")
-	assert.Equal(expectedCS.nbMOConstraints, len(circuit.moExpressions), "cs nb MOConstraints")
-	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noExpressions), "cs nb NOConstraints")
-}
+// func (assert *Assert) csIsCorrect(circuit CS, expectedCS expectedCS) {
+// 	//assert.Equal(expectedCS.nbWires, circuit.countWires(), "cs nbWires")
+// 	assert.Equal(expectedCS.nbConstraints, circuit.nbConstraints(), "cs nbConstraints")
+// 	assert.Equal(expectedCS.nbMOConstraints, len(circuit.moExpressions), "cs nb MOConstraints")
+// 	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noExpressions), "cs nb NOConstraints")
+// }
 
 func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
-	r1cs := circuit.toR1CS()
+	_r1cs := circuit.toR1cs(gurvy.UNKNOWN)
+	r1cs := _r1cs.(*r1cs.UntypedR1CS)
 	assert.Equal(expectedR1CS.nbWires, r1cs.NbWires, "r1cs nbWires")
 	assert.Equal(expectedR1CS.nbSecretWires, r1cs.NbSecretWires, "r1cs private nbWires")
 	assert.Equal(expectedR1CS.nbPublicWires, r1cs.NbPublicWires, "r1cs public nbWires")
@@ -62,26 +65,26 @@ func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 	assert.Equal(expectedR1CS.nbComputationalConstraints, r1cs.NbCOConstraints, "r1cs computational nbConstraints")
 }
 
-// util function to count the wires of a constraint system
-func (cs *CS) countWires() int {
+// // util function to count the wires of a constraint system
+// func (cs *CS) countWires() int {
 
-	var wires []int
+// 	var wires []int
 
-	for cID, c := range cs.constraints {
-		if cID == 0 {
-			continue // skipping first entry, reserved
-		}
-		isCounted := false
-		for _, w := range wires {
-			if w == c.ID {
-				isCounted = true
-				continue
-			}
-		}
-		if !isCounted {
-			wires = append(wires, c.ID)
-		}
-	}
+// 	for cID, c := range cs.constraints {
+// 		if cID == 0 {
+// 			continue // skipping first entry, reserved
+// 		}
+// 		isCounted := false
+// 		for _, w := range wires {
+// 			if w == c.ID {
+// 				isCounted = true
+// 				continue
+// 			}
+// 		}
+// 		if !isCounted {
+// 			wires = append(wires, c.ID)
+// 		}
+// 	}
 
-	return len(wires)
-}
+// 	return len(wires)
+// }

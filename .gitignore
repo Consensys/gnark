@@ -26,6 +26,10 @@ tasks.txt
 
 **/benchmark 
 
+# Files used as backups when refactoring
+
+*.backup
+
 # generated files during integratrion tests
 integratrion_test/**
 
