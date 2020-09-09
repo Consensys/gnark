@@ -41,8 +41,8 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// spv: setup, prove, verify
-	spv := func(name string, good, bad map[string]interface{}) {
-		t.Log("circuit", name)
+	spv := func(curveID gurvy.ID, name string, good, bad map[string]interface{}) {
+		t.Logf("%s circuit (%s)", name, curveID.String())
 		// path for files
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
 		fPk := filepath.Join(parentDir, name+".pk")
@@ -63,9 +63,8 @@ func TestIntegration(t *testing.T) {
 		{
 			cmd := exec.Command("go", "run", "main.go", "setup", fCircuit, "--pk", fPk, "--vk", fVk)
 			out, err := cmd.CombinedOutput()
-			t.Log(string(out))
-
 			if err != nil {
+				t.Log(string(out))
 				t.Fatal(err)
 			}
 		}
@@ -75,9 +74,8 @@ func TestIntegration(t *testing.T) {
 			{
 				cmd := exec.Command("go", "run", "main.go", "prove", fCircuit, "--pk", fPk, "--input", fInput, "--proof", fProof)
 				out, err := cmd.CombinedOutput()
-				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
-					// proving should pass
+					t.Log(string(out))
 					t.Fatal(err)
 				}
 			}
@@ -86,10 +84,11 @@ func TestIntegration(t *testing.T) {
 			{
 				cmd := exec.Command("go", "run", "main.go", "verify", fProof, "--vk", fVk, "--input", fInput)
 				out, err := cmd.CombinedOutput()
-				t.Log(string(out))
 				if expectedVerifyResult && err != nil {
+					t.Log(string(out))
 					t.Fatal(err)
 				} else if !expectedVerifyResult && err == nil {
+					t.Log(string(out))
 					t.Fatal("verify should have failed but apparently succeeded")
 				}
 			}
@@ -109,7 +108,7 @@ func TestIntegration(t *testing.T) {
 			if err := encoding.Write(fCircuit, typedR1CS, curve); err != nil {
 				t.Fatal(err)
 			}
-			spv(name, circuit.Good, circuit.Bad)
+			spv(curve, name, circuit.Good, circuit.Bad)
 		}
 	}
 }
