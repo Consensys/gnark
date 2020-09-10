@@ -229,6 +229,6 @@ func (c *CS) getOneVariable() Variable {
 // checks if the variable is recorded in the circuit
 func (c *CS) checkIsAllocated(v Variable) {
 	if v.id == 0 && v.visibility == Internal {
-		panic("variable is non allocated")
+		panic("variable non allocated")
 	}
 }

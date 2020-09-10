@@ -455,8 +455,6 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 // Constant will return a Variable from input {uint64, int, ...}
 func (c *CS) Constant(input interface{}) Variable {
 
-	res := c.NewInternalVariable()
-
 	one := big.NewInt(1)
 	idxOne := c.GetCoeffID(one)
 
@@ -476,6 +474,7 @@ func (c *CS) Constant(input interface{}) Variable {
 		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
 	}
 
+	res := c.NewInternalVariable()
 	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
 	lOoutput := LinearCombination{LinearTerm{res, idxOne}}
 

@@ -23,10 +23,15 @@ import (
 // Visibility gives the visibilty of a wire
 type Visibility int
 
+// Internal variable created via a computation, Secret/Public secret (resp. public) inputs
+// The order is important: if Secret or Public is first, when writing
+// "var a frontend.Variable", default visibility would be secret or public,
+// and the id 0, this would tamper the indexation. For Internal Variables,
+// the id 0 is reserved, so there is no risk of tampering the variable indexation.
 const (
-	Secret Visibility = iota
+	Internal Visibility = iota
+	Secret
 	Public
-	Internal
 )
 
 // Variable of circuit. The type is exported so a user can
@@ -61,9 +66,9 @@ func (v *Variable) Assign(value interface{}) {
 	if v.val != nil {
 		panic("variable already assigned")
 	}
-	if v.visibility == Internal {
-		panic("only inputs (public or private) can be assigned")
-	}
+	// if v.visibility == Internal {
+	// 	panic("only inputs (public or private) can be assigned")
+	// }
 	v.val = value
 }
 
