@@ -176,16 +176,16 @@ func verifyAccountUpdated(cs *frontend.ConstraintSystem, from, to, fromUpdated, 
 	// ensure that nonce is correctly updated
 	one := cs.Constant(1)
 	nonceUpdated := cs.Add(from.Nonce, one)
-	cs.MustBeEqual(nonceUpdated, fromUpdated.Nonce)
+	cs.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// TODO ensures that the amount is less than the balance (fix the MUSTBE_LESS_OR_EQ constraint)
-	cs.MustBeLessOrEqual(amount, from.Balance)
+	cs.AssertIsLessOrEqual(amount, from.Balance)
 
 	// ensure that balance is correctly updated
 	fromBalanceUpdated := cs.Sub(from.Balance, amount)
-	cs.MustBeEqual(fromBalanceUpdated, fromUpdated.Balance)
+	cs.AssertIsEqual(fromBalanceUpdated, fromUpdated.Balance)
 
 	toBalanceUpdated := cs.Add(to.Balance, amount)
-	cs.MustBeEqual(toBalanceUpdated, toUpdated.Balance)
+	cs.AssertIsEqual(toBalanceUpdated, toUpdated.Balance)
 
 }

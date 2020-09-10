@@ -11,14 +11,14 @@ type fromBinaryCircuit struct {
 }
 
 func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
-	cs.MustBeBoolean(circuit.B0)
-	cs.MustBeBoolean(circuit.B1)
-	cs.MustBeBoolean(circuit.B2)
-	cs.MustBeBoolean(circuit.B3)
+	cs.AssertIsBoolean(circuit.B0)
+	cs.AssertIsBoolean(circuit.B1)
+	cs.AssertIsBoolean(circuit.B2)
+	cs.AssertIsBoolean(circuit.B3)
 
 	r := cs.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
 
-	cs.MustBeEqual(circuit.Y, r)
+	cs.AssertIsEqual(circuit.Y, r)
 	return nil
 }
 

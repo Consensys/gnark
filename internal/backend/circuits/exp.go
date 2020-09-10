@@ -22,7 +22,7 @@ func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 		i++
 	}
 
-	cs.MustBeEqual(circuit.Y, o)
+	cs.AssertIsEqual(circuit.Y, o)
 	return nil
 }
 

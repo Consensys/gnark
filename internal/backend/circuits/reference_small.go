@@ -18,7 +18,7 @@ func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.Cons
 	for i := 0; i < nbConstraintsRefSmall; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
-	cs.MustBeEqual(circuit.X, circuit.Y)
+	cs.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
 }
 

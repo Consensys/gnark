@@ -145,8 +145,8 @@ func (e *E2) Assign(a *bls377.E2) {
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
 func (e *E2) MustBeEqual(cs *frontend.ConstraintSystem, other E2) {
-	cs.MustBeEqual(e.A0, other.A0)
-	cs.MustBeEqual(e.A1, other.A1)
+	cs.AssertIsEqual(e.A0, other.A0)
+	cs.AssertIsEqual(e.A1, other.A1)
 }
 
 func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {

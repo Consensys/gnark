@@ -300,9 +300,9 @@ func (p *G1Jac) Assign(p1 *bls377.G1Jac) {
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
 func (p *G1Jac) MustBeEqual(cs *frontend.ConstraintSystem, other G1Jac) {
-	cs.MustBeEqual(p.X, other.X)
-	cs.MustBeEqual(p.Y, other.Y)
-	cs.MustBeEqual(p.Z, other.Z)
+	cs.AssertIsEqual(p.X, other.X)
+	cs.AssertIsEqual(p.Y, other.Y)
+	cs.AssertIsEqual(p.Z, other.Z)
 }
 
 // Assign a value to self (witness assignment)
@@ -313,6 +313,6 @@ func (p *G1Affine) Assign(p1 *bls377.G1Affine) {
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
 func (p *G1Affine) MustBeEqual(cs *frontend.ConstraintSystem, other G1Affine) {
-	cs.MustBeEqual(p.X, other.X)
-	cs.MustBeEqual(p.Y, other.Y)
+	cs.AssertIsEqual(p.X, other.X)
+	cs.AssertIsEqual(p.Y, other.Y)
 }

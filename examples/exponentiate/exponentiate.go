@@ -39,7 +39,7 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.Constr
 		cs.Tag(output, fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
 	}
 
-	cs.MustBeEqual(circuit.Y, output)
+	cs.AssertIsEqual(circuit.Y, output)
 
 	return nil
 }

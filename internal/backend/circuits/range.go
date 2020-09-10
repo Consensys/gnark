@@ -14,7 +14,7 @@ func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 
-	cs.MustBeLessOrEqual(c2, 161)
+	cs.AssertIsLessOrEqual(c2, 161)
 	return nil
 }
 
@@ -43,7 +43,7 @@ func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.Constrai
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 
-	cs.MustBeLessOrEqual(c2, circuit.Bound)
+	cs.AssertIsLessOrEqual(c2, circuit.Bound)
 
 	return nil
 }

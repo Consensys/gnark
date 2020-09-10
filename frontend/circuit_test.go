@@ -21,7 +21,7 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	for i := 0; i < n; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
-	cs.MustBeEqual(circuit.X, circuit.Y)
+	cs.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
 }
 

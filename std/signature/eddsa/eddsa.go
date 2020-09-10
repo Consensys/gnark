@@ -68,8 +68,8 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 		ScalarMulNonFixedBase(cs, &rhs, cofactorConstantd, pubKey.Curve)
 	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
 
-	cs.MustBeEqual(lhs.X, rhs.X)
-	cs.MustBeEqual(lhs.Y, rhs.Y)
+	cs.AssertIsEqual(lhs.X, rhs.X)
+	cs.AssertIsEqual(lhs.Y, rhs.Y)
 
 	return nil
 }

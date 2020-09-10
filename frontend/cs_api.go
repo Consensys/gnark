@@ -59,7 +59,7 @@ func (cs *ConstraintSystem) NewSecretInput(name string) Variable {
 
 // Add adds 2 wires
 func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
 	L := r1c.LinearExpression{}
@@ -87,8 +87,8 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	O := r1c.LinearExpression{
 		cs.Term(res, bOne),
 	}
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -96,7 +96,7 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 
 // Sub Adds bTwo wires
 func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
 	L := r1c.LinearExpression{}
@@ -127,8 +127,8 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 	O := r1c.LinearExpression{
 		cs.Term(res, bOne),
 	}
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -190,7 +190,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 
 // Inverse inverses a variable
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
 	L := r1c.LinearExpression{cs.Term(res, bOne)}
@@ -204,7 +204,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 
 // Div divides bTwo constraints (i1/i2)
 func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
 	// O
@@ -234,7 +234,6 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	R := r1c.LinearExpression{cs.Term(res, bOne)}
 
 	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -243,8 +242,8 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 // Xor compute the xor between bTwo constraints
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
-	cs.MustBeBoolean(a)
-	cs.MustBeBoolean(b)
+	cs.AssertIsBoolean(a)
+	cs.AssertIsBoolean(b)
 
 	res := cs.newInternalVariable()
 	L := r1c.LinearExpression{
@@ -258,8 +257,8 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 		cs.Term(b, bOne),
 		cs.Term(res, bMinusOne),
 	}
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -268,15 +267,14 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 // ToBinary unpacks a variable in binary, n is the number of bits of the variable
 // The result in in little endian (first bit= lsb)
 func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
-
-	var coeff big.Int
-
 	// allocate the resulting variables
 	res := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
 		res[i] = cs.newInternalVariable()
-		cs.MustBeBoolean(res[i])
+		cs.AssertIsBoolean(res[i])
 	}
+
+	var coeff big.Int
 
 	// add the constraint
 	L := make(r1c.LinearExpression, nbBits)
@@ -296,8 +294,8 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	O := r1c.LinearExpression{
 		cs.Term(a, bOne),
 	}
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.BinaryDec}
 
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.BinaryDec}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -306,31 +304,21 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
 // FromBinary packs b, seen as a fr.Element in little endian
 func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
-	l := len(b)
+	var coeff big.Int
 
-	idx := make([]int, l)
-
-	var tmp big.Int
-	tmp.Set(bTwo)
-	idx[0] = cs.coeffID(bOne)
-	idx[1] = cs.coeffID(bTwo)
-
-	for i := 2; i < l; i++ {
-		tmp.Mul(&tmp, bTwo)
-		idx[i] = cs.coeffID(&tmp)
-	}
-
-	L := make(r1c.LinearExpression, l)
-	for i := 0; i < l; i++ {
-		L[i].SetCoeffID(idx[i])
-		L[i].SetConstraintID(b[i].id)
-		L[i].SetConstraintVisibility(b[i].visibility)
-		// TODO we forgot about boolean variables...
-		// L[i].Variable = b[i]
-		// L[i].Coeff = idx[i]
+	L := make(r1c.LinearExpression, len(b))
+	for i := 0; i < len(L); i++ {
+		if i == 0 {
+			coeff.Set(bOne)
+		} else if i == 1 {
+			coeff.Set(bTwo)
+		} else {
+			coeff.Mul(&coeff, bTwo)
+		}
+		L[i] = cs.Term(b[i], &coeff)
 	}
 	R := r1c.LinearExpression{
 		cs.oneTerm,
@@ -338,8 +326,8 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 	O := r1c.LinearExpression{
 		cs.Term(res, bOne),
 	}
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -347,7 +335,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 
 // Select if b is true, yields c1 else yields c2
 func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
-
+	// allocate resulting variable
 	res := cs.newInternalVariable()
 
 	L := r1c.LinearExpression{
@@ -395,7 +383,6 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	O = append(O, toAppend...)
 
 	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -403,6 +390,8 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 // Constant will return a Variable from input {uint64, int, ...}
 func (cs *ConstraintSystem) Constant(input interface{}) Variable {
+
+	res := cs.newInternalVariable()
 
 	//L
 	L := r1c.LinearExpression{}
@@ -420,20 +409,18 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 		L = append(L, cs.Term(cs.oneVariable(), &n))
 	}
 
-	res := cs.newInternalVariable()
 	R := r1c.LinearExpression{cs.oneTerm}
 	O := r1c.LinearExpression{cs.Term(res, bOne)}
 
 	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 
 }
 
-// MustBeEqual equalizes bTwo variables
-func (cs *ConstraintSystem) MustBeEqual(i1, i2 interface{}) {
+// AssertIsEqual equalizes bTwo variables
+func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 
 	//left
 	L := r1c.LinearExpression{}
@@ -473,8 +460,8 @@ func (cs *ConstraintSystem) MustBeEqual(i1, i2 interface{}) {
 	cs.assertions = append(cs.assertions, constraint)
 }
 
-// MustBeBoolean boolean constrains a variable
-func (cs *ConstraintSystem) MustBeBoolean(a Variable) {
+// AssertIsBoolean boolean constrains a variable
+func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 
 	if a.isBoolean {
 		return
@@ -495,17 +482,15 @@ func (cs *ConstraintSystem) MustBeBoolean(a Variable) {
 	a.isBoolean = true
 }
 
-// MustBeLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
+// AssertIsLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
 // https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
-func (cs *ConstraintSystem) MustBeLessOrEqual(w Variable, bound interface{}) {
+func (cs *ConstraintSystem) AssertIsLessOrEqual(w Variable, bound interface{}) {
 
 	switch b := bound.(type) {
 	case Variable:
-
 		cs.mustBeLessOrEqVar(w, b)
 	default:
-		_bound := backend.FromInterface(b)
-		cs.mustBeLessOrEqCst(w, _bound)
+		cs.mustBeLessOrEqCst(w, backend.FromInterface(b))
 	}
 
 }
@@ -545,9 +530,9 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 
 func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 
-	nbBits := 256
-	nbWords := 4
-	wordSize := 64
+	const nbBits = 256
+	const nbWords = 4
+	const wordSize = 64
 
 	vBits := cs.ToBinary(v, nbBits)
 	boundBits := bound.Bits()

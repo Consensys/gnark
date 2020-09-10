@@ -133,13 +133,13 @@ func VerifyProof(cs *frontend.ConstraintSystem, h mimc.MiMC, merkleRoot frontend
 	sum := leafSum(cs, h, proofSet[0])
 
 	for i := 1; i < len(proofSet); i++ {
-		cs.MustBeBoolean(helper[i-1])
+		cs.AssertIsBoolean(helper[i-1])
 		d1 := cs.Select(helper[i-1], sum, proofSet[i])
 		d2 := cs.Select(helper[i-1], proofSet[i], sum)
 		sum = nodeSum(cs, h, d1, d2)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
-	cs.MustBeEqual(sum, merkleRoot)
+	cs.AssertIsEqual(sum, merkleRoot)
 
 }

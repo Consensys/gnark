@@ -47,7 +47,7 @@ func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 		return err
 	}
 	result := mimc.Hash(cs, circuit.Data)
-	cs.MustBeEqual(result, circuit.Hash)
+	cs.AssertIsEqual(result, circuit.Hash)
 	return nil
 }
 

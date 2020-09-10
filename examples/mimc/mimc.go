@@ -23,7 +23,7 @@ func (circuit *MiMCCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 
 	// specify constraints
 	// mimc(preImage) == hash
-	cs.MustBeEqual(circuit.Hash, mimc.Hash(cs, circuit.PreImage))
+	cs.AssertIsEqual(circuit.Hash, mimc.Hash(cs, circuit.PreImage))
 
 	return nil
 }

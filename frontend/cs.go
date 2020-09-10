@@ -27,14 +27,14 @@ import (
 
 // ConstraintSystem represents a Groth16 like circuit
 type ConstraintSystem struct {
-	publicVariableNames []string         // entry i: name of the public input whose ID is i
-	secretVariableNames []string         // entry i: name of the private input whose ID is i
-	publicVariables     []Variable       // entry i: public input whose ID is i
-	secretVariables     []Variable       // entry i: private input whose ID is i
-	internalVariables   []Variable       // entry i: intermediate wire whose ID is i
-	coeffs              []big.Int        // list of coefficients
+	publicVariables     []Variable       // public inputs
+	secretVariables     []Variable       // private inputs
+	internalVariables   []Variable       // internal variables
+	coeffs              []big.Int        // list of unique coefficients.
 	constraints         []r1c.R1C        // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
 	assertions          []r1c.R1C        // list of R1C that yield no output (for example ensuring v1 == v2)
+	publicVariableNames []string         // public inputs names
+	secretVariableNames []string         // private inputs names
 	wireTags            map[int][]string // optional tags -- debug info
 	oneTerm             r1c.Term
 }
@@ -112,33 +112,25 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 	copy(res.Constraints, cs.constraints)
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
-	for i := 0; i < len(res.Constraints); i++ {
-		// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
+	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
+	offsetIDs := func(exp r1c.LinearExpression) {
+		for j := 0; j < len(exp); j++ {
+			_, _, cID, cVisibility := exp[j].Unpack()
+			switch cVisibility {
+			case backend.Public:
+				exp[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
+			case backend.Secret:
+				exp[j].SetConstraintID(cID + len(cs.internalVariables))
+			case backend.Unset:
+				panic("shouldn't happen")
+			}
+		}
+	}
 
-		for j := 0; j < len(res.Constraints[i].L); j++ {
-			_, _, cID, cVisibility := res.Constraints[i].L[j].Unpack()
-			if cVisibility == backend.Secret {
-				res.Constraints[i].L[j].SetConstraintID(cID + len(cs.internalVariables))
-			} else if cVisibility == backend.Public {
-				res.Constraints[i].L[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
-			}
-		}
-		for j := 0; j < len(res.Constraints[i].R); j++ {
-			_, _, cID, cVisibility := res.Constraints[i].R[j].Unpack()
-			if cVisibility == backend.Secret {
-				res.Constraints[i].R[j].SetConstraintID(cID + len(cs.internalVariables))
-			} else if cVisibility == backend.Public {
-				res.Constraints[i].R[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
-			}
-		}
-		for j := 0; j < len(res.Constraints[i].O); j++ {
-			_, _, cID, cVisibility := res.Constraints[i].O[j].Unpack()
-			if cVisibility == backend.Secret {
-				res.Constraints[i].O[j].SetConstraintID(cID + len(cs.internalVariables))
-			} else if cVisibility == backend.Public {
-				res.Constraints[i].O[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
-			}
-		}
+	for i := 0; i < len(res.Constraints); i++ {
+		offsetIDs(res.Constraints[i].L)
+		offsetIDs(res.Constraints[i].R)
+		offsetIDs(res.Constraints[i].O)
 	}
 
 	// wire tags
@@ -158,6 +150,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
+	// TODO restore the map struct to avoid linear search of all coefficients to check existence
 	idx := -1
 	for i, v := range cs.coeffs {
 		if v.Cmp(b) == 0 {

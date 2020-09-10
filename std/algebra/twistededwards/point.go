@@ -46,7 +46,7 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
 
-	cs.MustBeEqual(lhs, rhs)
+	cs.AssertIsEqual(lhs, rhs)
 
 }
 

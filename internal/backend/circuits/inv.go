@@ -13,7 +13,7 @@ func (circuit *invCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	m := cs.Mul(circuit.X, circuit.Y)
 	u := cs.Inverse(circuit.Y)
 	v := cs.Mul(m, u)
-	cs.MustBeEqual(v, circuit.Z)
+	cs.AssertIsEqual(v, circuit.Z)
 	return nil
 }
 

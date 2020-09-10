@@ -15,7 +15,7 @@ type divCircuit struct {
 func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.X)
 	d := cs.Div(m, circuit.Y)
-	cs.MustBeEqual(d, circuit.Z)
+	cs.AssertIsEqual(d, circuit.Z)
 	return nil
 }
 

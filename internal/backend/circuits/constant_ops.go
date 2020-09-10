@@ -20,7 +20,7 @@ func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.Constra
 	c := cs.Add(circuit.X, elmts[0])
 	c = cs.Mul(c, elmts[1])
 	c = cs.Sub(c, elmts[2])
-	cs.MustBeEqual(c, circuit.Y)
+	cs.AssertIsEqual(c, circuit.Y)
 	return nil
 }
 
