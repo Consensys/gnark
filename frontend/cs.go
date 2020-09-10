@@ -37,23 +37,24 @@ type CS struct {
 	wireTags          map[int][]string // optional tags -- debug info
 }
 
+const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
+
 // newCS outputs a new circuit
-// TODO set bounds for slices capacity (as in the previous version)
 func newCS() CS {
 
 	var res CS
 
-	res.publicInputsNames = make([]string, 0, 10)
-	res.PublicInputs = make([]Variable, 0, 10)
+	res.publicInputsNames = make([]string, 0)
+	res.PublicInputs = make([]Variable, 0)
 
-	res.secretInputsName = make([]string, 0, 10)
-	res.secretInputs = make([]Variable, 0, 10)
+	res.secretInputsName = make([]string, 0)
+	res.secretInputs = make([]Variable, 0)
 
-	res.variables = make([]Variable, 0, 50)
+	res.variables = make([]Variable, 0, initialCapacity)
 
-	res.coeffs = make([]big.Int, 0, 30)
+	res.coeffs = make([]big.Int, 0) // the coeffs are indexed, most of them are 0,+-1,+-2,+-3, no need for enormous capacity
 
-	res.gates = make([]gate, 0, 50)
+	res.gates = make([]gate, 0, initialCapacity)
 
 	// first entry of circuit is ONE_WIRE
 	res.publicInputsNames = append(res.publicInputsNames, "ONE_WIRE")

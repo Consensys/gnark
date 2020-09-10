@@ -34,6 +34,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	var handler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
+			// TODO not sure how this functions worked before, to check if a circuit has been compiled, just check if c.Variables[0].ID!=0
 			// if v.constraintID != 0 {
 			// 	return errors.New("circuit was already compiled")
 			// }
