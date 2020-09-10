@@ -24,7 +24,7 @@ type ExponentiateCircuit struct {
 // y == x**e
 func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	// specify constraints
-	output := cs.Allocate(1)
+	output := cs.Constant(1)
 	bits := cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {

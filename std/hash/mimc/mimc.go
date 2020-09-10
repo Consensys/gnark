@@ -45,7 +45,7 @@ func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 func (h MiMC) Hash(cs *frontend.CS, data ...frontend.Variable) frontend.Variable {
 
 	var digest frontend.Variable
-	digest = cs.Allocate(0)
+	digest = cs.Constant(0)
 
 	for _, stream := range data {
 		digest = encryptFuncs[h.id](cs, h, stream, digest)

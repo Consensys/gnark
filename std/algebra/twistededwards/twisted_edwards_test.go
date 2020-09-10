@@ -192,7 +192,7 @@ func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.CS) error {
 	if err != nil {
 		return err
 	}
-	scalar := cs.Allocate("28242048")
+	scalar := cs.Constant("28242048")
 	nonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, scalar, params)
 	res := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, scalar, params)
 	cs.MustBeEqual(res.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")

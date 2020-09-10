@@ -51,21 +51,21 @@ func Verify(cs *frontend.CS, sig Signature, msg frontend.Variable, pubKey Public
 	if err != nil {
 		return err
 	}
-	hramAllocated := hash.Hash(cs, data...)
+	hramConstantd := hash.Hash(cs, data...)
 
 	// lhs = cofactor*SB
-	cofactorAllocated := cs.Allocate(pubKey.Curve.Cofactor)
+	cofactorConstantd := cs.Constant(pubKey.Curve.Cofactor)
 	lhs := twistededwards.Point{}
 
 	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
-		ScalarMulNonFixedBase(cs, &lhs, cofactorAllocated, pubKey.Curve)
+		ScalarMulNonFixedBase(cs, &lhs, cofactorConstantd, pubKey.Curve)
 	// TODO adding lhs.IsOnCurve(...) makes the r1cs bug
 
 	// rhs = cofactor*(R+H(R,A,M)*A)
 	rhs := twistededwards.Point{}
-	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramAllocated, pubKey.Curve).
+	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstantd, pubKey.Curve).
 		AddGeneric(cs, &rhs, &sig.R.A, pubKey.Curve).
-		ScalarMulNonFixedBase(cs, &rhs, cofactorAllocated, pubKey.Curve)
+		ScalarMulNonFixedBase(cs, &rhs, cofactorConstantd, pubKey.Curve)
 	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
 
 	cs.MustBeEqual(lhs.X, rhs.X)

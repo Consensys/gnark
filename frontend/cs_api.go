@@ -60,7 +60,7 @@ func (c *CS) SecretInput(name string) Variable {
 // Add adds 2 wires
 func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
-	res := c.newInternalVariable()
+	res := c.NewInternalVariable()
 
 	one := big.NewInt(1)
 	idxOne := c.GetCoeffID(one)
@@ -70,6 +70,7 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
 		case Variable:
+			c.checkIsAllocated(t)
 			lLeft = append(lLeft, LinearTerm{t, idxOne})
 		default:
 			n := backend.FromInterface(t)
@@ -99,7 +100,7 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 // Sub Adds two wires
 func (c *CS) Sub(i1, i2 interface{}) Variable {
 
-	res := c.newInternalVariable()
+	res := c.NewInternalVariable()
 
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
@@ -109,6 +110,7 @@ func (c *CS) Sub(i1, i2 interface{}) Variable {
 	lLeft := LinearCombination{}
 	switch t := i1.(type) {
 	case Variable:
+		c.checkIsAllocated(t)
 		lLeft = append(lLeft, LinearTerm{t, idxOne})
 	default:
 		n := backend.FromInterface(t)
@@ -118,6 +120,7 @@ func (c *CS) Sub(i1, i2 interface{}) Variable {
 
 	switch t := i2.(type) {
 	case Variable:
+		c.checkIsAllocated(t)
 		lLeft = append(lLeft, LinearTerm{t, idxMinusOne})
 	default:
 		n := backend.FromInterface(t)
@@ -147,7 +150,7 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	mul := func(_i1, _i2 interface{}) Variable {
 
-		_res := c.newInternalVariable()
+		_res := c.NewInternalVariable()
 
 		lLeft := LinearCombination{}
 		lRight := LinearCombination{}
@@ -158,6 +161,7 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 			lLeft = make([]LinearTerm, len(t1))
 			copy(lLeft, t1)
 		case Variable:
+			c.checkIsAllocated(t1)
 			lLeft = append(lLeft, LinearTerm{t1, idxOne})
 		default:
 			n1 := backend.FromInterface(t1)
@@ -171,6 +175,7 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 			lRight = make([]LinearTerm, len(t2))
 			copy(lRight, t2)
 		case Variable:
+			c.checkIsAllocated(t2)
 			lRight = append(lRight, LinearTerm{t2, idxOne})
 		default:
 			n2 := backend.FromInterface(t2)
@@ -197,7 +202,9 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 // Inverse inverses a variable
 func (c *CS) Inverse(v Variable) Variable {
 
-	res := c.newInternalVariable()
+	c.checkIsAllocated(v)
+
+	res := c.NewInternalVariable()
 
 	// find the entry in c.Coeffs corresponding to 1
 	one := big.NewInt(1)
@@ -215,7 +222,7 @@ func (c *CS) Inverse(v Variable) Variable {
 // Div divides two constraints (i1/i2)
 func (c *CS) Div(i1, i2 interface{}) Variable {
 
-	res := c.newInternalVariable()
+	res := c.NewInternalVariable()
 
 	// find the entry in c.Coeffs corresponding to 1
 	one := big.NewInt(1)
@@ -228,6 +235,7 @@ func (c *CS) Div(i1, i2 interface{}) Variable {
 		lOoutput = make([]LinearTerm, len(t1))
 		copy(lOoutput, t1)
 	case Variable:
+		c.checkIsAllocated(t1)
 		lOoutput = append(lOoutput, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
@@ -242,6 +250,7 @@ func (c *CS) Div(i1, i2 interface{}) Variable {
 		lLeft = make([]LinearTerm, len(t2))
 		copy(lLeft, t2)
 	case Variable:
+		c.checkIsAllocated(t2)
 		lLeft = append(lLeft, LinearTerm{t2, idxOne})
 	default:
 		n2 := backend.FromInterface(t2)
@@ -261,6 +270,9 @@ func (c *CS) Div(i1, i2 interface{}) Variable {
 // Xor compute the xor between two constraints
 func (c *CS) Xor(a, b Variable) Variable {
 
+	c.checkIsAllocated(a)
+	c.checkIsAllocated(b)
+
 	c.MustBeBoolean(a)
 	c.MustBeBoolean(b)
 
@@ -272,7 +284,7 @@ func (c *CS) Xor(a, b Variable) Variable {
 	idxOne := c.GetCoeffID(one)
 	idxMinusOne := c.GetCoeffID(minusOne)
 
-	res := c.newInternalVariable()
+	res := c.NewInternalVariable()
 	lLeft := LinearCombination{
 		LinearTerm{a, idxtwo},
 	}
@@ -295,6 +307,8 @@ func (c *CS) Xor(a, b Variable) Variable {
 // The result in in little endian (first bit= lsb)
 func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 
+	c.checkIsAllocated(a)
+
 	var tmp big.Int
 
 	idx := make([]int, nbBits)
@@ -313,7 +327,7 @@ func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 	res := make([]Variable, nbBits)
 	lLeft := make([]LinearTerm, nbBits)
 	for i := 0; i < nbBits; i++ {
-		res[i] = c.newInternalVariable()
+		res[i] = c.NewInternalVariable()
 		c.MustBeBoolean(res[i])
 		lLeft[i].Variable = res[i]
 		lLeft[i].Coeff = idx[i]
@@ -335,7 +349,11 @@ func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 // FromBinary packs b, seen as a fr.Element in little endian
 func (c *CS) FromBinary(b ...Variable) Variable {
 
-	res := c.newInternalVariable()
+	for _, i := range b {
+		c.checkIsAllocated(i)
+	}
+
+	res := c.NewInternalVariable()
 
 	l := len(b)
 
@@ -374,7 +392,9 @@ func (c *CS) FromBinary(b ...Variable) Variable {
 // Select if b is true, yields c1 else yields c2
 func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 
-	res := c.newInternalVariable()
+	c.checkIsAllocated(b)
+
+	res := c.NewInternalVariable()
 
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
@@ -392,6 +412,7 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 		lRight = make([]LinearTerm, len(t1))
 		copy(lRight, t1)
 	case Variable:
+		c.checkIsAllocated(t1)
 		lRight = append(lRight, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
@@ -410,6 +431,7 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 			toAppend = append(toAppend, LinearTerm{e.Variable, idcoef})
 		}
 	case Variable:
+		c.checkIsAllocated(t2)
 		toAppend = append(toAppend, LinearTerm{t2, idxMinusOne})
 	default:
 		n2 := backend.FromInterface(t2)
@@ -430,19 +452,21 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 	return res
 }
 
-// Allocate will return an allOoutputcated Variable from input {Constraint, element, uint64, int, ...}
-func (c *CS) Allocate(input interface{}) Variable {
+// Constant will return a Variable from input {uint64, int, ...}
+func (c *CS) Constant(input interface{}) Variable {
 
-	res := c.newInternalVariable()
+	res := c.NewInternalVariable()
 
 	one := big.NewInt(1)
 	idxOne := c.GetCoeffID(one)
 
 	//lLeft
 	lLeft := LinearCombination{}
+
 	switch t := input.(type) {
 	case Variable:
-		lLeft = append(lLeft, LinearTerm{t, idxOne})
+		c.checkIsAllocated(t)
+		return t
 	default:
 		n := backend.FromInterface(t)
 		if n.Cmp(one) == 0 {
@@ -476,6 +500,7 @@ func (c *CS) MustBeEqual(i1, i2 interface{}) {
 		lLeft = make([]LinearTerm, len(t1))
 		copy(lLeft, t1)
 	case Variable:
+		c.checkIsAllocated(t1)
 		lLeft = append(lLeft, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
@@ -490,6 +515,7 @@ func (c *CS) MustBeEqual(i1, i2 interface{}) {
 		lOoutput = make([]LinearTerm, len(t2))
 		copy(lOoutput, t2)
 	case Variable:
+		c.checkIsAllocated(t2)
 		lOoutput = append(lOoutput, LinearTerm{t2, idxOne})
 	default:
 		n2 := backend.FromInterface(t2)
@@ -507,7 +533,10 @@ func (c *CS) MustBeEqual(i1, i2 interface{}) {
 
 // MustBeBoolean boolean constrains a variable
 func (c *CS) MustBeBoolean(a Variable) {
-	if a.IsBoolean {
+
+	c.checkIsAllocated(a)
+
+	if a.isBoolean {
 		return
 	}
 
@@ -530,15 +559,18 @@ func (c *CS) MustBeBoolean(a Variable) {
 	}
 	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 	c.Constraints = append(c.Constraints, g)
-	a.IsBoolean = true
+	a.isBoolean = true
 }
 
 // MustBeLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
 // https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
 func (c *CS) MustBeLessOrEqual(w Variable, bound interface{}) {
 
+	c.checkIsAllocated(w)
+
 	switch b := bound.(type) {
 	case Variable:
+		c.checkIsAllocated(b)
 		c.mustBeLessOrEqVar(w, b)
 	default:
 		_bound := backend.FromInterface(b)
@@ -555,7 +587,7 @@ func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
 	binbound := c.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
-	p[nbBits] = c.Allocate(1)
+	p[nbBits] = c.Constant(1)
 
 	zero := big.NewInt(0)
 	one := big.NewInt(1)
@@ -568,7 +600,7 @@ func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
 		p1 := c.Mul(p[i+1], binw[i])
 		p[i] = c.Select(binbound[i], p1, p[i+1])
 
-		zero := c.Allocate(0)
+		zero := c.Constant(0)
 		t := c.Select(binbound[i], zero, p[i+1])
 		lLeft := LinearCombination{
 			LinearTerm{c.getOneVariable(), idxOne},
@@ -609,7 +641,7 @@ func (c *CS) mustBeLessOrEqCst(w Variable, bound big.Int) {
 	idxOne := c.GetCoeffID(one)
 	minusOne := big.NewInt(-1)
 	idxMinusOne := c.GetCoeffID(minusOne)
-	p[nbBits] = c.Allocate(1)
+	p[nbBits] = c.Constant(1)
 	for i := nbWords - 1; i >= 0; i-- {
 		for j := 0; j < wordSize; j++ {
 			b := (binbound[i] >> (wordSize - 1 - j)) & 1

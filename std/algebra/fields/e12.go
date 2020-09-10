@@ -61,11 +61,11 @@ type E12 struct {
 func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 	res := Extension{}
 	res.uSquare = 5
-	res.vCube = &E2{A0: cs.Allocate(0), A1: cs.Allocate(1)}
+	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
 	res.wSquare = &E6{
-		B0: E2{cs.Allocate(0), cs.Allocate(0)},
-		B1: E2{cs.Allocate(1), cs.Allocate(0)},
-		B2: E2{cs.Allocate(0), cs.Allocate(0)},
+		B0: E2{cs.Constant(0), cs.Constant(0)},
+		B1: E2{cs.Constant(1), cs.Constant(0)},
+		B2: E2{cs.Constant(0), cs.Constant(0)},
 	}
 
 	res.frobv = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
@@ -91,18 +91,18 @@ func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E12) SetOne(cs *frontend.CS) *E12 {
-	e.C0.B0.A0 = cs.Allocate(1)
-	e.C0.B0.A1 = cs.Allocate(0)
-	e.C0.B1.A0 = cs.Allocate(0)
-	e.C0.B1.A1 = cs.Allocate(0)
-	e.C0.B2.A0 = cs.Allocate(0)
-	e.C0.B2.A1 = cs.Allocate(0)
-	e.C1.B0.A0 = cs.Allocate(0)
-	e.C1.B0.A1 = cs.Allocate(0)
-	e.C1.B1.A0 = cs.Allocate(0)
-	e.C1.B1.A1 = cs.Allocate(0)
-	e.C1.B2.A0 = cs.Allocate(0)
-	e.C1.B2.A1 = cs.Allocate(0)
+	e.C0.B0.A0 = cs.Constant(1)
+	e.C0.B0.A1 = cs.Constant(0)
+	e.C0.B1.A0 = cs.Constant(0)
+	e.C0.B1.A1 = cs.Constant(0)
+	e.C0.B2.A0 = cs.Constant(0)
+	e.C0.B2.A1 = cs.Constant(0)
+	e.C1.B0.A0 = cs.Constant(0)
+	e.C1.B0.A1 = cs.Constant(0)
+	e.C1.B1.A0 = cs.Constant(0)
+	e.C1.B1.A1 = cs.Constant(0)
+	e.C1.B2.A0 = cs.Constant(0)
+	e.C1.B2.A1 = cs.Constant(0)
 	return e
 }
 

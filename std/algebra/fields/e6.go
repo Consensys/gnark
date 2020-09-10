@@ -39,9 +39,9 @@ func (e *E6) Add(cs *frontend.CS, e1, e2 *E6) *E6 {
 // NewFp6Zero creates a new
 func NewFp6Zero(cs *frontend.CS) E6 {
 	return E6{
-		B0: E2{cs.Allocate(0), cs.Allocate(0)},
-		B1: E2{cs.Allocate(0), cs.Allocate(0)},
-		B2: E2{cs.Allocate(0), cs.Allocate(0)},
+		B0: E2{cs.Constant(0), cs.Constant(0)},
+		B1: E2{cs.Constant(0), cs.Constant(0)},
+		B2: E2{cs.Constant(0), cs.Constant(0)},
 	}
 }
 

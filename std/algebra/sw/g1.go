@@ -108,16 +108,16 @@ func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 
 // AssignToRefactor sets p to p1 and return it
 func (p *G1Jac) AssignToRefactor(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.Allocate(p1.X)
-	p.Y = cs.Allocate(p1.Y)
-	p.Z = cs.Allocate(p1.Z)
+	p.X = cs.Constant(p1.X)
+	p.Y = cs.Constant(p1.Y)
+	p.Z = cs.Constant(p1.Z)
 	return p
 }
 
 // AssignToRefactor sets p to p1 and return it
 func (p *G1Affine) AssignToRefactor(cs *frontend.CS, p1 *G1Affine) *G1Affine {
-	p.X = cs.Allocate(p1.X)
-	p.Y = cs.Allocate(p1.Y)
+	p.X = cs.Constant(p1.X)
+	p.Y = cs.Constant(p1.Y)
 	return p
 }
 
@@ -277,7 +277,8 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
 func (p *G1Affine) ScalarMul(cs *frontend.CS, p1 *G1Affine, s interface{}, n int) *G1Affine {
-	scalar := cs.Allocate(s)
+
+	scalar := cs.Constant(s)
 
 	var base, res G1Affine
 	base.Double(cs, p1)

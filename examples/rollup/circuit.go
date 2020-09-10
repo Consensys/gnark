@@ -174,7 +174,7 @@ func verifyTransferSignature(cs *frontend.CS, t TransferConstraints, hFunc mimc.
 func verifyAccountUpdated(cs *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := cs.Allocate(1)
+	one := cs.Constant(1)
 	nonceUpdated := cs.Add(from.Nonce, one)
 	cs.MustBeEqual(nonceUpdated, fromUpdated.Nonce)
 

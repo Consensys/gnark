@@ -20,7 +20,7 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// Visibility gives the reach of a wire
+// Visibility gives the visibilty of a wire
 type Visibility int
 
 const (
@@ -29,11 +29,15 @@ const (
 	Internal
 )
 
-// Variable of circuit
+// Variable of circuit. The type is exported so a user can
+// write "var a frontend.Variable". However, when doing so
+// the variable is not registered in the circuit, so to record
+// it one has to call "cs.Allocate(a)" (it's the equivalent
+// of declaring a pointer, and allocatign the memory to store it).
 type Variable struct {
-	IsBoolean  bool
-	Visibility Visibility
-	ID         int // index of the wire in the corresponding list of wires (private, public or intermediate)
+	isBoolean  bool
+	visibility Visibility
+	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
 }
 
@@ -57,7 +61,7 @@ func (v *Variable) Assign(value interface{}) {
 	if v.val != nil {
 		panic("variable already assigned")
 	}
-	if v.Visibility == Internal {
+	if v.visibility == Internal {
 		panic("only inputs (public or private) can be assigned")
 	}
 	v.val = value
@@ -66,18 +70,18 @@ func (v *Variable) Assign(value interface{}) {
 // changes the ID of the variables of reach a in the gate to id+offset
 func (g *Gate) updateID(offset int, a Visibility) {
 	for i := 0; i < len(g.L); i++ {
-		if g.L[i].Variable.Visibility == a {
-			g.L[i].Variable.ID += offset
+		if g.L[i].Variable.visibility == a {
+			g.L[i].Variable.id += offset
 		}
 	}
 	for i := 0; i < len(g.R); i++ {
-		if g.R[i].Variable.Visibility == a {
-			g.R[i].Variable.ID += offset
+		if g.R[i].Variable.visibility == a {
+			g.R[i].Variable.id += offset
 		}
 	}
 	for i := 0; i < len(g.O); i++ {
-		if g.O[i].Variable.Visibility == a {
-			g.O[i].Variable.ID += offset
+		if g.O[i].Variable.visibility == a {
+			g.O[i].Variable.id += offset
 		}
 	}
 }

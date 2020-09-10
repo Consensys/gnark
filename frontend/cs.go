@@ -69,23 +69,31 @@ func (c *CS) toR1cs(id gurvy.ID) r1cs.R1CS {
 
 	// wires = intermediateVariables | secret inputs | public inputs
 
+	// id's of internal variables are shifted to -1 (because we start from 1 to len(c.Variables)+1)
+	offset := -1
+	for i := 0; i < len(c.Variables); i++ {
+		c.Variables[i].id += offset
+	}
+
 	// id's of public (resp. secret) inputs are shifted to len(intermediateVariables) (resp. len(intermediateVariables)+len(secretInputs))
-	offset := len(c.Variables)
+	offset = len(c.Variables)
 	for i := 0; i < len(c.SecretInputs); i++ {
-		c.SecretInputs[i].ID += offset
+		c.SecretInputs[i].id += offset
 	}
 	offset = len(c.Variables) + len(c.SecretInputs)
 	for i := 0; i < len(c.PublicInputs); i++ {
-		c.PublicInputs[i].ID += offset
+		c.PublicInputs[i].id += offset
 	}
 
-	// same job for the variables in the gates
+	// same job for the Variables in the gates
 	for i := 0; i < len(c.Gates); i++ {
+		c.Gates[i].updateID(-1, Internal)
 		c.Gates[i].updateID(len(c.Variables), Secret)
 		c.Gates[i].updateID(len(c.Variables)+len(c.SecretInputs), Public)
 	}
-	// same job for the variables in the constraints
+	// same job for the Variables in the constraints
 	for i := 0; i < len(c.Constraints); i++ {
+		c.Constraints[i].updateID(-1, Internal)
 		c.Constraints[i].updateID(len(c.Variables), Secret)
 		c.Constraints[i].updateID(len(c.Variables)+len(c.SecretInputs), Public)
 	}
@@ -111,15 +119,15 @@ func (c *CS) toR1cs(id gurvy.ID) r1cs.R1CS {
 	for i := 0; i < len(c.Gates); i++ {
 		l := r1c.LinearExpression{}
 		for _, e := range c.Gates[i].L {
-			l = append(l, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			l = append(l, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		r := r1c.LinearExpression{}
 		for _, e := range c.Gates[i].R {
-			r = append(r, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			r = append(r, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		o := r1c.LinearExpression{}
 		for _, e := range c.Gates[i].O {
-			o = append(o, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			o = append(o, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		res.Constraints[i] = r1c.R1C{L: l, R: r, O: o, Solver: c.Gates[i].S}
 	}
@@ -129,15 +137,15 @@ func (c *CS) toR1cs(id gurvy.ID) r1cs.R1CS {
 	for i := 0; i < len(c.Constraints); i++ {
 		l := r1c.LinearExpression{}
 		for _, e := range c.Constraints[i].L {
-			l = append(l, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			l = append(l, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		r := r1c.LinearExpression{}
 		for _, e := range c.Constraints[i].R {
-			r = append(r, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			r = append(r, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		o := r1c.LinearExpression{}
 		for _, e := range c.Constraints[i].O {
-			o = append(o, r1c.Pack(e.Variable.ID, e.Coeff, 3))
+			o = append(o, r1c.Pack(e.Variable.id, e.Coeff, 3))
 		}
 		res.Constraints[i+offset] = r1c.R1C{L: l, R: r, O: o, Solver: c.Constraints[i].S}
 	}
@@ -176,11 +184,13 @@ func (c *CS) GetCoeffID(b *big.Int) int {
 	return idx
 }
 
-// Tag assign a key to a Variable to be able to monitor it when the system is solved
+// Tag assign a key to a variable to be able to monitor it when the system is solved
 func (c *CS) Tag(v Variable, tag string) {
 
+	c.checkIsAllocated(v)
+
 	// TODO do we allOoutputw inputs to be tagged? anyway returns an error instead of panicing
-	if v.Visibility != Internal {
+	if v.visibility != Internal {
 		panic("inputs cannot be tagged")
 	}
 
@@ -191,17 +201,21 @@ func (c *CS) Tag(v Variable, tag string) {
 			}
 		}
 	}
-	c.wireTags[v.ID] = append(c.wireTags[v.ID], tag)
+	c.wireTags[v.id-1] = append(c.wireTags[v.id], tag)
 }
 
-// creates a new wire, appends it on the list of wires of the circuit, sets
-// the wire's ID to the number of wires, and returns it
-func (c *CS) newInternalVariable() Variable {
+// NewInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
+// the wire's id to the number of wires, and returns it
+func (c *CS) NewInternalVariable() Variable {
 
 	var res Variable
 
-	res.Visibility = Internal
-	res.ID = len(c.Variables)
+	res.visibility = Internal
+
+	// the id 0 is reserved to check if a variable is not allocated (in case
+	// one write "var a frontend.Variable" without adding "cs.Allocate(a)" after.
+	res.id = len(c.Variables) + 1
+
 	c.Variables = append(c.Variables, res)
 
 	return res
@@ -210,4 +224,11 @@ func (c *CS) newInternalVariable() Variable {
 // getOneVariable returns the special "one_wire" of the circuit
 func (c *CS) getOneVariable() Variable {
 	return c.PublicInputs[0]
+}
+
+// checks if the variable is recorded in the circuit
+func (c *CS) checkIsAllocated(v Variable) {
+	if v.id == 0 && v.visibility == Internal {
+		panic("variable is non allocated")
+	}
 }

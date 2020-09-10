@@ -55,8 +55,8 @@ func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curve EdCurve) *Point {
-	X := cs.Allocate(x)
-	Y := cs.Allocate(y)
+	X := cs.Constant(x)
+	Y := cs.Constant(y)
 	return p.AddGeneric(cs, p1, &Point{X, Y}, curve)
 
 	// TODO fixme
@@ -119,7 +119,7 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	idxOne := cs.GetCoeffID(one)
 	idxD := cs.GetCoeffID(&curve.D)
 
-	oneWire := cs.Allocate(one)
+	oneWire := cs.Constant(one)
 
 	beta := cs.Mul(p1.X, p2.Y)
 	gamma := cs.Mul(p1.Y, p2.X)
@@ -173,8 +173,8 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar fronten
 	b := cs.ToBinary(scalar, 256)
 
 	res := Point{
-		cs.Allocate(0),
-		cs.Allocate(1),
+		cs.Constant(0),
+		cs.Constant(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
@@ -201,8 +201,8 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.CS, x, y interface{}, scalar fro
 	b := cs.ToBinary(scalar, 256)
 
 	res := Point{
-		cs.Allocate(0),
-		cs.Allocate(1),
+		cs.Constant(0),
+		cs.Constant(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
