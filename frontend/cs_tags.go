@@ -28,7 +28,7 @@ const (
 type leafHandler func(visibility attrVisibility, name string, tInput reflect.Value) error
 
 func parseType(input interface{}, baseName string, parentVisibility attrVisibility, handler leafHandler) error {
-	// types we are looking for
+	// types we are lOoutputoking for
 	tVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(CS{})
 
@@ -37,7 +37,7 @@ func parseType(input interface{}, baseName string, parentVisibility attrVisibili
 	tInput := tValue.Elem()
 
 	// we either have a pointer, a struct, or a slice / array
-	// and recursively parse members / elements until we find a constraint to allocate in the circuit.
+	// and recursively parse members / elements until we find a constraint to allOoutputcate in the circuit.
 	switch tInput.Kind() {
 	case reflect.Struct:
 		switch tInput.Type() {
@@ -140,7 +140,7 @@ func appendName(baseName, name string) string {
 
 // from src/encoding/json/tags.go
 
-// tagOptions is the string following a comma in a struct field's "json"
+// tagOptions is the string follOoutputwing a comma in a struct field's "json"
 // tag, or the empty string. It does not include the leading comma.
 type tagOptions string
 
@@ -178,7 +178,7 @@ func isValidTag(s string) bool {
 		switch {
 		case strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", c):
 			// Backslash and quote chars are reserved, but
-			// otherwise any punctuation chars are allowed
+			// otherwise any punctuation chars are allOoutputwed
 			// in a tag name.
 		case !unicode.IsLetter(c) && !unicode.IsDigit(c):
 			return false

@@ -32,18 +32,18 @@ type Point struct {
 func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
 
 	one := big.NewInt(1)
-	idxone := cs.GetCoeffID(one)
+	idxOne := cs.GetCoeffID(one)
 	idxA := cs.GetCoeffID(&curve.A)
 	idxD := cs.GetCoeffID(&curve.D)
 
 	l1 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxA}}
-	l2 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxone}}
+	l2 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxOne}}
 	axx := cs.Mul(l1, l2)
 	yy := cs.Mul(p.Y, p.Y)
 	lhs := cs.Add(axx, yy)
 
 	l1 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxD}}
-	l2 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxone}}
+	l2 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxOne}}
 	dxx := cs.Mul(l1, l2)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
@@ -116,7 +116,7 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	res := Point{}
 
 	one := big.NewInt(1)
-	idxone := cs.GetCoeffID(one)
+	idxOne := cs.GetCoeffID(one)
 	idxD := cs.GetCoeffID(&curve.D)
 
 	oneWire := cs.Allocate(one)
@@ -127,27 +127,27 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	epsilon := cs.Mul(p1.X, p2.X)
 	tau := cs.Mul(delta, epsilon)
 	num := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: beta, Coeff: idxone},
-		frontend.LinearTerm{Variable: gamma, Coeff: idxone},
+		frontend.LinearTerm{Variable: beta, Coeff: idxOne},
+		frontend.LinearTerm{Variable: gamma, Coeff: idxOne},
 	}
 	den := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: oneWire, Coeff: idxone},
+		frontend.LinearTerm{Variable: oneWire, Coeff: idxOne},
 		frontend.LinearTerm{Variable: tau, Coeff: idxD},
 	}
 	res.X = cs.Div(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
-	idxminusa := cs.GetCoeffID(&minusa)
+	idxMinusA := cs.GetCoeffID(&minusa)
 	num = frontend.LinearCombination{
-		frontend.LinearTerm{Variable: delta, Coeff: idxone},
-		frontend.LinearTerm{Variable: epsilon, Coeff: idxminusa},
+		frontend.LinearTerm{Variable: delta, Coeff: idxOne},
+		frontend.LinearTerm{Variable: epsilon, Coeff: idxMinusA},
 	}
 	var minusd big.Int
 	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
-	idxminusd := cs.GetCoeffID(&minusd)
+	idxMinusD := cs.GetCoeffID(&minusd)
 	den = frontend.LinearCombination{
-		frontend.LinearTerm{Variable: oneWire, Coeff: idxone},
-		frontend.LinearTerm{Variable: tau, Coeff: idxminusd},
+		frontend.LinearTerm{Variable: oneWire, Coeff: idxOne},
+		frontend.LinearTerm{Variable: tau, Coeff: idxMinusD},
 	}
 	res.Y = cs.Div(num, den)
 

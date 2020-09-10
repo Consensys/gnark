@@ -20,21 +20,21 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// Access gives the reach of a wire
-type Access int
+// Visibility gives the reach of a wire
+type Visibility int
 
 const (
-	SecretInput Access = iota
-	PublicInput
-	IntermediateVariable
+	Secret Visibility = iota
+	Public
+	Internal
 )
 
 // Variable of circuit
 type Variable struct {
-	IsBoolean bool
-	Reach     Access
-	ID        int // index of the wire in the corresponding list of wires (private, public or intermediate)
-	val       interface{}
+	IsBoolean  bool
+	Visibility Visibility
+	ID         int // index of the wire in the corresponding list of wires (private, public or intermediate)
+	val        interface{}
 }
 
 // LinearTerm linear expression
@@ -57,26 +57,26 @@ func (v *Variable) Assign(value interface{}) {
 	if v.val != nil {
 		panic("variable already assigned")
 	}
-	if v.Reach == IntermediateVariable {
+	if v.Visibility == Internal {
 		panic("only inputs (public or private) can be assigned")
 	}
 	v.val = value
 }
 
 // changes the ID of the variables of reach a in the gate to id+offset
-func (g *Gate) updateID(offset int, a Access) {
+func (g *Gate) updateID(offset int, a Visibility) {
 	for i := 0; i < len(g.L); i++ {
-		if g.L[i].Variable.Reach == a {
+		if g.L[i].Variable.Visibility == a {
 			g.L[i].Variable.ID += offset
 		}
 	}
 	for i := 0; i < len(g.R); i++ {
-		if g.R[i].Variable.Reach == a {
+		if g.R[i].Variable.Visibility == a {
 			g.R[i].Variable.ID += offset
 		}
 	}
 	for i := 0; i < len(g.O); i++ {
-		if g.O[i].Variable.Reach == a {
+		if g.O[i].Variable.Visibility == a {
 			g.O[i].Variable.ID += offset
 		}
 	}

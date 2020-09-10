@@ -57,7 +57,7 @@ func newCS() CS {
 
 	// first entry of circuit is ONE_WIRE
 	res.PublicInputsNames = append(res.PublicInputsNames, "ONE_WIRE")
-	res.PublicInputs = append(res.PublicInputs, Variable{false, PublicInput, 0, nil})
+	res.PublicInputs = append(res.PublicInputs, Variable{false, Public, 0, nil})
 
 	res.wireTags = make(map[int][]string)
 
@@ -81,13 +81,13 @@ func (c *CS) toR1cs(id gurvy.ID) r1cs.R1CS {
 
 	// same job for the variables in the gates
 	for i := 0; i < len(c.Gates); i++ {
-		c.Gates[i].updateID(len(c.Variables), SecretInput)
-		c.Gates[i].updateID(len(c.Variables)+len(c.SecretInputs), PublicInput)
+		c.Gates[i].updateID(len(c.Variables), Secret)
+		c.Gates[i].updateID(len(c.Variables)+len(c.SecretInputs), Public)
 	}
 	// same job for the variables in the constraints
 	for i := 0; i < len(c.Constraints); i++ {
-		c.Constraints[i].updateID(len(c.Variables), SecretInput)
-		c.Constraints[i].updateID(len(c.Variables)+len(c.SecretInputs), PublicInput)
+		c.Constraints[i].updateID(len(c.Variables), Secret)
+		c.Constraints[i].updateID(len(c.Variables)+len(c.SecretInputs), Public)
 	}
 
 	// setting up the result
@@ -179,8 +179,8 @@ func (c *CS) GetCoeffID(b *big.Int) int {
 // Tag assign a key to a Variable to be able to monitor it when the system is solved
 func (c *CS) Tag(v Variable, tag string) {
 
-	// TODO do we allow inputs to be tagged? anyway returns an error instead of panicing
-	if v.Reach != IntermediateVariable {
+	// TODO do we allOoutputw inputs to be tagged? anyway returns an error instead of panicing
+	if v.Visibility != Internal {
 		panic("inputs cannot be tagged")
 	}
 
@@ -196,11 +196,11 @@ func (c *CS) Tag(v Variable, tag string) {
 
 // creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's ID to the number of wires, and returns it
-func (c *CS) newIntermediateVariable() Variable {
+func (c *CS) newInternalVariable() Variable {
 
 	var res Variable
 
-	res.Reach = IntermediateVariable
+	res.Visibility = Internal
 	res.ID = len(c.Variables)
 	c.Variables = append(c.Variables, res)
 

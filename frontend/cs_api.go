@@ -26,7 +26,7 @@ import (
 // PublicInput creates a new public input
 func (c *CS) PublicInput(name string) Variable {
 	idx := len(c.PublicInputs)
-	res := Variable{false, PublicInput, idx, nil}
+	res := Variable{false, Public, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range c.PublicInputsNames {
@@ -43,7 +43,7 @@ func (c *CS) PublicInput(name string) Variable {
 // SecretInput creates a new public input
 func (c *CS) SecretInput(name string) Variable {
 	idx := len(c.SecretInputs)
-	res := Variable{false, SecretInput, idx, nil}
+	res := Variable{false, Secret, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range c.PublicInputsNames {
@@ -60,21 +60,21 @@ func (c *CS) SecretInput(name string) Variable {
 // Add adds 2 wires
 func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
-	lleft := LinearCombination{}
+	lLeft := LinearCombination{}
 
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
 		case Variable:
-			lleft = append(lleft, LinearTerm{t, idxone})
+			lLeft = append(lLeft, LinearTerm{t, idxOne})
 		default:
 			n := backend.FromInterface(t)
 			idxn := c.GetCoeffID(&n)
-			lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn})
+			lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
 		}
 	}
 	add(i1)
@@ -83,13 +83,13 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 		add(in[i])
 	}
 
-	lright := LinearCombination{
-		LinearTerm{c.PublicInputs[0], idxone},
+	lRight := LinearCombination{
+		LinearTerm{c.PublicInputs[0], idxOne},
 	}
-	lo := LinearCombination{
-		LinearTerm{res, idxone},
+	lOoutput := LinearCombination{
+		LinearTerm{res, idxOne},
 	}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -99,40 +99,40 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 // Sub Adds two wires
 func (c *CS) Sub(i1, i2 interface{}) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	one := big.NewInt(1)
-	minusone := big.NewInt(-1)
-	idxone := c.GetCoeffID(one)
-	idxminusone := c.GetCoeffID(minusone)
+	minusOne := big.NewInt(-1)
+	idxOne := c.GetCoeffID(one)
+	idxMinusOne := c.GetCoeffID(minusOne)
 
-	lleft := LinearCombination{}
+	lLeft := LinearCombination{}
 	switch t := i1.(type) {
 	case Variable:
-		lleft = append(lleft, LinearTerm{t, idxone})
+		lLeft = append(lLeft, LinearTerm{t, idxOne})
 	default:
 		n := backend.FromInterface(t)
 		idxn := c.GetCoeffID(&n)
-		lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn})
+		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
 	}
 
 	switch t := i2.(type) {
 	case Variable:
-		lleft = append(lleft, LinearTerm{t, idxminusone})
+		lLeft = append(lLeft, LinearTerm{t, idxMinusOne})
 	default:
 		n := backend.FromInterface(t)
-		n.Mul(&n, minusone)
+		n.Mul(&n, minusOne)
 		idxn := c.GetCoeffID(&n)
-		lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn})
+		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
 	}
 
-	lright := LinearCombination{
-		LinearTerm{c.PublicInputs[0], idxone},
+	lRight := LinearCombination{
+		LinearTerm{c.PublicInputs[0], idxOne},
 	}
-	lo := LinearCombination{
-		LinearTerm{res, idxone},
+	lOoutput := LinearCombination{
+		LinearTerm{res, idxOne},
 	}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -143,45 +143,45 @@ func (c *CS) Sub(i1, i2 interface{}) Variable {
 func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
 	mul := func(_i1, _i2 interface{}) Variable {
 
-		_res := c.newIntermediateVariable()
+		_res := c.newInternalVariable()
 
-		lleft := LinearCombination{}
-		lright := LinearCombination{}
+		lLeft := LinearCombination{}
+		lRight := LinearCombination{}
 
 		// left
 		switch t1 := _i1.(type) {
 		case LinearCombination:
-			lleft = make([]LinearTerm, len(t1))
-			copy(lleft, t1)
+			lLeft = make([]LinearTerm, len(t1))
+			copy(lLeft, t1)
 		case Variable:
-			lleft = append(lleft, LinearTerm{t1, idxone})
+			lLeft = append(lLeft, LinearTerm{t1, idxOne})
 		default:
 			n1 := backend.FromInterface(t1)
 			idxn1 := c.GetCoeffID(&n1)
-			lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn1})
+			lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn1})
 		}
 
 		// right
 		switch t2 := _i2.(type) {
 		case LinearCombination:
-			lright = make([]LinearTerm, len(t2))
-			copy(lright, t2)
+			lRight = make([]LinearTerm, len(t2))
+			copy(lRight, t2)
 		case Variable:
-			lright = append(lright, LinearTerm{t2, idxone})
+			lRight = append(lRight, LinearTerm{t2, idxOne})
 		default:
 			n2 := backend.FromInterface(t2)
 			idxn2 := c.GetCoeffID(&n2)
-			lright = append(lright, LinearTerm{c.getOneVariable(), idxn2})
+			lRight = append(lRight, LinearTerm{c.getOneVariable(), idxn2})
 		}
 
-		lo := LinearCombination{
-			LinearTerm{_res, idxone},
+		lOoutput := LinearCombination{
+			LinearTerm{_res, idxOne},
 		}
-		g := Gate{lleft, lright, lo, r1c.SingleOutput}
+		g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 		c.Gates = append(c.Gates, g)
 		return _res
 	}
@@ -197,16 +197,16 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 // Inverse inverses a variable
 func (c *CS) Inverse(v Variable) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	// find the entry in c.Coeffs corresponding to 1
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
-	lleft := LinearCombination{LinearTerm{res, idxone}}
-	lright := LinearCombination{LinearTerm{v, idxone}}
-	lo := LinearCombination{LinearTerm{c.getOneVariable(), idxone}}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	lLeft := LinearCombination{LinearTerm{res, idxOne}}
+	lRight := LinearCombination{LinearTerm{v, idxOne}}
+	lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 	c.Gates = append(c.Gates, g)
 
 	return res
@@ -215,43 +215,43 @@ func (c *CS) Inverse(v Variable) Variable {
 // Div divides two constraints (i1/i2)
 func (c *CS) Div(i1, i2 interface{}) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	// find the entry in c.Coeffs corresponding to 1
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
-	// lo
-	lo := LinearCombination{}
+	// lOoutput
+	lOoutput := LinearCombination{}
 	switch t1 := i1.(type) {
 	case LinearCombination:
-		lo = make([]LinearTerm, len(t1))
-		copy(lo, t1)
+		lOoutput = make([]LinearTerm, len(t1))
+		copy(lOoutput, t1)
 	case Variable:
-		lo = append(lo, LinearTerm{t1, idxone})
+		lOoutput = append(lOoutput, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
 		idxn1 := c.GetCoeffID(&n1)
-		lo = append(lo, LinearTerm{c.getOneVariable(), idxn1})
+		lOoutput = append(lOoutput, LinearTerm{c.getOneVariable(), idxn1})
 	}
 
 	// left
-	lleft := LinearCombination{}
+	lLeft := LinearCombination{}
 	switch t2 := i2.(type) {
 	case LinearCombination:
-		lleft = make([]LinearTerm, len(t2))
-		copy(lleft, t2)
+		lLeft = make([]LinearTerm, len(t2))
+		copy(lLeft, t2)
 	case Variable:
-		lleft = append(lleft, LinearTerm{t2, idxone})
+		lLeft = append(lLeft, LinearTerm{t2, idxOne})
 	default:
 		n2 := backend.FromInterface(t2)
 		idxn2 := c.GetCoeffID(&n2)
-		lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn2})
+		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn2})
 	}
 
-	lright := LinearCombination{LinearTerm{res, idxone}}
+	lRight := LinearCombination{LinearTerm{res, idxOne}}
 
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -266,25 +266,25 @@ func (c *CS) Xor(a, b Variable) Variable {
 
 	two := big.NewInt(2)
 	one := big.NewInt(1)
-	minusone := big.NewInt(-1)
+	minusOne := big.NewInt(-1)
 
 	idxtwo := c.GetCoeffID(two)
-	idxone := c.GetCoeffID(one)
-	idxminusone := c.GetCoeffID(minusone)
+	idxOne := c.GetCoeffID(one)
+	idxMinusOne := c.GetCoeffID(minusOne)
 
-	res := c.newIntermediateVariable()
-	lleft := LinearCombination{
+	res := c.newInternalVariable()
+	lLeft := LinearCombination{
 		LinearTerm{a, idxtwo},
 	}
-	lright := LinearCombination{
-		LinearTerm{b, idxone},
+	lRight := LinearCombination{
+		LinearTerm{b, idxOne},
 	}
-	lo := LinearCombination{
-		LinearTerm{a, idxone},
-		LinearTerm{b, idxone},
-		LinearTerm{res, idxminusone},
+	lOoutput := LinearCombination{
+		LinearTerm{a, idxOne},
+		LinearTerm{b, idxOne},
+		LinearTerm{res, idxMinusOne},
 	}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -311,20 +311,20 @@ func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 	}
 
 	res := make([]Variable, nbBits)
-	lleft := make([]LinearTerm, nbBits)
+	lLeft := make([]LinearTerm, nbBits)
 	for i := 0; i < nbBits; i++ {
-		res[i] = c.newIntermediateVariable()
+		res[i] = c.newInternalVariable()
 		c.MustBeBoolean(res[i])
-		lleft[i].Variable = res[i]
-		lleft[i].Coeff = idx[i]
+		lLeft[i].Variable = res[i]
+		lLeft[i].Coeff = idx[i]
 	}
-	lright := LinearCombination{
+	lRight := LinearCombination{
 		LinearTerm{c.getOneVariable(), idx[0]},
 	}
-	lo := LinearCombination{
+	lOoutput := LinearCombination{
 		LinearTerm{a, idx[0]},
 	}
-	g := Gate{lleft, lright, lo, r1c.BinaryDec}
+	g := Gate{lLeft, lRight, lOoutput, r1c.BinaryDec}
 
 	c.Gates = append(c.Gates, g)
 
@@ -335,7 +335,7 @@ func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 // FromBinary packs b, seen as a fr.Element in little endian
 func (c *CS) FromBinary(b ...Variable) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	l := len(b)
 
@@ -353,18 +353,18 @@ func (c *CS) FromBinary(b ...Variable) Variable {
 		idx[i] = c.GetCoeffID(&tmp)
 	}
 
-	lleft := make([]LinearTerm, l)
+	lLeft := make([]LinearTerm, l)
 	for i := 0; i < l; i++ {
-		lleft[i].Variable = b[i]
-		lleft[i].Coeff = idx[i]
+		lLeft[i].Variable = b[i]
+		lLeft[i].Coeff = idx[i]
 	}
-	lright := LinearCombination{
+	lRight := LinearCombination{
 		LinearTerm{c.getOneVariable(), idx[0]},
 	}
-	lo := LinearCombination{
+	lOoutput := LinearCombination{
 		LinearTerm{res, idx[0]},
 	}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -374,88 +374,88 @@ func (c *CS) FromBinary(b ...Variable) Variable {
 // Select if b is true, yields c1 else yields c2
 func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	one := big.NewInt(1)
-	minusone := big.NewInt(-1)
-	idxone := c.GetCoeffID(one)
-	idxminusone := c.GetCoeffID(minusone)
+	minusOne := big.NewInt(-1)
+	idxOne := c.GetCoeffID(one)
+	idxMinusOne := c.GetCoeffID(minusOne)
 
-	lleft := LinearCombination{
-		LinearTerm{b, idxone},
+	lLeft := LinearCombination{
+		LinearTerm{b, idxOne},
 	}
 
-	// lright, first part
-	lright := LinearCombination{}
+	// lRight, first part
+	lRight := LinearCombination{}
 	switch t1 := i1.(type) {
 	case LinearCombination:
-		lright = make([]LinearTerm, len(t1))
-		copy(lright, t1)
+		lRight = make([]LinearTerm, len(t1))
+		copy(lRight, t1)
 	case Variable:
-		lright = append(lright, LinearTerm{t1, idxone})
+		lRight = append(lRight, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
 		idx1 := c.GetCoeffID(&n1)
-		lright = append(lright, LinearTerm{c.getOneVariable(), idx1})
+		lRight = append(lRight, LinearTerm{c.getOneVariable(), idx1})
 	}
 
-	// lright, second part
+	// lRight, second part
 	toAppend := LinearCombination{}
 	switch t2 := i2.(type) {
 	case LinearCombination:
 		for _, e := range t2 {
 			coef := c.Coeffs[e.Coeff]
-			coef.Mul(&coef, minusone)
+			coef.Mul(&coef, minusOne)
 			idcoef := c.GetCoeffID(&coef)
 			toAppend = append(toAppend, LinearTerm{e.Variable, idcoef})
 		}
 	case Variable:
-		toAppend = append(toAppend, LinearTerm{t2, idxminusone})
+		toAppend = append(toAppend, LinearTerm{t2, idxMinusOne})
 	default:
 		n2 := backend.FromInterface(t2)
 		idx2 := c.GetCoeffID(&n2)
 		toAppend = append(toAppend, LinearTerm{c.getOneVariable(), idx2})
 	}
-	lright = append(lright, toAppend...)
+	lRight = append(lRight, toAppend...)
 
-	lo := LinearCombination{
-		LinearTerm{res, idxone},
+	lOoutput := LinearCombination{
+		LinearTerm{res, idxOne},
 	}
-	lo = append(lo, toAppend...)
+	lOoutput = append(lOoutput, toAppend...)
 
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
 	return res
 }
 
-// Allocate will return an allocated Variable from input {Constraint, element, uint64, int, ...}
+// Allocate will return an allOoutputcated Variable from input {Constraint, element, uint64, int, ...}
 func (c *CS) Allocate(input interface{}) Variable {
 
-	res := c.newIntermediateVariable()
+	res := c.newInternalVariable()
 
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
-	//lleft
-	lleft := LinearCombination{}
+	//lLeft
+	lLeft := LinearCombination{}
 	switch t := input.(type) {
 	case Variable:
-		lleft = append(lleft, LinearTerm{t, idxone})
+		lLeft = append(lLeft, LinearTerm{t, idxOne})
 	default:
 		n := backend.FromInterface(t)
 		if n.Cmp(one) == 0 {
 			return c.getOneVariable()
 		}
 		idxn := c.GetCoeffID(&n)
-		lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn})
+		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
 	}
 
-	lright := LinearCombination{LinearTerm{c.getOneVariable(), idxone}}
-	lo := LinearCombination{LinearTerm{res, idxone}}
+	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
+	lOoutput := LinearCombination{LinearTerm{res, idxOne}}
 
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Gates = append(c.Gates, g)
 
@@ -467,40 +467,40 @@ func (c *CS) Allocate(input interface{}) Variable {
 func (c *CS) MustBeEqual(i1, i2 interface{}) {
 
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
+	idxOne := c.GetCoeffID(one)
 
 	//left
-	lleft := LinearCombination{}
+	lLeft := LinearCombination{}
 	switch t1 := i1.(type) {
 	case LinearCombination:
-		lleft = make([]LinearTerm, len(t1))
-		copy(lleft, t1)
+		lLeft = make([]LinearTerm, len(t1))
+		copy(lLeft, t1)
 	case Variable:
-		lleft = append(lleft, LinearTerm{t1, idxone})
+		lLeft = append(lLeft, LinearTerm{t1, idxOne})
 	default:
 		n1 := backend.FromInterface(t1)
 		idxn1 := c.GetCoeffID(&n1)
-		lleft = append(lleft, LinearTerm{c.getOneVariable(), idxn1})
+		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn1})
 	}
 
-	// lo
-	lo := LinearCombination{}
+	// lOoutput
+	lOoutput := LinearCombination{}
 	switch t2 := i2.(type) {
 	case LinearCombination:
-		lo = make([]LinearTerm, len(t2))
-		copy(lo, t2)
+		lOoutput = make([]LinearTerm, len(t2))
+		copy(lOoutput, t2)
 	case Variable:
-		lo = append(lo, LinearTerm{t2, idxone})
+		lOoutput = append(lOoutput, LinearTerm{t2, idxOne})
 	default:
 		n2 := backend.FromInterface(t2)
 		idxn2 := c.GetCoeffID(&n2)
-		lo = append(lo, LinearTerm{c.getOneVariable(), idxn2})
+		lOoutput = append(lOoutput, LinearTerm{c.getOneVariable(), idxn2})
 	}
 
 	// right
-	lright := LinearCombination{LinearTerm{c.getOneVariable(), idxone}}
+	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
 
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
 	c.Constraints = append(c.Constraints, g)
 }
@@ -513,28 +513,28 @@ func (c *CS) MustBeBoolean(a Variable) {
 
 	zero := big.NewInt(0)
 	one := big.NewInt(1)
-	minusone := big.NewInt(-1)
-	idxone := c.GetCoeffID(one)
-	idxminusone := c.GetCoeffID(minusone)
-	idxzero := c.GetCoeffID(zero)
+	minusOne := big.NewInt(-1)
+	idxOne := c.GetCoeffID(one)
+	idxMinusOne := c.GetCoeffID(minusOne)
+	idxZero := c.GetCoeffID(zero)
 
-	lleft := LinearCombination{
-		LinearTerm{a, idxone},
+	lLeft := LinearCombination{
+		LinearTerm{a, idxOne},
 	}
-	lright := LinearCombination{
-		LinearTerm{c.getOneVariable(), idxone},
-		LinearTerm{a, idxminusone},
+	lRight := LinearCombination{
+		LinearTerm{c.getOneVariable(), idxOne},
+		LinearTerm{a, idxMinusOne},
 	}
-	lo := LinearCombination{
-		LinearTerm{c.getOneVariable(), idxzero},
+	lOoutput := LinearCombination{
+		LinearTerm{c.getOneVariable(), idxZero},
 	}
-	g := Gate{lleft, lright, lo, r1c.SingleOutput}
+	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 	c.Constraints = append(c.Constraints, g)
 	a.IsBoolean = true
 }
 
 // MustBeLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
-// https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
+// https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
 func (c *CS) MustBeLessOrEqual(w Variable, bound interface{}) {
 
 	switch b := bound.(type) {
@@ -559,10 +559,10 @@ func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
 
 	zero := big.NewInt(0)
 	one := big.NewInt(1)
-	minusone := big.NewInt(-1)
-	idxzero := c.GetCoeffID(zero)
-	idxone := c.GetCoeffID(one)
-	idxminusone := c.GetCoeffID(minusone)
+	minusOne := big.NewInt(-1)
+	idxZero := c.GetCoeffID(zero)
+	idxOne := c.GetCoeffID(one)
+	idxMinusOne := c.GetCoeffID(minusOne)
 
 	for i := nbBits - 1; i >= 0; i-- {
 		p1 := c.Mul(p[i+1], binw[i])
@@ -570,18 +570,18 @@ func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
 
 		zero := c.Allocate(0)
 		t := c.Select(binbound[i], zero, p[i+1])
-		lleft := LinearCombination{
-			LinearTerm{c.getOneVariable(), idxone},
-			LinearTerm{t, idxminusone},
-			LinearTerm{binw[i], idxminusone},
+		lLeft := LinearCombination{
+			LinearTerm{c.getOneVariable(), idxOne},
+			LinearTerm{t, idxMinusOne},
+			LinearTerm{binw[i], idxMinusOne},
 		}
-		lright := LinearCombination{
-			LinearTerm{binw[i], idxone},
+		lRight := LinearCombination{
+			LinearTerm{binw[i], idxOne},
 		}
-		lo := LinearCombination{
-			LinearTerm{c.getOneVariable(), idxzero},
+		lOoutput := LinearCombination{
+			LinearTerm{c.getOneVariable(), idxZero},
 		}
-		g := Gate{lleft, lright, lo, r1c.SingleOutput}
+		g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 		c.Constraints = append(c.Constraints, g)
 	}
 
@@ -604,25 +604,25 @@ func (c *CS) mustBeLessOrEqCst(w Variable, bound big.Int) {
 	p := make([]Variable, nbBits+1)
 
 	var zero big.Int
-	idxzero := c.GetCoeffID(&zero)
+	idxZero := c.GetCoeffID(&zero)
 	one := big.NewInt(1)
-	idxone := c.GetCoeffID(one)
-	minusone := big.NewInt(-1)
-	idxminusone := c.GetCoeffID(minusone)
+	idxOne := c.GetCoeffID(one)
+	minusOne := big.NewInt(-1)
+	idxMinusOne := c.GetCoeffID(minusOne)
 	p[nbBits] = c.Allocate(1)
 	for i := nbWords - 1; i >= 0; i-- {
 		for j := 0; j < wordSize; j++ {
 			b := (binbound[i] >> (wordSize - 1 - j)) & 1
 			if b == 0 {
 				p[(i+1)*wordSize-1-j] = p[(i+1)*wordSize-j]
-				lleft := LinearCombination{
-					LinearTerm{c.getOneVariable(), idxone},
-					LinearTerm{p[(i+1)*wordSize-j], idxminusone},
-					LinearTerm{binw[(i+1)*wordSize-1-j], idxminusone},
+				lLeft := LinearCombination{
+					LinearTerm{c.getOneVariable(), idxOne},
+					LinearTerm{p[(i+1)*wordSize-j], idxMinusOne},
+					LinearTerm{binw[(i+1)*wordSize-1-j], idxMinusOne},
 				}
-				lright := LinearCombination{LinearTerm{binw[(i+1)*wordSize-1-j], idxone}}
-				lo := LinearCombination{LinearTerm{c.getOneVariable(), idxzero}}
-				g := Gate{lleft, lright, lo, r1c.SingleOutput}
+				lRight := LinearCombination{LinearTerm{binw[(i+1)*wordSize-1-j], idxOne}}
+				lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxZero}}
+				g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 				c.Constraints = append(c.Constraints, g)
 
 			} else {

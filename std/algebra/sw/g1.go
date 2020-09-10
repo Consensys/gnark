@@ -71,33 +71,33 @@ func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
-	idxone := cs.GetCoeffID(one)
-	idxminusone := cs.GetCoeffID(minusOne)
+	idxOne := cs.GetCoeffID(one)
+	idxMinusOne := cs.GetCoeffID(minusOne)
 
 	l1 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxone},
-		frontend.LinearTerm{Variable: p.Y, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: p1.Y, Coeff: idxOne},
+		frontend.LinearTerm{Variable: p.Y, Coeff: idxMinusOne},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxone},
-		frontend.LinearTerm{Variable: p.X, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: p1.X, Coeff: idxOne},
+		frontend.LinearTerm{Variable: p.X, Coeff: idxMinusOne},
 	}
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxone},
-		frontend.LinearTerm{Variable: p.X, Coeff: idxminusone},
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxOne},
+		frontend.LinearTerm{Variable: p.X, Coeff: idxMinusOne},
+		frontend.LinearTerm{Variable: p1.X, Coeff: idxMinusOne},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p.X, l)
 	t2 := cs.Mul(l, _x)
 	l3 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: t1, Coeff: idxone},
-		frontend.LinearTerm{Variable: t2, Coeff: idxminusone},
-		frontend.LinearTerm{Variable: p.Y, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: t1, Coeff: idxOne},
+		frontend.LinearTerm{Variable: t2, Coeff: idxMinusOne},
+		frontend.LinearTerm{Variable: p.Y, Coeff: idxMinusOne},
 	}
 	p.Y = cs.Mul(l3, 1)
 
@@ -234,36 +234,36 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 	c2.SetInt64(-2)
 	c3.SetInt64(-1)
 
-	idxthree := cs.GetCoeffID(&t)
-	idxtwo := cs.GetCoeffID(&d)
-	idxone := cs.GetCoeffID(&c1)
-	idxminustwo := cs.GetCoeffID(&c2)
-	idxminusone := cs.GetCoeffID(&c3)
+	idxThree := cs.GetCoeffID(&t)
+	idxTwo := cs.GetCoeffID(&d)
+	idxOne := cs.GetCoeffID(&c1)
+	idxMinusTwo := cs.GetCoeffID(&c2)
+	idxMinusOne := cs.GetCoeffID(&c3)
 
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	x2 := cs.Mul(p1.X, p1.X)
 	cs.Mul(p1.X, p1.X)
 	l1 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: x2, Coeff: idxthree},
+		frontend.LinearTerm{Variable: x2, Coeff: idxThree},
 	}
 	l2 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxtwo},
+		frontend.LinearTerm{Variable: p1.Y, Coeff: idxTwo},
 	}
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
 	_x := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxone},
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxminustwo},
+		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxOne},
+		frontend.LinearTerm{Variable: p1.X, Coeff: idxMinusTwo},
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p1.X, l)
 	t2 := cs.Mul(l, _x)
 	l3 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: t1, Coeff: idxone},
-		frontend.LinearTerm{Variable: t2, Coeff: idxminusone},
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxminusone},
+		frontend.LinearTerm{Variable: t1, Coeff: idxOne},
+		frontend.LinearTerm{Variable: t2, Coeff: idxMinusOne},
+		frontend.LinearTerm{Variable: p1.Y, Coeff: idxMinusOne},
 	}
 	p.Y = cs.Mul(l3, 1)
 

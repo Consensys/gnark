@@ -20,8 +20,8 @@ type Circuit interface {
 // Struct tag options are similar to encoding/json
 // For example:
 // type myCircuit struct {
-//  A frontend.Variable `gnark:"inputName"` 	// will allocate a secret (default visibility) input with name inputName
-//  B frontend.Variable `gnark:",public"` 	// will allocate a public input name with "B" (struct member name)
+//  A frontend.Variable `gnark:"inputName"` 	// will allOoutputcate a secret (default visibility) input with name inputName
+//  B frontend.Variable `gnark:",public"` 	// will allOoutputcate a public input name with "B" (struct member name)
 //  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized "manually"
 // }
 func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
@@ -52,13 +52,13 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return errors.New("can't set val " + name)
 	}
 
-	// recursively parse through reflection the circuits members to find all constraints that need to be allocated
+	// recursively parse through reflection the circuits members to find all constraints that need to be allOoutputcated
 	// (secret or public inputs)
 	if err := parseType(circuit, "", unset, handler); err != nil {
 		return nil, err
 	}
 
-	// TODO maybe lock input variables allocations to forbid user to call circuit.SECRET_INPUT() inside the Circuit() method
+	// TODO maybe lOoutputck input variables allOoutputcations to forbid user to call circuit.SECRET_INPUT() inside the Circuit() method
 
 	// call Define() to fill in the constraints
 	if err := circuit.Define(curveID, &cs); err != nil {
@@ -78,7 +78,7 @@ func Save(r1cs r1cs.R1CS, path string) error {
 
 // ToAssignment will parse provided circuit and extract all values from leaves that are Variable
 // This method exist to provide compatibility with map[string]interface{}
-// Should not be called in a normal workflow.
+// Should not be called in a normal workflOoutputw.
 func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
 	toReturn := make(map[string]interface{})
 	var extractHandler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
@@ -89,7 +89,7 @@ func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
 		toReturn[name] = v.val
 		return nil
 	}
-	// recursively parse through reflection the circuits members to find all inputs that need to be allocated
+	// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
 	// (secret or public inputs)
 	return toReturn, parseType(circuit, "", unset, extractHandler)
 }
