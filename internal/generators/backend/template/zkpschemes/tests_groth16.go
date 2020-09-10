@@ -94,7 +94,7 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
-	cs.MustBeEqual(circuit.X, circuit.Y)
+	cs.AssertIsEqual(circuit.X, circuit.Y)
 	return nil 
 }
 
