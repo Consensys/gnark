@@ -52,7 +52,7 @@ func newConstraintSystem() ConstraintSystem {
 		internalVariables:   make([]Variable, 0, initialCapacity),
 		coeffs:              make([]big.Int, 0),
 		constraints:         make([]r1c.R1C, 0, initialCapacity),
-		assertions:          make([]r1c.R1C, 0, initialCapacity),
+		assertions:          make([]r1c.R1C, 0),
 	}
 
 	// first entry of circuit is backend.OneWire

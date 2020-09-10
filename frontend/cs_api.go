@@ -211,7 +211,8 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	O := r1c.LinearExpression{}
 	switch t1 := i1.(type) {
 	case r1c.LinearExpression:
-		O = t1
+		O = make(r1c.LinearExpression, len(t1))
+		copy(O, t1)
 	case Variable:
 		O = append(O, cs.Term(t1, bOne))
 	default:
@@ -223,7 +224,8 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	L := r1c.LinearExpression{}
 	switch t2 := i2.(type) {
 	case r1c.LinearExpression:
-		L = t2
+		L = make(r1c.LinearExpression, len(t2))
+		copy(L, t2)
 	case Variable:
 		L = append(L, cs.Term(t2, bOne))
 	default:
