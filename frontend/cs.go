@@ -55,6 +55,7 @@ func newCS() CS {
 	res.coeffs = make([]big.Int, 0) // the coeffs are indexed, most of them are 0,+-1,+-2,+-3, no need for enormous capacity
 
 	res.gates = make([]gate, 0, initialCapacity)
+	res.constraints = make([]gate, 0, initialCapacity)
 
 	// first entry of circuit is ONE_WIRE
 	res.publicInputsNames = append(res.publicInputsNames, "ONE_WIRE")
