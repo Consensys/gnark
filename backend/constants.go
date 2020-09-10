@@ -19,17 +19,17 @@ import "errors"
 // OneWire is the assignment label / name used for the constant wire one
 const OneWire = "ONE_WIRE"
 
-// Visibility type alias on string to define circuit input's visibility
-type Visibility string
-
-// Possible Visibility attributes for circuit inputs
-const (
-	Secret Visibility = "secret"
-	Public Visibility = "public"
-)
-
 // ErrInputNotSet can be generated when solving the R1CS (a missing assignment) or running a Verifier
 var ErrInputNotSet = errors.New("input not set")
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
+
+type Visibility uint8
+
+const (
+	Unset Visibility = iota
+	Internal
+	Secret
+	Public
+)

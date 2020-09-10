@@ -42,7 +42,7 @@ func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition
-func (h MiMC) Hash(cs *frontend.CS, data ...frontend.Variable) frontend.Variable {
+func (h MiMC) Hash(cs *frontend.ConstraintSystem, data ...frontend.Variable) frontend.Variable {
 
 	var digest frontend.Variable
 	digest = cs.Constant(0)

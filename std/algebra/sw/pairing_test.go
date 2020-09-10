@@ -31,7 +31,7 @@ type lineEvalBLS377 struct {
 	P    G1Jac `gnark:",public"`
 }
 
-func (circuit *lineEvalBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *lineEvalBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.MustBeEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -85,7 +85,7 @@ type lineEvalAffineBLS377 struct {
 	P    G1Affine `gnark:",public"`
 }
 
-func (circuit *lineEvalAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *lineEvalAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalAffineBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.MustBeEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -137,7 +137,7 @@ type pairingAffineBLS377 struct {
 	pairingRes bls377.PairingResult
 }
 
-func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -182,7 +182,7 @@ type pairingBLS377 struct {
 	pairingRes bls377.PairingResult
 }
 
-func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -256,7 +256,7 @@ func addExpectedFP12(e12 *bls377.PairingResult, tagPrefix string, expectedValues
 	expectedValues[tagPrefix+".C1.B2.A1"] = e12.C1.B2.A1
 }
 
-func mustbeEq(cs *frontend.CS, fp12 fields.E12, e12 *bls377.PairingResult, tagPrefix string) {
+func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls377.PairingResult, tagPrefix string) {
 	cs.Tag(fp12.C0.B0.A0, tagPrefix+".C0.B0.A0")
 	cs.Tag(fp12.C0.B0.A1, tagPrefix+".C0.B0.A1")
 	cs.Tag(fp12.C0.B1.A0, tagPrefix+".C0.B1.A0")

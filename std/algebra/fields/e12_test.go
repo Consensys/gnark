@@ -34,7 +34,7 @@ type fp12Add struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -69,7 +69,7 @@ type fp12Sub struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -104,7 +104,7 @@ type fp12Mul struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
@@ -140,7 +140,7 @@ type fp12Conjugate struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Conjugate(cs, &circuit.A)
 	expected.MustBeEqual(cs, circuit.C)
@@ -174,7 +174,7 @@ type fp12MulByV struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV(cs, &circuit.A, &circuit.B, ext)
@@ -214,7 +214,7 @@ type fp12MulByV2W struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV2W(cs, &circuit.A, &circuit.B, ext)
@@ -254,7 +254,7 @@ type fp12MulByVW struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByVW(cs, &circuit.A, &circuit.B, ext)
@@ -293,7 +293,7 @@ type fp12Frobenius struct {
 	C, D, E E12 `gnark:",public"`
 }
 
-func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	fb := E12{}
 	fb.Frobenius(cs, &circuit.A, ext)
@@ -339,7 +339,7 @@ type fp12Inverse struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Inverse(cs, &circuit.A, ext)
@@ -373,7 +373,7 @@ type fp12FixedExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
@@ -414,7 +414,7 @@ type fp12FinalExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)

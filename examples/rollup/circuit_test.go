@@ -31,7 +31,7 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (t *circuitUpdateAccount) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}

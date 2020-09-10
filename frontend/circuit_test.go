@@ -17,7 +17,7 @@ type benchCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < n; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

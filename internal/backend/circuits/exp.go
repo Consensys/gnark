@@ -10,7 +10,7 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	o := cs.Constant(1)
 	b := cs.ToBinary(circuit.E, 4)
 

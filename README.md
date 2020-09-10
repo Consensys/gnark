@@ -94,7 +94,7 @@ type CubicCircuit struct {
 	Y frontend.Variable `gnark:"y, public"`
 }
 
-func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	//  x**3 + x + 5 == y
 	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
 	cs.MustBeEqual(circuit.Y, cs.Add(x3, circuit.X, 5))

@@ -19,218 +19,189 @@ package frontend
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 )
 
-// CS represents a Groth16 like circuit
-type CS struct {
-	publicInputsNames []string         // entry i: name of the public input whose ID is i
-	secretInputsName  []string         // entry i: name of the private input whose ID is i
-	PublicInputs      []Variable       // entry i: public input whose ID is i
-	secretInputs      []Variable       // entry i: private input whose ID is i
-	variables         []Variable       // entry i: intermediate wire whose ID is i
-	coeffs            []big.Int        // list of coefficients
-	gates             []gate           // list of groth16 gates (perhaps even PLONK gate if we interface it?)
-	constraints       []gate           // list of constraints (it differs from gate because it does not yield any new value)
-	wireTags          map[int][]string // optional tags -- debug info
+// ConstraintSystem represents a Groth16 like circuit
+type ConstraintSystem struct {
+	publicVariableNames []string         // entry i: name of the public input whose ID is i
+	secretVariableNames []string         // entry i: name of the private input whose ID is i
+	publicVariables     []Variable       // entry i: public input whose ID is i
+	secretVariables     []Variable       // entry i: private input whose ID is i
+	internalVariables   []Variable       // entry i: intermediate wire whose ID is i
+	coeffs              []big.Int        // list of coefficients
+	constraints         []r1c.R1C        // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions          []r1c.R1C        // list of R1C that yield no output (for example ensuring v1 == v2)
+	wireTags            map[int][]string // optional tags -- debug info
+	oneTerm             r1c.Term
 }
 
 const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
 
-// newCS outputs a new circuit
-func newCS() CS {
+// newConstraintSystem outputs a new circuit
+func newConstraintSystem() ConstraintSystem {
 
-	var res CS
+	cs := ConstraintSystem{
+		publicVariableNames: make([]string, 1),
+		publicVariables:     make([]Variable, 1),
+		secretVariableNames: make([]string, 0),
+		secretVariables:     make([]Variable, 0),
+		internalVariables:   make([]Variable, 0, initialCapacity),
+		coeffs:              make([]big.Int, 0),
+		constraints:         make([]r1c.R1C, 0, initialCapacity),
+		assertions:          make([]r1c.R1C, 0, initialCapacity),
+	}
 
-	res.publicInputsNames = make([]string, 0)
-	res.PublicInputs = make([]Variable, 0)
+	// first entry of circuit is backend.OneWire
+	cs.publicVariableNames[0] = backend.OneWire
+	cs.publicVariables[0] = Variable{false, backend.Public, 0, nil}
+	cs.oneTerm = cs.Term(cs.publicVariables[0], bOne)
 
-	res.secretInputsName = make([]string, 0)
-	res.secretInputs = make([]Variable, 0)
+	// TODO tags will soon die.
+	cs.wireTags = make(map[int][]string)
 
-	res.variables = make([]Variable, 0, initialCapacity)
-
-	res.coeffs = make([]big.Int, 0) // the coeffs are indexed, most of them are 0,+-1,+-2,+-3, no need for enormous capacity
-
-	res.gates = make([]gate, 0, initialCapacity)
-	res.constraints = make([]gate, 0, initialCapacity)
-
-	// first entry of circuit is ONE_WIRE
-	res.publicInputsNames = append(res.publicInputsNames, "ONE_WIRE")
-	res.PublicInputs = append(res.PublicInputs, Variable{false, Public, 0, nil})
-
-	res.wireTags = make(map[int][]string)
-
-	return res
+	return cs
 }
 
-// ToR1cs casting to R1CS
-func (c *CS) toR1cs(id gurvy.ID) r1cs.R1CS {
+var (
+	bMinusOne = new(big.Int).SetInt64(-1)
+	bZero     = new(big.Int)
+	bOne      = new(big.Int).SetInt64(1)
+	bTwo      = new(big.Int).SetInt64(2)
+)
+
+func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
+	if v.visibility == backend.Unset {
+		panic("variable is not allocated.")
+	}
+	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
+	if coeff.Cmp(bZero) == 0 {
+		term.SetCoeffValue(0)
+	} else if coeff.Cmp(bOne) == 0 {
+		term.SetCoeffValue(1)
+	} else if coeff.Cmp(bTwo) == 0 {
+		term.SetCoeffValue(2)
+	} else if coeff.Cmp(bMinusOne) == 0 {
+		term.SetCoeffValue(-1)
+	}
+	return term
+}
+
+// toR1CS constructs a rank-1 constraint sytem
+func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 
 	// wires = intermediatevariables | secret inputs | public inputs
 
-	// id's of internal variables are shifted to -1 (because we start from 1 to len(c.variables)+1)
-	offset := -1
-	for i := 0; i < len(c.variables); i++ {
-		c.variables[i].id += offset
-	}
-
-	// id's of public (resp. secret) inputs are shifted to len(intermediatevariables) (resp. len(intermediatevariables)+len(secretInputs))
-	offset = len(c.variables)
-	for i := 0; i < len(c.secretInputs); i++ {
-		c.secretInputs[i].id += offset
-	}
-	offset = len(c.variables) + len(c.secretInputs)
-	for i := 0; i < len(c.PublicInputs); i++ {
-		c.PublicInputs[i].id += offset
-	}
-
-	// same job for the variables in the gates
-	for i := 0; i < len(c.gates); i++ {
-		c.gates[i].updateID(-1, Internal)
-		c.gates[i].updateID(len(c.variables), Secret)
-		c.gates[i].updateID(len(c.variables)+len(c.secretInputs), Public)
-	}
-	// same job for the variables in the constraints
-	for i := 0; i < len(c.constraints); i++ {
-		c.constraints[i].updateID(-1, Internal)
-		c.constraints[i].updateID(len(c.variables), Secret)
-		c.constraints[i].updateID(len(c.variables)+len(c.secretInputs), Public)
-	}
-
 	// setting up the result
-	var res r1cs.UntypedR1CS
-
-	res.NbWires = len(c.variables) + len(c.PublicInputs) + len(c.secretInputs)
-	res.NbPublicWires = len(c.PublicInputs)
-	res.NbSecretWires = len(c.secretInputs)
-	res.SecretWires = make([]string, len(c.secretInputs))
-	copy(res.SecretWires, c.secretInputsName)
-	res.PublicWires = make([]string, len(c.PublicInputs))
-	copy(res.PublicWires, c.publicInputsNames)
-
-	res.NbConstraints = len(c.gates) + len(c.constraints)
-	res.NbCOConstraints = len(c.gates)
-	res.Coefficients = make([]big.Int, len(c.coeffs))
-	copy(res.Coefficients, c.coeffs)
-	res.Constraints = make([]r1c.R1C, len(c.gates)+len(c.constraints))
+	res := r1cs.UntypedR1CS{
+		NbWires:         len(cs.internalVariables) + len(cs.publicVariables) + len(cs.secretVariables),
+		NbPublicWires:   len(cs.publicVariables),
+		NbSecretWires:   len(cs.secretVariables),
+		NbConstraints:   len(cs.constraints) + len(cs.assertions),
+		NbCOConstraints: len(cs.constraints),
+		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
+		SecretWires:     cs.secretVariableNames,
+		PublicWires:     cs.publicVariableNames,
+		Coefficients:    cs.coeffs,
+	}
 
 	// computational constraints (= gates)
-	for i := 0; i < len(c.gates); i++ {
-		l := r1c.LinearExpression{}
-		for _, e := range c.gates[i].L {
-			l = append(l, r1c.Pack(e.Variable.id, e.Coeff, 3))
-		}
-		r := r1c.LinearExpression{}
-		for _, e := range c.gates[i].R {
-			r = append(r, r1c.Pack(e.Variable.id, e.Coeff, 3))
-		}
-		o := r1c.LinearExpression{}
-		for _, e := range c.gates[i].O {
-			o = append(o, r1c.Pack(e.Variable.id, e.Coeff, 3))
-		}
-		res.Constraints[i] = r1c.R1C{L: l, R: r, O: o, Solver: c.gates[i].S}
-	}
+	copy(res.Constraints, cs.constraints)
+	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
-	// constraints (boolean, mustbeeq, etc)
-	offset = len(c.gates)
-	for i := 0; i < len(c.constraints); i++ {
-		l := r1c.LinearExpression{}
-		for _, e := range c.constraints[i].L {
-			l = append(l, r1c.Pack(e.Variable.id, e.Coeff, 3))
+	for i := 0; i < len(res.Constraints); i++ {
+		// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
+
+		for j := 0; j < len(res.Constraints[i].L); j++ {
+			_, _, cID, cVisibility := res.Constraints[i].L[j].Unpack()
+			if cVisibility == backend.Secret {
+				res.Constraints[i].L[j].SetConstraintID(cID + len(cs.internalVariables))
+			} else if cVisibility == backend.Public {
+				res.Constraints[i].L[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
+			}
 		}
-		r := r1c.LinearExpression{}
-		for _, e := range c.constraints[i].R {
-			r = append(r, r1c.Pack(e.Variable.id, e.Coeff, 3))
+		for j := 0; j < len(res.Constraints[i].R); j++ {
+			_, _, cID, cVisibility := res.Constraints[i].R[j].Unpack()
+			if cVisibility == backend.Secret {
+				res.Constraints[i].R[j].SetConstraintID(cID + len(cs.internalVariables))
+			} else if cVisibility == backend.Public {
+				res.Constraints[i].R[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
+			}
 		}
-		o := r1c.LinearExpression{}
-		for _, e := range c.constraints[i].O {
-			o = append(o, r1c.Pack(e.Variable.id, e.Coeff, 3))
+		for j := 0; j < len(res.Constraints[i].O); j++ {
+			_, _, cID, cVisibility := res.Constraints[i].O[j].Unpack()
+			if cVisibility == backend.Secret {
+				res.Constraints[i].O[j].SetConstraintID(cID + len(cs.internalVariables))
+			} else if cVisibility == backend.Public {
+				res.Constraints[i].O[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
+			}
 		}
-		res.Constraints[i+offset] = r1c.R1C{L: l, R: r, O: o, Solver: c.constraints[i].S}
 	}
 
 	// wire tags
 	res.WireTags = make(map[int][]string)
-	for k, v := range c.wireTags {
+	for k, v := range cs.wireTags {
 		res.WireTags[k] = make([]string, len(v))
 		copy(res.WireTags[k], v)
 	}
 
-	if id == gurvy.UNKNOWN {
+	if curveID == gurvy.UNKNOWN {
 		return &res
 	}
 
-	return res.ToR1CS(id)
+	return res.ToR1CS(curveID)
 }
 
-// GetCoeffID tries to fetch the entry where b is if it exits, otherwise appends b to
+// coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
-func (c *CS) GetCoeffID(b *big.Int) int {
-	var idx int
-	idx = -1
-	for i, v := range c.coeffs {
+func (cs *ConstraintSystem) coeffID(b *big.Int) int {
+	idx := -1
+	for i, v := range cs.coeffs {
 		if v.Cmp(b) == 0 {
 			idx = i
 			return idx
 		}
 	}
-
-	idx = len(c.coeffs)
 	var toAppend big.Int
 	toAppend.Set(b)
-	c.coeffs = append(c.coeffs, toAppend)
+	cs.coeffs = append(cs.coeffs, toAppend)
 
-	return idx
+	return len(cs.coeffs) - 1
 }
 
 // Tag assign a key to a variable to be able to monitor it when the system is solved
-func (c *CS) Tag(v Variable, tag string) {
-
-	c.checkIsAllocated(v)
+func (cs *ConstraintSystem) Tag(v Variable, tag string) {
 
 	// TODO do we allOoutputw inputs to be tagged? anyway returns an error instead of panicing
-	if v.visibility != Internal {
+	if v.visibility != backend.Internal {
 		panic("inputs cannot be tagged")
 	}
 
-	for _, v := range c.wireTags {
+	for _, v := range cs.wireTags {
 		for _, t := range v {
 			if tag == t {
 				panic("duplicate tag " + tag)
 			}
 		}
 	}
-	c.wireTags[v.id-1] = append(c.wireTags[v.id], tag)
+	cs.wireTags[v.id] = append(cs.wireTags[v.id], tag)
 }
 
-// NewInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
+// newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (c *CS) NewInternalVariable() Variable {
-
-	var res Variable
-
-	res.visibility = Internal
-
-	// the id 0 is reserved to check if a variable is not allocated (in case
-	// one write "var a frontend.Variable" without adding "cs.Allocate(a)" after.
-	res.id = len(c.variables) + 1
-
-	c.variables = append(c.variables, res)
-
+func (cs *ConstraintSystem) newInternalVariable() Variable {
+	res := Variable{
+		id:         len(cs.internalVariables),
+		visibility: backend.Internal,
+	}
+	cs.internalVariables = append(cs.internalVariables, res)
 	return res
 }
 
-// getOneVariable returns the special "one_wire" of the circuit
-func (c *CS) getOneVariable() Variable {
-	return c.PublicInputs[0]
-}
-
-// checks if the variable is recorded in the circuit
-func (c *CS) checkIsAllocated(v Variable) {
-	if v.id == 0 && v.visibility == Internal {
-		panic("variable non allocated")
-	}
+// oneVariable returns the variable associated with backend.OneWire
+func (cs *ConstraintSystem) oneVariable() Variable {
+	return cs.publicVariables[0]
 }

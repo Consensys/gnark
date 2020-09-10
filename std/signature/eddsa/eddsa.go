@@ -36,7 +36,7 @@ type Signature struct {
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(cs *frontend.CS, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
+func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	data := []frontend.Variable{

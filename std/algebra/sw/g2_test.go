@@ -37,7 +37,7 @@ type g2AddAssign struct {
 	C    G2Jac `gnark:",public"`
 }
 
-func (circuit *g2AddAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *g2AddAssign) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
 	expected.MustBeEqual(cs, circuit.C)
@@ -78,7 +78,7 @@ type g2AddAssignAffine struct {
 	C    G2Affine `gnark:",public"`
 }
 
-func (circuit *g2AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *g2AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
 	expected.MustBeEqual(cs, circuit.C)
@@ -123,7 +123,7 @@ type g2DoubleAssign struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2DoubleAssign) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *g2DoubleAssign) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
 	expected.MustBeEqual(cs, circuit.C)
@@ -162,7 +162,7 @@ type g2DoubleAffine struct {
 	C G2Affine `gnark:",public"`
 }
 
-func (circuit *g2DoubleAffine) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *g2DoubleAffine) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
 	expected.MustBeEqual(cs, circuit.C)
@@ -204,7 +204,7 @@ type g2Neg struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2Neg) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *g2Neg) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	expected := G2Jac{}
 	expected.Neg(cs, &circuit.A)
 	expected.MustBeEqual(cs, circuit.C)

@@ -19,8 +19,8 @@ type R1CS interface {
 	GetCurveID() gurvy.ID
 }
 
-// Read ...
-// TODO likely temporary method, need a clean up pass on serialization things
+// Read file at path and attempt to decode it into a R1CS object
+// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
 func Read(path string) (R1CS, error) {
 	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {

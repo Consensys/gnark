@@ -27,11 +27,11 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.CS, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var encryptFuncs map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
 var newMimc map[gurvy.ID]func(string) MiMC
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.CS, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs = make(map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
 	encryptFuncs[gurvy.BN256] = encryptBN256
 	encryptFuncs[gurvy.BLS381] = encryptBLS381
 	encryptFuncs[gurvy.BLS377] = encryptBLS377
@@ -85,7 +85,7 @@ func newMimcBN256(seed string) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(cs *frontend.CS, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
 
@@ -104,7 +104,7 @@ func encryptBN256(cs *frontend.CS, h MiMC, message, key frontend.Variable) front
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(cs *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
@@ -121,7 +121,7 @@ func encryptBLS381(cs *frontend.CS, h MiMC, message frontend.Variable, key front
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(cs *frontend.CS, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
 		tmp := cs.Add(res, h.params[i], key)

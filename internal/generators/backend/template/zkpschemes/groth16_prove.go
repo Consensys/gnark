@@ -8,7 +8,6 @@ import (
 	{{ template "import_backend" . }}
 	"runtime"
 	"sync"
-	"github.com/consensys/gnark/internal/utils/debug"
 	"github.com/consensys/gnark/backend"
 )
 
@@ -191,7 +190,6 @@ func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain)
 		// 	3 - h = ifft_coset(ca o cb - cc)
 
 		n := len(a)
-		debug.Assert((n == len(b)) && (n == len(c)))
 
 		// add padding
 		padding := make([]fr.Element, fftDomain.Cardinality-n)

@@ -34,7 +34,7 @@ type eddsaCircuit struct {
 	Message   frontend.Variable `gnark:",public"`
 }
 
-func (circuit *eddsaCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *eddsaCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	params, err := twistededwards.NewEdCurve(gurvy.BN256)
 	if err != nil {
 		return err

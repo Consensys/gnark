@@ -120,11 +120,18 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	}
 	fmt.Printf("%-30s %-30s %-d inputs\n", "loaded input", fInputPath, len(r1csInput))
 
+	// default proof path
+	proofPath := filepath.Join(".", circuitName+".proof")
+	if fProofPath != "" {
+		proofPath = fProofPath
+	}
+
 	// compute proof
 	start := time.Now()
 	proof, err := groth16.Prove(r1cs, pk, r1csInput)
 	if err != nil {
-		fmt.Println("Error proof generation", err)
+		fmt.Println("error:", err)
+		os.Remove(proofPath)
 		os.Exit(-1)
 	}
 	for i := uint(1); i < fCount; i++ {
@@ -133,12 +140,6 @@ func cmdProve(cmd *cobra.Command, args []string) {
 	duration := time.Since(start)
 	if fCount > 1 {
 		duration = time.Duration(int64(duration) / int64(fCount))
-	}
-
-	// default proof path
-	proofPath := filepath.Join(".", circuitName+".proof")
-	if fProofPath != "" {
-		proofPath = fProofPath
 	}
 
 	if err := encoding.Write(proofPath, proof, curveID); err != nil {

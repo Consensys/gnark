@@ -28,10 +28,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 
-	{{if ne .Curve "GENERIC"}}
 	"reflect"
 	"github.com/stretchr/testify/require"
-	{{end}}
 )
 
 
@@ -92,7 +90,7 @@ type refCircuit struct {
 	Y frontend.Variable ` + "`" + "gnark:\",public\"" + "`" + `
 }
 
-func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

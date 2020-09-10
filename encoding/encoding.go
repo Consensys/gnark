@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package encoding offers (de)serialization APIs for gnark objects
-// it uses CBOR
+// it uses CBOR, is schema-less and that may change until v1.X.X release cycle
 package encoding
 
 import (
@@ -43,7 +43,6 @@ func Write(path string, from interface{}, curveID gurvy.ID) error {
 
 // Read read and deserialize input into object
 // provided interface must be a pointer
-// uses gob + gzip
 func Read(path string, into interface{}, expectedCurveID gurvy.ID) error {
 	// open file
 	f, err := os.Open(path)
@@ -55,7 +54,8 @@ func Read(path string, into interface{}, expectedCurveID gurvy.ID) error {
 	return Deserialize(f, into, expectedCurveID)
 }
 
-// Serialize object from into f
+// Serialize object from into provided writer
+// encodes the curveID in the first bytes
 func Serialize(writer io.Writer, from interface{}, curveID gurvy.ID) error {
 	encoder := cbor.NewEncoder(writer, cbor.CanonicalEncOptions())
 
@@ -92,7 +92,7 @@ func PeekCurveID(file string) (gurvy.ID, error) {
 	return curveID, nil
 }
 
-// Deserialize f into object into
+// Deserialize reads bytes from reader and construct object into
 func Deserialize(reader io.Reader, into interface{}, expectedCurveID gurvy.ID) error {
 	decoder := cbor.NewDecoder(reader)
 

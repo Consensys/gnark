@@ -37,7 +37,7 @@ type mimcCircuit struct {
 	Data frontend.Variable `gnark:"data,public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	mimc, err := NewMiMC("seed", curveID)
 	if err != nil {
 		return err

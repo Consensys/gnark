@@ -19,6 +19,7 @@ package twistededwards
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -29,21 +30,18 @@ type Point struct {
 
 // MustBeOnCurve checks if a point is on the twisted Edwards curve
 // ax^2 + y^2 = 1 + d*x^2*y^2
-func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
+func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 	one := big.NewInt(1)
-	idxOne := cs.GetCoeffID(one)
-	idxA := cs.GetCoeffID(&curve.A)
-	idxD := cs.GetCoeffID(&curve.D)
 
-	l1 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxA}}
-	l2 := frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxOne}}
+	l1 := r1c.LinearExpression{cs.Term(p.X, &curve.A)}
+	l2 := r1c.LinearExpression{cs.Term(p.X, one)}
 	axx := cs.Mul(l1, l2)
 	yy := cs.Mul(p.Y, p.Y)
 	lhs := cs.Add(axx, yy)
 
-	l1 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxD}}
-	l2 = frontend.LinearCombination{frontend.LinearTerm{Variable: p.X, Coeff: idxOne}}
+	l1 = r1c.LinearExpression{cs.Term(p.X, &curve.D)}
+	l2 = r1c.LinearExpression{cs.Term(p.X, one)}
 	dxx := cs.Mul(l1, l2)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
@@ -54,7 +52,7 @@ func (p *Point) MustBeOnCurve(cs *frontend.CS, curve EdCurve) {
 
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curve EdCurve) *Point {
+func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point, x, y interface{}, curve EdCurve) *Point {
 	X := cs.Constant(x)
 	Y := cs.Constant(y)
 	return p.AddGeneric(cs, p1, &Point{X, Y}, curve)
@@ -77,27 +75,27 @@ func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curv
 	// oneWire := cs.ALLOCATE(one)
 
 	// // constraint 2
-	// den := frontend.LinearCombination{
-	// 	frontend.LinearTerm{Variable: oneWire, Coeff: *one},
-	// 	frontend.LinearTerm{Variable: b, Coeff: duv},
+	// den := r1c.LinearExpression{
+	// 	cs.Term( oneWire,  *one},
+	// 	cs.Term( b,  duv},
 	// }
-	// num := frontend.LinearCombination{
-	// 	frontend.LinearTerm{Variable: p1.X, Coeff: Y},
-	// 	frontend.LinearTerm{Variable: p1.Y, Coeff: X},
+	// num := r1c.LinearExpression{
+	// 	cs.Term( p1.X,  Y},
+	// 	cs.Term( p1.Y,  X},
 	// }
 	// res.X = cs.DIV(num, den)
 
 	// // constraint 3
 	// duv.Neg(&duv)
-	// den = frontend.LinearCombination{
-	// 	frontend.LinearTerm{Variable: oneWire, Coeff: *one},
-	// 	frontend.LinearTerm{Variable: b, Coeff: duv},
+	// den = r1c.LinearExpression{
+	// 	cs.Term( oneWire,  *one},
+	// 	cs.Term( b,  duv},
 	// }
 	// var tmp big.Int
 	// tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
-	// num = frontend.LinearCombination{
-	// 	frontend.LinearTerm{Variable: p1.Y, Coeff: Y},
-	// 	frontend.LinearTerm{Variable: p1.X, Coeff: X},
+	// num = r1c.LinearExpression{
+	// 	cs.Term( p1.Y,  Y},
+	// 	cs.Term( p1.X,  X},
 	// }
 	// res.Y = cs.DIV(num, den)
 
@@ -109,15 +107,13 @@ func (p *Point) AddFixedPoint(cs *frontend.CS, p1 *Point, x, y interface{}, curv
 
 // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point {
+func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve EdCurve) *Point {
 
 	// cf https://z.cash/technology/jubjub/
 	// or https://eprint.iacr.org/2008/013.pdf
 	res := Point{}
 
 	one := big.NewInt(1)
-	idxOne := cs.GetCoeffID(one)
-	idxD := cs.GetCoeffID(&curve.D)
 
 	oneWire := cs.Constant(one)
 
@@ -126,28 +122,26 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 	delta := cs.Mul(p1.Y, p2.Y)
 	epsilon := cs.Mul(p1.X, p2.X)
 	tau := cs.Mul(delta, epsilon)
-	num := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: beta, Coeff: idxOne},
-		frontend.LinearTerm{Variable: gamma, Coeff: idxOne},
+	num := r1c.LinearExpression{
+		cs.Term(beta, one),
+		cs.Term(gamma, one),
 	}
-	den := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: oneWire, Coeff: idxOne},
-		frontend.LinearTerm{Variable: tau, Coeff: idxD},
+	den := r1c.LinearExpression{
+		cs.Term(oneWire, one),
+		cs.Term(tau, &curve.D),
 	}
 	res.X = cs.Div(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
-	idxMinusA := cs.GetCoeffID(&minusa)
-	num = frontend.LinearCombination{
-		frontend.LinearTerm{Variable: delta, Coeff: idxOne},
-		frontend.LinearTerm{Variable: epsilon, Coeff: idxMinusA},
+	num = r1c.LinearExpression{
+		cs.Term(delta, one),
+		cs.Term(epsilon, &minusa),
 	}
 	var minusd big.Int
 	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
-	idxMinusD := cs.GetCoeffID(&minusd)
-	den = frontend.LinearCombination{
-		frontend.LinearTerm{Variable: oneWire, Coeff: idxOne},
-		frontend.LinearTerm{Variable: tau, Coeff: idxMinusD},
+	den = r1c.LinearExpression{
+		cs.Term(oneWire, one),
+		cs.Term(tau, &minusd),
 	}
 	res.Y = cs.Div(num, den)
 
@@ -157,7 +151,7 @@ func (p *Point) AddGeneric(cs *frontend.CS, p1, p2 *Point, curve EdCurve) *Point
 }
 
 // Double doubles a points in SNARK coordinates
-func (p *Point) Double(cs *frontend.CS, p1 *Point, curve EdCurve) *Point {
+func (p *Point) Double(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) *Point {
 	p.AddGeneric(cs, p1, p1, curve)
 	return p
 }
@@ -167,7 +161,7 @@ func (p *Point) Double(cs *frontend.CS, p1 *Point, curve EdCurve) *Point {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulNonFixedBase(cs *frontend.ConstraintSystem, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	b := cs.ToBinary(scalar, 256)
@@ -195,7 +189,7 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.CS, p1 *Point, scalar fronten
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulFixedBase(cs *frontend.CS, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	b := cs.ToBinary(scalar, 256)

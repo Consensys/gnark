@@ -87,7 +87,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// edward curve params
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -124,7 +124,7 @@ func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.CS) error {
 }
 
 // Define declares the circuit's constraints
-func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	if err := circuit.postInit(curveID, cs); err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
 }
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
-func verifyTransferSignature(cs *frontend.CS, t TransferConstraints, hFunc mimc.MiMC) error {
+func verifyTransferSignature(cs *frontend.ConstraintSystem, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
 	htransfer := hFunc.Hash(cs, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
@@ -171,7 +171,7 @@ func verifyTransferSignature(cs *frontend.CS, t TransferConstraints, hFunc mimc.
 	return nil
 }
 
-func verifyAccountUpdated(cs *frontend.CS, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
+func verifyAccountUpdated(cs *frontend.ConstraintSystem, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
 	one := cs.Constant(1)

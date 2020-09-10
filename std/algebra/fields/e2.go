@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -32,42 +33,40 @@ type E2 struct {
 }
 
 // Neg negates a e2 elmt
-func (e *E2) Neg(cs *frontend.CS, e1 *E2) *E2 {
+func (e *E2) Neg(cs *frontend.ConstraintSystem, e1 *E2) *E2 {
 	e.A0 = cs.Sub(0, e1.A0)
 	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
 // Add e2 elmts
-func (e *E2) Add(cs *frontend.CS, e1, e2 *E2) *E2 {
+func (e *E2) Add(cs *frontend.ConstraintSystem, e1, e2 *E2) *E2 {
 	e.A0 = cs.Add(e1.A0, e2.A0)
 	e.A1 = cs.Add(e1.A1, e2.A1)
 	return e
 }
 
 // Sub e2 elmts
-func (e *E2) Sub(cs *frontend.CS, e1, e2 *E2) *E2 {
+func (e *E2) Sub(cs *frontend.ConstraintSystem, e1, e2 *E2) *E2 {
 	e.A0 = cs.Sub(e1.A0, e2.A0)
 	e.A1 = cs.Sub(e1.A1, e2.A1)
 	return e
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
+func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
-	idxOne := cs.GetCoeffID(one)
-	idxMinusOne := cs.GetCoeffID(minusOne)
 
 	// 1C
-	l1 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: e1.A0, Coeff: idxOne},
-		frontend.LinearTerm{Variable: e1.A1, Coeff: idxOne},
+	l1 := r1c.LinearExpression{
+		cs.Term(e1.A0, one),
+		cs.Term(e1.A1, one),
 	}
-	l2 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: e2.A0, Coeff: idxOne},
-		frontend.LinearTerm{Variable: e2.A1, Coeff: idxOne},
+	l2 := r1c.LinearExpression{
+		cs.Term(e2.A0, one),
+		cs.Term(e2.A1, one),
 	}
 	u := cs.Mul(l1, l2)
 
@@ -76,19 +75,18 @@ func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 	bd := cs.Mul(e1.A1, e2.A1)
 
 	// 1C
-	l3 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: u, Coeff: idxOne},
-		frontend.LinearTerm{Variable: ac, Coeff: idxMinusOne},
-		frontend.LinearTerm{Variable: bd, Coeff: idxMinusOne},
+	l3 := r1c.LinearExpression{
+		cs.Term(u, one),
+		cs.Term(ac, minusOne),
+		cs.Term(bd, minusOne),
 	}
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
 	buSquare := backend.FromInterface(ext.uSquare)
-	idxuSquare := cs.GetCoeffID(&buSquare)
-	l4 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: ac, Coeff: idxOne},
-		frontend.LinearTerm{Variable: bd, Coeff: idxuSquare},
+	l4 := r1c.LinearExpression{
+		cs.Term(ac, one),
+		cs.Term(bd, &buSquare),
 	}
 	e.A0 = cs.Mul(l4, 1)
 
@@ -96,7 +94,7 @@ func (e *E2) Mul(cs *frontend.CS, e1, e2 *E2, ext Extension) *E2 {
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
-func (e *E2) MulByFp(cs *frontend.CS, e1 *E2, c interface{}) *E2 {
+func (e *E2) MulByFp(cs *frontend.ConstraintSystem, e1 *E2, c interface{}) *E2 {
 	e.A0 = cs.Mul(e1.A0, c)
 	e.A1 = cs.Mul(e1.A1, c)
 	return e
@@ -104,7 +102,7 @@ func (e *E2) MulByFp(cs *frontend.CS, e1 *E2, c interface{}) *E2 {
 
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByIm(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
+func (e *E2) MulByIm(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
 	x := e1.A0
 	e.A0 = cs.Mul(e1.A1, ext.uSquare)
 	e.A1 = x
@@ -112,14 +110,14 @@ func (e *E2) MulByIm(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
 }
 
 // Conjugate conjugation of an e2 elmt
-func (e *E2) Conjugate(cs *frontend.CS, e1 *E2) *E2 {
+func (e *E2) Conjugate(cs *frontend.ConstraintSystem, e1 *E2) *E2 {
 	e.A0 = e1.A0
 	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
 // Inverse inverses an fp2elmt
-func (e *E2) Inverse(cs *frontend.CS, e1 *E2, ext Extension) *E2 {
+func (e *E2) Inverse(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
 
 	var a0, a1, t0, t1, t1beta frontend.Variable
 
@@ -146,7 +144,7 @@ func (e *E2) Assign(a *bls377.E2) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E2) MustBeEqual(cs *frontend.CS, other E2) {
+func (e *E2) MustBeEqual(cs *frontend.ConstraintSystem, other E2) {
 	cs.MustBeEqual(e.A0, other.A0)
 	cs.MustBeEqual(e.A1, other.A1)
 }

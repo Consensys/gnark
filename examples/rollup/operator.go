@@ -41,17 +41,6 @@ func NewQueue(batchSize int) Queue {
 	return res
 }
 
-// Push queues up t in the queue
-func (q *Queue) Push(t Transfer) {
-	q.listTransfers <- t
-}
-
-// Pop dequeues an element from the queue
-func (q *Queue) Pop() Transfer {
-	t := <-q.listTransfers
-	return t
-}
-
 // Operator represents a rollup operator
 type Operator struct {
 	State      []byte            // list of accounts: index || nonce || balance || pubkeyX || pubkeyY, each chunk is 256 bits

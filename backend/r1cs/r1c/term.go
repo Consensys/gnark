@@ -1,5 +1,7 @@
 package r1c
 
+import "github.com/consensys/gnark/backend"
+
 // Term lightweight version of a term, no pointers
 // first 4 bits are reserved
 // next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
@@ -8,104 +10,161 @@ package r1c
 type Term uint64
 
 const (
-	_                    uint64 = 0b0000
-	specialValueMinusOne uint64 = 0b0001
-	specialValueZero     uint64 = 0b0010
-	specialValueOne      uint64 = 0b0011
-	specialValueTwo      uint64 = 0b0100
-	specialValueDiv      uint64 = 0x8000000000000000
+	_                  uint64 = 0b000
+	coeffValueMinusOne uint64 = 0b001
+	coeffValueZero     uint64 = 0b010
+	coeffValueOne      uint64 = 0b011
+	coeffValueTwo      uint64 = 0b100
 )
 
-// Pack packs constraintID, coeffID and specialValue into Term
-// first 4 bits are reserved
+const (
+	_                  uint64 = 0b00
+	constraintPublic   uint64 = 0b01
+	constraintSecret   uint64 = 0b11
+	constraintInternal uint64 = 0b10
+)
+
+const (
+	nbBitsConstraintID         = 29
+	nbBitsCoeffID              = 30
+	nbBitsCoeffValue           = 3
+	nbBitsConstraintVisibility = 2
+)
+
+const (
+	shiftConstraintID         = 0
+	shiftCoeffID              = nbBitsConstraintID
+	shiftCoeffValue           = shiftCoeffID + nbBitsCoeffID
+	shiftConstraintVisibility = shiftCoeffValue + nbBitsCoeffValue
+)
+
+const (
+	maskConstraintID         = uint64((1 << nbBitsConstraintID) - 1)
+	maskCoeffID              = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
+	maskCoeffValue           = uint64((1<<nbBitsCoeffValue)-1) << shiftCoeffValue
+	maskConstraintVisibility = uint64((1<<nbBitsConstraintVisibility)-1) << shiftConstraintVisibility
+)
+
+// Pack packs constraintID, coeffID and coeffValue into Term
+// first 5 bits are reserved to encode visibility of the constraint and coeffValue of the coefficient
 // next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
-// next 30 bits represent the constraint used to compute the wire
-// if we support more than 1 billion constraints, this breaks (not so soon.)
-func Pack(constraintID, coeffID, specialValue int, isDivision ...bool) Term {
-	_constraintID := uint64(constraintID)
-	_coeffID := uint64(coeffID)
-	_coeffID <<= 34
-	_coeffID >>= 4
-	if (_coeffID >> 30) != uint64(coeffID) {
-		panic("coeffID is > 2^30, unsupported")
+// next 29 bits represent the constraint used to compute the wire
+// if we support more than 500 millions constraints, this breaks (not so soon.)
+func Pack(constraintID, coeffID int, constraintVisibility backend.Visibility, coeffValue ...int) Term {
+	var t Term
+	t.SetConstraintID(constraintID)
+	t.SetCoeffID(coeffID)
+	if len(coeffValue) > 0 {
+		t.SetCoeffValue(coeffValue[0])
 	}
-	if ((_constraintID << 34) >> 34) != uint64(constraintID) {
-		panic("constraintID is > 2^30, unsupported")
-	}
-	reserved := uint64(0)
-	switch specialValue {
-	case -1:
-		reserved = specialValueMinusOne
-		reserved <<= 60
-	case 0:
-		reserved = specialValueZero
-		reserved <<= 60
-	case 1:
-		reserved = specialValueOne
-		reserved <<= 60
-	case 2:
-		reserved = specialValueTwo
-		reserved <<= 60
-	}
-	if len(isDivision) == 1 && isDivision[0] {
-		reserved |= specialValueDiv
-	}
-
-	return Term(reserved | _constraintID | _coeffID)
-
+	t.SetConstraintVisibility(constraintVisibility)
+	return t
 }
 
-const maxInt = int(^uint(0) >> 1)
-
-// Unpack returns specialValue, coeffID and constraintID
-func (t Term) Unpack() (specialValueInt, coeffID, constraintID int) {
-	specialValueInt = t.SpecialValueInt()
+// Unpack returns coeffValue, coeffID and constraintID
+func (t Term) Unpack() (coeffValue, coeffID, constraintID int, constraintVisibility backend.Visibility) {
+	coeffValue = t.CoeffValue()
 	coeffID = t.CoeffID()
 	constraintID = t.ConstraintID()
+	constraintVisibility = t.ConstraintVisibility()
 	return
 }
 
-// SpecialValueInt return maxInt if no special value is set
+// CoeffValue return maxInt if no special value is set
 // if set, returns either -1, 0, 1 or 2
-func (t Term) SpecialValueInt() int {
-	specialValue := uint64(t<<1) >> 61
-	switch specialValue {
-	case specialValueOne:
+func (t Term) CoeffValue() int {
+	coeffValue := (uint64(t) & maskCoeffValue) >> shiftCoeffValue
+	switch coeffValue {
+	case coeffValueOne:
 		return 1
-	case specialValueMinusOne:
+	case coeffValueMinusOne:
 		return -1
-	case specialValueZero:
+	case coeffValueZero:
 		return 0
-	case specialValueTwo:
+	case coeffValueTwo:
 		return 2
 	default:
+		const maxInt = int(^uint(0) >> 1)
 		return maxInt
 	}
+}
+
+// ConstraintVisibility returns encoded backend.Visibility attribute
+func (t Term) ConstraintVisibility() backend.Visibility {
+	constraintVisibility := (uint64(t) & maskConstraintVisibility) >> shiftConstraintVisibility
+	switch constraintVisibility {
+	case constraintInternal:
+		return backend.Internal
+	case constraintPublic:
+		return backend.Public
+	case constraintSecret:
+		return backend.Secret
+	default:
+		return backend.Unset
+	}
+}
+
+// SetConstraintVisibility update the bits correponding to the constraintVisibility with its encoding
+func (t *Term) SetConstraintVisibility(v backend.Visibility) {
+	constraintVisibility := uint64(0)
+	switch v {
+	case backend.Internal:
+		constraintVisibility = constraintInternal
+	case backend.Public:
+		constraintVisibility = constraintPublic
+	case backend.Secret:
+		constraintVisibility = constraintSecret
+	default:
+		return
+	}
+	constraintVisibility <<= shiftConstraintVisibility
+	*t = Term((uint64(*t) & (^maskConstraintVisibility)) | constraintVisibility)
+}
+
+// SetCoeffValue update the bits correponding to the coeffValue with its encoding
+func (t *Term) SetCoeffValue(val int) {
+	coeffValue := uint64(0)
+	switch val {
+	case -1:
+		coeffValue = coeffValueMinusOne
+	case 0:
+		coeffValue = coeffValueZero
+	case 1:
+		coeffValue = coeffValueOne
+	case 2:
+		coeffValue = coeffValueTwo
+	default:
+		return
+	}
+	coeffValue <<= shiftCoeffValue
+	*t = Term((uint64(*t) & (^maskCoeffValue)) | coeffValue)
+}
+
+// SetCoeffID update the bits correponding to the coeffID with cID
+func (t *Term) SetCoeffID(cID int) {
+	_coeffID := uint64(cID)
+	if (_coeffID & (maskCoeffID >> shiftCoeffID)) != uint64(cID) {
+		panic("coeffID is too large, unsupported")
+	}
+	_coeffID <<= shiftCoeffID
+	*t = Term((uint64(*t) & (^maskCoeffID)) | _coeffID)
 }
 
 // SetConstraintID update the bits correponding to the constraintID with cID
 func (t *Term) SetConstraintID(cID int) {
 	_constraintID := uint64(cID)
-	if ((_constraintID << 34) >> 34) != uint64(cID) {
-		panic("constraintID is > 2^30, unsupported")
+	if (_constraintID & maskConstraintID) != uint64(cID) {
+		panic("constraintID is too large, unsupported")
 	}
-	const mask uint64 = 0xFFFFFFFC0000000
-	*t = Term((uint64(*t) | mask) | _constraintID)
+	*t = Term((uint64(*t) & (^maskConstraintID)) | _constraintID)
 }
 
 // ConstraintID returns the constraintID (see R1CS data structure)
 func (t Term) ConstraintID() int {
-	const mask uint64 = 0x3FFFFFFF
-	return int(uint64(t) & mask)
+	return int((uint64(t) & maskConstraintID))
 }
 
 // CoeffID returns the coefficient id (see R1CS data structure)
 func (t Term) CoeffID() int {
-	const mask uint64 = 0xFFFFFFFC0000000
-	return int((uint64(t) & mask) >> 30)
-}
-
-// IsDivision returns true if this term was encoded with the property "isDivision"
-func (t Term) IsDivision() bool {
-	return (uint64(t) >> 63) != 0
+	return int((uint64(t) & maskCoeffID) >> shiftCoeffID)
 }

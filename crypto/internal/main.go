@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/bavard"
 )
 
-//go:generate go run -tags debug main.go eddsa_template.go eddsa_test_template.go mimc_template.go
+//go:generate go run main.go eddsa_template.go eddsa_test_template.go mimc_template.go
 func main() {
 
 	// -----------------------------------------------------

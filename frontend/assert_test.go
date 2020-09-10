@@ -55,8 +55,8 @@ type expectedR1CS struct {
 // 	assert.Equal(expectedCS.nbNOConstraints, len(circuit.noExpressions), "cs nb NOConstraints")
 // }
 
-func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
-	_r1cs := circuit.toR1cs(gurvy.UNKNOWN)
+func (assert *Assert) r1csIsCorrect(circuit ConstraintSystem, expectedR1CS expectedR1CS) {
+	_r1cs := circuit.toR1CS(gurvy.UNKNOWN)
 	r1cs := _r1cs.(*r1cs.UntypedR1CS)
 	assert.Equal(expectedR1CS.nbWires, r1cs.NbWires, "r1cs nbWires")
 	assert.Equal(expectedR1CS.nbSecretWires, r1cs.NbSecretWires, "r1cs private nbWires")

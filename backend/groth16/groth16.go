@@ -121,8 +121,8 @@ func DummySetup(r1cs r1cs.R1CS) ProvingKey {
 	}
 }
 
-// ReadProvingKey ...
-// TODO likely temporary method, need a clean up pass on serialization things
+// ReadProvingKey read file at path and attempt to decode it into a ProvingKey object
+// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
 func ReadProvingKey(path string) (ProvingKey, error) {
 	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
@@ -148,8 +148,8 @@ func ReadProvingKey(path string) (ProvingKey, error) {
 	return pk, err
 }
 
-// ReadVerifyingKey ...
-// TODO likely temporary method, need a clean up pass on serialization things
+// ReadVerifyingKey read file at path and attempt to decode it into a VerifyingKey
+// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
 func ReadVerifyingKey(path string) (VerifyingKey, error) {
 	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {
@@ -175,8 +175,8 @@ func ReadVerifyingKey(path string) (VerifyingKey, error) {
 	return vk, err
 }
 
-// ReadProof ...
-// TODO likely temporary method, need a clean up pass on serialization things
+// ReadProof will read proof at given path into a curve-typed object
+// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
 func ReadProof(path string) (Proof, error) {
 	curveID, err := encoding.PeekCurveID(path)
 	if err != nil {

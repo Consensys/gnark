@@ -25,9 +25,6 @@ var (
 	// ErrNonExistingAccount account not in the database
 	ErrNonExistingAccount = errors.New("the account is not in the rollup database")
 
-	// ErrNonConsistantAccount account not in the database
-	ErrNonConsistantAccount = errors.New("the account provided exists but is inconsistant with what's in the database")
-
 	// ErrWrongSignature wrong signature
 	ErrWrongSignature = errors.New("invalid signature")
 

@@ -22,7 +22,7 @@ type ExponentiateCircuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// specify constraints
 	output := cs.Constant(1)
 	bits := cs.ToBinary(circuit.E, bitSize)

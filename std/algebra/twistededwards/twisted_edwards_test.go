@@ -28,7 +28,7 @@ type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -69,7 +69,7 @@ type add struct {
 	P Point
 }
 
-func (circuit *add) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -108,7 +108,7 @@ type addGeneric struct {
 	P1, P2 Point
 }
 
-func (circuit *addGeneric) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *addGeneric) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -149,7 +149,7 @@ type double struct {
 	P Point
 }
 
-func (circuit *double) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *double) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -186,7 +186,7 @@ type scalarMul struct {
 	P Point
 }
 
-func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {

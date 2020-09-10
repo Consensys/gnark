@@ -38,7 +38,7 @@ type LineEvalRes struct {
 // LineEvalBLS377 computes f(P) where div(f) = (P)+(R)+(-(P+R))-3O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
 // the result is pulled back like if it was computed on the original curve, so it's a Fp12Elmt, that is sparse,
 // only 3 entries are non zero. The result is therefore stored in a custom type LineEvalRes representing a sparse element
-func LineEvalBLS377(cs *frontend.CS, Q, R G2Jac, P G1Jac, result *LineEvalRes, ext fields.Extension) {
+func LineEvalBLS377(cs *frontend.ConstraintSystem, Q, R G2Jac, P G1Jac, result *LineEvalRes, ext fields.Extension) {
 
 	// converts Q and R to projective coords
 	Q.ToProj(cs, &Q, ext)
@@ -70,7 +70,7 @@ func LineEvalBLS377(cs *frontend.CS, Q, R G2Jac, P G1Jac, result *LineEvalRes, e
 // LineEvalAffineBLS377 computes f(P) where div(f) = (P)+(R)+(-(P+R))-3O, Q, R are on the twist and in the r-torsion (trace 0 subgroup)
 // the result is pulled back like if it was computed on the original curve, so it's a Fp12Elmt, that is sparse,
 // only 3 entries are non zero. The result is therefore stored in a custom type LineEvalRes representing a sparse element
-func LineEvalAffineBLS377(cs *frontend.CS, Q, R G2Affine, P G1Affine, result *LineEvalRes, ext fields.Extension) {
+func LineEvalAffineBLS377(cs *frontend.ConstraintSystem, Q, R G2Affine, P G1Affine, result *LineEvalRes, ext fields.Extension) {
 
 	// line eq: w^3*(QyRz-QzRy)x +  w^2*(QzRx - QxRz)y + w^5*(QxRy-QyRxz)
 	// result.r1 = Px*(QyRz-QzRy)
@@ -93,7 +93,7 @@ func LineEvalAffineBLS377(cs *frontend.CS, Q, R G2Affine, P G1Affine, result *Li
 }
 
 // MulAssign multiplies the result of a line evaluation to the current Fp12 accumulator
-func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.E12, ext fields.Extension) {
+func (l *LineEvalRes) MulAssign(cs *frontend.ConstraintSystem, z *fields.E12, ext fields.Extension) {
 	var a, b, c fields.E12
 	a.MulByVW(cs, z, &l.r1, ext)
 	b.MulByV(cs, z, &l.r0, ext)
@@ -102,7 +102,7 @@ func (l *LineEvalRes) MulAssign(cs *frontend.CS, z *fields.E12, ext fields.Exten
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoop(cs *frontend.ConstraintSystem, P G1Jac, Q G2Jac, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
@@ -157,7 +157,7 @@ func MillerLoop(cs *frontend.CS, P G1Jac, Q G2Jac, res *fields.E12, pairingInfo 
 
 // MillerLoopAffine computes the miller loop, with points in affine
 // When neither Q nor P are the point at infinity
-func MillerLoopAffine(cs *frontend.CS, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoopAffine(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int

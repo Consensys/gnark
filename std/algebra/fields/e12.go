@@ -58,7 +58,7 @@ type E12 struct {
 }
 
 // GetBLS377ExtensionFp12 get extension field parameters for bls377
-func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
+func GetBLS377ExtensionFp12(cs *frontend.ConstraintSystem) Extension {
 	res := Extension{}
 	res.uSquare = 5
 	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
@@ -90,7 +90,7 @@ func GetBLS377ExtensionFp12(cs *frontend.CS) Extension {
 }
 
 // SetOne returns a newly allocated element equal to 1
-func (e *E12) SetOne(cs *frontend.CS) *E12 {
+func (e *E12) SetOne(cs *frontend.ConstraintSystem) *E12 {
 	e.C0.B0.A0 = cs.Constant(1)
 	e.C0.B0.A1 = cs.Constant(0)
 	e.C0.B1.A0 = cs.Constant(0)
@@ -107,28 +107,28 @@ func (e *E12) SetOne(cs *frontend.CS) *E12 {
 }
 
 // Add adds 2 elmts in Fp12
-func (e *E12) Add(cs *frontend.CS, e1, e2 *E12) *E12 {
+func (e *E12) Add(cs *frontend.ConstraintSystem, e1, e2 *E12) *E12 {
 	e.C0.Add(cs, &e1.C0, &e2.C0)
 	e.C1.Add(cs, &e1.C1, &e2.C1)
 	return e
 }
 
 // Sub substracts 2 elmts in Fp12
-func (e *E12) Sub(cs *frontend.CS, e1, e2 *E12) *E12 {
+func (e *E12) Sub(cs *frontend.ConstraintSystem, e1, e2 *E12) *E12 {
 	e.C0.Sub(cs, &e1.C0, &e2.C0)
 	e.C1.Sub(cs, &e1.C1, &e2.C1)
 	return e
 }
 
 // Neg negates an Fp6elmt
-func (e *E12) Neg(cs *frontend.CS, e1 *E12) *E12 {
+func (e *E12) Neg(cs *frontend.ConstraintSystem, e1 *E12) *E12 {
 	e.C0.Neg(cs, &e1.C0)
 	e.C1.Neg(cs, &e1.C1)
 	return e
 }
 
 // Mul multiplies 2 elmts in Fp12
-func (e *E12) Mul(cs *frontend.CS, e1, e2 *E12, ext Extension) *E12 {
+func (e *E12) Mul(cs *frontend.ConstraintSystem, e1, e2 *E12, ext Extension) *E12 {
 
 	var u, v, ac, bd E6
 	u.Add(cs, &e1.C0, &e1.C1) // 6C
@@ -146,7 +146,7 @@ func (e *E12) Mul(cs *frontend.CS, e1, e2 *E12, ext Extension) *E12 {
 }
 
 // Conjugate applies Frob**6 (conjugation over Fp6)
-func (e *E12) Conjugate(cs *frontend.CS, e1 *E12) *E12 {
+func (e *E12) Conjugate(cs *frontend.ConstraintSystem, e1 *E12) *E12 {
 	zero := NewFp6Zero(cs)
 	e.C1.Sub(cs, &zero, &e1.C1)
 	e.C0 = e1.C0
@@ -154,7 +154,7 @@ func (e *E12) Conjugate(cs *frontend.CS, e1 *E12) *E12 {
 }
 
 // MulByVW multiplies an e12 elmt by an elmt of the form a*VW (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByVW(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
+func (e *E12) MulByVW(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
 
 	tmp := E2{}
 	tmp.MulByIm(cs, e2, ext)
@@ -175,7 +175,7 @@ func (e *E12) MulByVW(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
 }
 
 // MulByV multiplies an e12 elmt by an elmt of the form a*V (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByV(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
+func (e *E12) MulByV(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
 
 	tmp := E2{}
 	tmp.MulByIm(cs, e2, ext)
@@ -196,7 +196,7 @@ func (e *E12) MulByV(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
 }
 
 // MulByV2W multiplies an e12 elmt by an elmt of the form a*V**2W (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByV2W(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
+func (e *E12) MulByV2W(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
 
 	tmp := E2{}
 	tmp.MulByIm(cs, e2, ext)
@@ -217,7 +217,7 @@ func (e *E12) MulByV2W(cs *frontend.CS, e1 *E12, e2 *E2, ext Extension) *E12 {
 }
 
 // Frobenius applies frob to an fp12 elmt
-func (e *E12) Frobenius(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
+func (e *E12) Frobenius(cs *frontend.ConstraintSystem, e1 *E12, ext Extension) *E12 {
 
 	e.C0.B0.Conjugate(cs, &e1.C0.B0)
 	e.C0.B1.Conjugate(cs, &e1.C0.B1).MulByFp(cs, &e.C0.B1, ext.frobv)
@@ -231,7 +231,7 @@ func (e *E12) Frobenius(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
 }
 
 // FrobeniusSquare applies frob**2 to an fp12 elmt
-func (e *E12) FrobeniusSquare(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
+func (e *E12) FrobeniusSquare(cs *frontend.ConstraintSystem, e1 *E12, ext Extension) *E12 {
 
 	e.C0.B0 = e1.C0.B0
 	e.C0.B1.MulByFp(cs, &e1.C0.B1, ext.frob2v)
@@ -244,7 +244,7 @@ func (e *E12) FrobeniusSquare(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
 }
 
 // FrobeniusCube applies frob**2 to an fp12 elmt
-func (e *E12) FrobeniusCube(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
+func (e *E12) FrobeniusCube(cs *frontend.ConstraintSystem, e1 *E12, ext Extension) *E12 {
 
 	e.C0.B0.Conjugate(cs, &e1.C0.B0)
 	e.C0.B1.Conjugate(cs, &e1.C0.B1).MulByFp(cs, &e.C0.B1, ext.frob3v)
@@ -257,7 +257,7 @@ func (e *E12) FrobeniusCube(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
 }
 
 // Inverse inverse an elmt in Fp12
-func (e *E12) Inverse(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
+func (e *E12) Inverse(cs *frontend.ConstraintSystem, e1 *E12, ext Extension) *E12 {
 
 	var t [2]E6
 	var buf E6
@@ -276,14 +276,14 @@ func (e *E12) Inverse(cs *frontend.CS, e1 *E12, ext Extension) *E12 {
 }
 
 // ConjugateFp12 conjugates an Fp12 elmt (applies Frob**6)
-func (e *E12) ConjugateFp12(cs *frontend.CS, e1 *E12) *E12 {
+func (e *E12) ConjugateFp12(cs *frontend.ConstraintSystem, e1 *E12) *E12 {
 	e.C0 = e1.C0
 	e.C1.Neg(cs, &e1.C1)
 	return e
 }
 
 // Select sets e to r1 if b=1, r2 otherwise
-func (e *E12) Select(cs *frontend.CS, b frontend.Variable, r1, r2 *E12) *E12 {
+func (e *E12) Select(cs *frontend.ConstraintSystem, b frontend.Variable, r1, r2 *E12) *E12 {
 
 	e.C0.B0.A0 = cs.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
 	e.C0.B0.A1 = cs.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)
@@ -304,7 +304,7 @@ func (e *E12) Select(cs *frontend.CS, b frontend.Variable, r1, r2 *E12) *E12 {
 // FixedExponentiation compute e1**exponent, where the exponent is hardcoded
 // This function is only used for the final expo of the pairing for bls377, so the exponent is supposed to be hardcoded
 // and on 64 bits.
-func (e *E12) FixedExponentiation(cs *frontend.CS, e1 *E12, exponent uint64, ext Extension) *E12 {
+func (e *E12) FixedExponentiation(cs *frontend.ConstraintSystem, e1 *E12, exponent uint64, ext Extension) *E12 {
 
 	var expoBin [64]uint8
 	for i := 0; i < 64; i++ {
@@ -326,7 +326,7 @@ func (e *E12) FixedExponentiation(cs *frontend.CS, e1 *E12, exponent uint64, ext
 }
 
 // FinalExpoBLS final  exponentation for curves of the bls family (t is the parameter used to generate the curve)
-func (e *E12) FinalExpoBLS(cs *frontend.CS, e1 *E12, genT uint64, ext Extension) *E12 {
+func (e *E12) FinalExpoBLS(cs *frontend.ConstraintSystem, e1 *E12, genT uint64, ext Extension) *E12 {
 
 	res := *e1
 
@@ -379,7 +379,7 @@ func (e *E12) Assign(a *bls377.E12) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E12) MustBeEqual(cs *frontend.CS, other E12) {
+func (e *E12) MustBeEqual(cs *frontend.ConstraintSystem, other E12) {
 	e.C0.MustBeEqual(cs, other.C0)
 	e.C1.MustBeEqual(cs, other.C1)
 }

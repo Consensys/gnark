@@ -19,16 +19,12 @@ package sw
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
 	"github.com/consensys/gurvy/bw761/fr"
 )
-
-// G1Proj point in projective coordinates
-type G1Proj struct {
-	X, Y, Z frontend.Variable
-}
 
 // G1Jac point in Jacobian coords
 type G1Jac struct {
@@ -40,17 +36,8 @@ type G1Affine struct {
 	X, Y frontend.Variable
 }
 
-// ToProj sets p to the projective rep of p1 and return it
-func (p *G1Jac) ToProj(cs *frontend.CS, p1 *G1Jac) *G1Jac {
-	p.X = cs.Mul(p1.X, p1.Z)
-	p.Y = p1.Y
-	t := cs.Mul(p1.Z, p1.Z)
-	p.Z = cs.Mul(p1.Z, t)
-	return p
-}
-
 // Neg outputs -p
-func (p *G1Jac) Neg(cs *frontend.CS, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) Neg(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
 	p.X = p1.X
 	p.Y = cs.Sub(0, p1.Y)
 	p.Z = p1.Z
@@ -58,46 +45,44 @@ func (p *G1Jac) Neg(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 }
 
 // Neg outputs -p
-func (p *G1Affine) Neg(cs *frontend.CS, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Neg(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
 	p.X = p1.X
 	p.Y = cs.Sub(0, p1.Y)
 	return p
 }
 
 // AddAssign adds p1 to p using the affine formulas with division, and return p
-func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
-	idxOne := cs.GetCoeffID(one)
-	idxMinusOne := cs.GetCoeffID(minusOne)
 
-	l1 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxOne},
-		frontend.LinearTerm{Variable: p.Y, Coeff: idxMinusOne},
+	l1 := r1c.LinearExpression{
+		cs.Term(p1.Y, one),
+		cs.Term(p.Y, minusOne),
 	}
-	l2 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxOne},
-		frontend.LinearTerm{Variable: p.X, Coeff: idxMinusOne},
+	l2 := r1c.LinearExpression{
+		cs.Term(p1.X, one),
+		cs.Term(p.X, minusOne),
 	}
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxOne},
-		frontend.LinearTerm{Variable: p.X, Coeff: idxMinusOne},
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxMinusOne},
+	_x := r1c.LinearExpression{
+		cs.Term(cs.Mul(l, l), one),
+		cs.Term(p.X, minusOne),
+		cs.Term(p1.X, minusOne),
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: t1, Coeff: idxOne},
-		frontend.LinearTerm{Variable: t2, Coeff: idxMinusOne},
-		frontend.LinearTerm{Variable: p.Y, Coeff: idxMinusOne},
+	l3 := r1c.LinearExpression{
+		cs.Term(t1, one),
+		cs.Term(t2, minusOne),
+		cs.Term(p.Y, minusOne),
 	}
 	p.Y = cs.Mul(l3, 1)
 
@@ -107,7 +92,7 @@ func (p *G1Affine) AddAssign(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 }
 
 // AssignToRefactor sets p to p1 and return it
-func (p *G1Jac) AssignToRefactor(cs *frontend.CS, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
 	p.X = cs.Constant(p1.X)
 	p.Y = cs.Constant(p1.Y)
 	p.Z = cs.Constant(p1.Z)
@@ -115,7 +100,7 @@ func (p *G1Jac) AssignToRefactor(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 }
 
 // AssignToRefactor sets p to p1 and return it
-func (p *G1Affine) AssignToRefactor(cs *frontend.CS, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
 	p.X = cs.Constant(p1.X)
 	p.Y = cs.Constant(p1.Y)
 	return p
@@ -123,7 +108,7 @@ func (p *G1Affine) AssignToRefactor(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 
 // AddAssign adds 2 point in Jacobian coordinates
 // p=p, a=p1
-func (p *G1Jac) AddAssign(cs *frontend.CS, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
 
 	// get some Element from our pool
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
@@ -177,7 +162,7 @@ func (p *G1Jac) AddAssign(cs *frontend.CS, p1 *G1Jac) *G1Jac {
 }
 
 // DoubleAssign doubles the receiver point in jacobian coords and returns it
-func (p *G1Jac) DoubleAssign(cs *frontend.CS) *G1Jac {
+func (p *G1Jac) DoubleAssign(cs *frontend.ConstraintSystem) *G1Jac {
 	// get some Element from our pool
 	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
 
@@ -207,7 +192,7 @@ func (p *G1Jac) DoubleAssign(cs *frontend.CS) *G1Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G1Affine) Select(cs *frontend.CS, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
+func (p *G1Affine) Select(cs *frontend.ConstraintSystem, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
 
 	p.X = cs.Select(b, p1.X, p2.X)
 	p.Y = cs.Select(b, p1.Y, p2.Y)
@@ -217,7 +202,7 @@ func (p *G1Affine) Select(cs *frontend.CS, b frontend.Variable, p1, p2 *G1Affine
 }
 
 // FromJac sets p to p1 in affine and returns it
-func (p *G1Affine) FromJac(cs *frontend.CS, p1 *G1Jac) *G1Affine {
+func (p *G1Affine) FromJac(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Affine {
 	s := cs.Mul(p1.Z, p1.Z)
 	p.X = cs.Div(p1.X, s)
 	p.Y = cs.Div(p1.Y, cs.Mul(s, p1.Z))
@@ -225,7 +210,7 @@ func (p *G1Affine) FromJac(cs *frontend.CS, p1 *G1Jac) *G1Affine {
 }
 
 // Double double a point in affine coords
-func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
 
 	var t, d, c1, c2, c3 big.Int
 	t.SetInt64(3)
@@ -234,36 +219,30 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 	c2.SetInt64(-2)
 	c3.SetInt64(-1)
 
-	idxThree := cs.GetCoeffID(&t)
-	idxTwo := cs.GetCoeffID(&d)
-	idxOne := cs.GetCoeffID(&c1)
-	idxMinusTwo := cs.GetCoeffID(&c2)
-	idxMinusOne := cs.GetCoeffID(&c3)
-
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	x2 := cs.Mul(p1.X, p1.X)
 	cs.Mul(p1.X, p1.X)
-	l1 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: x2, Coeff: idxThree},
+	l1 := r1c.LinearExpression{
+		cs.Term(x2, &t),
 	}
-	l2 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxTwo},
+	l2 := r1c.LinearExpression{
+		cs.Term(p1.Y, &d),
 	}
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: cs.Mul(l, l), Coeff: idxOne},
-		frontend.LinearTerm{Variable: p1.X, Coeff: idxMinusTwo},
+	_x := r1c.LinearExpression{
+		cs.Term(cs.Mul(l, l), &c1),
+		cs.Term(p1.X, &c2),
 	}
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p1.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := frontend.LinearCombination{
-		frontend.LinearTerm{Variable: t1, Coeff: idxOne},
-		frontend.LinearTerm{Variable: t2, Coeff: idxMinusOne},
-		frontend.LinearTerm{Variable: p1.Y, Coeff: idxMinusOne},
+	l3 := r1c.LinearExpression{
+		cs.Term(t1, &c1),
+		cs.Term(t2, &c3),
+		cs.Term(p1.Y, &c3),
 	}
 	p.Y = cs.Mul(l3, 1)
 
@@ -276,7 +255,7 @@ func (p *G1Affine) Double(cs *frontend.CS, p1 *G1Affine) *G1Affine {
 // n is the number of bits used for the scalar mul.
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
-func (p *G1Affine) ScalarMul(cs *frontend.CS, p1 *G1Affine, s interface{}, n int) *G1Affine {
+func (p *G1Affine) ScalarMul(cs *frontend.ConstraintSystem, p1 *G1Affine, s interface{}, n int) *G1Affine {
 
 	scalar := cs.Constant(s)
 
@@ -320,7 +299,7 @@ func (p *G1Jac) Assign(p1 *bls377.G1Jac) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Jac) MustBeEqual(cs *frontend.CS, other G1Jac) {
+func (p *G1Jac) MustBeEqual(cs *frontend.ConstraintSystem, other G1Jac) {
 	cs.MustBeEqual(p.X, other.X)
 	cs.MustBeEqual(p.Y, other.Y)
 	cs.MustBeEqual(p.Z, other.Z)
@@ -333,7 +312,7 @@ func (p *G1Affine) Assign(p1 *bls377.G1Affine) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Affine) MustBeEqual(cs *frontend.CS, other G1Affine) {
+func (p *G1Affine) MustBeEqual(cs *frontend.ConstraintSystem, other G1Affine) {
 	cs.MustBeEqual(p.X, other.X)
 	cs.MustBeEqual(p.Y, other.Y)
 }

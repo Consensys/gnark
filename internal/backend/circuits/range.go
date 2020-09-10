@@ -10,7 +10,7 @@ type rangeCheckConstantCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 
@@ -39,7 +39,7 @@ type rangeCheckCircuit struct {
 	Y, Bound frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 

@@ -47,7 +47,7 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(cs *frontend.CS, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	var eπCdelta, eπAπB, epsigamma fields.E12
 

@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark/internal/generators/backend/template/zkpschemes"
 )
 
-//go:generate go run -tags debug main.go
+//go:generate go run main.go
 func main() {
 
 	bls377 := templateData{
@@ -52,7 +52,7 @@ func main() {
 
 type templateData struct {
 	RootPath string
-	Curve    string // GENERIC, BLS381, BLS377, BN256
+	Curve    string // BLS381, BLS377, BN256, BW761
 }
 
 func generateR1CSConvertor(d templateData) error {
@@ -62,9 +62,6 @@ func generateR1CSConvertor(d templateData) error {
 	fmt.Println()
 	fmt.Println("generating r1cs convertor for ", d.Curve)
 	fmt.Println()
-	if d.Curve == "GENERIC" {
-		return nil
-	}
 
 	// generate r1cs_curve.go
 	src := []string{
@@ -85,9 +82,6 @@ func generateGroth16(d templateData) error {
 	fmt.Println()
 	fmt.Println("generating groth16 backend for ", d.Curve)
 	fmt.Println()
-	if d.Curve == "GENERIC" {
-		return nil
-	}
 
 	// generate R1CS.go
 	src := []string{

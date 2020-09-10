@@ -10,12 +10,9 @@ import (
 	"strconv"
 	"math/big"
 
-	{{if ne .Curve "GENERIC"}}
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
-	{{end}}
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/utils/debug"
 
 	{{ template "import_fr" . }}
 )
@@ -68,10 +65,9 @@ func (r1cs *R1CS) GetCurveID() gurvy.ID {
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
 func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
 	// compute the wires and the a, b, c polynomials
-	debug.Assert(len(a) == r1cs.NbConstraints)
-	debug.Assert(len(b) == r1cs.NbConstraints)
-	debug.Assert(len(c) == r1cs.NbConstraints)
-	debug.Assert(len(wireValues) == r1cs.NbWires)
+	if (len(a) != r1cs.NbConstraints || len(b) != r1cs.NbConstraints || len(c) != r1cs.NbConstraints||len(wireValues) != r1cs.NbWires){
+			return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
+	}
 	
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
@@ -81,7 +77,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	instantiateInputs := func(offset int, inputNames []string) error {
 		for i := 0; i < len(inputNames); i++ {
 			name := inputNames[i]
-			if name == {{if ne .Curve "GENERIC"}} backend.{{- end}}OneWire {
+			if name == backend.OneWire {
 				wireValues[i+offset].SetOne()
 				wireInstantiated[i+offset] = true
 			} else {
@@ -89,15 +85,13 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 					wireValues[i+offset].SetInterface(val)
 					wireInstantiated[i+offset] = true
 				} else {
-					return fmt.Errorf("%q: %w", name, {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrInputNotSet)
+					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)
 				}
 			}
 		}
 		return nil
 	}
 	// instantiate private inputs
-	debug.Assert(len(r1cs.SecretWires) == r1cs.NbSecretWires)
-	debug.Assert(len(r1cs.PublicWires) == r1cs.NbPublicWires)
 	if r1cs.NbSecretWires != 0 {
 		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
 		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {
@@ -136,7 +130,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 			invalidB := b[i]
 			invalidC := c[i]
 
-			return fmt.Errorf("%w: %q * %q != %q", {{if ne .Curve "GENERIC"}} backend.{{- end}}ErrUnsatisfiedConstraint,
+			return fmt.Errorf("%w: %q * %q != %q", backend.ErrUnsatisfiedConstraint,
 				invalidA.String(),
 				invalidB.String(),
 				invalidC.String())
@@ -195,8 +189,8 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 
 // MulAdd returns accumulator += (value * term.Coefficient)
 func MulAdd(t r1c.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
-	specialValue := t.SpecialValueInt()
-	switch specialValue {
+	coeffValue := t.CoeffValue()
+	switch coeffValue {
 	case 1:
 		accumulator.Add(accumulator, value)
 	case -1:
@@ -214,8 +208,8 @@ func MulAdd(t r1c.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
 
 // mulInto returns into.Mul(into, term.Coefficient)
 func mulInto(t r1c.Term, r1cs *R1CS, into *fr.Element ) *fr.Element {
-	specialValue := t.SpecialValueInt()
-	switch specialValue {
+	coeffValue := t.CoeffValue()
+	switch coeffValue {
 	case 1:
 		return into
 	case -1:

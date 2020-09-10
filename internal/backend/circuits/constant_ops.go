@@ -12,7 +12,7 @@ type constantOpsCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	elmts := make([]big.Int, 3)
 	for i := 0; i < 3; i++ {
 		elmts[i].SetUint64(uint64(i) + 10)

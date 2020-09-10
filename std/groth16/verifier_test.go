@@ -41,7 +41,7 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	mimc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// pairing data
 	var pairingInfo sw.PairingContext
 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(cs)

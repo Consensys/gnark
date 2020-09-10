@@ -12,7 +12,7 @@ type divCircuit struct {
 	Z    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.CS) error {
+func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.X)
 	d := cs.Div(m, circuit.Y)
 	cs.MustBeEqual(d, circuit.Z)

@@ -23,59 +23,56 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// PublicInput creates a new public input
-func (c *CS) PublicInput(name string) Variable {
-	idx := len(c.PublicInputs)
-	res := Variable{false, Public, idx, nil}
+// NewPublicInput creates a new public input
+func (cs *ConstraintSystem) NewPublicInput(name string) Variable {
+	idx := len(cs.publicVariables)
+	res := Variable{false, backend.Public, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range c.publicInputsNames {
+	for _, v := range cs.publicVariableNames {
 		if v == name {
 			panic("duplicate input name (public)")
 		}
 	}
 
-	c.publicInputsNames = append(c.publicInputsNames, name)
-	c.PublicInputs = append(c.PublicInputs, res)
+	cs.publicVariableNames = append(cs.publicVariableNames, name)
+	cs.publicVariables = append(cs.publicVariables, res)
 	return res
 }
 
-// SecretInput creates a new public input
-func (c *CS) SecretInput(name string) Variable {
-	idx := len(c.secretInputs)
-	res := Variable{false, Secret, idx, nil}
+// NewSecretInput creates a new public input
+func (cs *ConstraintSystem) NewSecretInput(name string) Variable {
+	idx := len(cs.secretVariables)
+	res := Variable{false, backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range c.publicInputsNames {
+	for _, v := range cs.publicVariableNames {
 		if v == name {
 			panic("duplicate input name (secret)")
 		}
 	}
 
-	c.secretInputsName = append(c.secretInputsName, name)
-	c.secretInputs = append(c.secretInputs, res)
+	cs.secretVariableNames = append(cs.secretVariableNames, name)
+	cs.secretVariables = append(cs.secretVariables, res)
 	return res
 }
 
 // Add adds 2 wires
-func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
-	res := c.NewInternalVariable()
+	res := cs.newInternalVariable()
 
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
-
-	lLeft := LinearCombination{}
+	L := r1c.LinearExpression{}
 
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
 		case Variable:
-			c.checkIsAllocated(t)
-			lLeft = append(lLeft, LinearTerm{t, idxOne})
+
+			L = append(L, cs.Term(t, bOne))
 		default:
 			n := backend.FromInterface(t)
-			idxn := c.GetCoeffID(&n)
-			lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
+
+			L = append(L, cs.Term(cs.oneVariable(), &n))
 		}
 	}
 	add(i1)
@@ -84,110 +81,102 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 		add(in[i])
 	}
 
-	lRight := LinearCombination{
-		LinearTerm{c.PublicInputs[0], idxOne},
+	R := r1c.LinearExpression{
+		cs.oneTerm,
 	}
-	lOoutput := LinearCombination{
-		LinearTerm{res, idxOne},
+	O := r1c.LinearExpression{
+		cs.Term(res, bOne),
 	}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
-// Sub Adds two wires
-func (c *CS) Sub(i1, i2 interface{}) Variable {
+// Sub Adds bTwo wires
+func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
-	res := c.NewInternalVariable()
+	res := cs.newInternalVariable()
 
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-	idxOne := c.GetCoeffID(one)
-	idxMinusOne := c.GetCoeffID(minusOne)
-
-	lLeft := LinearCombination{}
+	L := r1c.LinearExpression{}
 	switch t := i1.(type) {
 	case Variable:
-		c.checkIsAllocated(t)
-		lLeft = append(lLeft, LinearTerm{t, idxOne})
+
+		L = append(L, cs.Term(t, bOne))
 	default:
 		n := backend.FromInterface(t)
-		idxn := c.GetCoeffID(&n)
-		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
+
+		L = append(L, cs.Term(cs.oneVariable(), &n))
 	}
 
 	switch t := i2.(type) {
 	case Variable:
-		c.checkIsAllocated(t)
-		lLeft = append(lLeft, LinearTerm{t, idxMinusOne})
+
+		L = append(L, cs.Term(t, bMinusOne))
 	default:
 		n := backend.FromInterface(t)
-		n.Mul(&n, minusOne)
-		idxn := c.GetCoeffID(&n)
-		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
+		n.Mul(&n, bMinusOne)
+
+		L = append(L, cs.Term(cs.oneVariable(), &n))
 	}
 
-	lRight := LinearCombination{
-		LinearTerm{c.PublicInputs[0], idxOne},
+	R := r1c.LinearExpression{
+		cs.oneTerm,
 	}
-	lOoutput := LinearCombination{
-		LinearTerm{res, idxOne},
+	O := r1c.LinearExpression{
+		cs.Term(res, bOne),
 	}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
 // Mul multiplies 2 wires
-func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
-
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
+func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	mul := func(_i1, _i2 interface{}) Variable {
 
-		_res := c.NewInternalVariable()
+		_res := cs.newInternalVariable()
 
-		lLeft := LinearCombination{}
-		lRight := LinearCombination{}
+		L := r1c.LinearExpression{}
+		R := r1c.LinearExpression{}
 
 		// left
 		switch t1 := _i1.(type) {
-		case LinearCombination:
-			lLeft = make([]LinearTerm, len(t1))
-			copy(lLeft, t1)
+		case r1c.LinearExpression:
+			L = make(r1c.LinearExpression, len(t1))
+			copy(L, t1)
 		case Variable:
-			c.checkIsAllocated(t1)
-			lLeft = append(lLeft, LinearTerm{t1, idxOne})
+
+			L = append(L, cs.Term(t1, bOne))
 		default:
 			n1 := backend.FromInterface(t1)
-			idxn1 := c.GetCoeffID(&n1)
-			lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn1})
+
+			L = append(L, cs.Term(cs.oneVariable(), &n1))
 		}
 
 		// right
 		switch t2 := _i2.(type) {
-		case LinearCombination:
-			lRight = make([]LinearTerm, len(t2))
-			copy(lRight, t2)
+		case r1c.LinearExpression:
+			R = make(r1c.LinearExpression, len(t2))
+			copy(R, t2)
 		case Variable:
-			c.checkIsAllocated(t2)
-			lRight = append(lRight, LinearTerm{t2, idxOne})
+
+			R = append(R, cs.Term(t2, bOne))
 		default:
 			n2 := backend.FromInterface(t2)
-			idxn2 := c.GetCoeffID(&n2)
-			lRight = append(lRight, LinearTerm{c.getOneVariable(), idxn2})
+
+			R = append(R, cs.Term(cs.oneVariable(), &n2))
 		}
 
-		lOoutput := LinearCombination{
-			LinearTerm{_res, idxOne},
+		O := r1c.LinearExpression{
+			cs.Term(_res, bOne),
 		}
-		g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-		c.gates = append(c.gates, g)
+		constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+		cs.constraints = append(cs.constraints, constraint)
 		return _res
 	}
 
@@ -200,464 +189,394 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 }
 
 // Inverse inverses a variable
-func (c *CS) Inverse(v Variable) Variable {
+func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 
-	c.checkIsAllocated(v)
+	res := cs.newInternalVariable()
 
-	res := c.NewInternalVariable()
-
-	// find the entry in c.coeffs corresponding to 1
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
-
-	lLeft := LinearCombination{LinearTerm{res, idxOne}}
-	lRight := LinearCombination{LinearTerm{v, idxOne}}
-	lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-	c.gates = append(c.gates, g)
+	L := r1c.LinearExpression{cs.Term(res, bOne)}
+	R := r1c.LinearExpression{cs.Term(v, bOne)}
+	O := r1c.LinearExpression{cs.oneTerm}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
-// Div divides two constraints (i1/i2)
-func (c *CS) Div(i1, i2 interface{}) Variable {
+// Div divides bTwo constraints (i1/i2)
+func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 
-	res := c.NewInternalVariable()
+	res := cs.newInternalVariable()
 
-	// find the entry in c.coeffs corresponding to 1
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
-
-	// lOoutput
-	lOoutput := LinearCombination{}
+	// O
+	O := r1c.LinearExpression{}
 	switch t1 := i1.(type) {
-	case LinearCombination:
-		lOoutput = make([]LinearTerm, len(t1))
-		copy(lOoutput, t1)
+	case r1c.LinearExpression:
+		O = t1
 	case Variable:
-		c.checkIsAllocated(t1)
-		lOoutput = append(lOoutput, LinearTerm{t1, idxOne})
+		O = append(O, cs.Term(t1, bOne))
 	default:
 		n1 := backend.FromInterface(t1)
-		idxn1 := c.GetCoeffID(&n1)
-		lOoutput = append(lOoutput, LinearTerm{c.getOneVariable(), idxn1})
+		O = append(O, cs.Term(cs.oneVariable(), &n1))
 	}
 
 	// left
-	lLeft := LinearCombination{}
+	L := r1c.LinearExpression{}
 	switch t2 := i2.(type) {
-	case LinearCombination:
-		lLeft = make([]LinearTerm, len(t2))
-		copy(lLeft, t2)
+	case r1c.LinearExpression:
+		L = t2
 	case Variable:
-		c.checkIsAllocated(t2)
-		lLeft = append(lLeft, LinearTerm{t2, idxOne})
+		L = append(L, cs.Term(t2, bOne))
 	default:
 		n2 := backend.FromInterface(t2)
-		idxn2 := c.GetCoeffID(&n2)
-		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn2})
+		L = append(L, cs.Term(cs.oneVariable(), &n2))
 	}
 
-	lRight := LinearCombination{LinearTerm{res, idxOne}}
+	R := r1c.LinearExpression{cs.Term(res, bOne)}
 
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
-// Xor compute the xor between two constraints
-func (c *CS) Xor(a, b Variable) Variable {
+// Xor compute the xor between bTwo constraints
+func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
-	c.checkIsAllocated(a)
-	c.checkIsAllocated(b)
+	cs.MustBeBoolean(a)
+	cs.MustBeBoolean(b)
 
-	c.MustBeBoolean(a)
-	c.MustBeBoolean(b)
-
-	two := big.NewInt(2)
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-
-	idxtwo := c.GetCoeffID(two)
-	idxOne := c.GetCoeffID(one)
-	idxMinusOne := c.GetCoeffID(minusOne)
-
-	res := c.NewInternalVariable()
-	lLeft := LinearCombination{
-		LinearTerm{a, idxtwo},
+	res := cs.newInternalVariable()
+	L := r1c.LinearExpression{
+		cs.Term(a, bTwo),
 	}
-	lRight := LinearCombination{
-		LinearTerm{b, idxOne},
+	R := r1c.LinearExpression{
+		cs.Term(b, bOne),
 	}
-	lOoutput := LinearCombination{
-		LinearTerm{a, idxOne},
-		LinearTerm{b, idxOne},
-		LinearTerm{res, idxMinusOne},
+	O := r1c.LinearExpression{
+		cs.Term(a, bOne),
+		cs.Term(b, bOne),
+		cs.Term(res, bMinusOne),
 	}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
 // ToBinary unpacks a variable in binary, n is the number of bits of the variable
 // The result in in little endian (first bit= lsb)
-func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
+func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
-	c.checkIsAllocated(a)
+	var coeff big.Int
 
-	var tmp big.Int
-
-	idx := make([]int, nbBits)
-	one := big.NewInt(1)
-	two := big.NewInt(2)
-	tmp.Set(two)
-
-	idx[0] = c.GetCoeffID(one)
-	idx[1] = c.GetCoeffID(two)
-
-	for i := 2; i < nbBits; i++ {
-		tmp.Mul(&tmp, two)
-		idx[i] = c.GetCoeffID(&tmp)
-	}
-
+	// allocate the resulting variables
 	res := make([]Variable, nbBits)
-	lLeft := make([]LinearTerm, nbBits)
 	for i := 0; i < nbBits; i++ {
-		res[i] = c.NewInternalVariable()
-		c.MustBeBoolean(res[i])
-		lLeft[i].Variable = res[i]
-		lLeft[i].Coeff = idx[i]
+		res[i] = cs.newInternalVariable()
+		cs.MustBeBoolean(res[i])
 	}
-	lRight := LinearCombination{
-		LinearTerm{c.getOneVariable(), idx[0]},
-	}
-	lOoutput := LinearCombination{
-		LinearTerm{a, idx[0]},
-	}
-	g := gate{lLeft, lRight, lOoutput, r1c.BinaryDec}
 
-	c.gates = append(c.gates, g)
+	// add the constraint
+	L := make(r1c.LinearExpression, nbBits)
+	for i := 0; i < nbBits; i++ {
+		if i == 0 {
+			coeff.Set(bOne)
+		} else if i == 1 {
+			coeff.Set(bTwo)
+		} else {
+			coeff.Mul(&coeff, bTwo)
+		}
+		L[i] = cs.Term(res[i], &coeff)
+	}
+	R := r1c.LinearExpression{
+		cs.oneTerm,
+	}
+	O := r1c.LinearExpression{
+		cs.Term(a, bOne),
+	}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.BinaryDec}
+
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (c *CS) FromBinary(b ...Variable) Variable {
+func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 
-	for _, i := range b {
-		c.checkIsAllocated(i)
-	}
-
-	res := c.NewInternalVariable()
+	res := cs.newInternalVariable()
 
 	l := len(b)
 
 	idx := make([]int, l)
-	one := big.NewInt(1)
-	two := big.NewInt(2)
-	var tmp big.Int
-	tmp.Set(two)
 
-	idx[0] = c.GetCoeffID(one)
-	idx[1] = c.GetCoeffID(two)
+	var tmp big.Int
+	tmp.Set(bTwo)
+	idx[0] = cs.coeffID(bOne)
+	idx[1] = cs.coeffID(bTwo)
 
 	for i := 2; i < l; i++ {
-		tmp.Mul(&tmp, two)
-		idx[i] = c.GetCoeffID(&tmp)
+		tmp.Mul(&tmp, bTwo)
+		idx[i] = cs.coeffID(&tmp)
 	}
 
-	lLeft := make([]LinearTerm, l)
+	L := make(r1c.LinearExpression, l)
 	for i := 0; i < l; i++ {
-		lLeft[i].Variable = b[i]
-		lLeft[i].Coeff = idx[i]
+		L[i].SetCoeffID(idx[i])
+		L[i].SetConstraintID(b[i].id)
+		L[i].SetConstraintVisibility(b[i].visibility)
+		// TODO we forgot about boolean variables...
+		// L[i].Variable = b[i]
+		// L[i].Coeff = idx[i]
 	}
-	lRight := LinearCombination{
-		LinearTerm{c.getOneVariable(), idx[0]},
+	R := r1c.LinearExpression{
+		cs.oneTerm,
 	}
-	lOoutput := LinearCombination{
-		LinearTerm{res, idx[0]},
+	O := r1c.LinearExpression{
+		cs.Term(res, bOne),
 	}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
 // Select if b is true, yields c1 else yields c2
-func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
+func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
-	c.checkIsAllocated(b)
+	res := cs.newInternalVariable()
 
-	res := c.NewInternalVariable()
-
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-	idxOne := c.GetCoeffID(one)
-	idxMinusOne := c.GetCoeffID(minusOne)
-
-	lLeft := LinearCombination{
-		LinearTerm{b, idxOne},
+	L := r1c.LinearExpression{
+		cs.Term(b, bOne),
 	}
 
-	// lRight, first part
-	lRight := LinearCombination{}
+	// R, first part
+	R := r1c.LinearExpression{}
 	switch t1 := i1.(type) {
-	case LinearCombination:
-		lRight = make([]LinearTerm, len(t1))
-		copy(lRight, t1)
+	case r1c.LinearExpression:
+		R = make(r1c.LinearExpression, len(t1))
+		copy(R, t1)
 	case Variable:
-		c.checkIsAllocated(t1)
-		lRight = append(lRight, LinearTerm{t1, idxOne})
+
+		R = append(R, cs.Term(t1, bOne))
 	default:
 		n1 := backend.FromInterface(t1)
-		idx1 := c.GetCoeffID(&n1)
-		lRight = append(lRight, LinearTerm{c.getOneVariable(), idx1})
+		R = append(R, cs.Term(cs.oneVariable(), &n1))
 	}
 
-	// lRight, second part
-	toAppend := LinearCombination{}
+	// R, second part
+	toAppend := r1c.LinearExpression{}
 	switch t2 := i2.(type) {
-	case LinearCombination:
+	case r1c.LinearExpression:
 		for _, e := range t2 {
-			coef := c.coeffs[e.Coeff]
-			coef.Mul(&coef, minusOne)
-			idcoef := c.GetCoeffID(&coef)
-			toAppend = append(toAppend, LinearTerm{e.Variable, idcoef})
+			coef := cs.coeffs[e.CoeffID()]
+			coef.Mul(&coef, bMinusOne)
+			newCoeffID := cs.coeffID(&coef)
+			newTerm := e
+			newTerm.SetCoeffID(newCoeffID)
+			toAppend = append(toAppend, newTerm)
 		}
 	case Variable:
-		c.checkIsAllocated(t2)
-		toAppend = append(toAppend, LinearTerm{t2, idxMinusOne})
+
+		toAppend = append(toAppend, cs.Term(t2, bMinusOne))
 	default:
 		n2 := backend.FromInterface(t2)
-		idx2 := c.GetCoeffID(&n2)
-		toAppend = append(toAppend, LinearTerm{c.getOneVariable(), idx2})
+		toAppend = append(toAppend, cs.Term(cs.oneVariable(), &n2))
 	}
-	lRight = append(lRight, toAppend...)
+	R = append(R, toAppend...)
 
-	lOoutput := LinearCombination{
-		LinearTerm{res, idxOne},
+	O := r1c.LinearExpression{
+		cs.Term(res, bOne),
 	}
-	lOoutput = append(lOoutput, toAppend...)
+	O = append(O, toAppend...)
 
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 }
 
 // Constant will return a Variable from input {uint64, int, ...}
-func (c *CS) Constant(input interface{}) Variable {
+func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
-
-	//lLeft
-	lLeft := LinearCombination{}
+	//L
+	L := r1c.LinearExpression{}
 
 	switch t := input.(type) {
 	case Variable:
-		c.checkIsAllocated(t)
+
 		return t
 	default:
 		n := backend.FromInterface(t)
-		if n.Cmp(one) == 0 {
-			return c.getOneVariable()
+		if n.Cmp(bOne) == 0 {
+			return cs.oneVariable()
 		}
-		idxn := c.GetCoeffID(&n)
-		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn})
+
+		L = append(L, cs.Term(cs.oneVariable(), &n))
 	}
 
-	res := c.NewInternalVariable()
-	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
-	lOoutput := LinearCombination{LinearTerm{res, idxOne}}
+	res := cs.newInternalVariable()
+	R := r1c.LinearExpression{cs.oneTerm}
+	O := r1c.LinearExpression{cs.Term(res, bOne)}
 
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.gates = append(c.gates, g)
+	cs.constraints = append(cs.constraints, constraint)
 
 	return res
 
 }
 
-// MustBeEqual equalizes two variables
-func (c *CS) MustBeEqual(i1, i2 interface{}) {
-
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
+// MustBeEqual equalizes bTwo variables
+func (cs *ConstraintSystem) MustBeEqual(i1, i2 interface{}) {
 
 	//left
-	lLeft := LinearCombination{}
+	L := r1c.LinearExpression{}
 	switch t1 := i1.(type) {
-	case LinearCombination:
-		lLeft = make([]LinearTerm, len(t1))
-		copy(lLeft, t1)
+	case r1c.LinearExpression:
+		L = make(r1c.LinearExpression, len(t1))
+		copy(L, t1)
 	case Variable:
-		c.checkIsAllocated(t1)
-		lLeft = append(lLeft, LinearTerm{t1, idxOne})
+
+		L = append(L, cs.Term(t1, bOne))
 	default:
 		n1 := backend.FromInterface(t1)
-		idxn1 := c.GetCoeffID(&n1)
-		lLeft = append(lLeft, LinearTerm{c.getOneVariable(), idxn1})
+
+		L = append(L, cs.Term(cs.oneVariable(), &n1))
 	}
 
-	// lOoutput
-	lOoutput := LinearCombination{}
+	// O
+	O := r1c.LinearExpression{}
 	switch t2 := i2.(type) {
-	case LinearCombination:
-		lOoutput = make([]LinearTerm, len(t2))
-		copy(lOoutput, t2)
+	case r1c.LinearExpression:
+		O = make(r1c.LinearExpression, len(t2))
+		copy(O, t2)
 	case Variable:
-		c.checkIsAllocated(t2)
-		lOoutput = append(lOoutput, LinearTerm{t2, idxOne})
+
+		O = append(O, cs.Term(t2, bOne))
 	default:
 		n2 := backend.FromInterface(t2)
-		idxn2 := c.GetCoeffID(&n2)
-		lOoutput = append(lOoutput, LinearTerm{c.getOneVariable(), idxn2})
+
+		O = append(O, cs.Term(cs.oneVariable(), &n2))
 	}
 
 	// right
-	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
+	R := r1c.LinearExpression{cs.oneTerm}
 
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
 
-	c.constraints = append(c.constraints, g)
+	cs.assertions = append(cs.assertions, constraint)
 }
 
 // MustBeBoolean boolean constrains a variable
-func (c *CS) MustBeBoolean(a Variable) {
-
-	c.checkIsAllocated(a)
+func (cs *ConstraintSystem) MustBeBoolean(a Variable) {
 
 	if a.isBoolean {
 		return
 	}
 
-	zero := big.NewInt(0)
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-	idxOne := c.GetCoeffID(one)
-	idxMinusOne := c.GetCoeffID(minusOne)
-	idxZero := c.GetCoeffID(zero)
-
-	lLeft := LinearCombination{
-		LinearTerm{a, idxOne},
+	L := r1c.LinearExpression{
+		cs.Term(a, bOne),
 	}
-	lRight := LinearCombination{
-		LinearTerm{c.getOneVariable(), idxOne},
-		LinearTerm{a, idxMinusOne},
+	R := r1c.LinearExpression{
+		cs.oneTerm,
+		cs.Term(a, bMinusOne),
 	}
-	lOoutput := LinearCombination{
-		LinearTerm{c.getOneVariable(), idxZero},
+	O := r1c.LinearExpression{
+		cs.Term(cs.oneVariable(), bZero),
 	}
-	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-	c.constraints = append(c.constraints, g)
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+	cs.assertions = append(cs.assertions, constraint)
 	a.isBoolean = true
 }
 
 // MustBeLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
 // https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
-func (c *CS) MustBeLessOrEqual(w Variable, bound interface{}) {
-
-	c.checkIsAllocated(w)
+func (cs *ConstraintSystem) MustBeLessOrEqual(w Variable, bound interface{}) {
 
 	switch b := bound.(type) {
 	case Variable:
-		c.checkIsAllocated(b)
-		c.mustBeLessOrEqVar(w, b)
+
+		cs.mustBeLessOrEqVar(w, b)
 	default:
 		_bound := backend.FromInterface(b)
-		c.mustBeLessOrEqCst(w, _bound)
+		cs.mustBeLessOrEqCst(w, _bound)
 	}
 
 }
 
-func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
+func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 
-	nbBits := 256
+	const nbBits = 256
 
-	binw := c.ToBinary(w, nbBits)
-	binbound := c.ToBinary(bound, nbBits)
+	binw := cs.ToBinary(w, nbBits)
+	binbound := cs.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
-	p[nbBits] = c.Constant(1)
-
-	zero := big.NewInt(0)
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-	idxZero := c.GetCoeffID(zero)
-	idxOne := c.GetCoeffID(one)
-	idxMinusOne := c.GetCoeffID(minusOne)
+	p[nbBits] = cs.Constant(1)
 
 	for i := nbBits - 1; i >= 0; i-- {
-		p1 := c.Mul(p[i+1], binw[i])
-		p[i] = c.Select(binbound[i], p1, p[i+1])
+		p1 := cs.Mul(p[i+1], binw[i])
+		p[i] = cs.Select(binbound[i], p1, p[i+1])
 
-		zero := c.Constant(0)
-		t := c.Select(binbound[i], zero, p[i+1])
-		lLeft := LinearCombination{
-			LinearTerm{c.getOneVariable(), idxOne},
-			LinearTerm{t, idxMinusOne},
-			LinearTerm{binw[i], idxMinusOne},
+		zero := cs.Constant(0)
+		t := cs.Select(binbound[i], zero, p[i+1])
+		L := r1c.LinearExpression{
+			cs.oneTerm,
+			cs.Term(t, bMinusOne),
+			cs.Term(binw[i], bMinusOne),
 		}
-		lRight := LinearCombination{
-			LinearTerm{binw[i], idxOne},
+		R := r1c.LinearExpression{
+			cs.Term(binw[i], bOne),
 		}
-		lOoutput := LinearCombination{
-			LinearTerm{c.getOneVariable(), idxZero},
+		O := r1c.LinearExpression{
+			cs.Term(cs.oneVariable(), bZero),
 		}
-		g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-		c.constraints = append(c.constraints, g)
+		constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+		cs.assertions = append(cs.assertions, constraint)
 	}
 
 }
 
-func (c *CS) mustBeLessOrEqCst(w Variable, bound big.Int) {
+func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 
 	nbBits := 256
 	nbWords := 4
 	wordSize := 64
 
-	binw := c.ToBinary(w, nbBits)
-	binbound := bound.Bits()
-	l := len(binbound)
-	if len(binbound) < nbWords {
+	vBits := cs.ToBinary(v, nbBits)
+	boundBits := bound.Bits()
+	l := len(boundBits)
+	if len(boundBits) < nbWords {
 		for i := 0; i < nbWords-l; i++ {
-			binbound = append(binbound, big.Word(0))
+			boundBits = append(boundBits, big.Word(0))
 		}
 	}
 	p := make([]Variable, nbBits+1)
 
-	var zero big.Int
-	idxZero := c.GetCoeffID(&zero)
-	one := big.NewInt(1)
-	idxOne := c.GetCoeffID(one)
-	minusOne := big.NewInt(-1)
-	idxMinusOne := c.GetCoeffID(minusOne)
-	p[nbBits] = c.Constant(1)
+	p[nbBits] = cs.Constant(1)
 	for i := nbWords - 1; i >= 0; i-- {
 		for j := 0; j < wordSize; j++ {
-			b := (binbound[i] >> (wordSize - 1 - j)) & 1
+			b := (boundBits[i] >> (wordSize - 1 - j)) & 1
 			if b == 0 {
 				p[(i+1)*wordSize-1-j] = p[(i+1)*wordSize-j]
-				lLeft := LinearCombination{
-					LinearTerm{c.getOneVariable(), idxOne},
-					LinearTerm{p[(i+1)*wordSize-j], idxMinusOne},
-					LinearTerm{binw[(i+1)*wordSize-1-j], idxMinusOne},
+				L := r1c.LinearExpression{
+					cs.oneTerm,
+					cs.Term(p[(i+1)*wordSize-j], bMinusOne),
+					cs.Term(vBits[(i+1)*wordSize-1-j], bMinusOne),
 				}
-				lRight := LinearCombination{LinearTerm{binw[(i+1)*wordSize-1-j], idxOne}}
-				lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxZero}}
-				g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-				c.constraints = append(c.constraints, g)
+				R := r1c.LinearExpression{cs.Term(vBits[(i+1)*wordSize-1-j], bOne)}
+				O := r1c.LinearExpression{cs.Term(cs.oneVariable(), bZero)}
+				constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+				cs.assertions = append(cs.assertions, constraint)
 
 			} else {
-				p[(i+1)*wordSize-1-j] = c.Mul(p[(i+1)*wordSize-j], binw[(i+1)*wordSize-1-j])
+				p[(i+1)*wordSize-1-j] = cs.Mul(p[(i+1)*wordSize-j], vBits[(i+1)*wordSize-1-j])
 			}
 		}
 	}

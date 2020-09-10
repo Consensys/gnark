@@ -26,8 +26,6 @@ import (
 
 	"runtime"
 	"sync"
-
-	"github.com/consensys/gnark/internal/utils/debug"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -203,7 +201,6 @@ func computeH(a, b, c []fr.Element, fftDomain *bls381backend.Domain) []fr.Elemen
 	// 	3 - h = ifft_coset(ca o cb - cc)
 
 	n := len(a)
-	debug.Assert((n == len(b)) && (n == len(c)))
 
 	// add padding
 	padding := make([]fr.Element, fftDomain.Cardinality-n)
