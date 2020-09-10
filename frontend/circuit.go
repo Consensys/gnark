@@ -11,7 +11,7 @@ import (
 
 // Circuit must be implemented by user-defined circuits
 type Circuit interface {
-	// Define declares the circuit's constraints
+	// Define declares the circuit's Constraints
 	Define(curveID gurvy.ID, cs *CS) error
 }
 
@@ -30,7 +30,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	cs := newCS()
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
-	// leafs are constraints that need to be initialized in the context of compiling a circuit
+	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler leafHandler = func(visibility attrVisibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
@@ -52,7 +52,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return errors.New("can't set val " + name)
 	}
 
-	// recursively parse through reflection the circuits members to find all constraints that need to be allOoutputcated
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
 	if err := parseType(circuit, "", unset, handler); err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	// TODO maybe lOoutputck input variables allOoutputcations to forbid user to call circuit.SECRET_INPUT() inside the Circuit() method
 
-	// call Define() to fill in the constraints
+	// call Define() to fill in the Constraints
 	if err := circuit.Define(curveID, &cs); err != nil {
 		return nil, err
 	}

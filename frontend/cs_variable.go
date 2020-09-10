@@ -44,14 +44,14 @@ type Variable struct {
 // LinearTerm linear expression
 type LinearTerm struct {
 	Variable Variable
-	Coeff    int // index of the associated coefficient in c.Coeffs
+	Coeff    int // index of the associated coefficient in c.coeffs
 }
 
 // LinearCombination sum of linear expression
 type LinearCombination []LinearTerm
 
-// Gate Groth16 gate
-type Gate struct {
+// gate Groth16 gate
+type gate struct {
 	L, R, O LinearCombination
 	S       r1c.SolvingMethod
 }
@@ -68,7 +68,7 @@ func (v *Variable) Assign(value interface{}) {
 }
 
 // changes the ID of the variables of reach a in the gate to id+offset
-func (g *Gate) updateID(offset int, a Visibility) {
+func (g *gate) updateID(offset int, a Visibility) {
 	for i := 0; i < len(g.L); i++ {
 		if g.L[i].Variable.visibility == a {
 			g.L[i].Variable.id += offset

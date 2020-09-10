@@ -29,31 +29,31 @@ func (c *CS) PublicInput(name string) Variable {
 	res := Variable{false, Public, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range c.PublicInputsNames {
+	for _, v := range c.publicInputsNames {
 		if v == name {
 			panic("duplicate input name (public)")
 		}
 	}
 
-	c.PublicInputsNames = append(c.PublicInputsNames, name)
+	c.publicInputsNames = append(c.publicInputsNames, name)
 	c.PublicInputs = append(c.PublicInputs, res)
 	return res
 }
 
 // SecretInput creates a new public input
 func (c *CS) SecretInput(name string) Variable {
-	idx := len(c.SecretInputs)
+	idx := len(c.secretInputs)
 	res := Variable{false, Secret, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range c.PublicInputsNames {
+	for _, v := range c.publicInputsNames {
 		if v == name {
 			panic("duplicate input name (secret)")
 		}
 	}
 
-	c.SecretInputsName = append(c.SecretInputsName, name)
-	c.SecretInputs = append(c.SecretInputs, res)
+	c.secretInputsName = append(c.secretInputsName, name)
+	c.secretInputs = append(c.secretInputs, res)
 	return res
 }
 
@@ -90,9 +90,9 @@ func (c *CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 	lOoutput := LinearCombination{
 		LinearTerm{res, idxOne},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -135,9 +135,9 @@ func (c *CS) Sub(i1, i2 interface{}) Variable {
 	lOoutput := LinearCombination{
 		LinearTerm{res, idxOne},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -186,8 +186,8 @@ func (c *CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 		lOoutput := LinearCombination{
 			LinearTerm{_res, idxOne},
 		}
-		g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-		c.Gates = append(c.Gates, g)
+		g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+		c.gates = append(c.gates, g)
 		return _res
 	}
 
@@ -206,15 +206,15 @@ func (c *CS) Inverse(v Variable) Variable {
 
 	res := c.NewInternalVariable()
 
-	// find the entry in c.Coeffs corresponding to 1
+	// find the entry in c.coeffs corresponding to 1
 	one := big.NewInt(1)
 	idxOne := c.GetCoeffID(one)
 
 	lLeft := LinearCombination{LinearTerm{res, idxOne}}
 	lRight := LinearCombination{LinearTerm{v, idxOne}}
 	lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-	c.Gates = append(c.Gates, g)
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -224,7 +224,7 @@ func (c *CS) Div(i1, i2 interface{}) Variable {
 
 	res := c.NewInternalVariable()
 
-	// find the entry in c.Coeffs corresponding to 1
+	// find the entry in c.coeffs corresponding to 1
 	one := big.NewInt(1)
 	idxOne := c.GetCoeffID(one)
 
@@ -260,9 +260,9 @@ func (c *CS) Div(i1, i2 interface{}) Variable {
 
 	lRight := LinearCombination{LinearTerm{res, idxOne}}
 
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -296,9 +296,9 @@ func (c *CS) Xor(a, b Variable) Variable {
 		LinearTerm{b, idxOne},
 		LinearTerm{res, idxMinusOne},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -338,9 +338,9 @@ func (c *CS) ToBinary(a Variable, nbBits int) []Variable {
 	lOoutput := LinearCombination{
 		LinearTerm{a, idx[0]},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.BinaryDec}
+	g := gate{lLeft, lRight, lOoutput, r1c.BinaryDec}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 
@@ -382,9 +382,9 @@ func (c *CS) FromBinary(b ...Variable) Variable {
 	lOoutput := LinearCombination{
 		LinearTerm{res, idx[0]},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -425,7 +425,7 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 	switch t2 := i2.(type) {
 	case LinearCombination:
 		for _, e := range t2 {
-			coef := c.Coeffs[e.Coeff]
+			coef := c.coeffs[e.Coeff]
 			coef.Mul(&coef, minusOne)
 			idcoef := c.GetCoeffID(&coef)
 			toAppend = append(toAppend, LinearTerm{e.Variable, idcoef})
@@ -445,9 +445,9 @@ func (c *CS) Select(b Variable, i1, i2 interface{}) Variable {
 	}
 	lOoutput = append(lOoutput, toAppend...)
 
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 }
@@ -479,9 +479,9 @@ func (c *CS) Constant(input interface{}) Variable {
 	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
 	lOoutput := LinearCombination{LinearTerm{res, idxOne}}
 
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Gates = append(c.Gates, g)
+	c.gates = append(c.gates, g)
 
 	return res
 
@@ -526,9 +526,9 @@ func (c *CS) MustBeEqual(i1, i2 interface{}) {
 	// right
 	lRight := LinearCombination{LinearTerm{c.getOneVariable(), idxOne}}
 
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
 
-	c.Constraints = append(c.Constraints, g)
+	c.constraints = append(c.constraints, g)
 }
 
 // MustBeBoolean boolean constrains a variable
@@ -557,8 +557,8 @@ func (c *CS) MustBeBoolean(a Variable) {
 	lOoutput := LinearCombination{
 		LinearTerm{c.getOneVariable(), idxZero},
 	}
-	g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-	c.Constraints = append(c.Constraints, g)
+	g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+	c.constraints = append(c.constraints, g)
 	a.isBoolean = true
 }
 
@@ -613,8 +613,8 @@ func (c *CS) mustBeLessOrEqVar(w, bound Variable) {
 		lOoutput := LinearCombination{
 			LinearTerm{c.getOneVariable(), idxZero},
 		}
-		g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-		c.Constraints = append(c.Constraints, g)
+		g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+		c.constraints = append(c.constraints, g)
 	}
 
 }
@@ -654,8 +654,8 @@ func (c *CS) mustBeLessOrEqCst(w Variable, bound big.Int) {
 				}
 				lRight := LinearCombination{LinearTerm{binw[(i+1)*wordSize-1-j], idxOne}}
 				lOoutput := LinearCombination{LinearTerm{c.getOneVariable(), idxZero}}
-				g := Gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
-				c.Constraints = append(c.Constraints, g)
+				g := gate{lLeft, lRight, lOoutput, r1c.SingleOutput}
+				c.constraints = append(c.constraints, g)
 
 			} else {
 				p[(i+1)*wordSize-1-j] = c.Mul(p[(i+1)*wordSize-j], binw[(i+1)*wordSize-1-j])

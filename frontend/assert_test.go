@@ -70,7 +70,7 @@ func (assert *Assert) r1csIsCorrect(circuit CS, expectedR1CS expectedR1CS) {
 
 // 	var wires []int
 
-// 	for cID, c := range cs.constraints {
+// 	for cID, c := range cs.Constraints {
 // 		if cID == 0 {
 // 			continue // skipping first entry, reserved
 // 		}
