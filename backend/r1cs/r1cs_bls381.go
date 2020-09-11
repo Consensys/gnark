@@ -35,6 +35,7 @@ func (r1cs *UntypedR1CS) toBLS381() *bls381backend.R1CS {
 		NbCOConstraints: r1cs.NbCOConstraints,
 		Constraints:     r1cs.Constraints,
 		Coefficients:    make([]fr.Element, len(r1cs.Coefficients)),
+		Logs:            r1cs.Logs,
 	}
 
 	for i := 0; i < len(r1cs.Coefficients); i++ {

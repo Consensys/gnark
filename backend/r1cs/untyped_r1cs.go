@@ -17,6 +17,7 @@ package r1cs
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 )
@@ -32,6 +33,7 @@ type UntypedR1CS struct {
 	SecretWires   []string         // private wire names
 	PublicWires   []string         // public wire names
 	WireTags      map[int][]string // optional tags -- debug info
+	Logs          []backend.LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints

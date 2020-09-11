@@ -26,6 +26,7 @@ type R1CS struct {
 	SecretWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	PublicWires    []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	WireTags       map[int][]string // optional tags -- debug info
+	Logs          []backend.LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints
@@ -106,6 +107,10 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 		}
 	}
 
+	// now that we know all inputs are set, defer log printing once all wireValues are computed
+	// (or sooner, if a constraint is not satisfied)
+	defer r1cs.printLogs(wireValues, wireInstantiated)
+
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
@@ -116,7 +121,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 			// computationalGraph : we need to solve the constraint
 			// computationalGraph[i] contains exactly one uncomputed wire (due
 			// to the graph being correctly ordered), we solve it
-			solveR1C(&r1cs.Constraints[i], r1cs, wireInstantiated, wireValues)
+			r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
 		}
 
 		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
@@ -138,6 +143,24 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	}
 
 	return nil
+}
+
+
+func (r1cs *R1CS) printLogs( wireValues []fr.Element, wireInstantiated []bool) {
+
+	// for each log, resolve the wire values and print the log to stdout
+	for i := 0; i < len(r1cs.Logs); i++ {
+		entry := r1cs.Logs[i]
+		var toResolve []interface{}
+		for j := 0; j < len(entry.ToResolve); j++ {
+			wireID := entry.ToResolve[j]
+			if !wireInstantiated[wireID] {
+				panic("wire values was not instantiated: this could only happen if one computational constraint that was computed yielded an incorrect result. Please report this issue on github.com/consensys/gnark/issues")
+			}
+			toResolve = append(toResolve, wireValues[wireID].String())
+		}
+		fmt.Printf(entry.Format, toResolve...)
+	}
 }
 
 // Inspect returns the tagged variables with their corresponding value
@@ -247,27 +270,12 @@ func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr
 	return
 }
 
-type location uint8 
-const (
-	locationUnset location = iota
-	locationA
-	locationB
-	locationC
-)
-
-func (l location) set(nloc location) location {
-	if l != locationUnset {
-		panic("location was already set -- we should have only one unset wire")
-	}
-	return nloc
-}
-
 // solveR1c computes a wire by solving a r1cs
 // the function searches for the unset wire (either the unset wire is
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.Element) {
+func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.Element) {
 
 	switch r.Solver {
 
@@ -276,45 +284,39 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
-		loc := locationUnset
+		var loc uint8
 
-		var  a, b, c fr.Element
+		var a, b, c fr.Element
 		var termToCompute r1c.Term
 
-		// TODO factorize this. 
-
-		for _, t := range r.L {
+		processTerm := func(t r1c.Term, val *fr.Element, locValue uint8) {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
-				r1cs.AddTerm(&a, t, wireValues[cID])
+				r1cs.AddTerm(val, t, wireValues[cID])
 			} else {
+				if loc != 0 {
+					panic("found more than one wire to instantiate")
+				}
 				termToCompute = t
-				loc = loc.set(locationA)
+				loc = locValue
 			}
+		}
+
+
+		for _, t := range r.L {
+			processTerm(t, &a, 1)
 		}
 
 		for _, t := range r.R {
-			cID := t.ConstraintID()
-			if wireInstantiated[cID] {
-				r1cs.AddTerm(&b, t, wireValues[cID])
-			} else {
-				termToCompute = t
-				loc = loc.set(locationB)
-			}
+			processTerm(t, &b, 2)
 		}
 
 		for _, t := range r.O {
-			cID := t.ConstraintID()
-			if wireInstantiated[cID] {
-				r1cs.AddTerm(&c, t, wireValues[cID])
-			} else {
-				termToCompute = t
-				loc = loc.set(locationC)
-			}
+			processTerm(t, &c, 3)
 		}
 
 		// ensure we found the unset wire
-		if loc == locationUnset {
+		if loc == 0 {
 			// this wire may have been instantiated as part of moExpression already
 			return
 		}
@@ -323,19 +325,19 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 		cID := termToCompute.ConstraintID()
 
 		switch loc {
-		case locationA:
+		case 1:
 			if !b.IsZero() {
 				wireValues[cID].Div(&c, &b).
 					Sub(&wireValues[cID], &a)
 				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
 			}
-		case locationB:
+		case 2:
 			if !a.IsZero() {
 				wireValues[cID].Div(&c, &a).
 					Sub(&wireValues[cID], &b)
 				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
 			}
-		case locationC:
+		case 3:
 			wireValues[cID].Mul(&a, &b).
 				Sub(&wireValues[cID], &c)
 			r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)

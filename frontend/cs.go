@@ -17,7 +17,13 @@ limitations under the License.
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
@@ -36,14 +42,19 @@ type ConstraintSystem struct {
 	publicVariableNames []string         // public inputs names
 	secretVariableNames []string         // private inputs names
 	wireTags            map[int][]string // optional tags -- debug info
+	logs                []logEntry
 	oneTerm             r1c.Term
+}
+
+type logEntry struct {
+	format    string
+	toResolve []r1c.Term
 }
 
 const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
 
 // newConstraintSystem outputs a new circuit
 func newConstraintSystem() ConstraintSystem {
-
 	cs := ConstraintSystem{
 		publicVariableNames: make([]string, 1),
 		publicVariables:     make([]Variable, 1),
@@ -106,6 +117,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 		SecretWires:     cs.secretVariableNames,
 		PublicWires:     cs.publicVariableNames,
 		Coefficients:    cs.coeffs,
+		Logs:            make([]backend.LogEntry, len(cs.logs)),
 	}
 
 	// computational constraints (= gates)
@@ -131,6 +143,27 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 		offsetIDs(res.Constraints[i].L)
 		offsetIDs(res.Constraints[i].R)
 		offsetIDs(res.Constraints[i].O)
+	}
+
+	// we need to offset the ids in logs too
+	for i := 0; i < len(cs.logs); i++ {
+		entry := backend.LogEntry{
+			Format: cs.logs[i].format,
+		}
+		for j := 0; j < len(cs.logs[i].toResolve); j++ {
+			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
+			switch cVisibility {
+			case backend.Public:
+				cID += len(cs.internalVariables) + len(cs.secretVariables)
+			case backend.Secret:
+				cID += len(cs.internalVariables)
+			case backend.Unset:
+				panic("shouldn't happen")
+			}
+			entry.ToResolve = append(entry.ToResolve, cID)
+		}
+
+		res.Logs[i] = entry
 	}
 
 	// wire tags
@@ -163,6 +196,80 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	cs.coeffs = append(cs.coeffs, toAppend)
 
 	return len(cs.coeffs) - 1
+}
+
+type logValueHandler func(name string, tValue reflect.Value)
+
+func parseLogValue(input interface{}, name string, handler logValueHandler) {
+	tVariable := reflect.TypeOf(Variable{})
+
+	tValue := reflect.ValueOf(input)
+	if tValue.Kind() == reflect.Ptr {
+		tValue = tValue.Elem()
+	}
+	switch tValue.Kind() {
+	case reflect.Struct:
+		switch tValue.Type() {
+		case tVariable:
+			handler(name, tValue)
+			return
+		default:
+			for i := 0; i < tValue.NumField(); i++ {
+
+				value := tValue.Field(i).Interface()
+				parseLogValue(value, tValue.Type().Field(i).Name, handler)
+			}
+		}
+	}
+}
+
+// Println ...
+func (cs *ConstraintSystem) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file)) // TODO we may want to put the full path here
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	// for each argument, if it is a circuit structure and contains variable
+	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
+	// if it doesn't contain variable, call fmt.Sprint(arg) instead
+	entry := logEntry{}
+
+	// this is call recursively on the arguments using reflection on each argument
+	foundVariable := false
+	var handler logValueHandler = func(name string, tInput reflect.Value) {
+		v := tInput.Interface().(Variable)
+		entry.toResolve = append(entry.toResolve, r1c.Pack(v.id, 0, v.visibility))
+		if name == "" {
+			sbb.WriteString("%s")
+		} else {
+			sbb.WriteString(fmt.Sprintf("[%s: %%s]", name))
+		}
+
+		foundVariable = true
+	}
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		foundVariable = false
+		parseLogValue(arg, "", handler)
+		if !foundVariable {
+			sbb.WriteString(fmt.Sprint(arg))
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	entry.format = sbb.String()
+
+	cs.logs = append(cs.logs, entry)
 }
 
 // Tag assign a key to a variable to be able to monitor it when the system is solved

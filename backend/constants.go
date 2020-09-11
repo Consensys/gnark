@@ -33,3 +33,8 @@ const (
 	Secret
 	Public
 )
+
+type LogEntry struct {
+	Format    string
+	ToResolve []int
+}

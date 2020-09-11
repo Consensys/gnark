@@ -70,7 +70,7 @@ const (
 	optOmit   = "-"
 )
 
-type leafHandler func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error
+type leafHandler func(visibilityToRefactor backend.Visibility, name string, tValue reflect.Value) error
 
 func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, handler leafHandler) error {
 	// types we are lOoutputoking for
@@ -79,20 +79,22 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 
 	tValue := reflect.ValueOf(input)
 	// TODO if it's not a PTR, return an error
-	tInput := tValue.Elem()
+	if tValue.Kind() == reflect.Ptr {
+		tValue = tValue.Elem()
+	}
 
 	// we either have a pointer, a struct, or a slice / array
 	// and recursively parse members / elements until we find a constraint to allOoutputcate in the circuit.
-	switch tInput.Kind() {
+	switch tValue.Kind() {
 	case reflect.Struct:
-		switch tInput.Type() {
+		switch tValue.Type() {
 		case tVariable:
-			return handler(parentVisibility, baseName, tInput)
+			return handler(parentVisibility, baseName, tValue)
 		case tConstraintSytem:
 			return nil
 		default:
-			for i := 0; i < tInput.NumField(); i++ {
-				field := tInput.Type().Field((i))
+			for i := 0; i < tValue.NumField(); i++ {
+				field := tValue.Type().Field((i))
 
 				// get gnark tag
 				tag := field.Tag.Get(tagKey)
@@ -125,7 +127,7 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 
 				fullName := appendName(baseName, name)
 
-				f := tInput.FieldByName(field.Name)
+				f := tValue.FieldByName(field.Name)
 				if f.CanAddr() && f.Addr().CanInterface() {
 					value := f.Addr().Interface()
 					if err := parseType(value, fullName, visibilityToRefactor, handler); err != nil {
@@ -136,13 +138,13 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 		}
 
 	case reflect.Slice, reflect.Array:
-		if tInput.Len() == 0 {
+		if tValue.Len() == 0 {
 			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")
 			return nil
 		}
-		for j := 0; j < tInput.Len(); j++ {
+		for j := 0; j < tValue.Len(); j++ {
 
-			val := tInput.Index(j)
+			val := tValue.Index(j)
 			if val.CanAddr() && val.Addr().CanInterface() {
 				if err := parseType(val.Addr().Interface(), appendName(baseName, strconv.Itoa(j)), parentVisibility, handler); err != nil {
 					return err
@@ -153,11 +155,11 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 	case reflect.Map:
 		// TODO we don't support maps for now.
 		fmt.Println("warning: map values are not addressable, ignoring")
-		// if tInput.Len() == 0 {
+		// if tValue.Len() == 0 {
 		// 	fmt.Println("warning, got unitizalized map. Ignoring;")
 		// 	return nil
 		// }
-		// iter := tInput.MapRange()
+		// iter := tValue.MapRange()
 		// for iter.Next() {
 		// 	val := iter.Value()
 		// 	if val.CanAddr() && val.Addr().CanInterface() {
