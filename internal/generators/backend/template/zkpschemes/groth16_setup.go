@@ -242,13 +242,13 @@ func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *{{toLower .Curve}}backend
 	for _, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&A[t.ConstraintID()])
+			r1cs.AddTerm(&A[t.ConstraintID()], t, ithLagrangePolt)
 		}
 		for _, t := range c.R {
-			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&B[t.ConstraintID()])
+			r1cs.AddTerm(&B[t.ConstraintID()], t, ithLagrangePolt)
 		}
 		for _, t := range c.O {
-			{{toLower .Curve}}backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt,&C[t.ConstraintID()])
+			r1cs.AddTerm(&C[t.ConstraintID()], t, ithLagrangePolt)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))

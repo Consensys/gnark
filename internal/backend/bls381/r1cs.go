@@ -197,39 +197,41 @@ func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (ma
 	return res, nil
 }
 
-// MulAdd returns accumulator += (value * term.Coefficient)
-func MulAdd(t r1c.Term, r1cs *R1CS, buffer, value, accumulator *fr.Element) {
+// AddTerm returns res += (value * term.Coefficient)
+func (r1cs *R1CS) AddTerm(res *fr.Element, t r1c.Term, value fr.Element) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
-		accumulator.Add(accumulator, value)
+		return res.Add(res, &value)
 	case -1:
-		accumulator.Sub(accumulator, value)
+		return res.Sub(res, &value)
 	case 0:
-		return
+		return res
 	case 2:
-		buffer.Double(value)
-		accumulator.Add(accumulator, buffer)
+		var buffer fr.Element
+		buffer.Double(&value)
+		return res.Add(res, &buffer)
 	default:
-		buffer.Mul(&r1cs.Coefficients[t.CoeffID()], value)
-		accumulator.Add(accumulator, buffer)
+		var buffer fr.Element
+		buffer.Mul(&r1cs.Coefficients[t.CoeffID()], &value)
+		return res.Add(res, &buffer)
 	}
 }
 
-// mulInto returns into.Mul(into, term.Coefficient)
-func mulInto(t r1c.Term, r1cs *R1CS, into *fr.Element) *fr.Element {
+// mulWireByCoeff returns into.Mul(into, term.Coefficient)
+func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t r1c.Term) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
-		return into
+		return res
 	case -1:
-		return into.Neg(into)
+		return res.Neg(res)
 	case 0:
-		return into.SetZero()
+		return res.SetZero()
 	case 2:
-		return into.Double(into)
+		return res.Double(res)
 	default:
-		return into.Mul(into, &r1cs.Coefficients[t.CoeffID()])
+		return res.Mul(res, &r1cs.Coefficients[t.CoeffID()])
 	}
 }
 
@@ -238,18 +240,16 @@ func mulInto(t r1c.Term, r1cs *R1CS, into *fr.Element) *fr.Element {
 // it instantiates the l, r o part of a R1C
 func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
 
-	var tmp fr.Element
-
 	for _, t := range r.L {
-		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &a)
+		r1cs.AddTerm(&a, t, wireValues[t.ConstraintID()])
 	}
 
 	for _, t := range r.R {
-		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &b)
+		r1cs.AddTerm(&b, t, wireValues[t.ConstraintID()])
 	}
 
 	for _, t := range r.O {
-		MulAdd(t, r1cs, &tmp, &wireValues[t.ConstraintID()], &c)
+		r1cs.AddTerm(&c, t, wireValues[t.ConstraintID()])
 	}
 
 	return
@@ -287,15 +287,17 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 		// the content is the ID of the wire non instantiated
 		loc := locationUnset
 
-		var tmp, a, b, c fr.Element
-		var _t r1c.Term
+		var a, b, c fr.Element
+		var termToCompute r1c.Term
+
+		// TODO factorize this.
 
 		for _, t := range r.L {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
-				MulAdd(t, r1cs, &tmp, &wireValues[cID], &a)
+				r1cs.AddTerm(&a, t, wireValues[cID])
 			} else {
-				_t = t
+				termToCompute = t
 				loc = loc.set(locationA)
 			}
 		}
@@ -303,9 +305,9 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 		for _, t := range r.R {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
-				MulAdd(t, r1cs, &tmp, &wireValues[cID], &b)
+				r1cs.AddTerm(&b, t, wireValues[cID])
 			} else {
-				_t = t
+				termToCompute = t
 				loc = loc.set(locationB)
 			}
 		}
@@ -313,9 +315,9 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 		for _, t := range r.O {
 			cID := t.ConstraintID()
 			if wireInstantiated[cID] {
-				MulAdd(t, r1cs, &tmp, &wireValues[cID], &c)
+				r1cs.AddTerm(&c, t, wireValues[cID])
 			} else {
-				_t = t
+				termToCompute = t
 				loc = loc.set(locationC)
 			}
 		}
@@ -326,28 +328,29 @@ func solveR1C(r *r1c.R1C, r1cs *R1CS, wireInstantiated []bool, wireValues []fr.E
 			return
 		}
 
-		cID := _t.ConstraintID()
-		wireValues[cID].SetZero()
-		wireInstantiated[cID] = true
+		// we compute the wire value and instantiate it
+		cID := termToCompute.ConstraintID()
 
 		switch loc {
 		case locationA:
 			if !b.IsZero() {
 				wireValues[cID].Div(&c, &b).
 					Sub(&wireValues[cID], &a)
-				mulInto(_t, r1cs, &wireValues[cID])
+				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
 			}
 		case locationB:
 			if !a.IsZero() {
 				wireValues[cID].Div(&c, &a).
 					Sub(&wireValues[cID], &b)
-				mulInto(_t, r1cs, &wireValues[cID])
+				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
 			}
 		case locationC:
 			wireValues[cID].Mul(&a, &b).
 				Sub(&wireValues[cID], &c)
-			mulInto(_t, r1cs, &wireValues[cID])
+			r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
 		}
+
+		wireInstantiated[cID] = true
 
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable

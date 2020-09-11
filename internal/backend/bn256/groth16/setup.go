@@ -250,13 +250,13 @@ func setupABC(r1cs *bn256backend.R1CS, g *bn256backend.Domain, toxicWaste toxicW
 	for _, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			bn256backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &A[t.ConstraintID()])
+			r1cs.AddTerm(&A[t.ConstraintID()], t, ithLagrangePolt)
 		}
 		for _, t := range c.R {
-			bn256backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &B[t.ConstraintID()])
+			r1cs.AddTerm(&B[t.ConstraintID()], t, ithLagrangePolt)
 		}
 		for _, t := range c.O {
-			bn256backend.MulAdd(t, r1cs, &tmp, &ithLagrangePolt, &C[t.ConstraintID()])
+			r1cs.AddTerm(&C[t.ConstraintID()], t, ithLagrangePolt)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
