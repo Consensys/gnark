@@ -19,6 +19,7 @@ package twistededwards
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 )
@@ -53,64 +54,32 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point, x, y interface{}, curve EdCurve) *Point {
-	X := cs.Constant(x)
-	Y := cs.Constant(y)
-	return p.AddGeneric(cs, p1, &Point{X, Y}, curve)
 
-	// TODO fixme
-	// // cf https://z.cash/technology/jubjub/
-	// // or https://eprint.iacr.org/2008/013.pdf
-	// res := Point{}
+	// https://eprint.iacr.org/2008/013.pdf
 
-	// // constraint 1
-	// b := cs.Mul(p1.X, p1.Y)
+	var dxy, bxa big.Int
+	bx := backend.FromInterface(x)
+	by := backend.FromInterface(y)
+	dxy.Mul(&bx, &by).Mul(&dxy, &curve.D)
+	bxa.Mul(&bx, &curve.A).Neg(&bxa)                                    // -ax1
+	n1 := r1c.LinearExpression{cs.Term(p1.X, &by), cs.Term(p1.Y, &bx)}  // x1y2+x2y1
+	n2 := r1c.LinearExpression{cs.Term(p1.Y, &by), cs.Term(p1.X, &bxa)} // y1y2-ax1x2
+	ld := r1c.LinearExpression{cs.Term(p1.X, &dxy)}                     // dx1x2y2
+	_d := cs.Mul(ld, p1.Y)                                              // dx1x2y2y1
+	d1 := cs.Add(1, _d)                                                 // 1+dx1x2y2y1
+	d2 := cs.Sub(1, _d)                                                 // 1-dx1x2y2y1
 
-	// X := backend.FromInterface(x)
-	// Y := backend.FromInterface(y)
+	p.X = cs.Div(n1, d1)
+	p.Y = cs.Div(n2, d2)
 
-	// var duv big.Int
-	// duv.Mul(&X, &Y).Mul(&duv, &curve.D)
-
-	// one := big.NewInt(1)
-	// oneWire := cs.ALLOCATE(one)
-
-	// // constraint 2
-	// den := r1c.LinearExpression{
-	// 	cs.Term( oneWire,  *one},
-	// 	cs.Term( b,  duv},
-	// }
-	// num := r1c.LinearExpression{
-	// 	cs.Term( p1.X,  Y},
-	// 	cs.Term( p1.Y,  X},
-	// }
-	// res.X = cs.DIV(num, den)
-
-	// // constraint 3
-	// duv.Neg(&duv)
-	// den = r1c.LinearExpression{
-	// 	cs.Term( oneWire,  *one},
-	// 	cs.Term( b,  duv},
-	// }
-	// var tmp big.Int
-	// tmp.Neg(&curve.A).Mul(&tmp, &X).Mod(&tmp, &curve.Modulus)
-	// num = r1c.LinearExpression{
-	// 	cs.Term( p1.Y,  Y},
-	// 	cs.Term( p1.X,  X},
-	// }
-	// res.Y = cs.DIV(num, den)
-
-	// p.X = res.X
-	// p.Y = res.Y
-
-	// return p
+	return p
 }
 
 // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve EdCurve) *Point {
 
-	// cf https://z.cash/technology/jubjub/
-	// or https://eprint.iacr.org/2008/013.pdf
+	// https://eprint.iacr.org/2008/013.pdf
 	res := Point{}
 
 	one := big.NewInt(1)
