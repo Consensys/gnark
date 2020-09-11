@@ -17,7 +17,10 @@ limitations under the License.
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"runtime"
+	"strings"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
@@ -423,6 +426,15 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 // AssertIsEqual equalizes bTwo variables
 func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
+	// encoded as L * R == O
+	// set L = i1
+	// set R = 1
+	// set O = i2
+
+	debugInfo := logEntry{
+		// format:    fmt.Sprintf("%%s <= %s", bound.String()),
+		// toResolve: []r1c.Term{r1c.Pack(v.id, 0, v.visibility)},
+	}
 
 	//left
 	L := r1c.LinearExpression{}
@@ -430,14 +442,28 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	case r1c.LinearExpression:
 		L = make(r1c.LinearExpression, len(t1))
 		copy(L, t1)
+		debugInfo.format += "["
+		for i := 0; i < len(t1); i++ {
+			if i > 0 {
+				debugInfo.format += " + "
+			}
+			c := cs.coeffs[t1[i].CoeffID()]
+			debugInfo.format += fmt.Sprintf("(%%s * %s)", c.String())
+			debugInfo.toResolve = append(debugInfo.toResolve, t1[i])
+		}
+		debugInfo.format += "]"
 	case Variable:
-
-		L = append(L, cs.Term(t1, bOne))
+		_t1 := cs.Term(t1, bOne)
+		L = append(L, _t1)
+		debugInfo.format = "%s"
+		debugInfo.toResolve = append(debugInfo.toResolve, _t1)
 	default:
 		n1 := backend.FromInterface(t1)
-
+		debugInfo.format = fmt.Sprintf("%s", n1.String())
 		L = append(L, cs.Term(cs.oneVariable(), &n1))
 	}
+
+	debugInfo.format += " == "
 
 	// O
 	O := r1c.LinearExpression{}
@@ -445,21 +471,38 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	case r1c.LinearExpression:
 		O = make(r1c.LinearExpression, len(t2))
 		copy(O, t2)
+		debugInfo.format += "["
+		for i := 0; i < len(t2); i++ {
+			if i > 0 {
+				debugInfo.format += " + "
+			}
+			c := cs.coeffs[t2[i].CoeffID()]
+			debugInfo.format += fmt.Sprintf("(%%s * %s)", c.String())
+			debugInfo.toResolve = append(debugInfo.toResolve, t2[i])
+		}
+		debugInfo.format += "]"
 	case Variable:
-
-		O = append(O, cs.Term(t2, bOne))
+		_t2 := cs.Term(t2, bOne)
+		O = append(O, _t2)
+		debugInfo.format += "%s"
+		debugInfo.toResolve = append(debugInfo.toResolve, _t2)
 	default:
 		n2 := backend.FromInterface(t2)
-
+		debugInfo.format = fmt.Sprintf("%s", n2.String())
 		O = append(O, cs.Term(cs.oneVariable(), &n2))
 	}
 
 	// right
 	R := r1c.LinearExpression{cs.oneTerm}
 
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+	// prepare debug info to be displayed in case the constraint is not solved
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		debugInfo.format += "\n" + stack[i]
+	}
 
-	cs.assertions = append(cs.assertions, constraint)
+	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+	cs.addAssertion(constraint, debugInfo)
 }
 
 // AssertIsBoolean boolean constrains a variable
@@ -480,7 +523,18 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 		cs.Term(cs.oneVariable(), bZero),
 	}
 	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-	cs.assertions = append(cs.assertions, constraint)
+
+	// prepare debug info to be displayed in case the constraint is not solved
+	debugInfo := logEntry{
+		format:    fmt.Sprintf("%%s == (0 or 1)"),
+		toResolve: []r1c.Term{r1c.Pack(a.id, 0, a.visibility)},
+	}
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		debugInfo.format += "\n" + stack[i]
+	}
+
+	cs.addAssertion(constraint, debugInfo)
 	a.isBoolean = true
 }
 
@@ -498,6 +552,15 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(w Variable, bound interface{}) {
 }
 
 func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
+	// prepare debug info to be displayed in case the constraint is not solved
+	debugInfo := logEntry{
+		format:    fmt.Sprintf("%%s <= %%s"),
+		toResolve: []r1c.Term{r1c.Pack(w.id, 0, w.visibility), r1c.Pack(bound.id, 0, bound.visibility)},
+	}
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		debugInfo.format += "\n" + stack[i]
+	}
 
 	const nbBits = 256
 
@@ -525,12 +588,50 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 			cs.Term(cs.oneVariable(), bZero),
 		}
 		constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-		cs.assertions = append(cs.assertions, constraint)
+		cs.addAssertion(constraint, debugInfo)
 	}
 
 }
 
+func getCallStack() []string {
+	// Ask runtime.Callers for up to 10 pcs
+	pc := make([]uintptr, 10)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		// No pcs available. Stop now.
+		// This can happen if the first argument to runtime.Callers is large.
+		return nil
+	}
+	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
+	frames := runtime.CallersFrames(pc)
+	// Loop to get frames.
+	// A fixed number of pcs can expand to an indefinite number of Frames.
+	var toReturn []string
+	for {
+		frame, more := frames.Next()
+		fe := strings.Split(frame.Function, "/")
+		function := fe[len(fe)-1]
+		toReturn = append(toReturn, fmt.Sprintf("%s\n\t%s:%d", function, frame.File, frame.Line))
+		if !more {
+			break
+		}
+		if strings.HasSuffix(function, "Define") {
+			break
+		}
+	}
+	return toReturn
+}
+
 func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
+	// prepare debug info to be displayed in case the constraint is not solved
+	debugInfo := logEntry{
+		format:    fmt.Sprintf("%%s <= %s", bound.String()),
+		toResolve: []r1c.Term{r1c.Pack(v.id, 0, v.visibility)},
+	}
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		debugInfo.format += "\n" + stack[i]
+	}
 
 	const nbBits = 256
 	const nbWords = 4
@@ -544,6 +645,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 			boundBits = append(boundBits, big.Word(0))
 		}
 	}
+
 	p := make([]Variable, nbBits+1)
 
 	p[nbBits] = cs.Constant(1)
@@ -560,7 +662,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 				R := r1c.LinearExpression{cs.Term(vBits[(i+1)*wordSize-1-j], bOne)}
 				O := r1c.LinearExpression{cs.Term(cs.oneVariable(), bZero)}
 				constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
-				cs.assertions = append(cs.assertions, constraint)
+				cs.addAssertion(constraint, debugInfo)
 
 			} else {
 				p[(i+1)*wordSize-1-j] = cs.Mul(p[(i+1)*wordSize-j], vBits[(i+1)*wordSize-1-j])

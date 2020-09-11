@@ -36,6 +36,7 @@ func (r1cs *UntypedR1CS) toBLS377() *bls377backend.R1CS {
 		Constraints:     r1cs.Constraints,
 		Coefficients:    make([]fr.Element, len(r1cs.Coefficients)),
 		Logs:            r1cs.Logs,
+		DebugInfo:       r1cs.DebugInfo,
 	}
 
 	for i := 0; i < len(r1cs.Coefficients); i++ {

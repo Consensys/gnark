@@ -34,6 +34,7 @@ type UntypedR1CS struct {
 	PublicWires   []string         // public wire names
 	WireTags      map[int][]string // optional tags -- debug info
 	Logs          []backend.LogEntry
+	DebugInfo     []backend.LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints

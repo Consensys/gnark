@@ -27,6 +27,7 @@ type R1CS struct {
 	PublicWires    []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	WireTags       map[int][]string // optional tags -- debug info
 	Logs          []backend.LogEntry
+	DebugInfo     []backend.LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints
@@ -114,52 +115,57 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
-	// Loop through the other Constraints
-	for i, r1c := range r1cs.Constraints {
+	// Loop through computational constraints (the one wwe need to solve and compute a wire in)
+	for i:=0; i < r1cs.NbCOConstraints; i++ {
+		// solve the constraint, this will compute the missing wire of the gate
+		r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
 
-		if i < r1cs.NbCOConstraints {
-			// computationalGraph : we need to solve the constraint
-			// computationalGraph[i] contains exactly one uncomputed wire (due
-			// to the graph being correctly ordered), we solve it
-			r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
+		// at this stage we are guaranteed that a[i]*b[i]=c[i]
+		// if not, it means there is a bug in the solver
+		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
+		
+		check.Mul(&a[i], &b[i])
+		if !check.Equal(&c[i]) {
+			panic("r1c that was solved by the solver result in inconsistant equality a*b != c")
 		}
+	}
 
+	// Loop through the assertions -- here all wireValues should be instantiated
+	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
+	for i:=r1cs.NbCOConstraints; i < len(r1cs.Constraints); i++ {
 		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
 		// at the previous step)
-		a[i], b[i], c[i] = instantiateR1C(&r1c, r1cs, wireValues)
+		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
 
 		// check that the constraint is satisfied
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			invalidA := a[i]
-			invalidB := b[i]
-			invalidC := c[i]
-
-			return fmt.Errorf("%w: %q * %q != %q", backend.ErrUnsatisfiedConstraint,
-				invalidA.String(),
-				invalidB.String(),
-				invalidC.String())
+			debugInfo := r1cs.DebugInfo[i - r1cs.NbCOConstraints] 
+			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
+			return fmt.Errorf("%w: %s",  backend.ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
 
 	return nil
 }
 
+func (r1cs *R1CS) logValue(entry backend.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+	var toResolve []interface{}
+	for j := 0; j < len(entry.ToResolve); j++ {
+		wireID := entry.ToResolve[j]
+		if !wireInstantiated[wireID] {
+			panic("wire values was not instantiated")
+		}
+		toResolve = append(toResolve, wireValues[wireID].String())
+	}
+	return fmt.Sprintf(entry.Format, toResolve...)
+}
 
 func (r1cs *R1CS) printLogs( wireValues []fr.Element, wireInstantiated []bool) {
 
 	// for each log, resolve the wire values and print the log to stdout
 	for i := 0; i < len(r1cs.Logs); i++ {
-		entry := r1cs.Logs[i]
-		var toResolve []interface{}
-		for j := 0; j < len(entry.ToResolve); j++ {
-			wireID := entry.ToResolve[j]
-			if !wireInstantiated[wireID] {
-				panic("wire values was not instantiated: this could only happen if one computational constraint that was computed yielded an incorrect result. Please report this issue on github.com/consensys/gnark/issues")
-			}
-			toResolve = append(toResolve, wireValues[wireID].String())
-		}
-		fmt.Printf(entry.Format, toResolve...)
+		fmt.Print(r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated))
 	}
 }
 

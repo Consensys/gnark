@@ -21,7 +21,6 @@ func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 		o = cs.Select(b[len(b)-1-i], mu, o)
 		i++
 	}
-
 	cs.AssertIsEqual(circuit.Y, o)
 	return nil
 }

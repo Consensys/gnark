@@ -43,6 +43,7 @@ type ConstraintSystem struct {
 	secretVariableNames []string         // private inputs names
 	wireTags            map[int][]string // optional tags -- debug info
 	logs                []logEntry
+	debugInfo           []logEntry
 	oneTerm             r1c.Term
 }
 
@@ -101,6 +102,11 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 	return term
 }
 
+func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {
+	cs.assertions = append(cs.assertions, constraint)
+	cs.debugInfo = append(cs.debugInfo, debugInfo)
+}
+
 // toR1CS constructs a rank-1 constraint sytem
 func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 
@@ -118,6 +124,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 		PublicWires:     cs.publicVariableNames,
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
+		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
 	}
 
 	// computational constraints (= gates)
@@ -164,6 +171,27 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 		}
 
 		res.Logs[i] = entry
+	}
+
+	// offset ids in the debugInfo
+	for i := 0; i < len(cs.debugInfo); i++ {
+		entry := backend.LogEntry{
+			Format: cs.debugInfo[i].format,
+		}
+		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
+			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
+			switch cVisibility {
+			case backend.Public:
+				cID += len(cs.internalVariables) + len(cs.secretVariables)
+			case backend.Secret:
+				cID += len(cs.internalVariables)
+			case backend.Unset:
+				panic("shouldn't happen")
+			}
+			entry.ToResolve = append(entry.ToResolve, cID)
+		}
+
+		res.DebugInfo[i] = entry
 	}
 
 	// wire tags
