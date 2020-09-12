@@ -77,7 +77,7 @@ func TestLineEvalBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type lineEvalAffineBLS377 struct {
@@ -128,7 +128,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type pairingAffineBLS377 struct {
@@ -170,9 +170,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	expectedValues := make(map[string]interface{})
-	addExpectedFP12(&pairingRes, "pairingres", expectedValues)
-	assert.CorrectExecution(r1cs, &witness, expectedValues)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -220,9 +218,7 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	expectedValues := make(map[string]interface{})
-	addExpectedFP12(&pairingRes, "pairingres", expectedValues)
-	assert.CorrectExecution(r1cs, &witness, expectedValues)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -241,34 +237,7 @@ func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, pairingRes bls377.Pair
 	return
 }
 
-func addExpectedFP12(e12 *bls377.PairingResult, tagPrefix string, expectedValues map[string]interface{}) {
-	expectedValues[tagPrefix+".C0.B0.A0"] = e12.C0.B0.A0
-	expectedValues[tagPrefix+".C0.B0.A1"] = e12.C0.B0.A1
-	expectedValues[tagPrefix+".C0.B1.A0"] = e12.C0.B1.A0
-	expectedValues[tagPrefix+".C0.B1.A1"] = e12.C0.B1.A1
-	expectedValues[tagPrefix+".C0.B2.A0"] = e12.C0.B2.A0
-	expectedValues[tagPrefix+".C0.B2.A1"] = e12.C0.B2.A1
-	expectedValues[tagPrefix+".C1.B0.A0"] = e12.C1.B0.A0
-	expectedValues[tagPrefix+".C1.B0.A1"] = e12.C1.B0.A1
-	expectedValues[tagPrefix+".C1.B1.A0"] = e12.C1.B1.A0
-	expectedValues[tagPrefix+".C1.B1.A1"] = e12.C1.B1.A1
-	expectedValues[tagPrefix+".C1.B2.A0"] = e12.C1.B2.A0
-	expectedValues[tagPrefix+".C1.B2.A1"] = e12.C1.B2.A1
-}
-
 func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls377.PairingResult, tagPrefix string) {
-	cs.Tag(fp12.C0.B0.A0, tagPrefix+".C0.B0.A0")
-	cs.Tag(fp12.C0.B0.A1, tagPrefix+".C0.B0.A1")
-	cs.Tag(fp12.C0.B1.A0, tagPrefix+".C0.B1.A0")
-	cs.Tag(fp12.C0.B1.A1, tagPrefix+".C0.B1.A1")
-	cs.Tag(fp12.C0.B2.A0, tagPrefix+".C0.B2.A0")
-	cs.Tag(fp12.C0.B2.A1, tagPrefix+".C0.B2.A1")
-	cs.Tag(fp12.C1.B0.A0, tagPrefix+".C1.B0.A0")
-	cs.Tag(fp12.C1.B0.A1, tagPrefix+".C1.B0.A1")
-	cs.Tag(fp12.C1.B1.A0, tagPrefix+".C1.B1.A0")
-	cs.Tag(fp12.C1.B1.A1, tagPrefix+".C1.B1.A1")
-	cs.Tag(fp12.C1.B2.A0, tagPrefix+".C1.B2.A0")
-	cs.Tag(fp12.C1.B2.A1, tagPrefix+".C1.B2.A1")
 	cs.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	cs.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	cs.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)

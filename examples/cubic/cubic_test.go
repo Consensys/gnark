@@ -29,9 +29,7 @@ func TestCubicEquation(t *testing.T) {
 		var witness CubicCircuit
 		witness.X.Assign(3)
 		witness.Y.Assign(35)
-		expectedValues := make(map[string]interface{})
-		expectedValues["x^3"] = 27
-		assert.Solved(r1cs, &witness, expectedValues)
+		assert.Solved(r1cs, &witness)
 	}
 
 }

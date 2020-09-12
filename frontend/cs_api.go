@@ -19,8 +19,6 @@ package frontend
 import (
 	"fmt"
 	"math/big"
-	"runtime"
-	"strings"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
@@ -591,35 +589,6 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 		cs.addAssertion(constraint, debugInfo)
 	}
 
-}
-
-func getCallStack() []string {
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(3, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return nil
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	var toReturn []string
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-		toReturn = append(toReturn, fmt.Sprintf("%s\n\t%s:%d", function, frame.File, frame.Line))
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
-	return toReturn
 }
 
 func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {

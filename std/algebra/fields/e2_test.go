@@ -64,7 +64,7 @@ func TestAddFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -97,7 +97,7 @@ func TestSubFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -131,7 +131,7 @@ func TestMulFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp2MulByFp struct {
@@ -169,7 +169,7 @@ func TestMulByFpFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -204,7 +204,7 @@ func TestConjugateFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp2Inverse struct {
@@ -239,7 +239,7 @@ func TestInverseFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 

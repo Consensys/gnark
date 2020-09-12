@@ -81,7 +81,7 @@ func TestCircuitSignature(t *testing.T) {
 	r1cs, err := frontend.Compile(gurvy.BN256, &signatureCircuit)
 	assert.NoError(err)
 
-	assert.Solved(r1cs, &operator.witnesses, nil)
+	assert.Solved(r1cs, &operator.witnesses)
 
 }
 
@@ -149,7 +149,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 	r1cs, err := frontend.Compile(gurvy.BN256, &inclusionProofCircuit)
 	assert.NoError(err)
 
-	assert.Solved(r1cs, &operator.witnesses, nil)
+	assert.Solved(r1cs, &operator.witnesses)
 
 }
 
@@ -208,7 +208,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	r1cs, err := frontend.Compile(gurvy.BN256, &updateAccountCircuit)
 	assert.NoError(err)
 
-	assert.Solved(r1cs, &operator.witnesses, nil)
+	assert.Solved(r1cs, &operator.witnesses)
 
 }
 
@@ -254,6 +254,6 @@ func TestCircuitFull(t *testing.T) {
 	r1cs, err := frontend.Compile(gurvy.BN256, &rollupCircuit)
 	assert.NoError(err)
 
-	assert.Solved(r1cs, &operator.witnesses, nil)
+	assert.Solved(r1cs, &operator.witnesses)
 
 }

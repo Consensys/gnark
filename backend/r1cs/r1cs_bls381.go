@@ -30,7 +30,6 @@ func (r1cs *UntypedR1CS) toBLS381() *bls381backend.R1CS {
 		NbSecretWires:   r1cs.NbSecretWires,
 		SecretWires:     r1cs.SecretWires,
 		PublicWires:     r1cs.PublicWires,
-		WireTags:        r1cs.WireTags,
 		NbConstraints:   r1cs.NbConstraints,
 		NbCOConstraints: r1cs.NbCOConstraints,
 		Constraints:     r1cs.Constraints,

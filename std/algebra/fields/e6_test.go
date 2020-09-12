@@ -67,7 +67,7 @@ func TestAddFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp6Sub struct {
@@ -102,7 +102,7 @@ func TestSubFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp6Mul struct {
@@ -138,7 +138,7 @@ func TestMulFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp6MulByNonResidue struct {
@@ -173,7 +173,7 @@ func TestMulByNonResidueFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -209,7 +209,7 @@ func TestInverseFp6(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 

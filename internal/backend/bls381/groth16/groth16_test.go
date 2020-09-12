@@ -40,7 +40,7 @@ func TestCircuits(t *testing.T) {
 			assert := groth16.NewAssert(t)
 			r1cs := circuit.R1CS.ToR1CS(curve.ID)
 			assert.NotSolved(r1cs, circuit.Bad)
-			assert.Solved(r1cs, circuit.Good, nil)
+			assert.Solved(r1cs, circuit.Good)
 		})
 	}
 }
@@ -131,7 +131,7 @@ func TestReferenceCircuit(t *testing.T) {
 	}
 	assert := groth16.NewAssert(t)
 	r1cs, solution := referenceCircuit()
-	assert.Solved(r1cs, solution, nil)
+	assert.Solved(r1cs, solution)
 }
 
 // BenchmarkSetup is a helper to benchmark Setup on a given circuit

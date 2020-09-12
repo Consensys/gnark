@@ -93,7 +93,7 @@ func TestEddsa(t *testing.T) {
 
 	good["Signature_S"] = signature.S
 
-	assert.CorrectExecution(r1cs, good, nil)
+	assert.CorrectExecution(r1cs, good)
 
 	// verification with incorrect Message
 	bad := make(map[string]interface{})

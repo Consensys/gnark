@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,7 @@ func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 // it ensures running groth16.Prove and groth16.Verify returns true
 // provided _solution must either implements frontend.Circuit or be
 // a map[string]interface{}
-func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
+func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}) {
 	solution := assert.parseSolution(_solution)
 
 	// setup
@@ -57,7 +56,7 @@ func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValu
 	}
 
 	// ensure expected Values are computed correctly
-	assert.CorrectExecution(r1cs, solution, expectedValues)
+	assert.CorrectExecution(r1cs, solution)
 
 	// prover
 	proof, err := Prove(r1cs, pk, solution)
@@ -77,22 +76,13 @@ func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}, expectedValu
 	}
 }
 
-// CorrectExecution Verifies that the expected solution matches the solved variables
-func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, _solution interface{}, expectedValues map[string]interface{}) {
+// CorrectExecution Verifies that the R1CS is solved with the given solution, without executing groth16 workflow
+func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, _solution interface{}) {
 	solution := assert.parseSolution(_solution)
 
 	// In inspect the r1cs is solved, if an error occurs it is caught here
-	res, err := r1cs.Inspect(solution, false)
+	err := r1cs.IsSolved(solution)
 	assert.NoError(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
-
-	for k, v := range expectedValues {
-		val, ok := res[k]
-		assert.True(ok, "Variable to test <"+k+"> is not tagged")
-		_v := backend.FromInterface(v)
-		_val := backend.FromInterface(val)
-
-		assert.True(_val.Cmp(&_v) == 0, "Tagged variable <"+k+"> does not have the expected value\nexpected: "+_v.String()+"\ngot:\t  "+_val.String())
-	}
 }
 
 func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {

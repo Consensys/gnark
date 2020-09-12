@@ -28,7 +28,7 @@ func TestPreimage(t *testing.T) {
 		var witness MiMCCircuit
 		witness.PreImage.Assign(35)
 		witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
-		assert.Solved(r1cs, &witness, nil)
+		assert.Solved(r1cs, &witness)
 	}
 
 }

@@ -32,16 +32,7 @@ func TestExponentiate(t *testing.T) {
 		witness.X.Assign(2)
 		witness.E.Assign(12)
 		witness.Y.Assign(4096)
-		expectedValues := make(map[string]interface{})
-		expectedValues["e[0]"] = 0
-		expectedValues["e[1]"] = 0
-		expectedValues["e[2]"] = 1
-		expectedValues["e[3]"] = 1
-		expectedValues["e[4]"] = 0
-		expectedValues["e[5]"] = 0
-		expectedValues["e[6]"] = 0
-		expectedValues["e[7]"] = 0
-		assert.Solved(r1cs, &witness, expectedValues)
+		assert.Solved(r1cs, &witness)
 	}
 
 }

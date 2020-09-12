@@ -30,9 +30,8 @@ type UntypedR1CS struct {
 	NbWires       int
 	NbPublicWires int // includes ONE wire
 	NbSecretWires int
-	SecretWires   []string         // private wire names
-	PublicWires   []string         // public wire names
-	WireTags      map[int][]string // optional tags -- debug info
+	SecretWires   []string // private wire names
+	PublicWires   []string // public wire names
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
@@ -63,8 +62,8 @@ func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
-// Inspect call will panic as we can't solve a UntypedR1CS, we can't inspect the result either
-func (r1cs *UntypedR1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
+// IsSolved call will panic as we can't solve a UntypedR1CS
+func (r1cs *UntypedR1CS) IsSolved(solution map[string]interface{}) error {
 	panic("not implemented")
 }
 

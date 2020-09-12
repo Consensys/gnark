@@ -61,7 +61,7 @@ func TestAddFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12Sub struct {
@@ -96,7 +96,7 @@ func TestSubFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12Mul struct {
@@ -132,7 +132,7 @@ func TestMulFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12Conjugate struct {
@@ -165,7 +165,7 @@ func TestConjugateFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12MulByV struct {
@@ -204,7 +204,7 @@ func TestMulByVFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -244,7 +244,7 @@ func TestMulByV2WFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -284,7 +284,7 @@ func TestMulByVWFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -331,7 +331,7 @@ func TestFrobeniusFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12Inverse struct {
@@ -365,7 +365,7 @@ func TestInverseFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 type fp12FixedExpo struct {
@@ -406,7 +406,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.CorrectExecution(r1cs, good, nil)
+	assert.CorrectExecution(r1cs, good)
 }
 
 type fp12FinalExpo struct {
@@ -446,5 +446,5 @@ func TestExpFinalExpoFp12(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.CorrectExecution(r1cs, good, nil)
+	assert.CorrectExecution(r1cs, good)
 }

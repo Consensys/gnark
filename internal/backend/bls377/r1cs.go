@@ -19,7 +19,6 @@ package backend
 import (
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
@@ -34,9 +33,8 @@ type R1CS struct {
 	NbWires       int
 	NbPublicWires int // includes ONE wire
 	NbSecretWires int
-	SecretWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	PublicWires   []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	WireTags      map[int][]string // optional tags -- debug info
+	SecretWires   []string // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
+	PublicWires   []string // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
@@ -65,6 +63,14 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 // GetCurveID returns the curveID of this R1CS
 func (r1cs *R1CS) GetCurveID() gurvy.ID {
 	return gurvy.BLS377
+}
+
+func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
+	a := make([]fr.Element, r1cs.NbConstraints)
+	b := make([]fr.Element, r1cs.NbConstraints)
+	c := make([]fr.Element, r1cs.NbConstraints)
+	wireValues := make([]fr.Element, r1cs.NbWires)
+	return r1cs.Solve(assignment, a, b, c, wireValues)
 }
 
 // Solve sets all the wires and returns the a, b, c vectors.
@@ -177,53 +183,6 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 	for i := 0; i < len(r1cs.Logs); i++ {
 		fmt.Print(r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated))
 	}
-}
-
-// Inspect returns the tagged variables with their corresponding value
-// If showsInput is set, it also puts in the resulting map the inputs (public and private).
-// this is temporary while we refactor map[string]interface{} and use big.Int here.
-func (r1cs *R1CS) Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error) {
-	res := make(map[string]interface{})
-
-	wireValues := make([]fr.Element, r1cs.NbWires)
-	a := make([]fr.Element, r1cs.NbConstraints)
-	b := make([]fr.Element, r1cs.NbConstraints)
-	c := make([]fr.Element, r1cs.NbConstraints)
-
-	err := r1cs.Solve(solution, a, b, c, wireValues)
-
-	// showsInput is set, put the inputs in the resulting map
-	if showsInputs {
-		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
-		for i := 0; i < len(r1cs.SecretWires); i++ {
-			v := new(big.Int)
-			res[r1cs.SecretWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
-		}
-		offset = r1cs.NbWires - r1cs.NbPublicWires // public input start index
-		for i := 0; i < len(r1cs.PublicWires); i++ {
-			v := new(big.Int)
-			res[r1cs.PublicWires[i]] = *(wireValues[i+offset].ToBigIntRegular(v))
-		}
-	}
-
-	// get the tagged variables
-	for wireID, tags := range r1cs.WireTags {
-		for _, tag := range tags {
-			if _, ok := res[tag]; ok {
-				return nil, errors.New("duplicate tag: " + tag)
-			}
-			v := new(big.Int)
-			res[tag] = *(wireValues[wireID].ToBigIntRegular(v))
-		}
-
-	}
-
-	// the error cannot be caught before because the res map needs to be filled
-	if err != nil {
-		return res, err
-	}
-
-	return res, nil
 }
 
 // AddTerm returns res += (value * term.Coefficient)

@@ -33,15 +33,14 @@ import (
 
 // ConstraintSystem represents a Groth16 like circuit
 type ConstraintSystem struct {
-	publicVariables     []Variable       // public inputs
-	secretVariables     []Variable       // private inputs
-	internalVariables   []Variable       // internal variables
-	coeffs              []big.Int        // list of unique coefficients.
-	constraints         []r1c.R1C        // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions          []r1c.R1C        // list of R1C that yield no output (for example ensuring v1 == v2)
-	publicVariableNames []string         // public inputs names
-	secretVariableNames []string         // private inputs names
-	wireTags            map[int][]string // optional tags -- debug info
+	publicVariables     []Variable // public inputs
+	secretVariables     []Variable // private inputs
+	internalVariables   []Variable // internal variables
+	coeffs              []big.Int  // list of unique coefficients.
+	constraints         []r1c.R1C  // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions          []r1c.R1C  // list of R1C that yield no output (for example ensuring v1 == v2)
+	publicVariableNames []string   // public inputs names
+	secretVariableNames []string   // private inputs names
 	logs                []logEntry
 	debugInfo           []logEntry
 	oneTerm             r1c.Term
@@ -71,9 +70,6 @@ func newConstraintSystem() ConstraintSystem {
 	cs.publicVariableNames[0] = backend.OneWire
 	cs.publicVariables[0] = Variable{false, backend.Public, 0, nil}
 	cs.oneTerm = cs.Term(cs.publicVariables[0], bOne)
-
-	// TODO tags will soon die.
-	cs.wireTags = make(map[int][]string)
 
 	return cs
 }
@@ -194,13 +190,6 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 		res.DebugInfo[i] = entry
 	}
 
-	// wire tags
-	res.WireTags = make(map[int][]string)
-	for k, v := range cs.wireTags {
-		res.WireTags[k] = make([]string, len(v))
-		copy(res.WireTags[k], v)
-	}
-
 	if curveID == gurvy.UNKNOWN {
 		return &res
 	}
@@ -224,31 +213,6 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	cs.coeffs = append(cs.coeffs, toAppend)
 
 	return len(cs.coeffs) - 1
-}
-
-type logValueHandler func(name string, tValue reflect.Value)
-
-func parseLogValue(input interface{}, name string, handler logValueHandler) {
-	tVariable := reflect.TypeOf(Variable{})
-
-	tValue := reflect.ValueOf(input)
-	if tValue.Kind() == reflect.Ptr {
-		tValue = tValue.Elem()
-	}
-	switch tValue.Kind() {
-	case reflect.Struct:
-		switch tValue.Type() {
-		case tVariable:
-			handler(name, tValue)
-			return
-		default:
-			for i := 0; i < tValue.NumField(); i++ {
-
-				value := tValue.Field(i).Interface()
-				parseLogValue(value, tValue.Type().Field(i).Name, handler)
-			}
-		}
-	}
 }
 
 // Println ...
@@ -300,24 +264,6 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 	cs.logs = append(cs.logs, entry)
 }
 
-// Tag assign a key to a variable to be able to monitor it when the system is solved
-func (cs *ConstraintSystem) Tag(v Variable, tag string) {
-
-	// TODO do we allOoutputw inputs to be tagged? anyway returns an error instead of panicing
-	if v.visibility != backend.Internal {
-		panic("inputs cannot be tagged")
-	}
-
-	for _, v := range cs.wireTags {
-		for _, t := range v {
-			if tag == t {
-				panic("duplicate tag " + tag)
-			}
-		}
-	}
-	cs.wireTags[v.id] = append(cs.wireTags[v.id], tag)
-}
-
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
@@ -332,4 +278,59 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 // oneVariable returns the variable associated with backend.OneWire
 func (cs *ConstraintSystem) oneVariable() Variable {
 	return cs.publicVariables[0]
+}
+
+type logValueHandler func(name string, tValue reflect.Value)
+
+func parseLogValue(input interface{}, name string, handler logValueHandler) {
+	tVariable := reflect.TypeOf(Variable{})
+
+	tValue := reflect.ValueOf(input)
+	if tValue.Kind() == reflect.Ptr {
+		tValue = tValue.Elem()
+	}
+	switch tValue.Kind() {
+	case reflect.Struct:
+		switch tValue.Type() {
+		case tVariable:
+			handler(name, tValue)
+			return
+		default:
+			for i := 0; i < tValue.NumField(); i++ {
+
+				value := tValue.Field(i).Interface()
+				parseLogValue(value, tValue.Type().Field(i).Name, handler)
+			}
+		}
+	}
+}
+
+// derived from: https://golang.org/pkg/runtime/#example_Frames
+func getCallStack() []string {
+	// Ask runtime.Callers for up to 10 pcs
+	pc := make([]uintptr, 10)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		// No pcs available. Stop now.
+		// This can happen if the first argument to runtime.Callers is large.
+		return nil
+	}
+	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
+	frames := runtime.CallersFrames(pc)
+	// Loop to get frames.
+	// A fixed number of pcs can expand to an indefinite number of Frames.
+	var toReturn []string
+	for {
+		frame, more := frames.Next()
+		fe := strings.Split(frame.Function, "/")
+		function := fe[len(fe)-1]
+		toReturn = append(toReturn, fmt.Sprintf("%s\n\t%s:%d", function, frame.File, frame.Line))
+		if !more {
+			break
+		}
+		if strings.HasSuffix(function, "Define") {
+			break
+		}
+	}
+	return toReturn
 }

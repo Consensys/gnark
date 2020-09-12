@@ -34,7 +34,8 @@ import (
 )
 
 type mimcCircuit struct {
-	Data frontend.Variable `gnark:"data,public"`
+	Data           frontend.Variable `gnark:"data,public"`
+	ExpectedResult frontend.Variable
 }
 
 func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
@@ -43,7 +44,7 @@ func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 		return err
 	}
 	result := mimc.Hash(cs, circuit.Data)
-	cs.Tag(result, "res")
+	cs.AssertIsEqual(result, circuit.ExpectedResult)
 	return nil
 }
 
@@ -56,25 +57,21 @@ func TestMimcBN256(t *testing.T) {
 	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// minimal cs res = hash(data)
-	var circuit mimcCircuit
+	var circuit, witness mimcCircuit
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]interface{})
 	b := mimcbn256.Sum("seed", data.Bytes())
 	var tmp fr_bn256.Element
 	tmp.SetBytes(b)
-	expectedValues["res"] = tmp
-
-	// provide inputs to the cs
-	inputs := make(map[string]interface{})
-	inputs["data"] = data
+	witness.Data.Assign(data)
+	witness.ExpectedResult.Assign(tmp)
 
 	// creates r1cs
-	assert.CorrectExecution(r1cs, inputs, expectedValues)
+	assert.CorrectExecution(r1cs, &witness)
 }
 
 func TestMimcBLS381(t *testing.T) {
@@ -86,24 +83,20 @@ func TestMimcBLS381(t *testing.T) {
 	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// minimal cs res = hash(data)
-	var circuit mimcCircuit
+	var circuit, witness mimcCircuit
 	r1cs, err := frontend.Compile(gurvy.BLS381, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]interface{})
 	b := mimcbls381.Sum("seed", data.Bytes())
 	var tmp fr_bls381.Element
 	tmp.SetBytes(b)
-	expectedValues["res"] = tmp
+	witness.Data.Assign(data)
+	witness.ExpectedResult.Assign(tmp)
 
-	// provide inputs to the cs
-	inputs := make(map[string]interface{})
-	inputs["data"] = data
-
-	assert.CorrectExecution(r1cs, inputs, expectedValues)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -116,23 +109,19 @@ func TestMimcBLS377(t *testing.T) {
 	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// minimal cs res = hash(data)
-	var circuit mimcCircuit
+	var circuit, witness mimcCircuit
 	r1cs, err := frontend.Compile(gurvy.BLS377, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// running MiMC (Go)
-	expectedValues := make(map[string]interface{})
 	b := mimcbls377.Sum("seed", data.Bytes())
 	var tmp fr_bls377.Element
 	tmp.SetBytes(b)
-	expectedValues["res"] = tmp
+	witness.Data.Assign(data)
+	witness.ExpectedResult.Assign(tmp)
 
-	// provide inputs to the cs
-	inputs := make(map[string]interface{})
-	inputs["data"] = data
-
-	assert.CorrectExecution(r1cs, inputs, expectedValues)
+	assert.CorrectExecution(r1cs, &witness)
 
 }

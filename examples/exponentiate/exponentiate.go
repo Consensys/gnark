@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
@@ -28,7 +26,7 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.Constr
 	bits := cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		cs.Tag(bits[i], fmt.Sprintf("e[%d]", i)) // we can tag a variable for testing and / or debugging purposes
+		// cs.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
 
 		if i != 0 {
 			output = cs.Mul(output, output)
@@ -36,7 +34,6 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.Constr
 		multiply := cs.Mul(output, circuit.X)
 		output = cs.Select(bits[len(bits)-1-i], multiply, output)
 
-		cs.Tag(output, fmt.Sprintf("output after processing exponent bit %d", len(bits)-1-i))
 	}
 
 	cs.AssertIsEqual(circuit.Y, output)

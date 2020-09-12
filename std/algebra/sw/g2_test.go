@@ -66,7 +66,7 @@ func TestAddAssignG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -111,7 +111,7 @@ func TestAddAssignAffineG2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -150,7 +150,7 @@ func TestDoubleAssignG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -192,7 +192,7 @@ func TestDoubleAffineG2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 
@@ -231,7 +231,7 @@ func TestNegG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness, nil)
+	assert.CorrectExecution(r1cs, &witness)
 
 }
 

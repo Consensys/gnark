@@ -12,7 +12,7 @@ import (
 // R1CS represents a rank 1 constraint system
 // it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
 type R1CS interface {
-	Inspect(solution map[string]interface{}, showsInputs bool) (map[string]interface{}, error)
+	IsSolved(solution map[string]interface{}) error
 	GetNbConstraints() int
 	GetNbWires() int
 	GetNbCoefficients() int

@@ -19,10 +19,6 @@ type CubicCircuit struct {
 func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
 	cs.AssertIsEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
-
-	// we can tag a variable for testing and / or debugging purposes
-	cs.Tag(x3, "x^3")
-
 	return nil
 }
 
