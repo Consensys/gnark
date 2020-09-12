@@ -24,7 +24,7 @@ func TestExponentiate(t *testing.T) {
 		witness.X.Assign(2)
 		witness.E.Assign(12)
 		witness.Y.Assign(4095)
-		assert.NotSolved(r1cs, &witness) // y != x**e
+		assert.ProverFailed(r1cs, &witness) // y != x**e
 	}
 
 	{
@@ -32,7 +32,7 @@ func TestExponentiate(t *testing.T) {
 		witness.X.Assign(2)
 		witness.E.Assign(12)
 		witness.Y.Assign(4096)
-		assert.Solved(r1cs, &witness)
+		assert.ProverSucceeded(r1cs, &witness)
 	}
 
 }

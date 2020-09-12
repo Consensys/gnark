@@ -71,7 +71,7 @@ func TestMimcBN256(t *testing.T) {
 	witness.ExpectedResult.Assign(tmp)
 
 	// creates r1cs
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 }
 
 func TestMimcBLS381(t *testing.T) {
@@ -96,7 +96,7 @@ func TestMimcBLS381(t *testing.T) {
 	witness.Data.Assign(data)
 	witness.ExpectedResult.Assign(tmp)
 
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -122,6 +122,6 @@ func TestMimcBLS377(t *testing.T) {
 	witness.Data.Assign(data)
 	witness.ExpectedResult.Assign(tmp)
 
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }

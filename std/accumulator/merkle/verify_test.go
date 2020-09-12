@@ -91,5 +91,5 @@ func TestVerify(t *testing.T) {
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.Solved(r1cs, assignment)
+	assert.ProverSucceeded(r1cs, assignment)
 }

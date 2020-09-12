@@ -19,13 +19,13 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-// NotSolved check that a solution does NOT solve a circuit
+// ProverFailed check that a solution does NOT solve a circuit
 // error may be missing inputs or unsatisfied constraints
 // it creates a groth16.ProvingKey for the r1cs
 // run groth16.Prove (which solves the R1CS) and expects an error
 // provided _solution must either implements frontend.Circuit or be
 // a map[string]interface{}
-func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
+func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, _solution interface{}) {
 	// setup
 	pk := DummySetup(r1cs)
 	solution := assert.parseSolution(_solution)
@@ -34,13 +34,13 @@ func (assert *Assert) NotSolved(r1cs r1cs.R1CS, _solution interface{}) {
 	assert.Error(err, "proving with bad solution should output an error")
 }
 
-// Solved check that a solution solves a circuit
+// ProverSucceeded check that a solution solves a circuit
 // for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
 // this helper also ensure the result vectors a*b=c
 // it ensures running groth16.Prove and groth16.Verify returns true
 // provided _solution must either implements frontend.Circuit or be
 // a map[string]interface{}
-func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}) {
+func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, _solution interface{}) {
 	solution := assert.parseSolution(_solution)
 
 	// setup
@@ -56,7 +56,7 @@ func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}) {
 	}
 
 	// ensure expected Values are computed correctly
-	assert.CorrectExecution(r1cs, solution)
+	assert.SolvingSucceeded(r1cs, solution)
 
 	// prover
 	proof, err := Prove(r1cs, pk, solution)
@@ -76,13 +76,16 @@ func (assert *Assert) Solved(r1cs r1cs.R1CS, _solution interface{}) {
 	}
 }
 
-// CorrectExecution Verifies that the R1CS is solved with the given solution, without executing groth16 workflow
-func (assert *Assert) CorrectExecution(r1cs r1cs.R1CS, _solution interface{}) {
+// SolvingSucceeded Verifies that the R1CS is solved with the given solution, without executing groth16 workflow
+func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, _solution interface{}) {
 	solution := assert.parseSolution(_solution)
+	assert.NoError(r1cs.IsSolved(solution))
+}
 
-	// In inspect the r1cs is solved, if an error occurs it is caught here
-	err := r1cs.IsSolved(solution)
-	assert.NoError(err, "Inspecting the tagged variables of a constraint system with correct inputs should not output an error")
+// SolvingFailed Verifies that the R1CS is not solved with the given solution, without executing groth16 workflow
+func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, _solution interface{}) {
+	solution := assert.parseSolution(_solution)
+	assert.Error(r1cs.IsSolved(solution))
 }
 
 func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {

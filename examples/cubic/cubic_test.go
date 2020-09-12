@@ -22,14 +22,14 @@ func TestCubicEquation(t *testing.T) {
 		witness.X.Assign(42)
 		witness.Y.Assign(42)
 
-		assert.NotSolved(r1cs, &witness)
+		assert.ProverFailed(r1cs, &witness)
 	}
 
 	{
 		var witness CubicCircuit
 		witness.X.Assign(3)
 		witness.Y.Assign(35)
-		assert.Solved(r1cs, &witness)
+		assert.ProverSucceeded(r1cs, &witness)
 	}
 
 }

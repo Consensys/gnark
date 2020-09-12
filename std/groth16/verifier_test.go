@@ -137,7 +137,7 @@ func TestVerifier(t *testing.T) {
 	// verifies the cs
 	assertbw761 := groth16.NewAssert(t)
 
-	assertbw761.CorrectExecution(r1cs.(*backend_bw761.R1CS), &witness)
+	assertbw761.SolvingSucceeded(r1cs.(*backend_bw761.R1CS), &witness)
 
 	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
 	// generate groth16 instance on bw761 (setup, prove, verify)

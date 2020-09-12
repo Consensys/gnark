@@ -65,7 +65,7 @@ func TestAddAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -110,7 +110,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -149,7 +149,7 @@ func TestDoubleAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -191,7 +191,7 @@ func TestDoubleAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -230,7 +230,7 @@ func TestNegG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -279,7 +279,7 @@ func TestScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 

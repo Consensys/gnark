@@ -77,7 +77,7 @@ func TestLineEvalBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 }
 
 type lineEvalAffineBLS377 struct {
@@ -128,7 +128,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 }
 
 type pairingAffineBLS377 struct {
@@ -149,7 +149,7 @@ func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.Constr
 	MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
-	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
+	mustbeEq(cs, pairingRes, &circuit.pairingRes)
 
 	return nil
 }
@@ -170,7 +170,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -192,7 +192,7 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 	pairingRes := fields.E12{}
 	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
 
-	mustbeEq(cs, pairingRes, &circuit.pairingRes, "pairingres")
+	mustbeEq(cs, pairingRes, &circuit.pairingRes)
 
 	return nil
 }
@@ -218,7 +218,7 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := groth16.NewAssert(t)
-	assert.CorrectExecution(r1cs, &witness)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -237,7 +237,7 @@ func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, pairingRes bls377.Pair
 	return
 }
 
-func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls377.PairingResult, tagPrefix string) {
+func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls377.PairingResult) {
 	cs.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	cs.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	cs.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)

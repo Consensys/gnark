@@ -93,7 +93,7 @@ func TestEddsa(t *testing.T) {
 
 	good["Signature_S"] = signature.S
 
-	assert.CorrectExecution(r1cs, good)
+	assert.SolvingSucceeded(r1cs, good)
 
 	// verification with incorrect Message
 	bad := make(map[string]interface{})
@@ -106,5 +106,5 @@ func TestEddsa(t *testing.T) {
 	bad["Signature_R_A_Y"] = signature.R.Y
 
 	bad["Signature_S"] = signature.S
-	assert.NotSolved(r1cs, bad)
+	assert.ProverFailed(r1cs, bad)
 }
