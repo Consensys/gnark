@@ -6,7 +6,7 @@ require (
 	github.com/consensys/bavard v0.1.3
 	github.com/consensys/gurvy v0.2.1-0.20200904230343-11c9494feb0f
 	github.com/fxamacker/cbor v1.5.1
-	github.com/pkg/profile v1.5.0
+	github.com/leanovate/gopter v0.2.8
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899

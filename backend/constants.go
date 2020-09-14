@@ -16,6 +16,8 @@ package backend
 
 import "errors"
 
+// TODO these shouldn't be there, they are mosty shared between frontend and backend packages
+
 // OneWire is the assignment label / name used for the constant wire one
 const OneWire = "ONE_WIRE"
 
@@ -25,8 +27,12 @@ var ErrInputNotSet = errors.New("input not set")
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 
+// Visibility encodes a Variable (or wire) visibility
+// Possible values are Unset, Internal, Secret or Public
 type Visibility uint8
 
+// Visibility encodes a Variable (or wire) visibility
+// Possible values are Unset, Internal, Secret or Public
 const (
 	Unset Visibility = iota
 	Internal
@@ -34,6 +40,9 @@ const (
 	Public
 )
 
+// LogEntry is used as a shared data structure between the frontend and the backend
+// to represent string values (in logs or debug info) where a value is not known at compile time
+// (which is the case for variables that need to be resolved in the R1CS)
 type LogEntry struct {
 	Format    string
 	ToResolve []int

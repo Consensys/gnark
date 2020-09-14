@@ -7,10 +7,10 @@ import (
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
-func TestBigIntFromInterface(t *testing.T) {
+func TestFromInterfaceValidFormats(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("should not panic")
+			t.Fatalf("valid input should not panic")
 		}
 	}()
 
