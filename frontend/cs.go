@@ -287,6 +287,40 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 	return res
 }
 
+// newPublicVariable creates a new public input
+func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
+	idx := len(cs.publicVariables)
+	res := Variable{false, backend.Public, idx, nil}
+
+	// checks if the name is not already picked
+	for _, v := range cs.publicVariableNames {
+		if v == name {
+			panic("duplicate input name (public)")
+		}
+	}
+
+	cs.publicVariableNames = append(cs.publicVariableNames, name)
+	cs.publicVariables = append(cs.publicVariables, res)
+	return res
+}
+
+// newSecretVariable creates a new secret input
+func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
+	idx := len(cs.secretVariables)
+	res := Variable{false, backend.Secret, idx, nil}
+
+	// checks if the name is not already picked
+	for _, v := range cs.publicVariableNames {
+		if v == name {
+			panic("duplicate input name (secret)")
+		}
+	}
+
+	cs.secretVariableNames = append(cs.secretVariableNames, name)
+	cs.secretVariables = append(cs.secretVariables, res)
+	return res
+}
+
 // oneVariable returns the variable associated with backend.OneWire
 func (cs *ConstraintSystem) oneVariable() Variable {
 	return cs.publicVariables[0]

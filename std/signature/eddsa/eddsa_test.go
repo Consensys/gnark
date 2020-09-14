@@ -82,29 +82,34 @@ func TestEddsa(t *testing.T) {
 	}
 
 	// verification with the correct Message
-	good := make(map[string]interface{})
-	good["Message"] = msg
+	{
+		var witness eddsaCircuit
+		witness.Message.Assign(msg)
 
-	good["PublicKey_A_X"] = pubKey.A.X
-	good["PublicKey_A_Y"] = pubKey.A.Y
+		witness.PublicKey.A.X.Assign(pubKey.A.X)
+		witness.PublicKey.A.Y.Assign(pubKey.A.Y)
 
-	good["Signature_R_A_X"] = signature.R.X
-	good["Signature_R_A_Y"] = signature.R.Y
+		witness.Signature.R.A.X.Assign(signature.R.X)
+		witness.Signature.R.A.Y.Assign(signature.R.Y)
 
-	good["Signature_S"] = signature.S
+		witness.Signature.S.Assign(signature.S)
 
-	assert.SolvingSucceeded(r1cs, good)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
 
 	// verification with incorrect Message
-	bad := make(map[string]interface{})
-	bad["Message"] = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
+	{
+		var witness eddsaCircuit
+		witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
 
-	bad["PublicKey_A_X"] = pubKey.A.X
-	bad["PublicKey_A_Y"] = pubKey.A.Y
+		witness.PublicKey.A.X.Assign(pubKey.A.X)
+		witness.PublicKey.A.Y.Assign(pubKey.A.Y)
 
-	bad["Signature_R_A_X"] = signature.R.X
-	bad["Signature_R_A_Y"] = signature.R.Y
+		witness.Signature.R.A.X.Assign(signature.R.X)
+		witness.Signature.R.A.Y.Assign(signature.R.Y)
 
-	bad["Signature_S"] = signature.S
-	assert.ProverFailed(r1cs, bad)
+		witness.Signature.S.Assign(signature.S)
+
+		assert.SolvingFailed(r1cs, &witness)
+	}
 }

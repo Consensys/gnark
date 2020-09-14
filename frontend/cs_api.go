@@ -24,40 +24,6 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// NewPublicInput creates a new public input
-func (cs *ConstraintSystem) NewPublicInput(name string) Variable {
-	idx := len(cs.publicVariables)
-	res := Variable{false, backend.Public, idx, nil}
-
-	// checks if the name is not already picked
-	for _, v := range cs.publicVariableNames {
-		if v == name {
-			panic("duplicate input name (public)")
-		}
-	}
-
-	cs.publicVariableNames = append(cs.publicVariableNames, name)
-	cs.publicVariables = append(cs.publicVariables, res)
-	return res
-}
-
-// NewSecretInput creates a new public input
-func (cs *ConstraintSystem) NewSecretInput(name string) Variable {
-	idx := len(cs.secretVariables)
-	res := Variable{false, backend.Secret, idx, nil}
-
-	// checks if the name is not already picked
-	for _, v := range cs.publicVariableNames {
-		if v == name {
-			panic("duplicate input name (secret)")
-		}
-	}
-
-	cs.secretVariableNames = append(cs.secretVariableNames, name)
-	cs.secretVariables = append(cs.secretVariables, res)
-	return res
-}
-
 // Add adds 2 wires
 func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 	// allocate resulting variable
