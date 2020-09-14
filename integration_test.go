@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
@@ -38,7 +38,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// spv: setup, prove, verify
-	spv := func(curveID gurvy.ID, name string, good, bad map[string]interface{}) {
+	spv := func(curveID gurvy.ID, name string, _good, _bad frontend.Circuit) {
 		t.Logf("%s circuit (%s)", name, curveID.String())
 		// path for files
 		fCircuit := filepath.Join(parentDir, name+".r1cs")
@@ -49,10 +49,18 @@ func TestIntegration(t *testing.T) {
 		fInputBad := filepath.Join(parentDir, name+".bad.input")
 
 		// 2: input files to disk
-		if err := backend.WriteVariables(fInputGood, good); err != nil {
+		good, err := frontend.ParseWitness(_good)
+		if err != nil {
+			panic("invalid good assignment:" + err.Error())
+		}
+		bad, err := frontend.ParseWitness(_bad)
+		if err != nil {
+			panic("invalid bad assignment:" + err.Error())
+		}
+		if err := io.WriteWitness(fInputGood, good); err != nil {
 			t.Fatal(err)
 		}
-		if err := backend.WriteVariables(fInputBad, bad); err != nil {
+		if err := io.WriteWitness(fInputBad, bad); err != nil {
 			t.Fatal(err)
 		}
 

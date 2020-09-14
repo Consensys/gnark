@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package io offers (de)serialization APIs for gnark objects
-// it uses CBOR, is schema-less and that may change until v1.X.X release cycle
+// consider it unstable until v1.X.X release cycle
 package io
 
 import (

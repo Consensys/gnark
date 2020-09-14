@@ -6,7 +6,31 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-const bitSize = 8 // number of bits of exponent
+func main() {
+	var circuit ExponentiateCircuit
+
+	// compiles our circuit into a R1CS
+	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	if err != nil {
+		panic(err)
+	}
+
+	// save the R1CS to disk
+	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
+		panic(err)
+	}
+
+	// good solution
+	var witness ExponentiateCircuit
+	witness.X.Assign(2)
+	witness.E.Assign(12)
+	witness.Y.Assign(4096)
+	assignment, _ := frontend.ParseWitness(&witness)
+
+	if err = io.WriteWitness("input.json", assignment); err != nil {
+		panic(err)
+	}
+}
 
 // ExponentiateCircuit y == x**e
 // only the bitSize least significant bits of e are used
@@ -22,6 +46,9 @@ type ExponentiateCircuit struct {
 // Define declares the circuit's constraints
 // y == x**e
 func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+	// number of bits of exponent
+	const bitSize = 8
+
 	// specify constraints
 	output := cs.Constant(1)
 	bits := cs.ToBinary(circuit.E, bitSize)
@@ -40,19 +67,4 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.Constr
 	cs.AssertIsEqual(circuit.Y, output)
 
 	return nil
-}
-
-func main() {
-	var circuit ExponentiateCircuit
-
-	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
-	if err != nil {
-		panic(err)
-	}
-
-	// save the R1CS to disk
-	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
-		panic(err)
-	}
 }

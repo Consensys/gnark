@@ -103,7 +103,7 @@ func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, _solution interface{}) {
 }
 
 func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {
-	solution, err := frontend.ToAssignment(_solution)
+	solution, err := frontend.ParseWitness(_solution)
 	assert.NoError(err)
 	return solution
 }

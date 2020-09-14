@@ -68,12 +68,10 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	return cs.toR1CS(curveID), nil
 }
 
-// ToAssignment will attempt to return a map[string]interface{} (key values of assigments)
-// input value must either already be a map[string]interface{}
-// or implement frontend.Circuit. In that case, this function will parse circuit and extract
-// all values from leaves that are Variable
-// Note that this method should not be called in a normal user-workflow
-func ToAssignment(input interface{}) (map[string]interface{}, error) {
+// ParseWitness will returns a map[string]interface{} to be used as input in
+// in R1CS.Solve(), groth16.Prove() or groth16.Verify()
+// if input is not already a map[string]interface{}, it must implemenet frontend.Circuit
+func ParseWitness(input interface{}) (map[string]interface{}, error) {
 	switch c := input.(type) {
 	case map[string]interface{}:
 		return c, nil

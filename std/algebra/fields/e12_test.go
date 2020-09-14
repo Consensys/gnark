@@ -401,12 +401,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 }
 
 type fp12FinalExpo struct {
@@ -441,10 +436,5 @@ func TestExpFinalExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := groth16.NewAssert(t)
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 }

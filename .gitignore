@@ -22,6 +22,7 @@ tasks.txt
 **/*.proof
 **/*.input
 **/*.r1cs
+input.json
 *.log
 
 # Files used as backups when refactoring

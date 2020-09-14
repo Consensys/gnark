@@ -54,7 +54,7 @@ type VerifyingKey interface {
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
 // it checks the underlying type of proof (i.e curve specific) to call the proper implementation
 func Verify(proof Proof, vk VerifyingKey, _solution interface{}) error {
-	solution, err := frontend.ToAssignment(_solution)
+	solution, err := frontend.ParseWitness(_solution)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func Verify(proof Proof, vk VerifyingKey, _solution interface{}) error {
 // Prove generate a groth16.Proof
 // it checks the underlying type of the R1CS (curve specific) to call the proper implementation
 func Prove(r1cs r1cs.R1CS, pk ProvingKey, _solution interface{}) (Proof, error) {
-	solution, err := frontend.ToAssignment(_solution)
+	solution, err := frontend.ParseWitness(_solution)
 	if err != nil {
 		return nil, err
 	}

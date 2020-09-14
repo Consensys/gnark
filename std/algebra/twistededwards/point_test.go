@@ -56,12 +56,8 @@ func TestIsOnCurve(t *testing.T) {
 	witness.P.X.Assign(params.BaseX)
 	witness.P.Y.Assign(params.BaseY)
 
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -96,12 +92,8 @@ func TestAdd(t *testing.T) {
 	witness.P.X.Assign("15132049151119024294202596478829150741889300374007672163496852915064138587014")
 	witness.P.Y.Assign("11523897191511824241384532572407048303306774918928882376450136656947192273193")
 
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -137,12 +129,9 @@ func TestAddGeneric(t *testing.T) {
 
 	witness.P2.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
 	witness.P2.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -174,12 +163,8 @@ func TestDouble(t *testing.T) {
 	witness.P.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
 	witness.P.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
 
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
 
@@ -213,11 +198,7 @@ func TestScalarMul(t *testing.T) {
 	witness.P.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
 	witness.P.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
 
-	good, err := frontend.ToAssignment(&witness)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, good)
+	assert.SolvingSucceeded(r1cs, &witness)
 
 }
