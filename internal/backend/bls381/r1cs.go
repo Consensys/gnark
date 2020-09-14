@@ -65,6 +65,8 @@ func (r1cs *R1CS) GetCurveID() gurvy.ID {
 	return gurvy.BLS381
 }
 
+// IsSolved returns nil if given assignment solves the R1CS and error otherwise
+// this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
 func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
