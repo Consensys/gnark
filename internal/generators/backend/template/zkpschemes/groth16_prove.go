@@ -19,6 +19,10 @@ type Proof struct {
 	Bs      curve.G2Affine
 }
 
+// GetCurveID returns the curveID
+func (proof *Proof) GetCurveID() gurvy.ID {
+	return curve.ID
+}
 
 // Prove creates proof from a circuit
 func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {

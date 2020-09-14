@@ -19,6 +19,7 @@ package groth16
 import (
 	"math/big"
 
+	"github.com/consensys/gurvy"
 	curve "github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fr"
 
@@ -33,6 +34,11 @@ import (
 type Proof struct {
 	Ar, Krs curve.G1Affine
 	Bs      curve.G2Affine
+}
+
+// GetCurveID returns the curveID
+func (proof *Proof) GetCurveID() gurvy.ID {
+	return curve.ID
 }
 
 // Prove creates proof from a circuit

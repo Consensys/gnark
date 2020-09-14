@@ -17,11 +17,11 @@ new*.txt
 *.pprof
 tasks.txt
 **/ref.txt
-*.pk
-*.vk
-*.proof
-*.input
-*.r1cs
+**/*.pk
+**/*.vk
+**/*.proof
+**/*.input
+**/*.r1cs
 *.log
 
 # Files used as backups when refactoring

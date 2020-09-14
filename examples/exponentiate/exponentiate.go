@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
 
@@ -42,18 +43,16 @@ func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.Constr
 }
 
 func main() {
-	var expCircuit ExponentiateCircuit
-	// init slices if any
-	// ex: cubicCircuit.bar = make([]foo, 12)
+	var circuit ExponentiateCircuit
 
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &expCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		panic(err)
 	}
 
 	// save the R1CS to disk
-	if err = frontend.Save(r1cs, "circuit.r1cs"); err != nil {
+	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
 		panic(err)
 	}
 }

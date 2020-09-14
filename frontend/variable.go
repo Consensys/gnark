@@ -70,7 +70,7 @@ const (
 	optOmit   = "-"
 )
 
-type leafHandler func(visibilityToRefactor backend.Visibility, name string, tValue reflect.Value) error
+type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
 
 func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, handler leafHandler) error {
 	// types we are lOoutputoking for
@@ -102,7 +102,7 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 					continue // skipping "-"
 				}
 
-				visibilityToRefactor := backend.Secret
+				visibility := backend.Secret
 				name := field.Name
 				if tag != "" {
 					// gnark tag is set
@@ -113,16 +113,16 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 					}
 
 					if opts.Contains(optSecret) {
-						visibilityToRefactor = backend.Secret
+						visibility = backend.Secret
 					} else if opts.Contains(optPublic) {
-						visibilityToRefactor = backend.Public
+						visibility = backend.Public
 					} else if opts.Contains(optEmbed) {
 						name = ""
-						visibilityToRefactor = backend.Unset
+						visibility = backend.Unset
 					}
 				}
 				if parentVisibility != backend.Unset {
-					visibilityToRefactor = parentVisibility // parent visibilityToRefactor overhides
+					visibility = parentVisibility // parent visibility overhides
 				}
 
 				fullName := appendName(baseName, name)
@@ -130,7 +130,7 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 				f := tValue.FieldByName(field.Name)
 				if f.CanAddr() && f.Addr().CanInterface() {
 					value := f.Addr().Interface()
-					if err := parseType(value, fullName, visibilityToRefactor, handler); err != nil {
+					if err := parseType(value, fullName, visibility, handler); err != nil {
 						return err
 					}
 				}

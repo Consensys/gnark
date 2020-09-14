@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
 
@@ -36,7 +36,7 @@ func BenchmarkCircuit(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		encoding.Serialize(&buff, res, gurvy.BN256)
+		io.Write(&buff, res)
 		b.StopTimer()
 		buff.Reset()
 		b.StartTimer()

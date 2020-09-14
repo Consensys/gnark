@@ -19,6 +19,7 @@ package groth16
 import (
 	"math/big"
 
+	"github.com/consensys/gurvy"
 	curve "github.com/consensys/gurvy/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
 
@@ -383,4 +384,14 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	}
 
 	return true
+}
+
+// GetCurveID returns the curveID
+func (pk *ProvingKey) GetCurveID() gurvy.ID {
+	return curve.ID
+}
+
+// GetCurveID returns the curveID
+func (pk *VerifyingKey) GetCurveID() gurvy.ID {
+	return curve.ID
 }

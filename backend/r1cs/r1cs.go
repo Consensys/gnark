@@ -17,11 +17,11 @@
 package r1cs
 
 import (
-	"github.com/consensys/gnark/encoding"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
 
@@ -38,7 +38,7 @@ type R1CS interface {
 // Read file at path and attempt to decode it into a R1CS object
 // note that until v1.X.X serialization (schema-less, disk, network, ..) may change
 func Read(path string) (R1CS, error) {
-	curveID, err := encoding.PeekCurveID(path)
+	curveID, err := io.PeekCurveID(path)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func Read(path string) (R1CS, error) {
 		panic("not implemented")
 	}
 
-	if err := encoding.Read(path, r1cs, curveID); err != nil {
+	if err := io.ReadFile(path, r1cs); err != nil {
 		return nil, err
 	}
 	return r1cs, err

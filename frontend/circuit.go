@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/encoding"
 	"github.com/consensys/gurvy"
 )
 
@@ -69,14 +68,6 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	return cs.toR1CS(curveID), nil
 }
 
-// Save will serialize the provided R1CS to path
-func Save(r1cs r1cs.R1CS, path string) error {
-	if r1cs.GetCurveID() == gurvy.UNKNOWN {
-		return errors.New("trying to serialize untyped R1CS")
-	}
-	return encoding.Write(path, r1cs, r1cs.GetCurveID())
-}
-
 // ToAssignment will attempt to return a map[string]interface{} (key values of assigments)
 // input value must either already be a map[string]interface{}
 // or implement frontend.Circuit. In that case, this function will parse circuit and extract
@@ -100,6 +91,10 @@ func ToAssignment(input interface{}) (map[string]interface{}, error) {
 		// (secret or public inputs)
 		return toReturn, parseType(c, "", backend.Unset, extractHandler)
 	default:
+		rValue := reflect.ValueOf(input)
+		if rValue.Kind() != reflect.Ptr {
+			return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit (got a non-pointer value)")
+		}
 		return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit")
 	}
 

@@ -1,4 +1,4 @@
-package encoding
+package io
 
 import (
 	"bytes"
@@ -12,6 +12,16 @@ import (
 	"github.com/leanovate/gopter/prop"
 )
 
+type data struct {
+	Str     string
+	Uint    uint64
+	curveID gurvy.ID
+}
+
+func (c *data) GetCurveID() gurvy.ID {
+	return c.curveID
+}
+
 func TestRoundTrip(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
@@ -20,10 +30,10 @@ func TestRoundTrip(t *testing.T) {
 	properties.Property("deserialization(serialization(string)) == string", prop.ForAll(
 		func(a string) bool {
 			var buff bytes.Buffer
-			Serialize(&buff, a, gurvy.BLS381)
-			var result string
-			Deserialize(&buff, &result, gurvy.BLS381)
-			return a == result
+			Write(&buff, &data{Str: a})
+			var result data
+			Read(&buff, &result)
+			return a == result.Str
 		},
 		gen.AnyString(),
 	))
@@ -31,10 +41,10 @@ func TestRoundTrip(t *testing.T) {
 	properties.Property("deserialization(serialization(uint64)) == uint64", prop.ForAll(
 		func(a uint64) bool {
 			var buff bytes.Buffer
-			Serialize(&buff, a, gurvy.BLS381)
-			var result uint64
-			Deserialize(&buff, &result, gurvy.BLS381)
-			return a == result
+			Write(&buff, &data{Uint: a})
+			var result data
+			Read(&buff, &result)
+			return a == result.Uint
 		},
 		gen.UInt64(),
 	))
@@ -51,9 +61,10 @@ func TestCurveEncoding(t *testing.T) {
 		func(a uint64) bool {
 			curveID := gurvy.ID(a % 4)
 			var buff bytes.Buffer
-			Serialize(&buff, a, curveID)
-			var result uint64
-			err := Deserialize(&buff, &result, (curveID+1)%4)
+			Write(&buff, &data{Uint: a, curveID: curveID})
+			var result data
+			result.curveID = (curveID + 1) % 4
+			err := Read(&buff, &result)
 			return err == errInvalidCurve
 		},
 		gen.UInt64(),

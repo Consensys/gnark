@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package encoding offers (de)serialization APIs for gnark objects
+// Package io offers (de)serialization APIs for gnark objects
 // it uses CBOR, is schema-less and that may change until v1.X.X release cycle
-package encoding
+package io
 
 import (
 	"errors"
@@ -27,10 +27,15 @@ import (
 	"github.com/fxamacker/cbor"
 )
 
+// CurveSpecific objects must know which curve they are tied to
+type CurveSpecific interface {
+	GetCurveID() gurvy.ID
+}
+
 var errInvalidCurve = errors.New("trying to deserialize an object serialized with another curve")
 
-// Write serialize object into file
-func Write(path string, from interface{}, curveID gurvy.ID) error {
+// WriteFile serialize object into file
+func WriteFile(path string, from CurveSpecific) error {
 	// create file
 	f, err := os.Create(path)
 	if err != nil {
@@ -38,12 +43,12 @@ func Write(path string, from interface{}, curveID gurvy.ID) error {
 	}
 	defer f.Close()
 
-	return Serialize(f, from, curveID)
+	return Write(f, from)
 }
 
-// Read read and deserialize input into object
+// ReadFile read and deserialize input into object
 // provided interface must be a pointer
-func Read(path string, into interface{}, expectedCurveID gurvy.ID) error {
+func ReadFile(path string, into CurveSpecific) error {
 	// open file
 	f, err := os.Open(path)
 	if err != nil {
@@ -51,16 +56,16 @@ func Read(path string, into interface{}, expectedCurveID gurvy.ID) error {
 	}
 	defer f.Close()
 
-	return Deserialize(f, into, expectedCurveID)
+	return Read(f, into)
 }
 
-// Serialize object from into provided writer
+// Write object from into provided writer
 // encodes the curveID in the first bytes
-func Serialize(writer io.Writer, from interface{}, curveID gurvy.ID) error {
+func Write(writer io.Writer, from CurveSpecific) error {
 	encoder := cbor.NewEncoder(writer, cbor.CanonicalEncOptions())
 
 	// encode the curve type in the first bytes
-	if err := encoder.Encode(curveID); err != nil {
+	if err := encoder.Encode(from.GetCurveID()); err != nil {
 		return err
 	}
 
@@ -92,8 +97,8 @@ func PeekCurveID(file string) (gurvy.ID, error) {
 	return curveID, nil
 }
 
-// Deserialize reads bytes from reader and construct object into
-func Deserialize(reader io.Reader, into interface{}, expectedCurveID gurvy.ID) error {
+// Read reads bytes from reader and construct object into
+func Read(reader io.Reader, into CurveSpecific) error {
 	decoder := cbor.NewDecoder(reader)
 
 	// decode the curve type, and ensure it matches
@@ -101,7 +106,7 @@ func Deserialize(reader io.Reader, into interface{}, expectedCurveID gurvy.ID) e
 	if err := decoder.Decode(&curveID); err != nil {
 		return err
 	}
-	if curveID != expectedCurveID {
+	if curveID != into.GetCurveID() {
 		return errInvalidCurve
 	}
 
