@@ -48,7 +48,6 @@ func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 	return nil
 }
 
-// TODO need tests on MiMC edge cases, bad or un-allocated inputs, and errors
 func TestMimcBN256(t *testing.T) {
 	assert := groth16.NewAssert(t)
 

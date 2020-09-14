@@ -18,7 +18,6 @@ func TestExponentiate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TODO bigger numbers
 	{
 		var witness ExponentiateCircuit
 		witness.X.Assign(2)

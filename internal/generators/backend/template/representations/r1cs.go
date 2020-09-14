@@ -68,10 +68,6 @@ func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // assignment: map[string]value: contains the input variables
-// TODO : note that currently, there is a convertion from interface{} to fr.Element for each entry in the
-// assignment map. It can cost a SetBigInt() which converts from Regular ton Montgomery rep (1 mul)
-// while it's unlikely to be noticeable compared to the FFT and the MultiExp compute times,
-// there should be a faster (statically typed) path for production deployments.
 // a, b, c vectors: ab-c = hz
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
 func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
@@ -85,6 +81,10 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	
 
 	// instantiate the public/ private inputs
+	// note that currently, there is a convertion from interface{} to fr.Element for each entry in the
+	// assignment map. It can cost a SetBigInt() which converts from Regular ton Montgomery rep (1 mul)
+	// while it's unlikely to be noticeable compared to the FFT and the MultiExp compute times,
+	// there should be a faster (statically typed) path 
 	instantiateInputs := func(offset int, inputNames []string) error {
 		for i := 0; i < len(inputNames); i++ {
 			name := inputNames[i]

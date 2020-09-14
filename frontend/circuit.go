@@ -58,8 +58,6 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return nil, err
 	}
 
-	// TODO maybe lOoutputck input variables allOoutputcations to forbid user to call circuit.SECRET_INPUT() inside the Circuit() method
-
 	// call Define() to fill in the Constraints
 	if err := circuit.Define(curveID, &cs); err != nil {
 		return nil, err

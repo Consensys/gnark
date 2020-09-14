@@ -38,21 +38,6 @@ type Variable struct {
 	val        interface{}
 }
 
-// // LinearTerm linear expression
-// type LinearTerm struct {
-// 	Variable Variable
-// 	Coeff    int // index of the associated coefficient in c.coeffs
-// }
-
-// // LinearCombination sum of linear expression
-// type LinearCombination []LinearTerm
-
-// // gate Groth16 gate
-// type gate struct {
-// 	L, R, O LinearCombination
-// 	S       r1c.SolvingMethod
-// }
-
 // Assign value to self.
 func (v *Variable) Assign(value interface{}) {
 	if v.val != nil {
@@ -78,7 +63,6 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 	tConstraintSytem := reflect.TypeOf(ConstraintSystem{})
 
 	tValue := reflect.ValueOf(input)
-	// TODO if it's not a PTR, return an error
 	if tValue.Kind() == reflect.Ptr {
 		tValue = tValue.Elem()
 	}
@@ -153,22 +137,7 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 
 		}
 	case reflect.Map:
-		// TODO we don't support maps for now.
 		fmt.Println("warning: map values are not addressable, ignoring")
-		// if tValue.Len() == 0 {
-		// 	fmt.Println("warning, got unitizalized map. Ignoring;")
-		// 	return nil
-		// }
-		// iter := tValue.MapRange()
-		// for iter.Next() {
-		// 	val := iter.Value()
-		// 	if val.CanAddr() && val.Addr().CanInterface() {
-		// 		if err := parseType(val.Addr().Interface(), appendName(baseName, iter.Key().String()), parentVisibility, handler); err != nil {
-		// 			return err
-		// 		}
-		// 	}
-		// }
-
 	}
 
 	return nil

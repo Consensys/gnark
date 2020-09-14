@@ -51,7 +51,9 @@ type logEntry struct {
 	toResolve []r1c.Term
 }
 
-const initialCapacity = 1e6 // TODO that must be tuned. -build tags?
+// this has quite some impact on frontend performance, especially on large circuits size
+// we may want to add build tags to tune that
+const initialCapacity = 1e6
 
 // newConstraintSystem outputs a new circuit
 func newConstraintSystem() ConstraintSystem {
@@ -233,7 +235,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file)) // TODO we may want to put the full path here
+		sbb.WriteString(filepath.Base(file))
 		sbb.WriteByte(':')
 		sbb.WriteString(strconv.Itoa(line))
 		sbb.WriteByte(' ')

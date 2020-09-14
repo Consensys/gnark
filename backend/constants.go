@@ -16,16 +16,17 @@ package backend
 
 import "errors"
 
-// TODO these shouldn't be there, they are mosty shared between frontend and backend packages
-
-// OneWire is the assignment label / name used for the constant wire one
-const OneWire = "ONE_WIRE"
-
 // ErrInputNotSet can be generated when solving the R1CS (a missing assignment) or running a Verifier
 var ErrInputNotSet = errors.New("input not set")
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
+
+// note: this types are shared between frontend and backend packages and are here to avoid import cycles
+// probably need a better naming / home for them
+
+// OneWire is the assignment label / name used for the constant wire one
+const OneWire = "ONE_WIRE"
 
 // Visibility encodes a Variable (or wire) visibility
 // Possible values are Unset, Internal, Secret or Public
