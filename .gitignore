@@ -24,10 +24,7 @@ tasks.txt
 *.r1cs
 *.log
 
-**/benchmark 
-
 # Files used as backups when refactoring
-
 *.backup
 
 # generated files during integratrion tests
@@ -36,6 +33,7 @@ integratrion_test/**
 # binary
 gnark
 playground
+examples/benchmark/benchmark
 
 .vscode
 

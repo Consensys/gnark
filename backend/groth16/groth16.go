@@ -48,7 +48,11 @@ type VerifyingKey interface {
 
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
 // it checks the underlying type of proof (i.e curve specific) to call the proper implementation
-func Verify(proof Proof, vk VerifyingKey, solution map[string]interface{}) error {
+func Verify(proof Proof, vk VerifyingKey, _solution interface{}) error {
+	solution, err := parseSolution(_solution)
+	if err != nil {
+		return err
+	}
 	switch _proof := proof.(type) {
 	case *groth16_bls377.Proof:
 		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), solution)
@@ -65,8 +69,11 @@ func Verify(proof Proof, vk VerifyingKey, solution map[string]interface{}) error
 
 // Prove generate a groth16.Proof
 // it checks the underlying type of the R1CS (curve specific) to call the proper implementation
-func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution map[string]interface{}) (Proof, error) {
-
+func Prove(r1cs r1cs.R1CS, pk ProvingKey, _solution interface{}) (Proof, error) {
+	solution, err := parseSolution(_solution)
+	if err != nil {
+		return nil, err
+	}
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), solution)

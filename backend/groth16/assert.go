@@ -15,6 +15,7 @@
 package groth16
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -103,16 +104,18 @@ func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, _solution interface{}) {
 }
 
 func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {
-	var solution map[string]interface{}
-	var err error
+	solution, err := parseSolution(_solution)
+	assert.NoError(err)
+	return solution
+}
+
+func parseSolution(_solution interface{}) (map[string]interface{}, error) {
 	switch s := _solution.(type) {
 	case map[string]interface{}:
-		solution = s
+		return s, nil
 	case frontend.Circuit:
-		solution, err = frontend.ToAssignment(s)
-		assert.NoError(err)
+		return frontend.ToAssignment(s)
 	default:
-		panic("solution must be map[string]interface{} or implement frontend.Circuit (is it a pointer?)")
+		return nil, errors.New("solution must be map[string]interface{} or implement frontend.Circuit")
 	}
-	return solution
 }
