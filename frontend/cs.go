@@ -81,6 +81,7 @@ var (
 	bTwo      = new(big.Int).SetInt64(2)
 )
 
+// Term packs a variable and a coeff in a r1c.Term and returns it.
 func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 	if v.visibility == backend.Unset {
 		panic("variable is not allocated.")
@@ -96,6 +97,17 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 		term.SetCoeffValue(-1)
 	}
 	return term
+}
+
+// LinearExpression packs a list of r1c.Term in a r1c.LinearExpression and returns it.
+// The point of this wrapper is to call every complex expression (Term, LinearExpression)
+// from the cs only, and not have non homogeneous api.
+func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpression {
+	res := make(r1c.LinearExpression, len(terms))
+	for i, args := range terms {
+		res[i] = args
+	}
+	return res
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {

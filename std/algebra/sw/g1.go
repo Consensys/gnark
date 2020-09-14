@@ -19,7 +19,6 @@ package sw
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -59,31 +58,31 @@ func (p *G1Affine) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Aff
 	one := big.NewInt(1)
 	minusOne := big.NewInt(-1)
 
-	l1 := r1c.LinearExpression{
+	l1 := cs.LinearExpression(
 		cs.Term(p1.Y, one),
 		cs.Term(p.Y, minusOne),
-	}
-	l2 := r1c.LinearExpression{
+	)
+	l2 := cs.LinearExpression(
 		cs.Term(p1.X, one),
 		cs.Term(p.X, minusOne),
-	}
+	)
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := r1c.LinearExpression{
+	_x := cs.LinearExpression(
 		cs.Term(cs.Mul(l, l), one),
 		cs.Term(p.X, minusOne),
 		cs.Term(p1.X, minusOne),
-	}
+	)
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := r1c.LinearExpression{
+	l3 := cs.LinearExpression(
 		cs.Term(t1, one),
 		cs.Term(t2, minusOne),
 		cs.Term(p.Y, minusOne),
-	}
+	)
 	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr
@@ -222,28 +221,28 @@ func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	x2 := cs.Mul(p1.X, p1.X)
 	cs.Mul(p1.X, p1.X)
-	l1 := r1c.LinearExpression{
+	l1 := cs.LinearExpression(
 		cs.Term(x2, &t),
-	}
-	l2 := r1c.LinearExpression{
+	)
+	l2 := cs.LinearExpression(
 		cs.Term(p1.Y, &d),
-	}
+	)
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := r1c.LinearExpression{
+	_x := cs.LinearExpression(
 		cs.Term(cs.Mul(l, l), &c1),
 		cs.Term(p1.X, &c2),
-	}
+	)
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p1.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := r1c.LinearExpression{
+	l3 := cs.LinearExpression(
 		cs.Term(t1, &c1),
 		cs.Term(t2, &c3),
 		cs.Term(p1.Y, &c3),
-	}
+	)
 	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr

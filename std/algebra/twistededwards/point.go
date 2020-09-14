@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -35,14 +34,14 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 	one := big.NewInt(1)
 
-	l1 := r1c.LinearExpression{cs.Term(p.X, &curve.A)}
-	l2 := r1c.LinearExpression{cs.Term(p.X, one)}
+	l1 := cs.LinearExpression(cs.Term(p.X, &curve.A))
+	l2 := cs.LinearExpression(cs.Term(p.X, one))
 	axx := cs.Mul(l1, l2)
 	yy := cs.Mul(p.Y, p.Y)
 	lhs := cs.Add(axx, yy)
 
-	l1 = r1c.LinearExpression{cs.Term(p.X, &curve.D)}
-	l2 = r1c.LinearExpression{cs.Term(p.X, one)}
+	l1 = cs.LinearExpression(cs.Term(p.X, &curve.D))
+	l2 = cs.LinearExpression(cs.Term(p.X, one))
 	dxx := cs.Mul(l1, l2)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
@@ -61,13 +60,13 @@ func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point, x, y int
 	bx := backend.FromInterface(x)
 	by := backend.FromInterface(y)
 	dxy.Mul(&bx, &by).Mul(&dxy, &curve.D)
-	bxa.Mul(&bx, &curve.A).Neg(&bxa)                                    // -ax1
-	n1 := r1c.LinearExpression{cs.Term(p1.X, &by), cs.Term(p1.Y, &bx)}  // x1y2+x2y1
-	n2 := r1c.LinearExpression{cs.Term(p1.Y, &by), cs.Term(p1.X, &bxa)} // y1y2-ax1x2
-	ld := r1c.LinearExpression{cs.Term(p1.X, &dxy)}                     // dx1x2y2
-	_d := cs.Mul(ld, p1.Y)                                              // dx1x2y2y1
-	d1 := cs.Add(1, _d)                                                 // 1+dx1x2y2y1
-	d2 := cs.Sub(1, _d)                                                 // 1-dx1x2y2y1
+	bxa.Mul(&bx, &curve.A).Neg(&bxa)                                   // -ax1
+	n1 := cs.LinearExpression(cs.Term(p1.X, &by), cs.Term(p1.Y, &bx))  // x1y2+x2y1
+	n2 := cs.LinearExpression(cs.Term(p1.Y, &by), cs.Term(p1.X, &bxa)) // y1y2-ax1x2
+	ld := cs.LinearExpression(cs.Term(p1.X, &dxy))                     // dx1x2y2
+	_d := cs.Mul(ld, p1.Y)                                             // dx1x2y2y1
+	d1 := cs.Add(1, _d)                                                // 1+dx1x2y2y1
+	d2 := cs.Sub(1, _d)                                                // 1-dx1x2y2y1
 
 	p.X = cs.Div(n1, d1)
 	p.Y = cs.Div(n2, d2)
@@ -91,27 +90,27 @@ func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve E
 	delta := cs.Mul(p1.Y, p2.Y)
 	epsilon := cs.Mul(p1.X, p2.X)
 	tau := cs.Mul(delta, epsilon)
-	num := r1c.LinearExpression{
+	num := cs.LinearExpression(
 		cs.Term(beta, one),
 		cs.Term(gamma, one),
-	}
-	den := r1c.LinearExpression{
+	)
+	den := cs.LinearExpression(
 		cs.Term(oneWire, one),
 		cs.Term(tau, &curve.D),
-	}
+	)
 	res.X = cs.Div(num, den)
 	var minusa big.Int
 	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
-	num = r1c.LinearExpression{
+	num = cs.LinearExpression(
 		cs.Term(delta, one),
 		cs.Term(epsilon, &minusa),
-	}
+	)
 	var minusd big.Int
 	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
-	den = r1c.LinearExpression{
+	den = cs.LinearExpression(
 		cs.Term(oneWire, one),
 		cs.Term(tau, &minusd),
-	}
+	)
 	res.Y = cs.Div(num, den)
 
 	p.X = res.X
