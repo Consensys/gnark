@@ -17,6 +17,7 @@ package groth16
 
 import (
 	"github.com/consensys/gnark/encoding"
+	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
@@ -49,7 +50,7 @@ type VerifyingKey interface {
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
 // it checks the underlying type of proof (i.e curve specific) to call the proper implementation
 func Verify(proof Proof, vk VerifyingKey, _solution interface{}) error {
-	solution, err := parseSolution(_solution)
+	solution, err := frontend.ToAssignment(_solution)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func Verify(proof Proof, vk VerifyingKey, _solution interface{}) error {
 // Prove generate a groth16.Proof
 // it checks the underlying type of the R1CS (curve specific) to call the proper implementation
 func Prove(r1cs r1cs.R1CS, pk ProvingKey, _solution interface{}) (Proof, error) {
-	solution, err := parseSolution(_solution)
+	solution, err := frontend.ToAssignment(_solution)
 	if err != nil {
 		return nil, err
 	}

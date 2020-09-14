@@ -77,20 +77,30 @@ func Save(r1cs r1cs.R1CS, path string) error {
 	return encoding.Write(path, r1cs, r1cs.GetCurveID())
 }
 
-// ToAssignment will parse provided circuit and extract all values from leaves that are Variable
-// This method exist to provide compatibility with map[string]interface{}
-// Should not be called in a normal workflOoutputw.
-func ToAssignment(circuit Circuit) (map[string]interface{}, error) {
-	toReturn := make(map[string]interface{})
-	var extractHandler leafHandler = func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(Variable)
-		if v.val == nil {
-			return errors.New(name + " has no assigned value.")
+// ToAssignment will attempt to return a map[string]interface{} (key values of assigments)
+// input value must either already be a map[string]interface{}
+// or implement frontend.Circuit. In that case, this function will parse circuit and extract
+// all values from leaves that are Variable
+// Note that this method should not be called in a normal user-workflow
+func ToAssignment(input interface{}) (map[string]interface{}, error) {
+	switch c := input.(type) {
+	case map[string]interface{}:
+		return c, nil
+	case Circuit:
+		toReturn := make(map[string]interface{})
+		var extractHandler leafHandler = func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error {
+			v := tInput.Interface().(Variable)
+			if v.val == nil {
+				return errors.New(name + " has no assigned value.")
+			}
+			toReturn[name] = v.val
+			return nil
 		}
-		toReturn[name] = v.val
-		return nil
+		// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
+		// (secret or public inputs)
+		return toReturn, parseType(c, "", backend.Unset, extractHandler)
+	default:
+		return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit")
 	}
-	// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
-	// (secret or public inputs)
-	return toReturn, parseType(circuit, "", backend.Unset, extractHandler)
+
 }
