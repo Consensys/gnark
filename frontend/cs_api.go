@@ -288,6 +288,8 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 			coeff.Mul(&coeff, bTwo)
 		}
 		L[i] = cs.Term(b[i], &coeff)
+
+		cs.AssertIsBoolean(b[i]) // ensures the b[i]'s are boolean
 	}
 	R := r1c.LinearExpression{
 		cs.oneTerm,
@@ -304,6 +306,10 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 
 // Select if b is true, yields c1 else yields c2
 func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
+
+	// ensures that b is boolean
+	cs.AssertIsBoolean(b)
+
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
@@ -360,14 +366,11 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 // Constant will return a Variable from input {uint64, int, ...}
 func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
-	res := cs.newInternalVariable()
-
 	//L
 	L := r1c.LinearExpression{}
 
 	switch t := input.(type) {
 	case Variable:
-
 		return t
 	default:
 		n := backend.FromInterface(t)
@@ -377,6 +380,7 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 		L = append(L, cs.Term(cs.oneVariable(), &n))
 	}
+	res := cs.newInternalVariable()
 
 	R := r1c.LinearExpression{cs.oneTerm}
 	O := r1c.LinearExpression{cs.Term(res, bOne)}
