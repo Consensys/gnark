@@ -1,10 +1,12 @@
 # gnark
-[![Gitter](https://badges.gitter.im/consensys-gnark/community.svg)](https://gitter.im/consensys-gnark/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark) [![GoDoc](https://godoc.org/github.com/consensys/gnark?status.svg)](https://godoc.org/github.com/consensys/gnark)
+[![Gitter](https://badges.gitter.im/consensys-gnark/community.svg)](https://gitter.im/consensys-gnark/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)  [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark) [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 
 
 `gnark` is a framework to execute (and verify) algorithms in zero-knowledge. It offers a high-level API to easily design circuits and fast implementation of state of the art ZKP schemes. 
 
 `gnark` has not been audited and is provided as-is, use at your own risk. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.
+
+Get in touch: zkteam@consensys.net
 
 <img style="display: block;margin: auto;" width="80%"
 src="banner_gnark.png">
@@ -29,45 +31,37 @@ You'll need to [install Go](https://golang.org/doc/install).
 
 ### Install `gnark` 
 
-#### Command line interface
 
 ```bash
-go install github.com/ConsenSys/gnark
+go install github.com/consensys/gnark
 ```
-
-#### Library
 
 Note that if you use `go.mod`, the module path is `github.com/consensys/gnark` (case sensitive). 
 
-```bash
-go get -u github.com/consensys/gnark
-```
 
 ### Workflow
 
 [Our blog post](https://hackmd.io/@zkteam/gnark) is a good place to start. In short:
-1. Implement the algorithm using our API (written in Go)
-2. Serialize the circuit in its R1CS form (`circuit.r1cs`) (in the `examples/cubic` subfolder, that would be `go run examples/cubic/main.go`)
-3. Run `gnark setup circuit.r1cs` to generate proving and verifying keys
-4. Run `gnark prove circuit.r1cs --pk circuit.pk --input input.json`to generate a proof
-5. Run `gnark verify circuit.proof --vk circuit.vk --input input.json` to verify a proof
-
-The input file has a the following JSON format:
-```json
-{
-	"x":"3",
-	"y":"0xdeff12"
-}
-```
+1. Implement the algorithm using gnark API (written in Go)
+2. `r1cs, err := frontend.Compile(&circuit)` to compile the circuit into a R1CS
+3. `pk, vk := groth16.Setup(r1cs)` to generate proving and verifying keys
+4. `groth16.Prove(...)` to generate a proof
+5. `groth16.Verify(...)` to verify a proof
 
 
-Using the `gnark` CLI tool is **optional**. Developers may expose circuits through gRPC or REST APIs, export to Solidity, chose their serialization formats, etc. This is ongoing work on our side, but new feature suggestions or PR are welcome.
+`gnark` offers APIs and a CLI tool (`gnark -h` for more information about `setup`, `prove` and `verify` subcommands)
+
+### Documentation
+
+You can find the [documentation here](https://pkg.go.dev/mod/github.com/consensys/gnark). In particular:
+* [frontend](https://pkg.go.dev/github.com/consensys/gnark/frontend) (writing a circuit)
+* [backend](https://pkg.go.dev/github.com/consensys/gnark/backend) (running zero-knowledge proof algorithms on the circuit)
+
 
 ### Examples and `gnark` usage
 
 Examples are located in `/examples`. 
 
-Run `gnark --help` for a list of available commands. 
 
 #### /examples/cubic
 
@@ -103,6 +97,7 @@ func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 
 ```
 
+
 3. The circuit is then compiled (into a R1CS)
 
 ```golang
@@ -111,8 +106,7 @@ var circuit CubicCircuit
 // compiles our circuit into a R1CS
 r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 ```
-
-Note that in most cases, the user don't need to *allocate* inputs (here X, Y) and it's done by the `frontend.Compile()` method using the struct tags attributes, similarly to `json` or `xml` encoders in Golang. 
+Using struct tags attributes (similarly to `json` or `xml` encoders in Golang), `frontend.Compile()` will parse the circuit structure and allocate the user secret and public inputs [TODO add godoc link for details]. 
 
 4. The circuit can be tested like so:
 ```golang
@@ -148,6 +142,14 @@ gnark prove circuit.r1cs --pk circuit.pk --input input.json
 gnark verify circuit.proof --vk circuit.vk --input input.json
 ```
 
+The input file has a the following JSON format:
+```json
+{
+	"x":"3",
+	"Y":"0xdeff12"
+}
+```
+Values can be base10 or hexadecimal strings. 
 
 ### API vs DSL
 
@@ -162,11 +164,16 @@ Moreover, `gnark` is not a black box and exposes APIs like a conventional crypto
 ### Designing your circuit
 
 #### Caveats
-TODO (field overflows, etc)
+
+Three points to keep in mind when designing a circuit (which is close to constraint system programming):
+1. Under the hood, there is only one variable type (field element). TODO
+2. A `for` loop must have fix bounds. TODO
+3. `if` statements (named `cs.Select()` like in `Prolog`). TODO.  
+
 
 #### `gnark` standard library
 
-Currently gnark provides the following components in its circuit library:
+Currently gnark provides the following components (see `gnark/std`):
 
 * The Mimc hash function
 * Merkle tree (binary, without domain separation)
@@ -176,19 +183,22 @@ Currently gnark provides the following components in its circuit library:
 
 ## Benchmarks
 
-It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is **twice** faster than existing state-of-the-art.
+It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is about **twice** faster than existing state-of-the-art.
+
+Here are our measurements for the **Prover**. These benchmarks ran on a AWS z1d.6xlarge instance, with hyperthreading disabled (12 cores, 192GB RAM).
+
+The same circuit is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
 
 
-Here are our measurements for the **Prover**, using BLS381 curve. These benchmarks ran on a AMD Ryzen 7 3700X (8 cores) with 32GB RAM. 
+| nb constraints | 65537|262145|1048577|4194305|16777217|33554433|
+| -------- | --------| -------- | -------- |-------- |-------- |-------- |
+| bellman (ms/op)|||||||
+| gnark (ms/op)  |||||||
+| gain  |||||||
 
 
-| nb constraints | 1000|40000|100000|1000000|10000000|
-| -------- | --------| -------- | -------- |-------- |-------- |
-| bellman (ms/op)|39|729|1537|12895|121468|
-| gnark (ms/op)  |16|384|821|6372|65170|
-| gain  |-59%|-47%|-47%|-51%|-46%|
 
-
+In some settings, `gnark` performance could be significantly improved. Get in touch if you'd like to know more: zkteam@consensys.net. 
 
 ____
 
@@ -196,7 +206,7 @@ ____
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our [code of conduct](CODE_OF_CONDUCT.md), and the process for submitting pull requests to us.
-Get in touch: zkteam@consensys.net
+
 
 ## Versioning
 

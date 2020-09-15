@@ -424,7 +424,7 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 		debugInfo.toResolve = append(debugInfo.toResolve, _t1)
 	default:
 		n1 := backend.FromInterface(t1)
-		debugInfo.format = fmt.Sprintf("%s", n1.String())
+		debugInfo.format = n1.String()
 		L = append(L, cs.Term(cs.oneVariable(), &n1))
 	}
 
@@ -453,7 +453,7 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 		debugInfo.toResolve = append(debugInfo.toResolve, _t2)
 	default:
 		n2 := backend.FromInterface(t2)
-		debugInfo.format += fmt.Sprintf("%s", n2.String())
+		debugInfo.format += n2.String()
 		O = append(O, cs.Term(cs.oneVariable(), &n2))
 	}
 
