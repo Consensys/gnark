@@ -6,57 +6,67 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bn256/fr"
+	bls381fr "github.com/consensys/gurvy/bls381/fr"
+	bn256fr "github.com/consensys/gurvy/bn256/fr"
 )
 
-// if you want to change the curve type in this benchmark
-// modify the gurvy/bn256/fr import too to be able to compute a correct solution
-const curveID = gurvy.BN256
-
 func main() {
-	n, err := strconv.Atoi(os.Args[1])
-	if err != nil {
-		fmt.Println("usage is ./benchmark nbConstraints")
+	if len(os.Args) != 2 {
+		fmt.Println("usage is ./benchmark [nbConstraints list]")
 		os.Exit(-1)
 	}
-
-	// generate dummy circuit and solution
-	pk, r1cs := generateCircuit(n)
-	input := generateSolution(n)
-
-	// measure proving time
-	start := time.Now()
-	_, _ = groth16.Prove(r1cs, pk, input)
-	took := time.Since(start)
-
-	// check memory usage, max ram requested from OS
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	bData := benchData{
-		NbCpus:         runtime.NumCPU(),
-		NbCoefficients: r1cs.GetNbCoefficients(),
-		NbConstraints:  r1cs.GetNbConstraints(),
-		NbWires:        r1cs.GetNbWires(),
-		RunTime:        took.Milliseconds(),
-		MaxRAM:         (m.Sys / 1024 / 1024),
-	}
+	ns := strings.Split(os.Args[1], ",")
+	curveIDs := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
-	if err := w.Write(bData.headers()); err != nil {
+	if err := w.Write(benchData{}.headers()); err != nil {
 		panic(err)
 	}
-	if err := w.Write(bData.values()); err != nil {
-		panic(err)
+
+	for _, curveID := range curveIDs {
+		for _, _n := range ns {
+			n, err := strconv.Atoi(_n)
+			if err != nil {
+				panic(err)
+			}
+			// generate dummy circuit and solution
+			pk, r1cs := generateCircuit(n, curveID)
+			input := generateSolution(n, curveID)
+
+			// measure proving time
+			start := time.Now()
+			_, _ = groth16.Prove(r1cs, pk, &input)
+			took := time.Since(start)
+
+			// check memory usage, max ram requested from OS
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+
+			bData := benchData{
+				Curve:          curveID.String(),
+				NbCpus:         runtime.NumCPU(),
+				NbCoefficients: r1cs.GetNbCoefficients(),
+				NbConstraints:  r1cs.GetNbConstraints(),
+				NbWires:        r1cs.GetNbWires(),
+				RunTime:        took.Milliseconds(),
+				MaxRAM:         (m.Sys / 1024 / 1024),
+			}
+
+			if err := w.Write(bData.values()); err != nil {
+				panic(err)
+			}
+			w.Flush()
+		}
 	}
-	w.Flush()
+
 }
 
 // benchCircuit is a simple circuit that checks X*X*X*X*X... == Y
@@ -74,7 +84,7 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	return nil
 }
 
-func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS) {
+func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r1cs.R1CS) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
@@ -88,22 +98,38 @@ func generateCircuit(nbConstraints int) (groth16.ProvingKey, r1cs.R1CS) {
 	return pk, r1cs
 }
 
-func generateSolution(nbConstraints int) (witness benchCircuit) {
+func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit) {
 	witness.n = nbConstraints
-
-	// compute expected Y
-	var expectedY fr.Element
-	expectedY.SetInterface(2)
-	for i := 0; i < nbConstraints; i++ {
-		expectedY.MulAssign(&expectedY)
-	}
 	witness.X.Assign(2)
-	witness.Y.Assign(expectedY)
+
+	switch curveID {
+	case gurvy.BN256:
+		// compute expected Y
+		var expectedY bn256fr.Element
+		expectedY.SetInterface(2)
+		for i := 0; i < nbConstraints; i++ {
+			expectedY.MulAssign(&expectedY)
+		}
+
+		witness.Y.Assign(expectedY)
+	case gurvy.BLS381:
+		// compute expected Y
+		var expectedY bls381fr.Element
+		expectedY.SetInterface(2)
+		for i := 0; i < nbConstraints; i++ {
+			expectedY.MulAssign(&expectedY)
+		}
+
+		witness.Y.Assign(expectedY)
+	default:
+		panic("not implemented")
+	}
 
 	return
 }
 
 type benchData struct {
+	Curve          string
 	NbConstraints  int
 	NbWires        int
 	NbCoefficients int
@@ -113,10 +139,11 @@ type benchData struct {
 }
 
 func (bData benchData) headers() []string {
-	return []string{"nbConstraints", "nbWires", "nbCoefficients", "ram(mb)", "time(ms)", "nbCpus"}
+	return []string{"curve", "nbConstraints", "nbWires", "nbCoefficients", "ram(mb)", "time(ms)", "nbCpus"}
 }
 func (bData benchData) values() []string {
 	return []string{
+		bData.Curve,
 		strconv.Itoa(bData.NbConstraints),
 		strconv.Itoa(bData.NbWires),
 		strconv.Itoa(bData.NbCoefficients),

@@ -24,7 +24,7 @@ src="banner_gnark.png">
 
 ### Prerequisites
 
-`gnark` is optimized for `amd64` targets and tested on Unix (Linux / macOS).
+`gnark` is optimized for `amd64` targets (x86 64bits) and tested on Unix (Linux / macOS).
 You'll need to [install Go](https://golang.org/doc/install).
 
 ### Install `gnark` 
@@ -37,24 +37,22 @@ go install github.com/ConsenSys/gnark
 
 #### Library
 
+Note that if you use `go.mod`, the module path is `github.com/consensys/gnark` (case sensitive). 
+
 ```bash
-go get github.com/ConsenSys/gnark
+go get -u github.com/consensys/gnark
 ```
-
-To install for use as a Go package:
-
-`go get github.com/consensys/gnark/cs`
 
 ### Workflow
 
 [Our blog post](https://hackmd.io/@zkteam/gnark) is a good place to start. In short:
 1. Implement the algorithm using our API (written in Go)
-2. Serialize the circuit in its R1CS form (`circuit.r1cs`) (in the `examples/cubic` subfolder, that would be `go run examples/cubic/cubic.go`)
+2. Serialize the circuit in its R1CS form (`circuit.r1cs`) (in the `examples/cubic` subfolder, that would be `go run examples/cubic/main.go`)
 3. Run `gnark setup circuit.r1cs` to generate proving and verifying keys
-4. Run `gnark prove circuit.r1cs --pk circuit.pk --input input`to generate a proof
-5. Run `gnark verify circuit.proof --vk circuit.vk --input input.public` to verify a proof
+4. Run `gnark prove circuit.r1cs --pk circuit.pk --input input.json`to generate a proof
+5. Run `gnark verify circuit.proof --vk circuit.vk --input input.json` to verify a proof
 
-Note that, currently (and it may change), the input file has a the following JSON format:
+The input file has a the following JSON format:
 ```json
 {
 	"x":"3",
@@ -71,52 +69,47 @@ Examples are located in `/examples`.
 
 Run `gnark --help` for a list of available commands. 
 
-#### /examples/cubic_equation
+#### /examples/cubic
 
 1. To define a circuit, one must implement the `frontend.Circuit` interface:
 
 ```golang 
 // Circuit must be implemented by user-defined circuits
 type Circuit interface {
-	// Define declares the circuit's constraints
-	Define(ctx *Context, cs *CS) error
-
+	// Define declares the circuit's Constraints
+	Define(curveID gurvy.ID, cs *ConstraintSystem) error
 }
 ```
 
 2. Here is what `x**3 + x + 5 = y` looks like
 
 ```golang
+// CubicCircuit defines a simple circuit
+// x**3 + x + 5 == y
 type CubicCircuit struct {
-	// tagging a variable is optional
+	// struct tags on a variable is optional
 	// default uses variable name and secret visibility.
 	X frontend.Variable `gnark:"x"`
-	Y frontend.Variable `gnark:"y, public"`
+	Y frontend.Variable `gnark:",public"`
 }
 
+// Define declares the circuit constraints
+// x**3 + x + 5 == y
 func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
-	//  x**3 + x + 5 == y
 	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
-	cs.MustBeEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
-
-	// we can tag a variable for testing and / or debugging purposes
-	x3.Tag("x^3")
-
+	cs.AssertIsEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
 	return nil
 }
+
 ```
 
 3. The circuit is then compiled (into a R1CS)
 
 ```golang
-var cubicCircuit CubicCircuit
-// init context
-ctx := frontend.NewContext(gurvy.BN256)
-// add key values to context, usable by circuit and all components
-// ex: ctx.Set(rho, new(big.Int).Set("..."))
+var circuit CubicCircuit
 
 // compiles our circuit into a R1CS
-r1cs, err := frontend.Compile(ctx, &cubicCircuit)
+r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 ```
 
 Note that in most cases, the user don't need to *allocate* inputs (here X, Y) and it's done by the `frontend.Compile()` method using the struct tags attributes, similarly to `json` or `xml` encoders in Golang. 
@@ -124,19 +117,18 @@ Note that in most cases, the user don't need to *allocate* inputs (here X, Y) an
 4. The circuit can be tested like so:
 ```golang
 {
-	cubicCircuit.X.Assign(42)
-	cubicCircuit.Y.Assign(42)
+	var witness CubicCircuit
+	witness.X.Assign(42)
+	witness.Y.Assign(42)
 
-	assert.NotSolved(r1cs, &cubicCircuit)
+	assert.ProverFailed(r1cs, &witness)
 }
 
 {
-	cubicCircuit.X.Assign(3)
-	cubicCircuit.Y.Assign(35)
-	expectedValues := make(map[string]interface{})
-	expectedValues["x^3"] = 27
-	expectedValues["x"] = 3
-	assert.Solved(r1cs, &cubicCircuit, expectedValues)
+	var witness CubicCircuit
+	witness.X.Assign(3)
+	witness.Y.Assign(35)
+	assert.ProverSucceeded(r1cs, &witness)
 }
 ```
 
@@ -149,11 +141,11 @@ err := groth16.Verify(proof, vk, solution)
 
 6. Using the CLI
 ```
-cd examples/cubic_equation
+cd examples/cubic
 go run cubic.go
 gnark setup circuit.r1cs
-gnark prove circuit.r1cs --pk circuit.pk --input input
-gnark verify circuit.proof --vk circuit.vk --input input.public
+gnark prove circuit.r1cs --pk circuit.pk --input input.json
+gnark verify circuit.proof --vk circuit.vk --input input.json
 ```
 
 
@@ -184,31 +176,21 @@ Currently gnark provides the following components in its circuit library:
 
 ## Benchmarks
 
-It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is faster than existing state-of-the-art.
-
-Here are our measurements for the **Prover**, using BLS381 curve. These benchmarks ran on a c5d.metal AWS instance (96 vCPUS, 192GB RAM):
+It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is **twice** faster than existing state-of-the-art.
 
 
-| nb constraints | 1000|10000|40000|100000|1000000|10000000|
-| -------- | --------|--------| -------- | -------- |-------- |-------- |
-| bellman (ms/op)|103|183|450|807|5445|60045|
-| gnark (ms/op)  |11|67|252|520|4674|56883|
-| gain  |-89.3%|-63.4%|-44.0%|-35.6%|-14.2%|-5.3%|
+Here are our measurements for the **Prover**, using BLS381 curve. These benchmarks ran on a AMD Ryzen 7 3700X (8 cores) with 32GB RAM. 
 
-On this configuration, for 1M constraints+, we're only using 30% of the CPUs! Work in progress to scale better--- with number of CPUs and number of constraints.
+
+| nb constraints | 1000|40000|100000|1000000|10000000|
+| -------- | --------| -------- | -------- |-------- |-------- |
+| bellman (ms/op)|39|729|1537|12895|121468|
+| gnark (ms/op)  |16|384|821|6372|65170|
+| gain  |-59%|-47%|-47%|-51%|-46%|
+
+
 
 ____
-Here are some measurements on a consumer laptop (2016 MBP, 8cores, 16GB RAM):
-
-
-| 40k constraints | Prove |Verify|
-| -------- | --------|--------|
-| bellman (ms/op)|2021|3.69|
-| gnark (ms/op)  |1648|3.04|
-| gain  |-18.5%|-17.6%|
-
-
-
 
 
 ## Contributing

@@ -24,7 +24,7 @@ tasks.txt
 **/*.r1cs
 input.json
 *.log
-
+**/*.csv
 # Files used as backups when refactoring
 *.backup
 
