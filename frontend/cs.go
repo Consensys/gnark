@@ -33,16 +33,17 @@ import (
 
 // ConstraintSystem represents a Groth16 like circuit
 type ConstraintSystem struct {
-	publicVariables     []Variable // public inputs
-	secretVariables     []Variable // private inputs
-	internalVariables   []Variable // internal variables
-	coeffs              []big.Int  // list of unique coefficients.
-	constraints         []r1c.R1C  // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions          []r1c.R1C  // list of R1C that yield no output (for example ensuring v1 == v2)
-	publicVariableNames []string   // public inputs names
-	secretVariableNames []string   // private inputs names
-	logs                []logEntry
-	debugInfo           []logEntry
+	publicVariableNames []string       // public inputs names
+	publicVariables     []Variable     // public inputs
+	secretVariableNames []string       // private inputs names
+	secretVariables     []Variable     // private inputs
+	internalVariables   []Variable     // internal variables
+	coeffs              []big.Int      // list of unique coefficients.
+	coeffsIDs           map[string]int // helper map to check existence of a coefficient: string(b) -> ID, where coeffs[ID]=b (b is a big.Int)
+	constraints         []r1c.R1C      // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions          []r1c.R1C      // list of R1C that yield no output (for example ensuring v1 == v2)
+	logs                []logEntry     // list of logs to be printed when solving a circuit. The logs are called with the method Println
+	debugInfo           []logEntry     // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
 	oneTerm             r1c.Term
 }
 
@@ -64,6 +65,7 @@ func newConstraintSystem() ConstraintSystem {
 		secretVariables:     make([]Variable, 0),
 		internalVariables:   make([]Variable, 0, initialCapacity),
 		coeffs:              make([]big.Int, 0),
+		coeffsIDs:           make(map[string]int),
 		constraints:         make([]r1c.R1C, 0, initialCapacity),
 		assertions:          make([]r1c.R1C, 0),
 	}
@@ -214,19 +216,20 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
-	// TODO restore the map struct to avoid linear search of all coefficients to check existence
-	idx := -1
-	for i, v := range cs.coeffs {
-		if v.Cmp(b) == 0 {
-			idx = i
-			return idx
-		}
-	}
-	var toAppend big.Int
-	toAppend.Set(b)
-	cs.coeffs = append(cs.coeffs, toAppend)
 
-	return len(cs.coeffs) - 1
+	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
+	key := b.String()
+	if idx, ok := cs.coeffsIDs[key]; ok {
+		return idx
+	}
+
+	// else add it in the cs.coeffs map and update the cs.coeffsIDs map
+	var bCopy big.Int
+	bCopy.Set(b)
+	resID := len(cs.coeffs)
+	cs.coeffs = append(cs.coeffs, bCopy)
+	cs.coeffsIDs[key] = resID
+	return resID
 }
 
 // Println ...
