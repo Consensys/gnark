@@ -473,13 +473,15 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 // AssertIsBoolean boolean constrains a variable
 func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 
-	if a.isBoolean {
-		return
-	}
-
 	L := r1c.LinearExpression{
 		cs.Term(a, bOne),
 	}
+
+	v := a.visibility - 1 // if cs.Term(a, bOne) did not panic, v >= 0.
+	if _, ok := cs.booleanVariables[v][a.id]; ok {
+		return
+	}
+
 	R := r1c.LinearExpression{
 		cs.oneTerm,
 		cs.Term(a, bMinusOne),
@@ -500,7 +502,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 	}
 
 	cs.addAssertion(constraint, debugInfo)
-	a.isBoolean = true
+	cs.booleanVariables[v][a.id] = struct{}{}
 }
 
 // AssertIsLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)

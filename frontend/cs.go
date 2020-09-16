@@ -33,18 +33,21 @@ import (
 
 // ConstraintSystem represents a Groth16 like circuit
 type ConstraintSystem struct {
-	publicVariableNames []string       // public inputs names
-	publicVariables     []Variable     // public inputs
-	secretVariableNames []string       // private inputs names
-	secretVariables     []Variable     // private inputs
-	internalVariables   []Variable     // internal variables
-	coeffs              []big.Int      // list of unique coefficients.
-	coeffsIDs           map[string]int // helper map to check existence of a coefficient: string(b) -> ID, where coeffs[ID]=b (b is a big.Int)
-	constraints         []r1c.R1C      // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions          []r1c.R1C      // list of R1C that yield no output (for example ensuring v1 == v2)
-	logs                []logEntry     // list of logs to be printed when solving a circuit. The logs are called with the method Println
-	debugInfo           []logEntry     // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
-	oneTerm             r1c.Term
+	publicVariableNames []string   // public inputs names
+	publicVariables     []Variable // public inputs
+	secretVariableNames []string   // private inputs names
+	secretVariables     []Variable // private inputs
+	internalVariables   []Variable // internal variables
+	coeffs              []big.Int  // list of unique coefficients.
+
+	// TODO should we keep the maps or use list search for ids manually? It's incredibly slow with the maps
+	coeffsIDs        map[string]int      // helper map to check existence of a coefficient: string(b) -> ID, where coeffs[ID]=b (b is a big.Int)
+	booleanVariables [3]map[int]struct{} // helper to monitor boolean varialbes (to constrain them only once). One map for each of public, secret, internal variables.
+	constraints      []r1c.R1C           // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions       []r1c.R1C           // list of R1C that yield no output (for example ensuring v1 == v2)
+	logs             []logEntry          // list of logs to be printed when solving a circuit. The logs are called with the method Println
+	debugInfo        []logEntry          // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
+	oneTerm          r1c.Term
 }
 
 type logEntry struct {
@@ -66,13 +69,14 @@ func newConstraintSystem() ConstraintSystem {
 		internalVariables:   make([]Variable, 0, initialCapacity),
 		coeffs:              make([]big.Int, 0),
 		coeffsIDs:           make(map[string]int),
+		booleanVariables:    [3]map[int]struct{}{make(map[int]struct{}), make(map[int]struct{}), make(map[int]struct{})},
 		constraints:         make([]r1c.R1C, 0, initialCapacity),
 		assertions:          make([]r1c.R1C, 0),
 	}
 
 	// first entry of circuit is backend.OneWire
 	cs.publicVariableNames[0] = backend.OneWire
-	cs.publicVariables[0] = Variable{false, backend.Public, 0, nil}
+	cs.publicVariables[0] = Variable{backend.Public, 0, nil}
 	cs.oneTerm = cs.Term(cs.publicVariables[0], bOne)
 
 	return cs
@@ -295,7 +299,7 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 // newPublicVariable creates a new public input
 func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 	idx := len(cs.publicVariables)
-	res := Variable{false, backend.Public, idx, nil}
+	res := Variable{backend.Public, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.publicVariableNames {
@@ -312,7 +316,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 	idx := len(cs.secretVariables)
-	res := Variable{false, backend.Secret, idx, nil}
+	res := Variable{backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.publicVariableNames {

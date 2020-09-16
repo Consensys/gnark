@@ -32,7 +32,6 @@ import (
 // it one has to call "cs.Allocate(a)" (it's the equivalent
 // of declaring a pointer, and allocatign the memory to store it).
 type Variable struct {
-	isBoolean  bool // TODO will go away from there
 	visibility backend.Visibility
 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
