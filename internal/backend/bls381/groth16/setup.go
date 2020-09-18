@@ -18,6 +18,7 @@ package groth16
 
 import (
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gurvy"
 	curve "github.com/consensys/gurvy/bls381"
@@ -186,6 +187,7 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	offset += nbPrivateWires
 
 	pk.G1.Z = g1PointsAff[offset : offset+domain.Cardinality]
+	bitReverse(pk.G1.Z)
 	offset += domain.Cardinality
 
 	vk.G1.K = g1PointsAff[offset:]
@@ -218,6 +220,18 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	// ---------------------------------------------------------------------------------------------
 	// Pairing: vk.E
 	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
+}
+
+func bitReverse(a []curve.G1Affine) {
+	n := uint(len(a))
+	nn := uint(bits.UintSize - bits.TrailingZeros(n))
+
+	for i := uint(0); i < n; i++ {
+		irev := bits.Reverse(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev], a[i]
+		}
+	}
 }
 
 func setupABC(r1cs *bls381backend.R1CS, g *bls381backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {

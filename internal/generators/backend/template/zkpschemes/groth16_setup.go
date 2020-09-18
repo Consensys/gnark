@@ -173,6 +173,7 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	offset += nbPrivateWires
 
 	pk.G1.Z = g1PointsAff[offset:offset+domain.Cardinality]
+	bitReverse(pk.G1.Z)
 	offset += domain.Cardinality
 
 	vk.G1.K = g1PointsAff[offset:]
@@ -209,6 +210,18 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
 }
 
+
+func bitReverse(a []curve.G1Affine) {
+	n := uint(len(a))
+	nn := uint(bits.UintSize - bits.TrailingZeros(n))
+
+	for i := uint(0); i < n; i++ {
+		irev := bits.Reverse(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev],a[i]
+		}
+	}
+}
 
 
 func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *{{toLower .Curve}}backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {

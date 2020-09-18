@@ -223,23 +223,27 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 	// expTable[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
 	// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
 	// ...
+	// note that the expTable is in bitReversed order
 	expTable := make([]fr.Element, n)
 	expTable[0] = fftDomain.CardinalityInv
 
-	var wgExpTable sync.WaitGroup
-
-	// to ensure the pool is busy while the FFT splits, we schedule precomputation of the exp table
-	// before the FFTs
-	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable, &wgExpTable)
+	m := sync.RWMutex{}
+	m.Lock()
+	go func() {
+		precomputeExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable)
+		bls377backend.BitReverse(expTable)
+		m.Unlock()
+	}()
 
 	var wg sync.WaitGroup
 	FFTa := func(s []fr.Element) {
 		// FFT inverse
-		bls377backend.FFT(s, fftDomain.GeneratorInv)
+		bls377backend.FFT(s, fftDomain.GeneratorInv, bls377backend.DIF)
 
 		// wait for the expTable to be pre-computed
 		// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
-		wgExpTable.Wait()
+		m.RLock()
+		m.RUnlock()
 		execute(n, func(start, end int) {
 			for i := start; i < end; i++ {
 				s[i].Mul(&s[i], &expTable[i])
@@ -247,7 +251,7 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 		})
 
 		// FFT coset
-		bls377backend.FFT(s, fftDomain.Generator)
+		bls377backend.FFT(s, fftDomain.Generator, bls377backend.DIT)
 		wg.Done()
 	}
 	wg.Add(3)
@@ -279,12 +283,20 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 	// expTable[0] = fftDomain.CardinalityInv
 	// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
 	// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
-	asyncExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable, &wgExpTable)
+	// note that the expTable is in bitReversed order
+	m.Lock()
+	go func() {
+		precomputeExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable)
+		bls377backend.BitReverse(expTable)
+		m.Unlock()
+	}()
 
 	// ifft_coset
-	bls377backend.FFT(a, fftDomain.GeneratorInv)
+	bls377backend.FFT(a, fftDomain.GeneratorInv, bls377backend.DIF)
 
-	wgExpTable.Wait() // wait for pre-computation of exp table to be done
+	m.RLock()
+	m.RUnlock()
+
 	execute(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &expTable[i]).FromMont()
@@ -294,7 +306,7 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 	return a
 }
 
-func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) {
+func precomputeExpTable(scale, w fr.Element, table []fr.Element) {
 	n := len(table)
 
 	// see if it makes sense to parallelize exp tables pre-computation
@@ -303,26 +315,25 @@ func asyncExpTable(scale, w fr.Element, table []fr.Element, wg *sync.WaitGroup) 
 	const ratioExpMul = 2400 / 26
 
 	if interval < ratioExpMul {
+		precomputeExpTableChunk(scale, w, 1, table[1:])
+		return
+	}
+
+	// we parallelize
+	var wg sync.WaitGroup
+	for i := 1; i < n; i += interval {
+		start := i
+		end := i + interval
+		if end > n {
+			end = n
+		}
 		wg.Add(1)
 		go func() {
-			precomputeExpTableChunk(scale, w, 1, table[1:])
+			precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
 			wg.Done()
 		}()
-	} else {
-		// we parallelize
-		for i := 1; i < n; i += interval {
-			start := i
-			end := i + interval
-			if end > n {
-				end = n
-			}
-			wg.Add(1)
-			go func() {
-				precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
-				wg.Done()
-			}()
-		}
 	}
+	wg.Wait()
 }
 
 func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Element) {

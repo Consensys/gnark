@@ -25,27 +25,42 @@ import (
 	"github.com/consensys/gurvy/bls381/fr"
 )
 
+type FFTType uint8
+
+const (
+	DIT FFTType = iota
+	DIF
+)
+
 const fftParallelThreshold = 64
 
 var numCpus = uint(runtime.NumCPU())
 
-// FFT computes the discrete Fourier transform of a and stores the result in a.
-// The result is in bit-reversed order.
+// FFT computes (recursively) the discrete Fourier transform of a and stores the result in a.
+// if fType == DIT (decimation in time), the input must be in bit-reversed order
+// if fType == DIF (decimation in frequency), the output will be in bit-reversed order
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-// The algorithm is recursive, decimation-in-frequency. [cite]
-func FFT(a []fr.Element, w fr.Element) {
-	var wg sync.WaitGroup
-	asyncFFT(a, w, &wg, 1, false)
-	wg.Wait()
-	bitReverse(a)
+func FFT(a []fr.Element, w fr.Element, fType FFTType) {
+	switch fType {
+	case DIF:
+		var wg sync.WaitGroup
+		difFFT(a, w, 1, nil)
+		wg.Wait()
+	case DIT:
+		ditFFT(a, w, 1, nil)
+	default:
+		panic("not implemented")
+	}
 }
 
-func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, deferDone bool) {
+func difFFT(a []fr.Element, w fr.Element, splits uint, chDone chan struct{}) {
+	if chDone != nil {
+		defer func() {
+			chDone <- struct{}{}
+		}()
+	}
 	n := len(a)
 	if n == 1 {
-		if deferDone {
-			wg.Done()
-		}
 		return
 	}
 	m := n >> 1
@@ -57,9 +72,6 @@ func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, def
 
 	// if m == 1, then next iteration ends, no need to call 2 extra functions for that
 	if m == 1 {
-		if deferDone {
-			wg.Done()
-		}
 		return
 	}
 
@@ -83,33 +95,86 @@ func asyncFFT(a []fr.Element, w fr.Element, wg *sync.WaitGroup, splits uint, def
 	serial := (splits<<1) > numCpus || m <= fftParallelThreshold
 
 	if serial {
-		asyncFFT(a[0:m], w, nil, splits, false)
-		asyncFFT(a[m:n], w, nil, splits, false)
+		difFFT(a[0:m], w, splits, nil)
+		difFFT(a[m:n], w, splits, nil)
 	} else {
 		splits <<= 1
-		wg.Add(1)
-		go asyncFFT(a[m:n], w, wg, splits, true)
-		asyncFFT(a[0:m], w, wg, splits, false)
+		chDone := make(chan struct{}, 1)
+		go difFFT(a[m:n], w, splits, chDone)
+		difFFT(a[0:m], w, splits, nil)
+		<-chDone
 	}
 
-	if deferDone {
-		wg.Done()
+}
+
+func ditFFT(a []fr.Element, w fr.Element, splits uint, chDone chan struct{}) {
+	if chDone != nil {
+		defer func() {
+			chDone <- struct{}{}
+		}()
+	}
+	n := len(a)
+	if n == 1 {
+		return
+	}
+	m := n >> 1
+	var wSquare fr.Element
+	wSquare.Square(&w)
+
+	serial := (splits<<1) > numCpus || m <= fftParallelThreshold
+
+	if serial {
+		ditFFT(a[0:m], wSquare, splits, nil) // even
+		ditFFT(a[m:], wSquare, splits, nil)  // odds
+	} else {
+		splits <<= 1
+		chDone := make(chan struct{}, 1)
+		go ditFFT(a[m:n], wSquare, splits, chDone)
+		ditFFT(a[0:m], wSquare, splits, nil)
+		<-chDone
+	}
+	var tm fr.Element
+
+	// k == 0
+	// wPow == 1
+	t := a[0]
+	a[0].Add(&a[0], &a[m])
+	a[m].Sub(&t, &a[m])
+
+	if m == 1 {
+		return
+	}
+
+	// k == 1
+	// wPow == w
+	t = a[1]
+	tm.Mul(&a[1+m], &w)
+	a[1].Add(&a[1], &tm)
+	a[1+m].Sub(&t, &tm)
+
+	// k > 2
+	wPow := wSquare
+	for k := 2; k < m; k++ {
+		t = a[k]
+		tm.Mul(&a[k+m], &wPow)
+		a[k].Add(&a[k], &tm)
+
+		a[k+m].Sub(&t, &tm)
+
+		wPow.Mul(&wPow, &w)
 	}
 }
 
-// bitReverse applies the bit-reversal permutation to a.
+// BitReverse applies the bit-reversal permutation to a.
 // len(a) must be a power of 2 (as in every single function in this file)
-func bitReverse(a []fr.Element) {
+func BitReverse(a []fr.Element) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))
 
-	var tReverse fr.Element
 	for i := uint(0); i < n; i++ {
 		irev := bits.Reverse(i) >> nn
 		if irev > i {
-			tReverse = a[i]
-			a[i] = a[irev]
-			a[irev] = tReverse
+			a[i], a[irev] = a[irev], a[i]
 		}
 	}
 }

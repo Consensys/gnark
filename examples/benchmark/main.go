@@ -15,6 +15,7 @@ import (
 	"github.com/consensys/gurvy"
 	bls381fr "github.com/consensys/gurvy/bls381/fr"
 	bn256fr "github.com/consensys/gurvy/bn256/fr"
+	"github.com/pkg/profile"
 )
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 		os.Exit(-1)
 	}
 	ns := strings.Split(os.Args[1], ",")
-	curveIDs := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curveIDs := []gurvy.ID{gurvy.BN256} //, gurvy.BLS381}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
@@ -43,7 +44,10 @@ func main() {
 
 			// measure proving time
 			start := time.Now()
+			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
 			_, _ = groth16.Prove(r1cs, pk, &input)
+			p.Stop()
+
 			took := time.Since(start)
 
 			// check memory usage, max ram requested from OS

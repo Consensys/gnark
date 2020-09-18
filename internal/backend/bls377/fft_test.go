@@ -42,7 +42,8 @@ func TestFFT(t *testing.T) {
 	fftExpected[1].SetString("176691886079129423236139828277131126232163084109021849887887564")
 	fftExpected[2].SetString("8444461749428370424248824938781546531375899335154063827935233455917408882477")
 	fftExpected[3].SetString("8444461749428193732362745809358310391547622204027831664851124434067521319365")
-	FFT(poly, w)
+	FFT(poly, w, DIF)
+	BitReverse(poly)
 
 	for i := 0; i < 4; i++ {
 		if !poly[i].Equal(&fftExpected[i]) {
@@ -63,7 +64,7 @@ func TestBitReverse(t *testing.T) {
 	got[6].SetUint64(7)
 	got[7].SetUint64(8)
 
-	bitReverse(got[:])
+	BitReverse(got[:])
 
 	var want [8]fr.Element // not in Mongomery form
 	want[0].SetUint64(1)
@@ -82,18 +83,24 @@ func TestBitReverse(t *testing.T) {
 
 func BenchmarkFFT(b *testing.B) {
 
-	const nbGates = 500000
+	const nbGates = 5000000
 	subGroup := NewDomain(nbGates)
 
 	a := make([]fr.Element, subGroup.Cardinality)
 	for i := 0; i < len(a); i++ {
-		a[i].SetRandom()
+		// a[i].SetRandom()
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		FFT(a, subGroup.Generator)
-	}
+	b.Run("DIF", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			FFT(a, subGroup.Generator, DIF)
+		}
+	})
+	b.Run("DIT", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			FFT(a, subGroup.Generator, DIT)
+		}
+	})
 }
 
 func TestNewDomain(t *testing.T) {
