@@ -320,9 +320,6 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	// R, first part
 	R := r1c.LinearExpression{}
 	switch t1 := i1.(type) {
-	case r1c.LinearExpression:
-		R = make(r1c.LinearExpression, len(t1))
-		copy(R, t1)
 	case Variable:
 
 		R = append(R, cs.Term(t1, bOne))
@@ -334,15 +331,6 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	// R, second part
 	toAppend := r1c.LinearExpression{}
 	switch t2 := i2.(type) {
-	case r1c.LinearExpression:
-		for _, e := range t2 {
-			coef := cs.coeffs[e.CoeffID()]
-			coef.Mul(&coef, bMinusOne)
-			newCoeffID := cs.coeffID(&coef)
-			newTerm := e
-			newTerm.SetCoeffID(newCoeffID)
-			toAppend = append(toAppend, newTerm)
-		}
 	case Variable:
 
 		toAppend = append(toAppend, cs.Term(t2, bMinusOne))
@@ -477,9 +465,13 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 		cs.Term(a, bOne),
 	}
 
-	v := a.visibility - 1 // if cs.Term(a, bOne) did not panic, v >= 0.
-	if _, ok := cs.booleanVariables[v][a.id]; ok {
-		return
+	// if the variable is unset, the visibility is -1: we do not record the constraint. The error will be caught when compile() is called.
+	if a.visibility != backend.Unset {
+		v := a.visibility - 1
+		if _, ok := cs.booleanVariables[v][a.id]; ok {
+			return
+		}
+		cs.booleanVariables[v][a.id] = struct{}{}
 	}
 
 	R := r1c.LinearExpression{
@@ -502,7 +494,6 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 	}
 
 	cs.addAssertion(constraint, debugInfo)
-	cs.booleanVariables[v][a.id] = struct{}{}
 }
 
 // AssertIsLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
@@ -537,13 +528,16 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 	p := make([]Variable, nbBits+1)
 	p[nbBits] = cs.Constant(1)
 
+	zero := cs.Constant(0)
+
 	for i := nbBits - 1; i >= 0; i-- {
+
 		p1 := cs.Mul(p[i+1], binw[i])
 		p[i] = cs.Select(binbound[i], p1, p[i+1])
-
-		zero := cs.Constant(0)
 		t := cs.Select(binbound[i], zero, p[i+1])
+
 		L := r1c.LinearExpression{
+
 			cs.oneTerm,
 			cs.Term(t, bMinusOne),
 			cs.Term(binw[i], bMinusOne),

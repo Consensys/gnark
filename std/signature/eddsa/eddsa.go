@@ -59,14 +59,14 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 
 	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
 		ScalarMulNonFixedBase(cs, &lhs, cofactorConstantd, pubKey.Curve)
-	// TODO adding lhs.IsOnCurve(...) makes the r1cs bug
+	lhs.MustBeOnCurve(cs, pubKey.Curve)
 
 	// rhs = cofactor*(R+H(R,A,M)*A)
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstantd, pubKey.Curve).
 		AddGeneric(cs, &rhs, &sig.R.A, pubKey.Curve).
 		ScalarMulNonFixedBase(cs, &rhs, cofactorConstantd, pubKey.Curve)
-	// TODO adding rhs.IsOnCurve(...) makes the r1cs bug
+	rhs.MustBeOnCurve(cs, pubKey.Curve)
 
 	cs.AssertIsEqual(lhs.X, rhs.X)
 	cs.AssertIsEqual(lhs.Y, rhs.Y)

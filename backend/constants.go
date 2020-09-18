@@ -17,7 +17,7 @@ package backend
 import "errors"
 
 // ErrInputNotSet can be generated when solving the R1CS (a missing assignment) or running a Verifier
-var ErrInputNotSet = errors.New("input not set")
+var ErrInputNotSet = errors.New("variable is not allocated")
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
