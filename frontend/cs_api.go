@@ -465,9 +465,13 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 		cs.Term(a, bOne),
 	}
 
-	v := a.visibility - 1 // if cs.Term(a, bOne) did not panic, v >= 0.
-	if _, ok := cs.booleanVariables[v][a.id]; ok {
-		return
+	// if the variable is unset, the visibility is -1: we do not record the constraint. The error will be caught when compile() is called.
+	if a.visibility != backend.Unset {
+		v := a.visibility - 1
+		if _, ok := cs.booleanVariables[v][a.id]; ok {
+			return
+		}
+		cs.booleanVariables[v][a.id] = struct{}{}
 	}
 
 	R := r1c.LinearExpression{
@@ -490,7 +494,6 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 	}
 
 	cs.addAssertion(constraint, debugInfo)
-	cs.booleanVariables[v][a.id] = struct{}{}
 }
 
 // AssertIsLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
