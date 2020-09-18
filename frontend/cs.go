@@ -45,6 +45,7 @@ type ConstraintSystem struct {
 	assertions          []r1c.R1C           // list of R1C that yield no output (for example ensuring v1 == v2)
 	logs                []logEntry          // list of logs to be printed when solving a circuit. The logs are called with the method Println
 	debugInfo           []logEntry          // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
+	debugVariables      []logEntry          // list of logs storing information about unset variables. If a variable is unset, the error is caught when compiling the circuit
 	oneTerm             r1c.Term
 }
 
@@ -87,12 +88,25 @@ var (
 	bTwo      = new(big.Int).SetInt64(2)
 )
 
+func buildLogUnsetVariable(term r1c.Term) logEntry {
+
+	entry := logEntry{}
+
+	// prepare debug info to be displayed in case the variable is unset
+	stack := getCallStack()
+	entry.format = stack[len(stack)-1]
+	entry.toResolve = append(entry.toResolve, term)
+	return entry
+}
+
 // Term packs a variable and a coeff in a r1c.Term and returns it.
 func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
-	if v.visibility == backend.Unset {
-		panic("variable is not allocated.")
-	}
 	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
+	if v.visibility == backend.Unset {
+		//panic("variable is not allocated.")
+		debugUnset := buildLogUnsetVariable(term)
+		cs.debugVariables = append(cs.debugVariables, debugUnset)
+	}
 	if coeff.Cmp(bZero) == 0 {
 		term.SetCoeffValue(0)
 	} else if coeff.Cmp(bOne) == 0 {
@@ -122,7 +136,7 @@ func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry)
 }
 
 // toR1CS constructs a rank-1 constraint sytem
-func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
+func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 
 	// wires = intermediatevariables | secret inputs | public inputs
 
@@ -146,7 +160,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
 	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
-	offsetIDs := func(exp r1c.LinearExpression) {
+	offsetIDs := func(exp r1c.LinearExpression) error {
 		for j := 0; j < len(exp); j++ {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
@@ -155,15 +169,27 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 			case backend.Secret:
 				exp[j].SetConstraintID(cID + len(cs.internalVariables))
 			case backend.Unset:
-				panic("shouldn't happen")
+				//panic("shouldn't happen")
+				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.debugVariables[0].format)
 			}
 		}
+		return nil
 	}
 
+	var err error
 	for i := 0; i < len(res.Constraints); i++ {
-		offsetIDs(res.Constraints[i].L)
-		offsetIDs(res.Constraints[i].R)
-		offsetIDs(res.Constraints[i].O)
+		err = offsetIDs(res.Constraints[i].L)
+		if err != nil {
+			return &res, err
+		}
+		err = offsetIDs(res.Constraints[i].R)
+		if err != nil {
+			return &res, err
+		}
+		err = offsetIDs(res.Constraints[i].O)
+		if err != nil {
+			return &res, err
+		}
 	}
 
 	// we need to offset the ids in logs too
@@ -209,10 +235,10 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) r1cs.R1CS {
 	}
 
 	if curveID == gurvy.UNKNOWN {
-		return &res
+		return &res, nil
 	}
 
-	return res.ToR1CS(curveID)
+	return res.ToR1CS(curveID), nil
 }
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to

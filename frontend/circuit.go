@@ -63,7 +63,12 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		return nil, err
 	}
 	// return R1CS
-	return cs.toR1CS(curveID), nil
+	//return cs.toR1CS(curveID), nil
+	res, err := cs.toR1CS(curveID)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // ParseWitness will returns a map[string]interface{} to be used as input in
