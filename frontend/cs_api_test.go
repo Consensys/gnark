@@ -1063,7 +1063,17 @@ func rfIsBoolean() runfunc {
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		incVariableName()
+		sVariablesCreated = append(sVariablesCreated, b)
+
+		// constrain the variable twice to check if just one assertion is added
 		systemUnderTest.(*ConstraintSystem).AssertIsBoolean(a)
+		systemUnderTest.(*ConstraintSystem).AssertIsBoolean(a)
+
+		// constrain the variable twice to check if just one assertion is added
+		systemUnderTest.(*ConstraintSystem).AssertIsBoolean(b)
+		systemUnderTest.(*ConstraintSystem).AssertIsBoolean(b)
 
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
@@ -1077,7 +1087,7 @@ func rfIsBoolean() runfunc {
 	return res
 }
 
-var nsIsBoolean = deltaState{1, 0, 0, 0, 1}
+var nsIsBoolean = deltaState{1, 1, 0, 0, 2}
 
 // bound a variable by another variable
 func rfMustBeLessOrEqVar() runfunc {
@@ -1375,6 +1385,7 @@ func TestUnsetVariables(t *testing.T) {
 	for name, arg := range mapFuncs {
 		t.Run(name, func(_t *testing.T) {
 			_, err := Compile(gurvy.UNKNOWN, arg)
+			// TODO ensure that the caught error is the variableUnset one
 			if err == nil {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
