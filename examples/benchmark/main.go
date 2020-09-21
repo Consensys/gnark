@@ -15,7 +15,6 @@ import (
 	"github.com/consensys/gurvy"
 	bls381fr "github.com/consensys/gurvy/bls381/fr"
 	bn256fr "github.com/consensys/gurvy/bn256/fr"
-	"github.com/pkg/profile"
 )
 
 func main() {
@@ -44,9 +43,9 @@ func main() {
 
 			// measure proving time
 			start := time.Now()
-			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
+			// p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
 			_, _ = groth16.Prove(r1cs, pk, &input)
-			p.Stop()
+			// p.Stop()
 
 			took := time.Since(start)
 

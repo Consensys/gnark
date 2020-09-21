@@ -42,6 +42,8 @@ type ProvingKey struct {
 		Beta, Delta curve.G2Affine
 		B           []curve.G2Affine
 	}
+
+	Domain bn256backend.Domain
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -188,6 +190,7 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 
 	pk.G1.Z = g1PointsAff[offset : offset+domain.Cardinality]
 	bitReverse(pk.G1.Z)
+
 	offset += domain.Cardinality
 
 	vk.G1.K = g1PointsAff[offset:]
@@ -220,18 +223,9 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	// ---------------------------------------------------------------------------------------------
 	// Pairing: vk.E
 	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
-}
 
-func bitReverse(a []curve.G1Affine) {
-	n := uint(len(a))
-	nn := uint(bits.UintSize - bits.TrailingZeros(n))
-
-	for i := uint(0); i < n; i++ {
-		irev := bits.Reverse(i) >> nn
-		if irev > i {
-			a[i], a[irev] = a[irev], a[i]
-		}
-	}
+	// set domain
+	pk.Domain = *domain
 }
 
 func setupABC(r1cs *bn256backend.R1CS, g *bn256backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
@@ -361,6 +355,8 @@ func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) {
 	pk.G2.Beta = r2Aff
 	pk.G2.Delta = r2Aff
 
+	pk.Domain = *domain
+
 }
 
 // IsDifferent returns true if provided vk is different than self
@@ -406,6 +402,19 @@ func (pk *ProvingKey) GetCurveID() gurvy.ID {
 }
 
 // GetCurveID returns the curveID
-func (pk *VerifyingKey) GetCurveID() gurvy.ID {
+func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 	return curve.ID
+}
+
+// bitRerverse permutation as in bn256backend.BitReverse , but with []curve.G1Affine
+func bitReverse(a []curve.G1Affine) {
+	n := uint(len(a))
+	nn := uint(bits.UintSize - bits.TrailingZeros(n))
+
+	for i := uint(0); i < n; i++ {
+		irev := bits.Reverse(i) >> nn
+		if irev > i {
+			a[i], a[irev] = a[irev], a[i]
+		}
+	}
 }

@@ -26,7 +26,8 @@ import (
 	bls377backend "github.com/consensys/gnark/internal/backend/bls377"
 
 	"runtime"
-	"sync"
+
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -45,20 +46,17 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
-	// fft domain (computeH)
-	fftDomain := bls377backend.NewDomain(r1cs.NbConstraints)
-
 	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, fftDomain.Cardinality)
+	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
+	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
+	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbWires)
 	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil {
 		return nil, err
 	}
 
 	// set the wire values in regular form
-	execute(len(wireValues), func(start, end int) {
+	utils.Parallelize(len(wireValues), func(start, end int) {
 		for i := start; i < end; i++ {
 			wireValues[i].FromMont()
 		}
@@ -68,7 +66,7 @@ func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interfa
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(a, b, c, fftDomain)
+		h = computeH(a, b, c, &pk.Domain)
 		a = nil
 		b = nil
 		c = nil
@@ -208,68 +206,37 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 
 	n := len(a)
 
-	// add padding
+	// add padding to ensure input length is domain cardinality
 	padding := make([]fr.Element, fftDomain.Cardinality-n)
 	a = append(a, padding...)
 	b = append(b, padding...)
 	c = append(c, padding...)
 	n = len(a)
 
-	// exptable = scale by inverse of n + coset
-	// ifft(a) would normaly do FFT(a, wInv) then scale by CardinalityInv
-	// fft_coset(a) would normaly mutliply a with expTable of fftDomain.GeneratorSqRt
-	// this pre-computed expTable do both in one pass --> it contains
-	// expTable[0] = fftDomain.CardinalityInv
-	// expTable[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
-	// expTable[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
-	// ...
-	// note that the expTable is in bitReversed order
-	expTable := make([]fr.Element, n)
-	expTable[0] = fftDomain.CardinalityInv
+	bls377backend.FFT(a, fftDomain, bls377backend.DIF, true)
+	bls377backend.FFT(b, fftDomain, bls377backend.DIF, true)
+	bls377backend.FFT(c, fftDomain, bls377backend.DIF, true)
 
-	m := sync.RWMutex{}
-	m.Lock()
-	go func() {
-		precomputeExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRt, expTable)
-		bls377backend.BitReverse(expTable)
-		m.Unlock()
-	}()
+	utils.Parallelize(n, func(start, end int) {
+		for i := start; i < end; i++ {
+			a[i].Mul(&a[i], &fftDomain.ExpTable1[i])
+			b[i].Mul(&b[i], &fftDomain.ExpTable1[i])
+			c[i].Mul(&c[i], &fftDomain.ExpTable1[i])
+		}
+	})
 
-	var wg sync.WaitGroup
-	FFTa := func(s []fr.Element) {
-		// FFT inverse
-		bls377backend.FFT(s, fftDomain.GeneratorInv, bls377backend.DIF)
-
-		// wait for the expTable to be pre-computed
-		// in the nominal case, this is non-blocking as the expTable was scheduled before the FFT
-		m.RLock()
-		m.RUnlock()
-		execute(n, func(start, end int) {
-			for i := start; i < end; i++ {
-				s[i].Mul(&s[i], &expTable[i])
-			}
-		})
-
-		// FFT coset
-		bls377backend.FFT(s, fftDomain.Generator, bls377backend.DIT)
-		wg.Done()
-	}
-	wg.Add(3)
-	go FFTa(a)
-	go FFTa(b)
-	FFTa(c)
+	bls377backend.FFT(a, fftDomain, bls377backend.DIT, false)
+	bls377backend.FFT(b, fftDomain, bls377backend.DIT, false)
+	bls377backend.FFT(c, fftDomain, bls377backend.DIT, false)
 
 	var minusTwoInv fr.Element
 	minusTwoInv.SetUint64(2)
 	minusTwoInv.Neg(&minusTwoInv).
 		Inverse(&minusTwoInv)
 
-	// wait for first step (ifft + fft_coset) to be done
-	wg.Wait()
-
 	// h = ifft_coset(ca o cb - cc)
 	// reusing a to avoid unecessary memalloc
-	execute(n, func(start, end int) {
+	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).
 				Sub(&a[i], &c[i]).
@@ -277,104 +244,14 @@ func computeH(a, b, c []fr.Element, fftDomain *bls377backend.Domain) []fr.Elemen
 		}
 	})
 
-	// before computing the ifft_coset, we schedule the expTable precompute of the ifft_coset
-	// to ensure the pool is busy while the FFT splits
-	// similar reasoning as in ifft pass -->
-	// expTable[0] = fftDomain.CardinalityInv
-	// expTable[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
-	// expTable[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
-	// note that the expTable is in bitReversed order
-	m.Lock()
-	go func() {
-		precomputeExpTable(fftDomain.CardinalityInv, fftDomain.GeneratorSqRtInv, expTable)
-		bls377backend.BitReverse(expTable)
-		m.Unlock()
-	}()
-
 	// ifft_coset
-	bls377backend.FFT(a, fftDomain.GeneratorInv, bls377backend.DIF)
+	bls377backend.FFT(a, fftDomain, bls377backend.DIF, true)
 
-	m.RLock()
-	m.RUnlock()
-
-	execute(n, func(start, end int) {
+	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
-			a[i].Mul(&a[i], &expTable[i]).FromMont()
+			a[i].Mul(&a[i], &fftDomain.ExpTable2[i]).FromMont()
 		}
 	})
 
 	return a
-}
-
-func precomputeExpTable(scale, w fr.Element, table []fr.Element) {
-	n := len(table)
-
-	// see if it makes sense to parallelize exp tables pre-computation
-	interval := (n - 1) / runtime.NumCPU()
-	// this ratio roughly correspond to the number of multiplication one can do in place of a Exp operation
-	const ratioExpMul = 2400 / 26
-
-	if interval < ratioExpMul {
-		precomputeExpTableChunk(scale, w, 1, table[1:])
-		return
-	}
-
-	// we parallelize
-	var wg sync.WaitGroup
-	for i := 1; i < n; i += interval {
-		start := i
-		end := i + interval
-		if end > n {
-			end = n
-		}
-		wg.Add(1)
-		go func() {
-			precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-}
-
-func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Element) {
-	table[0].Exp(w, new(big.Int).SetUint64(power))
-	table[0].Mul(&table[0], &scale)
-	for i := 1; i < len(table); i++ {
-		table[i].Mul(&table[i-1], &w)
-	}
-}
-
-// execute process in parallel the work function, using all available CPUs
-func execute(nbIterations int, work func(int, int)) {
-
-	nbTasks := runtime.NumCPU()
-	nbIterationsPerCpus := nbIterations / nbTasks
-
-	// more CPUs than tasks: a CPU will work on exactly one iteration
-	if nbIterationsPerCpus < 1 {
-		nbIterationsPerCpus = 1
-		nbTasks = nbIterations
-	}
-
-	var wg sync.WaitGroup
-
-	extraTasks := nbIterations - (nbTasks * nbIterationsPerCpus)
-	extraTasksOffset := 0
-
-	for i := 0; i < nbTasks; i++ {
-		wg.Add(1)
-		_start := i*nbIterationsPerCpus + extraTasksOffset
-		_end := _start + nbIterationsPerCpus
-		if extraTasks > 0 {
-			_end++
-			extraTasks--
-			extraTasksOffset++
-		}
-		go func() {
-			work(_start, _end)
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
 }
