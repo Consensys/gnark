@@ -23,7 +23,7 @@ func main() {
 		os.Exit(-1)
 	}
 	ns := strings.Split(os.Args[1], ",")
-	curveIDs := []gurvy.ID{gurvy.BN256} //, gurvy.BLS381}
+	curveIDs := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
@@ -55,13 +55,15 @@ func main() {
 
 			bData := benchData{
 				Curve:          curveID.String(),
-				NbCpus:         runtime.NumCPU(),
+				NbCores:        runtime.NumCPU(),
 				NbCoefficients: r1cs.GetNbCoefficients(),
 				NbConstraints:  r1cs.GetNbConstraints(),
 				NbWires:        r1cs.GetNbWires(),
 				RunTime:        took.Milliseconds(),
 				MaxRAM:         (m.Sys / 1024 / 1024),
+				Throughput:     int(float64(r1cs.GetNbConstraints()) / took.Seconds()),
 			}
+			bData.ThroughputPerCore = bData.Throughput / bData.NbCores
 
 			if err := w.Write(bData.values()); err != nil {
 				panic(err)
@@ -132,17 +134,19 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 }
 
 type benchData struct {
-	Curve          string
-	NbConstraints  int
-	NbWires        int
-	NbCoefficients int
-	MaxRAM         uint64
-	RunTime        int64
-	NbCpus         int
+	Curve             string
+	NbConstraints     int
+	NbWires           int
+	NbCoefficients    int
+	MaxRAM            uint64
+	RunTime           int64
+	NbCores           int
+	Throughput        int
+	ThroughputPerCore int
 }
 
 func (bData benchData) headers() []string {
-	return []string{"curve", "nbConstraints", "nbWires", "nbCoefficients", "ram(mb)", "time(ms)", "nbCpus"}
+	return []string{"curve", "nbConstraints", "nbWires", "nbCoefficients", "ram(mb)", "time(ms)", "nbCores", "throughput(constraints/s)", "througputPerCore(constraints/s)"}
 }
 func (bData benchData) values() []string {
 	return []string{
@@ -152,6 +156,8 @@ func (bData benchData) values() []string {
 		strconv.Itoa(bData.NbCoefficients),
 		strconv.Itoa(int(bData.MaxRAM)),
 		strconv.Itoa(int(bData.RunTime)),
-		strconv.Itoa(bData.NbCpus),
+		strconv.Itoa(bData.NbCores),
+		strconv.Itoa(bData.Throughput),
+		strconv.Itoa(bData.ThroughputPerCore),
 	}
 }

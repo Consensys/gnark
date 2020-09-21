@@ -75,9 +75,6 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r,_s,_kr})
 
 
-	// wait for FFT to end, as it uses all our CPUs
-	<-chHDone
-
 	proof := &Proof{}
 	var bs1, ar curve.G1Jac
 
@@ -135,12 +132,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 		chKrsDone <- struct{}{}
 	}
 
-	// schedule our proof part computations
-	go computeKRS()
-	go computeAR1()
-	go computeBS1()
-
-	{
+	computeBS2 := func() {
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 	
@@ -177,6 +169,15 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 
 		proof.Bs.FromJacobian(&Bs)
 	}
+
+	// wait for FFT to end, as it uses all our CPUs
+	<-chHDone
+
+	// schedule our proof part computations
+	go computeKRS()
+	go computeAR1()
+	go computeBS1()
+	computeBS2()
 
 	// wait for all parts of the proof to be computed.
 	<-chKrsDone
