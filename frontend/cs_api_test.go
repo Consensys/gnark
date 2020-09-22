@@ -164,7 +164,7 @@ func rfAddVariablesOnly() runfunc {
 	return res
 }
 
-var nsAddVariablesOnly = deltaState{1, 3, 1, 1, 0} // ex: after calling add, we should have 1 public variable, 1 secret variable, 1 internal variable and 1 constraint more in the cs
+var nsAddVariablesOnly = deltaState{1, 3, 1, 1, 0} // ex: after calling add, we should have 1 public variable, 3 secret variables, 1 internal variable, 1 constraint more in the cs
 
 // Add variables and constant
 func rfAddVariablesConstants() runfunc {
