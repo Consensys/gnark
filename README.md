@@ -198,8 +198,8 @@ The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bl
 
 | nb constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |
-| bellman_ce (ms/op)|437|106606|214807|
-| gnark (ms/op)  |165|33915|63444|
+| bellman_ce (s/op)|0.43|106|214.8|
+| gnark (s/op)  |0.16|33.9|63.4|
 | speedup  |x2.6|x3.1|x3.4|
 
 On large circuits, that's **over 1M constraints per second**. 
@@ -208,8 +208,8 @@ On large circuits, that's **over 1M constraints per second**.
 
 | nb constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |
-| bellman (ms/op)|641|158153|316819|
-| gnark (ms/op)  |237|47695|90770|
+| bellman (s/op)|0.6|158|316.8|
+| gnark (s/op)  |0.23|47.6|90.7|
 | speedup  |x2.7|x3.3|x3.5|
 
 ## Resources requirements

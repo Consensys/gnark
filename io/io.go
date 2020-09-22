@@ -25,7 +25,7 @@ import (
 	"os"
 
 	"github.com/consensys/gurvy"
-	"github.com/fxamacker/cbor"
+	"github.com/fxamacker/cbor/v2"
 )
 
 // CurveObject must know which curve they are tied to
@@ -63,7 +63,7 @@ func ReadFile(path string, into CurveObject) error {
 // Write object from into provided writer
 // encodes the curveID in the first bytes
 func Write(writer io.Writer, from CurveObject) error {
-	encoder := cbor.NewEncoder(writer, cbor.CanonicalEncOptions())
+	encoder := cbor.NewEncoder(writer)
 
 	// encode the curve type in the first bytes
 	if err := encoder.Encode(from.GetCurveID()); err != nil {
