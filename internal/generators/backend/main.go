@@ -157,6 +157,21 @@ func generateGroth16(d templateData) error {
 	}
 
 	{
+		// generate FFT domain
+		src := []string{
+			template.ImportCurve,
+			algorithms.Domain,
+		}
+		if err := bavard.Generate(d.RootPath+"domain.go", src, d,
+			bavard.Package("backend"),
+			bavard.Apache2("ConsenSys AG", 2020),
+			bavard.GeneratedBy("gnark/internal/generators"),
+		); err != nil {
+			return err
+		}
+	}
+
+	{
 		// tests
 		src := []string{
 			template.ImportCurve,
