@@ -45,7 +45,7 @@ func (r1cs *R1CS) GetNbWires() int {
 	return r1cs.NbWires
 }
 
-// GetNbCoefficients return the number of (different) coefficients needed in the R1CS
+// GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }

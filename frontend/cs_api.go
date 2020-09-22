@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// Add adds 2 wires
+// Add returns res = i1+i2+...in
 func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
@@ -61,7 +61,7 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-// Sub Adds bTwo wires
+// Sub returns res = i1 - i2
 func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
@@ -101,7 +101,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 	return res
 }
 
-// Mul multiplies 2 wires
+// Mul returns res = i1 * i2 * ... in
 func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	mul := func(_i1, _i2 interface{}) Variable {
@@ -155,7 +155,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-// Inverse inverses a variable
+// Inverse returns res = inverse(v)
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
@@ -169,7 +169,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	return res
 }
 
-// Div divides bTwo constraints (i1/i2)
+// Div returns res = i1 / i2
 func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
@@ -208,7 +208,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	return res
 }
 
-// Xor compute the xor between bTwo constraints
+// Xor compute the xor between two variables
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
 	cs.AssertIsBoolean(a)
@@ -234,6 +234,7 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 }
 
 // ToBinary unpacks a variable in binary, n is the number of bits of the variable
+//
 // The result in in little endian (first bit= lsb)
 func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	// allocate the resulting variables
@@ -304,7 +305,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 	return res
 }
 
-// Select if b is true, yields c1 else yields c2
+// Select if b is true, yields i1 else yields i2
 func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 	// ensures that b is boolean
@@ -351,7 +352,9 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	return res
 }
 
-// Constant will return a Variable from input {uint64, int, ...}
+// Constant will return (and allocate if neccesary) a constant Variable
+//
+// input can be a Variable or must be convertible to big.Int (see backend.FromInterface)
 func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 	//L
@@ -380,7 +383,7 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 }
 
-// AssertIsEqual equalizes bTwo variables
+// AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded as L * R == O
 	// set L = i1
@@ -458,25 +461,36 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	cs.addAssertion(constraint, debugInfo)
 }
 
-// AssertIsBoolean boolean constrains a variable
-func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
+// AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
+func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 
 	L := r1c.LinearExpression{
-		cs.Term(a, bOne),
+		cs.Term(v, bOne),
 	}
 
-	// if the variable is unset, the visibility is -1: we do not record the constraint. The error will be caught when compile() is called.
-	if a.visibility != backend.Unset {
-		v := a.visibility - 1
-		if _, ok := cs.booleanVariables[v][a.id]; ok {
+	switch v.visibility {
+	case backend.Internal:
+		if _, ok := cs.internal.booleans[v.id]; ok {
 			return
 		}
-		cs.booleanVariables[v][a.id] = struct{}{}
+		cs.internal.booleans[v.id] = struct{}{}
+	case backend.Public:
+		if _, ok := cs.public.booleans[v.id]; ok {
+			return
+		}
+		cs.public.booleans[v.id] = struct{}{}
+	case backend.Secret:
+		if _, ok := cs.secret.booleans[v.id]; ok {
+			return
+		}
+		cs.secret.booleans[v.id] = struct{}{}
+	default:
+		// if the variable is unset, the visibility is -1: we do not record the constraint. The error will be caught when compile() is called.
 	}
 
 	R := r1c.LinearExpression{
 		cs.oneTerm,
-		cs.Term(a, bMinusOne),
+		cs.Term(v, bMinusOne),
 	}
 	O := r1c.LinearExpression{
 		cs.Term(cs.oneVariable(), bZero),
@@ -486,7 +500,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 	// prepare debug info to be displayed in case the constraint is not solved
 	debugInfo := logEntry{
 		format:    fmt.Sprintf("%%s == (0 or 1)"),
-		toResolve: []r1c.Term{r1c.Pack(a.id, 0, a.visibility)},
+		toResolve: []r1c.Term{r1c.Pack(v.id, 0, v.visibility)},
 	}
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
@@ -496,15 +510,19 @@ func (cs *ConstraintSystem) AssertIsBoolean(a Variable) {
 	cs.addAssertion(constraint, debugInfo)
 }
 
-// AssertIsLessOrEqual constrains w to be less or equal than e (taken as lifted Integer values from Fr)
+// AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
+//
+// bound can be a constant or a Variable
+//
+// derived from:
 // https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
-func (cs *ConstraintSystem) AssertIsLessOrEqual(w Variable, bound interface{}) {
+func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 	switch b := bound.(type) {
 	case Variable:
-		cs.mustBeLessOrEqVar(w, b)
+		cs.mustBeLessOrEqVar(v, b)
 	default:
-		cs.mustBeLessOrEqCst(w, backend.FromInterface(b))
+		cs.mustBeLessOrEqCst(v, backend.FromInterface(b))
 	}
 
 }

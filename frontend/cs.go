@@ -32,53 +32,78 @@ import (
 )
 
 // ConstraintSystem represents a Groth16 like circuit
+//
+// All the APIs to define a circuit (see Circuit.Define) like Add, Sub, Mul, ...
+// may take as input interface{}
+//
+// these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
 type ConstraintSystem struct {
-	publicVariableNames []string            // public inputs names
-	publicVariables     []Variable          // public inputs
-	secretVariableNames []string            // private inputs names
-	secretVariables     []Variable          // private inputs
-	internalVariables   []Variable          // internal variables
-	coeffs              []big.Int           // list of unique coefficients.
-	coeffsIDs           map[string]int      // helper map to check existence of a coefficient: string(b) -> ID, where coeffs[ID]=b (b is a big.Int)
-	booleanVariables    [3]map[int]struct{} // helper to monitor boolean varialbes (to constrain them only once). One map for each of public, secret, internal variables.
-	constraints         []r1c.R1C           // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions          []r1c.R1C           // list of R1C that yield no output (for example ensuring v1 == v2)
-	logs                []logEntry          // list of logs to be printed when solving a circuit. The logs are called with the method Println
-	debugInfo           []logEntry          // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
-	debugVariables      []logEntry          // list of logs storing information about unset variables. If a variable is unset, the error is caught when compiling the circuit
-	oneTerm             r1c.Term
-}
+	// Variables (aka wires)
+	public struct {
+		names     []string         // public inputs names
+		variables []Variable       // public inputs
+		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
+	}
+	secret struct {
+		names     []string         // secret inputs names
+		variables []Variable       // secret inputs
+		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
+	}
+	internal struct {
+		variables []Variable       // internal variables
+		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
+	}
 
-type logEntry struct {
-	format    string
-	toResolve []r1c.Term
+	// Constraints
+	constraints []r1c.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions  []r1c.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
+	oneTerm     r1c.Term
+
+	// Coefficients in the constraints
+	coeffs    []big.Int      // list of unique coefficients.
+	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
+
+	// debug info
+	logs           []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
+	debugInfo      []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
+	unsetVariables []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
+
 }
 
 // this has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 const initialCapacity = 1e6
 
-// newConstraintSystem outputs a new circuit
 func newConstraintSystem() ConstraintSystem {
 	cs := ConstraintSystem{
-		publicVariableNames: make([]string, 1),
-		publicVariables:     make([]Variable, 1),
-		secretVariableNames: make([]string, 0),
-		secretVariables:     make([]Variable, 0),
-		internalVariables:   make([]Variable, 0, initialCapacity),
-		coeffs:              make([]big.Int, 0),
-		coeffsIDs:           make(map[string]int),
-		booleanVariables:    [3]map[int]struct{}{make(map[int]struct{}), make(map[int]struct{}), make(map[int]struct{})},
-		constraints:         make([]r1c.R1C, 0, initialCapacity),
-		assertions:          make([]r1c.R1C, 0),
+		coeffs:      make([]big.Int, 0),
+		coeffsIDs:   make(map[string]int),
+		constraints: make([]r1c.R1C, 0, initialCapacity),
+		assertions:  make([]r1c.R1C, 0),
 	}
 
+	cs.public.names = make([]string, 1)
+	cs.public.variables = make([]Variable, 1)
+	cs.public.booleans = make(map[int]struct{})
+
+	cs.secret.names = make([]string, 0)
+	cs.secret.variables = make([]Variable, 0)
+	cs.secret.booleans = make(map[int]struct{})
+
+	cs.internal.variables = make([]Variable, 0, initialCapacity)
+	cs.internal.booleans = make(map[int]struct{})
+
 	// first entry of circuit is backend.OneWire
-	cs.publicVariableNames[0] = backend.OneWire
-	cs.publicVariables[0] = Variable{backend.Public, 0, nil}
-	cs.oneTerm = cs.Term(cs.publicVariables[0], bOne)
+	cs.public.names[0] = backend.OneWire
+	cs.public.variables[0] = Variable{backend.Public, 0, nil}
+	cs.oneTerm = cs.Term(cs.public.variables[0], bOne)
 
 	return cs
+}
+
+type logEntry struct {
+	format    string
+	toResolve []r1c.Term
 }
 
 var (
@@ -88,11 +113,9 @@ var (
 	bTwo      = new(big.Int).SetInt64(2)
 )
 
-func buildLogUnsetVariable(term r1c.Term) logEntry {
-
+// debug info in case a variable is not set
+func debugInfoUnsetVariable(term r1c.Term) logEntry {
 	entry := logEntry{}
-
-	// prepare debug info to be displayed in case the variable is unset
 	stack := getCallStack()
 	entry.format = stack[len(stack)-1]
 	entry.toResolve = append(entry.toResolve, term)
@@ -103,9 +126,7 @@ func buildLogUnsetVariable(term r1c.Term) logEntry {
 func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
 	if v.visibility == backend.Unset {
-		//panic("variable is not allocated.")
-		debugUnset := buildLogUnsetVariable(term)
-		cs.debugVariables = append(cs.debugVariables, debugUnset)
+		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(term))
 	}
 	if coeff.Cmp(bZero) == 0 {
 		term.SetCoeffValue(0)
@@ -120,8 +141,6 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 }
 
 // LinearExpression packs a list of r1c.Term in a r1c.LinearExpression and returns it.
-// The point of this wrapper is to call every complex expression (Term, LinearExpression)
-// from the cs only, and not have non homogeneous api.
 func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpression {
 	res := make(r1c.LinearExpression, len(terms))
 	for i, args := range terms {
@@ -142,14 +161,14 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 
 	// setting up the result
 	res := r1cs.UntypedR1CS{
-		NbWires:         len(cs.internalVariables) + len(cs.publicVariables) + len(cs.secretVariables),
-		NbPublicWires:   len(cs.publicVariables),
-		NbSecretWires:   len(cs.secretVariables),
+		NbWires:         len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables),
+		NbPublicWires:   len(cs.public.variables),
+		NbSecretWires:   len(cs.secret.variables),
 		NbConstraints:   len(cs.constraints) + len(cs.assertions),
 		NbCOConstraints: len(cs.constraints),
 		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
-		SecretWires:     cs.secretVariableNames,
-		PublicWires:     cs.publicVariableNames,
+		SecretWires:     cs.secret.names,
+		PublicWires:     cs.public.names,
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
@@ -165,12 +184,11 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				exp[j].SetConstraintID(cID + len(cs.internalVariables) + len(cs.secretVariables))
+				exp[j].SetConstraintID(cID + len(cs.internal.variables) + len(cs.secret.variables))
 			case backend.Secret:
-				exp[j].SetConstraintID(cID + len(cs.internalVariables))
+				exp[j].SetConstraintID(cID + len(cs.internal.variables))
 			case backend.Unset:
-				//panic("shouldn't happen")
-				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.debugVariables[0].format)
+				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
 			}
 		}
 		return nil
@@ -201,11 +219,11 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				cID += len(cs.internalVariables) + len(cs.secretVariables)
+				cID += len(cs.internal.variables) + len(cs.secret.variables)
 			case backend.Secret:
-				cID += len(cs.internalVariables)
+				cID += len(cs.internal.variables)
 			case backend.Unset:
-				panic("shouldn't happen")
+				panic("encountered unset visibility on a variable in logs id offset routine")
 			}
 			entry.ToResolve = append(entry.ToResolve, cID)
 		}
@@ -222,11 +240,11 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				cID += len(cs.internalVariables) + len(cs.secretVariables)
+				cID += len(cs.internal.variables) + len(cs.secret.variables)
 			case backend.Secret:
-				cID += len(cs.internalVariables)
+				cID += len(cs.internal.variables)
 			case backend.Unset:
-				panic("shouldn't happen")
+				panic("encountered unset visibility on a variable in debugInfo id offset routine")
 			}
 			entry.ToResolve = append(entry.ToResolve, cID)
 		}
@@ -246,7 +264,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 
 	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
-	key := b.String()
+	key := b.Text(16)
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		return idx
 	}
@@ -260,7 +278,11 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	return resID
 }
 
-// Println ...
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
 func (cs *ConstraintSystem) Println(a ...interface{}) {
 	var sbb strings.Builder
 
@@ -313,50 +335,50 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
 	res := Variable{
-		id:         len(cs.internalVariables),
+		id:         len(cs.internal.variables),
 		visibility: backend.Internal,
 	}
-	cs.internalVariables = append(cs.internalVariables, res)
+	cs.internal.variables = append(cs.internal.variables, res)
 	return res
 }
 
 // newPublicVariable creates a new public input
 func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
-	idx := len(cs.publicVariables)
+	idx := len(cs.public.variables)
 	res := Variable{backend.Public, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range cs.publicVariableNames {
+	for _, v := range cs.public.names {
 		if v == name {
 			panic("duplicate input name (public)")
 		}
 	}
 
-	cs.publicVariableNames = append(cs.publicVariableNames, name)
-	cs.publicVariables = append(cs.publicVariables, res)
+	cs.public.names = append(cs.public.names, name)
+	cs.public.variables = append(cs.public.variables, res)
 	return res
 }
 
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
-	idx := len(cs.secretVariables)
+	idx := len(cs.secret.variables)
 	res := Variable{backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
-	for _, v := range cs.publicVariableNames {
+	for _, v := range cs.public.names {
 		if v == name {
 			panic("duplicate input name (secret)")
 		}
 	}
 
-	cs.secretVariableNames = append(cs.secretVariableNames, name)
-	cs.secretVariables = append(cs.secretVariables, res)
+	cs.secret.names = append(cs.secret.names, name)
+	cs.secret.variables = append(cs.secret.variables, res)
 	return res
 }
 
 // oneVariable returns the variable associated with backend.OneWire
 func (cs *ConstraintSystem) oneVariable() Variable {
-	return cs.publicVariables[0]
+	return cs.public.variables[0]
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
@@ -385,6 +407,7 @@ func parseLogValue(input interface{}, name string, handler logValueHandler) {
 }
 
 // derived from: https://golang.org/pkg/runtime/#example_Frames
+// we stop when func name == Define as it is where the gnark circuit code should start
 func getCallStack() []string {
 	// Ask runtime.Callers for up to 10 pcs
 	pc := make([]uintptr, 10)

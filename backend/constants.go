@@ -32,8 +32,6 @@ const OneWire = "ONE_WIRE"
 // Possible values are Unset, Internal, Secret or Public
 type Visibility uint8
 
-// Visibility encodes a Variable (or wire) visibility
-// Possible values are Unset, Internal, Secret or Public
 const (
 	Unset Visibility = iota
 	Internal

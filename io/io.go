@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package io offers (de)serialization APIs for gnark objects
-// consider it unstable until v1.X.X release cycle
+// Package io offers (de)serialization APIs for gnark objects.
+//
+// Unstable until v1.X.X release cycle
 package io
 
 import (
@@ -27,15 +28,15 @@ import (
 	"github.com/fxamacker/cbor"
 )
 
-// CurveSpecific objects must know which curve they are tied to
-type CurveSpecific interface {
+// CurveObject must know which curve they are tied to
+type CurveObject interface {
 	GetCurveID() gurvy.ID
 }
 
 var errInvalidCurve = errors.New("trying to deserialize an object serialized with another curve")
 
 // WriteFile serialize object into file
-func WriteFile(path string, from CurveSpecific) error {
+func WriteFile(path string, from CurveObject) error {
 	// create file
 	f, err := os.Create(path)
 	if err != nil {
@@ -48,7 +49,7 @@ func WriteFile(path string, from CurveSpecific) error {
 
 // ReadFile read and deserialize input into object
 // provided interface must be a pointer
-func ReadFile(path string, into CurveSpecific) error {
+func ReadFile(path string, into CurveObject) error {
 	// open file
 	f, err := os.Open(path)
 	if err != nil {
@@ -61,7 +62,7 @@ func ReadFile(path string, into CurveSpecific) error {
 
 // Write object from into provided writer
 // encodes the curveID in the first bytes
-func Write(writer io.Writer, from CurveSpecific) error {
+func Write(writer io.Writer, from CurveObject) error {
 	encoder := cbor.NewEncoder(writer, cbor.CanonicalEncOptions())
 
 	// encode the curve type in the first bytes
@@ -98,7 +99,7 @@ func PeekCurveID(file string) (gurvy.ID, error) {
 }
 
 // Read reads bytes from reader and construct object into
-func Read(reader io.Reader, into CurveSpecific) error {
+func Read(reader io.Reader, into CurveObject) error {
 	decoder := cbor.NewDecoder(reader)
 
 	// decode the curve type, and ensure it matches

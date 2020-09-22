@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package backend provides circuit arithmetic representations and zero knowledge proof APIs
-// functions is this package are not curve specific and point to internal/backend curve specific
+// Package backend provides circuit arithmetic representations and zero knowledge proof APIs.
+//
+// Functions is this package are not curve specific and point to internal/backend curve specific
 // implementation when needed
 package backend

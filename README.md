@@ -6,6 +6,8 @@
 
 `gnark` has not been audited and is provided as-is, use at your own risk. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.
 
+`gnark` is optimized for `amd64` targets (x86 64bits) and tested on Unix (Linux / macOS).
+
 Get in touch: zkteam@consensys.net
 
 <img style="display: block;margin: auto;" width="80%"
@@ -26,18 +28,19 @@ src="banner_gnark.png">
 
 ### Prerequisites
 
-`gnark` is optimized for `amd64` targets (x86 64bits) and tested on Unix (Linux / macOS).
 You'll need to [install Go](https://golang.org/doc/install).
 
 ### Install `gnark` 
-
 
 ```bash
 go install github.com/consensys/gnark
 ```
 
-Note that if you use `go.mod`, the module path is `github.com/consensys/gnark` (case sensitive). 
+with `go.mod` (the module path is case sensitive):
 
+```bash
+go get -u github.com/consensys/gnark
+```
 
 ### Workflow
 
@@ -110,6 +113,8 @@ Using struct tags attributes (similarly to `json` or `xml` encoders in Golang), 
 
 4. The circuit can be tested like so:
 ```golang
+assert := groth16.NewAssert(t)
+
 {
 	var witness CubicCircuit
 	witness.X.Assign(42)
@@ -183,22 +188,37 @@ Currently gnark provides the following components (see `gnark/std`):
 
 ## Benchmarks
 
-It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is about **twice** faster than existing state-of-the-art.
+It is difficult to *fairly* and precisely compare benchmarks between libraries. Some implementations may excel in conditions where others may not (available CPUs, RAM or instruction set, WebAssembly target, ...). Nonetheless, it appears that `gnark`, is about **three time faster** than existing state-of-the-art.
 
-Here are our measurements for the **Prover**. These benchmarks ran on a AWS z1d.6xlarge instance, with hyperthreading disabled (12 cores, 192GB RAM).
+Here are our measurements for the **Prover**. These benchmarks ran on a AWS c5a.24xlarge instance, with hyperthreading disabled.
 
-The same circuit is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
+The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
+
+### BN256
+
+| nb constraints | 100000|32000000|64000000|
+| -------- | --------| -------- | -------- |
+| bellman (ms/op)|437|106606|214807|
+| gnark (ms/op)  |165|33915|63444|
+| speedup  |x2.6|x3.1|x3.4|
+
+On large circuits, that's **over 1M constraints per second**. 
+
+### BLS381
+
+| nb constraints | 100000|32000000|64000000|
+| -------- | --------| -------- | -------- |
+| bellman (ms/op)|641|158153|316819|
+| gnark (ms/op)  |237|47695|90770|
+| speedup  |x2.7|x3.3|x3.5|
+
+## Resources requirements
 
 
-| nb constraints | 65537|262145|1048577|4194305|16777217|33554433|
-| -------- | --------| -------- | -------- |-------- |-------- |-------- |
-| bellman (ms/op)|||||||
-| gnark (ms/op)  |||||||
-| gain  |||||||
+Depending on the topology of your circuit(s), you'll need from 1 to 2GB of RAM per million constraint. 
+Algorithms are very memory intensive, so hyperthreading won't help. Many physical cores will help, but at a point, throughput (constraints per second) scaling is not linear. 
 
 
-
-In some settings, `gnark` performance could be significantly improved. Get in touch if you'd like to know more: zkteam@consensys.net. 
 
 ____
 

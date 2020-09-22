@@ -52,7 +52,7 @@ func (r1cs *UntypedR1CS) GetNbWires() int {
 	return r1cs.NbWires
 }
 
-// GetNbCoefficients return the number of (different) coefficients needed in the R1CS
+// GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *UntypedR1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
@@ -69,6 +69,8 @@ func (r1cs *UntypedR1CS) IsSolved(solution map[string]interface{}) error {
 
 // ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
 // in the basefield of the provided curveID and return a R1CS
+//
+// this should not be called in a normal circuit development workflow
 func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
 	switch curveID {
 	case gurvy.BN256:

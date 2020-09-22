@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package r1cs expose the R1CS (rank-1 constraint system interface) and some utils methods
-// curve specific implementations are in gnark/internal/...
+// Package r1cs expose the R1CS (rank-1 constraint system) interface
 package r1cs
 
 import (
@@ -28,11 +27,11 @@ import (
 // R1CS represents a rank 1 constraint system
 // it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
 type R1CS interface {
+	io.CurveObject
 	IsSolved(solution map[string]interface{}) error
 	GetNbConstraints() int
 	GetNbWires() int
 	GetNbCoefficients() int
-	GetCurveID() gurvy.ID
 }
 
 // Read file at path and attempt to decode it into a R1CS object

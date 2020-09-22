@@ -26,18 +26,15 @@ import (
 	"github.com/consensys/gnark/backend"
 )
 
-// Variable of circuit. The type is exported so a user can
-// write "var a frontend.Variable". However, when doing so
-// the variable is not registered in the circuit, so to record
-// it one has to call "cs.Allocate(a)" (it's the equivalent
-// of declaring a pointer, and allocatign the memory to store it).
+// Variable of a circuit
+// They represent secret or public inputs in a circuit struct{} / definition (see circuit.Define(), type Tag)
 type Variable struct {
 	visibility backend.Visibility
 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
 }
 
-// Assign value to self.
+// Assign v = value . This must called when using a Circuit as a witness data structure
 func (v *Variable) Assign(value interface{}) {
 	if v.val != nil {
 		panic("variable already assigned")
@@ -45,13 +42,31 @@ func (v *Variable) Assign(value interface{}) {
 	v.val = value
 }
 
-// TODO make a clearer spec on that
+// Tag is a (optional) struct tag one can add to Variable
+// to specify frontend.Compile() behavior
+//
+// the tag format is as follow:
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:"name,option"`
+// 		}
+// if empty, default resolves to variable name (here "Y") and secret visibility
+// similarly to json or xml struct tags, these are valid:
+// 		`gnark:",public"` or `gnark:"-"`
+// using "-" marks the variable as ignored by the Compile method. This can be useful when you need to
+// declare variables as aliases that are already allocated. For example
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:",public"`
+//			Z frontend.Variable `gnark:"-"`
+// 		}
+// it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
+type Tag string
+
 const (
-	tagKey    = "gnark"
-	optPublic = "public"
-	optSecret = "secret"
-	optEmbed  = "embed"
-	optOmit   = "-"
+	tagKey    Tag = "gnark"
+	optPublic Tag = "public"
+	optSecret Tag = "secret"
+	optEmbed  Tag = "embed"
+	optOmit   Tag = "-"
 )
 
 type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
@@ -80,8 +95,8 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 				field := tValue.Type().Field((i))
 
 				// get gnark tag
-				tag := field.Tag.Get(tagKey)
-				if tag == optOmit {
+				tag := field.Tag.Get(string(tagKey))
+				if tag == string(optOmit) {
 					continue // skipping "-"
 				}
 
@@ -95,11 +110,11 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 						name = field.Name
 					}
 
-					if opts.Contains(optSecret) {
+					if opts.Contains(string(optSecret)) {
 						visibility = backend.Secret
-					} else if opts.Contains(optPublic) {
+					} else if opts.Contains(string(optPublic)) {
 						visibility = backend.Public
-					} else if opts.Contains(optEmbed) {
+					} else if opts.Contains(string(optEmbed)) {
 						name = ""
 						visibility = backend.Unset
 					}

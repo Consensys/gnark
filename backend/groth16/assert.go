@@ -34,28 +34,33 @@ func NewAssert(t *testing.T) *Assert {
 }
 
 // ProverFailed check that a solution does NOT solve a circuit
-// error may be missing inputs or unsatisfied constraints
-// it creates a groth16.ProvingKey for the r1cs
-// run groth16.Prove (which solves the R1CS) and expects an error
-// provided _solution must either implements frontend.Circuit or be
-// a map[string]interface{}
-func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, _solution interface{}) {
+//
+// solution must be map[string]interface{} or must implement frontend.Circuit
+// ( see frontend.ParseWitness )
+func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, solution interface{}) {
 	// setup
 	pk := DummySetup(r1cs)
-	solution := assert.parseSolution(_solution)
 
-	_, err := Prove(r1cs, pk, solution)
+	_, err := Prove(r1cs, pk, assert.parseSolution(solution))
 	assert.Error(err, "proving with bad solution should output an error")
 }
 
 // ProverSucceeded check that a solution solves a circuit
-// for each expectedValues, this helper compares the output from backend.Inspect() after Solving.
-// this helper also ensure the result vectors a*b=c
-// it ensures running groth16.Prove and groth16.Verify returns true
-// provided _solution must either implements frontend.Circuit or be
-// a map[string]interface{}
-func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, _solution interface{}) {
-	solution := assert.parseSolution(_solution)
+//
+// solution must be map[string]interface{} or must implement frontend.Circuit
+// ( see frontend.ParseWitness )
+//
+// 1. Runs groth16.Setup()
+//
+// 2. Solves the R1CS
+//
+// 3. Runs groth16.Prove()
+//
+// 4. Runs groth16.Verify()
+//
+// ensure result vectors a*b=c, and check other properties like random sampling
+func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
+	_solution := assert.parseSolution(solution)
 
 	// setup
 	pk, vk := Setup(r1cs)
@@ -70,40 +75,44 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, _solution interface{}) {
 	}
 
 	// ensure expected Values are computed correctly
-	assert.SolvingSucceeded(r1cs, solution)
+	assert.SolvingSucceeded(r1cs, _solution)
 
 	// prover
-	proof, err := Prove(r1cs, pk, solution)
+	proof, err := Prove(r1cs, pk, _solution)
 	assert.NoError(err, "proving with good solution should not output an error")
 
 	// ensure random sampling; calling prove twice with same input should produce different proof
 	{
-		proof2, err := Prove(r1cs, pk, solution)
+		proof2, err := Prove(r1cs, pk, _solution)
 		assert.NoError(err, "proving with good solution should not output an error")
 		assert.False(reflect.DeepEqual(proof, proof2), "calling prove twice with same input should produce different proof")
 	}
 
 	// verifier
 	{
-		err := Verify(proof, vk, solution)
+		err := Verify(proof, vk, _solution)
 		assert.NoError(err, "verifying proof with good solution should not output an error")
 	}
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given solution, without executing groth16 workflow
-func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, _solution interface{}) {
-	solution := assert.parseSolution(_solution)
-	assert.NoError(r1cs.IsSolved(solution))
+//
+// solution must be map[string]interface{} or must implement frontend.Circuit
+// ( see frontend.ParseWitness )
+func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, solution interface{}) {
+	assert.NoError(r1cs.IsSolved(assert.parseSolution(solution)))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given solution, without executing groth16 workflow
-func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, _solution interface{}) {
-	solution := assert.parseSolution(_solution)
-	assert.Error(r1cs.IsSolved(solution))
+//
+// solution must be map[string]interface{} or must implement frontend.Circuit
+// ( see frontend.ParseWitness )
+func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, solution interface{}) {
+	assert.Error(r1cs.IsSolved(assert.parseSolution(solution)))
 }
 
-func (assert *Assert) parseSolution(_solution interface{}) map[string]interface{} {
-	solution, err := frontend.ParseWitness(_solution)
+func (assert *Assert) parseSolution(solution interface{}) map[string]interface{} {
+	_solution, err := frontend.ParseWitness(solution)
 	assert.NoError(err)
-	return solution
+	return _solution
 }

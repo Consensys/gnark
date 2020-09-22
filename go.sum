@@ -12,8 +12,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/consensys/bavard v0.1.5 h1:P84effwNT78e4OVYgG8ihPwSmR9sUYnXhc6Fe6AaKtQ=
 github.com/consensys/bavard v0.1.5/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.4-0.20200909152010-40e909758495/go.mod h1:K3bq8aWAC6FqD9ONzRlz4WE7ejgI+XxDh2fIB93f7GU=
-github.com/consensys/gurvy v0.3.0-alpha h1:ExNfMrO6M8Ju5jsUwhvD782/tk81Qqs2UOVKQ/PAkBA=
-github.com/consensys/gurvy v0.3.0-alpha/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
+github.com/consensys/gurvy v0.3.0 h1:3p0kVlDlF/IajECU/YKb54xbuUySDG9nfc1P608R1sw=
+github.com/consensys/gurvy v0.3.0/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
@@ -76,8 +76,6 @@ github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn
 github.com/pelletier/go-toml v1.2.0 h1:T5zMGML61Wp+FlcbWjRDT7yAxhJNAiPPLOFECq181zc=
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/pkg/profile v1.5.0 h1:042Buzk+NhDI+DeSAA62RwJL8VAuZUMQZUjCsRz1Mug=
-github.com/pkg/profile v1.5.0/go.mod h1:qBsxPvzyUincmltOk6iyRVxHYg4adc0OFOv72ZdLa18=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=

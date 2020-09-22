@@ -15,15 +15,19 @@ type Circuit interface {
 	Define(curveID gurvy.ID, cs *ConstraintSystem) error
 }
 
-// Compile will parse provided circuit struct members and initialize all leafs that
-// are Variable with frontend.constraint objects
-// Struct tag options are similar to encoding/json
-// For example:
-// type myCircuit struct {
-//  A frontend.Variable `gnark:"inputName"` 	// will allOoutputcate a secret (default visibilityToRefactor) input with name inputName
-//  B frontend.Variable `gnark:",public"` 	// will allOoutputcate a public input name with "B" (struct member name)
-//  C frontend.Variable `gnark:"-"` 			// C will not be initialized, and has to be initialized "manually"
-// }
+// Compile will generate a R1CS from the given circuit
+//
+// 1. it will first allocate the user inputs (see type Tag for more info)
+// example:
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:"exponent,public"`
+// 		}
+// in that case, Compile() will allocate one public variable with id "exponent"
+//
+// 2. it then calls circuit.Define(curveID, constraintSystem) to build the internal constraint system
+// from the declarative code
+//
+// 3. finally, it converts that to a R1CS
 func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	// instantiate our constraint system
@@ -73,7 +77,8 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 // ParseWitness will returns a map[string]interface{} to be used as input in
 // in R1CS.Solve(), groth16.Prove() or groth16.Verify()
-// if input is not already a map[string]interface{}, it must implemenet frontend.Circuit
+//
+// if input is not already a map[string]interface{}, it must implement frontend.Circuit
 func ParseWitness(input interface{}) (map[string]interface{}, error) {
 	switch c := input.(type) {
 	case map[string]interface{}:

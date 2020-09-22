@@ -13,9 +13,12 @@ import (
 )
 
 // WriteWitness serialize variable map[name]value into file at path
+//
 // map[string]interface{} --> interface must be convertible to big.Int
 // using backend.FromInterface()
+//
 // the resulting format is human readable (JSON)
+//
 // big.Int are serialized in hexadecimal strings
 func WriteWitness(path string, from map[string]interface{}) error {
 	// create file
@@ -29,8 +32,11 @@ func WriteWitness(path string, from map[string]interface{}) error {
 }
 
 // ReadWitness read and deserialize JSON file at path
+//
 // returned object will contain map[string]interface{}
+//
 // keys being variable names and interface{} being big.Int
+//
 // big.Int values in files can be in base10 or base16 strings
 func ReadWitness(path string, into map[string]interface{}) error {
 	// open file

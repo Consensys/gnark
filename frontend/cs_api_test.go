@@ -56,7 +56,7 @@ func buildProtoCommands(name string, rf runfunc, ns nextstatefunc) *commands.Pro
 
 func checkPublicVariables(csRes csResult) bool {
 	for i, args := range csRes.publicVariables {
-		expectedID := len(csRes.cs.publicVariables) - len(csRes.publicVariables) + i
+		expectedID := len(csRes.cs.public.variables) - len(csRes.publicVariables) + i
 		if args.val != nil || args.id != expectedID {
 			return false
 		}
@@ -66,7 +66,7 @@ func checkPublicVariables(csRes csResult) bool {
 
 func checkSecretVariables(csRes csResult) bool {
 	for i, args := range csRes.secretVariables {
-		expectedID := len(csRes.cs.secretVariables) - len(csRes.secretVariables) + i
+		expectedID := len(csRes.cs.secret.variables) - len(csRes.secretVariables) + i
 		if args.val != nil || args.id != expectedID {
 			return false
 		}
@@ -76,7 +76,7 @@ func checkSecretVariables(csRes csResult) bool {
 
 func checkInternalVariables(csRes csResult) bool {
 	for i, args := range csRes.internalVariables {
-		expectedID := len(csRes.cs.internalVariables) - len(csRes.internalVariables) + i
+		expectedID := len(csRes.cs.internal.variables) - len(csRes.internalVariables) + i
 		if args.val != nil || args.id != expectedID {
 			return false
 		}
@@ -110,11 +110,11 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 	}
 
 	// checks the state of the constraint system
-	if len(csRes.cs.publicVariableNames) != st.nbPublicVariables ||
-		len(csRes.cs.publicVariables) != st.nbPublicVariables ||
-		len(csRes.cs.secretVariableNames) != st.nbSecretVariables ||
-		len(csRes.cs.secretVariables) != st.nbSecretVariables ||
-		len(csRes.cs.internalVariables) != st.nbInternalVariables ||
+	if len(csRes.cs.public.names) != st.nbPublicVariables ||
+		len(csRes.cs.public.variables) != st.nbPublicVariables ||
+		len(csRes.cs.secret.names) != st.nbSecretVariables ||
+		len(csRes.cs.secret.variables) != st.nbSecretVariables ||
+		len(csRes.cs.internal.variables) != st.nbInternalVariables ||
 		len(csRes.cs.constraints) != st.nbConstraints ||
 		len(csRes.cs.assertions) != st.nbAssertions {
 		return &gopter.PropResult{Status: gopter.PropFalse}
@@ -1322,16 +1322,6 @@ type selectCircuit struct {
 func (c *selectCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Select(unsetVar, c.A, 1)
-	return nil
-}
-
-type constantCircuit struct {
-	A Variable
-}
-
-func (c *constantCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
-	var unsetVar Variable
-	cs.Constant(unsetVar)
 	return nil
 }
 
