@@ -58,7 +58,7 @@ go get -u github.com/consensys/gnark
 
 You can find the [documentation here](https://pkg.go.dev/mod/github.com/consensys/gnark). In particular:
 * [frontend](https://pkg.go.dev/github.com/consensys/gnark/frontend) (writing a circuit)
-* [backend](https://pkg.go.dev/github.com/consensys/gnark/backend) (running zero-knowledge proof algorithms on the circuit)
+* [groth16](https://pkg.go.dev/github.com/consensys/gnark/backend/groth16) (running groth16 workflow)
 
 
 ### Examples and `gnark` usage
@@ -198,7 +198,7 @@ The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bl
 
 | nb constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |
-| bellman (ms/op)|437|106606|214807|
+| bellman_ce (ms/op)|437|106606|214807|
 | gnark (ms/op)  |165|33915|63444|
 | speedup  |x2.6|x3.1|x3.4|
 
@@ -216,7 +216,7 @@ On large circuits, that's **over 1M constraints per second**.
 
 
 Depending on the topology of your circuit(s), you'll need from 1 to 2GB of RAM per million constraint. 
-Algorithms are very memory intensive, so hyperthreading won't help. Many physical cores will help, but at a point, throughput (constraints per second) scaling is not linear. 
+Algorithms are very memory intensive, so hyperthreading won't help. Many physical cores will help, but at a point, throughput per core is decreasing.
 
 
 
