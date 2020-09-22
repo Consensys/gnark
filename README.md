@@ -33,14 +33,10 @@ You'll need to [install Go](https://golang.org/doc/install).
 ### Install `gnark` 
 
 ```bash
-go install github.com/consensys/gnark
+go get github.com/consensys/gnark
 ```
 
-with `go.mod` (the module path is case sensitive):
-
-```bash
-go get -u github.com/consensys/gnark
-```
+Note if that if you use go modules, in `go.mod` the module path is case sensitive (use `consensys` and not `ConsenSys`).
 
 ### Workflow
 
