@@ -14,6 +14,10 @@ github.com/consensys/bavard v0.1.5/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQ
 github.com/consensys/goff v0.3.4-0.20200909152010-40e909758495/go.mod h1:K3bq8aWAC6FqD9ONzRlz4WE7ejgI+XxDh2fIB93f7GU=
 github.com/consensys/gurvy v0.3.0 h1:3p0kVlDlF/IajECU/YKb54xbuUySDG9nfc1P608R1sw=
 github.com/consensys/gurvy v0.3.0/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
+github.com/consensys/gurvy v0.3.1 h1:sQGo6sfoemMvml4qbaZ+MMtomt05yetITXGDWKdUGDg=
+github.com/consensys/gurvy v0.3.1/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
+github.com/consensys/gurvy v0.3.2 h1:A2SPcjtTwM26o9c/+rKaO9gpJXM0TUKTnKbSAG+2Tik=
+github.com/consensys/gurvy v0.3.2/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
