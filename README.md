@@ -108,6 +108,7 @@ r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 Using struct tags attributes (similarly to `json` or `xml` encoders in Golang), `frontend.Compile()` will parse the circuit structure and allocate the user secret and public inputs [TODO add godoc link for details]. 
 
 4. The circuit can be tested like so:
+
 ```golang
 assert := groth16.NewAssert(t)
 
@@ -128,6 +129,7 @@ assert := groth16.NewAssert(t)
 ```
 
 5. The APIs to call Groth16 algorithms:
+
 ```golang
 pk, vk := groth16.Setup(r1cs)
 proof, err := groth16.Prove(r1cs, pk, solution)
@@ -135,7 +137,8 @@ err := groth16.Verify(proof, vk, solution)
 ```
 
 6. Using the CLI
-```
+
+```bash
 cd examples/cubic
 go run cubic.go
 gnark setup circuit.r1cs
