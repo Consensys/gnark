@@ -1,9 +1,11 @@
 package frontend
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 	"github.com/leanovate/gopter"
@@ -1375,11 +1377,13 @@ func TestUnsetVariables(t *testing.T) {
 	for name, arg := range mapFuncs {
 		t.Run(name, func(_t *testing.T) {
 			_, err := Compile(gurvy.UNKNOWN, arg)
-			// TODO ensure that the caught error is the variableUnset one
 			if err == nil {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
 
+			if !errors.Is(err, backend.ErrInputNotSet) {
+				_t.Fatal("expected input not set error, got " + err.Error())
+			}
 		})
 	}
 
