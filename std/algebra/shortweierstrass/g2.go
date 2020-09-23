@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package shortweierstrass
 
 import (
 	"github.com/consensys/gnark/frontend"
