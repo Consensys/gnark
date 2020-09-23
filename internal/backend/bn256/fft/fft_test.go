@@ -205,7 +205,7 @@ func BenchmarkFFT(b *testing.B) {
 	}
 
 	for i := 8; i < 20; i++ {
-		b.Run("bit reversing 2**"+strconv.Itoa(i)+"bits", func(b *testing.B) {
+		b.Run("fft 2**"+strconv.Itoa(i)+"bits", func(b *testing.B) {
 			sizeDomain := 1 << i
 			_pol := make([]fr.Element, sizeDomain)
 			copy(_pol, pol)
