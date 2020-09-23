@@ -19,13 +19,13 @@ package groth16
 import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gnark/std/algebra/shortweierstrass"
+	"github.com/consensys/gnark/std/algebra/sw"
 )
 
 // Proof represents a groth16 proof in a r1cs
 type Proof struct {
-	Ar, Krs shortweierstrass.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
-	Bs      shortweierstrass.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
+	Ar, Krs sw.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
+	Bs      sw.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
 }
 
 // VerifyingKey represents the groth16 verifying key in a r1cs
@@ -36,30 +36,30 @@ type VerifyingKey struct {
 
 	// -[γ]2, -[δ]2
 	G2 struct {
-		GammaNeg, DeltaNeg shortweierstrass.G2Affine
+		GammaNeg, DeltaNeg sw.G2Affine
 	}
 
 	// [Kvk]1 (part of the verifying key yielding psi0, cf https://eprint.iacr.org/2020/278.pdf)
-	G1 []shortweierstrass.G1Affine // The indexes correspond to the public wires
+	G1 []sw.G1Affine // The indexes correspond to the public wires
 }
 
 // Verify implements the verification function of groth16.
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(cs *frontend.ConstraintSystem, pairingInfo shortweierstrass.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	shortweierstrass.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	shortweierstrass.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
-	var psi0, tmp shortweierstrass.G1Affine
+	var psi0, tmp sw.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	// TODO this assumes ONE_WIRE is at position 0
@@ -72,7 +72,7 @@ func Verify(cs *frontend.ConstraintSystem, pairingInfo shortweierstrass.PairingC
 	}
 
 	// e(psi0, -gamma)
-	shortweierstrass.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12

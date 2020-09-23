@@ -25,7 +25,7 @@ import (
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gnark/std/algebra/shortweierstrass"
+	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
 )
@@ -95,7 +95,7 @@ type verifierCircuit struct {
 
 func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// pairing data
-	var pairingInfo shortweierstrass.PairingContext
+	var pairingInfo sw.PairingContext
 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(cs)
 	pairingInfo.AteLoop = 9586122913090633729
 
@@ -112,7 +112,7 @@ func TestVerifier(t *testing.T) {
 	generateBls377InnerProof(t, &innerVk, &innerProof) // get public inputs of the inner proof
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]shortweierstrass.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
 	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
 	witness.InnerVk.E.Assign(&innerVk.E)
-	witness.InnerVk.G1 = make([]shortweierstrass.G1Affine, len(innerVk.G1.K))
+	witness.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {
 		witness.InnerVk.G1[i].Assign(&vkg)
 	}
@@ -179,7 +179,7 @@ func TestVerifier(t *testing.T) {
 // 	}
 
 // 	// pairing data
-// 	var pairingInfo shortweierstrass.PairingContext
+// 	var pairingInfo sw.PairingContext
 // 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&cs)
 // 	pairingInfo.AteLoop = 9586122913090633729
 
