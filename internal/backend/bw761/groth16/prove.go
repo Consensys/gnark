@@ -25,6 +25,8 @@ import (
 
 	bw761backend "github.com/consensys/gnark/internal/backend/bw761"
 
+	"github.com/consensys/gnark/internal/backend/bw761/fft"
+
 	"runtime"
 
 	"github.com/consensys/gnark/internal/utils"
@@ -198,7 +200,7 @@ func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution map[string]interfac
 	return proof, nil
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *bw761backend.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -214,9 +216,9 @@ func computeH(a, b, c []fr.Element, fftDomain *bw761backend.Domain) []fr.Element
 	c = append(c, padding...)
 	n = len(a)
 
-	bw761backend.FFT(a, fftDomain, bw761backend.DIF, true)
-	bw761backend.FFT(b, fftDomain, bw761backend.DIF, true)
-	bw761backend.FFT(c, fftDomain, bw761backend.DIF, true)
+	fft.FFT(a, fftDomain, fft.DIF, true)
+	fft.FFT(b, fftDomain, fft.DIF, true)
+	fft.FFT(c, fftDomain, fft.DIF, true)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
@@ -226,9 +228,9 @@ func computeH(a, b, c []fr.Element, fftDomain *bw761backend.Domain) []fr.Element
 		}
 	})
 
-	bw761backend.FFT(a, fftDomain, bw761backend.DIT, false)
-	bw761backend.FFT(b, fftDomain, bw761backend.DIT, false)
-	bw761backend.FFT(c, fftDomain, bw761backend.DIT, false)
+	fft.FFT(a, fftDomain, fft.DIT, false)
+	fft.FFT(b, fftDomain, fft.DIT, false)
+	fft.FFT(c, fftDomain, fft.DIT, false)
 
 	var minusTwoInv fr.Element
 	minusTwoInv.SetUint64(2)
@@ -246,7 +248,7 @@ func computeH(a, b, c []fr.Element, fftDomain *bw761backend.Domain) []fr.Element
 	})
 
 	// ifft_coset
-	bw761backend.FFT(a, fftDomain, bw761backend.DIF, true)
+	fft.FFT(a, fftDomain, fft.DIF, true)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {

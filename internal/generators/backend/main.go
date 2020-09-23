@@ -7,7 +7,7 @@ import (
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark/internal/generators/backend/template"
-	"github.com/consensys/gnark/internal/generators/backend/template/algorithms"
+	"github.com/consensys/gnark/internal/generators/backend/template/fft"
 	"github.com/consensys/gnark/internal/generators/backend/template/representations"
 	"github.com/consensys/gnark/internal/generators/backend/template/zkpschemes"
 )
@@ -145,10 +145,10 @@ func generateGroth16(d templateData) error {
 		// generate FFT
 		src := []string{
 			template.ImportCurve,
-			algorithms.FFT,
+			fft.FFT,
 		}
-		if err := bavard.Generate(d.RootPath+"fft.go", src, d,
-			bavard.Package("backend"),
+		if err := bavard.Generate(d.RootPath+"fft/fft.go", src, d,
+			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {
@@ -160,10 +160,10 @@ func generateGroth16(d templateData) error {
 		// generate FFT Tests
 		src := []string{
 			template.ImportCurve,
-			algorithms.FFTtests,
+			fft.FFTtests,
 		}
-		if err := bavard.Generate(d.RootPath+"fft_test.go", src, d,
-			bavard.Package("backend"),
+		if err := bavard.Generate(d.RootPath+"fft/fft_test.go", src, d,
+			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {
@@ -175,10 +175,10 @@ func generateGroth16(d templateData) error {
 		// generate FFT domain
 		src := []string{
 			template.ImportCurve,
-			algorithms.Domain,
+			fft.Domain,
 		}
-		if err := bavard.Generate(d.RootPath+"domain.go", src, d,
-			bavard.Package("backend"),
+		if err := bavard.Generate(d.RootPath+"fft/domain.go", src, d,
+			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
 		); err != nil {

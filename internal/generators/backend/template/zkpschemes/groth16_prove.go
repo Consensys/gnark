@@ -6,6 +6,7 @@ const Groth16Prove = `
 import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
+	{{ template "import_fft" . }}
 	"runtime"
 	"sync"
 	"github.com/consensys/gnark/internal/utils"
@@ -186,7 +187,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 }
 
 
-func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
 		// H part of Krs
 		// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 		// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -203,9 +204,9 @@ func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain)
 		n = len(a)
 
 		
-		{{toLower .Curve}}backend.FFT(a, fftDomain, {{toLower .Curve}}backend.DIF, true)
-		{{toLower .Curve}}backend.FFT(b, fftDomain, {{toLower .Curve}}backend.DIF, true)
-		{{toLower .Curve}}backend.FFT(c, fftDomain, {{toLower .Curve}}backend.DIF, true)
+		fft.FFT(a, fftDomain, fft.DIF, true)
+		fft.FFT(b, fftDomain, fft.DIF, true)
+		fft.FFT(c, fftDomain, fft.DIF, true)
 		
 		utils.Parallelize(n, func(start, end int) {
 			for i := start; i < end; i++ {
@@ -215,9 +216,9 @@ func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain)
 			}
 		})
 		
-		{{toLower .Curve}}backend.FFT(a, fftDomain, {{toLower .Curve}}backend.DIT, false)
-		{{toLower .Curve}}backend.FFT(b, fftDomain, {{toLower .Curve}}backend.DIT, false)
-		{{toLower .Curve}}backend.FFT(c, fftDomain, {{toLower .Curve}}backend.DIT, false)
+		fft.FFT(a, fftDomain, fft.DIT, false)
+		fft.FFT(b, fftDomain, fft.DIT, false)
+		fft.FFT(c, fftDomain, fft.DIT, false)
 
 		var minusTwoInv fr.Element
 		minusTwoInv.SetUint64(2)
@@ -237,7 +238,7 @@ func computeH(a, b, c []fr.Element, fftDomain *{{toLower .Curve}}backend.Domain)
 	
 
 		// ifft_coset
-		{{toLower .Curve}}backend.FFT(a, fftDomain, {{toLower .Curve}}backend.DIF, true)
+		fft.FFT(a, fftDomain, fft.DIF, true)
 		
 		
 		utils.Parallelize( n, func(start, end int) {

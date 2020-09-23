@@ -7,6 +7,7 @@ import (
 	{{ template "import_curve" . }}
 	"github.com/consensys/gnark/internal/utils/parallel"
 	{{ template "import_backend" . }}
+	{{ template "import_fft" . }}
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -25,7 +26,7 @@ type ProvingKey struct {
 		B           []curve.G2Affine
 	}
 	
-	Domain {{toLower .Curve}}backend.Domain
+	Domain fft.Domain
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -68,7 +69,7 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := {{toLower .Curve}}backend.NewDomain( nbConstraints)
+	domain := fft.NewDomain( nbConstraints)
 
 	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
 	vk.PublicInputs = r1cs.PublicWires
@@ -216,7 +217,7 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	pk.Domain = *domain
 }
 
-func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *{{toLower .Curve}}backend.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbWires
 
@@ -307,7 +308,7 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := {{toLower .Curve}}backend.NewDomain(nbConstraints)
+	domain := fft.NewDomain(nbConstraints)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

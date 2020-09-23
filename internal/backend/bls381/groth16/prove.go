@@ -25,6 +25,8 @@ import (
 
 	bls381backend "github.com/consensys/gnark/internal/backend/bls381"
 
+	"github.com/consensys/gnark/internal/backend/bls381/fft"
+
 	"runtime"
 
 	"github.com/consensys/gnark/internal/utils"
@@ -198,7 +200,7 @@ func Prove(r1cs *bls381backend.R1CS, pk *ProvingKey, solution map[string]interfa
 	return proof, nil
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *bls381backend.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -214,9 +216,9 @@ func computeH(a, b, c []fr.Element, fftDomain *bls381backend.Domain) []fr.Elemen
 	c = append(c, padding...)
 	n = len(a)
 
-	bls381backend.FFT(a, fftDomain, bls381backend.DIF, true)
-	bls381backend.FFT(b, fftDomain, bls381backend.DIF, true)
-	bls381backend.FFT(c, fftDomain, bls381backend.DIF, true)
+	fft.FFT(a, fftDomain, fft.DIF, true)
+	fft.FFT(b, fftDomain, fft.DIF, true)
+	fft.FFT(c, fftDomain, fft.DIF, true)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
@@ -226,9 +228,9 @@ func computeH(a, b, c []fr.Element, fftDomain *bls381backend.Domain) []fr.Elemen
 		}
 	})
 
-	bls381backend.FFT(a, fftDomain, bls381backend.DIT, false)
-	bls381backend.FFT(b, fftDomain, bls381backend.DIT, false)
-	bls381backend.FFT(c, fftDomain, bls381backend.DIT, false)
+	fft.FFT(a, fftDomain, fft.DIT, false)
+	fft.FFT(b, fftDomain, fft.DIT, false)
+	fft.FFT(c, fftDomain, fft.DIT, false)
 
 	var minusTwoInv fr.Element
 	minusTwoInv.SetUint64(2)
@@ -246,7 +248,7 @@ func computeH(a, b, c []fr.Element, fftDomain *bls381backend.Domain) []fr.Elemen
 	})
 
 	// ifft_coset
-	bls381backend.FFT(a, fftDomain, bls381backend.DIF, true)
+	fft.FFT(a, fftDomain, fft.DIF, true)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {

@@ -45,7 +45,18 @@ const ImportCurve = `
 	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761"
 {{end}}
 
+{{end}}
 
+{{ define "import_fft" }}
+{{if eq .Curve "BLS377"}}
+	"github.com/consensys/gnark/internal/backend/bls377/fft"
+{{else if eq .Curve "BLS381"}}
+	"github.com/consensys/gnark/internal/backend/bls381/fft"
+{{else if eq .Curve "BN256"}}
+	"github.com/consensys/gnark/internal/backend/bn256/fft"
+{{ else if eq .Curve "BW761"}}
+	"github.com/consensys/gnark/internal/backend/bw761/fft"
+{{end}}
 {{end}}
 
 `
