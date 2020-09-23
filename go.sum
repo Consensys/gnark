@@ -12,8 +12,11 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/consensys/bavard v0.1.5 h1:P84effwNT78e4OVYgG8ihPwSmR9sUYnXhc6Fe6AaKtQ=
 github.com/consensys/bavard v0.1.5/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.4-0.20200909152010-40e909758495/go.mod h1:K3bq8aWAC6FqD9ONzRlz4WE7ejgI+XxDh2fIB93f7GU=
+github.com/consensys/goff v0.3.4-0.20200923205558-7dafda98a75c/go.mod h1:K3bq8aWAC6FqD9ONzRlz4WE7ejgI+XxDh2fIB93f7GU=
 github.com/consensys/gurvy v0.3.3-0.20200923202811-5250101178fc h1:mEnn5yN2z8enWyCX5+upH7n6/0Esh6FZymH4EBOj7PM=
 github.com/consensys/gurvy v0.3.3-0.20200923202811-5250101178fc/go.mod h1:M6z/kMDiIxQToMjHKn1oCScXjJyHGyQrm6Vxe1cDLn0=
+github.com/consensys/gurvy v0.3.3-0.20200923210041-83e993e74406 h1:/ul1AMtFw83cmHXJjuRy1HesYFECTFmnWN7gt9TF/g0=
+github.com/consensys/gurvy v0.3.3-0.20200923210041-83e993e74406/go.mod h1:R31CwRn8wc5JT9YRFk0vHrrfR3vKIUABT/eeeGEF7EE=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

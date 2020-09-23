@@ -51,7 +51,7 @@ type ProvingKey struct {
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
 type VerifyingKey struct {
 	// e(α, β)
-	E curve.PairingResult
+	E curve.GT
 
 	// -[γ]2, -[δ]2
 	// note: storing GammaNeg and DeltaNeg instead of Gamma and Delta

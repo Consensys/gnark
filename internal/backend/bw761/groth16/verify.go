@@ -37,7 +37,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	var kSum curve.G1Jac
-	var eKrsδ, eArBs *curve.PairingResult
+	var eKrsδ, eArBs *curve.GT
 	chan1 := make(chan bool, 1)
 	chan2 := make(chan bool, 1)
 
