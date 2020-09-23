@@ -21,6 +21,11 @@ type Proof struct {
 	Bs      curve.G2Affine
 }
 
+// isValid ensures proof elements are in the correct subgroup
+func (proof *Proof) isValid() bool {
+	return proof.Ar.IsInSubGroup() && proof.Krs.IsInSubGroup() && proof.Bs.IsInSubGroup()
+}
+
 // GetCurveID returns the curveID
 func (proof *Proof) GetCurveID() gurvy.ID {
 	return curve.ID

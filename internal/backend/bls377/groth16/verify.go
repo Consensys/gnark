@@ -32,11 +32,7 @@ var errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in t
 func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
 
 	// check that the points in the proof are in the correct subgroup
-	correctSubgroupCheck := true
-	correctSubgroupCheck = correctSubgroupCheck && proof.Ar.SubgroupCheck()
-	correctSubgroupCheck = correctSubgroupCheck && proof.Bs.SubgroupCheck()
-	correctSubgroupCheck = correctSubgroupCheck && proof.Krs.SubgroupCheck()
-	if !correctSubgroupCheck {
+	if !proof.isValid() {
 		return errCorrectSubgroupCheckFailed
 	}
 
