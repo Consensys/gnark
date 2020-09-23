@@ -192,6 +192,211 @@ func BitReverse(a []fr.Element) {
 }
 `
 
+// FFT tests ...
+const FFTtests = `
+
+import (
+	"math/bits"
+	"runtime"
+
+	"github.com/consensys/gnark/internal/utils"
+
+	{{ template "import_fr" . }}
+)
+
+// --------------------------------------------------------------------
+// utils
+
+func polEval(pol []fr.Element, val fr.Element) fr.Element {
+	var acc, res, tmp fr.Element
+	res.Set(&pol[0])
+	acc.Set(&val)
+	for i := 1; i < len(pol); i++ {
+		tmp.Mul(&acc, &pol[i])
+		res.Add(&res, &tmp)
+		acc.Mul(&acc, &val)
+	}
+	return res
+}
+
+// --------------------------------------------------------------------
+// tests
+
+func TestFFT(t *testing.T) {
+
+	var maxSize int
+	maxSize = 1 << 10
+
+	domain := NewDomain(maxSize)
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 5
+
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("DIF FFT should be consistent with dual basis", prop.ForAll(
+
+		// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
+		func(ithpower int) bool {
+
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
+
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
+
+			FFT(pol, domain, DIF, false)
+			BitReverse(pol)
+
+			sample := domain.Generator
+			sample.Exp(sample, big.NewInt(int64(ithpower)))
+
+			eval := polEval(backupPol, sample)
+
+			return eval.Equal(&pol[ithpower])
+
+		},
+		gen.IntRange(0, maxSize-1),
+	))
+
+	properties.Property("DIT FFT should be consistent with dual basis", prop.ForAll(
+
+		// checks that a random evaluation of a dual function eval(gen**ithpower) is consistent with the FFT result
+		func(ithpower int) bool {
+
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
+
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
+
+			BitReverse(pol)
+			FFT(pol, domain, DIT, false)
+
+			sample := domain.Generator
+			sample.Exp(sample, big.NewInt(int64(ithpower)))
+
+			eval := polEval(backupPol, sample)
+
+			return eval.Equal(&pol[ithpower])
+
+		},
+		gen.IntRange(0, maxSize-1),
+	))
+
+	// properties.Property("bitReverse(DIF FFT(DIT FFT (bitReverse))))==id", prop.ForAll(
+
+	// 	func() bool {
+
+	// 		pol := make([]fr.Element, maxSize)
+	// 		backupPol := make([]fr.Element, maxSize)
+
+	// 		for i := 0; i < maxSize; i++ {
+	// 			pol[i].SetRandom()
+	// 		}
+	// 		copy(backupPol, pol)
+	// 		// for i := 0; i < len(pol); i++ {
+	// 		// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+	// 		// }
+
+	// 		BitReverse(pol)
+	// 		FFT(pol, domain, DIT, false)
+	// 		//BitReverse(pol)
+	// 		FFT(pol, domain, DIF, true)
+	// 		BitReverse(pol)
+
+	// 		check := true
+	// 		for i := 0; i < len(pol); i++ {
+	// 			fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+	// 		}
+	// 		fmt.Println("")
+	// 		return check
+	// 	},
+	// ))
+
+	// properties.Property("DIT FFT(DIF FFT)==id", prop.ForAll(
+
+	// 	func() bool {
+
+	// 		pol := make([]fr.Element, maxSize)
+	// 		backupPol := make([]fr.Element, maxSize)
+
+	// 		for i := 0; i < maxSize; i++ {
+	// 			pol[i].SetRandom()
+	// 		}
+	// 			copy(backupPol, pol)
+
+	// 		FFT(pol, domain, DIF, true)
+	// 		FFT(pol, domain, DIT, false)
+
+	// 		check := true
+	// 		for i := 0; i < len(pol); i++ {
+	// 			check = check && (pol[i] == backupPol[i])
+	// 		}
+	// 		return check
+	// 	},
+	// ))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+
+}
+
+// --------------------------------------------------------------------
+// benches
+func BenchmarkBitRevese(b *testing.B) {
+
+	var maxSize uint
+	maxSize = 1 << 20
+
+	pol := make([]fr.Element, maxSize)
+	for i := uint(0); i < maxSize; i++ {
+		pol[i].SetRandom()
+	}
+
+	for i := 8; i < 20; i++ {
+		b.Run("bit reversing 2**"+strconv.Itoa(i)+"bits", func(b *testing.B) {
+			_pol := make([]fr.Element, 1<<i)
+			copy(_pol, pol)
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				BitReverse(_pol)
+			}
+		})
+	}
+
+}
+
+func BenchmarkFFT(b *testing.B) {
+
+	var maxSize uint
+	maxSize = 1 << 20
+
+	pol := make([]fr.Element, maxSize)
+	for i := uint(0); i < maxSize; i++ {
+		pol[i].SetRandom()
+	}
+
+	for i := 8; i < 20; i++ {
+		b.Run("bit reversing 2**"+strconv.Itoa(i)+"bits", func(b *testing.B) {
+			sizeDomain := 1 << i
+			_pol := make([]fr.Element, sizeDomain)
+			copy(_pol, pol)
+			domain := NewDomain(sizeDomain)
+			b.ResetTimer()
+			for j := 0; j < b.N; j++ {
+				FFT(_pol, domain, DIT, false)
+			}
+		})
+	}
+
+}
+
+`
+
 // Domain ...
 const Domain = `
 
