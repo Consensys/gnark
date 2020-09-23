@@ -5,9 +5,9 @@ const Groth16Setup = `
 
 import (
 	{{ template "import_curve" . }}
-	"github.com/consensys/gnark/internal/utils/parallel"
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
+	"github.com/consensys/gnark/internal/utils/parallel"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -403,7 +403,7 @@ func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 
 
 
-// bitRerverse permutation as in {{toLower .Curve}}backend.BitReverse , but with []curve.G1Affine
+// bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))

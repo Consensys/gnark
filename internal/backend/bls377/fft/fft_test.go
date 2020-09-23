@@ -17,6 +17,7 @@
 package fft
 
 import (
+	"fmt"
 	"math/big"
 	"strconv"
 	"testing"
@@ -30,7 +31,7 @@ import (
 // --------------------------------------------------------------------
 // utils
 
-func polEval(pol []fr.Element, val fr.Element) fr.Element {
+func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
 	var acc, res, tmp fr.Element
 	res.Set(&pol[0])
 	acc.Set(&val)
@@ -70,13 +71,13 @@ func TestFFT(t *testing.T) {
 			}
 			copy(backupPol, pol)
 
-			FFT(pol, domain, DIF, false)
+			domain.FFT(pol, DIF)
 			BitReverse(pol)
 
 			sample := domain.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
 
-			eval := polEval(backupPol, sample)
+			eval := evaluatePolynomial(backupPol, sample)
 
 			return eval.Equal(&pol[ithpower])
 
@@ -98,12 +99,12 @@ func TestFFT(t *testing.T) {
 			copy(backupPol, pol)
 
 			BitReverse(pol)
-			FFT(pol, domain, DIT, false)
+			domain.FFT(pol, DIT)
 
 			sample := domain.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
 
-			eval := polEval(backupPol, sample)
+			eval := evaluatePolynomial(backupPol, sample)
 
 			return eval.Equal(&pol[ithpower])
 
@@ -111,58 +112,58 @@ func TestFFT(t *testing.T) {
 		gen.IntRange(0, maxSize-1),
 	))
 
-	// properties.Property("bitReverse(DIF FFT(DIT FFT (bitReverse))))==id", prop.ForAll(
+	properties.Property("bitReverse(DIF FFT(DIT FFT (bitReverse))))==id", prop.ForAll(
 
-	// 	func() bool {
+		func() bool {
 
-	// 		pol := make([]fr.Element, maxSize)
-	// 		backupPol := make([]fr.Element, maxSize)
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
 
-	// 		for i := 0; i < maxSize; i++ {
-	// 			pol[i].SetRandom()
-	// 		}
-	// 		copy(backupPol, pol)
-	// 		// for i := 0; i < len(pol); i++ {
-	// 		// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
-	// 		// }
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
+			// for i := 0; i < len(pol); i++ {
+			// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+			// }
 
-	// 		BitReverse(pol)
-	// 		FFT(pol, domain, DIT, false)
-	// 		//BitReverse(pol)
-	// 		FFT(pol, domain, DIF, true)
-	// 		BitReverse(pol)
+			BitReverse(pol)
+			domain.FFT(pol, DIT)
+			//BitReverse(pol)
+			domain.FFTInverse(pol, DIF)
+			BitReverse(pol)
 
-	// 		check := true
-	// 		for i := 0; i < len(pol); i++ {
-	// 			fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
-	// 		}
-	// 		fmt.Println("")
-	// 		return check
-	// 	},
-	// ))
+			check := true
+			for i := 0; i < len(pol); i++ {
+				fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+			}
+			fmt.Println("")
+			return check
+		},
+	))
 
-	// properties.Property("DIT FFT(DIF FFT)==id", prop.ForAll(
+	properties.Property("DIT FFT(DIF FFT)==id", prop.ForAll(
 
-	// 	func() bool {
+		func() bool {
 
-	// 		pol := make([]fr.Element, maxSize)
-	// 		backupPol := make([]fr.Element, maxSize)
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
 
-	// 		for i := 0; i < maxSize; i++ {
-	// 			pol[i].SetRandom()
-	// 		}
-	// 			copy(backupPol, pol)
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
 
-	// 		FFT(pol, domain, DIF, true)
-	// 		FFT(pol, domain, DIT, false)
+			domain.FFTInverse(pol, DIF)
+			domain.FFT(pol, DIT)
 
-	// 		check := true
-	// 		for i := 0; i < len(pol); i++ {
-	// 			check = check && (pol[i] == backupPol[i])
-	// 		}
-	// 		return check
-	// 	},
-	// ))
+			check := true
+			for i := 0; i < len(pol); i++ {
+				check = check && (pol[i] == backupPol[i])
+			}
+			return check
+		},
+	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 
@@ -211,7 +212,7 @@ func BenchmarkFFT(b *testing.B) {
 			domain := NewDomain(sizeDomain)
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
-				FFT(_pol, domain, DIT, false)
+				domain.FFT(_pol, DIT)
 			}
 		})
 	}

@@ -25,45 +25,71 @@ import (
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
-// FFTType is used in the FFT call to select decimation in time or in frequency
-type FFTType uint8
+// Decimation is used in the FFT call to select decimation in time or in frequency
+type Decimation uint8
 
-// See FFTType and FFT documentation
 const (
-	DIT FFTType = iota
+	DIT Decimation = iota
 	DIF
 )
 
 // parallelize threshold for a single butterfly op, if the fft stage is not parallelized already
 const butterflyThreshold = 16
 
-// FFT computes (recursively) the discrete Fourier transform of a and stores the result in a.
-// if fType == DIT (decimation in time), the input must be in bit-reversed order
-// if fType == DIF (decimation in frequency), the output will be in bit-reversed order
+// FFT computes (recursively) the discrete Fourier transform of a and stores the result in a
+// if decimation == DIT (decimation in time), the input must be in bit-reversed order
+// if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-func FFT(a []fr.Element, domain *Domain, fType FFTType, inverse bool) {
+func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
 
 	numCPU := uint(runtime.NumCPU())
 
+	// find the stage where we should stop spawning go routines in our recursive calls
+	// (ie when we have as many go routines running as we have available CPUs)
 	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
 	if numCPU <= 1 {
 		maxSplits = -1
 	}
-	var twiddles [][]fr.Element
-	if inverse {
-		twiddles = domain.TwiddlesInv
-	} else {
-		twiddles = domain.Twiddles
-	}
 
-	switch fType {
+	switch decimation {
 	case DIF:
-		difFFT(a, twiddles, 0, maxSplits, nil)
+		difFFT(a, domain.Twiddles, 0, maxSplits, nil)
 	case DIT:
-		ditFFT(a, twiddles, 0, maxSplits, nil)
+		ditFFT(a, domain.Twiddles, 0, maxSplits, nil)
 	default:
 		panic("not implemented")
 	}
+}
+
+// FFTInverse computes (recursively) the inverse discrete Fourier transform of a and stores the result in a
+// if decimation == DIT (decimation in time), the input must be in bit-reversed order
+// if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
+// len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
+func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation) {
+
+	numCPU := uint(runtime.NumCPU())
+
+	// find the stage where we should stop spawning go routines in our recursive calls
+	// (ie when we have as many go routines running as we have available CPUs)
+	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
+	if numCPU <= 1 {
+		maxSplits = -1
+	}
+	switch decimation {
+	case DIF:
+		difFFT(a, domain.TwiddlesInv, 0, maxSplits, nil)
+	case DIT:
+		ditFFT(a, domain.TwiddlesInv, 0, maxSplits, nil)
+	default:
+		panic("not implemented")
+	}
+
+	// scale by CardinalityInv
+	utils.Parallelize(len(a), func(start, end int) {
+		for i := start; i < end; i++ {
+			a[i].MulAssign(&domain.CardinalityInv)
+		}
+	})
 }
 
 func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDone chan struct{}) {

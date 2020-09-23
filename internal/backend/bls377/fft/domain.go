@@ -44,23 +44,21 @@ type Domain struct {
 	// Twiddles factor for the FFT using GeneratorInv for each stage of the recursive FFT
 	TwiddlesInv [][]fr.Element
 
-	// ExpTable1 = scale by inverse of n + coset
-	// ifft(a) would normaly do FFT(a, wInv) then scale by CardinalityInv
-	// fft_coset(a) would normaly mutliply a with expTable of fftDomain.GeneratorSqRt
-	// this pre-computed ExpTable1 do both in one pass --> it contains
-	// ExpTable1[0] = fftDomain.CardinalityInv
-	// ExpTable1[1] = fftDomain.GeneratorSqrt^1 * fftDomain.CardinalityInv
-	// ExpTable1[2] = fftDomain.GeneratorSqrt^2 * fftDomain.CardinalityInv
-	// ...
-	// note that the ExpTable1 is in bitReversed order
-	ExpTable1 []fr.Element
+	// we precompute these mostly to avoid the memory intensive bit reverse permutation in the groth16.Prover
 
-	// similar reasoning as in ExpTable1 pass -->
-	// ExpTable2[0] = fftDomain.CardinalityInv
-	// ExpTable2[1] = fftDomain.GeneratorSqRtInv^1 * fftDomain.CardinalityInv
-	// ExpTable2[2] = fftDomain.GeneratorSqRtInv^2 * fftDomain.CardinalityInv
-	// note that the ExpTable2 is in bitReversed order
-	ExpTable2 []fr.Element
+	// CosetTable[0] = 1
+	// CosetTable[0] = domain.GeneratorSqrt ^ 1
+	// CosetTable[1] = domain.GeneratorSqrt ^ 2
+	// ...
+	// CosetTable = fft.BitReverse(CosetTable)
+	CosetTable []fr.Element
+
+	// CosetTableInv[0] = 1
+	// CosetTableInv[0] = domain.GeneratorSqrtInv ^ 1
+	// CosetTableInv[1] = domain.GeneratorSqrtInv ^ 2
+	// ...
+	// CosetTableInv = fft.BitReverse(CosetTableInv)
+	CosetTableInv []fr.Element
 }
 
 // NewDomain returns a subgroup with a power of 2 cardinality
@@ -108,8 +106,8 @@ func (d *Domain) preComputeTwiddles() {
 
 	d.Twiddles = make([][]fr.Element, nbStages)
 	d.TwiddlesInv = make([][]fr.Element, nbStages)
-	d.ExpTable1 = make([]fr.Element, d.Cardinality)
-	d.ExpTable2 = make([]fr.Element, d.Cardinality)
+	d.CosetTable = make([]fr.Element, d.Cardinality)
+	d.CosetTableInv = make([]fr.Element, d.Cardinality)
 
 	var wg sync.WaitGroup
 
@@ -133,8 +131,8 @@ func (d *Domain) preComputeTwiddles() {
 	}
 
 	expTable := func(sqrt fr.Element, t []fr.Element) {
-		t[0] = d.CardinalityInv
-		precomputeExpTable(d.CardinalityInv, sqrt, t)
+		t[0] = fr.One()
+		precomputeExpTable(sqrt, t)
 		BitReverse(t)
 		wg.Done()
 	}
@@ -142,13 +140,13 @@ func (d *Domain) preComputeTwiddles() {
 	wg.Add(4)
 	go twiddles(d.Twiddles, d.Generator)
 	go twiddles(d.TwiddlesInv, d.GeneratorInv)
-	go expTable(d.GeneratorSqRt, d.ExpTable1)
-	expTable(d.GeneratorSqRtInv, d.ExpTable2)
-
+	go expTable(d.GeneratorSqRt, d.CosetTable)
+	expTable(d.GeneratorSqRtInv, d.CosetTableInv)
 	wg.Wait()
+
 }
 
-func precomputeExpTable(scale, w fr.Element, table []fr.Element) {
+func precomputeExpTable(w fr.Element, table []fr.Element) {
 	n := len(table)
 
 	// see if it makes sense to parallelize exp tables pre-computation
@@ -157,7 +155,7 @@ func precomputeExpTable(scale, w fr.Element, table []fr.Element) {
 	const ratioExpMul = 6000 / 17
 
 	if interval < ratioExpMul {
-		precomputeExpTableChunk(scale, w, 1, table[1:])
+		precomputeExpTableChunk(w, 1, table[1:])
 		return
 	}
 
@@ -171,16 +169,15 @@ func precomputeExpTable(scale, w fr.Element, table []fr.Element) {
 		}
 		wg.Add(1)
 		go func() {
-			precomputeExpTableChunk(scale, w, uint64(start), table[start:end])
+			precomputeExpTableChunk(w, uint64(start), table[start:end])
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 }
 
-func precomputeExpTableChunk(scale, w fr.Element, power uint64, table []fr.Element) {
+func precomputeExpTableChunk(w fr.Element, power uint64, table []fr.Element) {
 	table[0].Exp(w, new(big.Int).SetUint64(power))
-	table[0].Mul(&table[0], &scale)
 	for i := 1; i < len(table); i++ {
 		table[i].Mul(&table[i-1], &w)
 	}

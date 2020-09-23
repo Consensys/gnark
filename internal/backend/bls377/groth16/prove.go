@@ -200,7 +200,7 @@ func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interfa
 	return proof, nil
 }
 
-func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -210,27 +210,27 @@ func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
 	n := len(a)
 
 	// add padding to ensure input length is domain cardinality
-	padding := make([]fr.Element, fftDomain.Cardinality-n)
+	padding := make([]fr.Element, domain.Cardinality-n)
 	a = append(a, padding...)
 	b = append(b, padding...)
 	c = append(c, padding...)
 	n = len(a)
 
-	fft.FFT(a, fftDomain, fft.DIF, true)
-	fft.FFT(b, fftDomain, fft.DIF, true)
-	fft.FFT(c, fftDomain, fft.DIF, true)
+	domain.FFTInverse(a, fft.DIF)
+	domain.FFTInverse(b, fft.DIF)
+	domain.FFTInverse(c, fft.DIF)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
-			a[i].Mul(&a[i], &fftDomain.ExpTable1[i])
-			b[i].Mul(&b[i], &fftDomain.ExpTable1[i])
-			c[i].Mul(&c[i], &fftDomain.ExpTable1[i])
+			a[i].Mul(&a[i], &domain.CosetTable[i])
+			b[i].Mul(&b[i], &domain.CosetTable[i])
+			c[i].Mul(&c[i], &domain.CosetTable[i])
 		}
 	})
 
-	fft.FFT(a, fftDomain, fft.DIT, false)
-	fft.FFT(b, fftDomain, fft.DIT, false)
-	fft.FFT(c, fftDomain, fft.DIT, false)
+	domain.FFT(a, fft.DIT)
+	domain.FFT(b, fft.DIT)
+	domain.FFT(c, fft.DIT)
 
 	var minusTwoInv fr.Element
 	minusTwoInv.SetUint64(2)
@@ -248,11 +248,11 @@ func computeH(a, b, c []fr.Element, fftDomain *fft.Domain) []fr.Element {
 	})
 
 	// ifft_coset
-	fft.FFT(a, fftDomain, fft.DIF, true)
+	domain.FFTInverse(a, fft.DIF)
 
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
-			a[i].Mul(&a[i], &fftDomain.ExpTable2[i]).FromMont()
+			a[i].Mul(&a[i], &domain.CosetTableInv[i]).FromMont()
 		}
 	})
 

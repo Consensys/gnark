@@ -12,45 +12,71 @@ import (
 	{{ template "import_curve" . }}
 )
 
-// FFTType is used in the FFT call to select decimation in time or in frequency
-type FFTType uint8
+// Decimation is used in the FFT call to select decimation in time or in frequency
+type Decimation uint8
 
-// See FFTType and FFT documentation
 const (
-	DIT FFTType = iota
+	DIT Decimation = iota
 	DIF 
 )
 
 // parallelize threshold for a single butterfly op, if the fft stage is not parallelized already
 const butterflyThreshold = 16
 
-// FFT computes (recursively) the discrete Fourier transform of a and stores the result in a.
-// if fType == DIT (decimation in time), the input must be in bit-reversed order
-// if fType == DIF (decimation in frequency), the output will be in bit-reversed order
+// FFT computes (recursively) the discrete Fourier transform of a and stores the result in a
+// if decimation == DIT (decimation in time), the input must be in bit-reversed order
+// if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-func FFT(a []fr.Element, domain *Domain, fType FFTType, inverse bool) {
+func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
 	
 	numCPU := uint(runtime.NumCPU())
 
+	// find the stage where we should stop spawning go routines in our recursive calls
+	// (ie when we have as many go routines running as we have available CPUs)
 	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
 	if numCPU <= 1 {
 		maxSplits = -1
 	}
-	var twiddles [][]fr.Element
-	if inverse {
-		twiddles = domain.TwiddlesInv
-	} else {
-		twiddles = domain.Twiddles
-	}
 
-	switch fType {
+	switch decimation {
 	case DIF:
-		difFFT(a, twiddles, 0, maxSplits,nil)
+		difFFT(a, domain.Twiddles, 0, maxSplits,nil)
 	case DIT:
-		ditFFT(a, twiddles, 0, maxSplits,nil)
+		ditFFT(a, domain.Twiddles, 0, maxSplits,nil)
 	default:
 		panic("not implemented")
 	}
+}
+
+// FFTInverse computes (recursively) the inverse discrete Fourier transform of a and stores the result in a
+// if decimation == DIT (decimation in time), the input must be in bit-reversed order
+// if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
+// len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
+func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation) {
+	
+	numCPU := uint(runtime.NumCPU())
+
+	// find the stage where we should stop spawning go routines in our recursive calls
+	// (ie when we have as many go routines running as we have available CPUs)
+	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
+	if numCPU <= 1 {
+		maxSplits = -1
+	}
+	switch decimation {
+	case DIF:
+		difFFT(a, domain.TwiddlesInv, 0, maxSplits,nil)
+	case DIT:
+		ditFFT(a, domain.TwiddlesInv, 0, maxSplits,nil)
+	default:
+		panic("not implemented")
+	}
+
+	// scale by CardinalityInv
+	utils.Parallelize(len(a), func(start, end int) {
+		for i := start; i < end; i++ {
+			a[i].MulAssign(&domain.CardinalityInv)
+		}
+	})
 }
 
 
@@ -192,8 +218,8 @@ func BitReverse(a []fr.Element) {
 }
 `
 
-// FFTtests ...
-const FFTtests = `
+// FFTTests ...
+const FFTTests = `
 
 import (
 	"math/bits"
@@ -207,7 +233,7 @@ import (
 // --------------------------------------------------------------------
 // utils
 
-func polEval(pol []fr.Element, val fr.Element) fr.Element {
+func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
 	var acc, res, tmp fr.Element
 	res.Set(&pol[0])
 	acc.Set(&val)
@@ -247,13 +273,13 @@ func TestFFT(t *testing.T) {
 			}
 			copy(backupPol, pol)
 
-			FFT(pol, domain, DIF, false)
+			domain.FFT(pol, DIF)
 			BitReverse(pol)
 
 			sample := domain.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
 
-			eval := polEval(backupPol, sample)
+			eval := evaluatePolynomial(backupPol, sample)
 
 			return eval.Equal(&pol[ithpower])
 
@@ -275,12 +301,12 @@ func TestFFT(t *testing.T) {
 			copy(backupPol, pol)
 
 			BitReverse(pol)
-			FFT(pol, domain, DIT, false)
+			domain.FFT(pol, DIT)
 
 			sample := domain.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
 
-			eval := polEval(backupPol, sample)
+			eval := evaluatePolynomial(backupPol, sample)
 
 			return eval.Equal(&pol[ithpower])
 
@@ -288,58 +314,58 @@ func TestFFT(t *testing.T) {
 		gen.IntRange(0, maxSize-1),
 	))
 
-	// properties.Property("bitReverse(DIF FFT(DIT FFT (bitReverse))))==id", prop.ForAll(
+	properties.Property("bitReverse(DIF FFT(DIT FFT (bitReverse))))==id", prop.ForAll(
 
-	// 	func() bool {
+		func() bool {
 
-	// 		pol := make([]fr.Element, maxSize)
-	// 		backupPol := make([]fr.Element, maxSize)
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
 
-	// 		for i := 0; i < maxSize; i++ {
-	// 			pol[i].SetRandom()
-	// 		}
-	// 		copy(backupPol, pol)
-	// 		// for i := 0; i < len(pol); i++ {
-	// 		// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
-	// 		// }
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+			copy(backupPol, pol)
+			// for i := 0; i < len(pol); i++ {
+			// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+			// }
 
-	// 		BitReverse(pol)
-	// 		FFT(pol, domain, DIT, false)
-	// 		//BitReverse(pol)
-	// 		FFT(pol, domain, DIF, true)
-	// 		BitReverse(pol)
+			BitReverse(pol)
+			domain.FFT(pol, DIT)
+			//BitReverse(pol)
+			domain.FFTInverse(pol, DIF)
+			BitReverse(pol)
 
-	// 		check := true
-	// 		for i := 0; i < len(pol); i++ {
-	// 			fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
-	// 		}
-	// 		fmt.Println("")
-	// 		return check
-	// 	},
-	// ))
+			check := true
+			for i := 0; i < len(pol); i++ {
+				fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+			}
+			fmt.Println("")
+			return check
+		},
+	))
 
-	// properties.Property("DIT FFT(DIF FFT)==id", prop.ForAll(
+	properties.Property("DIT FFT(DIF FFT)==id", prop.ForAll(
 
-	// 	func() bool {
+		func() bool {
 
-	// 		pol := make([]fr.Element, maxSize)
-	// 		backupPol := make([]fr.Element, maxSize)
+			pol := make([]fr.Element, maxSize)
+			backupPol := make([]fr.Element, maxSize)
 
-	// 		for i := 0; i < maxSize; i++ {
-	// 			pol[i].SetRandom()
-	// 		}
-	// 			copy(backupPol, pol)
+			for i := 0; i < maxSize; i++ {
+				pol[i].SetRandom()
+			}
+				copy(backupPol, pol)
 
-	// 		FFT(pol, domain, DIF, true)
-	// 		FFT(pol, domain, DIT, false)
+			domain.FFTInverse(pol, DIF)
+			domain.FFT(pol, DIT)
 
-	// 		check := true
-	// 		for i := 0; i < len(pol); i++ {
-	// 			check = check && (pol[i] == backupPol[i])
-	// 		}
-	// 		return check
-	// 	},
-	// ))
+			check := true
+			for i := 0; i < len(pol); i++ {
+				check = check && (pol[i] == backupPol[i])
+			}
+			return check
+		},
+	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 
@@ -388,7 +414,7 @@ func BenchmarkFFT(b *testing.B) {
 			domain := NewDomain(sizeDomain)
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
-				FFT(_pol, domain, DIT, false)
+				domain.FFT(_pol, DIT)
 			}
 		})
 	}

@@ -408,7 +408,7 @@ func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// bitRerverse permutation as in bn256backend.BitReverse , but with []curve.G1Affine
+// bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))

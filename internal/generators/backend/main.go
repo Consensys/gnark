@@ -160,7 +160,7 @@ func generateGroth16(d templateData) error {
 		// generate FFT Tests
 		src := []string{
 			template.ImportCurve,
-			fft.FFTtests,
+			fft.FFTTests,
 		}
 		if err := bavard.Generate(d.RootPath+"fft/fft_test.go", src, d,
 			bavard.Package("fft"),
