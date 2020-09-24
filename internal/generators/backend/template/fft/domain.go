@@ -113,7 +113,7 @@ func (d *Domain) preComputeTwiddles() {
 	// for each fft stage, we pre compute the twiddle factors
 	twiddles := func(t [][]fr.Element, omega fr.Element) {
 		for i := uint(0) ; i < nbStages; i++ {
-			t[i] = make([]fr.Element, 1+(1 << (nbStages-i)))
+			t[i] = make([]fr.Element, 1+(1 << (nbStages-i-1)))
 			var w fr.Element
 			if i == 0 {
 				w = omega
