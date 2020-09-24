@@ -17,7 +17,6 @@
 package fft
 
 import (
-	"fmt"
 	"math/big"
 	"strconv"
 	"testing"
@@ -123,21 +122,16 @@ func TestFFT(t *testing.T) {
 				pol[i].SetRandom()
 			}
 			copy(backupPol, pol)
-			// for i := 0; i < len(pol); i++ {
-			// 	fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
-			// }
 
 			BitReverse(pol)
 			domain.FFT(pol, DIT)
-			//BitReverse(pol)
 			domain.FFTInverse(pol, DIF)
 			BitReverse(pol)
 
 			check := true
 			for i := 0; i < len(pol); i++ {
-				fmt.Println(pol[i].String() + " ==? " + backupPol[i].String())
+				check = check && pol[i].Equal(&backupPol[i])
 			}
-			fmt.Println("")
 			return check
 		},
 	))
@@ -171,7 +165,7 @@ func TestFFT(t *testing.T) {
 
 // --------------------------------------------------------------------
 // benches
-func BenchmarkBitRevese(b *testing.B) {
+func BenchmarkBitReverse(b *testing.B) {
 
 	var maxSize uint
 	maxSize = 1 << 20
