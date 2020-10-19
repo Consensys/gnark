@@ -32,6 +32,10 @@ github.com/consensys/bavard v0.1.6/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQ
 github.com/consensys/goff v0.3.6/go.mod h1:1XDo6jmr1AJlDyCIvXU8IY9sFBxXMqaNWUtq+lDFdDc=
 github.com/consensys/gurvy v0.3.4 h1:x2O9z2c1cNfc4HirrQPx4uR6x6Rn9MFiFJ6CxuzXe70=
 github.com/consensys/gurvy v0.3.4/go.mod h1:aMy/87mklKmgBZMrROplIedAOyz3U6GQVkvvbkE3CxA=
+github.com/consensys/gurvy v0.3.5-0.20201019214553-49e8eb077514 h1:K944ew/uXzVspHbOwS5IibfkwUcobwJ9KADNlRPKgvw=
+github.com/consensys/gurvy v0.3.5-0.20201019214553-49e8eb077514/go.mod h1:aMy/87mklKmgBZMrROplIedAOyz3U6GQVkvvbkE3CxA=
+github.com/consensys/gurvy v0.3.5 h1:oQaYV5wPSypRgoDhpgEDLi5jHPq3DCs+7/obRaR6uHs=
+github.com/consensys/gurvy v0.3.5/go.mod h1:aMy/87mklKmgBZMrROplIedAOyz3U6GQVkvvbkE3CxA=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/etcd v3.3.13+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
