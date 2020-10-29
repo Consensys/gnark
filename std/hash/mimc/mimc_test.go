@@ -34,8 +34,8 @@ import (
 )
 
 type mimcCircuit struct {
-	Data           frontend.Variable `gnark:"data,public"`
-	ExpectedResult frontend.Variable
+	ExpectedResult frontend.Variable `gnark:"data,public"`
+	Data           frontend.Variable
 }
 
 func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {

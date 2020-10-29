@@ -88,10 +88,10 @@ func newMimcBN256(seed string) MiMC {
 func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
-
+	one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
 		//for i := 0; i < 1; i++ {
-		tmp := cs.Add(res, key, h.params[i])
+		tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
 		// res = (res+k+c)^7
 		res = cs.Mul(tmp, tmp)
 		res = cs.Mul(res, tmp)
@@ -107,9 +107,9 @@ func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.V
 func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
-
+	one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
-		tmp := cs.Add(res, key, h.params[i])
+		tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
 		// res = (res+k+c)^5
 		res = cs.Mul(tmp, tmp) // square
 		res = cs.Mul(res, res) // square
