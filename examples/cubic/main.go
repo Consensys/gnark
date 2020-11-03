@@ -24,7 +24,7 @@ func main() {
 	var witness CubicCircuit
 	witness.X.Assign(3)
 	witness.Y.Assign(35)
-	assignment, _ := frontend.ParseWitness(&witness)
+	assignment, _ := frontend.ParseSecretWitness(&witness)
 
 	if err = io.WriteWitness("input.json", assignment); err != nil {
 		panic(err)

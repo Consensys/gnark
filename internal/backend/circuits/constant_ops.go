@@ -25,7 +25,7 @@ func (circuit *constantOpsCircuit) Define(curveID gurvy.ID, cs *frontend.Constra
 }
 
 func init() {
-	var circuit, good, bad constantOpsCircuit
+	var circuit, good, bad, public constantOpsCircuit
 	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
 	if err != nil {
 		panic(err)
@@ -35,7 +35,9 @@ func init() {
 	good.Y.Assign(230)
 
 	bad.X.Assign(12)
-	bad.Y.Assign(228)
+	bad.Y.Assign(241)
 
-	addEntry("constant_ops", r1cs, &good, &bad)
+	public.Y.Assign(230)
+
+	addEntry("constant_ops", r1cs, &good, &bad, &public)
 }

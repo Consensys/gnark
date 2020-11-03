@@ -56,7 +56,7 @@ type VerifyingKey interface {
 
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
 func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
-	_solution, err := frontend.ParseWitness(solution)
+	_solution, err := frontend.ParsePublicWitness(solution)
 	if err != nil {
 		return err
 	}
@@ -74,9 +74,9 @@ func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
 	}
 }
 
-// Prove generate a groth16.Proof
+// Prove returns a proof that the r1cs is solved using solution
 func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}) (Proof, error) {
-	_solution, err := frontend.ParseWitness(solution)
+	_solution, err := frontend.ParseSecretWitness(solution)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,27 @@ func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}) (Proof, error) {
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), _solution)
 	case *backend_bw761.R1CS:
 		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), _solution)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+// ProveUnsafe returns a proof that the r1cs is solved using solution. The full exponentiation
+// is ran wether or not the circuit is satisfied.
+func ProveUnsafe(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}) (Proof, error) {
+	_solution, err := frontend.ParseSecretWitness(solution)
+	if err != nil {
+		return nil, err
+	}
+	switch _r1cs := r1cs.(type) {
+	case *backend_bls377.R1CS:
+		return groth16_bls377.ProveUnsafe(_r1cs, pk.(*groth16_bls377.ProvingKey), _solution), nil
+	case *backend_bls381.R1CS:
+		return groth16_bls381.ProveUnsafe(_r1cs, pk.(*groth16_bls381.ProvingKey), _solution), nil
+	case *backend_bn256.R1CS:
+		return groth16_bn256.ProveUnsafe(_r1cs, pk.(*groth16_bn256.ProvingKey), _solution), nil
+	case *backend_bw761.R1CS:
+		return groth16_bw761.ProveUnsafe(_r1cs, pk.(*groth16_bw761.ProvingKey), _solution), nil
 	default:
 		panic("unrecognized R1CS curve type")
 	}

@@ -25,7 +25,7 @@ func main() {
 	var witness MiMCCircuit
 	witness.PreImage.Assign(35)
 	witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
-	assignment, _ := frontend.ParseWitness(&witness)
+	assignment, _ := frontend.ParseSecretWitness(&witness)
 
 	if err = io.WriteWitness("input.json", assignment); err != nil {
 		panic(err)

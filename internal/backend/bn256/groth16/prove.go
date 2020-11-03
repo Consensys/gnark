@@ -49,8 +49,7 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// Prove creates proof from a circuit
-func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+func prove(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interface{}, unsafe bool) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors
@@ -59,7 +58,9 @@ func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interfac
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbWires)
 	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil {
-		return nil, err
+		if !unsafe {
+			return nil, err
+		}
 	}
 
 	// set the wire values in regular form
@@ -203,6 +204,18 @@ func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interfac
 	<-chKrsDone
 
 	return proof, nil
+}
+
+// Prove creates proof from a circuit
+func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+	return prove(r1cs, pk, solution, false)
+}
+
+// ProveUnsafe creates proof from a circuit. The full multi exponentiation is ran wether or not the circuit is not
+// statisfied.
+func ProveUnsafe(r1cs *bn256backend.R1CS, pk *ProvingKey, solution map[string]interface{}) *Proof {
+	proof, _ := prove(r1cs, pk, solution, true)
+	return proof
 }
 
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {

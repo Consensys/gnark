@@ -26,7 +26,7 @@ func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 }
 
 func init() {
-	var circuit, good, bad expCircuit
+	var circuit, good, bad, public expCircuit
 	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
 	if err != nil {
 		panic(err)
@@ -37,8 +37,10 @@ func init() {
 	good.Y.Assign(4096)
 
 	bad.X.Assign(2)
-	bad.E.Assign(12)
-	bad.Y.Assign(4095)
+	bad.E.Assign(11)
+	bad.Y.Assign(4096)
 
-	addEntry("expo", r1cs, &good, &bad)
+	public.Y.Assign(4096)
+
+	addEntry("expo", r1cs, &good, &bad, &public)
 }
