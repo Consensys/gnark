@@ -176,7 +176,7 @@ func TestIntegrationAPI(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wrongProof, err := groth16.ProveUnsafe(typedR1CS, pk, circuit.Bad)
+			wrongProof, err := groth16.Prove(typedR1CS, pk, circuit.Bad, groth16.Unsafe)
 			if err != nil {
 				t.Fatal(err)
 			}
