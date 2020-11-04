@@ -66,7 +66,7 @@ type VerifyingKey interface {
 
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
 func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
-	_solution, err := frontend.ParsePublicWitness(solution)
+	_solution, err := frontend.ParseWitness(solution)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
 // the multi exponentiation is performed even if the r1cs is not correctly solved.
 func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}, opts ...ProverOpt) (Proof, error) {
 
-	_solution, err := frontend.ParseSecretWitness(solution)
+	_solution, err := frontend.ParseWitness(solution)
 
 	if err != nil {
 		return nil, err

@@ -75,7 +75,11 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	return res, nil
 }
 
-func parseWitness(input interface{}, isPublicWitness bool) (map[string]interface{}, error) {
+// ParseWitness will returns a map[string]interface{} to be used as input in
+// in R1CS.Solve(), groth16.Prove()
+//
+// if input is not already a map[string]interface{}, it must implement frontend.Circuit
+func ParseWitness(input interface{}) (map[string]interface{}, error) {
 	switch c := input.(type) {
 	case map[string]interface{}:
 		return c, nil
@@ -86,22 +90,10 @@ func parseWitness(input interface{}, isPublicWitness bool) (map[string]interface
 
 			v := tInput.Interface().(Variable)
 
-			if isPublicWitness {
-				if visibility != backend.Public {
-					return nil
-				}
-				if v.val == nil {
-					return errors.New(name + " has no assigned value.")
-				}
+			if v.val != nil {
 				toReturn[name] = v.val
-				return nil
 			}
 
-			if v.val == nil {
-				return errors.New(name + " has no assigned value.")
-			}
-
-			toReturn[name] = v.val
 			return nil
 		}
 
@@ -116,20 +108,4 @@ func parseWitness(input interface{}, isPublicWitness bool) (map[string]interface
 		return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit")
 	}
 
-}
-
-// ParsePublicWitness will returns a map[string]interface{} to be used as input in
-// in R1CS.Solve(), groth16.Prove()
-//
-// if input is not already a map[string]interface{}, it must implement frontend.Circuit
-func ParsePublicWitness(input interface{}) (map[string]interface{}, error) {
-	return parseWitness(input, true)
-}
-
-// ParseSecretWitness will returns a map[string]interface{} to be used as input in
-// groth16.Verify()
-//
-// if input is not already a map[string]interface{}, it must implement frontend.Circuit
-func ParseSecretWitness(input interface{}) (map[string]interface{}, error) {
-	return parseWitness(input, false)
 }

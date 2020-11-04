@@ -25,7 +25,7 @@ func main() {
 	witness.X.Assign(2)
 	witness.E.Assign(12)
 	witness.Y.Assign(4096)
-	assignment, _ := frontend.ParseSecretWitness(&witness)
+	assignment, _ := frontend.ParseWitness(&witness)
 
 	if err = io.WriteWitness("input.json", assignment); err != nil {
 		panic(err)

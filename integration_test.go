@@ -58,17 +58,17 @@ func TestIntegrationCLI(t *testing.T) {
 		// 2: input files to disk
 
 		// 2.1 data for the prover
-		proverGood, err := frontend.ParseSecretWitness(_good)
+		proverGood, err := frontend.ParseWitness(_good)
 		if err != nil {
 			panic("invalid good secret assignment:" + err.Error())
 		}
-		proverBad, err := frontend.ParseSecretWitness(_bad)
+		proverBad, err := frontend.ParseWitness(_bad)
 		if err != nil {
 			panic("invalid bad secret assignment:" + err.Error())
 		}
 
 		// 2.2 data for the verifier
-		verifier, err := frontend.ParsePublicWitness(_public)
+		verifier, err := frontend.ParseWitness(_public)
 		if err != nil {
 			panic("invalid good public assignment:" + err.Error())
 		}
