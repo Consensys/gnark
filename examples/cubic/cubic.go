@@ -1,36 +1,9 @@
-package main
+package cubic
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
-
-func main() {
-	var circuit CubicCircuit
-
-	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
-	if err != nil {
-		panic(err)
-	}
-
-	// save the R1CS to disk
-	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
-		panic(err)
-	}
-
-	// good solution
-	var witness CubicCircuit
-	witness.X.Assign(3)
-	witness.Y.Assign(35)
-	assignment, _ := frontend.ParseWitness(&witness)
-
-	if err = io.WriteWitness("input.json", assignment); err != nil {
-		panic(err)
-	}
-
-}
 
 // CubicCircuit defines a simple circuit
 // x**3 + x + 5 == y

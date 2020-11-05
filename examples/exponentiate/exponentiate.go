@@ -1,36 +1,9 @@
-package main
+package exponentiate
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
-
-func main() {
-	var circuit ExponentiateCircuit
-
-	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
-	if err != nil {
-		panic(err)
-	}
-
-	// save the R1CS to disk
-	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
-		panic(err)
-	}
-
-	// good solution
-	var witness ExponentiateCircuit
-	witness.X.Assign(2)
-	witness.E.Assign(12)
-	witness.Y.Assign(4096)
-	assignment, _ := frontend.ParseWitness(&witness)
-
-	if err = io.WriteWitness("input.json", assignment); err != nil {
-		panic(err)
-	}
-}
 
 // ExponentiateCircuit y == x**e
 // only the bitSize least significant bits of e are used

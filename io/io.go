@@ -20,6 +20,7 @@ limitations under the License.
 package io
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -27,6 +28,11 @@ import (
 	"github.com/consensys/gurvy"
 	"github.com/fxamacker/cbor/v2"
 )
+
+type GnarkHeader struct {
+	CurveID gurvy.ID // uint16 2bytes
+	_       [6]byte  // reserved for futur usage.
+}
 
 // CurveObject must know which curve they are tied to
 type CurveObject interface {
@@ -78,24 +84,29 @@ func Write(writer io.Writer, from CurveObject) error {
 	return nil
 }
 
-// PeekCurveID reads the first bytes of the file and tries to decode and return the curveID
-func PeekCurveID(file string) (gurvy.ID, error) {
-	// open file
-	reader, err := os.Open(file)
-	if err != nil {
+// WriteCurveID writes 2 bytes on the writer with specified curveID encoded as BigEndian Uint16
+func WriteCurveID(w io.Writer, id gurvy.ID) error {
+	var buf [2]byte
+	binary.BigEndian.PutUint16(buf[:], uint16(id))
+
+	_, err := w.Write(buf[:])
+	return err
+}
+
+// ReadCurveID reads the first 2 bytes of the reader return the curveID
+// returns gurvy.UNKNOWN and an error if couldn't ready 2 bytes from io.Reader or if Read returned err != EOF
+func ReadCurveID(reader io.Reader) (gurvy.ID, error) {
+	var buf [2]byte
+
+	n, err := reader.Read(buf[:])
+	if n != 2 {
+		return gurvy.UNKNOWN, errors.New("couldn't read 2 bytes and decode curveID")
+	}
+	if err != nil && err != io.EOF {
 		return gurvy.UNKNOWN, err
 	}
-	defer reader.Close()
 
-	// gzip reader
-	decoder := cbor.NewDecoder(reader)
-
-	// decode the curve ID
-	var curveID gurvy.ID
-	if err = decoder.Decode(&curveID); err != nil {
-		return gurvy.UNKNOWN, err
-	}
-	return curveID, nil
+	return gurvy.ID(binary.BigEndian.Uint16(buf[:])), nil
 }
 
 // Read reads bytes from reader and construct object into

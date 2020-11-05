@@ -1,4 +1,4 @@
-package main
+package mimc
 
 import (
 	"testing"

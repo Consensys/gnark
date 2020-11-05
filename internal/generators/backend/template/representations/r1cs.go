@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"math/big"
+	"io"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
@@ -50,10 +51,16 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// GetCurveID returns the curveID of this R1CS
-func (r1cs *R1CS) GetCurveID() gurvy.ID {
-	return gurvy.{{.Curve}}
+// WriteTo ...
+func (r1cs *R1CS) WriteTo(w io.Writer) (n int64, err error) {
+	panic("not implemented")
 }
+
+// ReadFrom ...
+func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
+	panic("not implemented")
+}
+
 
 // IsSolved returns nil if given assignment solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs 

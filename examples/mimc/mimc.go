@@ -1,36 +1,10 @@
-package main
+package mimc
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/io"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
 )
-
-func main() {
-	var circuit MiMCCircuit
-
-	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
-	if err != nil {
-		panic(err)
-	}
-
-	// save the R1CS to disk
-	if err = io.WriteFile("circuit.r1cs", r1cs); err != nil {
-		panic(err)
-	}
-
-	// good solution
-	var witness MiMCCircuit
-	witness.PreImage.Assign(35)
-	witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
-	assignment, _ := frontend.ParseWitness(&witness)
-
-	if err = io.WriteWitness("input.json", assignment); err != nil {
-		panic(err)
-	}
-}
 
 // MiMCCircuit defines a pre-image knowledge proof
 // mimc(secret preImage) = public hash

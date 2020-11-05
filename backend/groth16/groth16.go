@@ -16,12 +16,13 @@
 package groth16
 
 import (
+	"io"
+
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
-	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 
 	"github.com/consensys/gnark/backend/r1cs"
@@ -35,14 +36,16 @@ import (
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type Proof interface {
-	io.CurveObject
+	io.WriterTo
+	io.ReaderFrom
 }
 
 // ProvingKey represents a Groth16 ProvingKey
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type ProvingKey interface {
-	io.CurveObject
+	io.WriterTo
+	io.ReaderFrom
 	IsDifferent(interface{}) bool
 }
 
@@ -50,7 +53,8 @@ type ProvingKey interface {
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type VerifyingKey interface {
-	io.CurveObject
+	io.WriterTo
+	io.ReaderFrom
 	IsDifferent(interface{}) bool
 }
 
@@ -161,11 +165,7 @@ func DummySetup(r1cs r1cs.R1CS) ProvingKey {
 // ReadProvingKey read file at path and attempt to decode it into a ProvingKey object
 //
 // note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadProvingKey(path string) (ProvingKey, error) {
-	curveID, err := io.PeekCurveID(path)
-	if err != nil {
-		return nil, err
-	}
+func ReadProvingKey(reader io.Reader, curveID gurvy.ID) (ProvingKey, error) {
 	var pk ProvingKey
 	switch curveID {
 	case gurvy.BN256:
@@ -180,20 +180,16 @@ func ReadProvingKey(path string) (ProvingKey, error) {
 		panic("not implemented")
 	}
 
-	if err := io.ReadFile(path, pk); err != nil {
+	if _, err := pk.ReadFrom(reader); err != nil {
 		return nil, err
 	}
-	return pk, err
+	return pk, nil
 }
 
 // ReadVerifyingKey read file at path and attempt to decode it into a VerifyingKey
 //
 // note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadVerifyingKey(path string) (VerifyingKey, error) {
-	curveID, err := io.PeekCurveID(path)
-	if err != nil {
-		return nil, err
-	}
+func ReadVerifyingKey(reader io.Reader, curveID gurvy.ID) (VerifyingKey, error) {
 	var vk VerifyingKey
 	switch curveID {
 	case gurvy.BN256:
@@ -208,20 +204,16 @@ func ReadVerifyingKey(path string) (VerifyingKey, error) {
 		panic("not implemented")
 	}
 
-	if err := io.ReadFile(path, vk); err != nil {
+	if _, err := vk.ReadFrom(reader); err != nil {
 		return nil, err
 	}
-	return vk, err
+	return vk, nil
 }
 
 // ReadProof will read proof at given path into a curve-typed object
 //
 // note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadProof(path string) (Proof, error) {
-	curveID, err := io.PeekCurveID(path)
-	if err != nil {
-		return nil, err
-	}
+func ReadProof(reader io.Reader, curveID gurvy.ID) (Proof, error) {
 	var proof Proof
 	switch curveID {
 	case gurvy.BN256:
@@ -236,8 +228,8 @@ func ReadProof(path string) (Proof, error) {
 		panic("not implemented")
 	}
 
-	if err := io.ReadFile(path, proof); err != nil {
+	if _, err := proof.ReadFrom(reader); err != nil {
 		return nil, err
 	}
-	return proof, err
+	return proof, nil
 }

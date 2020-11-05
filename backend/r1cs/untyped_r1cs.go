@@ -15,6 +15,7 @@
 package r1cs
 
 import (
+	"io"
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
@@ -57,9 +58,11 @@ func (r1cs *UntypedR1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// GetCurveID returns gurvy.UNKNOWN as this R1CS is Untyped and have big.Int coefficients
-func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
-	return gurvy.UNKNOWN
+func (r1cs *UntypedR1CS) WriteTo(w io.Writer) (n int64, err error) {
+	panic("not implemented: can't serialize untyped R1CS")
+}
+func (r1cs *UntypedR1CS) ReadFrom(r io.Reader) (n int64, err error) {
+	panic("not implemented: can't deserialize untyped R1CS")
 }
 
 // IsSolved call will panic as we can't solve a UntypedR1CS

@@ -142,6 +142,21 @@ func generateGroth16(d templateData) error {
 	}
 
 	{
+		// marshal
+		src := []string{
+			template.ImportCurve,
+			zkpschemes.Groth16Marshal,
+		}
+		if err := bavard.Generate(d.RootPath+"groth16/marshal.go", src, d,
+			bavard.Package("groth16"),
+			bavard.Apache2("ConsenSys AG", 2020),
+			bavard.GeneratedBy("gnark/internal/generators"),
+		); err != nil {
+			return err
+		}
+	}
+
+	{
 		// generate FFT
 		src := []string{
 			template.ImportCurve,

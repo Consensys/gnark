@@ -16,31 +16,29 @@
 package r1cs
 
 import (
+	"io"
+
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
-	"github.com/consensys/gnark/io"
 	"github.com/consensys/gurvy"
 )
 
 // R1CS represents a rank 1 constraint system
 // it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
 type R1CS interface {
-	io.CurveObject
+	io.WriterTo
+	io.ReaderFrom
 	IsSolved(solution map[string]interface{}) error
 	GetNbConstraints() int
 	GetNbWires() int
 	GetNbCoefficients() int
 }
 
-// Read file at path and attempt to decode it into a R1CS object
+// Read reads reader and attempt to decode it into a R1CS object
 // note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func Read(path string) (R1CS, error) {
-	curveID, err := io.PeekCurveID(path)
-	if err != nil {
-		return nil, err
-	}
+func Read(reader io.Reader, curveID gurvy.ID) (R1CS, error) {
 	var r1cs R1CS
 	switch curveID {
 	case gurvy.BN256:
@@ -55,8 +53,8 @@ func Read(path string) (R1CS, error) {
 		panic("not implemented")
 	}
 
-	if err := io.ReadFile(path, r1cs); err != nil {
+	if _, err := r1cs.ReadFrom(reader); err != nil {
 		return nil, err
 	}
-	return r1cs, err
+	return r1cs, nil
 }
