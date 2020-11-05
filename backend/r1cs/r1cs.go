@@ -36,9 +36,9 @@ type R1CS interface {
 	GetNbCoefficients() int
 }
 
-// Read reads reader and attempt to decode it into a R1CS object
-// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func Read(reader io.Reader, curveID gurvy.ID) (R1CS, error) {
+// New instantiate a concrete curved-typed R1CS and return a R1CS interface
+// This method exists for (de)serialization purposes
+func New(curveID gurvy.ID) R1CS {
 	var r1cs R1CS
 	switch curveID {
 	case gurvy.BN256:
@@ -52,9 +52,5 @@ func Read(reader io.Reader, curveID gurvy.ID) (R1CS, error) {
 	default:
 		panic("not implemented")
 	}
-
-	if _, err := r1cs.ReadFrom(reader); err != nil {
-		return nil, err
-	}
-	return r1cs, nil
+	return r1cs
 }
