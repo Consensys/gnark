@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/fxamacker/cbor/v2"
+
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
+	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gurvy/bw761/fr"
 )
@@ -60,14 +63,23 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// WriteTo ...
-func (r1cs *R1CS) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+// WriteTo encodes R1CS into provided io.Writer using cbor
+func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
+	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
+	encoder := cbor.NewEncoder(&_w)
+
+	// encode our object
+	err := encoder.Encode(r1cs)
+	return _w.N, err
 }
 
-// ReadFrom ...
-func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented")
+// ReadFrom attempts to decode R1CS from io.Reader using cbor
+func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
+	_r := ioutils.ReaderCounter{R: r} // wraps reader to count the bytes read
+	decoder := cbor.NewDecoder(&_r)
+
+	err := decoder.Decode(r1cs)
+	return _r.N, err
 }
 
 // IsSolved returns nil if given assignment solves the R1CS and error otherwise

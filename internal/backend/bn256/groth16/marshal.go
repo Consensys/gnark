@@ -27,6 +27,7 @@ func (p *Proof) WriteTo(w io.Writer) (n int64, err error) {
 
 // ReadFrom ...
 func (p *Proof) ReadFrom(r io.Reader) (n int64, err error) {
+	// use io.LimitReader as proof size is constant.
 	panic("not implemented")
 }
 

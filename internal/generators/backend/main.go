@@ -83,17 +83,34 @@ func generateGroth16(d templateData) error {
 	fmt.Println("generating groth16 backend for ", d.Curve)
 	fmt.Println()
 
-	// generate R1CS.go
-	src := []string{
-		template.ImportCurve,
-		representations.R1CS,
+	// generate r1cs.go
+	{
+		src := []string{
+			template.ImportCurve,
+			representations.R1CS,
+		}
+		if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
+			bavard.Package("backend"),
+			bavard.Apache2("ConsenSys AG", 2020),
+			bavard.GeneratedBy("gnark/internal/generators"),
+		); err != nil {
+			return err
+		}
 	}
-	if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
-		bavard.Package("backend"),
-		bavard.Apache2("ConsenSys AG", 2020),
-		bavard.GeneratedBy("gnark/internal/generators"),
-	); err != nil {
-		return err
+
+	// generate r1cs_test.go
+	{
+		src := []string{
+			template.ImportCurve,
+			representations.R1CSTests,
+		}
+		if err := bavard.Generate(d.RootPath+"r1cs_test.go", src, d,
+			bavard.Package("backend_test"),
+			bavard.Apache2("ConsenSys AG", 2020),
+			bavard.GeneratedBy("gnark/internal/generators"),
+		); err != nil {
+			return err
+		}
 	}
 
 	// groth16

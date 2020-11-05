@@ -12,6 +12,8 @@ import (
 	"github.com/consensys/gnark/backend"
 )
 
+// TODO this is deprecated, we might need a type Witness = map[string]interface{}
+
 // WriteWitness serialize variable map[name]value into file at path
 //
 // map[string]interface{} --> interface must be convertible to big.Int

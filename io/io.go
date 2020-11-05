@@ -29,11 +29,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
-type GnarkHeader struct {
-	CurveID gurvy.ID // uint16 2bytes
-	_       [6]byte  // reserved for futur usage.
-}
-
 // CurveObject must know which curve they are tied to
 type CurveObject interface {
 	GetCurveID() gurvy.ID

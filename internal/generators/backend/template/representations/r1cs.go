@@ -3,14 +3,15 @@ package representations
 // R1CS ...
 const R1CS = `
 
-
 import (
 	"errors"
 	"fmt"
 	"strconv"
 	"math/big"
 	"io"
+	"github.com/fxamacker/cbor/v2"
 
+	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/frontend"
@@ -51,14 +52,23 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// WriteTo ...
-func (r1cs *R1CS) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+// WriteTo encodes R1CS into provided io.Writer using cbor
+func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
+	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written 
+	encoder := cbor.NewEncoder(&_w)
+
+	// encode our object
+	err := encoder.Encode(r1cs)
+	return _w.N, err
 }
 
-// ReadFrom ...
-func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented")
+// ReadFrom attempts to decode R1CS from io.Reader using cbor
+func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
+	_r := ioutils.ReaderCounter{R: r} // wraps reader to count the bytes read 
+	decoder := cbor.NewDecoder(&_r)
+	
+	err := decoder.Decode(r1cs)
+	return _r.N, err
 }
 
 
@@ -350,4 +360,44 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 	}
 }
 
+`
+
+const R1CSTests = `
+import (
+	{{ template "import_backend" . }}
+	"bytes"
+	"testing"
+	"reflect"
+	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gurvy"
+)
+
+
+
+func TestSerialization(t *testing.T) {
+	for name, circuit := range circuits.Circuits {
+		t.Run(name, func(t *testing.T) {
+			r1cs := circuit.R1CS.ToR1CS(gurvy.{{.Curve}})
+			var buffer bytes.Buffer
+			var err error
+			var written, read int64
+			written, err = r1cs.WriteTo(&buffer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var reconstructed {{ toLower .Curve}}backend.R1CS
+			read , err = reconstructed.ReadFrom(&buffer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if written != read {
+				t.Fatal("didn't read same number of bytes we wrote")
+			}
+			// compare both
+			if !reflect.DeepEqual(r1cs, &reconstructed) {
+				t.Fatal("round trip serialization failed")
+			}
+		})
+	}
+}
 `
