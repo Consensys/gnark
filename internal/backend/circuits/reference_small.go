@@ -23,7 +23,7 @@ func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.Cons
 }
 
 func init() {
-	var circuit, good, bad referenceSmallCircuit
+	var circuit, good, bad, public referenceSmallCircuit
 	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
 	if err != nil {
 		panic(err)
@@ -41,8 +41,10 @@ func init() {
 
 	good.Y.Assign(expectedY)
 
-	bad.X.Assign(2)
-	bad.Y.Assign(0)
+	bad.X.Assign(3)
+	bad.Y.Assign(expectedY)
 
-	addEntry("reference_small", r1cs, &good, &bad)
+	public.Y.Assign(expectedY)
+
+	addEntry("reference_small", r1cs, &good, &bad, &public)
 }

@@ -73,7 +73,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	// generate the data to return for the bls377 proof
 	var pk groth16_bls377.ProvingKey
 	groth16_bls377.Setup(r1cs.(*backend_bls377.R1CS), &pk, vk)
-	_proof, err := groth16_bls377.Prove(r1cs.(*backend_bls377.R1CS), &pk, correctAssignment)
+	_proof, err := groth16_bls377.Prove(r1cs.(*backend_bls377.R1CS), &pk, correctAssignment, false)
 	if err != nil {
 		t.Fatal(err)
 	}

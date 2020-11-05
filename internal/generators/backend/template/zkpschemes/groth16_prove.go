@@ -31,27 +31,27 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// Prove creates proof from a circuit
-func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
-	nbPrivateWires := r1cs.NbWires-r1cs.NbPublicWires
-
+// Prove generates the proof of knoweldge of a r1cs with solution.
+// if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
+// the FFTs and MultiExponentiations to compute an (invalid) Proof object
+func Prove(r1cs *{{ toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[string]interface{}, force bool) (*Proof, error) {
+	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality) 
+	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil {
+	if err := r1cs.Solve(solution, a, b, c, wireValues); (err != nil && !force) {
 		return nil, err
 	}
 
 	// set the wire values in regular form
-	utils.Parallelize(len(wireValues), func(start, end int){
+	utils.Parallelize(len(wireValues), func(start, end int) {
 		for i := start; i < end; i++ {
 			wireValues[i].FromMont()
 		}
 	})
-	
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
@@ -59,8 +59,8 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	go func() {
 		h = computeH(a, b, c, &pk.Domain)
 		a = nil
-		b = nil 
-		c = nil 
+		b = nil
+		c = nil
 		chHDone <- struct{}{}
 	}()
 
@@ -77,9 +77,8 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	_r.ToBigInt(&r)
 	_s.ToBigInt(&s)
 
-	// computes r[δ], s[δ], kr[δ] 
-	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r,_s,_kr})
-
+	// computes r[δ], s[δ], kr[δ]
+	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	proof := &Proof{}
 	var bs1, ar curve.G1Jac
@@ -87,7 +86,6 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	// using this ensures that our multiExps running in parallel won't use more than
 	// provided CPUs
 	cpuSemaphore := curve.NewCPUSemaphore(runtime.NumCPU())
-
 
 	chBs1Done := make(chan struct{}, 1)
 	computeBS1 := func() {
@@ -97,7 +95,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 		chBs1Done <- struct{}{}
 	}
 
-	chArDone:= make(chan struct{}, 1)
+	chArDone := make(chan struct{}, 1)
 	computeAR1 := func() {
 		ar.MultiExp(pk.G1.A, wireValues, cpuSemaphore)
 		ar.AddMixed(&pk.G1.Alpha)
@@ -109,18 +107,18 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	chKrsDone := make(chan struct{}, 1)
 	computeKRS := func() {
 		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
-		// however, having similar lengths for our tasks helps with parallelism 
+		// however, having similar lengths for our tasks helps with parallelism
 
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan struct{}, 1)
 		go func() {
-			krs2.MultiExp( pk.G1.Z, h, cpuSemaphore)
+			krs2.MultiExp(pk.G1.Z, h, cpuSemaphore)
 			chKrs2Done <- struct{}{}
 		}()
 		krs.MultiExp(pk.G1.K[:nbPrivateWires], wireValues[:nbPrivateWires], cpuSemaphore)
 		krs.AddMixed(&deltas[2])
 		n := 3
-		for n!=0 {
+		for n != 0 {
 			select {
 			case <-chKrs2Done:
 				krs.AddAssign(&krs2)
@@ -133,7 +131,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 			}
 			n--
 		}
-		
+
 		proof.Krs.FromJacobian(&krs)
 		chKrsDone <- struct{}{}
 	}
@@ -141,7 +139,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 	computeBS2 := func() {
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
-	
+
 		// splitting Bs2 in 3 ensures all our go routines in the prover have similar running time
 		// and is good for parallelism. However, on a machine with limited CPUs, this may not be
 		// a good idea, as the MultiExp scales slightly better than linearly
@@ -149,7 +147,7 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 		if bsSplit > 10 {
 			chDone1 := make(chan struct{}, 1)
 			chDone2 := make(chan struct{}, 1)
-			var bs1,bs2 curve.G2Jac
+			var bs1, bs2 curve.G2Jac
 			go func() {
 				bs1.MultiExp(pk.G2.B[:bsSplit], wireValues[:bsSplit], cpuSemaphore)
 				chDone1 <- struct{}{}
@@ -159,15 +157,15 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 				chDone2 <- struct{}{}
 			}()
 			Bs.MultiExp(pk.G2.B[bsSplit*2:], wireValues[bsSplit*2:], cpuSemaphore)
-			
-			<-chDone1 
+
+			<-chDone1
 			Bs.AddAssign(&bs1)
 			<-chDone2
 			Bs.AddAssign(&bs2)
 		} else {
 			Bs.MultiExp(pk.G2.B, wireValues, cpuSemaphore)
 		}
-	
+
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
 		Bs.AddAssign(&deltaS)
@@ -190,7 +188,6 @@ func Prove(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[st
 
 	return proof, nil
 }
-
 
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 		// H part of Krs

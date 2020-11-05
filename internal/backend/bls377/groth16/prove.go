@@ -49,8 +49,10 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// Prove creates proof from a circuit
-func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interface{}) (*Proof, error) {
+// Prove generates the proof of knoweldge of a r1cs with solution.
+// if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
+// the FFTs and MultiExponentiations to compute an (invalid) Proof object
+func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interface{}, force bool) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors
@@ -58,7 +60,7 @@ func Prove(r1cs *bls377backend.R1CS, pk *ProvingKey, solution map[string]interfa
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil {
+	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil && !force {
 		return nil, err
 	}
 

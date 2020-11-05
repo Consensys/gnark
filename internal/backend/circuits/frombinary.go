@@ -23,7 +23,7 @@ func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.Constrai
 }
 
 func init() {
-	var circuit, good, bad fromBinaryCircuit
+	var circuit, good, bad, public fromBinaryCircuit
 	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
 	if err != nil {
 		panic(err)
@@ -37,9 +37,11 @@ func init() {
 
 	bad.B0.Assign(1)
 	bad.B1.Assign(0)
-	bad.B2.Assign(1)
+	bad.B2.Assign(0)
 	bad.B3.Assign(1)
-	bad.Y.Assign(12)
+	bad.Y.Assign(13)
 
-	addEntry("frombinary", r1cs, &good, &bad)
+	public.Y.Assign(13)
+
+	addEntry("frombinary", r1cs, &good, &bad, &public)
 }
