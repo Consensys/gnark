@@ -249,9 +249,7 @@ func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
 // tests
 
 func TestFFT(t *testing.T) {
-
-	var maxSize int
-	maxSize = 1 << 10
+	const maxSize = 1 << 10
 
 	domain := NewDomain(maxSize)
 
@@ -370,8 +368,7 @@ func TestFFT(t *testing.T) {
 // benches
 func BenchmarkBitReverse(b *testing.B) {
 
-	var maxSize uint
-	maxSize = 1 << 20
+	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
 	for i := uint(0); i < maxSize; i++ {
@@ -393,8 +390,7 @@ func BenchmarkBitReverse(b *testing.B) {
 
 func BenchmarkFFT(b *testing.B) {
 
-	var maxSize uint
-	maxSize = 1 << 20
+	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
 	for i := uint(0); i < maxSize; i++ {
