@@ -74,21 +74,31 @@ func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
 	}
 }
 
-// Prove generate a groth16.Proof
-func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}) (Proof, error) {
+// Prove generates the proof of knoweldge of a r1cs with solution.
+// if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
+// the FFTs and MultiExponentiations to compute an (invalid) Proof object
+func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}, force ...bool) (Proof, error) {
+
 	_solution, err := frontend.ParseWitness(solution)
+
 	if err != nil {
 		return nil, err
 	}
+
+	_force := false
+	if len(force) > 0 {
+		_force = force[0]
+	}
+
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), _solution)
+		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), _solution, _force)
 	case *backend_bls381.R1CS:
-		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), _solution)
+		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), _solution, _force)
 	case *backend_bn256.R1CS:
-		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), _solution)
+		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), _solution, _force)
 	case *backend_bw761.R1CS:
-		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), _solution)
+		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), _solution, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

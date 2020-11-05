@@ -160,7 +160,7 @@ func BenchmarkProver(b *testing.B) {
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, solution)
+			_, _ = bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, solution, false)
 		}
 	})
 }
@@ -174,7 +174,7 @@ func BenchmarkVerifier(b *testing.B) {
 	var pk bls381groth16.ProvingKey
 	var vk bls381groth16.VerifyingKey
 	bls381groth16.Setup(r1cs.(*bls381backend.R1CS), &pk, &vk)
-	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, solution)
+	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, solution, false)
 	if err != nil {
 		panic(err)
 	}

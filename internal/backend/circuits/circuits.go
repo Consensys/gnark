@@ -8,14 +8,14 @@ import (
 
 // TestCircuit are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 type TestCircuit struct {
-	R1CS      *r1cs.UntypedR1CS
-	Good, Bad frontend.Circuit // good and bad witness
+	R1CS              *r1cs.UntypedR1CS
+	Good, Bad, Public frontend.Circuit // good and bad witness for the prover + public verifier data
 }
 
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 var Circuits map[string]TestCircuit
 
-func addEntry(name string, R1CS r1cs.R1CS, good, bad frontend.Circuit) {
+func addEntry(name string, R1CS r1cs.R1CS, proverGood, proverBad, publicData frontend.Circuit) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
 	}
@@ -23,5 +23,5 @@ func addEntry(name string, R1CS r1cs.R1CS, good, bad frontend.Circuit) {
 		panic("name " + name + "already taken by another test circuit ")
 	}
 
-	Circuits[name] = TestCircuit{R1CS.(*r1cs.UntypedR1CS), good, bad}
+	Circuits[name] = TestCircuit{R1CS.(*r1cs.UntypedR1CS), proverGood, proverBad, publicData}
 }

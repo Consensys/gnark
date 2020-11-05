@@ -76,7 +76,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 }
 
 // ParseWitness will returns a map[string]interface{} to be used as input in
-// in R1CS.Solve(), groth16.Prove() or groth16.Verify()
+// in R1CS.Solve(), groth16.Prove()
 //
 // if input is not already a map[string]interface{}, it must implement frontend.Circuit
 func ParseWitness(input interface{}) (map[string]interface{}, error) {
@@ -85,14 +85,18 @@ func ParseWitness(input interface{}) (map[string]interface{}, error) {
 		return c, nil
 	case Circuit:
 		toReturn := make(map[string]interface{})
-		var extractHandler leafHandler = func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error {
+
+		var extractHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+
 			v := tInput.Interface().(Variable)
-			if v.val == nil {
-				return errors.New(name + " has no assigned value.")
+
+			if v.val != nil {
+				toReturn[name] = v.val
 			}
-			toReturn[name] = v.val
+
 			return nil
 		}
+
 		// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
 		// (secret or public inputs)
 		return toReturn, parseType(c, "", backend.Unset, extractHandler)
