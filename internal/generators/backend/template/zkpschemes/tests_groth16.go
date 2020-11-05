@@ -159,7 +159,7 @@ func BenchmarkProver(b *testing.B) {
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution)
+			_, _ = {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
 		}
 	})
 }
@@ -173,7 +173,7 @@ func BenchmarkVerifier(b *testing.B) {
 	var pk {{toLower .Curve}}groth16.ProvingKey
 	var vk {{toLower .Curve}}groth16.VerifyingKey
 	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
-	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution)
+	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
 	if err != nil {
 		panic(err)
 	}
