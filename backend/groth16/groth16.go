@@ -162,10 +162,9 @@ func DummySetup(r1cs r1cs.R1CS) ProvingKey {
 	}
 }
 
-// ReadProvingKey read file at path and attempt to decode it into a ProvingKey object
-//
-// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadProvingKey(reader io.Reader, curveID gurvy.ID) (ProvingKey, error) {
+// NewProvingKey instantiates a curve-typed ProvingKey and returns an interface object
+// This function exists for serialization purposes
+func NewProvingKey(curveID gurvy.ID) ProvingKey {
 	var pk ProvingKey
 	switch curveID {
 	case gurvy.BN256:
@@ -180,16 +179,12 @@ func ReadProvingKey(reader io.Reader, curveID gurvy.ID) (ProvingKey, error) {
 		panic("not implemented")
 	}
 
-	if _, err := pk.ReadFrom(reader); err != nil {
-		return nil, err
-	}
-	return pk, nil
+	return pk
 }
 
-// ReadVerifyingKey read file at path and attempt to decode it into a VerifyingKey
-//
-// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadVerifyingKey(reader io.Reader, curveID gurvy.ID) (VerifyingKey, error) {
+// NewVerifyingKey instantiates a curve-typed VerifyingKey and returns an interface
+// This function exists for serialization purposes
+func NewVerifyingKey(curveID gurvy.ID) VerifyingKey {
 	var vk VerifyingKey
 	switch curveID {
 	case gurvy.BN256:
@@ -204,16 +199,12 @@ func ReadVerifyingKey(reader io.Reader, curveID gurvy.ID) (VerifyingKey, error) 
 		panic("not implemented")
 	}
 
-	if _, err := vk.ReadFrom(reader); err != nil {
-		return nil, err
-	}
-	return vk, nil
+	return vk
 }
 
-// ReadProof will read proof at given path into a curve-typed object
-//
-// note that until v1.X.X serialization (schema-less, disk, network, ..) may change
-func ReadProof(reader io.Reader, curveID gurvy.ID) (Proof, error) {
+// NewProof instantiates a curve-typed Proof and returns an interface
+// This function exists for serialization purposes
+func NewProof(curveID gurvy.ID) Proof {
 	var proof Proof
 	switch curveID {
 	case gurvy.BN256:
@@ -228,8 +219,5 @@ func ReadProof(reader io.Reader, curveID gurvy.ID) (Proof, error) {
 		panic("not implemented")
 	}
 
-	if _, err := proof.ReadFrom(reader); err != nil {
-		return nil, err
-	}
-	return proof, nil
+	return proof
 }
