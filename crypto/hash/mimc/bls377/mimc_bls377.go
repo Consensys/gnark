@@ -163,5 +163,6 @@ func Sum(seed string, msg []byte) []byte {
 	d.Params = params
 	d.Write(msg)
 	h := d.checksum()
-	return h.Bytes()
+	bytes := h.Bytes()
+	return bytes[:]
 }

@@ -37,7 +37,7 @@ func createAccount(i int, h hash.Hash) (Account, eddsa.PrivateKey) {
 	acc.nonce = uint64(i)
 	acc.balance.SetUint64(uint64(i) + 20)
 	rnd.SetUint64(uint64(i))
-	copy(brnd[:], rnd.Bytes())
+	brnd = rnd.Bytes()
 	acc.pubKey, privkey = eddsa.New(brnd, h)
 
 	return acc, privkey
@@ -58,7 +58,8 @@ func createOperator(nbAccounts int) (Operator, []eddsa.PrivateKey) {
 		acc, privkey := createAccount(i, hFunc)
 
 		// fill the index map of the operator
-		operator.AccountMap[string(acc.pubKey.A.X.Bytes())] = acc.index
+		b := acc.pubKey.A.X.Bytes()
+		operator.AccountMap[string(b[:])] = acc.index
 
 		// fill user accounts list
 		userAccounts[i] = privkey

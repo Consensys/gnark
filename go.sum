@@ -30,6 +30,7 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/consensys/bavard v0.1.6 h1:mkiQ3dA49sHVSKS+c+L96VzY+eIMTKHg/AUqG99sgMQ=
 github.com/consensys/bavard v0.1.6/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.7-0.20201105000002-569681c2ffae/go.mod h1:1XDo6jmr1AJlDyCIvXU8IY9sFBxXMqaNWUtq+lDFdDc=
+github.com/consensys/goff v0.3.7-0.20201106140500-45a1e2d330d6/go.mod h1:1XDo6jmr1AJlDyCIvXU8IY9sFBxXMqaNWUtq+lDFdDc=
 github.com/consensys/gurvy v0.3.6-0.20201105000135-253b33526400 h1:LFFxSf83r7GY71cbRGCXS6glefaQo+2+teDKQtM8Dh0=
 github.com/consensys/gurvy v0.3.6-0.20201105000135-253b33526400/go.mod h1:8xXLZUkIkYc8IuvKrN+LQWJKfqNRkMB4w5pQa4euYME=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=

@@ -29,6 +29,17 @@ import (
 	"github.com/fxamacker/cbor/v2"
 )
 
+// WriterRawTo is the interface that wraps the WriteRawTo method.
+//
+// WriteRawTo writes data to w until there's no more data to write or
+// when an error occurs. The return value n is the number of bytes
+// written. Any error encountered during the write is also returned.
+//
+// WriteRawTo may not compress the data (as opposed to WriteTo)
+type WriterRawTo interface {
+	WriteRawTo(w io.Writer) (n int64, err error)
+}
+
 // CurveObject must know which curve they are tied to
 type CurveObject interface {
 	GetCurveID() gurvy.ID

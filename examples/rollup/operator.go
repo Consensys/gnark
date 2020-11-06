@@ -101,7 +101,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	segmentSize := o.h.Size()
 
 	// read sender's account
-	if posSender, ok = o.AccountMap[string(t.senderPubKey.A.X.Bytes())]; !ok {
+	b := t.senderPubKey.A.X.Bytes()
+	if posSender, ok = o.AccountMap[string(b[:])]; !ok {
 		return ErrNonExistingAccount
 	}
 	senderAccount, err := o.readAccount(posSender)
@@ -110,7 +111,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 
 	// read receiver's account
-	if posReceiver, ok = o.AccountMap[string(t.receiverPubKey.A.X.Bytes())]; !ok {
+	b = t.receiverPubKey.A.X.Bytes()
+	if posReceiver, ok = o.AccountMap[string(b[:])]; !ok {
 		return ErrNonExistingAccount
 	}
 	receiverAccount, err := o.readAccount(posReceiver)

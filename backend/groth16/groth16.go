@@ -18,12 +18,14 @@ package groth16
 import (
 	"io"
 
+	"github.com/consensys/gurvy"
+
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
-	"github.com/consensys/gurvy"
+	gnarkio "github.com/consensys/gnark/io"
 
 	"github.com/consensys/gnark/backend/r1cs"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
@@ -36,6 +38,7 @@ import (
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type Proof interface {
+	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
 }

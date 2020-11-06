@@ -53,8 +53,8 @@ func TestVerify(t *testing.T) {
 	var buf bytes.Buffer
 	for i := 0; i < 10; i++ {
 		var leaf fr.Element
-		leaf.SetRandom()
-		buf.Write(leaf.Bytes())
+		b := leaf.SetRandom().Bytes()
+		buf.Write(b[:])
 	}
 
 	// build & verify proof for an elmt in the file

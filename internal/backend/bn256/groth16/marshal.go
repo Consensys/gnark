@@ -17,18 +17,138 @@
 package groth16
 
 import (
+	"errors"
+
+	curve "github.com/consensys/gurvy/bn256"
+
 	"io"
 )
 
-// WriteTo ...
+// WriteTo writes binary encoding of the Proof elements to writer
+// points are stored in compressed form Ar | Krs | Bs
+// use WriteRawTo(...) to encode the proof without point compression
 func (p *Proof) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+	var written int
+
+	// p.Ar
+	buf := p.Ar.Bytes()
+	written, err = w.Write(buf[:])
+	n = int64(written)
+	if err != nil {
+		return
+	}
+
+	// p.Krs
+	buf = p.Krs.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+
+	// p.Bs
+	bufG2 := p.Bs.Bytes()
+	written, err = w.Write(bufG2[:])
+	n += int64(written)
+
+	return
 }
 
-// ReadFrom ...
+// WriteRawTo writes binary encoding of the Proof elements to writer
+// points are stored in uncompressed form Ar | Krs | Bs
+// use WriteTo(...) to encode the proof with point compression
+func (p *Proof) WriteRawTo(w io.Writer) (n int64, err error) {
+	var written int
+
+	// p.Ar
+	buf := p.Ar.RawBytes()
+	written, err = w.Write(buf[:])
+	n = int64(written)
+	if err != nil {
+		return
+	}
+
+	// p.Krs
+	buf = p.Krs.RawBytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+
+	// p.Bs
+	bufG2 := p.Bs.RawBytes()
+	written, err = w.Write(bufG2[:])
+	n += int64(written)
+
+	return
+}
+
+// ReadFrom attempts to decode a Proof from reader
+// Proof must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
+// note that we don't check that the points are on the curve or in the correct subgroup at this point
 func (p *Proof) ReadFrom(r io.Reader) (n int64, err error) {
-	// use io.LimitReader as proof size is constant.
-	panic("not implemented")
+
+	var buf [curve.SizeOfG2Uncompressed]byte
+	var read int
+
+	// read p.Ar
+	read, err = io.ReadFull(r, buf[:curve.SizeOfG1Uncompressed])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	var consumed int
+	consumed, err = p.Ar.SetBytes(buf[:curve.SizeOfG1Uncompressed])
+	if err != nil {
+		return
+	}
+
+	if consumed == curve.SizeOfG1Compressed {
+		// proof is compressed
+		// we have to use the other half of the first buffer read
+		_, err = p.Krs.SetBytes(buf[curve.SizeOfG1Compressed:])
+		if err != nil {
+			return
+		}
+
+		// read Bs
+		read, err = io.ReadFull(r, buf[:curve.SizeOfG2Compressed])
+		n += int64(read)
+		if err != nil {
+			return
+		}
+
+		_, err = p.Bs.SetBytes(buf[:])
+		return
+	}
+
+	// proof is raw
+	// read p.Krs
+	read, err = io.ReadFull(r, buf[:curve.SizeOfG1Uncompressed])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	if consumed, err = p.Krs.SetBytes(buf[:curve.SizeOfG1Uncompressed]); err != nil {
+		return
+	}
+	if consumed != curve.SizeOfG1Uncompressed {
+		err = errors.New("invalid proof: p.Ar is compressed, p.Krs is not")
+	}
+
+	// read p.Bs
+	read, err = io.ReadFull(r, buf[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	consumed, err = p.Bs.SetBytes(buf[:])
+	if consumed != curve.SizeOfG2Uncompressed {
+		err = errors.New("invalid proof: p.Ar, p.Krs are compressed, p.Bs is not")
+	}
+
+	return
 }
 
 // WriteTo ...

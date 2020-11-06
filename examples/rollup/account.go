@@ -59,11 +59,14 @@ func (ac *Account) Serialize() []byte {
 	binary.BigEndian.PutUint64(res[56:], ac.nonce) // same for nonce
 
 	// balance
-	copy(res[64:], ac.balance.Bytes())
+	buf := ac.balance.Bytes()
+	copy(res[64:], buf[:])
 
 	// public key
-	copy(res[96:], ac.pubKey.A.X.Bytes())
-	copy(res[128:], ac.pubKey.A.Y.Bytes())
+	buf = ac.pubKey.A.X.Bytes()
+	copy(res[96:], buf[:])
+	buf = ac.pubKey.A.Y.Bytes()
+	copy(res[128:], buf[:])
 
 	return res[:]
 }

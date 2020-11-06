@@ -63,7 +63,8 @@ func TestMimcBN256(t *testing.T) {
 	}
 
 	// running MiMC (Go)
-	b := mimcbn256.Sum("seed", data.Bytes())
+	dataBytes := data.Bytes()
+	b := mimcbn256.Sum("seed", dataBytes[:])
 	var tmp fr_bn256.Element
 	tmp.SetBytes(b)
 	witness.Data.Assign(data)
@@ -89,7 +90,8 @@ func TestMimcBLS381(t *testing.T) {
 	}
 
 	// running MiMC (Go)
-	b := mimcbls381.Sum("seed", data.Bytes())
+	dataBytes := data.Bytes()
+	b := mimcbls381.Sum("seed", dataBytes[:])
 	var tmp fr_bls381.Element
 	tmp.SetBytes(b)
 	witness.Data.Assign(data)
@@ -115,7 +117,8 @@ func TestMimcBLS377(t *testing.T) {
 	}
 
 	// running MiMC (Go)
-	b := mimcbls377.Sum("seed", data.Bytes())
+	dataBytes := data.Bytes()
+	b := mimcbls377.Sum("seed", dataBytes[:])
 	var tmp fr_bls377.Element
 	tmp.SetBytes(b)
 	witness.Data.Assign(data)

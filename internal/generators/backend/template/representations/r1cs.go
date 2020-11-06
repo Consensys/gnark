@@ -64,11 +64,10 @@ func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
-	_r := ioutils.ReaderCounter{R: r} // wraps reader to count the bytes read 
-	decoder := cbor.NewDecoder(&_r)
+	decoder := cbor.NewDecoder(r)
 	
 	err := decoder.Decode(r1cs)
-	return _r.N, err
+	return int64(decoder.NumBytesRead()), err
 }
 
 
