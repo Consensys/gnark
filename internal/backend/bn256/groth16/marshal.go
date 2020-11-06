@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"encoding/binary"
 	"errors"
 
 	curve "github.com/consensys/gurvy/bn256"
@@ -161,12 +162,363 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented")
 }
 
-// WriteTo ...
-func (vk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+// WriteTo writes binary encoding of the key elements to writer
+// points are compressed
+// use WriteRawTo(...) to encode the key without point compression
+func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
+	n, err = pk.Domain.WriteTo(w)
+	if err != nil {
+		return
+	}
+
+	err = binary.Write(w, binary.BigEndian, pk.NbWires)
+	if err != nil {
+		return
+	}
+	n += 8
+	err = binary.Write(w, binary.BigEndian, pk.NbPrivateWires)
+	if err != nil {
+		return
+	}
+	n += 8
+
+	// assert private wires and wires match sizes of slices in pk
+	if (int(pk.NbWires) != len(pk.G1.A)) ||
+		(int(pk.NbWires) != len(pk.G1.B)) ||
+		(int(pk.NbWires) != len(pk.G2.B)) ||
+		(int(pk.NbPrivateWires) != len(pk.G1.K)) ||
+		(int(pk.Domain.Cardinality) != len(pk.G1.Z)) {
+		panic("proving key is in inconsistent state")
+	}
+
+	// write G1 elements
+	{
+		var written int
+
+		buf := pk.G1.Alpha.Bytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G1.Beta.Bytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G1.Delta.Bytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		var n1 int64
+		n1, err = writeG1Slices(w, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
+		n += n1
+		if err != nil {
+			return
+		}
+	}
+
+	// write G2 elements
+	{
+		var written int
+
+		buf := pk.G2.Beta.Bytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G2.Delta.Bytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		for i := 0; i < len(pk.G2.B); i++ {
+			buf = pk.G2.B[i].Bytes()
+			written, err = w.Write(buf[:])
+			n += int64(written)
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	return
 }
 
-// ReadFrom ...
-func (vk *ProvingKey) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented")
+// WriteRawTo writes binary encoding of the key elements to writer
+// points are not compressed
+// use WriteTo(...) to encode the key with point compression
+func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
+	n, err = pk.Domain.WriteTo(w)
+	if err != nil {
+		return
+	}
+
+	err = binary.Write(w, binary.BigEndian, pk.NbWires)
+	if err != nil {
+		return
+	}
+	n += 8
+	err = binary.Write(w, binary.BigEndian, pk.NbPrivateWires)
+	if err != nil {
+		return
+	}
+	n += 8
+
+	// assert private wires and wires match sizes of slices in pk
+	if (int(pk.NbWires) != len(pk.G1.A)) ||
+		(int(pk.NbWires) != len(pk.G1.B)) ||
+		(int(pk.NbWires) != len(pk.G2.B)) ||
+		(int(pk.NbPrivateWires) != len(pk.G1.K)) ||
+		(int(pk.Domain.Cardinality) != len(pk.G1.Z)) {
+		panic("proving key is in inconsistent state")
+	}
+
+	// write G1 elements
+	{
+		var written int
+
+		buf := pk.G1.Alpha.RawBytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G1.Beta.RawBytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G1.Delta.RawBytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		var n1 int64
+		n1, err = writeG1SlicesRaw(w, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
+		n += n1
+		if err != nil {
+			return
+		}
+
+	}
+
+	// write G2 elements
+	{
+		var written int
+
+		buf := pk.G2.Beta.RawBytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		buf = pk.G2.Delta.RawBytes()
+		written, err = w.Write(buf[:])
+		n += int64(written)
+		if err != nil {
+			return
+		}
+
+		for i := 0; i < len(pk.G2.B); i++ {
+			buf = pk.G2.B[i].RawBytes()
+			written, err = w.Write(buf[:])
+			n += int64(written)
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	return
+}
+
+// ReadFrom attempts to decode a ProvingKey from reader
+// ProvingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
+// note that we don't check that the points are on the curve or in the correct subgroup at this point
+// TODO while Proof points correctness is checkd in the Verifier, here may be a good place to check key
+func (pk *ProvingKey) ReadFrom(r io.Reader) (n int64, err error) {
+
+	n, err = pk.Domain.ReadFrom(r)
+	if err != nil {
+		return
+	}
+
+	// read NbWires and NbPrivateWires
+	var buf [curve.SizeOfG2Uncompressed]byte
+	var read int
+
+	read, err = io.ReadFull(r, buf[:8])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	pk.NbWires = binary.BigEndian.Uint64(buf[:8])
+
+	read, err = io.ReadFull(r, buf[:8])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	pk.NbPrivateWires = binary.BigEndian.Uint64(buf[:8])
+
+	// allocate our slices
+	pk.G1.A = make([]curve.G1Affine, pk.NbWires)
+	pk.G1.B = make([]curve.G1Affine, pk.NbWires)
+	pk.G1.K = make([]curve.G1Affine, pk.NbPrivateWires)
+	pk.G1.Z = make([]curve.G1Affine, pk.Domain.Cardinality)
+	pk.G2.B = make([]curve.G2Affine, pk.NbWires)
+
+	// read our points
+	offset := curve.SizeOfG1Uncompressed
+
+	// read pk.Alpha
+	read, err = io.ReadFull(r, buf[:offset])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	var consumed int
+	consumed, err = pk.G1.Alpha.SetBytes(buf[:offset])
+	if err != nil {
+		return
+	}
+
+	if consumed == curve.SizeOfG1Compressed {
+		offset = curve.SizeOfG1Compressed
+
+		// consume the second part of our buffer that was already read from reader
+		_, err = pk.G1.Beta.SetBytes(buf[curve.SizeOfG1Compressed:curve.SizeOfG1Uncompressed])
+		if err != nil {
+			return
+		}
+	} else {
+		// read pk.G1.Beta
+		read, err = io.ReadFull(r, buf[:offset])
+		n += int64(read)
+		if err != nil {
+			return
+		}
+		if _, err = pk.G1.Beta.SetBytes(buf[:offset]); err != nil {
+			return
+		}
+	}
+	// read pk.G1.Delta
+	read, err = io.ReadFull(r, buf[:offset])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	if _, err = pk.G1.Delta.SetBytes(buf[:offset]); err != nil {
+		return
+	}
+
+	var n1 int64
+	n1, err = readG1Slices(r, offset, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
+	n += n1
+	if err != nil {
+		return
+	}
+
+	// read G2 elements
+	if offset == curve.SizeOfG1Compressed {
+		offset = curve.SizeOfG2Compressed
+	} else {
+		offset = curve.SizeOfG2Uncompressed
+	}
+
+	read, err = io.ReadFull(r, buf[:offset])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	if _, err = pk.G2.Beta.SetBytes(buf[:offset]); err != nil {
+		return
+	}
+
+	read, err = io.ReadFull(r, buf[:offset])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	if _, err = pk.G2.Delta.SetBytes(buf[:offset]); err != nil {
+		return
+	}
+
+	for i := 0; i < len(pk.G2.B); i++ {
+		read, err = io.ReadFull(r, buf[:offset])
+		n += int64(read)
+		if err != nil {
+			return
+		}
+		if _, err = pk.G2.B[i].SetBytes(buf[:offset]); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func readG1Slices(r io.Reader, offset int, slices ...[]curve.G1Affine) (n int64, err error) {
+	var buf [curve.SizeOfG1Uncompressed]byte
+	var read int
+	for j := 0; j < len(slices); j++ {
+		for i := 0; i < len(slices[j]); i++ {
+			read, err = io.ReadFull(r, buf[:offset])
+			n += int64(read)
+			if err != nil {
+				return
+			}
+			if _, err = slices[j][i].SetBytes(buf[:offset]); err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func writeG1Slices(w io.Writer, slices ...[]curve.G1Affine) (n int64, err error) {
+	var written int
+	for j := 0; j < len(slices); j++ {
+		for i := 0; i < len(slices[j]); i++ {
+			buf := slices[j][i].Bytes()
+			written, err = w.Write(buf[:])
+			n += int64(written)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func writeG1SlicesRaw(w io.Writer, slices ...[]curve.G1Affine) (n int64, err error) {
+	var written int
+	for j := 0; j < len(slices); j++ {
+		for i := 0; i < len(slices[j]); i++ {
+			buf := slices[j][i].RawBytes()
+			written, err = w.Write(buf[:])
+			n += int64(written)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
 }

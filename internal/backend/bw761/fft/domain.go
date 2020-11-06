@@ -17,6 +17,8 @@
 package fft
 
 import (
+	"encoding/binary"
+	"io"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -24,6 +26,102 @@ import (
 
 	"github.com/consensys/gurvy/bw761/fr"
 )
+
+// WriteTo writes a binary representation of the domain (without the precomputed twiddle factors)
+// to the provided writer
+func (d *Domain) WriteTo(w io.Writer) (n int64, err error) {
+	var written int
+
+	err = binary.Write(w, binary.BigEndian, d.Cardinality)
+	if err != nil {
+		return
+	}
+	n += 8
+
+	buf := d.CardinalityInv.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+	buf = d.Generator.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+	buf = d.GeneratorInv.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+	buf = d.GeneratorSqRt.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	if err != nil {
+		return
+	}
+	buf = d.GeneratorSqRtInv.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
+	return
+}
+
+// ReadFrom attempts to decode a domain from Reader
+func (d *Domain) ReadFrom(r io.Reader) (n int64, err error) {
+	var buf [8]byte
+	var read int
+
+	// read d.Cardinality
+	read, err = io.ReadFull(r, buf[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.Cardinality = binary.BigEndian.Uint64(buf[:])
+
+	var bufElement [fr.Limbs * 8]byte
+
+	read, err = io.ReadFull(r, bufElement[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.CardinalityInv.SetBytes(bufElement[:])
+
+	read, err = io.ReadFull(r, bufElement[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.Generator.SetBytes(bufElement[:])
+
+	read, err = io.ReadFull(r, bufElement[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.GeneratorInv.SetBytes(bufElement[:])
+
+	read, err = io.ReadFull(r, bufElement[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.GeneratorSqRt.SetBytes(bufElement[:])
+
+	read, err = io.ReadFull(r, bufElement[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	d.GeneratorSqRtInv.SetBytes(bufElement[:])
+
+	d.preComputeTwiddles()
+
+	return
+}
 
 // Domain with a power of 2 cardinality
 // compute a field element of order 2x and store it in GeneratorSqRt

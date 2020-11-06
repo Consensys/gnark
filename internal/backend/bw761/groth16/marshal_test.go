@@ -21,6 +21,7 @@ import (
 	"math/big"
 	"reflect"
 
+	"github.com/consensys/gnark/internal/backend/bw761/fft"
 	curve "github.com/consensys/gurvy/bw761"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"
@@ -59,7 +60,7 @@ func TestProofSerialization(t *testing.T) {
 			}
 
 			var bufRaw bytes.Buffer
-			written, err = proof.WriteTo(&bufRaw)
+			written, err = proof.WriteRawTo(&bufRaw)
 			if err != nil {
 				return false
 			}
@@ -76,6 +77,75 @@ func TestProofSerialization(t *testing.T) {
 			return reflect.DeepEqual(&proof, &pCompressed) && reflect.DeepEqual(&proof, &pRaw)
 		},
 		GenG1(),
+		GenG1(),
+		GenG2(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+func TestProvingKeySerialization(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 10
+
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
+		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
+			var pk, pkCompressed, pkRaw ProvingKey
+
+			// create a random pk
+			domain := fft.NewDomain(8)
+			pk.Domain = *domain
+
+			pk.NbWires = 6
+			pk.NbPrivateWires = 4
+
+			// allocate our slices
+			pk.G1.A = make([]curve.G1Affine, pk.NbWires)
+			pk.G1.B = make([]curve.G1Affine, pk.NbWires)
+			pk.G1.K = make([]curve.G1Affine, pk.NbPrivateWires)
+			pk.G1.Z = make([]curve.G1Affine, pk.Domain.Cardinality)
+			pk.G2.B = make([]curve.G2Affine, pk.NbWires)
+
+			pk.G1.Alpha = p1
+			pk.G2.Beta = p2
+			pk.G1.K[1] = p1
+			pk.G1.B[0] = p1
+			pk.G2.B[0] = p2
+
+			var bufCompressed bytes.Buffer
+			written, err := pk.WriteTo(&bufCompressed)
+			if err != nil {
+				return false
+			}
+
+			read, err := pkCompressed.ReadFrom(&bufCompressed)
+			if err != nil {
+				return false
+			}
+
+			if read != written {
+				return false
+			}
+
+			var bufRaw bytes.Buffer
+			written, err = pk.WriteRawTo(&bufRaw)
+			if err != nil {
+				return false
+			}
+
+			read, err = pkRaw.ReadFrom(&bufRaw)
+			if err != nil {
+				return false
+			}
+
+			if read != written {
+				return false
+			}
+
+			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
+		},
 		GenG1(),
 		GenG2(),
 	))
