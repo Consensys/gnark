@@ -168,7 +168,7 @@ func BenchmarkBitReverse(b *testing.B) {
 	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
-	for i := uint(0); i < maxSize; i++ {
+	for i := uint64(0); i < maxSize; i++ {
 		pol[i].SetRandom()
 	}
 
@@ -190,7 +190,7 @@ func BenchmarkFFT(b *testing.B) {
 	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
-	for i := uint(0); i < maxSize; i++ {
+	for i := uint64(0); i < maxSize; i++ {
 		pol[i].SetRandom()
 	}
 
@@ -199,7 +199,7 @@ func BenchmarkFFT(b *testing.B) {
 			sizeDomain := 1 << i
 			_pol := make([]fr.Element, sizeDomain)
 			copy(_pol, pol)
-			domain := NewDomain(sizeDomain)
+			domain := NewDomain(uint64(sizeDomain))
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
 				domain.FFT(_pol, DIT)

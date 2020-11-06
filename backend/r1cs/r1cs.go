@@ -31,8 +31,8 @@ type R1CS interface {
 	io.WriterTo
 	io.ReaderFrom
 	IsSolved(solution map[string]interface{}) error
-	GetNbConstraints() int
-	GetNbWires() int
+	GetNbConstraints() uint64
+	GetNbWires() uint64
 	GetNbCoefficients() int
 }
 

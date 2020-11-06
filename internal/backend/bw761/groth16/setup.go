@@ -30,6 +30,7 @@ import (
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type ProvingKey struct {
 	// [α]1, [β]1, [δ]1
 	// [A(t)]1, [B(t)]1, [Kpk(t)]1, [Z(t)]1
@@ -49,6 +50,7 @@ type ProvingKey struct {
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type VerifyingKey struct {
 	// e(α, β)
 	E curve.GT
@@ -82,13 +84,12 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	*/
 
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbWires
-	nbPublicWires := r1cs.NbPublicWires
-	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
-	nbConstraints := r1cs.NbConstraints
+	nbWires := int(r1cs.NbWires)
+	nbPublicWires := int(r1cs.NbPublicWires)
+	nbPrivateWires := int(r1cs.NbWires - r1cs.NbPublicWires)
 
 	// Setting group for fft
-	domain := fft.NewDomain(nbConstraints)
+	domain := fft.NewDomain(r1cs.NbConstraints)
 
 	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
 	vk.PublicInputs = r1cs.PublicWires
@@ -143,10 +144,10 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	}
 
 	// convert A and B to regular form
-	for i := 0; i < nbWires; i++ {
+	for i := 0; i < int(nbWires); i++ {
 		A[i].FromMont()
 	}
-	for i := 0; i < nbWires; i++ {
+	for i := 0; i < int(nbWires); i++ {
 		B[i].FromMont()
 	}
 
@@ -155,17 +156,17 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	one := fr.One()
 	var zdt fr.Element
 
-	zdt.Exp(toxicWaste.t, new(big.Int).SetUint64(uint64(domain.Cardinality))).
+	zdt.Exp(toxicWaste.t, new(big.Int).SetUint64(domain.Cardinality)).
 		Sub(&zdt, &one).
 		Div(&zdt, &toxicWaste.delta) // sets Zdt to Zdt/delta
 
-	for i := 0; i < domain.Cardinality; i++ {
+	for i := 0; i < int(domain.Cardinality); i++ {
 		Z[i] = zdt.ToRegular()
 		zdt.MulAssign(&toxicWaste.t)
 	}
 
 	// compute our batch scalar multiplication with g1 elements
-	g1Scalars := make([]fr.Element, 0, (nbWires*3)+domain.Cardinality+3)
+	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
@@ -190,10 +191,10 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
 
-	pk.G1.Z = g1PointsAff[offset : offset+domain.Cardinality]
+	pk.G1.Z = g1PointsAff[offset : offset+int(domain.Cardinality)]
 	bitReverse(pk.G1.Z)
 
-	offset += domain.Cardinality
+	offset += int(domain.Cardinality)
 
 	vk.G1.K = g1PointsAff[offset:]
 
@@ -340,7 +341,7 @@ func DummySetup(r1cs *bw761backend.R1CS, pk *ProvingKey) {
 	var r2Aff curve.G2Affine
 	r2Jac.ScalarMultiplication(&g2, &b)
 	r2Aff.FromJacobian(&r2Jac)
-	for i := 0; i < nbWires; i++ {
+	for i := 0; i < int(nbWires); i++ {
 		pk.G1.A[i] = r1Aff
 		pk.G1.B[i] = r1Aff
 		pk.G2.B[i] = r2Aff

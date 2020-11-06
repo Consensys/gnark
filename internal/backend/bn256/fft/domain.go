@@ -29,12 +29,12 @@ import (
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
 type Domain struct {
+	Cardinality      uint64
+	CardinalityInv   fr.Element
 	Generator        fr.Element
 	GeneratorInv     fr.Element
 	GeneratorSqRt    fr.Element // generator of 2 adic subgroup of order 2*nb_constraints
 	GeneratorSqRtInv fr.Element
-	Cardinality      int
-	CardinalityInv   fr.Element
 
 	// TODO -- the following pre-computed slices need not to be serialized, they can be re-computed
 
@@ -65,21 +65,21 @@ type Domain struct {
 // cardinality >= m
 // compute a field element of order 2x and store it in GeneratorSqRt
 // all other values can be derived from x, GeneratorSqrt
-func NewDomain(m int) *Domain {
+func NewDomain(m uint64) *Domain {
 
 	// generator of the largest 2-adic subgroup
 	var rootOfUnity fr.Element
 
 	rootOfUnity.SetString("19103219067921713944291392827692070036145651957329286315305642004821462161904")
-	const maxOrderRoot uint = 28
+	const maxOrderRoot uint64 = 28
 
 	subGroup := &Domain{}
-	x := nextPowerOfTwo(uint(m))
+	x := nextPowerOfTwo(m)
 
 	// maxOderRoot is the largest power-of-two order for any element in the field
 	// set subGroup.GeneratorSqRt = rootOfUnity^(2^(maxOrderRoot-log(x)-1))
 	// to this end, compute expo = 2^(maxOrderRoot-log(x)-1)
-	logx := uint(bits.TrailingZeros(x))
+	logx := uint64(bits.TrailingZeros64(x))
 	if logx > maxOrderRoot-1 {
 		panic("m is too big: the required root of unity does not exist")
 	}
@@ -89,7 +89,7 @@ func NewDomain(m int) *Domain {
 
 	// Generator = GeneratorSqRt^2 has order x
 	subGroup.Generator.Mul(&subGroup.GeneratorSqRt, &subGroup.GeneratorSqRt) // order x
-	subGroup.Cardinality = int(x)
+	subGroup.Cardinality = uint64(x)
 	subGroup.GeneratorSqRtInv.Inverse(&subGroup.GeneratorSqRt)
 	subGroup.GeneratorInv.Inverse(&subGroup.Generator)
 	subGroup.CardinalityInv.SetUint64(uint64(x)).Inverse(&subGroup.CardinalityInv)
@@ -102,7 +102,7 @@ func NewDomain(m int) *Domain {
 
 func (d *Domain) preComputeTwiddles() {
 	// nb fft stages
-	nbStages := uint(bits.TrailingZeros(uint(d.Cardinality)))
+	nbStages := uint64(bits.TrailingZeros64(d.Cardinality))
 
 	d.Twiddles = make([][]fr.Element, nbStages)
 	d.TwiddlesInv = make([][]fr.Element, nbStages)
@@ -113,7 +113,7 @@ func (d *Domain) preComputeTwiddles() {
 
 	// for each fft stage, we pre compute the twiddle factors
 	twiddles := func(t [][]fr.Element, omega fr.Element) {
-		for i := uint(0); i < nbStages; i++ {
+		for i := uint64(0); i < nbStages; i++ {
 			t[i] = make([]fr.Element, 1+(1<<(nbStages-i-1)))
 			var w fr.Element
 			if i == 0 {
@@ -183,8 +183,8 @@ func precomputeExpTableChunk(w fr.Element, power uint64, table []fr.Element) {
 	}
 }
 
-func nextPowerOfTwo(n uint) uint {
-	p := uint(1)
+func nextPowerOfTwo(n uint64) uint64 {
+	p := uint64(1)
 	if (n & (n - 1)) == 0 {
 		return n
 	}

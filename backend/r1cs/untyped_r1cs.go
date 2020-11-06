@@ -28,28 +28,28 @@ import (
 // are big.Int and not tied to a curve base field
 type UntypedR1CS struct {
 	// Wires
-	NbWires       int
-	NbPublicWires int // includes ONE wire
-	NbSecretWires int
+	NbWires       uint64
+	NbPublicWires uint64 // includes ONE wire
+	NbSecretWires uint64
 	SecretWires   []string // private wire names
 	PublicWires   []string // public wire names
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
 	// Constraints
-	NbConstraints   int // total number of constraints
-	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
+	NbConstraints   uint64 // total number of constraints
+	NbCOConstraints uint64 // number of constraints that need to be solved, the first of the Constraints slice
 	Constraints     []r1c.R1C
 	Coefficients    []big.Int
 }
 
 // GetNbConstraints returns the number of constraints
-func (r1cs *UntypedR1CS) GetNbConstraints() int {
+func (r1cs *UntypedR1CS) GetNbConstraints() uint64 {
 	return r1cs.NbConstraints
 }
 
 // GetNbWires returns the number of wires
-func (r1cs *UntypedR1CS) GetNbWires() int {
+func (r1cs *UntypedR1CS) GetNbWires() uint64 {
 	return r1cs.NbWires
 }
 

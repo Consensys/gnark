@@ -161,11 +161,11 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 
 	// setting up the result
 	res := r1cs.UntypedR1CS{
-		NbWires:         len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables),
-		NbPublicWires:   len(cs.public.variables),
-		NbSecretWires:   len(cs.secret.variables),
-		NbConstraints:   len(cs.constraints) + len(cs.assertions),
-		NbCOConstraints: len(cs.constraints),
+		NbWires:         uint64(len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables)),
+		NbPublicWires:   uint64(len(cs.public.variables)),
+		NbSecretWires:   uint64(len(cs.secret.variables)),
+		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
+		NbCOConstraints: uint64(len(cs.constraints)),
 		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
 		SecretWires:     cs.secret.names,
 		PublicWires:     cs.public.names,

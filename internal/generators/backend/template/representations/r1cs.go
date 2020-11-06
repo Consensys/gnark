@@ -22,28 +22,28 @@ import (
 // R1CS decsribes a set of R1CS constraint 
 type R1CS struct {
 	// Wires
-	NbWires        int
-	NbPublicWires  int // includes ONE wire
-	NbSecretWires int
+	NbWires        uint64
+	NbPublicWires  uint64 // includes ONE wire
+	NbSecretWires uint64
 	SecretWires   []string         // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	PublicWires    []string         // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
 	// Constraints
-	NbConstraints   int // total number of constraints
-	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
+	NbConstraints   uint64 // total number of constraints
+	NbCOConstraints uint64 // number of constraints that need to be solved, the first of the Constraints slice
 	Constraints     []r1c.R1C
 	Coefficients 	[]fr.Element // R1C coefficients indexes point here
 }
 
 // GetNbConstraints returns the number of constraints
-func (r1cs *R1CS) GetNbConstraints() int {
+func (r1cs *R1CS) GetNbConstraints() uint64 {
 	return r1cs.NbConstraints
 }
 
 // GetNbWires returns the number of wires
-func (r1cs *R1CS) GetNbWires() int {
+func (r1cs *R1CS) GetNbWires() uint64 {
 	return r1cs.NbWires
 }
 
@@ -88,7 +88,7 @@ func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
 func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
 	// compute the wires and the a, b, c polynomials
-	if (len(a) != r1cs.NbConstraints || len(b) != r1cs.NbConstraints || len(c) != r1cs.NbConstraints||len(wireValues) != r1cs.NbWires){
+	if (len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints)||len(wireValues) != int(r1cs.NbWires)){
 			return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
 	
@@ -120,14 +120,14 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	}
 	// instantiate private inputs
 	if r1cs.NbSecretWires != 0 {
-		offset := r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires // private input start index
+		offset := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires) // private input start index
 		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {
 			return err
 		}
 	}
 	// instantiate public inputs
 	{
-		offset := r1cs.NbWires - r1cs.NbPublicWires // public input start index
+		offset := int(r1cs.NbWires - r1cs.NbPublicWires) // public input start index
 		if err := instantiateInputs(offset,  r1cs.PublicWires); err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 	var check fr.Element
 
 	// Loop through computational constraints (the one wwe need to solve and compute a wire in)
-	for i:=0; i < r1cs.NbCOConstraints; i++ {
+	for i:=0; i < int(r1cs.NbCOConstraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
 		r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
 
@@ -157,7 +157,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 
 	// Loop through the assertions -- here all wireValues should be instantiated
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-	for i:=r1cs.NbCOConstraints; i < len(r1cs.Constraints); i++ {
+	for i:=int(r1cs.NbCOConstraints); i < len(r1cs.Constraints); i++ {
 		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
 		// at the previous step)
 		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
@@ -165,7 +165,7 @@ func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues [
 		// check that the constraint is satisfied
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			debugInfo := r1cs.DebugInfo[i - r1cs.NbCOConstraints] 
+			debugInfo := r1cs.DebugInfo[i - int(r1cs.NbCOConstraints)] 
 			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
 			return fmt.Errorf("%w: %s",  backend.ErrUnsatisfiedConstraint, debugInfoStr)
 		}

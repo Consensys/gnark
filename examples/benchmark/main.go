@@ -135,8 +135,8 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 
 type benchData struct {
 	Curve             string
-	NbConstraints     int
-	NbWires           int
+	NbConstraints     uint64
+	NbWires           uint64
 	NbCoefficients    int
 	MaxRAM            uint64
 	RunTime           int64
@@ -151,8 +151,8 @@ func (bData benchData) headers() []string {
 func (bData benchData) values() []string {
 	return []string{
 		bData.Curve,
-		strconv.Itoa(bData.NbConstraints),
-		strconv.Itoa(bData.NbWires),
+		strconv.Itoa(int(bData.NbConstraints)),
+		strconv.Itoa(int(bData.NbWires)),
 		strconv.Itoa(bData.NbCoefficients),
 		strconv.Itoa(int(bData.MaxRAM)),
 		strconv.Itoa(int(bData.RunTime)),

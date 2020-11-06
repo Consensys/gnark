@@ -29,11 +29,11 @@ const butterflyThreshold = 16
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
 func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
 	
-	numCPU := uint(runtime.NumCPU())
+	numCPU := uint64(runtime.NumCPU())
 
 	// find the stage where we should stop spawning go routines in our recursive calls
 	// (ie when we have as many go routines running as we have available CPUs)
-	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
+	maxSplits := bits.TrailingZeros64(nextPowerOfTwo(numCPU))
 	if numCPU <= 1 {
 		maxSplits = -1
 	}
@@ -54,11 +54,11 @@ func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
 func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation) {
 	
-	numCPU := uint(runtime.NumCPU())
+	numCPU := uint64(runtime.NumCPU())
 
 	// find the stage where we should stop spawning go routines in our recursive calls
 	// (ie when we have as many go routines running as we have available CPUs)
-	maxSplits := bits.TrailingZeros(nextPowerOfTwo(numCPU))
+	maxSplits := bits.TrailingZeros64(nextPowerOfTwo(numCPU))
 	if numCPU <= 1 {
 		maxSplits = -1
 	}
@@ -206,11 +206,11 @@ func ditFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDon
 // BitReverse applies the bit-reversal permutation to a.
 // len(a) must be a power of 2 (as in every single function in this file)
 func BitReverse(a []fr.Element) {
-	n := uint(len(a))
-	nn := uint(bits.UintSize - bits.TrailingZeros(n))
+	n := uint64(len(a))
+	nn := uint64(64 - bits.TrailingZeros64(n))
 
-	for i := uint(0); i < n; i++ {
-		irev := bits.Reverse(i) >> nn
+	for i := uint64(0); i < n; i++ {
+		irev := bits.Reverse64(i) >> nn
 		if irev > i {
 			a[i], a[irev] = a[irev],a[i]
 		}
@@ -371,7 +371,7 @@ func BenchmarkBitReverse(b *testing.B) {
 	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
-	for i := uint(0); i < maxSize; i++ {
+	for i := uint64(0); i < maxSize; i++ {
 		pol[i].SetRandom()
 	}
 
@@ -393,7 +393,7 @@ func BenchmarkFFT(b *testing.B) {
 	const maxSize = 1 << 20
 
 	pol := make([]fr.Element, maxSize)
-	for i := uint(0); i < maxSize; i++ {
+	for i := uint64(0); i < maxSize; i++ {
 		pol[i].SetRandom()
 	}
 
@@ -402,7 +402,7 @@ func BenchmarkFFT(b *testing.B) {
 			sizeDomain := 1 << i
 			_pol := make([]fr.Element, sizeDomain)
 			copy(_pol, pol)
-			domain := NewDomain(sizeDomain)
+			domain := NewDomain(uint64(sizeDomain))
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
 				domain.FFT(_pol, DIT)

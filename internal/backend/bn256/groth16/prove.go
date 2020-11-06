@@ -34,6 +34,7 @@ import (
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
 // with a valid statement and a VerifyingKey
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type Proof struct {
 	Ar, Krs curve.G1Affine
 	Bs      curve.G2Affine
@@ -217,7 +218,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	n := len(a)
 
 	// add padding to ensure input length is domain cardinality
-	padding := make([]fr.Element, domain.Cardinality-n)
+	padding := make([]fr.Element, int(domain.Cardinality)-n)
 	a = append(a, padding...)
 	b = append(b, padding...)
 	c = append(c, padding...)
