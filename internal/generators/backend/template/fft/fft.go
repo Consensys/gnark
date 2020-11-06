@@ -248,6 +248,30 @@ func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
 // --------------------------------------------------------------------
 // tests
 
+
+func TestSerializationDomain(t *testing.T) {
+	domain := NewDomain(1 << 6)
+	var reconstructed Domain
+
+	var buf bytes.Buffer
+	written, err := domain.WriteTo(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read int64
+	read, err = reconstructed.ReadFrom(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if written != read {
+		t.Fatal("didn't read as many bytes as we wrote")
+	}
+	if !reflect.DeepEqual(domain, &reconstructed) {
+		t.Fatal("Domain.SetBytes(Bytes()) failed")
+	}
+}
+
 func TestFFT(t *testing.T) {
 	const maxSize = 1 << 10
 

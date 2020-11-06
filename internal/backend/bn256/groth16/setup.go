@@ -32,6 +32,13 @@ import (
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type ProvingKey struct {
+	// domain
+	Domain fft.Domain
+
+	// metadata
+	NbWires        uint64
+	NbPrivateWires uint64
+
 	// [α]1, [β]1, [δ]1
 	// [A(t)]1, [B(t)]1, [Kpk(t)]1, [Z(t)]1
 	G1 struct {
@@ -45,8 +52,6 @@ type ProvingKey struct {
 		Beta, Delta curve.G2Affine
 		B           []curve.G2Affine
 	}
-
-	Domain fft.Domain
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -87,6 +92,8 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
 	nbWires := int(r1cs.NbWires)
 	nbPublicWires := int(r1cs.NbPublicWires)
 	nbPrivateWires := int(r1cs.NbWires - r1cs.NbPublicWires)
+	pk.NbWires = r1cs.NbWires
+	pk.NbPrivateWires = r1cs.NbWires - r1cs.NbPublicWires
 
 	// Setting group for fft
 	domain := fft.NewDomain(r1cs.NbConstraints)
@@ -320,6 +327,9 @@ func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) {
 
 	// Setting group for fft
 	domain := fft.NewDomain(nbConstraints)
+
+	pk.NbWires = r1cs.NbWires
+	pk.NbPrivateWires = r1cs.NbWires - r1cs.NbPublicWires
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

@@ -34,6 +34,7 @@ func main() {
 	}
 
 	datas := []templateData{bls377, bls381, bn256, bw761}
+	datas = []templateData{bn256}
 
 	for _, d := range datas {
 		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
