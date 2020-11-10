@@ -11,7 +11,6 @@ jobs:
             - go-mod-v2-{{ checksum "go.sum" }}
       - run: if [[ -n $(gofmt -l .) ]]; then echo "Please run gofmt"; exit 1; fi
       - run: go vet -v ./...
-      - run: go test -v ./cmd/ -run=VersionIsGenerated # ensure version is generated
       - run: go get golang.org/x/tools/cmd/goimports
       - run: go generate ./...
       - run: git update-index --assume-unchanged go.mod
