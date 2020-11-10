@@ -16,10 +16,6 @@ type ProvingKey struct {
 	// domain
 	Domain fft.Domain
 
-	// metadata 
-	NbWires 		uint64
-	NbPrivateWires 	uint64
-
 	// [α]1, [β]1, [δ]1
 	// [A(t)]1, [B(t)]1, [Kpk(t)]1, [Z(t)]1
 	G1 struct {
@@ -38,6 +34,9 @@ type ProvingKey struct {
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type VerifyingKey struct {
+	// ordered public input names
+	PublicInputs []string 
+
 	// e(α, β)
 	E curve.GT
 
@@ -53,7 +52,6 @@ type VerifyingKey struct {
 		K []curve.G1Affine // The indexes correspond to the public wires
 	}
 
-	PublicInputs []string // maps the name of the public input
 }
 
 // Setup constructs the SRS
@@ -73,8 +71,6 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	nbWires := int(r1cs.NbWires)
 	nbPublicWires := int(r1cs.NbPublicWires)
 	nbPrivateWires := int(r1cs.NbWires - r1cs.NbPublicWires)
-	pk.NbWires = r1cs.NbWires
-	pk.NbPrivateWires = r1cs.NbWires - r1cs.NbPublicWires
 
 	// Setting group for fft
 	domain := fft.NewDomain(r1cs.NbConstraints)
@@ -317,9 +313,6 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
 
 	// Setting group for fft
 	domain := fft.NewDomain(nbConstraints)
-
-	pk.NbWires = r1cs.NbWires
-	pk.NbPrivateWires = r1cs.NbWires - r1cs.NbPublicWires
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

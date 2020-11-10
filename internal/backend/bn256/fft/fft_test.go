@@ -17,9 +17,7 @@
 package fft
 
 import (
-	"bytes"
 	"math/big"
-	"reflect"
 	"strconv"
 	"testing"
 
@@ -28,47 +26,6 @@ import (
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 )
-
-// --------------------------------------------------------------------
-// utils
-
-func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
-	var acc, res, tmp fr.Element
-	res.Set(&pol[0])
-	acc.Set(&val)
-	for i := 1; i < len(pol); i++ {
-		tmp.Mul(&acc, &pol[i])
-		res.Add(&res, &tmp)
-		acc.Mul(&acc, &val)
-	}
-	return res
-}
-
-// --------------------------------------------------------------------
-// tests
-
-func TestSerializationDomain(t *testing.T) {
-	domain := NewDomain(1 << 6)
-	var reconstructed Domain
-
-	var buf bytes.Buffer
-	written, err := domain.WriteTo(&buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var read int64
-	read, err = reconstructed.ReadFrom(&buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if written != read {
-		t.Fatal("didn't read as many bytes as we wrote")
-	}
-	if !reflect.DeepEqual(domain, &reconstructed) {
-		t.Fatal("Domain.SetBytes(Bytes()) failed")
-	}
-}
 
 func TestFFT(t *testing.T) {
 	const maxSize = 1 << 10
@@ -232,4 +189,16 @@ func BenchmarkFFT(b *testing.B) {
 		})
 	}
 
+}
+
+func evaluatePolynomial(pol []fr.Element, val fr.Element) fr.Element {
+	var acc, res, tmp fr.Element
+	res.Set(&pol[0])
+	acc.Set(&val)
+	for i := 1; i < len(pol); i++ {
+		tmp.Mul(&acc, &pol[i])
+		res.Add(&res, &tmp)
+		acc.Mul(&acc, &val)
+	}
+	return res
 }

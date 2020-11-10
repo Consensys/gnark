@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/internal/backend/ioutils"
+	"github.com/consensys/gurvy"
 
 	"github.com/consensys/gurvy/bw761/fr"
 )
@@ -61,6 +62,11 @@ func (r1cs *R1CS) GetNbWires() uint64 {
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
+}
+
+// GetCurveID returns curve ID as defined in gurvy (gurvy.BW761)
+func (r1cs *R1CS) GetCurveID() gurvy.ID {
+	return gurvy.BW761
 }
 
 // WriteTo encodes R1CS into provided io.Writer using cbor

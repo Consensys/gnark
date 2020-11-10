@@ -5,9 +5,9 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// ExponentiateCircuit y == x**e
+// Circuit y == x**e
 // only the bitSize least significant bits of e are used
-type ExponentiateCircuit struct {
+type Circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
 	X frontend.Variable `gnark:",public"`
@@ -18,7 +18,7 @@ type ExponentiateCircuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *ExponentiateCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	// number of bits of exponent
 	const bitSize = 8
 

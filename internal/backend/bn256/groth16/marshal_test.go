@@ -17,13 +17,15 @@
 package groth16
 
 import (
+	"github.com/consensys/gnark/internal/backend/bn256/fft"
+	curve "github.com/consensys/gurvy/bn256"
+
 	"bytes"
 	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
-	curve "github.com/consensys/gurvy/bn256"
 	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 
 	"testing"
@@ -84,6 +86,79 @@ func TestProofSerialization(t *testing.T) {
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
 }
 
+func TestVerifyingKeySerialization(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 10
+
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
+		func(p1 curve.G1Affine, p2 curve.G2Affine, rs string) bool {
+			var vk, vkCompressed, vkRaw VerifyingKey
+
+			// create a random vk
+			nbWires := 6
+
+			vk.E.SetRandom()
+			vk.G2.GammaNeg = p2
+			vk.G2.DeltaNeg = p2
+
+			vk.G1.K = make([]curve.G1Affine, nbWires)
+			for i := 0; i < nbWires; i++ {
+				vk.G1.K[i] = p1
+			}
+
+			vk.PublicInputs = make([]string, nbWires)
+			for i := 0; i < nbWires; i++ {
+				vk.PublicInputs[i] = rs
+			}
+
+			var bufCompressed bytes.Buffer
+			written, err := vk.WriteTo(&bufCompressed)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			read, err := vkCompressed.ReadFrom(&bufCompressed)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			if read != written {
+				t.Log("read != written")
+				return false
+			}
+
+			var bufRaw bytes.Buffer
+			written, err = vk.WriteRawTo(&bufRaw)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			read, err = vkRaw.ReadFrom(&bufRaw)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			if read != written {
+				t.Log("read raw != written")
+				return false
+			}
+
+			return reflect.DeepEqual(&vk, &vkCompressed) && reflect.DeepEqual(&vk, &vkRaw)
+		},
+		GenG1(),
+		GenG2(),
+		gen.AnyString(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
 func TestProvingKeySerialization(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
@@ -98,15 +173,15 @@ func TestProvingKeySerialization(t *testing.T) {
 			domain := fft.NewDomain(8)
 			pk.Domain = *domain
 
-			pk.NbWires = 6
-			pk.NbPrivateWires = 4
+			nbWires := 6
+			nbPrivateWires := 4
 
 			// allocate our slices
-			pk.G1.A = make([]curve.G1Affine, pk.NbWires)
-			pk.G1.B = make([]curve.G1Affine, pk.NbWires)
-			pk.G1.K = make([]curve.G1Affine, pk.NbPrivateWires)
+			pk.G1.A = make([]curve.G1Affine, nbWires)
+			pk.G1.B = make([]curve.G1Affine, nbWires)
+			pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
 			pk.G1.Z = make([]curve.G1Affine, pk.Domain.Cardinality)
-			pk.G2.B = make([]curve.G2Affine, pk.NbWires)
+			pk.G2.B = make([]curve.G2Affine, nbWires)
 
 			pk.G1.Alpha = p1
 			pk.G2.Beta = p2
@@ -117,30 +192,36 @@ func TestProvingKeySerialization(t *testing.T) {
 			var bufCompressed bytes.Buffer
 			written, err := pk.WriteTo(&bufCompressed)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			read, err := pkCompressed.ReadFrom(&bufCompressed)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			if read != written {
+				t.Log("read != written")
 				return false
 			}
 
 			var bufRaw bytes.Buffer
 			written, err = pk.WriteRawTo(&bufRaw)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			read, err = pkRaw.ReadFrom(&bufRaw)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			if read != written {
+				t.Log("read raw != written")
 				return false
 			}
 

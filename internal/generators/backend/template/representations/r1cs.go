@@ -52,6 +52,11 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
+// GetCurveID returns curve ID as defined in gurvy (gurvy.{{.Curve}})
+func (r1cs *R1CS) GetCurveID() gurvy.ID {
+	return gurvy.{{.Curve}}
+}
+
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written 
@@ -361,6 +366,7 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 
 `
 
+// R1CSTests ...
 const R1CSTests = `
 import (
 	{{ template "import_backend" . }}

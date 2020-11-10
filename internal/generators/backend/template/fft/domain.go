@@ -13,103 +13,6 @@ import (
 )
 
 
-// WriteTo writes a binary representation of the domain (without the precomputed twiddle factors)
-// to the provided writer
-func (d *Domain) WriteTo(w io.Writer) (n int64, err error) {
-	var written int 
-
-	err = binary.Write(w, binary.BigEndian, d.Cardinality)
-	if err != nil {
-		return
-	}
-	n += 8
-
-
-	buf := d.CardinalityInv.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-	buf = d.Generator.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-	buf = d.GeneratorInv.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-	buf = d.GeneratorSqRt.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-	buf = d.GeneratorSqRtInv.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	return
-}
-
-// ReadFrom attempts to decode a domain from Reader
-func (d *Domain) ReadFrom(r io.Reader) (n int64, err error) {
-	var buf [8]byte
-	var read int
-	
-	// read d.Cardinality
-	read, err = io.ReadFull(r, buf[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.Cardinality = binary.BigEndian.Uint64(buf[:])
-
-	var bufElement [fr.Limbs * 8]byte
-	
-	read, err = io.ReadFull(r, bufElement[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.CardinalityInv.SetBytes(bufElement[:])   
-
-	read, err = io.ReadFull(r, bufElement[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.Generator.SetBytes(bufElement[:])        
-
-	read, err = io.ReadFull(r, bufElement[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.GeneratorInv.SetBytes(bufElement[:])     
-
-	read, err = io.ReadFull(r, bufElement[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.GeneratorSqRt.SetBytes(bufElement[:])    
-
-	read, err = io.ReadFull(r, bufElement[:]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	d.GeneratorSqRtInv.SetBytes(bufElement[:]) 
-
-	d.preComputeTwiddles()
-
-	return
-}
-
 
 // Domain with a power of 2 cardinality
 // compute a field element of order 2x and store it in GeneratorSqRt
@@ -123,7 +26,7 @@ type Domain struct {
 	GeneratorSqRtInv fr.Element
 
 
-	// TODO -- the following pre-computed slices need not to be serialized, they can be re-computed
+	// the following slices are not serialized and are (re)computed through domain.preComputeTwiddles()
 
 	// Twiddles factor for the FFT using Generator for each stage of the recursive FFT
 	Twiddles 		 [][]fr.Element
@@ -295,4 +198,69 @@ func nextPowerOfTwo(n uint64) uint64 {
 }
 
 
+
+// WriteTo writes a binary representation of the domain (without the precomputed twiddle factors)
+// to the provided writer
+func (d *Domain) WriteTo(w io.Writer) (int64, error) {
+	enc := curve.NewEncoder(w)
+
+	toEncode := []interface{}{d.Cardinality, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.GeneratorSqRt, &d.GeneratorSqRtInv}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+}
+
+// ReadFrom attempts to decode a domain from Reader
+func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
+	
+	dec := curve.NewDecoder(r)
+
+	toDecode := []interface{}{&d.Cardinality, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.GeneratorSqRt, &d.GeneratorSqRtInv}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	d.preComputeTwiddles()
+	return dec.BytesRead(), nil
+}
+
+`
+
+// DomainTests ...
+const DomainTests = `
+import (
+	"reflect"
+)
+
+
+func TestDomainSerialization(t *testing.T) {
+	domain := NewDomain(1 << 6)
+	var reconstructed Domain
+
+	var buf bytes.Buffer
+	written, err := domain.WriteTo(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read int64
+	read, err = reconstructed.ReadFrom(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if written != read {
+		t.Fatal("didn't read as many bytes as we wrote")
+	}
+	if !reflect.DeepEqual(domain, &reconstructed) {
+		t.Fatal("Domain.SetBytes(Bytes()) failed")
+	}
+}
 `

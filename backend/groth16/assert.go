@@ -15,11 +15,14 @@
 package groth16
 
 import (
+	"bytes"
+	"io"
 	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
+	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,6 +61,8 @@ func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, solution interface{}) {
 //
 // 4. Runs groth16.Verify()
 //
+// 5. Ensure deserialization(serialization) of generated objects is correct
+//
 // ensure result vectors a*b=c, and check other properties like random sampling
 func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
 	_solution := assert.parseSolution(solution)
@@ -93,6 +98,36 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
 		err := Verify(proof, vk, _solution)
 		assert.NoError(err, "verifying proof with good solution should not output an error")
 	}
+
+	// serialization
+	assert.serializationSucceeded(proof, NewProof(r1cs.GetCurveID()))
+	assert.serializationSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
+	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
+	assert.serializationRawSucceeded(proof, NewProof(r1cs.GetCurveID()))
+	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
+	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
+}
+
+func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
+	var buf bytes.Buffer
+	written, err := from.WriteTo(&buf)
+	assert.NoError(err, "serializing to buffer failed")
+
+	read, err := to.ReadFrom(&buf)
+	assert.NoError(err, "desererializing from buffer failed")
+
+	assert.EqualValues(written, read, "number of bytes read and written don't match")
+}
+
+func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.ReaderFrom) {
+	var buf bytes.Buffer
+	written, err := from.WriteRawTo(&buf)
+	assert.NoError(err, "serializing raw to buffer failed")
+
+	read, err := to.ReadFrom(&buf)
+	assert.NoError(err, "desererializing raw from buffer failed")
+
+	assert.EqualValues(written, read, "number of bytes read and written don't match")
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given solution, without executing groth16 workflow

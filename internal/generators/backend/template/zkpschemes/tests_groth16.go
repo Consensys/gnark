@@ -10,7 +10,7 @@ import (
 	"runtime/debug"
 	"testing"
 	"strings"
-
+	"github.com/fxamacker/cbor/v2"
 
 	{{if eq .Curve "BLS377"}}
 		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bls377/groth16"
@@ -133,7 +133,6 @@ func TestReferenceCircuit(t *testing.T) {
 	assert.ProverSucceeded(r1cs, solution)
 }
 
-// BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 	
@@ -148,8 +147,6 @@ func BenchmarkSetup(b *testing.B) {
 	})
 }
 
-// BenchmarkProver is a helper to benchmark Prove on a given circuit
-// it will run the Setup, reset the benchmark timer and benchmark the prover
 func BenchmarkProver(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 	
@@ -164,9 +161,6 @@ func BenchmarkProver(b *testing.B) {
 	})
 }
 
-// BenchmarkVerifier is a helper to benchmark Verify on a given circuit
-// it will run the Setup, the Prover and reset the benchmark timer and benchmark the verifier
-// the provided solution will be filtered to keep only public inputs
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 	
@@ -185,5 +179,113 @@ func BenchmarkVerifier(b *testing.B) {
 		}
 	})
 }
+
+
+
+func BenchmarkSerialization(b *testing.B) {
+	r1cs, solution := referenceCircuit()
+	
+	var pk {{toLower .Curve}}groth16.ProvingKey
+	var vk {{toLower .Curve}}groth16.VerifyingKey
+	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
+	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
+	if err != nil {
+		panic(err)
+	}
+
+	b.ReportAllocs()
+
+	{{ $base := toLower .Curve }}
+	
+	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.ProvingKey") "Name" "pk" }}
+	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.Proof") "Name" "proof" }}
+
+
+}
+
+{{ define "benchBinarySerialization" }}
+	// ---------------------------------------------------------------------------------------------
+	// {{$.Type}} binary serialization
+	b.Run("{{$.Name}}: binary serialization ({{$.Type}})", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = {{- $.Name}}.WriteTo(&buf)
+		}
+	})
+	b.Run("{{$.Name}}: binary deserialization ({{$.Type}})", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = {{$.Name}}.WriteTo(&buf)
+		var {{ $.Name}}Reconstructed {{$.Type}}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = {{- $.Name}}Reconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := {{$.Name}}.WriteTo(&buf)
+		fmt.Println("sizeOf({{$.Type}}) binary", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// {{$.Type}} binary serialization (uncompressed)
+	b.Run("{{$.Name}}: binary raw serialization ({{$.Type}})", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = {{- $.Name}}.WriteRawTo(&buf)
+		}
+	})
+	b.Run("{{$.Name}}: binary raw deserialization ({{$.Type}})", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = {{$.Name}}.WriteRawTo(&buf)
+		var {{ $.Name}}Reconstructed {{$.Type}}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = {{- $.Name}}Reconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := {{$.Name}}.WriteRawTo(&buf)
+		fmt.Println("sizeOf({{$.Type}}) binary raw", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// {{$.Type}} binary serialization (cbor)
+	b.Run("{{$.Name}}: binary cbor serialization ({{$.Type}})", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			enc := cbor.NewEncoder(&buf)
+			enc.Encode(&{{- $.Name}})
+		}
+	})
+	b.Run("{{$.Name}}: binary cbor deserialization ({{$.Type}})", func(b *testing.B) {
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&{{- $.Name}})
+		var {{ $.Name}}Reconstructed {{$.Type}}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			dec := cbor.NewDecoder(buf)
+			dec.Decode(&{{- $.Name}}Reconstructed)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&{{- $.Name}})
+		fmt.Println("sizeOf({{$.Type}}) binary cbor", buf.Len())
+		fmt.Println("")
+	}
+
+{{ end }}
 
 `

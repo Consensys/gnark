@@ -11,14 +11,14 @@ import (
 func TestCubicEquation(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
-	var cubicCircuit CubicCircuit
+	var cubicCircuit Circuit
 
 	// compiles our circuit into a R1CS
 	r1cs, err := frontend.Compile(gurvy.BN256, &cubicCircuit)
 	assert.NoError(err)
 
 	{
-		var witness CubicCircuit
+		var witness Circuit
 		witness.X.Assign(42)
 		witness.Y.Assign(42)
 
@@ -26,7 +26,7 @@ func TestCubicEquation(t *testing.T) {
 	}
 
 	{
-		var witness CubicCircuit
+		var witness Circuit
 		witness.X.Assign(3)
 		witness.Y.Assign(35)
 		assert.ProverSucceeded(r1cs, &witness)

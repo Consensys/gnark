@@ -8,239 +8,198 @@ import (
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
 	"io"
+	"github.com/fxamacker/cbor/v2"
 )
 
 // WriteTo writes binary encoding of the Proof elements to writer
 // points are stored in compressed form Ar | Krs | Bs
 // use WriteRawTo(...) to encode the proof without point compression 
-func (p *Proof) WriteTo(w io.Writer) (n int64, err error) {
-	var written int 
-
-	// p.Ar
-	buf := p.Ar.Bytes()
-	written, err = w.Write(buf[:])
-	n = int64(written)
-	if err != nil {
-		return
-	}
-
-	// p.Krs
-	buf = p.Krs.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-
-	// p.Bs
-	bufG2 := p.Bs.Bytes()
-	written, err = w.Write(bufG2[:])
-	n += int64(written)
-
-	return
+func (proof *Proof) WriteTo(w io.Writer) (n int64, err error) {
+	return proof.writeTo(w, false)
 }
-
 
 // WriteRawTo writes binary encoding of the Proof elements to writer
 // points are stored in uncompressed form Ar | Krs | Bs
 // use WriteTo(...) to encode the proof with point compression 
-func (p *Proof) WriteRawTo(w io.Writer) (n int64, err error) {
-	var written int 
-
-	// p.Ar
-	buf := p.Ar.RawBytes()
-	written, err = w.Write(buf[:])
-	n = int64(written)
-	if err != nil {
-		return
-	}
-
-	// p.Krs
-	buf = p.Krs.RawBytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-
-	// p.Bs
-	bufG2 := p.Bs.RawBytes()
-	written, err = w.Write(bufG2[:])
-	n += int64(written)
-
-	return
+func (proof *Proof) WriteRawTo(w io.Writer) (n int64, err error) {
+	return proof.writeTo(w, true)
 }
+
+func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
+	var enc *curve.Encoder
+	if raw {
+		enc = curve.NewEncoder(w, curve.RawEncoding())
+	} else {
+		enc = curve.NewEncoder(w)
+	}
+
+	if err := enc.Encode(&proof.Ar); err != nil {
+		return enc.BytesWritten(), err
+	}
+	if err := enc.Encode(&proof.Krs); err != nil {
+		return enc.BytesWritten(), err
+	}
+	if err := enc.Encode(&proof.Bs); err != nil {
+		return enc.BytesWritten(), err
+	}
+	return enc.BytesWritten(), nil
+} 
+
 
 // ReadFrom attempts to decode a Proof from reader
 // Proof must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed) 
 // note that we don't check that the points are on the curve or in the correct subgroup at this point
-func (p *Proof) ReadFrom(r io.Reader) (n int64, err error) {
+func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
 
-	var buf [curve.SizeOfG2Uncompressed]byte
-	var read int
+	dec := curve.NewDecoder(r)
+
+	if err := dec.Decode(&proof.Ar); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&proof.Krs); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&proof.Bs); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	return dec.BytesRead(), nil
+}
+
+// WriteTo writes binary encoding of the key elements to writer
+// points are compressed
+// use WriteRawTo(...) to encode the key without point compression 
+func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
+	return vk.writeTo(w, false)
+}
+
+// WriteRawTo writes binary encoding of the key elements to writer
+// points are not compressed
+// use WriteTo(...) to encode the key with point compression 
+func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
+	return vk.writeTo(w, true)
+}
+
+func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
+	var written int 
 	
-	// read p.Ar
-	read, err = io.ReadFull(r, buf[:curve.SizeOfG1Uncompressed]) 
-	n += int64(read)
+	// encode public input names
+	var pBytes []byte
+	pBytes, err = cbor.Marshal(vk.PublicInputs)
+	if err != nil {
+		return  	
+	}
+	err = binary.Write(w, binary.BigEndian, uint64(len(pBytes)))
+	if err != nil {
+		return  	
+	}
+	n += 8
+	written, err = w.Write(pBytes)
+	n += int64(written)
 	if err != nil {
 		return
 	}
-	var consumed int 
-	consumed, err = p.Ar.SetBytes(buf[:curve.SizeOfG1Uncompressed])
+
+	// write vk.E
+	buf := vk.E.Bytes()
+	written, err = w.Write(buf[:])
+	n += int64(written)
 	if err != nil {
 		return
 	}
 
-	if consumed == curve.SizeOfG1Compressed {
-		// proof is compressed
-		// we have to use the other half of the first buffer read
-		_, err = p.Krs.SetBytes(buf[curve.SizeOfG1Compressed:])
-		if err != nil {
-			return
-		}
+	var enc *curve.Encoder
+	if raw {
+		enc = curve.NewEncoder(w, curve.RawEncoding())
+	} else {
+		enc = curve.NewEncoder(w)
+	}
 
-		// read Bs
-		read, err = io.ReadFull(r, buf[:curve.SizeOfG2Compressed]) 
-		n += int64(read)
-		if err != nil {
-			return
-		}
 
-		_, err = p.Bs.SetBytes(buf[:])
-		return
-	} 
-
-	// proof is raw
-	// read p.Krs
-	read, err = io.ReadFull(r, buf[:curve.SizeOfG1Uncompressed]) 
-	n += int64(read)
+	err = enc.Encode(&vk.G2.GammaNeg)
+	n += enc.BytesWritten()
 	if err != nil {
 		return
 	}
-	if consumed, err = p.Krs.SetBytes(buf[:curve.SizeOfG1Uncompressed]); err != nil {
-		return
-	}
-	if consumed != curve.SizeOfG1Uncompressed {
-		err = errors.New("invalid proof: p.Ar is compressed, p.Krs is not")
-	}
-	
 
-	// read p.Bs
-	read, err = io.ReadFull(r, buf[:]) 
-	n += int64(read)
+	err = enc.Encode(&vk.G2.DeltaNeg)
+	n += enc.BytesWritten()
 	if err != nil {
 		return
 	}
-	consumed, err = p.Bs.SetBytes(buf[:])
-	if consumed != curve.SizeOfG2Uncompressed {
-		err = errors.New("invalid proof: p.Ar, p.Krs are compressed, p.Bs is not")
-	}
 
+	err = enc.Encode(vk.G1.K)
+	n += enc.BytesWritten()
 	return
 }
 
-// WriteTo ...
-func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+// ReadFrom attempts to decode a VerifyingKey from reader
+// VerifyingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed) 
+// note that we don't check that the points are on the curve or in the correct subgroup at this point
+// TODO while Proof points correctness is checkd in the Verifier, here may be a good place to check key
+func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
+	
+	var read int 
+	var buf [curve.SizeOfGT]byte
+
+	read, err = io.ReadFull(r, buf[:8])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	lPublicInputs := binary.BigEndian.Uint64(buf[:8])
+
+	bPublicInputs  := make([]byte, lPublicInputs)
+	read, err = io.ReadFull(r, bPublicInputs)
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	err = cbor.Unmarshal(bPublicInputs, &vk.PublicInputs)
+	if err != nil {
+		return
+	}
+
+
+	// read vk.E
+
+	read, err = r.Read(buf[:])
+	n += int64(read)
+	if err != nil {
+		return
+	}
+	err = vk.E.SetBytes(buf[:])
+	if err != nil {
+		return
+	}
+
+	dec := curve.NewDecoder(r)
+
+	err = dec.Decode(&vk.G2.GammaNeg)
+	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	err = dec.Decode(&vk.G2.DeltaNeg)
+	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	err = dec.Decode(&vk.G1.K)
+	n += dec.BytesRead()
+	
+	return
 }
 
-// ReadFrom ...
-func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented")
-}
 
 
 // WriteTo writes binary encoding of the key elements to writer
 // points are compressed
 // use WriteRawTo(...) to encode the key without point compression 
 func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
-	n, err = pk.Domain.WriteTo(w)
-	if err != nil {
-		return
-	}
-
-	err = binary.Write(w, binary.BigEndian, pk.NbWires)
-	if err != nil {
-		return
-	}
-	n += 8
-	err = binary.Write(w, binary.BigEndian, pk.NbPrivateWires)
-	if err != nil {
-		return
-	}
-	n += 8
-
-	// assert private wires and wires match sizes of slices in pk
-	if ((int(pk.NbWires) != len(pk.G1.A)) ||
-		(int(pk.NbWires) != len(pk.G1.B)) ||
-		(int(pk.NbWires) != len(pk.G2.B)) ||
-		(int(pk.NbPrivateWires) != len(pk.G1.K)) ||
-		(int(pk.Domain.Cardinality) != len(pk.G1.Z))) {
-			panic("proving key is in inconsistent state")
-	}
-
-	// write G1 elements
-	{
-		var written int 
-
-		buf := pk.G1.Alpha.Bytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G1.Beta.Bytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G1.Delta.Bytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		var n1 int64
-		n1, err = writeG1Slices(w, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
-		n += n1
-		if err != nil {
-			return
-		}
-	}
-
-	// write G2 elements
-	{
-		var written int 
-
-		buf := pk.G2.Beta.Bytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G2.Delta.Bytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		for i:=0; i<len(pk.G2.B); i++ {
-			buf = pk.G2.B[i].Bytes()
-			written, err = w.Write(buf[:])
-			n += int64(written)
-			if err != nil {
-				return
-			}
-		}
-	}
-
-	return 
+	return pk.writeTo(w, false)
 }
 
 
@@ -248,280 +207,96 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 // points are not compressed
 // use WriteTo(...) to encode the key with point compression 
 func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
-	n, err = pk.Domain.WriteTo(w)
+	return pk.writeTo(w, true)
+}
+
+func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
+	n, err := pk.Domain.WriteTo(w)
 	if err != nil {
-		return
+		return n, err 
 	}
 
-	err = binary.Write(w, binary.BigEndian, pk.NbWires)
-	if err != nil {
-		return
+	var enc *curve.Encoder
+	if raw {
+		enc = curve.NewEncoder(w, curve.RawEncoding())
+	} else {
+		enc = curve.NewEncoder(w)
 	}
-	n += 8
-	err = binary.Write(w, binary.BigEndian, pk.NbPrivateWires)
-	if err != nil {
-		return
-	}
-	n += 8
-
-	// assert private wires and wires match sizes of slices in pk
-	if ((int(pk.NbWires) != len(pk.G1.A)) ||
-		(int(pk.NbWires) != len(pk.G1.B)) ||
-		(int(pk.NbWires) != len(pk.G2.B)) ||
-		(int(pk.NbPrivateWires) != len(pk.G1.K)) ||
-		(int(pk.Domain.Cardinality) != len(pk.G1.Z))) {
-			panic("proving key is in inconsistent state")
-	}
-
-	// write G1 elements
-	{
-		var written int 
-
-		buf := pk.G1.Alpha.RawBytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G1.Beta.RawBytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G1.Delta.RawBytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		var n1 int64
-		n1, err = writeG1SlicesRaw(w, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
-		n += n1
-		if err != nil {
-			return
-		}
 	
+	toEncode := []interface{}{
+		&pk.G1.Alpha,
+		&pk.G1.Beta,
+		&pk.G1.Delta,
+		pk.G1.A,
+		pk.G1.B,
+		pk.G1.Z,
+		pk.G1.K,
+		&pk.G2.Beta,
+		&pk.G2.Delta,
+		pk.G2.B,
 	}
 
-	// write G2 elements
-	{
-		var written int 
-
-		buf := pk.G2.Beta.RawBytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		buf = pk.G2.Delta.RawBytes()
-		written, err = w.Write(buf[:])
-		n += int64(written)
-		if err != nil {
-			return
-		}
-
-		for i:=0; i<len(pk.G2.B); i++ {
-			buf = pk.G2.B[i].RawBytes()
-			written, err = w.Write(buf[:])
-			n += int64(written)
-			if err != nil {
-				return
-			}
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
 		}
 	}
 
-	return 
+	return n + enc.BytesWritten(), nil
+
 }
 
 // ReadFrom attempts to decode a ProvingKey from reader
 // ProvingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed) 
 // note that we don't check that the points are on the curve or in the correct subgroup at this point
 // TODO while Proof points correctness is checkd in the Verifier, here may be a good place to check key
-func (pk *ProvingKey) ReadFrom(r io.Reader) (n int64, err error) {
+func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
-	n, err = pk.Domain.ReadFrom(r)
+	n, err := pk.Domain.ReadFrom(r)
 	if err != nil {
-		return 
+		return n, err
 	}
 
-	// read NbWires and NbPrivateWires
-	var buf [curve.SizeOfG2Uncompressed]byte
-	var read int
-	
-	read, err = io.ReadFull(r, buf[:8]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	pk.NbWires = binary.BigEndian.Uint64(buf[:8])
+	dec := curve.NewDecoder(r)
 
-	read, err = io.ReadFull(r, buf[:8]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	pk.NbPrivateWires = binary.BigEndian.Uint64(buf[:8])
-
-	// allocate our slices
-	pk.G1.A = make([]curve.G1Affine, pk.NbWires)
-	pk.G1.B = make([]curve.G1Affine, pk.NbWires)
-	pk.G1.K = make([]curve.G1Affine, pk.NbPrivateWires)
-	pk.G1.Z = make([]curve.G1Affine, pk.Domain.Cardinality)
-	pk.G2.B = make([]curve.G2Affine, pk.NbWires)
-
-	// read our points
-	offset := curve.SizeOfG1Uncompressed
-	
-	// read pk.Alpha
-	read, err = io.ReadFull(r, buf[:offset]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	var consumed int 
-	consumed, err = pk.G1.Alpha.SetBytes(buf[:offset])
-	if err != nil {
-		return
-	}
-	
-
-	if consumed == curve.SizeOfG1Compressed {
-		offset = curve.SizeOfG1Compressed
-
-		// consume the second part of our buffer that was already read from reader
-		_, err = pk.G1.Beta.SetBytes(buf[curve.SizeOfG1Compressed:curve.SizeOfG1Uncompressed])
-		if err != nil {
-			return
-		}
-	} else {
-		// read pk.G1.Beta
-		read, err = io.ReadFull(r, buf[:offset]) 
-		n += int64(read)
-		if err != nil {
-			return
-		}
-		if _, err = pk.G1.Beta.SetBytes(buf[:offset]); err != nil {
-			return
-		}
-	}
-	// read pk.G1.Delta
-	read, err = io.ReadFull(r, buf[:offset]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	if _, err = pk.G1.Delta.SetBytes(buf[:offset]); err != nil {
-		return
+	toDecode := []interface{}{
+		&pk.G1.Alpha,
+		&pk.G1.Beta,
+		&pk.G1.Delta,
+		&pk.G1.A,
+		&pk.G1.B,
+		&pk.G1.Z,
+		&pk.G1.K,
+		&pk.G2.Beta,
+		&pk.G2.Delta,
+		&pk.G2.B,
 	}
 
-	var n1 int64
-	n1, err = readG1Slices(r, offset, pk.G1.A, pk.G1.B, pk.G1.Z, pk.G1.K)
-	n += n1
-	if err != nil {
-		return
-	}
-	
-	
-	// read G2 elements
-	if offset == curve.SizeOfG1Compressed {
-		offset = curve.SizeOfG2Compressed
-	} else {
-		offset = curve.SizeOfG2Uncompressed 
-	}
-
-	read, err = io.ReadFull(r, buf[:offset]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	if _, err = pk.G2.Beta.SetBytes(buf[:offset]); err != nil {
-		return
-	}
-
-	read, err = io.ReadFull(r, buf[:offset]) 
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	if _, err = pk.G2.Delta.SetBytes(buf[:offset]); err != nil {
-		return
-	}
-
-	for i:=0; i < len(pk.G2.B);i++ {
-		read, err = io.ReadFull(r, buf[:offset]) 
-		n += int64(read)
-		if err != nil {
-			return
-		}
-		if _, err = pk.G2.B[i].SetBytes(buf[:offset]); err != nil {
-			return
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
 		}
 	}
 
-	return
+	return n + dec.BytesRead(), nil
 }
-
-func readG1Slices(r io.Reader, offset int, slices ...[]curve.G1Affine) (n int64, err error) {
-	var buf [curve.SizeOfG1Uncompressed]byte
-	var read int 
-	for j := 0 ; j< len(slices);j++ {
-		for i:=0; i < len(slices[j]); i++ {
-			read, err = io.ReadFull(r, buf[:offset]) 
-			n += int64(read)
-			if err != nil {
-				return
-			}
-			if _, err = slices[j][i].SetBytes(buf[:offset]); err != nil {
-				return
-			}
-		}
-	}
-	return
-}
-
-func writeG1Slices(w io.Writer, slices ...[]curve.G1Affine) (n int64, err error) {
-	var written int
-	for j := 0 ; j< len(slices);j++ {
-		for i:=0; i < len(slices[j]); i++ {
-			buf := slices[j][i].Bytes()
-			written, err = w.Write(buf[:])
-			n += int64(written)
-			if err != nil {
-				return
-			}
-		}
-	}
-	return
-}
-
-func writeG1SlicesRaw(w io.Writer, slices ...[]curve.G1Affine) (n int64, err error) {
-	var written int
-	for j := 0 ; j< len(slices);j++ {
-		for i:=0; i < len(slices[j]); i++ {
-			buf := slices[j][i].RawBytes()
-			written, err = w.Write(buf[:])
-			n += int64(written)
-			if err != nil {
-				return
-			}
-		}
-	}
-	return
-}
-
 
 
 
 `
 
+// Groth16MarshalTest ...
 const Groth16MarshalTest = `
 import (
 	{{ template "import_curve" . }}
+
+	"bytes"
+	"math/big"
+	"reflect"
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 
 	"testing"
 )
@@ -583,6 +358,83 @@ func TestProofSerialization(t *testing.T) {
 }
 
 
+
+func TestVerifyingKeySerialization(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 10
+	
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
+		func(p1 curve.G1Affine, p2 curve.G2Affine, rs string) bool {
+			var vk, vkCompressed, vkRaw VerifyingKey
+
+			// create a random vk
+			nbWires := 6
+
+			vk.E.SetRandom()
+			vk.G2.GammaNeg = p2
+			vk.G2.DeltaNeg = p2
+
+			vk.G1.K = make([]curve.G1Affine, nbWires)
+			for i:=0; i < nbWires; i++ {
+				vk.G1.K[i] = p1
+			}
+
+			vk.PublicInputs = make([]string, nbWires)
+			for i:=0; i < nbWires; i++ {
+				vk.PublicInputs[i] = rs
+			}
+
+		
+			var bufCompressed bytes.Buffer
+			written, err := vk.WriteTo(&bufCompressed)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			read, err := vkCompressed.ReadFrom(&bufCompressed)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			if read != written {
+				t.Log("read != written")
+				return false
+			}
+
+			var bufRaw bytes.Buffer
+			written, err = vk.WriteRawTo(&bufRaw)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			read, err = vkRaw.ReadFrom(&bufRaw)
+			if err != nil {
+				t.Log(err)
+				return false
+			}
+
+			if read != written {
+				t.Log("read raw != written")
+				return false
+			}
+
+			return reflect.DeepEqual(&vk, &vkCompressed)  && reflect.DeepEqual(&vk, &vkRaw)
+		},
+		GenG1(),
+		GenG2(),
+		gen.AnyString(),
+	))
+
+	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+
+
 func TestProvingKeySerialization(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
@@ -597,15 +449,15 @@ func TestProvingKeySerialization(t *testing.T) {
 			domain := fft.NewDomain(8)
 			pk.Domain = *domain
 
-			pk.NbWires = 6
-			pk.NbPrivateWires = 4
+			nbWires := 6
+			nbPrivateWires := 4
 
 			// allocate our slices
-			pk.G1.A = make([]curve.G1Affine, pk.NbWires)
-			pk.G1.B = make([]curve.G1Affine, pk.NbWires)
-			pk.G1.K = make([]curve.G1Affine, pk.NbPrivateWires)
+			pk.G1.A = make([]curve.G1Affine, nbWires)
+			pk.G1.B = make([]curve.G1Affine, nbWires)
+			pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
 			pk.G1.Z = make([]curve.G1Affine, pk.Domain.Cardinality)
-			pk.G2.B = make([]curve.G2Affine, pk.NbWires)
+			pk.G2.B = make([]curve.G2Affine, nbWires)
 
 			pk.G1.Alpha = p1
 			pk.G2.Beta = p2
@@ -616,30 +468,36 @@ func TestProvingKeySerialization(t *testing.T) {
 			var bufCompressed bytes.Buffer
 			written, err := pk.WriteTo(&bufCompressed)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			read, err := pkCompressed.ReadFrom(&bufCompressed)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			if read != written {
+				t.Log("read != written")
 				return false
 			}
 
 			var bufRaw bytes.Buffer
 			written, err = pk.WriteRawTo(&bufRaw)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			read, err = pkRaw.ReadFrom(&bufRaw)
 			if err != nil {
+				t.Log(err)
 				return false
 			}
 
 			if read != written {
+				t.Log("read raw != written")
 				return false
 			}
 

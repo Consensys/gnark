@@ -11,7 +11,7 @@ import (
 func TestExponentiate(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
-	var expCircuit ExponentiateCircuit
+	var expCircuit Circuit
 	// compiles our circuit into a R1CS
 	r1cs, err := frontend.Compile(gurvy.BN256, &expCircuit)
 	if err != nil {
@@ -19,7 +19,7 @@ func TestExponentiate(t *testing.T) {
 	}
 
 	{
-		var witness ExponentiateCircuit
+		var witness Circuit
 		witness.X.Assign(2)
 		witness.E.Assign(12)
 		witness.Y.Assign(4095)
@@ -27,7 +27,7 @@ func TestExponentiate(t *testing.T) {
 	}
 
 	{
-		var witness ExponentiateCircuit
+		var witness Circuit
 		witness.X.Assign(2)
 		witness.E.Assign(12)
 		witness.Y.Assign(4096)

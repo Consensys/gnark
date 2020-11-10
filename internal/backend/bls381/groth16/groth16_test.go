@@ -17,12 +17,17 @@
 package groth16_test
 
 import (
+	"bytes"
+	"fmt"
+
 	curve "github.com/consensys/gurvy/bls381"
 	"github.com/consensys/gurvy/bls381/fr"
 
 	bls381backend "github.com/consensys/gnark/internal/backend/bls381"
 
 	"testing"
+
+	"github.com/fxamacker/cbor/v2"
 
 	bls381groth16 "github.com/consensys/gnark/internal/backend/bls381/groth16"
 
@@ -134,7 +139,6 @@ func TestReferenceCircuit(t *testing.T) {
 	assert.ProverSucceeded(r1cs, solution)
 }
 
-// BenchmarkSetup is a helper to benchmark Setup on a given circuit
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 
@@ -149,8 +153,6 @@ func BenchmarkSetup(b *testing.B) {
 	})
 }
 
-// BenchmarkProver is a helper to benchmark Prove on a given circuit
-// it will run the Setup, reset the benchmark timer and benchmark the prover
 func BenchmarkProver(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 
@@ -165,9 +167,6 @@ func BenchmarkProver(b *testing.B) {
 	})
 }
 
-// BenchmarkVerifier is a helper to benchmark Verify on a given circuit
-// it will run the Setup, the Prover and reset the benchmark timer and benchmark the verifier
-// the provided solution will be filtered to keep only public inputs
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, solution := referenceCircuit()
 
@@ -185,4 +184,183 @@ func BenchmarkVerifier(b *testing.B) {
 			_ = bls381groth16.Verify(proof, &vk, solution)
 		}
 	})
+}
+
+func BenchmarkSerialization(b *testing.B) {
+	r1cs, solution := referenceCircuit()
+
+	var pk bls381groth16.ProvingKey
+	var vk bls381groth16.VerifyingKey
+	bls381groth16.Setup(r1cs.(*bls381backend.R1CS), &pk, &vk)
+	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, solution, false)
+	if err != nil {
+		panic(err)
+	}
+
+	b.ReportAllocs()
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.ProvingKey binary serialization
+	b.Run("pk: binary serialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = pk.WriteTo(&buf)
+		}
+	})
+	b.Run("pk: binary deserialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = pk.WriteTo(&buf)
+		var pkReconstructed bls381groth16.ProvingKey
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = pkReconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := pk.WriteTo(&buf)
+		fmt.Println("sizeOf(bls381groth16.ProvingKey) binary", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.ProvingKey binary serialization (uncompressed)
+	b.Run("pk: binary raw serialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = pk.WriteRawTo(&buf)
+		}
+	})
+	b.Run("pk: binary raw deserialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = pk.WriteRawTo(&buf)
+		var pkReconstructed bls381groth16.ProvingKey
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = pkReconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := pk.WriteRawTo(&buf)
+		fmt.Println("sizeOf(bls381groth16.ProvingKey) binary raw", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.ProvingKey binary serialization (cbor)
+	b.Run("pk: binary cbor serialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			enc := cbor.NewEncoder(&buf)
+			enc.Encode(&pk)
+		}
+	})
+	b.Run("pk: binary cbor deserialization (bls381groth16.ProvingKey)", func(b *testing.B) {
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&pk)
+		var pkReconstructed bls381groth16.ProvingKey
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			dec := cbor.NewDecoder(buf)
+			dec.Decode(&pkReconstructed)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&pk)
+		fmt.Println("sizeOf(bls381groth16.ProvingKey) binary cbor", buf.Len())
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.Proof binary serialization
+	b.Run("proof: binary serialization (bls381groth16.Proof)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = proof.WriteTo(&buf)
+		}
+	})
+	b.Run("proof: binary deserialization (bls381groth16.Proof)", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = proof.WriteTo(&buf)
+		var proofReconstructed bls381groth16.Proof
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = proofReconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := proof.WriteTo(&buf)
+		fmt.Println("sizeOf(bls381groth16.Proof) binary", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.Proof binary serialization (uncompressed)
+	b.Run("proof: binary raw serialization (bls381groth16.Proof)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			_, _ = proof.WriteRawTo(&buf)
+		}
+	})
+	b.Run("proof: binary raw deserialization (bls381groth16.Proof)", func(b *testing.B) {
+		var buf bytes.Buffer
+		_, _ = proof.WriteRawTo(&buf)
+		var proofReconstructed bls381groth16.Proof
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			_, _ = proofReconstructed.ReadFrom(buf)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		n, _ := proof.WriteRawTo(&buf)
+		fmt.Println("sizeOf(bls381groth16.Proof) binary raw", n)
+		fmt.Println("")
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// bls381groth16.Proof binary serialization (cbor)
+	b.Run("proof: binary cbor serialization (bls381groth16.Proof)", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var buf bytes.Buffer
+			enc := cbor.NewEncoder(&buf)
+			enc.Encode(&proof)
+		}
+	})
+	b.Run("proof: binary cbor deserialization (bls381groth16.Proof)", func(b *testing.B) {
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&proof)
+		var proofReconstructed bls381groth16.Proof
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := bytes.NewBuffer(buf.Bytes())
+			dec := cbor.NewDecoder(buf)
+			dec.Decode(&proofReconstructed)
+		}
+	})
+	{
+		var buf bytes.Buffer
+		enc := cbor.NewEncoder(&buf)
+		enc.Encode(&proof)
+		fmt.Println("sizeOf(bls381groth16.Proof) binary cbor", buf.Len())
+		fmt.Println("")
+	}
+
 }

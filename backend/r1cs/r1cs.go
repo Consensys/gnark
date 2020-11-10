@@ -34,6 +34,7 @@ type R1CS interface {
 	GetNbConstraints() uint64
 	GetNbWires() uint64
 	GetNbCoefficients() int
+	GetCurveID() gurvy.ID
 }
 
 // New instantiate a concrete curved-typed R1CS and return a R1CS interface

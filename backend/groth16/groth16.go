@@ -47,6 +47,7 @@ type Proof interface {
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type ProvingKey interface {
+	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
 	IsDifferent(interface{}) bool
@@ -56,6 +57,7 @@ type ProvingKey interface {
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 type VerifyingKey interface {
+	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
 	IsDifferent(interface{}) bool
@@ -181,7 +183,6 @@ func NewProvingKey(curveID gurvy.ID) ProvingKey {
 	default:
 		panic("not implemented")
 	}
-
 	return pk
 }
 
