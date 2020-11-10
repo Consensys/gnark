@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"math/big"
-	"os"
 	"strings"
 
 	"github.com/consensys/gnark/backend"
@@ -14,7 +13,7 @@ import (
 
 // TODO this is deprecated, we might need a type Witness = map[string]interface{}
 
-// WriteWitness serialize variable map[name]value into file at path
+// WriteWitness serialize variable map[name]value into writer
 //
 // map[string]interface{} --> interface must be convertible to big.Int
 // using backend.FromInterface()
@@ -22,36 +21,7 @@ import (
 // the resulting format is human readable (JSON)
 //
 // big.Int are serialized in hexadecimal strings
-func WriteWitness(path string, from map[string]interface{}) error {
-	// create file
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return serializeWitness(f, from)
-}
-
-// ReadWitness read and deserialize JSON file at path
-//
-// returned object will contain map[string]interface{}
-//
-// keys being variable names and interface{} being big.Int
-//
-// big.Int values in files can be in base10 or base16 strings
-func ReadWitness(path string, into map[string]interface{}) error {
-	// open file
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return deserializeWitness(f, into)
-}
-
-func serializeWitness(writer io.Writer, from map[string]interface{}) error {
+func WriteWitness(writer io.Writer, from map[string]interface{}) error {
 	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "    ")
 
@@ -69,7 +39,14 @@ func serializeWitness(writer io.Writer, from map[string]interface{}) error {
 	return nil
 }
 
-func deserializeWitness(reader io.Reader, into map[string]interface{}) error {
+// ReadWitness read and deserialize JSON file from reader
+//
+// returned object will contain map[string]interface{}
+//
+// keys being variable names and interface{} being big.Int
+//
+// big.Int values in files can be in base10 or base16 strings
+func ReadWitness(reader io.Reader, into map[string]interface{}) error {
 	decoder := json.NewDecoder(reader)
 
 	toRead := make(map[string]string)
