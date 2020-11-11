@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/consensys/bavard v0.1.6
-	github.com/consensys/gurvy v0.3.6-0.20201110224521-bb8e5d0d9c3f
+	github.com/consensys/gurvy v0.3.6-0.20201111043540-aab3a305355d
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.8
 	github.com/stretchr/testify v1.6.1

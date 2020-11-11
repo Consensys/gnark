@@ -51,10 +51,10 @@ func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
 	if err := enc.Encode(&proof.Ar); err != nil {
 		return enc.BytesWritten(), err
 	}
-	if err := enc.Encode(&proof.Krs); err != nil {
+	if err := enc.Encode(&proof.Bs); err != nil {
 		return enc.BytesWritten(), err
 	}
-	if err := enc.Encode(&proof.Bs); err != nil {
+	if err := enc.Encode(&proof.Krs); err != nil {
 		return enc.BytesWritten(), err
 	}
 	return enc.BytesWritten(), nil
@@ -70,10 +70,10 @@ func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
 	if err := dec.Decode(&proof.Ar); err != nil {
 		return dec.BytesRead(), err
 	}
-	if err := dec.Decode(&proof.Krs); err != nil {
+	if err := dec.Decode(&proof.Bs); err != nil {
 		return dec.BytesRead(), err
 	}
-	if err := dec.Decode(&proof.Bs); err != nil {
+	if err := dec.Decode(&proof.Krs); err != nil {
 		return dec.BytesRead(), err
 	}
 
