@@ -12,15 +12,20 @@ import (
 func TestStructTags(t *testing.T) {
 
 	testParseType := func(input interface{}, expected map[string]backend.Visibility) {
+
 		collected := make(map[string]backend.Visibility)
-		var collectHandler leafHandler = func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error {
+
+		var collectHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value, canInterfaceParent bool) error {
 			if _, ok := collected[name]; ok {
 				return errors.New("duplicate name collected")
 			}
-			collected[name] = visibilityToRefactor
+			if canInterfaceParent {
+				collected[name] = visibility
+			}
 			return nil
 		}
-		if err := parseType(input, "", backend.Unset, collectHandler); err != nil {
+
+		if err := parseType(input, "", backend.Unset, true, collectHandler); err != nil {
 			t.Fatal(err)
 		}
 
@@ -29,11 +34,14 @@ func TestStructTags(t *testing.T) {
 				fmt.Println(collected)
 				t.Fatal("failed to collect", k)
 			} else if v2 != v {
-				t.Fatal("collected", k, "but visibilityToRefactor is wrong got", v2, "expected", v)
+				t.Fatal("collected", k, "but visibility is wrong got", v2, "expected", v)
 			}
 			delete(collected, k)
 		}
 		if len(collected) != 0 {
+			for k := range collected {
+				fmt.Println(k)
+			}
 			t.Fatal("collected more variable than expected")
 		}
 
@@ -102,7 +110,7 @@ func TestStructTags(t *testing.T) {
 			D Variable `gnark:"grandchild"`
 		}
 		type child struct {
-			D Variable `gnark:",public"` // parent visibilityToRefactor is secret so public here is ignored
+			D Variable `gnark:",public"` // parent visibility is secret so public here is ignored
 			G grandchild
 		}
 		s := struct {
