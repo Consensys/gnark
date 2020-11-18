@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
@@ -53,8 +52,6 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 			}
 
 			return nil
-		} else {
-			fmt.Println("HERE", tInput)
 		}
 		return errors.New("can't set val " + name)
 	}
