@@ -4,12 +4,11 @@ package zkpschemes
 const Groth16Tests = `
 
 import (
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
-	"path/filepath"
-	"runtime/debug"
+	"bytes"
 	"testing"
-	"strings"
 	"github.com/fxamacker/cbor/v2"
 
 	{{if eq .Curve "BLS377"}}
@@ -23,13 +22,11 @@ import (
 	{{end}}
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
-
-	"reflect"
-	"github.com/stretchr/testify/require"
 )
 
 
@@ -225,9 +222,7 @@ func BenchmarkSerialization(b *testing.B) {
 	})
 	{
 		var buf bytes.Buffer
-		n, _ := {{$.Name}}.WriteTo(&buf)
-		fmt.Println("sizeOf({{$.Type}}) binary", n)
-		fmt.Println("")
+		_, _ = {{$.Name}}.WriteTo(&buf)
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -251,9 +246,7 @@ func BenchmarkSerialization(b *testing.B) {
 	})
 	{
 		var buf bytes.Buffer
-		n, _ := {{$.Name}}.WriteRawTo(&buf)
-		fmt.Println("sizeOf({{$.Type}}) binary raw", n)
-		fmt.Println("")
+		_, _ = {{$.Name}}.WriteRawTo(&buf)
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -282,8 +275,6 @@ func BenchmarkSerialization(b *testing.B) {
 		var buf bytes.Buffer
 		enc := cbor.NewEncoder(&buf)
 		enc.Encode(&{{- $.Name}})
-		fmt.Println("sizeOf({{$.Type}}) binary cbor", buf.Len())
-		fmt.Println("")
 	}
 
 {{ end }}

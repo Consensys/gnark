@@ -4,8 +4,8 @@ package zkpschemes
 const Groth16Verify = `
 
 import (
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
-	{{ template "import_backend" . }}
 	"github.com/consensys/gnark/backend"
 	"errors"
 )

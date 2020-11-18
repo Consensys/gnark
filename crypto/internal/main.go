@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/consensys/bavard"
 )
@@ -79,13 +80,26 @@ func main() {
 		mimcbls377,
 	}
 
+	var wg sync.WaitGroup
 	for _, d := range data {
-		if err := os.MkdirAll(d.Path, 0700); err != nil {
-			panic(err)
-		}
-		generate(d)
+		wg.Add(1)
+		go func(d templateData) {
+			defer wg.Done()
+			if err := os.MkdirAll(d.Path, 0700); err != nil {
+				panic(err)
+			}
+			generate(d)
+		}(d)
 	}
+	wg.Wait()
 
+	// run go fmt on whole directory
+	cmd := exec.Command("gofmt", "-s", "-w", "../")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 // templateData meta data for template generation
@@ -97,21 +111,21 @@ type templateData struct {
 	Package  string
 }
 
+const copyrightHolder = "ConsenSys Software Inc."
+
 // generate template generator
 func generate(d templateData) error {
 
 	if !strings.HasSuffix(d.Path, "/") {
 		d.Path += "/"
 	}
-	fmt.Println()
-	fmt.Println("generating crpyptolib for ", d.Curve)
-	fmt.Println()
 
 	if err := bavard.Generate(d.Path+d.FileName, d.Src, d,
 		bavard.Package(d.Package),
-		bavard.Apache2("ConsenSys AG", 2020),
-		bavard.GeneratedBy("gnark/crypto/internal/generator"),
-		bavard.Import(true),
+		bavard.Apache2(copyrightHolder, 2020),
+		bavard.GeneratedBy("gnark"),
+		bavard.Format(false),
+		bavard.Import(false),
 	); err != nil {
 		return err
 	}

@@ -8,8 +8,7 @@ import (
 	"runtime"
 
 	"github.com/consensys/gnark/internal/utils"
-
-	{{ template "import_curve" . }}
+	{{ template "import_fr" . }}
 )
 
 // Decimation is used in the FFT call to select decimation in time or in frequency
@@ -222,13 +221,16 @@ func BitReverse(a []fr.Element) {
 const FFTTests = `
 
 import (
-	"math/bits"
-	"runtime"
+	"math/big"
 	"testing"
-
-	"github.com/consensys/gnark/internal/utils"
+	"strconv"
 
 	{{ template "import_fr" . }}
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/prop"
+	"github.com/leanovate/gopter/gen"
+
 )
 
 func TestFFT(t *testing.T) {

@@ -4,13 +4,14 @@ package zkpschemes
 const Groth16Prove = `
 
 import (
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
 	"runtime"
-	"sync"
+	"math/big"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/backend"
 )
 
 

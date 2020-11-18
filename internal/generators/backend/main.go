@@ -1,9 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/consensys/bavard"
 	"github.com/consensys/gnark/internal/generators/backend/template"
@@ -34,18 +36,49 @@ func main() {
 	}
 
 	datas := []templateData{bls377, bls381, bn256, bw761}
-
+	var wg sync.WaitGroup
 	for _, d := range datas {
-		if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
-			panic(err)
-		}
-		if err := generateGroth16(d); err != nil {
-			panic(err)
-		}
-		d.RootPath = "../../../backend/r1cs/"
-		if err := generateR1CSConvertor(d); err != nil {
-			panic(err)
-		}
+		wg.Add(1)
+		go func(d templateData) {
+			defer wg.Done()
+			if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
+				panic(err)
+			}
+
+			fftDir := filepath.Join(d.RootPath, "fft")
+			groth16Dir := filepath.Join(d.RootPath, "groth16")
+			backendDir := d.RootPath
+			r1csDir := "../../../backend/r1cs/"
+
+			for _, g := range []genOpts{
+				{data: d, packageName: "r1cs", dir: r1csDir, file: "r1cs_" + strings.ToLower(d.Curve) + ".go", templates: []string{template.ImportCurve, representations.R1CSConvertor}},
+				{data: d, packageName: "backend", dir: backendDir, file: "r1cs.go", templates: []string{template.ImportCurve, representations.R1CS}},
+				{data: d, packageName: "backend_test", dir: backendDir, file: "r1cs_test.go", templates: []string{template.ImportCurve, representations.R1CSTests}},
+				{data: d, packageName: "fft", dir: fftDir, file: "domain_test.go", templates: []string{template.ImportCurve, fft.DomainTests}},
+				{data: d, packageName: "fft", dir: fftDir, file: "domain.go", templates: []string{template.ImportCurve, fft.Domain}},
+				{data: d, packageName: "fft", dir: fftDir, file: "fft_test.go", templates: []string{template.ImportCurve, fft.FFTTests}},
+				{data: d, packageName: "fft", dir: fftDir, file: "fft.go", templates: []string{template.ImportCurve, fft.FFT}},
+				{data: d, packageName: "groth16", dir: groth16Dir, file: "verify.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Verify}},
+				{data: d, packageName: "groth16", dir: groth16Dir, file: "prove.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Prove}},
+				{data: d, packageName: "groth16", dir: groth16Dir, file: "setup.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Setup}},
+				{data: d, packageName: "groth16", dir: groth16Dir, file: "marshal.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Marshal}},
+				{data: d, packageName: "groth16", dir: groth16Dir, file: "marshal_test.go", templates: []string{template.ImportCurve, zkpschemes.Groth16MarshalTest}},
+				{data: d, packageName: "groth16_test", dir: groth16Dir, file: "groth16_test.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Tests}},
+			} {
+				generate(g)
+			}
+		}(d)
+
+	}
+
+	wg.Wait()
+
+	// run go fmt on whole directory
+	cmd := exec.Command("gofmt", "-s", "-w", "../../../")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
 	}
 
 }
@@ -55,225 +88,33 @@ type templateData struct {
 	Curve    string // BLS381, BLS377, BN256, BW761
 }
 
-func generateR1CSConvertor(d templateData) error {
-	if !strings.HasSuffix(d.RootPath, "/") {
-		d.RootPath += "/"
-	}
-	fmt.Println()
-	fmt.Println("generating r1cs convertor for ", d.Curve)
-	fmt.Println()
+const copyrightHolder = "ConsenSys Software Inc."
 
-	// generate r1cs_curve.go
-	src := []string{
-		template.ImportCurve,
-		representations.R1CSConvertor,
+func generate(g genOpts) {
+	opts := []func(*bavard.Bavard) error{
+		bavard.Apache2(copyrightHolder, 2020),
+		bavard.GeneratedBy("gnark"),
+		bavard.Format(false),
+		bavard.Import(false),
 	}
-	return bavard.Generate(d.RootPath+"r1cs_"+strings.ToLower(d.Curve)+".go", src, d,
-		bavard.Package("r1cs"),
-		bavard.Apache2("ConsenSys AG", 2020),
-		bavard.GeneratedBy("gnark/internal/generators"),
-		bavard.Import(true),
-	)
+	if g.buildTag != "" {
+		opts = append(opts, bavard.BuildTag(g.buildTag))
+	}
+	file := filepath.Join(g.dir, g.file)
+
+	opts = append(opts, bavard.Package(g.packageName, g.doc))
+
+	if err := bavard.Generate(file, g.templates, g.data, opts...); err != nil {
+		panic(err)
+	}
 }
 
-func generateGroth16(d templateData) error {
-	if !strings.HasSuffix(d.RootPath, "/") {
-		d.RootPath += "/"
-	}
-	fmt.Println()
-	fmt.Println("generating groth16 backend for ", d.Curve)
-	fmt.Println()
-
-	// generate r1cs.go
-	{
-		src := []string{
-			template.ImportCurve,
-			representations.R1CS,
-		}
-		if err := bavard.Generate(d.RootPath+"r1cs.go", src, d,
-			bavard.Package("backend"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	// generate r1cs_test.go
-	{
-		src := []string{
-			template.ImportCurve,
-			representations.R1CSTests,
-		}
-		if err := bavard.Generate(d.RootPath+"r1cs_test.go", src, d,
-			bavard.Package("backend_test"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	// groth16
-	{
-		// setup
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16Setup,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/setup.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-	{
-		// prove
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16Prove,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/prove.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// verify
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16Verify,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/verify.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// marshal
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16Marshal,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/marshal.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// marshal tests
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16MarshalTest,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/marshal_test.go", src, d,
-			bavard.Package("groth16"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// generate FFT
-		src := []string{
-			template.ImportCurve,
-			fft.FFT,
-		}
-		if err := bavard.Generate(d.RootPath+"fft/fft.go", src, d,
-			bavard.Package("fft"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// generate FFT Tests
-		src := []string{
-			template.ImportCurve,
-			fft.FFTTests,
-		}
-		if err := bavard.Generate(d.RootPath+"fft/fft_test.go", src, d,
-			bavard.Package("fft"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// generate FFT domain
-		src := []string{
-			template.ImportCurve,
-			fft.Domain,
-		}
-		if err := bavard.Generate(d.RootPath+"fft/domain.go", src, d,
-			bavard.Package("fft"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// generate FFT domain tests
-		src := []string{
-			template.ImportCurve,
-			fft.DomainTests,
-		}
-		if err := bavard.Generate(d.RootPath+"fft/domain_test.go", src, d,
-			bavard.Package("fft"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-
-	{
-		// tests
-		src := []string{
-			template.ImportCurve,
-			zkpschemes.Groth16Tests,
-		}
-		if err := bavard.Generate(d.RootPath+"groth16/groth16_test.go", src, d,
-			bavard.Package("groth16_test"),
-			bavard.Apache2("ConsenSys AG", 2020),
-			bavard.GeneratedBy("gnark/internal/generators"),
-			bavard.Import(true),
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+type genOpts struct {
+	file        string
+	templates   []string
+	buildTag    string
+	dir         string
+	packageName string
+	doc         string
+	data        interface{}
 }

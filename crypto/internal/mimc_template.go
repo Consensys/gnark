@@ -64,7 +64,6 @@ const mimcCurveTemplate = `
 
 {{ if eq .Curve "BN256" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 
@@ -99,7 +98,6 @@ const mimcCurveTemplate = `
 	}
 {{ else if eq .Curve "BLS377" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 
@@ -134,7 +132,6 @@ const mimcCurveTemplate = `
 	}
 {{ else if eq .Curve "BLS381" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 

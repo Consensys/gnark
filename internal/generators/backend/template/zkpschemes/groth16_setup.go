@@ -4,10 +4,13 @@ package zkpschemes
 const Groth16Setup = `
 
 import (
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
-	"github.com/consensys/gnark/internal/utils/parallel"
+	"github.com/consensys/gurvy"
+	"math/big"
+	"math/bits"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement

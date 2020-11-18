@@ -20,17 +20,15 @@ const ImportCurve = `
 {{ define "import_curve" }}
 {{if eq .Curve "BLS377"}}
 	curve "github.com/consensys/gurvy/bls377"
-	"github.com/consensys/gurvy/bls377/fr"
 {{else if eq .Curve "BLS381"}}
 	curve "github.com/consensys/gurvy/bls381"
-	"github.com/consensys/gurvy/bls381/fr"
 {{else if eq .Curve "BN256"}}
 	curve "github.com/consensys/gurvy/bn256"	
-	"github.com/consensys/gurvy/bn256/fr"
 {{else if eq .Curve "BW761"}}
 	curve "github.com/consensys/gurvy/bw761"	
-	"github.com/consensys/gurvy/bw761/fr"
 {{end}}
+
+
 
 {{end}}
 

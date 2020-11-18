@@ -6,15 +6,14 @@ const R1CS = `
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"math/big"
 	"io"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
-	"github.com/consensys/gnark/frontend"
+
+	"github.com/consensys/gurvy"
 
 	{{ template "import_fr" . }}
 )
