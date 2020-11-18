@@ -35,7 +35,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler leafHandler = func(visibilityToRefactor backend.Visibility, name string, tInput reflect.Value) error {
+	var handler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
 			if v.id != 0 {
@@ -44,7 +44,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 			if v.val != nil {
 				return errors.New("circuit has some assigned values, can't compile")
 			}
-			switch visibilityToRefactor {
+			switch visibility {
 			case backend.Unset, backend.Secret:
 				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
 			case backend.Public:
