@@ -14,6 +14,10 @@ import (
 	"github.com/consensys/gnark/internal/generators/backend/template/zkpschemes"
 )
 
+const copyrightHolder = "ConsenSys Software Inc."
+
+var bgen = bavard.NewBatchGenerator(copyrightHolder, "gnark")
+
 //go:generate go run main.go
 func main() {
 
@@ -50,22 +54,24 @@ func main() {
 			backendDir := d.RootPath
 			r1csDir := "../../../backend/r1cs/"
 
-			for _, g := range []genOpts{
-				{data: d, packageName: "r1cs", dir: r1csDir, file: "r1cs_" + strings.ToLower(d.Curve) + ".go", templates: []string{template.ImportCurve, representations.R1CSConvertor}},
-				{data: d, packageName: "backend", dir: backendDir, file: "r1cs.go", templates: []string{template.ImportCurve, representations.R1CS}},
-				{data: d, packageName: "backend_test", dir: backendDir, file: "r1cs_test.go", templates: []string{template.ImportCurve, representations.R1CSTests}},
-				{data: d, packageName: "fft", dir: fftDir, file: "domain_test.go", templates: []string{template.ImportCurve, fft.DomainTests}},
-				{data: d, packageName: "fft", dir: fftDir, file: "domain.go", templates: []string{template.ImportCurve, fft.Domain}},
-				{data: d, packageName: "fft", dir: fftDir, file: "fft_test.go", templates: []string{template.ImportCurve, fft.FFTTests}},
-				{data: d, packageName: "fft", dir: fftDir, file: "fft.go", templates: []string{template.ImportCurve, fft.FFT}},
-				{data: d, packageName: "groth16", dir: groth16Dir, file: "verify.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Verify}},
-				{data: d, packageName: "groth16", dir: groth16Dir, file: "prove.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Prove}},
-				{data: d, packageName: "groth16", dir: groth16Dir, file: "setup.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Setup}},
-				{data: d, packageName: "groth16", dir: groth16Dir, file: "marshal.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Marshal}},
-				{data: d, packageName: "groth16", dir: groth16Dir, file: "marshal_test.go", templates: []string{template.ImportCurve, zkpschemes.Groth16MarshalTest}},
-				{data: d, packageName: "groth16_test", dir: groth16Dir, file: "groth16_test.go", templates: []string{template.ImportCurve, zkpschemes.Groth16Tests}},
-			} {
-				generate(g)
+			entries := []bavard.Entry{
+				{Data: d, PackageName: "r1cs", File: filepath.Join(r1csDir, "r1cs_"+strings.ToLower(d.Curve)+".go"), Templates: []string{template.ImportCurve, representations.R1CSConvertor}},
+				{Data: d, PackageName: "backend", File: filepath.Join(backendDir, "r1cs.go"), Templates: []string{template.ImportCurve, representations.R1CS}},
+				{Data: d, PackageName: "backend_test", File: filepath.Join(backendDir, "r1cs_test.go"), Templates: []string{template.ImportCurve, representations.R1CSTests}},
+				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "domain_test.go"), Templates: []string{template.ImportCurve, fft.DomainTests}},
+				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "domain.go"), Templates: []string{template.ImportCurve, fft.Domain}},
+				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "fft_test.go"), Templates: []string{template.ImportCurve, fft.FFTTests}},
+				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "fft.go"), Templates: []string{template.ImportCurve, fft.FFT}},
+				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Verify}},
+				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Prove}},
+				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Setup}},
+				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Marshal}},
+				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16MarshalTest}},
+				{Data: d, PackageName: "groth16_test", File: filepath.Join(groth16Dir, "groth16_test.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Tests}},
+			}
+
+			if err := bgen.Generate(entries...); err != nil {
+				panic(err) // TODO handle
 			}
 		}(d)
 
@@ -86,35 +92,4 @@ func main() {
 type templateData struct {
 	RootPath string
 	Curve    string // BLS381, BLS377, BN256, BW761
-}
-
-const copyrightHolder = "ConsenSys Software Inc."
-
-func generate(g genOpts) {
-	opts := []func(*bavard.Bavard) error{
-		bavard.Apache2(copyrightHolder, 2020),
-		bavard.GeneratedBy("gnark"),
-		bavard.Format(false),
-		bavard.Import(false),
-	}
-	if g.buildTag != "" {
-		opts = append(opts, bavard.BuildTag(g.buildTag))
-	}
-	file := filepath.Join(g.dir, g.file)
-
-	opts = append(opts, bavard.Package(g.packageName, g.doc))
-
-	if err := bavard.Generate(file, g.templates, g.data, opts...); err != nil {
-		panic(err)
-	}
-}
-
-type genOpts struct {
-	file        string
-	templates   []string
-	buildTag    string
-	dir         string
-	packageName string
-	doc         string
-	data        interface{}
 }
