@@ -1,12 +1,9 @@
 /*
 Copyright © 2020 ConsenSys
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-	"unsafe"
 
 	"github.com/consensys/gnark/backend"
 )
@@ -70,11 +66,10 @@ const (
 	optOmit   Tag = "-"
 )
 
-type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value, canInterfaceParent bool) error
+type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
 
-func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, canInterfaceParent bool, handler leafHandler) error {
-
-	// types we are looking for
+func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, handler leafHandler) error {
+	// types we are lOoutputoking for
 	tVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(ConstraintSystem{})
 
@@ -89,7 +84,7 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 	case reflect.Struct:
 		switch tValue.Type() {
 		case tVariable:
-			return handler(parentVisibility, baseName, tValue, canInterfaceParent)
+			return handler(parentVisibility, baseName, tValue)
 		case tConstraintSytem:
 			return nil
 		default:
@@ -128,21 +123,19 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 				fullName := appendName(baseName, name)
 
 				f := tValue.FieldByName(field.Name)
-				if f.CanAddr() {
-					if f.CanInterface() { // false only when the field is not exported (since field is not a method)
-						value := f.Addr().Interface()
-						if err := parseType(value, fullName, visibility, canInterfaceParent, handler); err != nil {
-							return err
-						}
-					} else { // access the struct via unsafe pointer
-						f = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
-						value := f.Addr().Interface()
-						if err := parseType(value, fullName, visibility, false, handler); err != nil {
-							return err
-						}
+				if f.CanAddr() && f.Addr().CanInterface() {
+					value := f.Addr().Interface()
+					if err := parseType(value, fullName, visibility, handler); err != nil {
+						return err
+					}
+				} else {
+					if f.Kind() == reflect.Ptr {
+						f = f.Elem()
+					}
+					if (f.Kind() == reflect.Struct) && (f.Type() == tVariable) {
+						fmt.Println("warning: Variable is unexported or unadressable", fullName)
 					}
 				}
-
 			}
 		}
 
@@ -154,17 +147,9 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 		for j := 0; j < tValue.Len(); j++ {
 
 			val := tValue.Index(j)
-			if val.CanAddr() {
-				valAddr := val.Addr()
-				if valAddr.CanInterface() {
-					val.Addr().CanInterface()
-					if err := parseType(val.Addr().Interface(), appendName(baseName, strconv.Itoa(j)), parentVisibility, canInterfaceParent, handler); err != nil {
-						return err
-					}
-				} else {
-					if err := parseType(val.Addr().Interface(), appendName(baseName, strconv.Itoa(j)), parentVisibility, false, handler); err != nil {
-						return err
-					}
+			if val.CanAddr() && val.Addr().CanInterface() {
+				if err := parseType(val.Addr().Interface(), appendName(baseName, strconv.Itoa(j)), parentVisibility, handler); err != nil {
+					return err
 				}
 			}
 

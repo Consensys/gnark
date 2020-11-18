@@ -53,7 +53,10 @@ func TestVerify(t *testing.T) {
 	var buf bytes.Buffer
 	for i := 0; i < 10; i++ {
 		var leaf fr.Element
-		b := leaf.SetRandom().Bytes()
+		if _, err := leaf.SetRandom(); err != nil {
+			t.Fatal(err)
+		}
+		b := leaf.Bytes()
 		buf.Write(b[:])
 	}
 

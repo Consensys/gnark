@@ -59,7 +59,7 @@ func BenchmarkVerify(b *testing.B) {
 		seed[i] = v
 	}
 
-	hFunc := bn256.NewMiMC("seed")
+	hFunc := {{toLower .Curve}}.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
 	pubKey, privKey := New(seed, hFunc)

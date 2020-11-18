@@ -5,9 +5,8 @@ const Groth16Marshal = `
 
 import (
 	{{ template "import_curve" . }}
-	{{ template "import_backend" . }}
-	{{ template "import_fft" . }}
 	"io"
+	"encoding/binary"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -293,6 +292,8 @@ import (
 	"bytes"
 	"math/big"
 	"reflect"
+
+	{{ template "import_fft" . }}
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"

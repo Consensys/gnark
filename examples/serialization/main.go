@@ -28,7 +28,7 @@ func main() {
 	newR1CS.ReadFrom(&buf)
 
 	// setup
-	pk, vk := groth16.Setup(_r1cs)
+	pk, vk, _ := groth16.Setup(_r1cs)
 
 	// gnark objects implements binary encoding using (or not) elliptic curve point compression
 	// groth16.ProvingKey, groth16.VerifyingKey and groth16.Proof implements io.WriterTo and io.ReaderFrom

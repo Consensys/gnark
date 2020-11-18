@@ -4,13 +4,14 @@ package zkpschemes
 const Groth16Prove = `
 
 import (
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
 	"runtime"
-	"sync"
+	"math/big"
+	"github.com/consensys/gurvy"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/backend"
 )
 
 
@@ -68,8 +69,12 @@ func Prove(r1cs *{{ toLower .Curve}}backend.R1CS, pk *ProvingKey, solution map[s
 	// sample random r and s
 	var r, s big.Int
 	var _r, _s, _kr fr.Element
-	_r.SetRandom()
-	_s.SetRandom()
+	if _, err := _r.SetRandom(); err != nil {
+		return nil, err 
+	}
+	if _, err := _s.SetRandom(); err != nil {
+		return nil, err 
+	}
 	_kr.Mul(&_r, &_s).Neg(&_kr)
 
 	_r.FromMont()

@@ -12,20 +12,15 @@ import (
 func TestStructTags(t *testing.T) {
 
 	testParseType := func(input interface{}, expected map[string]backend.Visibility) {
-
 		collected := make(map[string]backend.Visibility)
-
-		var collectHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value, canInterfaceParent bool) error {
+		var collectHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 			if _, ok := collected[name]; ok {
 				return errors.New("duplicate name collected")
 			}
-			if canInterfaceParent {
-				collected[name] = visibility
-			}
+			collected[name] = visibility
 			return nil
 		}
-
-		if err := parseType(input, "", backend.Unset, true, collectHandler); err != nil {
+		if err := parseType(input, "", backend.Unset, collectHandler); err != nil {
 			t.Fatal(err)
 		}
 
@@ -39,9 +34,6 @@ func TestStructTags(t *testing.T) {
 			delete(collected, k)
 		}
 		if len(collected) != 0 {
-			for k := range collected {
-				fmt.Println(k)
-			}
 			t.Fatal("collected more variable than expected")
 		}
 

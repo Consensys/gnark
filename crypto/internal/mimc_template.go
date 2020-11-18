@@ -10,10 +10,10 @@ const mimcEncryptTemplate = `
 	// k: encryption key
 	func (d *digest) encrypt(m fr.Element) {
 
-		for _, cons := range d.Params {
+		for i:=0; i < len(d.Params); i++ {
 			// m = (m+k+c)^7
 			var tmp fr.Element
-			tmp.Add(&m, &d.h).Add(&tmp, &cons)
+			tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
 			m.Square(&tmp).
 				Mul(&m, &tmp).
 				Square(&m).
@@ -28,10 +28,10 @@ const mimcEncryptTemplate = `
 	// k: encryption key
 	func (d *digest) encrypt(m fr.Element) {
 
-		for _, cons := range d.Params {
+		for i:=0; i < len(d.Params); i++ {
 			// m = (m+k+c)^7
 			var tmp fr.Element
-			tmp.Add(&m, &d.h).Add(&tmp, &cons)
+			tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
 			m.Square(&tmp).
 				Square(&m).
 				Mul(&m, &tmp)
@@ -45,9 +45,9 @@ const mimcEncryptTemplate = `
 	// k: encryption key
 	func (d *digest) encrypt(m fr.Element) {
 
-		for _, cons := range d.Params {
+		for i:=0; i < len(d.Params); i++ {
 			// m = (m+k+c)^7
-			m.Add(&m, &d.h).Add(&m, &cons).Inverse(&m)
+			m.Add(&m, &d.h).Add(&m, &d.Params[i]).Inverse(&m)
 		}
 		m.Add(&m, &d.h)
 		d.h = m
@@ -64,7 +64,6 @@ const mimcCurveTemplate = `
 
 {{ if eq .Curve "BN256" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 
@@ -99,7 +98,6 @@ const mimcCurveTemplate = `
 	}
 {{ else if eq .Curve "BLS377" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 
@@ -134,7 +132,6 @@ const mimcCurveTemplate = `
 	}
 {{ else if eq .Curve "BLS381" }}
 	import (
-		"encoding/binary"
 		"hash"
 		"math/big"
 
@@ -272,13 +269,15 @@ func (d *digest) checksum() fr.Element {
 {{ template "encrypt" . }}
 
 // Sum computes the mimc hash of msg from seed
-func Sum(seed string, msg []byte) []byte {
+func Sum(seed string, msg []byte) ([]byte, error) {
 	params := NewParams(seed)
 	var d digest
 	d.Params = params
-	d.Write(msg)
+	if _, err := d.Write(msg); err != nil {
+		return nil, err
+	}
 	h := d.checksum()
 	bytes := h.Bytes()
-	return bytes[:]
+	return bytes[:], nil
 }
 `

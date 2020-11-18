@@ -48,7 +48,10 @@ func TestIntegrationAPI(t *testing.T) {
 
 			typedR1CS := circuit.R1CS.ToR1CS(curve)
 
-			pk, vk := groth16.Setup(typedR1CS)
+			pk, vk, err := groth16.Setup(typedR1CS)
+			if err != nil {
+				t.Fatal(err)
+			}
 			correctProof, err := groth16.Prove(typedR1CS, pk, circuit.Good)
 			if err != nil {
 				t.Fatal(err)

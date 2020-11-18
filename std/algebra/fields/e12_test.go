@@ -429,7 +429,7 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	var a, c bls377.E12
 
 	a.SetRandom()
-	c.FinalExponentiation(&a)
+	c = bls377.FinalExponentiation(&a)
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)

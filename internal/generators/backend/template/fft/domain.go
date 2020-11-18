@@ -8,7 +8,9 @@ import (
 	"math/bits"
 	"runtime"
 	"sync"
+	"io"
 
+	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
 )
 
@@ -238,6 +240,8 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 const DomainTests = `
 import (
 	"reflect"
+	"testing"
+	"bytes"
 )
 
 

@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"errors"
-	"log"
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
@@ -36,7 +35,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value, canInterfaceParent bool) error {
+	var handler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
 			if v.id != 0 {
@@ -52,18 +51,14 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 				tInput.Set(reflect.ValueOf(cs.newPublicVariable(name)))
 			}
 
-			if !canInterfaceParent {
-				// TODO should we raise an error
-				log.Printf("Warning: field <" + name + "> or a parent is not exported but is used as a circuit input")
-			}
 			return nil
 		}
-		return errors.New("can't set val <" + name + ">: the variable or a parent is not exported")
+		return errors.New("can't set val " + name)
 	}
 
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
-	if err := parseType(circuit, "", backend.Unset, true, handler); err != nil {
+	if err := parseType(circuit, "", backend.Unset, handler); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +86,7 @@ func ParseWitness(input interface{}) (map[string]interface{}, error) {
 	case Circuit:
 		toReturn := make(map[string]interface{})
 
-		var extractHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value, canInterfaceParent bool) error {
+		var extractHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 
 			v := tInput.Interface().(Variable)
 
@@ -104,7 +99,7 @@ func ParseWitness(input interface{}) (map[string]interface{}, error) {
 
 		// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
 		// (secret or public inputs)
-		return toReturn, parseType(c, "", backend.Unset, true, extractHandler)
+		return toReturn, parseType(c, "", backend.Unset, extractHandler)
 	default:
 		rValue := reflect.ValueOf(input)
 		if rValue.Kind() != reflect.Ptr {
