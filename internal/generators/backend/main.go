@@ -72,6 +72,7 @@ func generateR1CSConvertor(d templateData) error {
 		bavard.Package("r1cs"),
 		bavard.Apache2("ConsenSys AG", 2020),
 		bavard.GeneratedBy("gnark/internal/generators"),
+		bavard.Import(true),
 	)
 }
 
@@ -93,6 +94,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("backend"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -108,6 +110,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("backend_test"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -124,6 +127,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -138,6 +142,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -153,6 +158,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -168,6 +174,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -183,6 +190,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -198,6 +206,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -213,6 +222,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -228,6 +238,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -243,6 +254,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("fft"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}
@@ -258,6 +270,7 @@ func generateGroth16(d templateData) error {
 			bavard.Package("groth16_test"),
 			bavard.Apache2("ConsenSys AG", 2020),
 			bavard.GeneratedBy("gnark/internal/generators"),
+			bavard.Import(true),
 		); err != nil {
 			return err
 		}

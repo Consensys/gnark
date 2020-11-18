@@ -111,6 +111,7 @@ func generate(d templateData) error {
 		bavard.Package(d.Package),
 		bavard.Apache2("ConsenSys AG", 2020),
 		bavard.GeneratedBy("gnark/crypto/internal/generator"),
+		bavard.Import(true),
 	); err != nil {
 		return err
 	}
