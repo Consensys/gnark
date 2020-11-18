@@ -88,7 +88,9 @@ func main() {
 			if err := os.MkdirAll(d.Path, 0700); err != nil {
 				panic(err)
 			}
-			generate(d)
+			if err := generate(d); err != nil {
+				panic(err)
+			}
 		}(d)
 	}
 	wg.Wait()

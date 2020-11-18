@@ -139,7 +139,9 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 	pub.HFunc.Reset()
 	for i := 0; i < len(data); i++ {
 		bytes := data[i].Bytes()
-		pub.HFunc.Write(bytes[:])
+		if _, err := pub.HFunc.Write(bytes[:]); err != nil {
+			return Signature{}, err
+		}
 	}
 	hramBin := pub.HFunc.Sum([]byte{})
 	var hram fr.Element
@@ -181,7 +183,9 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 	pub.HFunc.Reset()
 	for i := 0; i < len(data); i++ {
 		bytes := data[i].Bytes()
-		pub.HFunc.Write(bytes[:])
+		if _, err := pub.HFunc.Write(bytes[:]); err != nil {
+			return false, err
+		}
 	}
 	hramBin := pub.HFunc.Sum([]byte{})
 	var hram fr.Element

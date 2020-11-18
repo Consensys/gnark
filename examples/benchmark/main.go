@@ -99,7 +99,7 @@ func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r
 	}
 
 	// dummy setup will not compute a verifying key and just sets random value in the proving key
-	pk := groth16.DummySetup(r1cs)
+	pk, _ := groth16.DummySetup(r1cs)
 	return pk, r1cs
 }
 
