@@ -131,6 +131,13 @@ func parseType(input interface{}, baseName string, parentVisibility backend.Visi
 					if err := parseType(value, fullName, visibility, handler); err != nil {
 						return err
 					}
+				} else {
+					if f.Kind() == reflect.Ptr {
+						f = f.Elem()
+					}
+					if (f.Kind() == reflect.Struct) && (f.Type() == tVariable) {
+						fmt.Println("warning: Variable is unexported or unadressable", fullName)
+					}
 				}
 			}
 		}
