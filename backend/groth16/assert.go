@@ -42,9 +42,10 @@ func NewAssert(t *testing.T) *Assert {
 // ( see frontend.ParseWitness )
 func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, solution interface{}) {
 	// setup
-	pk := DummySetup(r1cs)
+	pk, err := DummySetup(r1cs)
+	assert.NoError(err)
 
-	_, err := Prove(r1cs, pk, assert.parseSolution(solution))
+	_, err = Prove(r1cs, pk, assert.parseSolution(solution))
 	assert.Error(err, "proving with bad solution should output an error")
 }
 
@@ -68,12 +69,14 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
 	_solution := assert.parseSolution(solution)
 
 	// setup
-	pk, vk := Setup(r1cs)
+	pk, vk, err := Setup(r1cs)
+	assert.NoError(err)
 
 	// ensure random sampling; calling setup twice should produce != pk and vk
 	{
 		// setup
-		pk2, vk2 := Setup(r1cs)
+		pk2, vk2, err := Setup(r1cs)
+		assert.NoError(err)
 
 		assert.True(pk2.IsDifferent(pk), "groth16 setup with same input should produce different outputs ")
 		assert.True(vk2.IsDifferent(vk), "groth16 setup with same input should produce different outputs ")

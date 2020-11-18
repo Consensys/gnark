@@ -58,7 +58,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) {
+func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	/*
 		Setup
@@ -82,7 +82,10 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	vk.PublicInputs = r1cs.PublicWires
 
 	// samples toxic waste
-	toxicWaste := sampleToxicWaste()
+	toxicWaste, err := sampleToxicWaste()
+	if err != nil {
+		return err 
+	}
 
 	// Setup coeffs to compute pk.G1.A, pk.G1.B, pk.G1.K
 	A, B, C := setupABC(r1cs, domain, toxicWaste)
@@ -222,6 +225,8 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	
 	// set domain
 	pk.Domain = *domain
+
+	return nil 
 }
 
 func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
@@ -287,29 +292,39 @@ type toxicWaste struct {
 	alphaReg, betaReg, gammaReg, deltaReg fr.Element
 }
 
-func sampleToxicWaste() toxicWaste {
+func sampleToxicWaste() (toxicWaste, error) {
 
 	res := toxicWaste{}
 
-	res.t.SetRandom()
-	res.alpha.SetRandom()
-	res.beta.SetRandom()
-	res.gamma.SetRandom()
-	res.delta.SetRandom()
+	if _, err := res.t.SetRandom(); err != nil {
+		return res, err 
+	}
+	if _, err := res.alpha.SetRandom(); err != nil {
+		return res, err 
+	}
+	if _, err := res.beta.SetRandom(); err != nil {
+		return res, err 
+	}
+	if _, err := res.gamma.SetRandom(); err != nil {
+		return res, err 
+	}
+	if _, err := res.delta.SetRandom(); err != nil {
+		return res, err 
+	}
 
 	res.alphaReg = res.alpha.ToRegular()
 	res.betaReg = res.beta.ToRegular()
 	res.gammaReg = res.gamma.ToRegular()
 	res.deltaReg = res.delta.ToRegular()
 
-	return res
+	return res, nil
 }
 
 
 
 // DummySetup fills a random ProvingKey
 // used for test or benchmarking purposes
-func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
+func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbWires
 	nbConstraints := r1cs.NbConstraints
@@ -325,7 +340,10 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
 	pk.G2.B = make([]curve.G2Affine, nbWires)
 
 	// samples toxic waste
-	toxicWaste := sampleToxicWaste()
+	toxicWaste, err := sampleToxicWaste()
+	if err != nil {
+		return err 
+	}
 
 	
 	var r1Jac curve.G1Jac
@@ -357,6 +375,7 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) {
 
 	pk.Domain = *domain
 
+	return nil
 }
 
 

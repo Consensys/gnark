@@ -85,8 +85,12 @@ func Prove(r1cs *bls381backend.R1CS, pk *ProvingKey, solution map[string]interfa
 	// sample random r and s
 	var r, s big.Int
 	var _r, _s, _kr fr.Element
-	_r.SetRandom()
-	_s.SetRandom()
+	if _, err := _r.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := _s.SetRandom(); err != nil {
+		return nil, err
+	}
 	_kr.Mul(&_r, &_s).Neg(&_kr)
 
 	_r.FromMont()

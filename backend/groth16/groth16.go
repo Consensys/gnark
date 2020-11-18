@@ -114,29 +114,37 @@ func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}, force ...bool) (
 }
 
 // Setup runs groth16.Setup with provided R1CS
-func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey) {
+func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey, error) {
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		var pk groth16_bls377.ProvingKey
 		var vk groth16_bls377.VerifyingKey
-		groth16_bls377.Setup(_r1cs, &pk, &vk)
-		return &pk, &vk
+		if err := groth16_bls377.Setup(_r1cs, &pk, &vk); err != nil {
+			return nil, nil, err
+		}
+		return &pk, &vk, nil
 	case *backend_bls381.R1CS:
 		var pk groth16_bls381.ProvingKey
 		var vk groth16_bls381.VerifyingKey
-		groth16_bls381.Setup(_r1cs, &pk, &vk)
-		return &pk, &vk
+		if err := groth16_bls381.Setup(_r1cs, &pk, &vk); err != nil {
+			return nil, nil, err
+		}
+		return &pk, &vk, nil
 	case *backend_bn256.R1CS:
 		var pk groth16_bn256.ProvingKey
 		var vk groth16_bn256.VerifyingKey
-		groth16_bn256.Setup(_r1cs, &pk, &vk)
-		return &pk, &vk
+		if err := groth16_bn256.Setup(_r1cs, &pk, &vk); err != nil {
+			return nil, nil, err
+		}
+		return &pk, &vk, nil
 	case *backend_bw761.R1CS:
 		var pk groth16_bw761.ProvingKey
 		var vk groth16_bw761.VerifyingKey
-		groth16_bw761.Setup(_r1cs, &pk, &vk)
-		return &pk, &vk
+		if err := groth16_bw761.Setup(_r1cs, &pk, &vk); err != nil {
+			return nil, nil, err
+		}
+		return &pk, &vk, nil
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -144,24 +152,32 @@ func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey) {
 
 // DummySetup create a random ProvingKey with provided R1CS
 // it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
-func DummySetup(r1cs r1cs.R1CS) ProvingKey {
+func DummySetup(r1cs r1cs.R1CS) (ProvingKey, error) {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		var pk groth16_bls377.ProvingKey
-		groth16_bls377.DummySetup(_r1cs, &pk)
-		return &pk
+		if err := groth16_bls377.DummySetup(_r1cs, &pk); err != nil {
+			return nil, err
+		}
+		return &pk, nil
 	case *backend_bls381.R1CS:
 		var pk groth16_bls381.ProvingKey
-		groth16_bls381.DummySetup(_r1cs, &pk)
-		return &pk
+		if err := groth16_bls381.DummySetup(_r1cs, &pk); err != nil {
+			return nil, err
+		}
+		return &pk, nil
 	case *backend_bn256.R1CS:
 		var pk groth16_bn256.ProvingKey
-		groth16_bn256.DummySetup(_r1cs, &pk)
-		return &pk
+		if err := groth16_bn256.DummySetup(_r1cs, &pk); err != nil {
+			return nil, err
+		}
+		return &pk, nil
 	case *backend_bw761.R1CS:
 		var pk groth16_bw761.ProvingKey
-		groth16_bw761.DummySetup(_r1cs, &pk)
-		return &pk
+		if err := groth16_bw761.DummySetup(_r1cs, &pk); err != nil {
+			return nil, err
+		}
+		return &pk, nil
 	default:
 		panic("unrecognized R1CS curve type")
 	}
