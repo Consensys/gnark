@@ -3,8 +3,8 @@ module github.com/consensys/gnark
 go 1.15
 
 require (
-	github.com/consensys/bavard v0.1.7-0.20201118205911-64cdee573396
-	github.com/consensys/gurvy v0.3.6-0.20201118043610-0e642099a43d
+	github.com/consensys/bavard v0.1.7-0.20201120162630-86d982ed34b6
+	github.com/consensys/gurvy v0.3.6-0.20201201225406-c45cdb55aaef
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.8
 	github.com/stretchr/testify v1.6.1
