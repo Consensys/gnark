@@ -143,7 +143,7 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 // NbConstraints enables circuit profiling and helps debugging
 // It returns the number of constraints created at the current stage of the circuit construction.
 //
-// The number returns included both the assertions and the non-insertion constraints
+// The number returns included both the assertions and the non-assertion constraints
 // (eg: the constraints which creates a new variable)
 func (cs *ConstraintSystem) NbConstraints() int {
 	return len(cs.constraints) + len(cs.assertions)
