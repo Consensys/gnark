@@ -140,6 +140,15 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 	return term
 }
 
+// NbConstraints enables circuit profiling and helps debugging
+// It returns the number of constraints created at the current stage of the circuit construction.
+//
+// The number returns included both the assertions and the non-insertion constraints
+// (eg: the constraints which creates a new variable)
+func (cs *ConstraintSystem) NbConstraints() int {
+	return len(cs.constraints) + len(cs.assertions)
+}
+
 // LinearExpression packs a list of r1c.Term in a r1c.LinearExpression and returns it.
 func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpression {
 	res := make(r1c.LinearExpression, len(terms))
