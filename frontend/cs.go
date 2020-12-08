@@ -140,6 +140,15 @@ func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
 	return term
 }
 
+// NbConstraints enables circuit profiling and helps debugging
+// It returns the number of constraints created at the current stage of the circuit construction.
+//
+// The number returns included both the assertions and the non-assertion constraints
+// (eg: the constraints which creates a new variable)
+func (cs *ConstraintSystem) NbConstraints() int {
+	return len(cs.constraints) + len(cs.assertions)
+}
+
 // LinearExpression packs a list of r1c.Term in a r1c.LinearExpression and returns it.
 func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpression {
 	res := make(r1c.LinearExpression, len(terms))
@@ -147,6 +156,71 @@ func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpres
 		res[i] = args
 	}
 	return res
+}
+
+// MergeLinearExpressions merges provided expressions into a single one.
+// two expressions ax + by and cx + dy will result in (a+c)x + (b+d)y
+func (cs *ConstraintSystem) MergeLinearExpressions(lc ...r1c.LinearExpression) r1c.LinearExpression {
+	if len(lc) == 0 {
+		return r1c.LinearExpression{}
+	}
+	r := make(r1c.LinearExpression, len(lc[0]))
+	copy(r, lc[0])
+
+	// make a quick hash map to find terms by constraintID
+	hm := make(map[int]int)
+	for i := 0; i < len(r); i++ {
+		hm[r[i].ConstraintID()] = i
+	}
+	const maxInt = int(^uint(0) >> 1)
+	for i := 1; i < len(lc); i++ {
+		for _, term := range lc[i] {
+			// for each term, check if we have it.
+			cID := term.ConstraintID()
+			if existing, ok := hm[cID]; ok {
+				// we already have that term
+				// we need to combine the coeffs.
+				coeff := cs.bigIntValue(r[existing])
+				otherCoeff := cs.bigIntValue(term)
+				coeff.Add(&coeff, &otherCoeff)
+
+				// TODO @gbotrel this logic should be factorize somewhere cleaner..
+				// also, here, when we merge a coeff into existingTerm, we may end up we unused coefficients
+				// in our coefficient array.
+
+				r[existing].SetCoeffID(cs.coeffID(&coeff))
+				r[existing].SetCoeffValue(maxInt)
+				if coeff.Cmp(bZero) == 0 {
+					r[existing].SetCoeffValue(0)
+				} else if coeff.Cmp(bOne) == 0 {
+					r[existing].SetCoeffValue(1)
+				} else if coeff.Cmp(bTwo) == 0 {
+					r[existing].SetCoeffValue(2)
+				} else if coeff.Cmp(bMinusOne) == 0 {
+					r[existing].SetCoeffValue(-1)
+				}
+			} else {
+				// we don't have it yet
+				r = append(r, term)
+				hm[cID] = len(r) - 1
+			}
+		}
+	}
+
+	return r
+}
+
+func (cs *ConstraintSystem) bigIntValue(term r1c.Term) big.Int {
+	// const maxInt = int(^uint(0) >> 1)
+	var coeff big.Int
+	coeff.Set(&cs.coeffs[term.CoeffID()])
+	// specialValue := term.CoeffValue()
+	// if specialValue != maxInt {
+	// 	coeff.SetInt64(int64(specialValue))
+	// } else {
+	// 	coeff.Set(&cs.coeffs[term.CoeffID()])
+	// }
+	return coeff
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {
