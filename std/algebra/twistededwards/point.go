@@ -110,7 +110,6 @@ func (p *Point) Double(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) 
 func (p *Point) ScalarMulNonFixedBase(cs *frontend.ConstraintSystem, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
-	cs.Println("scalar: ", scalar)
 	b := cs.ToBinary(scalar, 256)
 
 	res := Point{

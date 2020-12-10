@@ -190,21 +190,21 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 	// the variables are collected and the coefficients are accumulated
 	for _, t := range linExp {
 
-		_, coeffID, constraintID, vis := t.Unpack()
+		_, coeffID, variableID, vis := t.Unpack()
 
 		if vis == visibility {
-			tmp := PartialVariable{vis, constraintID, nil}
+			tmp := PartialVariable{vis, variableID, nil}
 
-			if _, ok := varRecord[constraintID]; !ok {
-				varRecord[constraintID] = tmp
+			if _, ok := varRecord[variableID]; !ok {
+				varRecord[variableID] = tmp
 				var coef, coefCopy big.Int
 				coef = cs.coeffs[coeffID]
 				coefCopy.Set(&coef)
-				coeffRecord[constraintID] = coefCopy
+				coeffRecord[variableID] = coefCopy
 			} else {
-				ccoef := coeffRecord[constraintID]
+				ccoef := coeffRecord[variableID]
 				ccoef.Add(&ccoef, &cs.coeffs[coeffID])
-				coeffRecord[constraintID] = ccoef
+				coeffRecord[variableID] = ccoef
 			}
 		}
 	}
@@ -286,9 +286,9 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				exp[j].SetConstraintID(cID + len(cs.internal.variables) + len(cs.secret.variables))
+				exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
 			case backend.Secret:
-				exp[j].SetConstraintID(cID + len(cs.internal.variables))
+				exp[j].SetVariableID(cID + len(cs.internal.variables))
 			case backend.Unset:
 				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
 			}

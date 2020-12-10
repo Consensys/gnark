@@ -54,10 +54,10 @@ func (cs *ConstraintSystem) negateLinExp(le r1c.LinearExpression) r1c.LinearExpr
 	res := make(r1c.LinearExpression, len(le))
 	var coeff, coeffCopy big.Int
 	for i, t := range le {
-		_, coeffID, constraintID, constraintVis := t.Unpack()
+		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff = cs.coeffs[coeffID]
 		coeffCopy.Neg(&coeff)
-		res[i] = cs.Term(PartialVariable{constraintVis, constraintID, nil}, &coeffCopy)
+		res[i] = cs.Term(PartialVariable{constraintVis, variableID, nil}, &coeffCopy)
 	}
 	return res
 }
@@ -95,10 +95,10 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 	lambda := backend.FromInterface(i)
 	for _, t := range v.linExp {
 		var coeffCopy big.Int
-		_, coeffID, constraintID, constraintVis := t.Unpack()
+		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff := cs.coeffs[coeffID]
 		coeffCopy.Mul(&coeff, &lambda)
-		linExp = append(linExp, cs.Term(PartialVariable{constraintVis, constraintID, nil}, &coeffCopy))
+		linExp = append(linExp, cs.Term(PartialVariable{constraintVis, variableID, nil}, &coeffCopy))
 	}
 	return Variable{PartialVariable{}, linExp, false}
 }
@@ -414,9 +414,9 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 // TODO delete this
 func (cs *ConstraintSystem) printLinExp(linExp r1c.LinearExpression) {
 	for _, t := range linExp {
-		_, coeffID, constraintID, _ := t.Unpack()
+		_, coeffID, variableID, _ := t.Unpack()
 		bcoef := cs.coeffs[coeffID]
-		fmt.Printf("%s*%d +", bcoef.String(), constraintID)
+		fmt.Printf("%s*%d +", bcoef.String(), variableID)
 	}
 }
 

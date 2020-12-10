@@ -244,15 +244,15 @@ func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t r1c.Term) *fr.Element {
 func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
 
 	for _, t := range r.L {
-		r1cs.AddTerm(&a, t, wireValues[t.ConstraintID()])
+		r1cs.AddTerm(&a, t, wireValues[t.VariableID()])
 	}
 
 	for _, t := range r.R {
-		r1cs.AddTerm(&b, t, wireValues[t.ConstraintID()])
+		r1cs.AddTerm(&b, t, wireValues[t.VariableID()])
 	}
 
 	for _, t := range r.O {
-		r1cs.AddTerm(&c, t, wireValues[t.ConstraintID()])
+		r1cs.AddTerm(&c, t, wireValues[t.VariableID()])
 	}
 
 	return
@@ -278,7 +278,7 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 		var termToCompute r1c.Term
 
 		processTerm := func(t r1c.Term, val *fr.Element, locValue uint8) {
-			cID := t.ConstraintID()
+			cID := t.VariableID()
 			if wireInstantiated[cID] {
 				r1cs.AddTerm(val, t, wireValues[cID])
 			} else {
@@ -309,7 +309,7 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 		}
 
 		// we compute the wire value and instantiate it
-		cID := termToCompute.ConstraintID()
+		cID := termToCompute.VariableID()
 
 		switch loc {
 		case 1:
@@ -339,30 +339,25 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 		// the binary decomposition must be called on the non Mont form of the number
 		var n fr.Element
 		for _, t := range r.O {
-			r1cs.AddTerm(&n, t, wireValues[t.ConstraintID()])
+			r1cs.AddTerm(&n, t, wireValues[t.VariableID()])
 		}
-		n = n.ToRegular()
+		var bigN big.Int
+		n.ToBigIntRegular(&bigN)
 
 		nbBits := len(r.L)
 
 		// cs.reduce() is non deterministic, so the variables are not sorted according to the bit position
-		// this slice is i->value of the ithbit
-		bitSlice := make([]uint64, nbBits)
+		// i->value of the ithbit
+		bitSlice := make([]uint, nbBits)
 
 		// binary decomposition of n
-		var i, j int
-		for i*64 < nbBits {
-			j = 0
-			for j < 64 && i*64+j < len(r.L) {
-				bitSlice[i*64+j] = (n[i] >> uint(j)) & 1
-				j++
-			}
-			i++
+		for i := 0; i < nbBits; i++ {
+			bitSlice[i] = bigN.Bit(i)
 		}
 
 		// log of c>0 where c is a power of 2
 		quickLog := func(bi big.Int) int {
-			var bCopy, zero big.Int
+			var bCopy, zero, checker big.Int
 			bCopy.Set(&bi)
 			res := 0
 			for bCopy.Cmp(&zero) != 0 {
@@ -370,18 +365,26 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 				res++
 			}
 			res--
+			checker.SetInt64(1)
+			checker.Lsh(&checker, uint(res))
+			// bi is not a power of 2, meaning it has been reduced mod r,
+			// so the bit is 0. We return the index of last entry of BitSlice,
+			// which is 0
+			if checker.Cmp(&bi) != 0 {
+				return nbBits - 1
+			}
 			return res
 		}
 
 		// affecting the correct bit to the correct variable
 		for _, t := range r.L {
-			cID := t.ConstraintID()
+			cID := t.VariableID()
 			coefID := t.CoeffID()
 			coef := r1cs.Coefficients[coefID]
 			var bcoef big.Int
 			coef.ToBigIntRegular(&bcoef)
 			ithBit := quickLog(bcoef)
-			wireValues[cID].SetUint64(bitSlice[ithBit])
+			wireValues[cID].SetUint64(uint64(bitSlice[ithBit]))
 			wireInstantiated[cID] = true
 		}
 

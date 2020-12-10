@@ -98,18 +98,18 @@ func TestEddsa(t *testing.T) {
 	}
 
 	// verification with incorrect Message
-	// {
-	// 	var witness eddsaCircuit
-	// 	witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
+	{
+		var witness eddsaCircuit
+		witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
 
-	// 	witness.PublicKey.A.X.Assign(pubKey.A.X)
-	// 	witness.PublicKey.A.Y.Assign(pubKey.A.Y)
+		witness.PublicKey.A.X.Assign(pubKey.A.X)
+		witness.PublicKey.A.Y.Assign(pubKey.A.Y)
 
-	// 	witness.Signature.R.A.X.Assign(signature.R.X)
-	// 	witness.Signature.R.A.Y.Assign(signature.R.Y)
+		witness.Signature.R.A.X.Assign(signature.R.X)
+		witness.Signature.R.A.Y.Assign(signature.R.Y)
 
-	// 	witness.Signature.S.Assign(signature.S)
+		witness.Signature.S.Assign(signature.S)
 
-	// 	assert.SolvingFailed(r1cs, &witness)
-	// }
+		assert.SolvingFailed(r1cs, &witness)
+	}
 }

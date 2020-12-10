@@ -33,7 +33,7 @@ func FromInterface(i1 interface{}) big.Int {
 
 	switch c1 := i1.(type) {
 	case big.Int:
-		val = c1
+		val.Set(&c1)
 	case *big.Int:
 		val.Set(c1)
 	case uint64:
