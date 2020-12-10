@@ -55,34 +55,21 @@ func (p *G1Affine) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Aff
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-
-	l1 := cs.LinearExpression(
-		cs.Term(p1.Y, one),
-		cs.Term(p.Y, minusOne),
-	)
-	l2 := cs.LinearExpression(
-		cs.Term(p1.X, one),
-		cs.Term(p.X, minusOne),
-	)
+	l1 := cs.Sub(p1.Y, p.Y)
+	l2 := cs.Sub(p1.X, p.X)
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := cs.LinearExpression(
-		cs.Term(cs.Mul(l, l), one),
-		cs.Term(p.X, minusOne),
-		cs.Term(p1.X, minusOne),
-	)
+	_x1 := cs.Mul(l, l)
+	_x2 := cs.Add(p.X, p1.X)
+	_x := cs.Sub(_x1, _x2)
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := cs.LinearExpression(
-		cs.Term(t1, one),
-		cs.Term(t2, minusOne),
-		cs.Term(p.Y, minusOne),
-	)
+	l31 := cs.Add(t2, p.Y)
+	l3 := cs.Sub(t1, l31)
+
 	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr
@@ -221,28 +208,22 @@ func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	x2 := cs.Mul(p1.X, p1.X)
 	cs.Mul(p1.X, p1.X)
-	l1 := cs.LinearExpression(
-		cs.Term(x2, &t),
-	)
-	l2 := cs.LinearExpression(
-		cs.Term(p1.Y, &d),
-	)
+	l1 := cs.Mul(x2, t)
+	l2 := cs.Mul(p1.Y, d)
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x := cs.LinearExpression(
-		cs.Term(cs.Mul(l, l), &c1),
-		cs.Term(p1.X, &c2),
-	)
+	_x1 := cs.Mul(l, l, c1)
+	_x2 := cs.Mul(p1.X, c2)
+	_x := cs.Add(_x1, _x2)
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p1.X, l)
 	t2 := cs.Mul(l, _x)
-	l3 := cs.LinearExpression(
-		cs.Term(t1, &c1),
-		cs.Term(t2, &c3),
-		cs.Term(p1.Y, &c3),
-	)
+	l31 := cs.Mul(t1, c1)
+	l32 := cs.Mul(t2, c3)
+	l33 := cs.Mul(p1.Y, c3)
+	l3 := cs.Add(l31, l32, l33)
 	p.Y = cs.Mul(l3, 1)
 
 	//p.x = xr
@@ -262,7 +243,7 @@ func (p *G1Affine) ScalarMul(cs *frontend.ConstraintSystem, p1 *G1Affine, s inte
 	base.Double(cs, p1)
 	res.AssignToRefactor(cs, p1)
 
-	b := cs.ToBinary(scalar, n)
+	b := cs.ToBinary(scalar, 256)
 
 	var tmp G1Affine
 

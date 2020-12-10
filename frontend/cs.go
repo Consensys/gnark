@@ -70,6 +70,10 @@ type ConstraintSystem struct {
 
 }
 
+func (cs *ConstraintSystem) buildVarFromPartialVar(pv PartialVariable) Variable {
+	return Variable{pv, cs.LinearExpression(cs.Term(pv, bOne)), false}
+}
+
 // this has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 const initialCapacity = 1e6
@@ -82,8 +86,8 @@ func newConstraintSystem() ConstraintSystem {
 		assertions:  make([]r1c.R1C, 0),
 	}
 
-	cs.public.names = make([]string, 1)
-	cs.public.variables = make([]Variable, 1)
+	cs.public.names = make([]string, 0)
+	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
 
 	cs.secret.names = make([]string, 0)
@@ -93,10 +97,8 @@ func newConstraintSystem() ConstraintSystem {
 	cs.internal.variables = make([]Variable, 0, initialCapacity)
 	cs.internal.booleans = make(map[int]struct{})
 
-	// first entry of circuit is backend.OneWire
-	cs.public.names[0] = backend.OneWire
-	cs.public.variables[0] = Variable{backend.Public, 0, nil}
-	cs.oneTerm = cs.Term(cs.public.variables[0], bOne)
+	// by default the circuit is given on public wire equal to 1
+	cs.public.variables[0] = cs.newPublicVariable(backend.OneWire)
 
 	return cs
 }
@@ -122,8 +124,24 @@ func debugInfoUnsetVariable(term r1c.Term) logEntry {
 	return entry
 }
 
+func (cs *ConstraintSystem) getOneLinExp() r1c.LinearExpression {
+	return cs.public.variables[0].linExp
+}
+
+func (cs *ConstraintSystem) getOneTerm() r1c.Term {
+	return cs.public.variables[0].linExp[0]
+}
+
+func (cs *ConstraintSystem) getOneWire() PartialVariable {
+	return cs.public.variables[0].PartialVariable
+}
+
+func (cs *ConstraintSystem) getOneVariable() Variable {
+	return cs.public.variables[0]
+}
+
 // Term packs a variable and a coeff in a r1c.Term and returns it.
-func (cs *ConstraintSystem) Term(v Variable, coeff *big.Int) r1c.Term {
+func (cs *ConstraintSystem) Term(v PartialVariable, coeff *big.Int) r1c.Term {
 	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
 	if v.visibility == backend.Unset {
 		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(term))
@@ -158,56 +176,66 @@ func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpres
 	return res
 }
 
-// MergeLinearExpressions merges provided expressions into a single one.
-// two expressions ax + by and cx + dy will result in (a+c)x + (b+d)y
-func (cs *ConstraintSystem) MergeLinearExpressions(lc ...r1c.LinearExpression) r1c.LinearExpression {
-	if len(lc) == 0 {
+// reduces redundancy in a linear expression
+// Non deterministic function
+func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibility backend.Visibility) r1c.LinearExpression {
+
+	if len(linExp) == 0 {
 		return r1c.LinearExpression{}
 	}
-	r := make(r1c.LinearExpression, len(lc[0]))
-	copy(r, lc[0])
 
-	// make a quick hash map to find terms by constraintID
-	hm := make(map[int]int)
-	for i := 0; i < len(r); i++ {
-		hm[r[i].ConstraintID()] = i
-	}
-	const maxInt = int(^uint(0) >> 1)
-	for i := 1; i < len(lc); i++ {
-		for _, term := range lc[i] {
-			// for each term, check if we have it.
-			cID := term.ConstraintID()
-			if existing, ok := hm[cID]; ok {
-				// we already have that term
-				// we need to combine the coeffs.
-				coeff := cs.bigIntValue(r[existing])
-				otherCoeff := cs.bigIntValue(term)
-				coeff.Add(&coeff, &otherCoeff)
+	coeffRecord := make(map[int]big.Int)       // id variable -> coeff
+	varRecord := make(map[int]PartialVariable) // id variable -> PartialVariable
 
-				// TODO @gbotrel this logic should be factorize somewhere cleaner..
-				// also, here, when we merge a coeff into existingTerm, we may end up we unused coefficients
-				// in our coefficient array.
+	// the variables are collected and the coefficients are accumulated
+	for _, t := range linExp {
 
-				r[existing].SetCoeffID(cs.coeffID(&coeff))
-				r[existing].SetCoeffValue(maxInt)
-				if coeff.Cmp(bZero) == 0 {
-					r[existing].SetCoeffValue(0)
-				} else if coeff.Cmp(bOne) == 0 {
-					r[existing].SetCoeffValue(1)
-				} else if coeff.Cmp(bTwo) == 0 {
-					r[existing].SetCoeffValue(2)
-				} else if coeff.Cmp(bMinusOne) == 0 {
-					r[existing].SetCoeffValue(-1)
-				}
+		_, coeffID, constraintID, vis := t.Unpack()
+
+		if vis == visibility {
+			tmp := PartialVariable{vis, constraintID, nil}
+
+			if _, ok := varRecord[constraintID]; !ok {
+				varRecord[constraintID] = tmp
+				var coef, coefCopy big.Int
+				coef = cs.coeffs[coeffID]
+				coefCopy.Set(&coef)
+				coeffRecord[constraintID] = coefCopy
 			} else {
-				// we don't have it yet
-				r = append(r, term)
-				hm[cID] = len(r) - 1
+				ccoef := coeffRecord[constraintID]
+				ccoef.Add(&ccoef, &cs.coeffs[coeffID])
+				coeffRecord[constraintID] = ccoef
 			}
 		}
 	}
 
-	return r
+	// creation of the reduced linear expression
+	var res r1c.LinearExpression
+	for k := range coeffRecord {
+		bCoeff := coeffRecord[k]
+		res = append(res, cs.Term(varRecord[k], &bCoeff))
+	}
+
+	return res
+}
+
+// reduces redundancy in linear expression
+// Non deterministic function
+func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpression {
+	reducePublic := cs.partialReduce(linExp, backend.Public)
+	reduceSecret := cs.partialReduce(linExp, backend.Secret)
+	reduceInternal := cs.partialReduce(linExp, backend.Internal)
+	reduceUnset := cs.partialReduce(linExp, backend.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
+	res := make(r1c.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
+	accSize := 0
+	copy(res[:], reducePublic)
+	accSize += len(reducePublic)
+	copy(res[accSize:], reduceSecret)
+	accSize += len(reduceSecret)
+	copy(res[accSize:], reduceInternal)
+	accSize += len(reduceInternal)
+	copy(res[accSize:], reduceUnset)
+	return res
 }
 
 func (cs *ConstraintSystem) bigIntValue(term r1c.Term) big.Int {
@@ -352,6 +380,20 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	return resID
 }
 
+// if v is unset and linExp is non empty, the variable is allocated
+// resulting in one more constraint in the system. If v is set OR v is
+// unset and linexp is emppty, it does nothing.
+func (cs *ConstraintSystem) allocate(v Variable) Variable {
+	if v.visibility == backend.Unset && len(v.linExp) > 0 {
+		iv := cs.newInternalVariable()
+		one := cs.getOneVariable()
+		constraint := r1c.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: r1c.SingleOutput}
+		cs.constraints = append(cs.constraints, constraint)
+		return iv
+	}
+	return v
+}
+
 // Println enables circuit debugging and behaves almost like fmt.Println()
 //
 // the print will be done once the R1CS.Solve() method is executed
@@ -375,9 +417,16 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 
 	// this is call recursively on the arguments using reflection on each argument
 	foundVariable := false
+
 	var handler logValueHandler = func(name string, tInput reflect.Value) {
+
 		v := tInput.Interface().(Variable)
-		entry.toResolve = append(entry.toResolve, r1c.Pack(v.id, 0, v.visibility))
+
+		// if the variable is only in linExp form, we allocate it
+		_v := cs.allocate(v)
+
+		entry.toResolve = append(entry.toResolve, r1c.Pack(_v.id, 0, _v.visibility))
+
 		if name == "" {
 			sbb.WriteString("%s")
 		} else {
@@ -408,18 +457,20 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	res := Variable{
+	resVar := PartialVariable{
 		id:         len(cs.internal.variables),
 		visibility: backend.Internal,
 	}
+	res := cs.buildVarFromPartialVar(resVar)
 	cs.internal.variables = append(cs.internal.variables, res)
 	return res
 }
 
 // newPublicVariable creates a new public input
 func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
+
 	idx := len(cs.public.variables)
-	res := Variable{backend.Public, idx, nil}
+	resVar := PartialVariable{backend.Public, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.public.names {
@@ -428,6 +479,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 		}
 	}
 
+	res := cs.buildVarFromPartialVar(resVar)
 	cs.public.names = append(cs.public.names, name)
 	cs.public.variables = append(cs.public.variables, res)
 	return res
@@ -436,7 +488,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 	idx := len(cs.secret.variables)
-	res := Variable{backend.Secret, idx, nil}
+	resVar := PartialVariable{backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.public.names {
@@ -445,14 +497,10 @@ func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 		}
 	}
 
+	res := cs.buildVarFromPartialVar(resVar)
 	cs.secret.names = append(cs.secret.names, name)
 	cs.secret.variables = append(cs.secret.variables, res)
 	return res
-}
-
-// oneVariable returns the variable associated with backend.OneWire
-func (cs *ConstraintSystem) oneVariable() Variable {
-	return cs.public.variables[0]
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
