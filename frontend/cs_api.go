@@ -32,6 +32,7 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
 		case Variable:
+			cs.completeDanglingVariable(&t) // always call this in case of a dangling variable, otherwise compile will not recognize Unset variables
 			res.linExp = append(res.linExp, t.getLinExpCopy()...)
 		default:
 			v := cs.Constant(t)
@@ -57,7 +58,7 @@ func (cs *ConstraintSystem) negateLinExp(le r1c.LinearExpression) r1c.LinearExpr
 		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff = cs.coeffs[coeffID]
 		coeffCopy.Neg(&coeff)
-		res[i] = cs.Term(PartialVariable{constraintVis, variableID, nil}, &coeffCopy)
+		res[i] = cs.makeTerm(PartialVariable{constraintVis, variableID, nil}, &coeffCopy)
 	}
 	return res
 }
@@ -69,6 +70,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	switch t := i1.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&t)
 		res.linExp = t.getLinExpCopy()
 	default:
 		v := cs.Constant(t)
@@ -77,6 +79,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	switch t := i2.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&t)
 		negLinExp := cs.negateLinExp(t.getLinExpCopy())
 		res.linExp = append(res.getLinExpCopy(), negLinExp...)
 	default:
@@ -98,58 +101,9 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff := cs.coeffs[coeffID]
 		coeffCopy.Mul(&coeff, &lambda)
-		linExp = append(linExp, cs.Term(PartialVariable{constraintVis, variableID, nil}, &coeffCopy))
+		linExp = append(linExp, cs.makeTerm(PartialVariable{constraintVis, variableID, nil}, &coeffCopy))
 	}
 	return Variable{PartialVariable{}, linExp, false}
-}
-
-// TODO delete this
-func (cs *ConstraintSystem) Print() {
-	for _, cons := range cs.constraints {
-		for _, t := range cons.L {
-			_, coefid, consid, vis := t.Unpack()
-			bcoef := cs.coeffs[coefid]
-			if vis == backend.Public {
-				name := cs.public.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else if vis == backend.Secret {
-				name := cs.secret.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else {
-				fmt.Printf("%s*%d +", bcoef.String(), consid)
-			}
-		}
-		fmt.Printf(" x ")
-		for _, t := range cons.R {
-			_, coefid, consid, vis := t.Unpack()
-			bcoef := cs.coeffs[coefid]
-			if vis == backend.Public {
-				name := cs.public.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else if vis == backend.Secret {
-				name := cs.secret.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else {
-				fmt.Printf("%s*%d +", bcoef.String(), consid)
-			}
-		}
-		fmt.Printf(" = ")
-		for _, t := range cons.O {
-			_, coefid, consid, vis := t.Unpack()
-			bcoef := cs.coeffs[coefid]
-			if vis == backend.Public {
-				name := cs.public.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else if vis == backend.Secret {
-				name := cs.secret.names[consid]
-				fmt.Printf("%s*%s +", bcoef.String(), name)
-			} else {
-				fmt.Printf("%s*%d +", bcoef.String(), consid)
-			}
-		}
-		fmt.Println("")
-	}
-	fmt.Println("")
 }
 
 // Mul returns res = i1 * i2 * ... in
@@ -159,8 +113,10 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 		var _res Variable
 		switch t1 := _i1.(type) {
 		case Variable:
+			cs.completeDanglingVariable(&t1)
 			switch t2 := _i2.(type) {
 			case Variable:
+				cs.completeDanglingVariable(&t2)
 				_res = cs.newInternalVariable() // only in this case we record the constraint in the cs
 				constraint := r1c.R1C{L: t1.getLinExpCopy(), R: t2.getLinExpCopy(), O: _res.getLinExpCopy(), Solver: r1c.SingleOutput}
 				cs.constraints = append(cs.constraints, constraint)
@@ -172,6 +128,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 		default:
 			switch t2 := _i2.(type) {
 			case Variable:
+				cs.completeDanglingVariable(&t2)
 				_res = cs.mulConstant(t1, t2)
 				return _res
 			default:
@@ -197,6 +154,8 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 // TODO the function should take an interface
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 
+	cs.completeDanglingVariable(&v)
+
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
@@ -218,8 +177,10 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	// O
 	switch t1 := i1.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&t1)
 		switch t2 := i2.(type) {
-		case Variable: // only in this case we record a constraint to the cs
+		case Variable:
+			cs.completeDanglingVariable(&t2)
 			constraint := r1c.R1C{L: t2.linExp, R: res.linExp, O: t1.linExp, Solver: r1c.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 		default:
@@ -230,6 +191,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	default:
 		switch t2 := i2.(type) {
 		case Variable:
+			cs.completeDanglingVariable(&t2)
 			tmp := cs.Constant(t1)
 			constraint := r1c.R1C{L: t2.getLinExpCopy(), R: res.getLinExpCopy(), O: tmp.getLinExpCopy(), Solver: r1c.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
@@ -246,6 +208,9 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 
 // Xor compute the xor between two variables
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
+
+	cs.completeDanglingVariable(&a)
+	cs.completeDanglingVariable(&b)
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -266,6 +231,8 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 // The result in in little endian (first bit= lsb)
 func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
+	cs.completeDanglingVariable(&a)
+
 	// allocate the resulting variables
 	res := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
@@ -274,12 +241,13 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	}
 
 	var coeff big.Int
-	coeff.Set(bOne)
+	coeff.Set(bTwo)
 
 	var v, _v Variable
+	v = cs.Mul(res[0], 1) // no constraint is recorded
 
 	// add the constraint
-	for i := 0; i < nbBits; i++ {
+	for i := 1; i < nbBits; i++ {
 		_v = cs.Mul(coeff, res[i]) // no constraint is recorded
 		v = cs.Add(v, _v)          // no constraint is recorded
 		coeff.Mul(&coeff, bTwo)
@@ -297,7 +265,12 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 // FromBinary packs b, seen as a fr.Element in little endian
 func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 
+	for i := 0; i < len(b); i++ {
+		cs.completeDanglingVariable(&b[i])
+	}
+
 	var res, v Variable
+	res = cs.Constant(0) // no constraint is recorded
 
 	var coeff big.Int
 
@@ -321,6 +294,8 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 // Select if b is true, yields i1 else yields i2
 func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
+	cs.completeDanglingVariable(&b)
+
 	// ensures that b is boolean
 	cs.AssertIsBoolean(b)
 
@@ -328,6 +303,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 	switch t1 := i1.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&t1)
 		res = cs.newInternalVariable()
 		v := cs.Sub(t1, i2)  // no constraint is recorded
 		w := cs.Sub(res, i2) // no constraint is recorded
@@ -338,6 +314,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	default:
 		switch t2 := i2.(type) {
 		case Variable:
+			cs.completeDanglingVariable(&t2)
 			res = cs.newInternalVariable()
 			v := cs.Sub(t1, t2)  // no constraint is recorded
 			w := cs.Sub(res, t2) // no constraint is recorded
@@ -363,6 +340,7 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 	switch t := input.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&t)
 		return t
 	default:
 		n := backend.FromInterface(t)
@@ -381,6 +359,7 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// set R = 1
 	// set O = i2
 
+	// we don't do just "cs.Sub(i1,i2)" to allow proper logging
 	debugInfo := logEntry{}
 
 	l := cs.Constant(i1) // no constraint is recorded
@@ -411,17 +390,10 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	cs.addAssertion(constraint, debugInfo)
 }
 
-// TODO delete this
-func (cs *ConstraintSystem) printLinExp(linExp r1c.LinearExpression) {
-	for _, t := range linExp {
-		_, coeffID, variableID, _ := t.Unpack()
-		bcoef := cs.coeffs[coeffID]
-		fmt.Printf("%s*%d +", bcoef.String(), variableID)
-	}
-}
-
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
 func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
+
+	cs.completeDanglingVariable(&v)
 
 	if v.isBoolean {
 		return
@@ -459,8 +431,11 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 // https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
 func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
+	cs.completeDanglingVariable(&v)
+
 	switch b := bound.(type) {
 	case Variable:
+		cs.completeDanglingVariable(&b)
 		cs.mustBeLessOrEqVar(v, b)
 	default:
 		cs.mustBeLessOrEqCst(v, backend.FromInterface(b))

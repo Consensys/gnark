@@ -71,7 +71,7 @@ type ConstraintSystem struct {
 }
 
 func (cs *ConstraintSystem) buildVarFromPartialVar(pv PartialVariable) Variable {
-	return Variable{pv, cs.LinearExpression(cs.Term(pv, bOne)), false}
+	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
 }
 
 // this has quite some impact on frontend performance, especially on large circuits size
@@ -141,11 +141,10 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 }
 
 // Term packs a variable and a coeff in a r1c.Term and returns it.
-func (cs *ConstraintSystem) Term(v PartialVariable, coeff *big.Int) r1c.Term {
+func (cs *ConstraintSystem) makeTerm(v PartialVariable, coeff *big.Int) r1c.Term {
+
 	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
-	if v.visibility == backend.Unset {
-		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(term))
-	}
+
 	if coeff.Cmp(bZero) == 0 {
 		term.SetCoeffValue(0)
 	} else if coeff.Cmp(bOne) == 0 {
@@ -213,10 +212,22 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 	var res r1c.LinearExpression
 	for k := range coeffRecord {
 		bCoeff := coeffRecord[k]
-		res = append(res, cs.Term(varRecord[k], &bCoeff))
+		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
 	}
 
 	return res
+}
+
+// complete allow linExp if linExp is empty. If a variable
+// is created like 'var a Variable', it will be unset but Compile(..)
+// will not understand it since a.linExp is empty
+func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
+	if len(v.linExp) == 0 {
+		tmp := PartialVariable{backend.Unset, v.id, v.val}
+		tmpVar := cs.buildVarFromPartialVar(tmp)
+		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
+		v.linExp = tmpVar.getLinExpCopy()
+	}
 }
 
 // reduces redundancy in linear expression

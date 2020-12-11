@@ -39,23 +39,7 @@ type PartialVariable struct {
 type Variable struct {
 	PartialVariable
 	linExp    r1c.LinearExpression
-	isBoolean bool
-}
-
-// TODO delete this
-func (v *Variable) GetVisibility() string {
-	switch v.visibility {
-	case backend.Unset:
-		return "unset"
-	case backend.Internal:
-		return "internal"
-	case backend.Public:
-		return "public"
-	case backend.Secret:
-		return "secret"
-	default:
-		return "none"
-	}
+	isBoolean bool // TODO it doesn't work, we need a pointer for that
 }
 
 // Assign v = value . This must called when using a Circuit as a witness data structure
@@ -104,6 +88,7 @@ const (
 type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
 
 func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, handler leafHandler) error {
+
 	// types we are lOoutputoking for
 	tVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(ConstraintSystem{})

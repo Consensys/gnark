@@ -19,12 +19,14 @@ type Circuit struct {
 // Define declares the circuit's constraints
 // y == x**e
 func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+
 	// number of bits of exponent
 	const bitSize = 8
 
 	// specify constraints
 	output := cs.Constant(1)
 	bits := cs.ToBinary(circuit.E, bitSize)
+	cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
 		// cs.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
