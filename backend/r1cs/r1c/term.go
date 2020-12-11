@@ -39,21 +39,21 @@ const (
 )
 
 const (
-	nbBitsVariableID         = 29
+	nbBitsVariableID           = 29
 	nbBitsCoeffID              = 30
 	nbBitsCoeffValue           = 3
 	nbBitsConstraintVisibility = 2
 )
 
 const (
-	shiftVariableID         = 0
+	shiftVariableID           = 0
 	shiftCoeffID              = nbBitsVariableID
 	shiftCoeffValue           = shiftCoeffID + nbBitsCoeffID
 	shiftConstraintVisibility = shiftCoeffValue + nbBitsCoeffValue
 )
 
 const (
-	maskVariableID         = uint64((1 << nbBitsVariableID) - 1)
+	maskVariableID           = uint64((1 << nbBitsVariableID) - 1)
 	maskCoeffID              = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
 	maskCoeffValue           = uint64((1<<nbBitsCoeffValue)-1) << shiftCoeffValue
 	maskConstraintVisibility = uint64((1<<nbBitsConstraintVisibility)-1) << shiftConstraintVisibility
