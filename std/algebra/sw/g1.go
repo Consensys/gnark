@@ -243,7 +243,7 @@ func (p *G1Affine) ScalarMul(cs *frontend.ConstraintSystem, p1 *G1Affine, s inte
 	base.Double(cs, p1)
 	res.AssignToRefactor(cs, p1)
 
-	b := cs.ToBinary(scalar, 256)
+	b := cs.ToBinary(scalar, n)
 
 	var tmp G1Affine
 
