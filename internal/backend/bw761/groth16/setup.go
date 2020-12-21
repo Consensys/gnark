@@ -231,8 +231,10 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// ---------------------------------------------------------------------------------------------
 	// Pairing: vk.E
-	vk.E = curve.FinalExponentiation(curve.MillerLoop(pk.G1.Alpha, pk.G2.Beta))
-
+	vk.E, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
+	if err != nil {
+		return err
+	}
 	// set domain
 	pk.Domain = *domain
 

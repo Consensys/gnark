@@ -17,21 +17,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	var kSum curve.G1Jac
-	var eKrsδ, eArBs *curve.GT
-	chan1 := make(chan bool, 1)
-	chan2 := make(chan bool, 1)
 
-	// e([Krs]1, -[δ]2)
-	go func() {
-		eKrsδ = curve.MillerLoop(proof.Krs, vk.G2.DeltaNeg)
-		chan1 <- true
-	}()
-
-	// e([Ar]1, [Bs]2)
-	go func() {
-		eArBs = curve.MillerLoop(proof.Ar, proof.Bs)
-		chan2 <- true
-	}()
 
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
@@ -43,11 +29,11 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 
-	eKvkγ := curve.MillerLoop(kSumAff, vk.G2.GammaNeg)
 
-	<-chan1
-	<-chan2
-	right := curve.FinalExponentiation(eKrsδ, eArBs, eKvkγ)
+	right, err := curve.Pair([]curve.G1Affine{proof.Krs, proof.Ar, kSumAff}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs, vk.G2.GammaNeg})
+	if err != nil {
+		return err 
+	}
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}

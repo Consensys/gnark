@@ -84,7 +84,7 @@ func New(seed [32]byte, hFunc hash.Hash) (PublicKey, PrivateKey) {
 	tmp.SetBytes(h[:32])
 	priv.scalar.SetBigInt(&tmp).FromMont()
 
-	pub.A.ScalarMul(&c.Base, priv.scalar)
+	pub.A.ScalarMul(&c.Base, &tmp)
 	pub.HFunc = hFunc
 
 	return pub, priv
@@ -99,8 +99,7 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 
 	res := Signature{}
 
-	var tmp big.Int
-	var randScalar fr.Element
+	var randScalarInt, hramInt big.Int
 
 	// randSrc = privKey.randSrc || msg (-> message = MSB message .. LSB message)
 	randSrc := make([]byte, 64)
@@ -119,11 +118,10 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 
 	// randBytes = H(randSrc)
 	randBytes := blake2b.Sum512(randSrc[:])
-	tmp.SetBytes(randBytes[:32])
-	randScalar.SetBigInt(&tmp).FromMont()
+	randScalarInt.SetBytes(randBytes[:32])
 
 	// compute R = randScalar*Base
-	res.R.ScalarMul(&curveParams.Base, randScalar)
+	res.R.ScalarMul(&curveParams.Base, &randScalarInt)
 	if !res.R.IsOnCurve() {
 		return Signature{}, errNotOnCurve
 	}
@@ -144,15 +142,12 @@ func Sign(message fr.Element, pub PublicKey, priv PrivateKey) (Signature, error)
 		}
 	}
 	hramBin := pub.HFunc.Sum([]byte{})
-	var hram fr.Element
-	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
+	hramInt.SetBytes(hramBin)
 
 	// Compute s = randScalarInt + H(R,A,M)*S
 	// going with big int to do ops mod curve order
-	var hramInt, sInt, randScalarInt big.Int
-	hram.ToBigInt(&hramInt)
+	var sInt big.Int
 	priv.scalar.ToBigInt(&sInt)
-	randScalar.ToBigInt(&randScalarInt)
 	hramInt.Mul(&hramInt, &sInt).
 		Add(&hramInt, &randScalarInt).
 		Mod(&hramInt, &curveParams.Order)
@@ -188,15 +183,16 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 		}
 	}
 	hramBin := pub.HFunc.Sum([]byte{})
-	var hram fr.Element
-	hram.SetBytes(hramBin).FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
+	var hram big.Int
+	hram.SetBytes(hramBin) //.FromMont() // FromMont() because it will serve as a scalar in the scalar multiplication
 
 	// lhs = cofactor*S*Base
 	var lhs twistededwards.Point
-	var SFromMont fr.Element
-	SFromMont.Set(&sig.S).FromMont()
-	lhs.ScalarMul(&curveParams.Base, SFromMont).
-		ScalarMul(&lhs, curveParams.Cofactor)
+	var SFromMont, bCofactor big.Int
+	curveParams.Cofactor.ToBigInt(&bCofactor)
+	sig.S.ToBigIntRegular(&SFromMont)
+	lhs.ScalarMul(&curveParams.Base, &SFromMont).
+		ScalarMul(&lhs, &bCofactor)
 
 	if !lhs.IsOnCurve() {
 		return false, errNotOnCurve
@@ -204,9 +200,9 @@ func Verify(sig Signature, message fr.Element, pub PublicKey) (bool, error) {
 
 	// rhs = cofactor*(R + H(R,A,M)*A)
 	var rhs twistededwards.Point
-	rhs.ScalarMul(&pub.A, hram).
+	rhs.ScalarMul(&pub.A, &hram).
 		Add(&rhs, &sig.R).
-		ScalarMul(&rhs, curveParams.Cofactor)
+		ScalarMul(&rhs, &bCofactor)
 	if !rhs.IsOnCurve() {
 		return false, errNotOnCurve
 	}
