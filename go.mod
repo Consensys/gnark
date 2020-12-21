@@ -11,5 +11,3 @@ require (
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
-
-replace github.com/consensys/bavard => ../bavard

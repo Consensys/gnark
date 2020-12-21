@@ -32,6 +32,10 @@ github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghf
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudflare/cloudflare-go v0.10.2-0.20190916151808-a80f83b9add9/go.mod h1:1MxXX1Ux4x6mqPmjkUgTP1CdXIBXKX7T+Jk9Gxrmx+U=
+github.com/consensys/bavard v0.1.7-0.20201117223429-eb75ed1f049f/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
+github.com/consensys/bavard v0.1.7-0.20201120162630-86d982ed34b6/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
+github.com/consensys/bavard v0.1.7-0.20201221223155-01abca91228c h1:L/TsPEKScd7bqCBI3sqIt+SEIcFL6zVrA2REaZToIe4=
+github.com/consensys/bavard v0.1.7-0.20201221223155-01abca91228c/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.7-0.20201117225239-8cc5a305b2fe/go.mod h1:SqLemFU/XpxIQJNdWFVQYfPtQFhFmx6iHoLiq2iZpgM=
 github.com/consensys/gurvy v0.3.6-0.20201201225406-c45cdb55aaef h1:07CxpaHP9gBWtmJr87QrO/i8w17bz3qjNY26jw40wSQ=
 github.com/consensys/gurvy v0.3.6-0.20201201225406-c45cdb55aaef/go.mod h1:Ju0GKdGDAZungcze3X+IaJqmmyIAlMFC9W0Dm85Rwvg=
