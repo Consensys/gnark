@@ -250,15 +250,8 @@ func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpres
 }
 
 func (cs *ConstraintSystem) bigIntValue(term r1c.Term) big.Int {
-	// const maxInt = int(^uint(0) >> 1)
 	var coeff big.Int
 	coeff.Set(&cs.coeffs[term.CoeffID()])
-	// specialValue := term.CoeffValue()
-	// if specialValue != maxInt {
-	// 	coeff.SetInt64(int64(specialValue))
-	// } else {
-	// 	coeff.Set(&cs.coeffs[term.CoeffID()])
-	// }
 	return coeff
 }
 
