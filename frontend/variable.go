@@ -1,12 +1,9 @@
 /*
 Copyright © 2020 ConsenSys
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,14 +21,25 @@ import (
 	"unicode"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// Variable of a circuit
+// PartialVariable of a circuit
 // They represent secret or public inputs in a circuit struct{} / definition (see circuit.Define(), type Tag)
-type Variable struct {
+type PartialVariable struct {
 	visibility backend.Visibility
 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
+}
+
+// Variable of a circuit
+// represents a Variable to a circuit, plus the  linear combination leading to it.
+// the linExp is always non empty, the PartialVariabl can be unset. It is set and allocated in the
+// circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
+type Variable struct {
+	PartialVariable
+	linExp    r1c.LinearExpression
+	isBoolean bool // TODO it doesn't work, we need a pointer for that
 }
 
 // Assign v = value . This must called when using a Circuit as a witness data structure
@@ -40,6 +48,14 @@ func (v *Variable) Assign(value interface{}) {
 		panic("variable already assigned")
 	}
 	v.val = value
+}
+
+// getCopyLinExp returns a copy of the linear expression
+// to avoid sharing same data, leading to bugs when updating the variables id
+func (v *Variable) getLinExpCopy() r1c.LinearExpression {
+	res := make(r1c.LinearExpression, len(v.linExp))
+	copy(res, v.linExp)
+	return res
 }
 
 // Tag is a (optional) struct tag one can add to Variable
@@ -72,6 +88,7 @@ const (
 type leafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
 
 func parseType(input interface{}, baseName string, parentVisibility backend.Visibility, handler leafHandler) error {
+
 	// types we are lOoutputoking for
 	tVariable := reflect.TypeOf(Variable{})
 	tConstraintSytem := reflect.TypeOf(ConstraintSystem{})

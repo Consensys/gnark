@@ -82,8 +82,11 @@ func (circuit *add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) erro
 }
 
 func TestAdd(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
+
 	var circuit, witness add
+
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -117,8 +120,10 @@ func (circuit *addGeneric) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 }
 
 func TestAddGeneric(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
 	var circuit, witness addGeneric
+
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -150,6 +155,7 @@ func (circuit *double) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 
 	cs.AssertIsEqual(res.X, "10031262171927540148667355526369034398030886437092045105752248699557385197826")
 	cs.AssertIsEqual(res.Y, "633281375905621697187330766174974863687049529291089048651929454608812697683")
+
 	return nil
 }
 
@@ -173,23 +179,29 @@ type scalarMul struct {
 }
 
 func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
 		return err
 	}
 	scalar := cs.Constant("28242048")
-	nonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, scalar, params)
-	res := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, scalar, params)
-	cs.AssertIsEqual(res.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	cs.AssertIsEqual(res.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
-	cs.AssertIsEqual(nonFixed.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	cs.AssertIsEqual(nonFixed.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
+
+	resNonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, scalar, params)
+	resFixed := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, scalar, params)
+
+	cs.AssertIsEqual(resFixed.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
+	cs.AssertIsEqual(resFixed.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
+
+	cs.AssertIsEqual(resNonFixed.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
+	cs.AssertIsEqual(resNonFixed.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
 	return nil
 }
 
 func TestScalarMul(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
+
 	var circuit, witness scalarMul
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {

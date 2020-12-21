@@ -94,6 +94,7 @@ type verifierCircuit struct {
 }
 
 func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+
 	// pairing data
 	var pairingInfo sw.PairingContext
 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(cs)
@@ -101,6 +102,7 @@ func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.Constraint
 
 	// create the verifier cs
 	Verify(cs, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
+
 	return nil
 }
 
@@ -110,6 +112,7 @@ func TestVerifier(t *testing.T) {
 	var innerVk groth16_bls377.VerifyingKey
 	var innerProof groth16_bls377.Proof
 	generateBls377InnerProof(t, &innerVk, &innerProof) // get public inputs of the inner proof
+
 	// create an empty cs
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
@@ -138,6 +141,8 @@ func TestVerifier(t *testing.T) {
 	assertbw761 := groth16.NewAssert(t)
 
 	assertbw761.SolvingSucceeded(r1cs.(*backend_bw761.R1CS), &witness)
+
+	/* comment from here */
 
 	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
 	// generate groth16 instance on bw761 (setup, prove, verify)

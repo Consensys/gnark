@@ -72,6 +72,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 

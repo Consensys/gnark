@@ -39,21 +39,21 @@ const (
 )
 
 const (
-	nbBitsConstraintID         = 29
+	nbBitsVariableID           = 29
 	nbBitsCoeffID              = 30
 	nbBitsCoeffValue           = 3
 	nbBitsConstraintVisibility = 2
 )
 
 const (
-	shiftConstraintID         = 0
-	shiftCoeffID              = nbBitsConstraintID
+	shiftVariableID           = 0
+	shiftCoeffID              = nbBitsVariableID
 	shiftCoeffValue           = shiftCoeffID + nbBitsCoeffID
 	shiftConstraintVisibility = shiftCoeffValue + nbBitsCoeffValue
 )
 
 const (
-	maskConstraintID         = uint64((1 << nbBitsConstraintID) - 1)
+	maskVariableID           = uint64((1 << nbBitsVariableID) - 1)
 	maskCoeffID              = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
 	maskCoeffValue           = uint64((1<<nbBitsCoeffValue)-1) << shiftCoeffValue
 	maskConstraintVisibility = uint64((1<<nbBitsConstraintVisibility)-1) << shiftConstraintVisibility
@@ -66,7 +66,7 @@ const (
 // if we support more than 500 millions constraints, this breaks (not so soon.)
 func Pack(constraintID, coeffID int, constraintVisibility backend.Visibility, coeffValue ...int) Term {
 	var t Term
-	t.SetConstraintID(constraintID)
+	t.SetVariableID(constraintID)
 	t.SetCoeffID(coeffID)
 	if len(coeffValue) > 0 {
 		t.SetCoeffValue(coeffValue[0])
@@ -79,7 +79,7 @@ func Pack(constraintID, coeffID int, constraintVisibility backend.Visibility, co
 func (t Term) Unpack() (coeffValue, coeffID, constraintID int, constraintVisibility backend.Visibility) {
 	coeffValue = t.CoeffValue()
 	coeffID = t.CoeffID()
-	constraintID = t.ConstraintID()
+	constraintID = t.VariableID()
 	constraintVisibility = t.ConstraintVisibility()
 	return
 }
@@ -164,18 +164,18 @@ func (t *Term) SetCoeffID(cID int) {
 	*t = Term((uint64(*t) & (^maskCoeffID)) | _coeffID)
 }
 
-// SetConstraintID update the bits correponding to the constraintID with cID
-func (t *Term) SetConstraintID(cID int) {
+// SetVariableID update the bits correponding to the constraintID with cID
+func (t *Term) SetVariableID(cID int) {
 	_constraintID := uint64(cID)
-	if (_constraintID & maskConstraintID) != uint64(cID) {
+	if (_constraintID & maskVariableID) != uint64(cID) {
 		panic("constraintID is too large, unsupported")
 	}
-	*t = Term((uint64(*t) & (^maskConstraintID)) | _constraintID)
+	*t = Term((uint64(*t) & (^maskVariableID)) | _constraintID)
 }
 
-// ConstraintID returns the constraintID (see R1CS data structure)
-func (t Term) ConstraintID() int {
-	return int((uint64(t) & maskConstraintID))
+// VariableID returns the constraintID (see R1CS data structure)
+func (t Term) VariableID() int {
+	return int((uint64(t) & maskVariableID))
 }
 
 // CoeffID returns the coefficient id (see R1CS data structure)

@@ -38,6 +38,7 @@ func TestIntegrationAPI(t *testing.T) {
 	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS377, gurvy.BLS381, gurvy.BW761}
 
 	for name, circuit := range circuits.Circuits {
+		t.Log(name)
 
 		if testing.Short() {
 			if name != "lut01" && name != "frombinary" {
@@ -45,7 +46,7 @@ func TestIntegrationAPI(t *testing.T) {
 			}
 		}
 		for _, curve := range curves {
-
+			t.Log(curve.String())
 			typedR1CS := circuit.R1CS.ToR1CS(curve)
 
 			pk, vk, err := groth16.Setup(typedR1CS)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestExponentiate(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
 
 	var expCircuit Circuit

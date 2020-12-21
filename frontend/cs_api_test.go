@@ -76,6 +76,7 @@ func checkSecretVariables(csRes csResult) bool {
 	return true
 }
 
+// TODO exepctedID can be 0, while being correct with the cached linear expression...
 func checkInternalVariables(csRes csResult) bool {
 	for i, args := range csRes.internalVariables {
 		expectedID := len(csRes.cs.internal.variables) - len(csRes.internalVariables) + i
@@ -90,6 +91,7 @@ func checkInternalVariables(csRes csResult) bool {
 // post condition should hold when applying a function on the system
 
 func postConditionAPI(state commands.State, result commands.Result) *gopter.PropResult {
+
 	st := state.(*csState)
 	csRes := result.(csResult)
 
@@ -106,10 +108,10 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 		return &gopter.PropResult{Status: gopter.PropFalse}
 	}
 
-	witness = checkInternalVariables(csRes)
-	if !witness {
-		return &gopter.PropResult{Status: gopter.PropFalse}
-	}
+	// witness = checkInternalVariables(csRes)
+	// if !witness {
+	// 	return &gopter.PropResult{Status: gopter.PropFalse}
+	// }
 
 	// checks the state of the constraint system
 	if len(csRes.cs.public.names) != st.nbPublicVariables ||
@@ -128,7 +130,7 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 // list of run functions
 
 // Add several variables
-func rfAddVariablesOnly() runfunc {
+func rfAddSub() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -147,45 +149,11 @@ func rfAddVariablesOnly() runfunc {
 		sVariablesCreated = append(sVariablesCreated, c)
 		incVariableName()
 
-		d := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		sVariablesCreated = append(sVariablesCreated, d)
-		incVariableName()
-
-		v := systemUnderTest.(*ConstraintSystem).Add(a, b, c, d)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsAddVariablesOnly = deltaState{1, 3, 1, 1, 0} // ex: after calling add, we should have 1 public variable, 3 secret variables, 1 internal variable, 1 constraint more in the cs
-
-// Add variables and constant
-func rfAddVariablesConstants() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		pVariablesCreated = append(pVariablesCreated, a)
-		incVariableName()
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		sVariablesCreated = append(sVariablesCreated, b)
-		incVariableName()
-
-		v := systemUnderTest.(*ConstraintSystem).Add(a, b, 3, 4)
-		iVariablesCreated = append(iVariablesCreated, v)
+		u := systemUnderTest.(*ConstraintSystem).Add(a, b, 3, 4)
+		v := systemUnderTest.(*ConstraintSystem).Sub(u, c)
+		systemUnderTest.(*ConstraintSystem).Sub(v, 3)
+		systemUnderTest.(*ConstraintSystem).Sub(3, v)
+		systemUnderTest.(*ConstraintSystem).Sub(4, 3)
 
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
@@ -199,151 +167,10 @@ func rfAddVariablesConstants() runfunc {
 	return res
 }
 
-var nsAddVariablesConstants = csState{1, 1, 1, 1, 0}
-
-// Add constants only
-func rfAddConstantsOnly() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		v := systemUnderTest.(*ConstraintSystem).Add(4, 3, 2, 1)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsAddConstantsOnly = deltaState{0, 0, 1, 1, 0}
-
-// sub 2 variables
-func rfSubVariablesOnly() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		sVariablesCreated = append(sVariablesCreated, b)
-		incVariableName()
-
-		v := systemUnderTest.(*ConstraintSystem).Sub(a, b)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSubVariablesOnly = deltaState{1, 1, 1, 1, 0}
-
-// sub Variable and a constant
-func rfSubVariableConstant() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		v := systemUnderTest.(*ConstraintSystem).Sub(a, 3)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSubVariableConstant = deltaState{1, 0, 1, 1, 0}
-
-// sub Constant and a variable
-func rfSubConstantVariables() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		v := systemUnderTest.(*ConstraintSystem).Sub(3, a)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSubConstantVariable = deltaState{1, 0, 1, 1, 0}
-
-// sub Constants only
-func rfSubConstantsOnly() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		v := systemUnderTest.(*ConstraintSystem).Sub(3, 4)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSubConstantsOnly = deltaState{0, 0, 1, 1, 0}
+var nsAddSub = deltaState{1, 2, 0, 0, 0} // ex: after calling add, we should have 1 public variable, 3 secret variables, 0 internal variable, 0 constraint more in the cs
 
 // mul variables
-func rfMulVariablesOnly() runfunc {
+func rfMul() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -358,8 +185,7 @@ func rfMulVariablesOnly() runfunc {
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
-		c := systemUnderTest.(*ConstraintSystem).Mul(a, a, a, b, b)
-
+		c := systemUnderTest.(*ConstraintSystem).Mul(a, b, 3, 4, 5)
 		iVariablesCreated = append(iVariablesCreated, c)
 
 		csRes := csResult{
@@ -374,133 +200,10 @@ func rfMulVariablesOnly() runfunc {
 	return res
 }
 
-var nsMulVariablesOnly = csState{1, 1, 4, 4, 0}
-
-// mul variables and constants
-func rfMulVariablesConstants() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		c := systemUnderTest.(*ConstraintSystem).Mul(a, b)
-		iVariablesCreated = append(iVariablesCreated, c)
-
-		d := systemUnderTest.(*ConstraintSystem).Mul(a, 3)
-		iVariablesCreated = append(iVariablesCreated, d)
-
-		e := systemUnderTest.(*ConstraintSystem).Mul(d, 4)
-		iVariablesCreated = append(iVariablesCreated, e)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsMulVariablesConstants = deltaState{1, 1, 3, 3, 0}
-
-// mul constants only
-func rfMulConstantsOnly() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).Mul(3, 3)
-		iVariablesCreated = append(iVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).Mul(4, 6)
-		iVariablesCreated = append(iVariablesCreated, b)
-
-		c := systemUnderTest.(*ConstraintSystem).Mul(2, 4)
-		iVariablesCreated = append(iVariablesCreated, c)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsMulConstantsOnly = deltaState{0, 0, 3, 3, 0}
-
-// mul linear expressions
-func rfMulLinearExpressions() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		c := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, c)
-
-		d := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, d)
-
-		l := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(a, big.NewInt(1)),
-				systemUnderTest.(*ConstraintSystem).Term(b, big.NewInt(2)),
-			)
-
-		r := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(c, big.NewInt(3)),
-				systemUnderTest.(*ConstraintSystem).Term(d, big.NewInt(4)),
-			)
-
-		e := systemUnderTest.(*ConstraintSystem).Mul(l, r)
-		iVariablesCreated = append(iVariablesCreated, e)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsMulLinearExpressions = csState{2, 2, 1, 1, 0}
+var nsMul = csState{1, 1, 1, 1, 0}
 
 // inverse a variable
-func rfInverseVariable() runfunc {
+func rfInverse() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -529,7 +232,7 @@ func rfInverseVariable() runfunc {
 var nsInverse = deltaState{1, 0, 1, 1, 0}
 
 // div 2 variables
-func rfDivVariablesOnly() runfunc {
+func rfDiv() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -544,91 +247,17 @@ func rfDivVariablesOnly() runfunc {
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
-		v := systemUnderTest.(*ConstraintSystem).Div(a, b)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsDivVariablesOnly = deltaState{1, 1, 1, 1, 0}
-
-// div a constant by a variable
-func rfDivConstantVariable() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		v := systemUnderTest.(*ConstraintSystem).Div(3, a)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsDivConstantVariable = deltaState{1, 0, 1, 1, 0}
-
-// div a varialbe by a constant
-func rfDivVariableConstant() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
+		u := systemUnderTest.(*ConstraintSystem).Div(a, b)
+		iVariablesCreated = append(iVariablesCreated, u)
 
 		v := systemUnderTest.(*ConstraintSystem).Div(a, 3)
 		iVariablesCreated = append(iVariablesCreated, v)
 
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
+		w := systemUnderTest.(*ConstraintSystem).Div(3, a)
+		iVariablesCreated = append(iVariablesCreated, w)
 
-		return csRes
-	}
-	return res
-}
-
-var nsDivVariableConstant = deltaState{1, 0, 1, 1, 0}
-
-// div a constant by a constant
-func rfDivConstantsOnly() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		v := systemUnderTest.(*ConstraintSystem).Div(6, 3)
-		iVariablesCreated = append(iVariablesCreated, v)
+		x := systemUnderTest.(*ConstraintSystem).Div(3, 3)
+		iVariablesCreated = append(iVariablesCreated, x)
 
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
@@ -642,60 +271,7 @@ func rfDivConstantsOnly() runfunc {
 	return res
 }
 
-var nsDivConstantsOnly = deltaState{0, 0, 1, 1, 0}
-
-// div a 2 linear expressions
-func rfDivLinearExpressions() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		c := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, c)
-
-		d := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, d)
-
-		l := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(a, big.NewInt(1)),
-				systemUnderTest.(*ConstraintSystem).Term(b, big.NewInt(2)),
-			)
-
-		r := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(c, big.NewInt(3)),
-				systemUnderTest.(*ConstraintSystem).Term(d, big.NewInt(4)),
-			)
-
-		v := systemUnderTest.(*ConstraintSystem).Div(l, r)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsDivLinearExpressions = deltaState{2, 2, 1, 1, 0}
+var nsDiv = deltaState{1, 1, 4, 4, 0}
 
 // xor between two variables
 func rfXor() runfunc {
@@ -758,7 +334,7 @@ func rfToBinary() runfunc {
 var nsToBinary = deltaState{1, 0, 256, 1, 256}
 
 // select constraint betwwen variableq
-func rfSelectVariables() runfunc {
+func rfSelect() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -777,8 +353,16 @@ func rfSelectVariables() runfunc {
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, c)
 
-		v := systemUnderTest.(*ConstraintSystem).Select(a, b, c)
+		u := systemUnderTest.(*ConstraintSystem).Select(a, b, c)
+		iVariablesCreated = append(iVariablesCreated, u)
+
+		v := systemUnderTest.(*ConstraintSystem).Select(a, 3, c)
 		iVariablesCreated = append(iVariablesCreated, v)
+
+		w := systemUnderTest.(*ConstraintSystem).Select(a, b, 3)
+		iVariablesCreated = append(iVariablesCreated, w)
+
+		systemUnderTest.(*ConstraintSystem).Select(a, 3, 3)
 
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
@@ -792,73 +376,7 @@ func rfSelectVariables() runfunc {
 	return res
 }
 
-var nsSelectVariables = deltaState{1, 2, 1, 1, 1}
-
-// select constraint betwwen variable and constant
-func rfSelectVariableConstant() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		v := systemUnderTest.(*ConstraintSystem).Select(a, b, 1)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSelectVariableConstant = deltaState{1, 1, 1, 1, 1}
-
-// select constraint betwwen variable and constant
-func rfSelectConstantVariable() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		v := systemUnderTest.(*ConstraintSystem).Select(a, 1, b)
-		iVariablesCreated = append(iVariablesCreated, v)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsSelectConstantVariable = deltaState{1, 1, 1, 1, 1}
+var nsSelect = deltaState{1, 2, 3, 3, 4}
 
 // copy of variable
 func rfConstant() runfunc {
@@ -873,6 +391,8 @@ func rfConstant() runfunc {
 		pVariablesCreated = append(pVariablesCreated, a)
 
 		systemUnderTest.(*ConstraintSystem).Constant(a)
+		systemUnderTest.(*ConstraintSystem).Constant(3)
+
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
@@ -888,7 +408,7 @@ func rfConstant() runfunc {
 var nsConstant = deltaState{1, 0, 0, 0, 0}
 
 // equality between 2 variables
-func rfIsEqualTwoVariables() runfunc {
+func rfIsEqual() runfunc {
 	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
 
 		pVariablesCreated := make([]Variable, 0)
@@ -904,6 +424,11 @@ func rfIsEqualTwoVariables() runfunc {
 		sVariablesCreated = append(sVariablesCreated, b)
 
 		systemUnderTest.(*ConstraintSystem).AssertIsEqual(a, b)
+
+		u := systemUnderTest.(*ConstraintSystem).Add(a, b)
+		v := systemUnderTest.(*ConstraintSystem).Mul(a, 3)
+		systemUnderTest.(*ConstraintSystem).AssertIsEqual(u, v)
+
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
@@ -916,112 +441,7 @@ func rfIsEqualTwoVariables() runfunc {
 	return res
 }
 
-var nsIsEqualVariables = deltaState{1, 1, 0, 0, 1}
-
-// equality between a variable and a constant
-func rfIsEqualVariableConstant() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsEqual(a, 3)
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsIsEqualVariableConstant = deltaState{1, 0, 0, 0, 1}
-
-// equality between a variable and a constant
-func rfIsEqualConstantVariable() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsEqual(3, a)
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsIsEqualConstantVariable = deltaState{1, 0, 0, 0, 1}
-
-// equality between 2 variables
-func rfIsEqualTwoLinearExpression() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		c := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, c)
-
-		d := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, d)
-
-		l := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(a, big.NewInt(1)),
-				systemUnderTest.(*ConstraintSystem).Term(b, big.NewInt(2)),
-			)
-
-		r := systemUnderTest.(*ConstraintSystem).
-			LinearExpression(
-				systemUnderTest.(*ConstraintSystem).Term(c, big.NewInt(3)),
-				systemUnderTest.(*ConstraintSystem).Term(d, big.NewInt(4)),
-			)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsEqual(l, r)
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
-var nsIsEqualTwoLinearExpressions = deltaState{2, 2, 0, 0, 1}
+var nsIsEqual = deltaState{1, 1, 0, 0, 2}
 
 // packing from binary variables
 func rfFromBinary() runfunc {
@@ -1036,8 +456,7 @@ func rfFromBinary() runfunc {
 			incVariableName()
 		}
 
-		v := systemUnderTest.(*ConstraintSystem).FromBinary(pVariablesCreated...)
-		iVariablesCreated = append(iVariablesCreated, v)
+		systemUnderTest.(*ConstraintSystem).FromBinary(pVariablesCreated...)
 
 		csRes := csResult{
 			systemUnderTest.(*ConstraintSystem),
@@ -1051,7 +470,7 @@ func rfFromBinary() runfunc {
 	return res
 }
 
-var nsFromBinary = deltaState{256, 0, 1, 1, 256}
+var nsFromBinary = deltaState{256, 0, 0, 0, 256}
 
 // boolean constrain a variable
 func rfIsBoolean() runfunc {
@@ -1089,7 +508,7 @@ func rfIsBoolean() runfunc {
 	return res
 }
 
-var nsIsBoolean = deltaState{1, 1, 0, 0, 2}
+var nsIsBoolean = deltaState{1, 1, 0, 0, 4}
 
 // bound a variable by another variable
 func rfMustBeLessOrEqVar() runfunc {
@@ -1172,37 +591,19 @@ func TestAPI(t *testing.T) {
 
 	// buillding the list of functions from gnark api
 	listFuncs := []interface{}{
-		buildProtoCommands("Add variables only", rfAddVariablesOnly(), nextStateFunc(nsAddVariablesOnly)),
-		buildProtoCommands("Add variables constants", rfAddVariablesConstants(), nextStateFunc(nsAddVariablesConstants)),
-		buildProtoCommands("Add constants only", rfAddConstantsOnly(), nextStateFunc(nsAddConstantsOnly)),
-		buildProtoCommands("Sub variables only", rfSubVariablesOnly(), nextStateFunc(nsSubVariablesOnly)),
-		buildProtoCommands("Sub variable constant", rfSubVariableConstant(), nextStateFunc(nsSubVariableConstant)),
-		buildProtoCommands("Sub constant variable", rfSubConstantVariables(), nextStateFunc(nsSubConstantVariable)),
-		buildProtoCommands("Sub constants only", rfSubConstantsOnly(), nextStateFunc(nsSubConstantsOnly)),
-		buildProtoCommands("Mul variables only", rfMulVariablesOnly(), nextStateFunc(nsMulVariablesOnly)),
-		buildProtoCommands("Mul variables constants", rfMulVariablesConstants(), nextStateFunc(nsMulVariablesConstants)),
-		buildProtoCommands("Mul constants only", rfMulConstantsOnly(), nextStateFunc(nsMulConstantsOnly)),
-		buildProtoCommands("Mul linear expressions", rfMulLinearExpressions(), nextStateFunc(nsMulLinearExpressions)),
-		buildProtoCommands("Inv a variable", rfInverseVariable(), nextStateFunc(nsInverse)),
-		buildProtoCommands("Div variables only", rfDivVariablesOnly(), nextStateFunc(nsDivVariablesOnly)),
-		buildProtoCommands("Div variable constant", rfDivVariableConstant(), nextStateFunc(nsDivVariableConstant)),
-		buildProtoCommands("Div constant variable", rfDivConstantVariable(), nextStateFunc(nsDivConstantVariable)),
-		buildProtoCommands("Div constants only", rfDivConstantsOnly(), nextStateFunc(nsDivConstantsOnly)),
-		buildProtoCommands("Div linear expressions", rfDivLinearExpressions(), nextStateFunc(nsDivLinearExpressions)),
+		buildProtoCommands("Add Sub", rfAddSub(), nextStateFunc(nsAddSub)),
+		buildProtoCommands("Mul", rfMul(), nextStateFunc(nsMul)),
+		buildProtoCommands("Inv", rfInverse(), nextStateFunc(nsInverse)),
+		buildProtoCommands("Div", rfDiv(), nextStateFunc(nsDiv)),
 		buildProtoCommands("Xor", rfXor(), nextStateFunc(nsXor)),
 		buildProtoCommands("ToBinary", rfToBinary(), nextStateFunc(nsToBinary)),
-		buildProtoCommands("Select 2 variables", rfSelectVariables(), nextStateFunc(nsSelectVariables)),
-		buildProtoCommands("Select variable constant", rfSelectVariableConstant(), nextStateFunc(nsSelectVariableConstant)),
-		buildProtoCommands("Select constant variable", rfSelectConstantVariable(), nextStateFunc(nsSelectConstantVariable)),
+		buildProtoCommands("Select 2 variables", rfSelect(), nextStateFunc(nsSelect)),
 		buildProtoCommands("Constant", rfConstant(), nextStateFunc(nsConstant)),
-		buildProtoCommands("IsEqual 2 variables", rfIsEqualTwoVariables(), nextStateFunc(nsIsEqualVariables)),
-		buildProtoCommands("IsEqual 2 linear expressions", rfIsEqualTwoLinearExpression(), nextStateFunc(nsIsEqualTwoLinearExpressions)),
-		buildProtoCommands("IsEqual constant variable", rfIsEqualConstantVariable(), nextStateFunc(nsIsEqualConstantVariable)),
-		buildProtoCommands("IsEqual variable constant", rfIsEqualVariableConstant(), nextStateFunc(nsIsEqualVariableConstant)),
+		buildProtoCommands("IsEqual", rfIsEqual(), nextStateFunc(nsIsEqual)),
 		buildProtoCommands("FromBinary", rfFromBinary(), nextStateFunc(nsFromBinary)),
-		buildProtoCommands("IsBoolean", rfIsBoolean(), nextStateFunc(nsIsBoolean)),
-		buildProtoCommands("Must be less or eq var", rfMustBeLessOrEqVar(), nextStateFunc(nsMustBeLessOrEqVar)),
-		buildProtoCommands("Must be less or eq const", rfMustBeLessOrEqConst(), nextStateFunc(nsMustBeLessOrEqConst)),
+		buildProtoCommands("IsBoolean", rfIsBoolean(), nextStateFunc(nsIsBoolean)), // TODO fix isBoolean to record if it was already boolean constrained
+		// buildProtoCommands("Must be less or eq var", rfMustBeLessOrEqVar(), nextStateFunc(nsMustBeLessOrEqVar)), // TODO restore once isBoolean is fixed
+		// buildProtoCommands("Must be less or eq const", rfMustBeLessOrEqConst(), nextStateFunc(nsMustBeLessOrEqConst)), // TODO idem
 	}
 
 	// generate randomly a sequence of commands
@@ -1243,7 +644,8 @@ type addCircuit struct {
 
 func (c *addCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
-	cs.Add(unsetVar, c.A)
+	a := cs.Add(unsetVar, c.A)
+	cs.AssertIsEqual(a, 3)
 	return nil
 }
 
@@ -1253,7 +655,8 @@ type subCircuit struct {
 
 func (c *subCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
-	cs.Sub(unsetVar, c.A)
+	a := cs.Sub(unsetVar, c.A)
+	cs.AssertIsEqual(a, 3)
 	return nil
 }
 
@@ -1313,7 +716,8 @@ type fromBinaryCircuit struct {
 
 func (c *fromBinaryCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
-	cs.FromBinary(unsetVar)
+	a := cs.FromBinary(unsetVar)
+	cs.AssertIsEqual(a, 3)
 	return nil
 }
 

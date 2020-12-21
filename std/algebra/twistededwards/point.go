@@ -19,7 +19,6 @@ package twistededwards
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -34,15 +33,13 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 	one := big.NewInt(1)
 
-	l1 := cs.LinearExpression(cs.Term(p.X, &curve.A))
-	l2 := cs.LinearExpression(cs.Term(p.X, one))
-	axx := cs.Mul(l1, l2)
+	l1 := cs.Mul(p.X, &curve.A)
+	axx := cs.Mul(l1, p.X)
 	yy := cs.Mul(p.Y, p.Y)
 	lhs := cs.Add(axx, yy)
 
-	l1 = cs.LinearExpression(cs.Term(p.X, &curve.D))
-	l2 = cs.LinearExpression(cs.Term(p.X, one))
-	dxx := cs.Mul(l1, l2)
+	l1 = cs.Mul(p.X, &curve.D)
+	dxx := cs.Mul(l1, p.X)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
 
@@ -52,21 +49,21 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point, x, y interface{}, curve EdCurve) *Point {
+func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
-	var dxy, bxa big.Int
-	bx := backend.FromInterface(x)
-	by := backend.FromInterface(y)
-	dxy.Mul(&bx, &by).Mul(&dxy, &curve.D)
-	bxa.Mul(&bx, &curve.A).Neg(&bxa)                                   // -ax1
-	n1 := cs.LinearExpression(cs.Term(p1.X, &by), cs.Term(p1.Y, &bx))  // x1y2+x2y1
-	n2 := cs.LinearExpression(cs.Term(p1.Y, &by), cs.Term(p1.X, &bxa)) // y1y2-ax1x2
-	ld := cs.LinearExpression(cs.Term(p1.X, &dxy))                     // dx1x2y2
-	_d := cs.Mul(ld, p1.Y)                                             // dx1x2y2y1
-	d1 := cs.Add(1, _d)                                                // 1+dx1x2y2y1
-	d2 := cs.Sub(1, _d)                                                // 1-dx1x2y2y1
+	n11 := cs.Mul(p1.X, y)
+	n12 := cs.Mul(p1.Y, x)
+	n1 := cs.Add(n11, n12)
+
+	n21 := cs.Mul(p1.Y, y)
+	n22 := cs.Mul(p1.X, x, curve.A)
+	n2 := cs.Sub(n21, n22)
+
+	d11 := cs.Mul(curve.D, x, y, p1.X, p1.Y)
+	d1 := cs.Add(1, d11)
+	d2 := cs.Sub(1, d11)
 
 	p.X = cs.Div(n1, d1)
 	p.Y = cs.Div(n2, d2)
@@ -79,42 +76,23 @@ func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point, x, y int
 func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
-	res := Point{}
 
-	one := big.NewInt(1)
+	n11 := cs.Mul(p1.X, p2.Y)
+	n12 := cs.Mul(p1.Y, p2.X)
+	n1 := cs.Add(n11, n12)
 
-	oneWire := cs.Constant(one)
+	n21 := cs.Mul(p1.Y, p2.Y)
+	n22 := cs.Mul(p1.X, p2.X, curve.A)
+	n2 := cs.Sub(n21, n22)
 
-	beta := cs.Mul(p1.X, p2.Y)
-	gamma := cs.Mul(p1.Y, p2.X)
-	delta := cs.Mul(p1.Y, p2.Y)
-	epsilon := cs.Mul(p1.X, p2.X)
-	tau := cs.Mul(delta, epsilon)
-	num := cs.LinearExpression(
-		cs.Term(beta, one),
-		cs.Term(gamma, one),
-	)
-	den := cs.LinearExpression(
-		cs.Term(oneWire, one),
-		cs.Term(tau, &curve.D),
-	)
-	res.X = cs.Div(num, den)
-	var minusa big.Int
-	minusa.Neg(&curve.A).Mod(&minusa, &curve.Modulus)
-	num = cs.LinearExpression(
-		cs.Term(delta, one),
-		cs.Term(epsilon, &minusa),
-	)
-	var minusd big.Int
-	minusd.Neg(&curve.D).Mod(&minusd, &curve.Modulus)
-	den = cs.LinearExpression(
-		cs.Term(oneWire, one),
-		cs.Term(tau, &minusd),
-	)
-	res.Y = cs.Div(num, den)
+	d11 := cs.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
+	d1 := cs.Add(1, d11)
 
-	p.X = res.X
-	p.Y = res.Y
+	d2 := cs.Sub(1, d11)
+
+	p.X = cs.Div(n1, d1)
+	p.Y = cs.Div(n2, d2)
+
 	return p
 }
 
@@ -177,5 +155,6 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 
 	p.X = res.X
 	p.Y = res.Y
+
 	return p
 }

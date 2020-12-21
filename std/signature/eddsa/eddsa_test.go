@@ -59,7 +59,7 @@ func TestEddsa(t *testing.T) {
 
 	hFunc := mimc_bn256.NewMiMC("seed")
 
-	// create eddsa obj and sign a Message
+	// generate eddsa witnesses from the crypto lib
 	pubKey, privKey := eddsa_bn256.New(seed, hFunc)
 	var msg fr_bn256.Element
 	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")

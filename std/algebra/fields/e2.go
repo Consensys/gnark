@@ -17,8 +17,6 @@ limitations under the License.
 package fields
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
@@ -55,18 +53,10 @@ func (e *E2) Sub(cs *frontend.ConstraintSystem, e1, e2 *E2) *E2 {
 // Mul e2 elmts: 5C
 func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 
-	one := big.NewInt(1)
-	minusOne := big.NewInt(-1)
-
 	// 1C
-	l1 := cs.LinearExpression(
-		cs.Term(e1.A0, one),
-		cs.Term(e1.A1, one),
-	)
-	l2 := cs.LinearExpression(
-		cs.Term(e2.A0, one),
-		cs.Term(e2.A1, one),
-	)
+	l1 := cs.Add(e1.A0, e1.A1)
+	l2 := cs.Add(e2.A0, e2.A1)
+
 	u := cs.Mul(l1, l2)
 
 	// 2C
@@ -74,19 +64,15 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 	bd := cs.Mul(e1.A1, e2.A1)
 
 	// 1C
-	l3 := cs.LinearExpression(
-		cs.Term(u, one),
-		cs.Term(ac, minusOne),
-		cs.Term(bd, minusOne),
-	)
+	l31 := cs.Add(ac, bd)
+	l3 := cs.Sub(u, l31)
+
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
 	buSquare := backend.FromInterface(ext.uSquare)
-	l4 := cs.LinearExpression(
-		cs.Term(ac, one),
-		cs.Term(bd, &buSquare),
-	)
+	l41 := cs.Mul(bd, buSquare)
+	l4 := cs.Add(ac, l41)
 	e.A0 = cs.Mul(l4, 1)
 
 	return e
