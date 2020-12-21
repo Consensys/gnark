@@ -1,8 +1,3 @@
-package zkpschemes
-
-// Groth16Tests ...
-const Groth16Tests = `
-
 import (
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
@@ -84,7 +79,7 @@ func TestParsePublicInput(t *testing.T) {
 type refCircuit struct {
 	nbConstraints int 
 	X frontend.Variable
-	Y frontend.Variable ` + "`" + "gnark:\",public\"" + "`" + `
+	Y frontend.Variable  `gnark:",public"`
 }
 
 func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
@@ -279,4 +274,3 @@ func BenchmarkSerialization(b *testing.B) {
 
 {{ end }}
 
-`

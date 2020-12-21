@@ -8,10 +8,6 @@ import (
 	"sync"
 
 	"github.com/consensys/bavard"
-	"github.com/consensys/gnark/internal/generators/backend/template"
-	"github.com/consensys/gnark/internal/generators/backend/template/fft"
-	"github.com/consensys/gnark/internal/generators/backend/template/representations"
-	"github.com/consensys/gnark/internal/generators/backend/template/zkpschemes"
 )
 
 const copyrightHolder = "ConsenSys Software Inc."
@@ -40,6 +36,7 @@ func main() {
 	}
 
 	datas := []templateData{bls377, bls381, bn256, bw761}
+	const importCurve = "../imports.go.tmpl"
 	var wg sync.WaitGroup
 	for _, d := range datas {
 		wg.Add(1)
@@ -54,24 +51,55 @@ func main() {
 			backendDir := d.RootPath
 			r1csDir := "../../../backend/r1cs/"
 
-			entries := []bavard.Entry{
-				{Data: d, PackageName: "r1cs", File: filepath.Join(r1csDir, "r1cs_"+strings.ToLower(d.Curve)+".go"), Templates: []string{template.ImportCurve, representations.R1CSConvertor}},
-				{Data: d, PackageName: "backend", File: filepath.Join(backendDir, "r1cs.go"), Templates: []string{template.ImportCurve, representations.R1CS}},
-				{Data: d, PackageName: "backend_test", File: filepath.Join(backendDir, "r1cs_test.go"), Templates: []string{template.ImportCurve, representations.R1CSTests}},
-				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "domain_test.go"), Templates: []string{template.ImportCurve, fft.DomainTests}},
-				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "domain.go"), Templates: []string{template.ImportCurve, fft.Domain}},
-				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "fft_test.go"), Templates: []string{template.ImportCurve, fft.FFTTests}},
-				{Data: d, PackageName: "fft", File: filepath.Join(fftDir, "fft.go"), Templates: []string{template.ImportCurve, fft.FFT}},
-				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Verify}},
-				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Prove}},
-				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Setup}},
-				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Marshal}},
-				{Data: d, PackageName: "groth16", File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16MarshalTest}},
-				{Data: d, PackageName: "groth16_test", File: filepath.Join(groth16Dir, "groth16_test.go"), Templates: []string{template.ImportCurve, zkpschemes.Groth16Tests}},
+			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", bavard.EntryF{
+				File:      filepath.Join(r1csDir, "r1cs_"+strings.ToLower(d.Curve)+".go"),
+				TemplateF: []string{"r1cs.convertor.go.tmpl", importCurve},
+			}); err != nil {
+				panic(err)
 			}
 
-			if err := bgen.Generate(entries...); err != nil {
+			if err := bgen.GenerateF(d, "backend", "./template/representations/", bavard.EntryF{
+				File:      filepath.Join(backendDir, "r1cs.go"),
+				TemplateF: []string{"r1cs.go.tmpl", importCurve},
+			}); err != nil {
+				panic(err)
+			}
+
+			if err := bgen.GenerateF(d, "backend_test", "./template/representations/", bavard.EntryF{
+				File:      filepath.Join(backendDir, "r1cs_test.go"),
+				TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
+			}); err != nil {
+				panic(err)
+			}
+
+			entries := []bavard.EntryF{
+				{File: filepath.Join(fftDir, "domain_test.go"), TemplateF: []string{"tests/domain.go.tmpl", importCurve}},
+				{File: filepath.Join(fftDir, "domain.go"), TemplateF: []string{"domain.go.tmpl", importCurve}},
+				{File: filepath.Join(fftDir, "fft_test.go"), TemplateF: []string{"tests/fft.go.tmpl", importCurve}},
+				{File: filepath.Join(fftDir, "fft.go"), TemplateF: []string{"fft.go.tmpl", importCurve}},
+			}
+
+			if err := bgen.GenerateF(d, "fft", "./template/fft/", entries...); err != nil {
 				panic(err) // TODO handle
+			}
+
+			entries = []bavard.EntryF{
+				{File: filepath.Join(groth16Dir, "verify.go"), TemplateF: []string{"groth16.verify.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "prove.go"), TemplateF: []string{"groth16.prove.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "setup.go"), TemplateF: []string{"groth16.setup.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "marshal.go"), TemplateF: []string{"groth16.marshal.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "marshal_test.go"), TemplateF: []string{"tests/groth16.marshal.go.tmpl", importCurve}},
+			}
+
+			if err := bgen.GenerateF(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
+				panic(err) // TODO handle
+			}
+
+			if err := bgen.GenerateF(d, "groth16_test", "./template/zkpschemes/", bavard.EntryF{
+				File:      filepath.Join(groth16Dir, "groth16_test.go"),
+				TemplateF: []string{"tests/groth16.go.tmpl", importCurve},
+			}); err != nil {
+				panic(err)
 			}
 		}(d)
 

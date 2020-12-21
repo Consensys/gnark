@@ -1,9 +1,3 @@
-package representations
-
-// R1CSConvertor ...
-const R1CSConvertor = `
-
-
 import (
 	{{ template "import_backend" . }}
 	{{ template "import_fr" . }}
@@ -31,5 +25,3 @@ func (r1cs *UntypedR1CS) to{{toUpper .Curve}}() *{{toLower .Curve}}backend.R1CS 
 
 	return &toReturn
 }
-
-`

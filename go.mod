@@ -3,7 +3,7 @@ module github.com/consensys/gnark
 go 1.15
 
 require (
-	github.com/consensys/bavard v0.1.7-0.20201120162630-86d982ed34b6
+	github.com/consensys/bavard v0.1.7-0.20201221223155-01abca91228c
 	github.com/consensys/gurvy v0.3.6-0.20201201225406-c45cdb55aaef
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.8
@@ -11,3 +11,5 @@ require (
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
+
+replace github.com/consensys/bavard => ../bavard
