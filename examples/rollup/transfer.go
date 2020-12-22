@@ -49,7 +49,8 @@ func NewTransfer(amount uint64, from, to eddsa.PublicKey, nonce uint64) Transfer
 func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, error) {
 
 	h.Reset()
-	var frNonce, msg fr.Element
+	//var frNonce, msg fr.Element
+	var frNonce fr.Element
 
 	// serializing transfer. The signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
 	// (each pubkey consist of 2 chunks of 256bits)
@@ -66,8 +67,8 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 	h.Write(b[:])
 	b = t.receiverPubKey.A.Y.Bytes()
 	h.Write(b[:])
-	bmsg := h.Sum([]byte{})
-	msg.SetBytes(bmsg)
+	msg := h.Sum([]byte{})
+	//msg.SetBytes(bmsg)
 
 	sig, err := eddsa.Sign(msg, t.senderPubKey, priv)
 	if err != nil {
@@ -82,7 +83,8 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 
 	h.Reset()
-	var frNonce, msg fr.Element
+	//var frNonce, msg fr.Element
+	var frNonce fr.Element
 
 	// serializing transfer. The msg to sign is
 	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)
@@ -100,8 +102,8 @@ func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 	h.Write(b[:])
 	b = t.receiverPubKey.A.Y.Bytes()
 	h.Write(b[:])
-	bmsg := h.Sum([]byte{})
-	msg.SetBytes(bmsg)
+	msg := h.Sum([]byte{})
+	//msg.SetBytes(bmsg)
 
 	// verification of the signature
 	resSig, err := eddsa.Verify(t.signature, msg, t.senderPubKey)

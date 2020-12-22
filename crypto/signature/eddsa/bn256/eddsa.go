@@ -27,6 +27,8 @@ import (
 
 var errNotOnCurve = errors.New("point not on curve")
 
+const frSize = 32 // TODO assumes a 256 bits field for the twisted curve (ok for our implem)
+
 // Signature represents an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA for notation
 type Signature struct {
@@ -125,7 +127,6 @@ func Sign(message []byte, pub PublicKey, priv PrivateKey) (Signature, error) {
 	resRY := res.R.Y.Bytes()
 	resAX := pub.A.X.Bytes()
 	resAY := pub.A.Y.Bytes()
-	frSize := 256 // TODO assumes a 256 bits field for the twisted curve (ok for our implem)
 	sizeDataToHash := 4*frSize + len(message)
 	dataToHash := make([]byte, sizeDataToHash)
 	copy(dataToHash[:], resRX[:])
@@ -169,7 +170,6 @@ func Verify(sig Signature, message []byte, pub PublicKey) (bool, error) {
 	sigRY := sig.R.Y.Bytes()
 	sigAX := pub.A.X.Bytes()
 	sigAY := pub.A.Y.Bytes()
-	frSize := 256 // TODO assumes a 256 bits field for the twisted curve (ok for our implem)
 	sizeDataToHash := 4*frSize + len(message)
 	dataToHash := make([]byte, sizeDataToHash)
 	copy(dataToHash[:], sigRX[:])
