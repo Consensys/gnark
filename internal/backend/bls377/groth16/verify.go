@@ -25,8 +25,10 @@ import (
 	"github.com/consensys/gnark/backend"
 )
 
-var errPairingCheckFailed = errors.New("pairing doesn't match")
-var errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in the correct subgroup")
+var (
+	errPairingCheckFailed         = errors.New("pairing doesn't match")
+	errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in the correct subgroup")
+)
 
 // Verify verifies a proof
 func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
