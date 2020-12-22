@@ -37,35 +37,38 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	var doubleML curve.GT
-	var err error
-	ch := make(chan bool, 1)
-	go func() {
-		doubleML, err = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
-		ch <- true
-	}()
-	if err != nil {
-		return err
-	}
+	var errML error
+	chDone := make(chan struct{}, 1)
 
-	var kSum curve.G1Jac
+	// compute (eKrsδ, eArBs)
+	go func() {
+
+		doubleML, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
+
+		chDone <- struct{}{}
+		close(chDone)
+	}()
+
+	// compute e(Σx.[Kvk(t)]1, -[γ]2)
+	var kSum curve.G1Affine
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return err
 	}
 	kSum.MultiExp(vk.G1.K, kInputs)
 
-	// e(Σx.[Kvk(t)]1, -[γ]2)
-	var kSumAff curve.G1Affine
-	kSumAff.FromJacobian(&kSum)
-
-	right, err := curve.MillerLoop([]curve.G1Affine{kSumAff}, []curve.G2Affine{vk.G2.GammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.GammaNeg})
 	if err != nil {
 		return err
 	}
 
-	<-ch
-	right = curve.FinalExponentiation(right.Mul(&right, &doubleML))
+	// wait for (eKrsδ, eArBs)
+	<-chDone
+	if errML != nil {
+		return errML
+	}
 
+	right = curve.FinalExponentiation(&right, &doubleML)
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}
