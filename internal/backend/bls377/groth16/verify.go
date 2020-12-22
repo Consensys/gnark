@@ -39,15 +39,15 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	var doubleML curve.GT
-	var errML error
-	chDone := make(chan struct{}, 1)
+	chDone := make(chan error, 1)
 
 	// compute (eKrsδ, eArBs)
 	go func() {
+		var errML error
 
 		doubleML, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
 
-		chDone <- struct{}{}
+		chDone <- errML
 		close(chDone)
 	}()
 
@@ -65,9 +65,9 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	// wait for (eKrsδ, eArBs)
-	<-chDone
-	if errML != nil {
-		return errML
+	err = <-chDone
+	if err != nil {
+		return err
 	}
 
 	right = curve.FinalExponentiation(&right, &doubleML)
