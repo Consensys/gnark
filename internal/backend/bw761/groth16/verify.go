@@ -36,8 +36,18 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 		return errCorrectSubgroupCheckFailed
 	}
 
-	var kSum curve.G1Jac
+	var doubleML curve.GT
+	var err error
+	ch := make(chan bool, 1)
+	go func() {
+		doubleML, err = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
+		ch <- true
+	}()
+	if err != nil {
+		return err
+	}
 
+	var kSum curve.G1Jac
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return err
@@ -48,10 +58,14 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 
-	right, err := curve.Pair([]curve.G1Affine{proof.Krs, proof.Ar, kSumAff}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs, vk.G2.GammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSumAff}, []curve.G2Affine{vk.G2.GammaNeg})
 	if err != nil {
 		return err
 	}
+
+	<-ch
+	right = curve.FinalExponentiation(right.Mul(&right, &doubleML))
+
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}
