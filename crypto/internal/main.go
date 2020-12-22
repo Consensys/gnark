@@ -9,40 +9,8 @@ import (
 	"github.com/consensys/bavard"
 )
 
-//go:generate go run main.go eddsa_template.go eddsa_test_template.go mimc_template.go
+//go:generate go run main.go mimc_template.go
 func main() {
-
-	// -----------------------------------------------------
-	// eddsa files
-	eddsabls381 := templateData{
-		Curve:    "BLS381",
-		Path:     "../signature/eddsa/bls381/",
-		FileName: "eddsa.go",
-		Src:      []string{eddsaTemplate},
-		Package:  "eddsa",
-	}
-	eddsabls381Test := templateData{
-		Curve:    "BLS381",
-		Path:     "../signature/eddsa/bls381/",
-		FileName: "eddsa_test.go",
-		Src:      []string{eddsaTestTemplate},
-		Package:  "eddsa",
-	}
-
-	eddsabn256 := templateData{
-		Curve:    "BN256",
-		Path:     "../signature/eddsa/bn256/",
-		FileName: "eddsa.go",
-		Src:      []string{eddsaTemplate},
-		Package:  "eddsa",
-	}
-	eddsabn256Test := templateData{
-		Curve:    "BN256",
-		Path:     "../signature/eddsa/bn256/",
-		FileName: "eddsa_test.go",
-		Src:      []string{eddsaTestTemplate},
-		Package:  "eddsa",
-	}
 
 	// -----------------------------------------------------
 	// mimc files
@@ -71,10 +39,6 @@ func main() {
 	}
 
 	data := []templateData{
-		eddsabls381,
-		eddsabls381Test,
-		eddsabn256,
-		eddsabn256Test,
 		mimcbn256,
 		mimcbls381,
 		mimcbls377,
