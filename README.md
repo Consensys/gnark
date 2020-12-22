@@ -48,8 +48,6 @@ Note if that if you use go modules, in `go.mod` the module path is case sensitiv
 5. `groth16.Verify(...)` to verify a proof
 
 
-`gnark` offers APIs and a CLI tool (`gnark -h` for more information about `setup`, `prove` and `verify` subcommands)
-
 ### Documentation
 
 You can find the [documentation here](https://pkg.go.dev/mod/github.com/consensys/gnark). In particular:
@@ -136,24 +134,7 @@ proof, err := groth16.Prove(r1cs, pk, solution)
 err := groth16.Verify(proof, vk, solution)
 ```
 
-6. Using the CLI
 
-```bash
-cd examples/cubic
-go run cubic.go
-gnark setup circuit.r1cs
-gnark prove circuit.r1cs --pk circuit.pk --input input.json
-gnark verify circuit.proof --vk circuit.vk --input input.json
-```
-
-The input file has a the following JSON format:
-```json
-{
-	"x":"3",
-	"Y":"0xdeff12"
-}
-```
-Values can be base10 or hexadecimal strings. 
 
 ### API vs DSL
 
