@@ -10,30 +10,42 @@ var errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in t
 
 // Verify verifies a proof
 func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
-	
+
 	// check that the points in the proof are in the correct subgroup
 	if !proof.isValid() {
 		return errCorrectSubgroupCheckFailed
 	}
 
+	var doubleML curve.GT
+	var err error
+	ch := make(chan bool, 1)
+	go func() {
+		doubleML, err = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
+		ch <- true
+	}()
+	if err != nil {
+		return err
+	}
+
 	var kSum curve.G1Jac
-
-
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return err
 	}
-	kSum.MultiExp( vk.G1.K, kInputs)
+	kSum.MultiExp(vk.G1.K, kInputs)
 
 	// e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 
-
-	right, err := curve.Pair([]curve.G1Affine{proof.Krs, proof.Ar, kSumAff}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs, vk.G2.GammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSumAff}, []curve.G2Affine{vk.G2.GammaNeg})
 	if err != nil {
-		return err 
+		return err
 	}
+
+	<-ch
+	right = curve.FinalExponentiation(right.Mul(&right, &doubleML))
+
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}
