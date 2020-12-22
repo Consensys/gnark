@@ -25,8 +25,10 @@ import (
 	"github.com/consensys/gnark/backend"
 )
 
-var errPairingCheckFailed = errors.New("pairing doesn't match")
-var errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in the correct subgroup")
+var (
+	errPairingCheckFailed         = errors.New("pairing doesn't match")
+	errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in the correct subgroup")
+)
 
 // Verify verifies a proof
 func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
@@ -36,38 +38,47 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 		return errCorrectSubgroupCheckFailed
 	}
 
-	var kSum curve.G1Jac
-	var eKrsδ, eArBs *curve.GT
-	chan1 := make(chan bool, 1)
-	chan2 := make(chan bool, 1)
+	var doubleML curve.GT
+	chDone := make(chan error, 1)
 
-	// e([Krs]1, -[δ]2)
+	// compute (eKrsδ, eArBs)
 	go func() {
-		eKrsδ = curve.MillerLoop(proof.Krs, vk.G2.DeltaNeg)
-		chan1 <- true
+		var errML error
+
+		// TODO temporary while bw761 API catches up in gurvy
+		var eKrsδ, eArBs curve.GT
+		eKrsδ, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs}, []curve.G2Affine{vk.G2.DeltaNeg})
+		if errML != nil {
+			chDone <- errML
+			close(chDone)
+		}
+		eArBs, errML = curve.MillerLoop([]curve.G1Affine{proof.Ar}, []curve.G2Affine{proof.Bs})
+		doubleML.Mul(&eKrsδ, &eArBs)
+
+		chDone <- errML
+		close(chDone)
 	}()
 
-	// e([Ar]1, [Bs]2)
-	go func() {
-		eArBs = curve.MillerLoop(proof.Ar, proof.Bs)
-		chan2 <- true
-	}()
-
+	// compute e(Σx.[Kvk(t)]1, -[γ]2)
+	var kSum curve.G1Affine
 	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
 	if err != nil {
 		return err
 	}
 	kSum.MultiExp(vk.G1.K, kInputs)
 
-	// e(Σx.[Kvk(t)]1, -[γ]2)
-	var kSumAff curve.G1Affine
-	kSumAff.FromJacobian(&kSum)
+	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.GammaNeg})
+	if err != nil {
+		return err
+	}
 
-	eKvkγ := curve.MillerLoop(kSumAff, vk.G2.GammaNeg)
+	// wait for (eKrsδ, eArBs)
+	err = <-chDone
+	if err != nil {
+		return err
+	}
 
-	<-chan1
-	<-chan2
-	right := curve.FinalExponentiation(eKrsδ, eArBs, eKvkγ)
+	right = curve.FinalExponentiation(&right, &doubleML)
 	if !vk.E.Equal(&right) {
 		return errPairingCheckFailed
 	}

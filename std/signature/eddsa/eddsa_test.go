@@ -61,13 +61,15 @@ func TestEddsa(t *testing.T) {
 
 	// generate eddsa witnesses from the crypto lib
 	pubKey, privKey := eddsa_bn256.New(seed, hFunc)
-	var msg fr_bn256.Element
-	msg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
-	signature, err := eddsa_bn256.Sign(msg, pubKey, privKey)
+
+	var frMsg fr_bn256.Element
+	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
+	msgBin := frMsg.Bytes()
+	signature, err := eddsa_bn256.Sign(msgBin[:], pubKey, privKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := eddsa_bn256.Verify(signature, msg, pubKey)
+	res, err := eddsa_bn256.Verify(signature, msgBin[:], pubKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +86,7 @@ func TestEddsa(t *testing.T) {
 	// verification with the correct Message
 	{
 		var witness eddsaCircuit
-		witness.Message.Assign(msg)
+		witness.Message.Assign(frMsg)
 
 		witness.PublicKey.A.X.Assign(pubKey.A.X)
 		witness.PublicKey.A.Y.Assign(pubKey.A.Y)
