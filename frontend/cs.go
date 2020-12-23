@@ -70,7 +70,7 @@ type ConstraintSystem struct {
 
 }
 
-func (cs *ConstraintSystem) buildVarFromPartialVar(pv PartialVariable) Variable {
+func (cs *ConstraintSystem) buildVarFromPartialVar(pv Wire) Variable {
 	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
 }
 
@@ -132,8 +132,8 @@ func (cs *ConstraintSystem) getOneTerm() r1c.Term {
 	return cs.public.variables[0].linExp[0]
 }
 
-func (cs *ConstraintSystem) getOneWire() PartialVariable {
-	return cs.public.variables[0].PartialVariable
+func (cs *ConstraintSystem) getOneWire() Wire {
+	return cs.public.variables[0].Wire
 }
 
 func (cs *ConstraintSystem) getOneVariable() Variable {
@@ -141,7 +141,7 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 }
 
 // Term packs a variable and a coeff in a r1c.Term and returns it.
-func (cs *ConstraintSystem) makeTerm(v PartialVariable, coeff *big.Int) r1c.Term {
+func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) r1c.Term {
 
 	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
 
@@ -184,7 +184,7 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 	}
 
 	coeffRecord := make(map[int]big.Int)       // id variable -> coeff
-	varRecord := make(map[int]PartialVariable) // id variable -> PartialVariable
+	varRecord := make(map[int]Wire) // id variable -> Wire
 
 	// the variables are collected and the coefficients are accumulated
 	for _, t := range linExp {
@@ -192,7 +192,7 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 		_, coeffID, variableID, vis := t.Unpack()
 
 		if vis == visibility {
-			tmp := PartialVariable{vis, variableID, nil}
+			tmp := Wire{vis, variableID, nil}
 
 			if _, ok := varRecord[variableID]; !ok {
 				varRecord[variableID] = tmp
@@ -218,12 +218,12 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 	return res
 }
 
-// complete allow linExp if linExp is empty. If a variable
+// complete allocate linExp if linExp is empty. If a variable
 // is created like 'var a Variable', it will be unset but Compile(..)
 // will not understand it since a.linExp is empty
 func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 	if len(v.linExp) == 0 {
-		tmp := PartialVariable{backend.Unset, v.id, v.val}
+		tmp := Wire{backend.Unset, v.id, v.val}
 		tmpVar := cs.buildVarFromPartialVar(tmp)
 		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
 		v.linExp = tmpVar.getLinExpCopy()
@@ -461,7 +461,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	resVar := PartialVariable{
+	resVar := Wire{
 		id:         len(cs.internal.variables),
 		visibility: backend.Internal,
 	}
@@ -474,7 +474,7 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 
 	idx := len(cs.public.variables)
-	resVar := PartialVariable{backend.Public, idx, nil}
+	resVar := Wire{backend.Public, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.public.names {
@@ -492,7 +492,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 	idx := len(cs.secret.variables)
-	resVar := PartialVariable{backend.Secret, idx, nil}
+	resVar := Wire{backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
 	for _, v := range cs.public.names {

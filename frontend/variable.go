@@ -24,9 +24,9 @@ import (
 	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
-// PartialVariable of a circuit
+// Wire of a circuit
 // They represent secret or public inputs in a circuit struct{} / definition (see circuit.Define(), type Tag)
-type PartialVariable struct {
+type Wire struct {
 	visibility backend.Visibility
 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
@@ -37,7 +37,7 @@ type PartialVariable struct {
 // the linExp is always non empty, the PartialVariabl can be unset. It is set and allocated in the
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
 type Variable struct {
-	PartialVariable
+	Wire
 	linExp    r1c.LinearExpression
 	isBoolean bool // TODO it doesn't work, we need a pointer for that
 }

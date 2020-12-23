@@ -13,7 +13,8 @@ type rangeCheckConstantCircuit struct {
 func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
-
+	c3 := cs.Add(circuit.X, circuit.Y)
+	cs.AssertIsLessOrEqual(c3, 161) // c3 is from a linear expression only
 	cs.AssertIsLessOrEqual(c2, 161)
 	return nil
 }
@@ -44,8 +45,9 @@ type rangeCheckCircuit struct {
 func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
-
+	c3 := cs.Add(circuit.X, circuit.Y)
 	cs.AssertIsLessOrEqual(c2, circuit.Bound)
+	cs.AssertIsLessOrEqual(c3, circuit.Bound) // c3 is from a linear expression only
 
 	return nil
 }

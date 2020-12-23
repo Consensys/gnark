@@ -58,7 +58,7 @@ func (cs *ConstraintSystem) negateLinExp(le r1c.LinearExpression) r1c.LinearExpr
 		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff = cs.coeffs[coeffID]
 		coeffCopy.Neg(&coeff)
-		res[i] = cs.makeTerm(PartialVariable{constraintVis, variableID, nil}, &coeffCopy)
+		res[i] = cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy)
 	}
 	return res
 }
@@ -101,9 +101,9 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 		_, coeffID, variableID, constraintVis := t.Unpack()
 		coeff := cs.coeffs[coeffID]
 		coeffCopy.Mul(&coeff, &lambda)
-		linExp = append(linExp, cs.makeTerm(PartialVariable{constraintVis, variableID, nil}, &coeffCopy))
+		linExp = append(linExp, cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy))
 	}
-	return Variable{PartialVariable{}, linExp, false}
+	return Variable{Wire{}, linExp, false}
 }
 
 // Mul returns res = i1 * i2 * ... in
@@ -351,6 +351,21 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 	}
 }
 
+func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
+
+	var res logEntry
+
+	for i := 0; i < len(v.linExp); i++ {
+		if i > 0 {
+			res.format += " + "
+		}
+		c := cs.coeffs[v.linExp[i].CoeffID()]
+		res.format += fmt.Sprintf("(%%s * %s)", c.String())
+	}
+	res.toResolve = v.getLinExpCopy()
+	return res
+}
+
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 
@@ -368,23 +383,13 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	constraint := r1c.R1C{L: l.getLinExpCopy(), R: r.getLinExpCopy(), O: o.getLinExpCopy(), Solver: r1c.SingleOutput}
 
 	debugInfo.format += "["
-	for i := 0; i < len(l.linExp); i++ {
-		if i > 0 {
-			debugInfo.format += " + "
-		}
-		c := cs.coeffs[l.linExp[i].CoeffID()]
-		debugInfo.format += fmt.Sprintf("(%%s * %s)", c.String())
-		debugInfo.toResolve = append(debugInfo.toResolve, l.linExp[i])
-	}
+	lhs := cs.buildLogEntryFromVariable(l)
+	debugInfo.format += lhs.format
+	debugInfo.toResolve = lhs.toResolve
 	debugInfo.format += " != "
-	for i := 0; i < len(o.linExp); i++ {
-		if i > 0 {
-			debugInfo.format += " + "
-		}
-		c := cs.coeffs[o.linExp[i].CoeffID()]
-		debugInfo.format += fmt.Sprintf("(%%s * %s)", c.String())
-		debugInfo.toResolve = append(debugInfo.toResolve, o.linExp[i])
-	}
+	rhs := cs.buildLogEntryFromVariable(o)
+	debugInfo.format += rhs.format
+	debugInfo.toResolve = append(debugInfo.toResolve, rhs.toResolve...)
 	debugInfo.format += "]"
 
 	cs.addAssertion(constraint, debugInfo)
@@ -446,10 +451,14 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 
 	// prepare debug info to be displayed in case the constraint is not solved
-	debugInfo := logEntry{
-		format:    fmt.Sprintf("%%s <= %%s"),
-		toResolve: []r1c.Term{r1c.Pack(w.id, 0, w.visibility), r1c.Pack(bound.id, 0, bound.visibility)},
-	}
+	dbgInfoW := cs.buildLogEntryFromVariable(w)
+	dbgInfoBound := cs.buildLogEntryFromVariable(bound)
+	var debugInfo logEntry
+	debugInfo.format = dbgInfoW.format + " <= " + dbgInfoBound.format
+	debugInfo.toResolve = make([]r1c.Term, len(dbgInfoW.toResolve)+len(dbgInfoBound.toResolve))
+	copy(debugInfo.toResolve[:], dbgInfoW.toResolve)
+	copy(debugInfo.toResolve[len(dbgInfoW.toResolve):], dbgInfoBound.toResolve)
+
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
 		debugInfo.format += "\n" + stack[i]
@@ -488,15 +497,17 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 
 	// prepare debug info to be displayed in case the constraint is not solved
-	debugInfo := logEntry{
-		format:    fmt.Sprintf("%%s <= %s", bound.String()),
-		toResolve: []r1c.Term{r1c.Pack(v.id, 0, v.visibility)},
-	}
+	dbgInfoW := cs.buildLogEntryFromVariable(v)
+	var debugInfo logEntry
+	debugInfo.format = dbgInfoW.format + " <= " + bound.String()
+	debugInfo.toResolve = dbgInfoW.toResolve
+
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
 		debugInfo.format += "\n" + stack[i]
 	}
 
+	// TODO store those constant elsewhere (for the moment they don't depend on the base curve, but that might change)
 	const nbBits = 256
 	const nbWords = 4
 	const wordSize = 64

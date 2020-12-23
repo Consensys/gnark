@@ -81,6 +81,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 //
 // if input is not already a map[string]interface{}, it must implement frontend.Circuit
 func ParseWitness(input interface{}) (map[string]interface{}, error) {
+
 	switch c := input.(type) {
 	case map[string]interface{}:
 		return c, nil
