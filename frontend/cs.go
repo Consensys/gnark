@@ -183,8 +183,8 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 		return r1c.LinearExpression{}
 	}
 
-	coeffRecord := make(map[int]big.Int)       // id variable -> coeff
-	varRecord := make(map[int]Wire) // id variable -> Wire
+	coeffRecord := make(map[int]big.Int) // id variable -> coeff
+	varRecord := make(map[int]Wire)      // id variable -> Wire
 
 	// the variables are collected and the coefficients are accumulated
 	for _, t := range linExp {
