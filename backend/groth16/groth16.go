@@ -56,11 +56,14 @@ type ProvingKey interface {
 // VerifyingKey represents a Groth16 VerifyingKey
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
+//
+// ExportSolidity is implemented for BN256 and will return an error with other curves
 type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
 	IsDifferent(interface{}) bool
+	ExportSolidity(w io.Writer) error
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
