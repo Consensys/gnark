@@ -45,7 +45,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	go func() {
 		var errML error
 
-		doubleML, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.DeltaNeg, proof.Bs})
+		doubleML, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.deltaNeg, proof.Bs})
 
 		chDone <- errML
 		close(chDone)
@@ -59,7 +59,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 	kSum.MultiExp(vk.G1.K, kInputs)
 
-	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.GammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.gammaNeg})
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	right = curve.FinalExponentiation(&right, &doubleML)
-	if !vk.E.Equal(&right) {
+	if !vk.e.Equal(&right) {
 		return errPairingCheckFailed
 	}
 	return nil

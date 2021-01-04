@@ -214,9 +214,9 @@ func BenchmarkGroth16Verify16inputsBLS(b *testing.B) {
 }
 
 func (vk *VerifyingKey) FromBellmanVerifyingKey(bvk *BellmanVerifyingKey) {
-	vk.E, _ = curve.Pair([]curve.G1Affine{bvk.G1.Alpha}, []curve.G2Affine{bvk.G2.Beta})
-	vk.G2.GammaNeg.Neg(&bvk.G2.Gamma)
-	vk.G2.DeltaNeg.Neg(&bvk.G2.Delta)
+	vk.e, _ = curve.Pair([]curve.G1Affine{bvk.G1.Alpha}, []curve.G2Affine{bvk.G2.Beta})
+	vk.G2.gammaNeg.Neg(&bvk.G2.Gamma)
+	vk.G2.deltaNeg.Neg(&bvk.G2.Delta)
 	vk.G1.K = make([]curve.G1Affine, len(bvk.G1.Ic))
 	copy(vk.G1.K, bvk.G1.Ic)
 	vk.PublicInputs = make([]string, len(vk.G1.K))

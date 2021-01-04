@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/bls377"
 )
 
 //--------------------------------------------------------------------
@@ -128,13 +129,20 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Ar.Assign(&innerProof.Ar)
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
-	witness.InnerVk.E.Assign(&innerVk.E)
+
+	// compute vk.e
+	e, err := bls377.Pair([]bls377.G1Affine{innerVk.G1.Alpha}, []bls377.G2Affine{innerVk.G2.Beta})
+	witness.InnerVk.E.Assign(&e)
+
 	witness.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {
 		witness.InnerVk.G1[i].Assign(&vkg)
 	}
-	witness.InnerVk.G2.DeltaNeg.Assign(&innerVk.G2.DeltaNeg)
-	witness.InnerVk.G2.GammaNeg.Assign(&innerVk.G2.GammaNeg)
+	var deltaNeg, gammaNeg bls377.G2Affine
+	deltaNeg.Neg(&innerVk.G2.Delta)
+	gammaNeg.Neg(&innerVk.G2.Gamma)
+	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
+	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
 	witness.Hash.Assign(publicHash)
 
 	// verifies the cs

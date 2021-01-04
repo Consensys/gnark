@@ -57,20 +57,21 @@ type VerifyingKey struct {
 	// ordered public input names
 	PublicInputs []string
 
-	// e(α, β)
-	E curve.GT
-
-	// -[γ]2, -[δ]2
-	// note: storing GammaNeg and DeltaNeg instead of Gamma and Delta
-	// see proof.Verify() for more details
-	G2 struct {
-		GammaNeg, DeltaNeg curve.G2Affine
-	}
-
-	// [Kvk]1
+	// [α]1, [Kvk]1
 	G1 struct {
-		K []curve.G1Affine // The indexes correspond to the public wires
+		Alpha curve.G1Affine
+		K     []curve.G1Affine // The indexes correspond to the public wires
 	}
+
+	// [β]2, [δ]2, [γ]2,
+	// -[δ]2, -[γ]2: see proof.Verify() for more details
+	G2 struct {
+		Beta, Delta, Gamma curve.G2Affine
+		deltaNeg, gammaNeg curve.G2Affine // not serialized
+	}
+
+	// e(α, β)
+	e curve.GT // not serialized
 }
 
 // Setup constructs the SRS
@@ -223,15 +224,17 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G2.Beta = g2PointsAff[nbWires+0]
 	pk.G2.Delta = g2PointsAff[nbWires+1]
 
-	// sets vk: -[δ]2, -[γ]2
-	vk.G2.DeltaNeg = g2PointsAff[nbWires+1]
-	vk.G2.GammaNeg = g2PointsAff[nbWires+2]
-	vk.G2.DeltaNeg.Neg(&vk.G2.DeltaNeg)
-	vk.G2.GammaNeg.Neg(&vk.G2.GammaNeg)
+	// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
+	vk.G2.Delta = g2PointsAff[nbWires+1]
+	vk.G2.Gamma = g2PointsAff[nbWires+2]
+	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
+	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
 	// ---------------------------------------------------------------------------------------------
-	// Pairing: vk.E
-	vk.E, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
+	// Pairing: vk.e
+	vk.G1.Alpha = pk.G1.Alpha
+	vk.G2.Beta = pk.G2.Beta
+	vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
 	if err != nil {
 		return err
 	}

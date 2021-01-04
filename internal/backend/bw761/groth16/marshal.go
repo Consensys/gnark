@@ -60,7 +60,6 @@ func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
 
 // ReadFrom attempts to decode a Proof from reader
 // Proof must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
-// note that we don't check that the points are on the curve or in the correct subgroup at this point
 func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
 
 	dec := curve.NewDecoder(r)
@@ -92,6 +91,8 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 	return vk.writeTo(w, true)
 }
 
+// writeTo serialization format:
+// cbor([]string(publicInputNames)), [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
 func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
 	var written int
 
@@ -112,14 +113,6 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
 		return
 	}
 
-	// write vk.E
-	buf := vk.E.Bytes()
-	written, err = w.Write(buf[:])
-	n += int64(written)
-	if err != nil {
-		return
-	}
-
 	var enc *curve.Encoder
 	if raw {
 		enc = curve.NewEncoder(w, curve.RawEncoding())
@@ -127,13 +120,8 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
 		enc = curve.NewEncoder(w)
 	}
 
-	err = enc.Encode(&vk.G2.GammaNeg)
-	n += enc.BytesWritten()
-	if err != nil {
-		return
-	}
-
-	err = enc.Encode(&vk.G2.DeltaNeg)
+	// [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
+	err = enc.Encode(&vk.G1.Alpha)
 	n += enc.BytesWritten()
 	if err != nil {
 		return
@@ -141,24 +129,41 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
 
 	err = enc.Encode(vk.G1.K)
 	n += enc.BytesWritten()
+	if err != nil {
+		return
+	}
+
+	err = enc.Encode(&vk.G2.Beta)
+	n += enc.BytesWritten()
+	if err != nil {
+		return
+	}
+
+	err = enc.Encode(&vk.G2.Delta)
+	n += enc.BytesWritten()
+	if err != nil {
+		return
+	}
+
+	err = enc.Encode(&vk.G2.Gamma)
+	n += enc.BytesWritten()
 	return
 }
 
 // ReadFrom attempts to decode a VerifyingKey from reader
 // VerifyingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
-// note that we don't check that the points are on the curve or in the correct subgroup at this point
-// TODO while Proof points correctness is checkd in the Verifier, here may be a good place to check key
+// serialization format:  cbor([]string(publicInputNames)), [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
 
 	var read int
-	var buf [curve.SizeOfGT]byte
+	var buf [8]byte
 
-	read, err = io.ReadFull(r, buf[:8])
+	read, err = io.ReadFull(r, buf[:])
 	n += int64(read)
 	if err != nil {
 		return
 	}
-	lPublicInputs := binary.BigEndian.Uint64(buf[:8])
+	lPublicInputs := binary.BigEndian.Uint64(buf[:])
 
 	bPublicInputs := make([]byte, lPublicInputs)
 	read, err = io.ReadFull(r, bPublicInputs)
@@ -171,27 +176,11 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
 		return
 	}
 
-	// read vk.E
-
-	read, err = r.Read(buf[:])
-	n += int64(read)
-	if err != nil {
-		return
-	}
-	err = vk.E.SetBytes(buf[:])
-	if err != nil {
-		return
-	}
-
+	// read vk.e
+	// [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
 	dec := curve.NewDecoder(r)
 
-	err = dec.Decode(&vk.G2.GammaNeg)
-	n += dec.BytesRead()
-	if err != nil {
-		return
-	}
-
-	err = dec.Decode(&vk.G2.DeltaNeg)
+	err = dec.Decode(&vk.G1.Alpha)
 	n += dec.BytesRead()
 	if err != nil {
 		return
@@ -199,6 +188,35 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
 
 	err = dec.Decode(&vk.G1.K)
 	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	err = dec.Decode(&vk.G2.Beta)
+	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	err = dec.Decode(&vk.G2.Delta)
+	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	err = dec.Decode(&vk.G2.Gamma)
+	n += dec.BytesRead()
+	if err != nil {
+		return
+	}
+
+	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
+	vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
+	if err != nil {
+		return
+	}
+	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
+	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
 	return
 }

@@ -47,7 +47,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 
 		// TODO temporary while bw761 API catches up in gurvy
 		var eKrsδ, eArBs curve.GT
-		eKrsδ, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs}, []curve.G2Affine{vk.G2.DeltaNeg})
+		eKrsδ, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs}, []curve.G2Affine{vk.G2.deltaNeg})
 		if errML != nil {
 			chDone <- errML
 			close(chDone)
@@ -67,7 +67,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 	kSum.MultiExp(vk.G1.K, kInputs)
 
-	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.GammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.gammaNeg})
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	}
 
 	right = curve.FinalExponentiation(&right, &doubleML)
-	if !vk.E.Equal(&right) {
+	if !vk.e.Equal(&right) {
 		return errPairingCheckFailed
 	}
 	return nil

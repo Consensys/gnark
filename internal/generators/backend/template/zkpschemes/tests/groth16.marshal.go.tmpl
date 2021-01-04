@@ -86,9 +86,19 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			// create a random vk
 			nbWires := 6
 
-			vk.E.SetRandom()
-			vk.G2.GammaNeg = p2
-			vk.G2.DeltaNeg = p2
+			vk.G1.Alpha = p1
+			vk.G2.Gamma = p2
+			vk.G2.Beta = p2
+			vk.G2.Delta = p2
+
+			var err error 
+			vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
+			if err != nil {
+				t.Fatal(err)
+				return false
+			}
+			vk.G2.deltaNeg.Neg(&vk.G2.Delta)
+			vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
 			vk.G1.K = make([]curve.G1Affine, nbWires)
 			for i:=0; i < nbWires; i++ {
