@@ -27,7 +27,7 @@ func TestPreimage(t *testing.T) {
 	{
 		var witness Circuit
 		witness.PreImage.Assign(35)
-		witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
+		witness.Hash.Assign("16130099170765464552823636852555369511329944820189892919423002775646948828469")
 		assert.ProverSucceeded(r1cs, &witness)
 	}
 

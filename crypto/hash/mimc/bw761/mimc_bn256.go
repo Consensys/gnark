@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bn256
+package bw761
 
 import (
 	"hash"
 	"math/big"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bw761/fr"
 	"golang.org/x/crypto/sha3"
 )
 
