@@ -11,11 +11,10 @@ const mimcEncryptTemplate = `
 	func (d *digest) encrypt(m fr.Element) {
 
 		for i:=0; i < len(d.Params); i++ {
-			// m = (m+k+c)^7
+			// m = (m+k+c)^5
 			var tmp fr.Element
 			tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
 			m.Square(&tmp).
-				Mul(&m, &tmp).
 				Square(&m).
 				Mul(&m, &tmp)
 		}
@@ -29,7 +28,7 @@ const mimcEncryptTemplate = `
 	func (d *digest) encrypt(m fr.Element) {
 
 		for i:=0; i < len(d.Params); i++ {
-			// m = (m+k+c)^7
+			// m = (m+k+c)^5
 			var tmp fr.Element
 			tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
 			m.Square(&tmp).
@@ -46,8 +45,25 @@ const mimcEncryptTemplate = `
 	func (d *digest) encrypt(m fr.Element) {
 
 		for i:=0; i < len(d.Params); i++ {
-			// m = (m+k+c)^7
+			// m = (m+k+c)^**-1
 			m.Add(&m, &d.h).Add(&m, &d.Params[i]).Inverse(&m)
+		}
+		m.Add(&m, &d.h)
+		d.h = m
+	}
+{{ else if eq .Curve "BW761" }}
+	// plain execution of a mimc run
+	// m: message
+	// k: encryption key
+	func (d *digest) encrypt(m fr.Element) {
+
+		for i:=0; i < len(d.Params); i++ {
+			// m = (m+k+c)^5
+			var tmp fr.Element
+			tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
+			m.Square(&tmp).
+				Square(&m).
+				Mul(&m, &tmp)
 		}
 		m.Add(&m, &d.h)
 		d.h = m
