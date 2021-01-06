@@ -206,7 +206,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	return res
 }
 
-// Xor compute the xor between two variables
+// Xor compute the XOR between two variables
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
 	cs.completeDanglingVariable(&a)
@@ -222,6 +222,39 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
 	constraint := r1c.R1C{L: v1.getLinExpCopy(), R: b.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
+
+	return res
+}
+
+// Or compute the OR between two variables
+func (cs *ConstraintSystem) Or(a, b Variable) Variable {
+
+	cs.completeDanglingVariable(&a)
+	cs.completeDanglingVariable(&b)
+
+	cs.AssertIsBoolean(a)
+	cs.AssertIsBoolean(b)
+
+	res := cs.newInternalVariable()
+	v1 := cs.Sub(1, a)
+	v2 := cs.Sub(res, a)
+
+	constraint := r1c.R1C{L: b.getLinExpCopy(), R: v1.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
+	cs.constraints = append(cs.constraints, constraint)
+
+	return res
+}
+
+// And compute the AND between two variables
+func (cs *ConstraintSystem) And(a, b Variable) Variable {
+
+	cs.completeDanglingVariable(&a)
+	cs.completeDanglingVariable(&b)
+
+	cs.AssertIsBoolean(a)
+	cs.AssertIsBoolean(b)
+
+	res := cs.Mul(a, b)
 
 	return res
 }
