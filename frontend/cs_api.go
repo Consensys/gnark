@@ -22,6 +22,12 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
+	"github.com/consensys/gurvy"
+
+	frbls377 "github.com/consensys/gurvy/bls377/fr"
+	frbls381 "github.com/consensys/gurvy/bls381/fr"
+	frbn256 "github.com/consensys/gurvy/bn256/fr"
+	frbw761 "github.com/consensys/gurvy/bw761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -256,6 +262,40 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 
 	res := cs.Mul(a, b)
 
+	return res
+}
+
+// IsZero returns 1 if a is zero, 0 otherwise
+// TODO not sure if it's the right place for this function (should we put it in std/algebra?)
+func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
+
+	if id == gurvy.UNKNOWN {
+		panic("IsZero only works when a specific curve is chosen")
+	}
+
+	var expo big.Int
+	switch id {
+	case gurvy.BN256:
+		expo.Set(frbn256.Modulus())
+	case gurvy.BLS381:
+		expo.Set(frbls381.Modulus())
+	case gurvy.BLS377:
+		expo.Set(frbls377.Modulus())
+	case gurvy.BW761:
+		expo.Set(frbw761.Modulus())
+	default:
+		panic("curve not available")
+	}
+
+	res := cs.Constant(1)
+	expoBytes := expo.Bytes()
+	nbBits := len(expoBytes) * 8
+	for i := nbBits - 1; i >= 1; i-- { // up to i-1 because expo=(modulus-1)/2
+		res = cs.Mul(res, res)
+		if expo.Bit(i) == 1 {
+			res = cs.Mul(res, a)
+		}
+	}
 	return res
 }
 

@@ -27,6 +27,9 @@ import (
 
 func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
+		if name=="isZero" {
+			continue
+		}
 		t.Run(name, func(t *testing.T) {
 			assert := groth16.NewAssert(t)
 			r1cs := circuit.R1CS.ToR1CS(curve.ID)
