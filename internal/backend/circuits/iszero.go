@@ -27,7 +27,7 @@ func init() {
 		panic(err)
 	}
 
-	good.X.Assign(203029)
+	good.X.Assign(203028)
 	good.Y.Assign(0)
 
 	bad.X.Assign(0)

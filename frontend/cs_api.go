@@ -290,12 +290,13 @@ func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
 	res := cs.Constant(1)
 	expoBytes := expo.Bytes()
 	nbBits := len(expoBytes) * 8
-	for i := nbBits - 1; i >= 1; i-- { // up to i-1 because expo=(modulus-1)/2
+	for i := nbBits - 1; i >= 1; i-- { // up to i-1 because we go up to q-1
 		res = cs.Mul(res, res)
 		if expo.Bit(i) == 1 {
 			res = cs.Mul(res, a)
 		}
 	}
+	res = cs.Mul(res, res) // final squaring
 	return res
 }
 
