@@ -11,8 +11,8 @@ type isZero struct {
 
 func (circuit *isZero) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
 
-	a := cs.IsZero(circuit.X, gurvy.BN256)
-	b := cs.IsZero(circuit.Y, gurvy.BN256)
+	a := cs.IsZero(circuit.X, curveID)
+	b := cs.IsZero(circuit.Y, curveID)
 	cs.AssertIsEqual(a, 1)
 	cs.AssertIsEqual(b, 0)
 
@@ -22,10 +22,6 @@ func (circuit *isZero) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func init() {
 
 	var circuit, good, bad, public isZero
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(203028)
 	good.Y.Assign(0)
@@ -33,5 +29,5 @@ func init() {
 	bad.X.Assign(0)
 	bad.Y.Assign(23)
 
-	addEntry("isZero", r1cs, &good, &bad, &public)
+	addEntry("isZero", &circuit, &good, &bad, &public)
 }

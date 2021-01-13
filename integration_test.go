@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 )
@@ -46,12 +47,14 @@ func TestIntegrationAPI(t *testing.T) {
 				continue
 			}
 		}
-		if name == "isZero" {
-			continue
-		}
+
 		for _, curve := range curves {
 			t.Log(curve.String())
-			typedR1CS := circuit.R1CS.ToR1CS(curve)
+
+			typedR1CS, err := frontend.Compile(curve, circuit.Circuit)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			pk, vk, err := groth16.Setup(typedR1CS)
 			if err != nil {
@@ -77,35 +80,4 @@ func TestIntegrationAPI(t *testing.T) {
 
 		}
 	}
-
-	{
-		// special test for isZero as a specific curve needs to be chosen in Define(...)
-		name := "isZero"
-		circuit := circuits.Circuits[name]
-
-		typedR1CS := circuit.R1CS.ToR1CS(gurvy.BN256)
-
-		pk, vk, err := groth16.Setup(typedR1CS)
-		if err != nil {
-			t.Fatal(err)
-		}
-		correctProof, err := groth16.Prove(typedR1CS, pk, circuit.Good)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wrongProof, err := groth16.Prove(typedR1CS, pk, circuit.Bad, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = groth16.Verify(correctProof, vk, circuit.Public)
-		if err != nil {
-			t.Fatal("Verify should have succeeded")
-		}
-		err = groth16.Verify(wrongProof, vk, circuit.Public)
-		if err == nil {
-			t.Fatal("Verify should have failed")
-		}
-	}
-
 }

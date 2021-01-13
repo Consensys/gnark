@@ -266,12 +266,7 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-// TODO not sure if it's the right place for this function (should we put it in std/algebra?)
 func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
-
-	if id == gurvy.UNKNOWN {
-		panic("IsZero only works when a specific curve is chosen")
-	}
 
 	var expo big.Int
 	switch id {
@@ -284,7 +279,7 @@ func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
 	case gurvy.BW761:
 		expo.Set(frbw761.Modulus())
 	default:
-		panic("curve not available")
+		panic("not implemented")
 	}
 
 	res := cs.Constant(1)
