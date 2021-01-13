@@ -292,6 +292,7 @@ func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
 		}
 	}
 	res = cs.Mul(res, res) // final squaring
+	res = cs.Sub(1, res)
 	return res
 }
 
