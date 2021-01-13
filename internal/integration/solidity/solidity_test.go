@@ -105,10 +105,10 @@ func (t *ExportSolidityTestSuite) TestVerifyProof() {
 	// proof.Ar, proof.Bs, proof.Krs
 	a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1])
 	a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2])
-	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3])
-	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4])
-	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5])
-	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6])
+	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3])
+	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4])
+	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5])
+	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6])
 	c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7])
 	c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8])
 

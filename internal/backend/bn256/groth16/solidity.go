@@ -127,10 +127,10 @@ library Pairing {
             uint256 j = i * 6;
             input[j + 0] = p1[i].X;
             input[j + 1] = p1[i].Y;
-            input[j + 2] = p2[i].X[1];
-            input[j + 3] = p2[i].X[0];
-            input[j + 4] = p2[i].Y[1];
-            input[j + 5] = p2[i].Y[0];
+            input[j + 2] = p2[i].X[0];
+            input[j + 3] = p2[i].X[1];
+            input[j + 4] = p2[i].Y[0];
+            input[j + 5] = p2[i].Y[1];
         }
 
         uint256[1] memory out;
@@ -172,9 +172,9 @@ contract Verifier {
 
     function verifyingKey() internal pure returns (VerifyingKey memory vk) {
         vk.alfa1 = Pairing.G1Point(uint256({{.G1.Alpha.X.String}}), uint256({{.G1.Alpha.Y.String}}));
-        vk.beta2 = Pairing.G2Point([uint256({{.G2.Beta.X.A0.String}}), uint256({{.G2.Beta.X.A1.String}})], [uint256({{.G2.Beta.Y.A0.String}}), uint256({{.G2.Beta.Y.A1.String}})]);
-        vk.gamma2 = Pairing.G2Point([uint256({{.G2.Gamma.X.A0.String}}), uint256({{.G2.Gamma.X.A1.String}})], [uint256({{.G2.Gamma.Y.A0.String}}), uint256({{.G2.Gamma.Y.A1.String}})]);
-        vk.delta2 = Pairing.G2Point([uint256({{.G2.Delta.X.A0.String}}), uint256({{.G2.Delta.X.A1.String}})], [uint256({{.G2.Delta.Y.A0.String}}), uint256({{.G2.Delta.Y.A1.String}})]);
+        vk.beta2 = Pairing.G2Point([uint256({{.G2.Beta.X.A1.String}}), uint256({{.G2.Beta.X.A0.String}})], [uint256({{.G2.Beta.Y.A1.String}}), uint256({{.G2.Beta.Y.A0.String}})]);
+        vk.gamma2 = Pairing.G2Point([uint256({{.G2.Gamma.X.A1.String}}), uint256({{.G2.Gamma.X.A0.String}})], [uint256({{.G2.Gamma.Y.A1.String}}), uint256({{.G2.Gamma.Y.A0.String}})]);
+        vk.delta2 = Pairing.G2Point([uint256({{.G2.Delta.X.A1.String}}), uint256({{.G2.Delta.X.A0.String}})], [uint256({{.G2.Delta.Y.A1.String}}), uint256({{.G2.Delta.Y.A0.String}})]);
         {{- range $i, $ki := .G1.K }}   
         vk.IC[{{$i}}] = Pairing.G1Point(uint256({{$ki.X.String}}), uint256({{$ki.Y.String}}));
         {{- end}}
