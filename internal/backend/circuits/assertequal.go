@@ -20,10 +20,6 @@ func (circuit *checkAssertEqualCircuit) Define(curveID gurvy.ID, cs *frontend.Co
 func checkAssertEqual() {
 
 	var circuit, good, bad, public checkAssertEqualCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(3)
 	good.Y.Assign(3)
@@ -33,5 +29,5 @@ func checkAssertEqual() {
 
 	public.Y.Assign(3)
 
-	addEntry("assert_equal", r1cs, &good, &bad, &public)
+	addEntry("assert_equal", &circuit, &good, &bad, &public)
 }

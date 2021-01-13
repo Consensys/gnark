@@ -23,6 +23,7 @@ import (
 
 	"errors"
 	"github.com/consensys/gnark/backend"
+	"io"
 )
 
 var (
@@ -107,4 +108,9 @@ func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]f
 	}
 
 	return toReturn, nil
+}
+
+// ExportSolidity not implemented for BW761
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	return errors.New("not implemented")
 }
