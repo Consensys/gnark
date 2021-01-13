@@ -110,7 +110,7 @@ func (d *digest) Write(p []byte) (n int, err error) {
 // The XOR operation is replaced by field addition, data is in Montgomery form
 func (d *digest) checksum() fr.Element {
 
-	var buffer [32]byte
+	var buffer [BlockSize]byte
 	var x fr.Element
 
 	// if data size is not multiple of BlockSizes we padd:

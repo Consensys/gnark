@@ -145,8 +145,7 @@ func TestMimcBW761(t *testing.T) {
 
 	// input
 	var data fr_bw761.Element
-	//data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
-	data.SetString("0")
+	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
 
 	// minimal cs res = hash(data)
 	var circuit, witness mimcCircuit
