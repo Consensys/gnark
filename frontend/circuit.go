@@ -39,7 +39,8 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
 			if v.id != 0 {
-				return errors.New("circuit was already compiled")
+				v.id = 0
+				// return errors.New("circuit was already compiled")
 			}
 			if v.val != nil {
 				return errors.New("circuit has some assigned values, can't compile")

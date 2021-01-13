@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"testing"
 	"reflect"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 )
 func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer
 	for name, circuit := range circuits.Circuits {
-		r1cs := circuit.R1CS.ToR1CS(gurvy.{{.Curve}})
-		
+
+		r1cs, err := frontend.Compile(gurvy.{{.Curve}}, circuit.Circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if testing.Short() && r1cs.GetNbConstraints() > 50 {
 			continue
 		}

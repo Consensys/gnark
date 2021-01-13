@@ -20,6 +20,7 @@ import (
 	bls381backend "github.com/consensys/gnark/internal/backend/bls381"
 
 	"bytes"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 	"reflect"
@@ -29,8 +30,11 @@ import (
 func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer
 	for name, circuit := range circuits.Circuits {
-		r1cs := circuit.R1CS.ToR1CS(gurvy.BLS381)
 
+		r1cs, err := frontend.Compile(gurvy.BLS381, circuit.Circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if testing.Short() && r1cs.GetNbConstraints() > 50 {
 			continue
 		}

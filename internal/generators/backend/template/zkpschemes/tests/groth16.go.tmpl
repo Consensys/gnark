@@ -29,7 +29,8 @@ func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			assert := groth16.NewAssert(t)
-			r1cs := circuit.R1CS.ToR1CS(curve.ID)
+			r1cs, err := frontend.Compile(curve.ID, circuit.Circuit)
+			assert.NoError(err)
 			assert.ProverFailed(r1cs, circuit.Bad)
 			assert.ProverSucceeded(r1cs, circuit.Good)
 		})

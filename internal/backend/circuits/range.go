@@ -21,10 +21,6 @@ func (circuit *rangeCheckConstantCircuit) Define(curveID gurvy.ID, cs *frontend.
 
 func rangeCheckConstant() {
 	var circuit, good, bad, public rangeCheckConstantCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(10)
 	good.Y.Assign(4)
@@ -34,7 +30,7 @@ func rangeCheckConstant() {
 
 	public.Y.Assign(4)
 
-	addEntry("range_constant", r1cs, &good, &bad, &public)
+	addEntry("range_constant", &circuit, &good, &bad, &public)
 }
 
 type rangeCheckCircuit struct {
@@ -55,10 +51,6 @@ func (circuit *rangeCheckCircuit) Define(curveID gurvy.ID, cs *frontend.Constrai
 func rangeCheck() {
 
 	var circuit, good, bad, public rangeCheckCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(10)
 	good.Y.Assign(4)
@@ -71,7 +63,7 @@ func rangeCheck() {
 	public.Y.Assign(4)
 	public.Bound.Assign(161)
 
-	addEntry("range", r1cs, &good, &bad, &public)
+	addEntry("range", &circuit, &good, &bad, &public)
 }
 
 func init() {
