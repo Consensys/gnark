@@ -17,6 +17,7 @@ limitations under the License.
 package eddsa
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
@@ -60,16 +61,16 @@ func TestEddsa(t *testing.T) {
 	hFunc := mimc_bn256.NewMiMC("seed")
 
 	// generate eddsa witnesses from the crypto lib
-	pubKey, privKey := eddsa_bn256.New(seed, hFunc)
+	pubKey, privKey := eddsa_bn256.New(seed)
 
 	var frMsg fr_bn256.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, err := eddsa_bn256.Sign(msgBin[:], pubKey, privKey)
+	signature, err := eddsa_bn256.Sign(msgBin[:], privKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := eddsa_bn256.Verify(signature, msgBin[:], pubKey)
+	res, err := eddsa_bn256.Verify(signature, msgBin[:], pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,9 @@ func TestEddsa(t *testing.T) {
 		witness.Signature.R.A.X.Assign(signature.R.X)
 		witness.Signature.R.A.Y.Assign(signature.R.Y)
 
-		witness.Signature.S.Assign(signature.S)
+		var bs big.Int
+		bs.SetBytes(signature.S[:])
+		witness.Signature.S.Assign(bs)
 
 		assert.SolvingSucceeded(r1cs, &witness)
 	}
@@ -110,7 +113,9 @@ func TestEddsa(t *testing.T) {
 		witness.Signature.R.A.X.Assign(signature.R.X)
 		witness.Signature.R.A.Y.Assign(signature.R.Y)
 
-		witness.Signature.S.Assign(signature.S)
+		var bs big.Int
+		bs.SetBytes(signature.S[:])
+		witness.Signature.S.Assign(bs)
 
 		assert.SolvingFailed(r1cs, &witness)
 	}

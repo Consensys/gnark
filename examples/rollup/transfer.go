@@ -70,7 +70,7 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 	msg := h.Sum([]byte{})
 	//msg.SetBytes(bmsg)
 
-	sig, err := eddsa.Sign(msg, t.senderPubKey, priv)
+	sig, err := eddsa.Sign(msg, priv, hFunc)
 	if err != nil {
 		return sig, err
 	}
@@ -106,7 +106,7 @@ func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 	//msg.SetBytes(bmsg)
 
 	// verification of the signature
-	resSig, err := eddsa.Verify(t.signature, msg, t.senderPubKey)
+	resSig, err := eddsa.Verify(t.signature, msg, t.senderPubKey, hFunc)
 	if err != nil {
 		return false, err
 	}

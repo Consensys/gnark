@@ -94,10 +94,7 @@ func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.Constraint
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID)
-	if err != nil {
-		return err
-	}
+
 	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
 	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
 

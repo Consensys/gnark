@@ -20,8 +20,8 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark/crypto/hash/mimc/bw761"
+	"github.com/consensys/gurvy/bw761/fr"
 )
 
 func TestSerialization(t *testing.T) {
@@ -91,7 +91,7 @@ func TestEddsaMIMC(t *testing.T) {
 		seed[i] = v
 	}
 
-	hFunc := bn256.NewMiMC("seed")
+	hFunc := bw761.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
 	pubKey, privKey := New(seed)
@@ -172,7 +172,7 @@ func BenchmarkVerify(b *testing.B) {
 		seed[i] = v
 	}
 
-	hFunc := bn256.NewMiMC("seed")
+	hFunc := bw761.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
 	pubKey, privKey := New(seed)

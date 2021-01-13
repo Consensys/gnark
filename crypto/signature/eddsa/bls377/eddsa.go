@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"math/big"
 
-	"github.com/consensys/gurvy/bn256/twistededwards"
+	"github.com/consensys/gurvy/bls377/twistededwards"
 
 	"golang.org/x/crypto/blake2b"
 )

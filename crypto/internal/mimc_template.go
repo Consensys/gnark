@@ -74,120 +74,41 @@ const mimcEncryptTemplate = `
 
 `
 
-const mimcCurveTemplate = `
-
-{{ define "mimc_custom" }}
-
-{{ if eq .Curve "BN256" }}
-	import (
-		"hash"
-		"math/big"
-
-		"github.com/consensys/gurvy/bn256/fr"
-		"golang.org/x/crypto/sha3"
-	)
-
-	const mimcNbRounds = 91
-
-	// BlockSize size that mimc consumes
-	const BlockSize = 32
-
-	// Params constants for the mimc hash function
-	type Params []fr.Element
-
-	// NewParams creates new mimc object
-	func NewParams(seed string) Params {
-
-		// set the constants
-		res := make(Params, mimcNbRounds)
-
-		rnd := sha3.Sum256([]byte(seed))
-		value := new(big.Int).SetBytes(rnd[:])
-
-		for i := 0; i < mimcNbRounds; i++ {
-			rnd = sha3.Sum256(value.Bytes())
-			value.SetBytes(rnd[:])
-			res[i].SetBigInt(value)
-		}
-
-		return res
-	}
-{{ else if eq .Curve "BLS377" }}
-	import (
-		"hash"
-		"math/big"
-
-		"github.com/consensys/gurvy/bls377/fr"
-		"golang.org/x/crypto/sha3"
-	)
-
-	const mimcNbRounds = 91
-
-	// BlockSize size that mimc consumes
-	const BlockSize = 32
-
-	// Params constants for the mimc hash function
-	type Params []fr.Element
-
-	// NewParams creates new mimc object
-	func NewParams(seed string) Params {
-
-		// set the constants
-		res := make(Params, mimcNbRounds)
-
-		rnd := sha3.Sum256([]byte(seed))
-		value := new(big.Int).SetBytes(rnd[:])
-
-		for i := 0; i < mimcNbRounds; i++ {
-			rnd = sha3.Sum256(value.Bytes())
-			value.SetBytes(rnd[:])
-			res[i].SetBigInt(value)
-		}
-
-		return res
-	}
-{{ else if eq .Curve "BLS381" }}
-	import (
-		"hash"
-		"math/big"
-
-		"github.com/consensys/gurvy/bls381/fr"
-		"golang.org/x/crypto/sha3"
-	)
-
-	const mimcNbRounds = 91
-
-	// BlockSize size that mimc consumes
-	const BlockSize = 32
-
-	// Params constants for the mimc hash function
-	type Params []fr.Element
-
-	// NewParams creates new mimc object
-	func NewParams(seed string) Params {
-
-		// set the constants
-		res := make(Params, mimcNbRounds)
-
-		rnd := sha3.Sum256([]byte(seed))
-		value := new(big.Int).SetBytes(rnd[:])
-
-		for i := 0; i < mimcNbRounds; i++ {
-			rnd = sha3.Sum256(value.Bytes())
-			value.SetBytes(rnd[:])
-			res[i].SetBigInt(value)
-		}
-
-		return res
-	}
-{{end}}
-
-{{end}}
-`
-
 const mimcCommonTemplate = `
 
-{{ template "mimc_custom" . }}
+import (
+	"hash"
+	"math/big"
+
+	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
+	"golang.org/x/crypto/sha3"
+)
+
+const mimcNbRounds = 91
+
+// BlockSize size that mimc consumes
+const BlockSize = 32{{ if eq .Curve "BW761" }}+16{{ end }}
+
+// Params constants for the mimc hash function
+type Params []fr.Element
+
+// NewParams creates new mimc object
+func NewParams(seed string) Params {
+
+	// set the constants
+	res := make(Params, mimcNbRounds)
+
+	rnd := sha3.Sum256([]byte(seed))
+	value := new(big.Int).SetBytes(rnd[:])
+
+	for i := 0; i < mimcNbRounds; i++ {
+		rnd = sha3.Sum256(value.Bytes())
+		value.SetBytes(rnd[:])
+		res[i].SetBigInt(value)
+	}
+
+	return res
+}
 
 // digest represents the partial evaluation of the checksum
 // along with the params of the mimc function

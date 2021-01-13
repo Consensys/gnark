@@ -27,10 +27,12 @@ import (
 	mimcbls377 "github.com/consensys/gnark/crypto/hash/mimc/bls377"
 	mimcbls381 "github.com/consensys/gnark/crypto/hash/mimc/bls381"
 	mimcbn256 "github.com/consensys/gnark/crypto/hash/mimc/bn256"
+	mimcbw761 "github.com/consensys/gnark/crypto/hash/mimc/bw761"
 
 	fr_bls377 "github.com/consensys/gurvy/bls377/fr"
 	fr_bls381 "github.com/consensys/gurvy/bls381/fr"
 	fr_bn256 "github.com/consensys/gurvy/bn256/fr"
+	fr_bw761 "github.com/consensys/gurvy/bw761/fr"
 )
 
 type mimcCircuit struct {
@@ -129,6 +131,37 @@ func TestMimcBLS377(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tmp fr_bls377.Element
+	tmp.SetBytes(b)
+	witness.Data.Assign(data)
+	witness.ExpectedResult.Assign(tmp)
+
+	assert.SolvingSucceeded(r1cs, &witness)
+
+}
+
+func TestMimcBW761(t *testing.T) {
+
+	assert := groth16.NewAssert(t)
+
+	// input
+	var data fr_bw761.Element
+	//data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487")
+	data.SetString("0")
+
+	// minimal cs res = hash(data)
+	var circuit, witness mimcCircuit
+	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// running MiMC (Go)
+	dataBytes := data.Bytes()
+	b, err := mimcbw761.Sum("seed", dataBytes[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tmp fr_bw761.Element
 	tmp.SetBytes(b)
 	witness.Data.Assign(data)
 	witness.ExpectedResult.Assign(tmp)

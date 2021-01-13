@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"math/big"
 
-	"github.com/consensys/gurvy/bn256/twistededwards"
+	"github.com/consensys/gurvy/bw761/twistededwards"
 
 	"golang.org/x/crypto/blake2b"
 )
@@ -32,7 +32,7 @@ import (
 var errNotOnCurve = errors.New("point not on curve")
 
 const (
-	frSize         = 32
+	frSize         = 32 + 16
 	sizePublicKey  = 2 * frSize
 	sizeSignature  = 3 * frSize
 	sizePrivateKey = 4 * frSize
