@@ -73,8 +73,8 @@ github.com/cloudflare/cloudflare-go v0.10.2-0.20190916151808-a80f83b9add9/go.mod
 github.com/consensys/bavard v0.1.7 h1:ruM3GcLKiwbQg1oxr37+DkfBitGxH/i4CJHY1rW+KV4=
 github.com/consensys/bavard v0.1.7/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.9/go.mod h1:sVd8qmGLPDVaNkeEc54IvC7/dGxuZdJBbo792ZLD5Ng=
-github.com/consensys/gurvy v0.3.7 h1:r6rDSrMyoZLWuKXye/WXyngXOy/Axq/+NSrJrQg9qbE=
-github.com/consensys/gurvy v0.3.7/go.mod h1:Finhem0KVGlIK77Z//KemelnzAmFZDabkzbCN23lqpY=
+github.com/consensys/gurvy v0.3.8-0.20210105143504-812ca66b4e5e h1:jw2nseJi59XXKWkkj0TpSqggxweypm/EL+4sEEHsCyE=
+github.com/consensys/gurvy v0.3.8-0.20210105143504-812ca66b4e5e/go.mod h1:Finhem0KVGlIK77Z//KemelnzAmFZDabkzbCN23lqpY=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.13+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

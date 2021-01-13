@@ -21,10 +21,6 @@ func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 
 func init() {
 	var circuit, good, bad, public divCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	// expected Z
 	var expectedZ big.Int
@@ -40,5 +36,5 @@ func init() {
 
 	public.Z.Assign(expectedZ)
 
-	addEntry("div", r1cs, &good, &bad, &public)
+	addEntry("div", &circuit, &good, &bad, &public)
 }

@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 )
@@ -38,6 +39,7 @@ func TestIntegrationAPI(t *testing.T) {
 	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS377, gurvy.BLS381, gurvy.BW761}
 
 	for name, circuit := range circuits.Circuits {
+
 		t.Log(name)
 
 		if testing.Short() {
@@ -45,9 +47,14 @@ func TestIntegrationAPI(t *testing.T) {
 				continue
 			}
 		}
+
 		for _, curve := range curves {
 			t.Log(curve.String())
-			typedR1CS := circuit.R1CS.ToR1CS(curve)
+
+			typedR1CS, err := frontend.Compile(curve, circuit.Circuit)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			pk, vk, err := groth16.Setup(typedR1CS)
 			if err != nil {
@@ -73,5 +80,4 @@ func TestIntegrationAPI(t *testing.T) {
 
 		}
 	}
-
 }

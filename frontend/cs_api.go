@@ -22,6 +22,12 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs/r1c"
+	"github.com/consensys/gurvy"
+
+	frbls377 "github.com/consensys/gurvy/bls377/fr"
+	frbls381 "github.com/consensys/gurvy/bls381/fr"
+	frbn256 "github.com/consensys/gurvy/bn256/fr"
+	frbw761 "github.com/consensys/gurvy/bw761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -206,7 +212,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	return res
 }
 
-// Xor compute the xor between two variables
+// Xor compute the XOR between two variables
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
 	cs.completeDanglingVariable(&a)
@@ -223,6 +229,70 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 	constraint := r1c.R1C{L: v1.getLinExpCopy(), R: b.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
+	return res
+}
+
+// Or compute the OR between two variables
+func (cs *ConstraintSystem) Or(a, b Variable) Variable {
+
+	cs.completeDanglingVariable(&a)
+	cs.completeDanglingVariable(&b)
+
+	cs.AssertIsBoolean(a)
+	cs.AssertIsBoolean(b)
+
+	res := cs.newInternalVariable()
+	v1 := cs.Sub(1, a)
+	v2 := cs.Sub(res, a)
+
+	constraint := r1c.R1C{L: b.getLinExpCopy(), R: v1.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
+	cs.constraints = append(cs.constraints, constraint)
+
+	return res
+}
+
+// And compute the AND between two variables
+func (cs *ConstraintSystem) And(a, b Variable) Variable {
+
+	cs.completeDanglingVariable(&a)
+	cs.completeDanglingVariable(&b)
+
+	cs.AssertIsBoolean(a)
+	cs.AssertIsBoolean(b)
+
+	res := cs.Mul(a, b)
+
+	return res
+}
+
+// IsZero returns 1 if a is zero, 0 otherwise
+func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
+
+	var expo big.Int
+	switch id {
+	case gurvy.BN256:
+		expo.Set(frbn256.Modulus())
+	case gurvy.BLS381:
+		expo.Set(frbls381.Modulus())
+	case gurvy.BLS377:
+		expo.Set(frbls377.Modulus())
+	case gurvy.BW761:
+		expo.Set(frbw761.Modulus())
+	default:
+		panic("not implemented")
+	}
+
+	res := cs.Constant(1)
+	expoBytes := expo.Bytes()
+	nbBits := len(expoBytes) * 8
+	for i := nbBits - 1; i >= 1; i-- { // up to i-1 because we go up to q-1
+		res = cs.Mul(res, res)
+		if expo.Bit(i) == 1 {
+			res = cs.Mul(res, a)
+		}
+	}
+	res = cs.Mul(res, res) // final squaring
+	res = cs.Sub(1, res)
 	return res
 }
 

@@ -149,7 +149,7 @@ func (d *digest) checksum() fr.Element {
 func (d *digest) encrypt(m fr.Element) {
 
 	for i := 0; i < len(d.Params); i++ {
-		// m = (m+k+c)^7
+		// m = (m+k+c)^5
 		var tmp fr.Element
 		tmp.Add(&m, &d.h).Add(&tmp, &d.Params[i])
 		m.Square(&tmp).

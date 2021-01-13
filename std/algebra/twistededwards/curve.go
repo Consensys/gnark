@@ -22,9 +22,14 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gurvy"
+	frbls377 "github.com/consensys/gurvy/bls377/fr"
+	edbls377 "github.com/consensys/gurvy/bls377/twistededwards"
+	frbls381 "github.com/consensys/gurvy/bls381/fr"
 	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
-	"github.com/consensys/gurvy/bn256/fr"
+	frbn256 "github.com/consensys/gurvy/bn256/fr"
 	edbn256 "github.com/consensys/gurvy/bn256/twistededwards"
+	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	edbw761 "github.com/consensys/gurvy/bw761/twistededwards"
 )
 
 // EdCurve stores the info on the chosen edwards curve
@@ -39,6 +44,8 @@ func init() {
 	newTwistedEdwards = make(map[gurvy.ID]func() EdCurve)
 	newTwistedEdwards[gurvy.BLS381] = newEdBLS381
 	newTwistedEdwards[gurvy.BN256] = newEdBN256
+	newTwistedEdwards[gurvy.BLS377] = newEdBLS377
+	newTwistedEdwards[gurvy.BW761] = newEdBW761
 }
 
 // NewEdCurve returns an Edwards curve parameters
@@ -67,7 +74,7 @@ func newEdBN256() EdCurve {
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
 		ID:       gurvy.BN256,
 	}
-	res.Modulus.Set(fr.Modulus())
+	res.Modulus.Set(frbn256.Modulus())
 
 	return res
 
@@ -88,9 +95,47 @@ func newEdBLS381() EdCurve {
 		BaseY:    backend.FromInterface(edcurve.Base.Y),
 		ID:       gurvy.BLS381,
 	}
-	// TODO use the modulus soon-to-be exported by goff
-	res.Modulus.SetString("52435875175126190479447740508185965837690552500527637822603658699938581184513", 10)
+	res.Modulus.Set(frbls381.Modulus())
 
 	return res
+}
 
+func newEdBLS377() EdCurve {
+
+	edcurve := edbls377.GetEdwardsCurve()
+	var cofactorReg big.Int
+	edcurve.Cofactor.ToBigInt(&cofactorReg)
+
+	res := EdCurve{
+		A:        backend.FromInterface(edcurve.A),
+		D:        backend.FromInterface(edcurve.D),
+		Cofactor: backend.FromInterface(cofactorReg),
+		Order:    backend.FromInterface(edcurve.Order),
+		BaseX:    backend.FromInterface(edcurve.Base.X),
+		BaseY:    backend.FromInterface(edcurve.Base.Y),
+		ID:       gurvy.BLS377,
+	}
+	res.Modulus.Set(frbls377.Modulus())
+
+	return res
+}
+
+func newEdBW761() EdCurve {
+
+	edcurve := edbw761.GetEdwardsCurve()
+	var cofactorReg big.Int
+	edcurve.Cofactor.ToBigInt(&cofactorReg)
+
+	res := EdCurve{
+		A:        backend.FromInterface(edcurve.A),
+		D:        backend.FromInterface(edcurve.D),
+		Cofactor: backend.FromInterface(cofactorReg),
+		Order:    backend.FromInterface(edcurve.Order),
+		BaseX:    backend.FromInterface(edcurve.Base.X),
+		BaseY:    backend.FromInterface(edcurve.Base.Y),
+		ID:       gurvy.BW761,
+	}
+	res.Modulus.Set(frbw761.Modulus())
+
+	return res
 }

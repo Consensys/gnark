@@ -35,11 +35,13 @@ func init() {
 	encryptFuncs[gurvy.BN256] = encryptBN256
 	encryptFuncs[gurvy.BLS381] = encryptBLS381
 	encryptFuncs[gurvy.BLS377] = encryptBLS377
+	encryptFuncs[gurvy.BW761] = encryptBW761
 
 	newMimc = make(map[gurvy.ID]func(string) MiMC)
 	newMimc[gurvy.BN256] = newMimcBN256
 	newMimc[gurvy.BLS381] = newMimcBLS381
 	newMimc[gurvy.BLS377] = newMimcBLS377
+	newMimc[gurvy.BW761] = newMimcBW761
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -81,6 +83,18 @@ func newMimcBN256(seed string) MiMC {
 	return res
 }
 
+func newMimcBW761(seed string) MiMC {
+	res := MiMC{}
+	params := bn256.NewParams(seed)
+	for _, v := range params {
+		var cpy big.Int
+		v.ToBigIntRegular(&cpy)
+		res.params = append(res.params, cpy)
+	}
+	res.id = gurvy.BW761
+	return res
+}
+
 // -------------------------------------------------------------------------------------------------
 // encryptions functions
 
@@ -90,12 +104,9 @@ func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.V
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
-		//for i := 0; i < 1; i++ {
-		// tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
 		tmp := cs.Add(res, key, h.params[i])
-		// res = (res+k+c)^7
+		// res = (res+k+c)^5
 		res = cs.Mul(tmp, tmp)
-		res = cs.Mul(res, tmp)
 		res = cs.Mul(res, res)
 		res = cs.Mul(res, tmp)
 	}
@@ -110,7 +121,22 @@ func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Varia
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		//tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
+		tmp := cs.Add(res, key, h.params[i])
+		// res = (res+k+c)^5
+		res = cs.Mul(tmp, tmp) // square
+		res = cs.Mul(res, res) // square
+		res = cs.Mul(res, tmp) // mul
+	}
+	res = cs.Add(res, key)
+	return res
+}
+
+// execution of a mimc run expressed as r1cs
+func encryptBW761(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+
+	res := message
+
+	for i := 0; i < len(h.params); i++ {
 		tmp := cs.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
 		res = cs.Mul(tmp, tmp) // square
