@@ -1,10 +1,4 @@
-package groth16
 
-// solidityTemplate uses an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
-// audit report https://github.com/appliedzkp/semaphore/blob/master/audit/Audit%20Report%20Summary%20for%20Semaphore%20and%20MicroMix.pdf
-// this is an experimental feature and gnark solidity generator as not been thoroughly tested
-const solidityTemplate = `
-{{- $lenK := len .G1.K }}
 // SPDX-License-Identifier: AML
 // 
 // Copyright 2017 Christian Reitwiessner
@@ -161,7 +155,7 @@ contract Verifier {
         Pairing.G2Point beta2;
         Pairing.G2Point gamma2;
         Pairing.G2Point delta2;
-        Pairing.G1Point[{{$lenK}}] IC;
+        Pairing.G1Point[2] IC;
     }
 
     struct Proof {
@@ -171,13 +165,12 @@ contract Verifier {
     }
 
     function verifyingKey() internal pure returns (VerifyingKey memory vk) {
-        vk.alfa1 = Pairing.G1Point(uint256({{.G1.Alpha.X.String}}), uint256({{.G1.Alpha.Y.String}}));
-        vk.beta2 = Pairing.G2Point([uint256({{.G2.Beta.X.A0.String}}), uint256({{.G2.Beta.X.A1.String}})], [uint256({{.G2.Beta.Y.A0.String}}), uint256({{.G2.Beta.Y.A1.String}})]);
-        vk.gamma2 = Pairing.G2Point([uint256({{.G2.Gamma.X.A0.String}}), uint256({{.G2.Gamma.X.A1.String}})], [uint256({{.G2.Gamma.Y.A0.String}}), uint256({{.G2.Gamma.Y.A1.String}})]);
-        vk.delta2 = Pairing.G2Point([uint256({{.G2.Delta.X.A0.String}}), uint256({{.G2.Delta.X.A1.String}})], [uint256({{.G2.Delta.Y.A0.String}}), uint256({{.G2.Delta.Y.A1.String}})]);
-        {{- range $i, $ki := .G1.K }}   
-        vk.IC[{{$i}}] = Pairing.G1Point(uint256({{$ki.X.String}}), uint256({{$ki.Y.String}}));
-        {{- end}}
+        vk.alfa1 = Pairing.G1Point(uint256(1100624714789964566892128512130361853232133427125455699756118490898077089243), uint256(20782620877363224180650548818297375386352543852100668822363686345153434542587));
+        vk.beta2 = Pairing.G2Point([uint256(666698810113707110787580172935268998558591082194075963634481781640898057513), uint256(9878685147394997825089053651094810345746844353695415929063398612773733269665)], [uint256(3403620747247914016926822935760464662264962917909515617744847460866020282485), uint256(11326159957994886813503052674250294890278615211884045595500745621105619064234)]);
+        vk.gamma2 = Pairing.G2Point([uint256(9574811113753075682153464008226294865634582907668058253891949754948198446062), uint256(17504523450631793726229100221323131466205972822825943051413738780349442391808)], [uint256(21764391782820226994034854012105034889862839473424211613098048375090431561327), uint256(8129893892608470243289041095590343873027446515965708727658340491679712308812)]);
+        vk.delta2 = Pairing.G2Point([uint256(12054507560970754786555979515111556820225175822035595938978677933236091657203), uint256(20105075008161731080008815698513060563836619779812546873354738455462162214761)], [uint256(19844449863869832437954759355828764299167376479578551741050877206704867981767), uint256(10711583331208820264208520242659234888656649947468775838724185259951796228365)]);   
+        vk.IC[0] = Pairing.G1Point(uint256(4684029864377043631975299744811139271723937014928774541030377209455615899132), uint256(19715422179616285990521557885681678242049300617220064674174802804008120846386));   
+        vk.IC[1] = Pairing.G1Point(uint256(13195680873263415152228918353240367977428031074586227384928642381849941090980), uint256(15950095811213280203099751830170267276173522581563106418235103758826458243632));
     }
     
     /*
@@ -188,7 +181,7 @@ contract Verifier {
         uint256[2] memory a,
         uint256[2][2] memory b,
         uint256[2] memory c,
-        uint256[{{sub $lenK 1}}] memory input
+        uint256[1] memory input
     ) public view returns (bool r) {
 
         Proof memory proof;
@@ -234,4 +227,3 @@ contract Verifier {
         );
     }
 }
-`
