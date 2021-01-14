@@ -61,16 +61,16 @@ func TestEddsa(t *testing.T) {
 	hFunc := mimc_bn256.NewMiMC("seed")
 
 	// generate eddsa witnesses from the crypto lib
-	pubKey, privKey := eddsa_bn256.New(seed)
+	pubKey, privKey := eddsa_bn256.GenerateKey(seed)
 
 	var frMsg fr_bn256.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, err := eddsa_bn256.Sign(msgBin[:], privKey, hFunc)
+	signature, err := eddsa_bn256.Sign(msgBin[:], &privKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := eddsa_bn256.Verify(signature, msgBin[:], pubKey, hFunc)
+	res, err := eddsa_bn256.Verify(signature, msgBin[:], &pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}

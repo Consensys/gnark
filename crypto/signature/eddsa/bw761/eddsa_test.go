@@ -32,52 +32,50 @@ func TestSerialization(t *testing.T) {
 		seed[i] = v
 	}
 
-	pubKey, privKey := New(seed)
+	pubKey, privKey := GenerateKey(seed)
 	hFunc := sha256.New()
-	signature, err := Sign([]byte("message"), privKey, hFunc)
+	signature, err := Sign([]byte("message"), &privKey, hFunc)
 	if err != nil {
 		t.Fatal("unexpected error when signing")
 	}
 
-	marshalPubKey := pubKey.Marshal()
-	marshalprivKey := privKey.Marshal()
-	marshalSignature := signature.Marshal()
+	var (
+		rPubKey    PublicKey
+		rPrivKey   PrivateKey
+		rSignature Signature
+	)
 
-	var unMarshalPubKey PublicKey
-	var unMarshalPrivKey PrivateKey
-	var unMarshalSignature Signature
-
-	unMarshalPubKey.Unmarshal(marshalPubKey)
-	unMarshalPrivKey.Unmarshal(marshalprivKey)
-	unMarshalSignature.Unmarshal(marshalSignature)
+	rPubKey.SetBytes(pubKey.Bytes())
+	rPrivKey.SetBytes(privKey.Bytes())
+	rSignature.SetBytes(signature.Bytes())
 
 	// public key
-	if !unMarshalPubKey.A.Equal(&pubKey.A) {
-		t.Fatal("unmarshal(marshal(pubkey)) failed")
+	if !rPubKey.A.Equal(&pubKey.A) {
+		t.Fatal("SetBytes(Bytes(pubkey)) failed")
 	}
 
 	// signature
-	if !unMarshalSignature.R.Equal(&signature.R) {
-		t.Fatal("unmarshal(marshal(signature.R)) failed")
+	if !rSignature.R.Equal(&signature.R) {
+		t.Fatal("SetBytes(Bytes(signature.R)) failed")
 	}
-	for i := 0; i < frSize; i++ {
-		if unMarshalSignature.S[i] != signature.S[i] {
-			t.Fatal("unmarshal(marshal(signature.S)) failed")
+	for i := 0; i < sizeFr; i++ {
+		if rSignature.S[i] != signature.S[i] {
+			t.Fatal("SetBytes(Bytes(signature.S)) failed")
 		}
 	}
 
 	// private key
-	if !privKey.pubKey.A.Equal(&unMarshalPrivKey.pubKey.A) {
-		t.Fatal("unmarshal(marshal(privKey.pubkey)) failed")
+	if !privKey.PublicKey.A.Equal(&rPrivKey.PublicKey.A) {
+		t.Fatal("SetBytes(Bytes(privKey.pubkey)) failed")
 	}
 	for i := 0; i < 32; i++ {
-		if privKey.randSrc[i] != unMarshalPrivKey.randSrc[i] {
-			t.Fatal("unmarshal(marshal(privKey.randSrc)) failed")
+		if privKey.randSrc[i] != rPrivKey.randSrc[i] {
+			t.Fatal("SetBytes(Bytes(privKey.randSrc)) failed")
 		}
 	}
-	for i := 0; i < frSize; i++ {
-		if privKey.scalar[i] != unMarshalPrivKey.scalar[i] {
-			t.Fatal("unmarshal(marshal(signature.scalar)) failed")
+	for i := 0; i < sizeFr; i++ {
+		if privKey.scalar[i] != rPrivKey.scalar[i] {
+			t.Fatal("SetBytes(Bytes(signature.scalar)) failed")
 		}
 	}
 
@@ -94,17 +92,17 @@ func TestEddsaMIMC(t *testing.T) {
 	hFunc := bw761.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := New(seed)
+	pubKey, privKey := GenerateKey(seed)
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, err := Sign(msgBin[:], privKey, hFunc)
+	signature, err := Sign(msgBin[:], &privKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verifies correct msg
-	res, err := Verify(signature, msgBin[:], pubKey, hFunc)
+	res, err := Verify(signature, msgBin[:], &pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +113,7 @@ func TestEddsaMIMC(t *testing.T) {
 	// verifies wrong msg
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035979")
 	msgBin = frMsg.Bytes()
-	res, err = Verify(signature, msgBin[:], pubKey, hFunc)
+	res, err = Verify(signature, msgBin[:], &pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,14 +134,14 @@ func TestEddsaSHA256(t *testing.T) {
 	hFunc := sha256.New()
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := New(seed)
-	signature, err := Sign([]byte("message"), privKey, hFunc)
+	pubKey, privKey := GenerateKey(seed)
+	signature, err := Sign([]byte("message"), &privKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// verifies correct msg
-	res, err := Verify(signature, []byte("message"), pubKey, hFunc)
+	res, err := Verify(signature, []byte("message"), &pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +150,7 @@ func TestEddsaSHA256(t *testing.T) {
 	}
 
 	// verifies wrong msg
-	res, err = Verify(signature, []byte("wrong_message"), pubKey, hFunc)
+	res, err = Verify(signature, []byte("wrong_message"), &pubKey, hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,14 +173,14 @@ func BenchmarkVerify(b *testing.B) {
 	hFunc := bw761.NewMiMC("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := New(seed)
+	pubKey, privKey := GenerateKey(seed)
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, _ := Sign(msgBin[:], privKey, hFunc)
+	signature, _ := Sign(msgBin[:], &privKey, hFunc)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Verify(signature, msgBin[:], pubKey, hFunc)
+		Verify(signature, msgBin[:], &pubKey, hFunc)
 	}
 }

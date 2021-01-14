@@ -107,6 +107,7 @@ func main() {
 			entriesF := []bavard.EntryF{
 				{File: filepath.Join(dir, "eddsa.go"), TemplateF: []string{"eddsa.go.tmpl"}},
 				{File: filepath.Join(dir, "eddsa_test.go"), TemplateF: []string{"eddsa_test.go.tmpl"}},
+				{File: filepath.Join(dir, "marshal.go"), TemplateF: []string{"marshal.go.tmpl"}},
 			}
 			if err := bgen.GenerateF(d, "eddsa", ".", entriesF...); err != nil {
 				panic(err)
