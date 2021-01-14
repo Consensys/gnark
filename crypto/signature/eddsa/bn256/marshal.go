@@ -17,6 +17,7 @@
 package eddsa
 
 import (
+	"crypto/subtle"
 	"io"
 )
 
@@ -27,8 +28,8 @@ func (pk *PublicKey) Bytes() []byte {
 	var res [sizePublicKey]byte
 	x := pk.A.X.Bytes()
 	y := pk.A.Y.Bytes()
-	copy(res[:], x[:])
-	copy(res[sizeFr:], y[:])
+	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
+	subtle.ConstantTimeCopy(1, res[sizeFr:], y[:])
 	return res[:]
 }
 
@@ -59,10 +60,10 @@ func (privKey *PrivateKey) Bytes() []byte {
 	var res [sizePrivateKey]byte
 	x := privKey.PublicKey.A.X.Bytes()
 	y := privKey.PublicKey.A.Y.Bytes()
-	copy(res[:], x[:])
-	copy(res[sizeFr:], y[:])
-	copy(res[2*sizeFr:], privKey.scalar[:])
-	copy(res[3*sizeFr:], privKey.randSrc[:])
+	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
+	subtle.ConstantTimeCopy(1, res[sizeFr:2*sizeFr], y[:])
+	subtle.ConstantTimeCopy(1, res[2*sizeFr:3*sizeFr], privKey.scalar[:])
+	subtle.ConstantTimeCopy(1, res[3*sizeFr:], privKey.randSrc[:])
 	return res[:]
 }
 
@@ -82,8 +83,8 @@ func (privKey *PrivateKey) SetBytes(buf []byte) (int, error) {
 	if !privKey.PublicKey.A.IsOnCurve() {
 		return n, errNotOnCurve
 	}
-	copy(privKey.scalar[:], buf[2*sizeFr:3*sizeFr])
-	copy(privKey.randSrc[:], buf[3*sizeFr:])
+	subtle.ConstantTimeCopy(1, privKey.scalar[:], buf[2*sizeFr:3*sizeFr])
+	subtle.ConstantTimeCopy(1, privKey.randSrc[:], buf[3*sizeFr:])
 	n += sizeFr
 	return n, nil
 }
@@ -99,9 +100,9 @@ func (sig *Signature) Bytes() []byte {
 	var res [sizeSignature]byte
 	x := sig.R.X.Bytes()
 	y := sig.R.Y.Bytes()
-	copy(res[:sizeFr], x[:])
-	copy(res[sizeFr:], y[:])
-	copy(res[2*sizeFr:], sig.S[:])
+	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
+	subtle.ConstantTimeCopy(1, res[sizeFr:2*sizeFr], y[:])
+	subtle.ConstantTimeCopy(1, res[2*sizeFr:], sig.S[:])
 	return res[:]
 }
 
@@ -124,7 +125,7 @@ func (sig *Signature) SetBytes(buf []byte) (int, error) {
 	if !sig.R.IsOnCurve() {
 		return n, errNotOnCurve
 	}
-	copy(sig.S[:], buf[2*sizeFr:3*sizeFr])
+	subtle.ConstantTimeCopy(1, sig.S[:], buf[2*sizeFr:3*sizeFr])
 	n += sizeFr
 	return n, nil
 }

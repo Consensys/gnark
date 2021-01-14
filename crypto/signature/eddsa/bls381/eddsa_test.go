@@ -34,7 +34,7 @@ func TestSerialization(t *testing.T) {
 
 	pubKey, privKey := GenerateKey(seed)
 	hFunc := sha256.New()
-	signature, err := Sign([]byte("message"), &privKey, hFunc)
+	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
 		t.Fatal("unexpected error when signing")
 	}
@@ -96,7 +96,7 @@ func TestEddsaMIMC(t *testing.T) {
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, err := Sign(msgBin[:], &privKey, hFunc)
+	signature, err := privKey.Sign(msgBin[:], hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestEddsaSHA256(t *testing.T) {
 
 	// create eddsa obj and sign a message
 	pubKey, privKey := GenerateKey(seed)
-	signature, err := Sign([]byte("message"), &privKey, hFunc)
+	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func BenchmarkVerify(b *testing.B) {
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, _ := Sign(msgBin[:], &privKey, hFunc)
+	signature, _ := privKey.Sign(msgBin[:], hFunc)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

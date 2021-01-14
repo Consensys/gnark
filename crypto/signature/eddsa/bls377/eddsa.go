@@ -17,6 +17,8 @@
 package eddsa
 
 import (
+	"crypto"
+	"crypto/subtle"
 	"errors"
 	"hash"
 	"math/big"
@@ -32,7 +34,7 @@ const (
 	sizeFr         = 32
 	sizePublicKey  = 2 * sizeFr
 	sizeSignature  = 3 * sizeFr
-	sizePrivateKey = 4 * sizeFr
+	sizePrivateKey = 3*sizeFr + 32
 	keyType        = "ED JUBJUB BLS377 PUBLIC KEY"
 )
 
@@ -92,10 +94,23 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 	return pub, priv
 }
 
+// Equal compares 2 public keys
+func (pk *PublicKey) Equal(other *PublicKey) bool {
+	bpk := pk.Bytes()
+	bother := other.Bytes()
+	return subtle.ConstantTimeCompare(bpk, bother) == 1
+}
+
+// Public returns the public key associated to the private key.
+// From Signer interface in https://golang.org/pkg/crypto/
+func (privKey *PrivateKey) Public() crypto.PublicKey {
+	return &privKey.PublicKey
+}
+
 // Sign sign a message
-// cf https://en.wikipedia.org/wiki/EdDSA for the notations
-// Eddsa is supposed to be built upon Edwards (or twisted Edwards) curves having 256 bits group size and cofactor=4 or 8
-func Sign(message []byte, priv *PrivateKey, hFunc hash.Hash) (Signature, error) {
+// Pure Eddsa version (see https://tools.ietf.org/html/rfc8032#page-8)
+// TODO make it implement the Sign interface from https://golang.org/pkg/crypto/
+func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
@@ -105,7 +120,7 @@ func Sign(message []byte, priv *PrivateKey, hFunc hash.Hash) (Signature, error) 
 
 	// randSrc = privKey.randSrc || msg (-> message = MSB message .. LSB message)
 	randSrc := make([]byte, 32+len(message))
-	for i, v := range priv.randSrc {
+	for i, v := range privKey.randSrc {
 		randSrc[i] = v
 	}
 	copy(randSrc[32:], message)
@@ -123,8 +138,8 @@ func Sign(message []byte, priv *PrivateKey, hFunc hash.Hash) (Signature, error) 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	resRX := res.R.X.Bytes()
 	resRY := res.R.Y.Bytes()
-	resAX := priv.PublicKey.A.X.Bytes()
-	resAY := priv.PublicKey.A.Y.Bytes()
+	resAX := privKey.PublicKey.A.X.Bytes()
+	resAY := privKey.PublicKey.A.Y.Bytes()
 	sizeDataToHash := 4*sizeFr + len(message)
 	dataToHash := make([]byte, sizeDataToHash)
 	copy(dataToHash[:], resRX[:])
@@ -145,7 +160,7 @@ func Sign(message []byte, priv *PrivateKey, hFunc hash.Hash) (Signature, error) 
 	// Compute s = randScalarInt + H(R,A,M)*S
 	// going with big int to do ops mod curve order
 	var bscalar, bs big.Int
-	bscalar.SetBytes(priv.scalar[:])
+	bscalar.SetBytes(privKey.scalar[:])
 	bs.Mul(&hramInt, &bscalar).
 		Add(&bs, &randScalarInt).
 		Mod(&bs, &curveParams.Order)
@@ -160,7 +175,6 @@ func Sign(message []byte, priv *PrivateKey, hFunc hash.Hash) (Signature, error) 
 }
 
 // Verify verifies an eddsa signature
-// cf https://en.wikipedia.org/wiki/EdDSA
 func Verify(sig Signature, message []byte, pub *PublicKey, hFunc hash.Hash) (bool, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()

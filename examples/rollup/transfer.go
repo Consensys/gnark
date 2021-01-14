@@ -70,7 +70,7 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 	msg := h.Sum([]byte{})
 	//msg.SetBytes(bmsg)
 
-	sig, err := eddsa.Sign(msg, &priv, hFunc)
+	sig, err := priv.Sign(msg, hFunc)
 	if err != nil {
 		return sig, err
 	}

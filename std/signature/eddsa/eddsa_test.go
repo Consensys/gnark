@@ -66,7 +66,7 @@ func TestEddsa(t *testing.T) {
 	var frMsg fr_bn256.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
-	signature, err := eddsa_bn256.Sign(msgBin[:], &privKey, hFunc)
+	signature, err := privKey.Sign(msgBin[:], hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
