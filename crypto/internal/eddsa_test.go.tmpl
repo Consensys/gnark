@@ -2,8 +2,8 @@ import (
 	"crypto/sha256"
 	"testing"
 
-
-	"github.com/consensys/gnark/crypto/hash/mimc/{{ toLower .Curve }}"
+	"github.com/consensys/gnark/crypto/signature"
+	"github.com/consensys/gnark/crypto/hash"
 	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
 )
 
@@ -15,51 +15,18 @@ func TestSerialization(t *testing.T) {
 		seed[i] = v
 	}
 
-	pubKey, privKey := GenerateKey(seed)
-	hFunc := sha256.New()
-	signature, err := privKey.Sign([]byte("message"), hFunc)
-	if err != nil {
-		t.Fatal("unexpected error when signing")
-	}
+	pubKey1, _ := signature.EDDSA_{{ toUpper .Curve }}.New(seed)
+	pubKey2, _ := signature.EDDSA_{{ toUpper .Curve }}.New(seed)
 
-
-	var (
-		rPubKey PublicKey
-		rPrivKey PrivateKey
-	 	rSignature Signature
-	)
-
-	rPubKey.SetBytes(pubKey.Bytes())
-	rPrivKey.SetBytes(privKey.Bytes())
-	rSignature.SetBytes(signature.Bytes())
-
-	// public key
-	if !rPubKey.A.Equal(&pubKey.A) {
-		t.Fatal("SetBytes(Bytes(pubkey)) failed")
+	pubKeyBin1 := pubKey1.Bytes()
+	pubKey2.SetBytes(pubKeyBin1)
+	pubKeyBin2 := pubKey2.Bytes()
+	if len(pubKeyBin1) != len(pubKeyBin2) {
+		t.Fatal("Inconistent size")
 	}
-
-	// signature
-	if !rSignature.R.Equal(&signature.R) {
-		t.Fatal("SetBytes(Bytes(signature.R)) failed")
-	}
-	for i := 0; i < sizeFr; i++ {
-		if rSignature.S[i] != signature.S[i] {
-			t.Fatal("SetBytes(Bytes(signature.S)) failed")
-		}
-	}
-
-	// private key
-	if !privKey.PublicKey.A.Equal(&rPrivKey.PublicKey.A) {
-		t.Fatal("SetBytes(Bytes(privKey.pubkey)) failed")
-	}
-	for i := 0; i < 32; i++ {
-		if privKey.randSrc[i] != rPrivKey.randSrc[i] {
-			t.Fatal("SetBytes(Bytes(privKey.randSrc)) failed")
-		}
-	}
-	for i := 0; i < sizeFr; i++ {
-		if privKey.scalar[i] != rPrivKey.scalar[i] {
-			t.Fatal("SetBytes(Bytes(signature.scalar)) failed")
+	for i := 0; i < len(pubKeyBin1); i++ {
+		if pubKeyBin1[i] != pubKeyBin2[i] {
+			t.Fatal("Error serialize(deserialize(.))")
 		}
 	}
 
@@ -73,10 +40,10 @@ func TestEddsaMIMC(t *testing.T) {
 		seed[i] = v
 	}
 
-	hFunc := {{ toLower .Curve }}.NewMiMC("seed")
-
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	pubKey, privKey := signature.EDDSA_{{ toUpper .Curve }}.New(seed)
+	hFunc := hash.MIMC_{{ toUpper .Curve }}.New("seed")
+
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
@@ -118,7 +85,16 @@ func TestEddsaSHA256(t *testing.T) {
 	hFunc := sha256.New()
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	// create eddsa obj and sign a message
+	{{ if eq .Curve "BN256" }}
+	pubKey, privKey := signature.EDDSA_BN256.New(seed)
+	{{ else if eq .Curve "BLS381" }}
+	pubKey, privKey := signature.EDDSA_BLS381.New(seed)
+	{{ else if eq .Curve "BLS377" }}
+	pubKey, privKey := signature.EDDSA_BLS377.New(seed)
+	{{ else if eq .Curve "BW761" }}
+	pubKey, privKey := signature.EDDSA_BW761.New(seed)
+	{{ end }}
 	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
 		t.Fatal(err)
@@ -154,10 +130,10 @@ func BenchmarkVerify(b *testing.B) {
 		seed[i] = v
 	}
 
-	hFunc := {{ toLower .Curve }}.NewMiMC("seed")
+	hFunc := hash.MIMC_{{ toUpper .Curve }}.New("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	pubKey, privKey := signature.EDDSA_{{ toUpper .Curve }}.New(seed)
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()

@@ -20,7 +20,8 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/consensys/gnark/crypto/hash/mimc/bw761"
+	"github.com/consensys/gnark/crypto/hash"
+	"github.com/consensys/gnark/crypto/signature"
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
@@ -32,50 +33,18 @@ func TestSerialization(t *testing.T) {
 		seed[i] = v
 	}
 
-	pubKey, privKey := GenerateKey(seed)
-	hFunc := sha256.New()
-	signature, err := privKey.Sign([]byte("message"), hFunc)
-	if err != nil {
-		t.Fatal("unexpected error when signing")
-	}
+	pubKey1, _ := signature.EDDSA_BW761.New(seed)
+	pubKey2, _ := signature.EDDSA_BW761.New(seed)
 
-	var (
-		rPubKey    PublicKey
-		rPrivKey   PrivateKey
-		rSignature Signature
-	)
-
-	rPubKey.SetBytes(pubKey.Bytes())
-	rPrivKey.SetBytes(privKey.Bytes())
-	rSignature.SetBytes(signature.Bytes())
-
-	// public key
-	if !rPubKey.A.Equal(&pubKey.A) {
-		t.Fatal("SetBytes(Bytes(pubkey)) failed")
+	pubKeyBin1 := pubKey1.Bytes()
+	pubKey2.SetBytes(pubKeyBin1)
+	pubKeyBin2 := pubKey2.Bytes()
+	if len(pubKeyBin1) != len(pubKeyBin2) {
+		t.Fatal("Inconistent size")
 	}
-
-	// signature
-	if !rSignature.R.Equal(&signature.R) {
-		t.Fatal("SetBytes(Bytes(signature.R)) failed")
-	}
-	for i := 0; i < sizeFr; i++ {
-		if rSignature.S[i] != signature.S[i] {
-			t.Fatal("SetBytes(Bytes(signature.S)) failed")
-		}
-	}
-
-	// private key
-	if !privKey.PublicKey.A.Equal(&rPrivKey.PublicKey.A) {
-		t.Fatal("SetBytes(Bytes(privKey.pubkey)) failed")
-	}
-	for i := 0; i < 32; i++ {
-		if privKey.randSrc[i] != rPrivKey.randSrc[i] {
-			t.Fatal("SetBytes(Bytes(privKey.randSrc)) failed")
-		}
-	}
-	for i := 0; i < sizeFr; i++ {
-		if privKey.scalar[i] != rPrivKey.scalar[i] {
-			t.Fatal("SetBytes(Bytes(signature.scalar)) failed")
+	for i := 0; i < len(pubKeyBin1); i++ {
+		if pubKeyBin1[i] != pubKeyBin2[i] {
+			t.Fatal("Error serialize(deserialize(.))")
 		}
 	}
 
@@ -89,10 +58,10 @@ func TestEddsaMIMC(t *testing.T) {
 		seed[i] = v
 	}
 
-	hFunc := bw761.NewMiMC("seed")
-
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	pubKey, privKey := signature.EDDSA_BW761.New(seed)
+	hFunc := hash.MIMC_BW761.New("seed")
+
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
@@ -134,7 +103,10 @@ func TestEddsaSHA256(t *testing.T) {
 	hFunc := sha256.New()
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	// create eddsa obj and sign a message
+
+	pubKey, privKey := signature.EDDSA_BW761.New(seed)
+
 	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
 		t.Fatal(err)
@@ -170,10 +142,10 @@ func BenchmarkVerify(b *testing.B) {
 		seed[i] = v
 	}
 
-	hFunc := bw761.NewMiMC("seed")
+	hFunc := hash.MIMC_BW761.New("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := GenerateKey(seed)
+	pubKey, privKey := signature.EDDSA_BW761.New(seed)
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()

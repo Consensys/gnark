@@ -17,12 +17,12 @@
 package eddsa
 
 import (
-	"crypto"
 	"crypto/subtle"
 	"errors"
 	"hash"
 	"math/big"
 
+	"github.com/consensys/gnark/crypto/signature"
 	"github.com/consensys/gurvy/bn256/twistededwards"
 
 	"golang.org/x/crypto/blake2b"
@@ -55,6 +55,10 @@ type PrivateKey struct {
 type Signature struct {
 	R twistededwards.PointAffine
 	S [sizeFr]byte
+}
+
+func init() {
+	signature.Register(signature.EDDSA_BN256, GenerateKeyInterfaces)
 }
 
 // GenerateKey generates a public and private key pair.
@@ -97,22 +101,29 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 	return pub, priv
 }
 
+// GenerateKeyInterfaces generate interfaces for the public/private key.
+// This purpose of this function is to be registered in the list of signature schemes.
+func GenerateKeyInterfaces(seed [32]byte) (signature.PublicKey, signature.Signer) {
+	pub, priv := GenerateKey(seed)
+	return &pub, &priv
+}
+
 // Equal compares 2 public keys
-func (pk *PublicKey) Equal(other *PublicKey) bool {
-	bpk := pk.Bytes()
+func (pub *PublicKey) Equal(other signature.PublicKey) bool {
+	bpk := pub.Bytes()
 	bother := other.Bytes()
 	return subtle.ConstantTimeCompare(bpk, bother) == 1
 }
 
 // Public returns the public key associated to the private key.
-// From Signer interface in https://golang.org/pkg/crypto/
-func (privKey *PrivateKey) Public() crypto.PublicKey {
+// From Signer interface defined in gnark/crypto/signature.
+func (privKey *PrivateKey) Public() signature.PublicKey {
 	return &privKey.PublicKey
 }
 
 // Sign sign a message
 // Pure Eddsa version (see https://tools.ietf.org/html/rfc8032#page-8)
-func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, error) {
+func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) ([]byte, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
@@ -137,7 +148,7 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 	// compute R = randScalar*Base
 	res.R.ScalarMul(&curveParams.Base, &blindingFactorBigInt)
 	if !res.R.IsOnCurve() {
-		return Signature{}, errNotOnCurve
+		return nil, errNotOnCurve
 	}
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
@@ -155,11 +166,11 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 	hFunc.Reset()
 	_, err := hFunc.Write(dataToHash[:])
 	if err != nil {
-		return Signature{}, err
+		return nil, err
 	}
 
 	var hramInt big.Int
-	hramBin := hFunc.Sum([]byte{})
+	hramBin := hFunc.Sum(nil)
 	hramInt.SetBytes(hramBin)
 
 	// Compute s = randScalarInt + H(R,A,M)*S
@@ -176,11 +187,11 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 	}
 	copy(res.S[:], sb[:])
 
-	return res, nil
+	return res.Bytes(), nil
 }
 
 // Verify verifies an eddsa signature
-func (pub *PublicKey) Verify(sig Signature, message []byte, hFunc hash.Hash) (bool, error) {
+func (pub *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (bool, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
@@ -188,6 +199,10 @@ func (pub *PublicKey) Verify(sig Signature, message []byte, hFunc hash.Hash) (bo
 	if !pub.A.IsOnCurve() {
 		return false, errNotOnCurve
 	}
+
+	// Deserialize the signature
+	var sig Signature
+	sig.SetBytes(sigBin)
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	sigRX := sig.R.X.Bytes()
@@ -208,7 +223,7 @@ func (pub *PublicKey) Verify(sig Signature, message []byte, hFunc hash.Hash) (bo
 	}
 
 	var hramInt big.Int
-	hramBin := hFunc.Sum([]byte{})
+	hramBin := hFunc.Sum(nil)
 	hramInt.SetBytes(hramBin)
 
 	// lhs = cofactor*S*Base
@@ -236,5 +251,6 @@ func (pub *PublicKey) Verify(sig Signature, message []byte, hFunc hash.Hash) (bo
 	if !lhs.X.Equal(&rhs.X) || !lhs.Y.Equal(&rhs.Y) {
 		return false, nil
 	}
+
 	return true, nil
 }
