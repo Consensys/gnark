@@ -114,9 +114,7 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 	// }
 
 	// checks the state of the constraint system
-	if len(csRes.cs.public.names) != st.nbPublicVariables ||
-		len(csRes.cs.public.variables) != st.nbPublicVariables ||
-		len(csRes.cs.secret.names) != st.nbSecretVariables ||
+	if len(csRes.cs.public.variables) != st.nbPublicVariables ||
 		len(csRes.cs.secret.variables) != st.nbSecretVariables ||
 		len(csRes.cs.internal.variables) != st.nbInternalVariables ||
 		len(csRes.cs.constraints) != st.nbConstraints ||

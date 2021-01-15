@@ -5,10 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"strconv"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	curve "github.com/consensys/gurvy/bls381"
 	"github.com/consensys/gurvy/bls381/fr"
 	"github.com/stretchr/testify/assert"
@@ -219,15 +217,6 @@ func (vk *VerifyingKey) FromBellmanVerifyingKey(bvk *BellmanVerifyingKey) {
 	vk.G2.deltaNeg.Neg(&bvk.G2.Delta)
 	vk.G1.K = make([]curve.G1Affine, len(bvk.G1.Ic))
 	copy(vk.G1.K, bvk.G1.Ic)
-	vk.PublicInputs = make([]string, len(vk.G1.K))
-	vk.PublicInputs[0] = backend.OneWire
-
-	// gnark expects inputs to be named
-	// we create dummy keys that match the ordering of the input encoding
-	// from bellman
-	for i := 1; i < len(vk.PublicInputs); i++ {
-		vk.PublicInputs[i] = strconv.Itoa(i)
-	}
 }
 
 type BellmanVerifyingKey struct {

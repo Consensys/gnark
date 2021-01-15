@@ -119,11 +119,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				vk.G1.K[i] = p1
 			}
 
-			vk.PublicInputs = make([]string, nbWires)
-			for i := 0; i < nbWires; i++ {
-				vk.PublicInputs[i] = rs
-			}
-
 			var bufCompressed bytes.Buffer
 			written, err := vk.WriteTo(&bufCompressed)
 			if err != nil {

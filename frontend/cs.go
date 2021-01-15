@@ -40,12 +40,10 @@ import (
 type ConstraintSystem struct {
 	// Variables (aka wires)
 	public struct {
-		names     []string         // public inputs names
 		variables []Variable       // public inputs
 		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 	}
 	secret struct {
-		names     []string         // secret inputs names
 		variables []Variable       // secret inputs
 		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 	}
@@ -86,11 +84,9 @@ func newConstraintSystem() ConstraintSystem {
 		assertions:  make([]r1c.R1C, 0),
 	}
 
-	cs.public.names = make([]string, 0)
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
 
-	cs.secret.names = make([]string, 0)
 	cs.secret.variables = make([]Variable, 0)
 	cs.secret.booleans = make(map[int]struct{})
 
@@ -273,8 +269,6 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
 		NbCOConstraints: uint64(len(cs.constraints)),
 		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
-		SecretWires:     cs.secret.names,
-		PublicWires:     cs.public.names,
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
@@ -476,16 +470,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 	idx := len(cs.public.variables)
 	resVar := Wire{backend.Public, idx, nil}
 
-	// checks if the name is not already picked
-	// TODO @gbotrel colliding name with private inputs?
-	for _, v := range cs.public.names {
-		if v == name {
-			panic("duplicate input name (public)")
-		}
-	}
-
 	res := cs.buildVarFromPartialVar(resVar)
-	cs.public.names = append(cs.public.names, name)
 	cs.public.variables = append(cs.public.variables, res)
 	return res
 }
@@ -495,16 +480,7 @@ func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 	idx := len(cs.secret.variables)
 	resVar := Wire{backend.Secret, idx, nil}
 
-	// checks if the name is not already picked
-	// TODO @gbotrel colliding name with private inputs?
-	for _, v := range cs.public.names {
-		if v == name {
-			panic("duplicate input name (secret)")
-		}
-	}
-
 	res := cs.buildVarFromPartialVar(resVar)
-	cs.secret.names = append(cs.secret.names, name)
 	cs.secret.variables = append(cs.secret.variables, res)
 	return res
 }

@@ -16,6 +16,9 @@ var (
 
 // Verify verifies a proof
 func Verify(proof *Proof, vk *VerifyingKey, inputs []fr.Element) error {
+	if len(inputs) != len(vk.G1.K) {
+		return  errors.New("invalid public witness size") // TODO contextual error
+	}
 
 	// check that the points in the proof are in the correct subgroup
 	if !proof.isValid() {

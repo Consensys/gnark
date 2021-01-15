@@ -21,8 +21,6 @@ type R1CS struct {
 	NbWires       uint64
 	NbPublicWires uint64 // includes ONE wire
 	NbSecretWires uint64
-	SecretWires   []string // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	PublicWires   []string // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 

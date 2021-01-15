@@ -31,8 +31,6 @@ type UntypedR1CS struct {
 	NbWires       uint64
 	NbPublicWires uint64 // includes ONE wire
 	NbSecretWires uint64
-	SecretWires   []string // private wire names
-	PublicWires   []string // public wire names
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 

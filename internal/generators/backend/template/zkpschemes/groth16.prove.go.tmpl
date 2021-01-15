@@ -3,6 +3,7 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend" . }}
 	{{ template "import_fft" . }}
+	"errors"
 	"runtime"
 	"math/big"
 	"github.com/consensys/gurvy"
@@ -32,6 +33,9 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 // if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
 func Prove(r1cs *{{ toLower .Curve}}backend.R1CS, pk *ProvingKey, solution []fr.Element, force bool) (*Proof, error) {
+	if len(solution) != int(r1cs.NbPublicWires + r1cs.NbSecretWires) {
+		return nil, errors.New("invalid witness size") // TODO contextual error
+	}
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors

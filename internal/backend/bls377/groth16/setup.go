@@ -54,9 +54,6 @@ type ProvingKey struct {
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type VerifyingKey struct {
-	// ordered public input names
-	PublicInputs []string
-
 	// [α]1, [Kvk]1
 	G1 struct {
 		Alpha curve.G1Affine
@@ -94,9 +91,6 @@ func Setup(r1cs *bls377backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// Setting group for fft
 	domain := fft.NewDomain(r1cs.NbConstraints)
-
-	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
-	vk.PublicInputs = r1cs.PublicWires
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
