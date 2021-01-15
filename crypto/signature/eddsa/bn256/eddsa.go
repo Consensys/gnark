@@ -35,7 +35,6 @@ const (
 	sizePublicKey  = 2 * sizeFr
 	sizeSignature  = 3 * sizeFr
 	sizePrivateKey = 3*sizeFr + 32
-	keyType        = "ED JUBJUB BN256 PUBLIC KEY"
 )
 
 // PublicKey eddsa signature object
@@ -48,7 +47,7 @@ type PublicKey struct {
 type PrivateKey struct {
 	PublicKey PublicKey    // copy of the associated public key
 	scalar    [sizeFr]byte // secret scalar, in big Endian
-	randSrc   [32]byte     // randomizer (non need to convert it when doing scalar mul --> random = H(randSrc,msg))
+	randSrc   [32]byte     // source
 }
 
 // Signature represents an eddsa signature
@@ -66,6 +65,7 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 	var pub PublicKey
 	var priv PrivateKey
 
+	// hash(h) = private_key || random_source, on 32 bytes each
 	h := blake2b.Sum512(seed[:])
 	for i := 0; i < 32; i++ {
 		priv.randSrc[i] = h[i+32]
@@ -73,17 +73,20 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 
 	// prune the key
 	// https://tools.ietf.org/html/rfc8032#section-5.1.5, key generation
+
 	h[0] &= 0xF8
 	h[31] &= 0x7F
 	h[31] |= 0x40
 
 	// reverse first bytes because setBytes interpret stream as big endian
 	// but in eddsa specs s is the first 32 bytes in little endian
-	for i, j := 0, 32; i < j; i, j = i+1, j-1 {
+	for i, j := 0, sizeFr; i < j; i, j = i+1, j-1 {
+
 		h[i], h[j] = h[j], h[i]
+
 	}
 
-	copy(priv.scalar[:], h[:32])
+	copy(priv.scalar[:], h[:sizeFr])
 
 	var bscalar big.Int
 	bscalar.SetBytes(priv.scalar[:])
@@ -109,14 +112,16 @@ func (privKey *PrivateKey) Public() crypto.PublicKey {
 
 // Sign sign a message
 // Pure Eddsa version (see https://tools.ietf.org/html/rfc8032#page-8)
-// TODO make it implement the Sign interface from https://golang.org/pkg/crypto/
 func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
 	var res Signature
 
-	var randScalarInt big.Int
+	// blinding factor for the private key
+	// blindingFactorBigInt must be the same size as the private key,
+	// blindingFactorBigInt = h(randomness_source||message)[:sizeFr]
+	var blindingFactorBigInt big.Int
 
 	// randSrc = privKey.randSrc || msg (-> message = MSB message .. LSB message)
 	randSrc := make([]byte, 32+len(message))
@@ -126,11 +131,11 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 	copy(randSrc[32:], message)
 
 	// randBytes = H(randSrc)
-	randBytes := blake2b.Sum512(randSrc[:]) // TODO ensures that the hash used to build the key and the one used here is the same
-	randScalarInt.SetBytes(randBytes[:32])
+	blindingFactorBytes := blake2b.Sum512(randSrc[:]) // TODO ensures that the hash used to build the key and the one used here is the same
+	blindingFactorBigInt.SetBytes(blindingFactorBytes[:sizeFr])
 
 	// compute R = randScalar*Base
-	res.R.ScalarMul(&curveParams.Base, &randScalarInt)
+	res.R.ScalarMul(&curveParams.Base, &blindingFactorBigInt)
 	if !res.R.IsOnCurve() {
 		return Signature{}, errNotOnCurve
 	}
@@ -162,7 +167,7 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 	var bscalar, bs big.Int
 	bscalar.SetBytes(privKey.scalar[:])
 	bs.Mul(&hramInt, &bscalar).
-		Add(&bs, &randScalarInt).
+		Add(&bs, &blindingFactorBigInt).
 		Mod(&bs, &curveParams.Order)
 	sb := bs.Bytes()
 	if len(sb) < sizeFr {
