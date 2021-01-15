@@ -52,7 +52,7 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 // Prove generates the proof of knoweldge of a r1cs with solution.
 // if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution map[string]interface{}, force bool) (*Proof, error) {
+func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution []fr.Element, force bool) (*Proof, error) {
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors

@@ -18,7 +18,6 @@ package merkle
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 
@@ -76,23 +75,25 @@ func TestVerify(t *testing.T) {
 	}
 
 	// create cs
-	var circuit merkleCircuit
+	var circuit, assignment merkleCircuit
 	circuit.Path = make([]frontend.Variable, len(proof))
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
+	assignment.Path = make([]frontend.Variable, len(proof))
+	assignment.Helper = make([]frontend.Variable, len(proof)-1)
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assignment := make(map[string]interface{})
-	assignment["RootHash"] = merkleRoot
+	assignment.RootHash.Assign(merkleRoot)
+
 	for i := 0; i < len(proof); i++ {
-		assignment[fmt.Sprintf("Path_%d", i)] = proof[i]
+		assignment.Path[i].Assign(proof[i])
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment[fmt.Sprintf("Helper_%d", i)] = proofHelper[i]
+		assignment.Helper[i].Assign(proofHelper[i])
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.ProverSucceeded(r1cs, assignment)
+	assert.ProverSucceeded(r1cs, &assignment)
 }

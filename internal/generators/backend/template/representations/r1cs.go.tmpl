@@ -73,7 +73,7 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 
 // IsSolved returns nil if given assignment solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
+func (r1cs *R1CS) IsSolved(assignment []fr.Element) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
 	c := make([]fr.Element, r1cs.NbConstraints)
@@ -86,52 +86,19 @@ func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
 // assignment: map[string]value: contains the input variables
 // a, b, c vectors: ab-c = hz
 // wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
+func (r1cs *R1CS) Solve(assignment []fr.Element, a, b, c, wireValues []fr.Element) error {
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != int(r1cs.NbWires) {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
-
+	privateStartIndex :=  int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
-
-	// instantiate the public/ private inputs
-	// note that currently, there is a convertion from interface{} to fr.Element for each entry in the
-	// assignment map. It can cost a SetBigInt() which converts from Regular ton Montgomery rep (1 mul)
-	// while it's unlikely to be noticeable compared to the FFT and the MultiExp compute times,
-	// there should be a faster (statically typed) path
-	instantiateInputs := func(offset int, inputNames []string) error {
-		for i := 0; i < len(inputNames); i++ {
-			name := inputNames[i]
-			if name == backend.OneWire {
-				wireValues[i+offset].SetOne()
-				wireInstantiated[i+offset] = true
-			} else {
-				if val, ok := assignment[name]; ok {
-					wireValues[i+offset].SetInterface(val)
-					wireInstantiated[i+offset] = true
-				} else {
-					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)
-				}
-			}
-		}
-		return nil
+	copy(wireValues[privateStartIndex:], assignment) // TODO factorize
+	for i:=0; i < len(assignment); i++ {
+		wireInstantiated[i+privateStartIndex] = true
 	}
-	// instantiate private inputs
-	if r1cs.NbSecretWires != 0 {
-		offset := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires) // private input start index
-		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {
-			return err
-		}
-	}
-	// instantiate public inputs
-	{
-		offset := int(r1cs.NbWires - r1cs.NbPublicWires) // public input start index
-		if err := instantiateInputs(offset, r1cs.PublicWires); err != nil {
-			return err
-		}
-	}
-
+	
 	// now that we know all inputs are set, defer log printing once all wireValues are computed
 	// (or sooner, if a constraint is not satisfied)
 	defer r1cs.printLogs(wireValues, wireInstantiated)

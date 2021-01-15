@@ -118,7 +118,7 @@ func TestVeriyBellmanProof(t *testing.T) {
 	}
 }
 
-func decodeTestVector(vkTest, proofTest, inputsTest string) (proof Proof, vk VerifyingKey, witness map[string]interface{}, err error) {
+func decodeTestVector(vkTest, proofTest, inputsTest string) (proof Proof, vk VerifyingKey, witness []fr.Element, err error) {
 	var vkBytes, proofBytes, inputBytes []byte
 	if vkBytes, err = base64.StdEncoding.DecodeString(vkTest); err != nil {
 		return
@@ -306,18 +306,17 @@ func (vk *BellmanVerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
 	return
 }
 
-func decodeInputs(b []byte) (witness map[string]interface{}, err error) {
-	witness = make(map[string]interface{})
-	var r []fr.Element
+func decodeInputs(b []byte) (r []fr.Element, err error) {
 	const frSize = fr.Limbs * 8
 	if (len(b) % frSize) != 0 {
 		return nil, errors.New("invalid input size")
 	}
-	r = make([]fr.Element, len(b)/frSize)
+	r = make([]fr.Element, 1+(len(b)/frSize))
+	r[0].SetOne().FromMont()
 	offset := 0
-	for i := 0; i < len(r); i++ {
-		r[i].SetBytes(b[offset : offset+frSize])
-		witness[strconv.Itoa(i+1)] = r[i]
+	for i := 1; i < len(r); i++ {
+		r[i].SetBytes(b[offset : offset+frSize]).FromMont()
+		// witness[strconv.Itoa(i+1)] = r[i]
 		offset += frSize
 	}
 

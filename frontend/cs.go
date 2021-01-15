@@ -477,6 +477,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 	resVar := Wire{backend.Public, idx, nil}
 
 	// checks if the name is not already picked
+	// TODO @gbotrel colliding name with private inputs?
 	for _, v := range cs.public.names {
 		if v == name {
 			panic("duplicate input name (public)")
@@ -495,6 +496,7 @@ func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
 	resVar := Wire{backend.Secret, idx, nil}
 
 	// checks if the name is not already picked
+	// TODO @gbotrel colliding name with private inputs?
 	for _, v := range cs.public.names {
 		if v == name {
 			panic("duplicate input name (secret)")

@@ -73,11 +73,6 @@ func (r1cs *UntypedR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
 }
 
-// IsSolved call will panic as we can't solve a UntypedR1CS
-func (r1cs *UntypedR1CS) IsSolved(solution map[string]interface{}) error {
-	panic("not implemented")
-}
-
 // ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
 // in the basefield of the provided curveID and return a R1CS
 //

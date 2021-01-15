@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	bn256groth16 "github.com/consensys/gnark/internal/backend/bn256/groth16"
+	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
@@ -103,7 +104,7 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	return nil
 }
 
-func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
+func referenceCircuit() (r1cs.R1CS, frontend.Witness) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
@@ -113,8 +114,8 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 		panic(err)
 	}
 
-	good := make(map[string]interface{})
-	good["X"] = 2
+	var good refCircuit
+	good.X.Assign(2)
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -124,9 +125,9 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good["Y"] = expectedY
+	good.Y.Assign(expectedY)
 
-	return r1cs, good
+	return r1cs, &good
 }
 
 func TestReferenceCircuit(t *testing.T) {
@@ -153,7 +154,11 @@ func BenchmarkSetup(b *testing.B) {
 }
 
 func BenchmarkProver(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	solution, err := bn256witness.Full(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	var pk bn256groth16.ProvingKey
 	bn256groth16.DummySetup(r1cs.(*bn256backend.R1CS), &pk)
@@ -167,7 +172,11 @@ func BenchmarkProver(b *testing.B) {
 }
 
 func BenchmarkVerifier(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	solution, err := bn256witness.Public(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	var pk bn256groth16.ProvingKey
 	var vk bn256groth16.VerifyingKey
@@ -186,7 +195,11 @@ func BenchmarkVerifier(b *testing.B) {
 }
 
 func BenchmarkSerialization(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	solution, err := bn256witness.Full(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	var pk bn256groth16.ProvingKey
 	var vk bn256groth16.VerifyingKey

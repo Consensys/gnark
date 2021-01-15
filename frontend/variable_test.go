@@ -7,20 +7,21 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/parser"
 )
 
 func TestStructTags(t *testing.T) {
 
 	testParseType := func(input interface{}, expected map[string]backend.Visibility) {
 		collected := make(map[string]backend.Visibility)
-		var collectHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+		var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 			if _, ok := collected[name]; ok {
 				return errors.New("duplicate name collected")
 			}
 			collected[name] = visibility
 			return nil
 		}
-		if err := parseType(input, "", backend.Unset, collectHandler); err != nil {
+		if err := parser.Visit(input, "", backend.Unset, collectHandler, reflect.TypeOf(Variable{})); err != nil {
 			t.Fatal(err)
 		}
 

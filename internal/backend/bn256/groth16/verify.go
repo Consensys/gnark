@@ -34,7 +34,7 @@ var (
 )
 
 // Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
+func Verify(proof *Proof, vk *VerifyingKey, inputs []fr.Element) error {
 
 	// check that the points in the proof are in the correct subgroup
 	if !proof.isValid() {
@@ -56,11 +56,7 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Affine
-	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
-	if err != nil {
-		return err
-	}
-	kSum.MultiExp(vk.G1.K, kInputs)
+	kSum.MultiExp(vk.G1.K, inputs)
 
 	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.gammaNeg})
 	if err != nil {

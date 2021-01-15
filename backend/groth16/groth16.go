@@ -25,6 +25,12 @@ import (
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
+
 	gnarkio "github.com/consensys/gnark/io"
 
 	"github.com/consensys/gnark/backend/r1cs"
@@ -67,20 +73,33 @@ type VerifyingKey interface {
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given solution
-func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
-	_solution, err := frontend.ParseWitness(solution)
-	if err != nil {
-		return err
-	}
+func Verify(proof Proof, vk VerifyingKey, witness frontend.Witness) error {
+
 	switch _proof := proof.(type) {
 	case *groth16_bls377.Proof:
-		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), _solution)
+		w, err := witness_bls377.Public(witness)
+		if err != nil {
+			return err
+		}
+		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), w)
 	case *groth16_bls381.Proof:
-		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), _solution)
+		w, err := witness_bls381.Public(witness)
+		if err != nil {
+			return err
+		}
+		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), w)
 	case *groth16_bn256.Proof:
-		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), _solution)
+		w, err := witness_bn256.Public(witness)
+		if err != nil {
+			return err
+		}
+		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), w)
 	case *groth16_bw761.Proof:
-		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), _solution)
+		w, err := witness_bw761.Public(witness)
+		if err != nil {
+			return err
+		}
+		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), w)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -89,13 +108,7 @@ func Verify(proof Proof, vk VerifyingKey, solution interface{}) error {
 // Prove generates the proof of knoweldge of a r1cs with solution.
 // if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}, force ...bool) (Proof, error) {
-
-	_solution, err := frontend.ParseWitness(solution)
-
-	if err != nil {
-		return nil, err
-	}
+func Prove(r1cs r1cs.R1CS, pk ProvingKey, witness frontend.Witness, force ...bool) (Proof, error) {
 
 	_force := false
 	if len(force) > 0 {
@@ -104,13 +117,29 @@ func Prove(r1cs r1cs.R1CS, pk ProvingKey, solution interface{}, force ...bool) (
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), _solution, _force)
+		w, err := witness_bls377.Full(witness)
+		if err != nil {
+			return nil, err
+		}
+		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), w, _force)
 	case *backend_bls381.R1CS:
-		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), _solution, _force)
+		w, err := witness_bls381.Full(witness)
+		if err != nil {
+			return nil, err
+		}
+		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
 	case *backend_bn256.R1CS:
-		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), _solution, _force)
+		w, err := witness_bn256.Full(witness)
+		if err != nil {
+			return nil, err
+		}
+		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), w, _force)
 	case *backend_bw761.R1CS:
-		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), _solution, _force)
+		w, err := witness_bw761.Full(witness)
+		if err != nil {
+			return nil, err
+		}
+		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), w, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
