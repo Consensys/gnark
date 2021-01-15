@@ -70,7 +70,7 @@ func TestEddsa(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := eddsa_bn256.Verify(signature, msgBin[:], &pubKey, hFunc)
+	res, err := pubKey.Verify(signature, msgBin[:], hFunc)
 	if err != nil {
 		t.Fatal(err)
 	}

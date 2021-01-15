@@ -106,7 +106,7 @@ func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 	//msg.SetBytes(bmsg)
 
 	// verification of the signature
-	resSig, err := eddsa.Verify(t.signature, msg, &t.senderPubKey, hFunc)
+	resSig, err := t.senderPubKey.Verify(t.signature, msg, hFunc)
 	if err != nil {
 		return false, err
 	}

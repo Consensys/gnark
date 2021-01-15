@@ -45,8 +45,9 @@ func TestMimcAll(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	// input
-	var data big.Int
+	var data, tamperedData big.Int
 	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487", 10)
+	tamperedData.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919488", 10)
 
 	curves := map[gurvy.ID]hash.Hash{
 		gurvy.BN256:  hash.MIMC_BN256,
@@ -58,7 +59,7 @@ func TestMimcAll(t *testing.T) {
 	for curve, hashFunc := range curves {
 
 		// minimal cs res = hash(data)
-		var circuit, witness mimcCircuit
+		var circuit, witness, wrongWitness mimcCircuit
 		r1cs, err := frontend.Compile(curve, &circuit)
 		if err != nil {
 			t.Fatal(err)
@@ -69,12 +70,15 @@ func TestMimcAll(t *testing.T) {
 		goMimc.Write(data.Bytes())
 		b := goMimc.Sum(nil)
 
-		// prepare witness
+		// assert correctness against correct witness
 		witness.Data.Assign(data)
 		witness.ExpectedResult.Assign(b)
-
-		// Check correctness
 		assert.SolvingSucceeded(r1cs, &witness)
+
+		// assert failure against wrong witness
+		wrongWitness.Data.Assign(tamperedData)
+		wrongWitness.ExpectedResult.Assign(b)
+		assert.SolvingFailed(r1cs, &wrongWitness)
 	}
 
 }

@@ -180,7 +180,7 @@ func (privKey *PrivateKey) Sign(message []byte, hFunc hash.Hash) (Signature, err
 }
 
 // Verify verifies an eddsa signature
-func Verify(sig Signature, message []byte, pub *PublicKey, hFunc hash.Hash) (bool, error) {
+func (pub *PublicKey) Verify(sig Signature, message []byte, hFunc hash.Hash) (bool, error) {
 
 	curveParams := twistededwards.GetEdwardsCurve()
 
