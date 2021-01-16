@@ -212,7 +212,9 @@ func (pub *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (bool, err
 
 	// Deserialize the signature
 	var sig Signature
-	sig.SetBytes(sigBin)
+	if _, err := sig.SetBytes(sigBin); err != nil {
+		return false, err 
+	}	 
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	sigRX := sig.R.X.Bytes()
@@ -227,8 +229,7 @@ func (pub *PublicKey) Verify(sigBin, message []byte, hFunc hash.Hash) (bool, err
 	copy(dataToHash[3*sizeFr:], sigAY[:])
 	copy(dataToHash[4*sizeFr:], message)
 	hFunc.Reset()
-	_, err := hFunc.Write(dataToHash[:])
-	if err != nil {
+	if _, err := hFunc.Write(dataToHash[:]); err != nil {
 		return false, err
 	}
 

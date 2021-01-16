@@ -33,9 +33,9 @@ import (
 // The public key has a Verify function to check signatures.
 type PublicKey interface {
 
-	// Verify verifies a signature of a message, possibly
-	// by hashing the message hFunc if it is provided as
-	// the raw stream of a message not pre hashed.
+	// Verify verifies a signature of a message
+	// If hFunc is not provided, implementation may consider the message
+	// to be pre-hashed, else, will use hFunc to hash the message.
 	Verify(sigBin, message []byte, hFunc hash.Hash) (bool, error)
 
 	// SetBytes sets p from binary representation in buf.
@@ -55,17 +55,15 @@ type PublicKey interface {
 }
 
 // Signer signer interface.
-// TODO maybe should implement serialization functions
 type Signer interface {
 
 	// Public returns the public key associated to
 	// the signer's private key.
 	Public() PublicKey
 
-	// Sign signs a message, possibly by hashing it
-	// using hFunc if the message if provided as a raw
-	// stream not pre hashed. It returns the Signature
-	// or an error.
+	// Sign signs a message. If hFunc is not provided, implementation may consider the message
+	// to be pre-hashed, else, will use hFunc to hash the message.
+	// Returns Signature or error
 	Sign(message []byte, hFunc hash.Hash) ([]byte, error)
 
 	// Bytes returns the binary representation of pk,
