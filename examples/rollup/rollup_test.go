@@ -19,13 +19,10 @@ package rollup
 import (
 	"testing"
 
-	mimc "github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gurvy/bn256/fr"
 )
 
 func TestOperatorReadAccount(t *testing.T) {
-
-	hFunc := mimc.NewMiMC("seed")
 
 	// create operator with 10 accounts
 	operator, _ := createOperator(10)
@@ -36,7 +33,7 @@ func TestOperatorReadAccount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		acc, _ := createAccount(i, hFunc)
+		acc, _ := createAccount(i)
 
 		compareAccount(t, acc, opAccount)
 

@@ -23,7 +23,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/signature"
-	"github.com/consensys/gurvy/bn256/twistededwards"
+	"github.com/consensys/gurvy/bw761/twistededwards"
 
 	"golang.org/x/crypto/blake2b"
 )
@@ -31,7 +31,7 @@ import (
 var errNotOnCurve = errors.New("point not on curve")
 
 const (
-	sizeFr         = 32
+	sizeFr         = 32 + 16
 	sizePublicKey  = 2 * sizeFr
 	sizeSignature  = 3 * sizeFr
 	sizePrivateKey = 3*sizeFr + 32
@@ -58,7 +58,7 @@ type Signature struct {
 }
 
 func init() {
-	signature.Register(signature.EDDSA_BN256, GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BW761, GenerateKeyInterfaces)
 }
 
 // GenerateKey generates a public and private key pair.
@@ -69,28 +69,37 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 	var pub PublicKey
 	var priv PrivateKey
 
-	// hash(h) = private_key || random_source, on 32 bytes each
-	h := blake2b.Sum512(seed[:])
+	// The source of randomness and the secret scalar must come
+	// from 2 distincts sources. Since the scalar is the size of the
+	// field of definition (48 bytes), the scalar must come from a
+	// different digest so there is no overlap between the source of
+	// randomness and the scalar.
+
+	// used for random scalar (aka private key)
+	h1 := blake2b.Sum512(seed[:])
+
+	// used for the source of randomness when hashing the message
+	h2 := blake2b.Sum512(h1[:])
 	for i := 0; i < 32; i++ {
-		priv.randSrc[i] = h[i+32]
+		priv.randSrc[i] = h2[i]
 	}
 
 	// prune the key
 	// https://tools.ietf.org/html/rfc8032#section-5.1.5, key generation
 
-	h[0] &= 0xF8
-	h[31] &= 0x7F
-	h[31] |= 0x40
+	h1[0] &= 0xF8
+	h1[sizeFr-1] &= 0x7F
+	h1[sizeFr-1] |= 0x40
 
 	// reverse first bytes because setBytes interpret stream as big endian
 	// but in eddsa specs s is the first 32 bytes in little endian
 	for i, j := 0, sizeFr; i < j; i, j = i+1, j-1 {
 
-		h[i], h[j] = h[j], h[i]
+		h1[i], h1[j] = h1[j], h1[i]
 
 	}
 
-	copy(priv.scalar[:], h[:sizeFr])
+	copy(priv.scalar[:], h1[:sizeFr])
 
 	var bscalar big.Int
 	bscalar.SetBytes(priv.scalar[:])

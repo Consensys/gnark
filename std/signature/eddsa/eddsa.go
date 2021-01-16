@@ -31,7 +31,7 @@ type PublicKey struct {
 // Signature stores a signature  (to be used in gnark circuit)
 type Signature struct {
 	R PublicKey
-	S frontend.Variable
+	S frontend.Variable // TODO S must be split in 2, because it can be bigger than r (Hasse bound)
 }
 
 // Verify verifies an eddsa signature

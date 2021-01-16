@@ -22,7 +22,7 @@ import (
 
 	"github.com/consensys/gnark/crypto/hash"
 	"github.com/consensys/gnark/crypto/signature"
-	"github.com/consensys/gurvy/bls381/fr"
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
 func TestSerialization(t *testing.T) {
@@ -33,8 +33,8 @@ func TestSerialization(t *testing.T) {
 		seed[i] = v
 	}
 
-	pubKey1, _ := signature.EDDSA_BLS381.New(seed)
-	pubKey2, _ := signature.EDDSA_BLS381.New(seed)
+	pubKey1, _ := signature.EDDSA_BLS377.New(seed)
+	pubKey2, _ := signature.EDDSA_BLS377.New(seed)
 
 	pubKeyBin1 := pubKey1.Bytes()
 	pubKey2.SetBytes(pubKeyBin1)
@@ -59,8 +59,8 @@ func TestEddsaMIMC(t *testing.T) {
 	}
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := signature.EDDSA_BLS381.New(seed)
-	hFunc := hash.MIMC_BLS381.New("seed")
+	pubKey, privKey := signature.EDDSA_BLS377.New(seed)
+	hFunc := hash.MIMC_BLS377.New("seed")
 
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
@@ -105,7 +105,7 @@ func TestEddsaSHA256(t *testing.T) {
 	// create eddsa obj and sign a message
 	// create eddsa obj and sign a message
 
-	pubKey, privKey := signature.EDDSA_BLS381.New(seed)
+	pubKey, privKey := signature.EDDSA_BLS377.New(seed)
 
 	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
@@ -142,10 +142,10 @@ func BenchmarkVerify(b *testing.B) {
 		seed[i] = v
 	}
 
-	hFunc := hash.MIMC_BLS381.New("seed")
+	hFunc := hash.MIMC_BLS377.New("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := signature.EDDSA_BLS381.New(seed)
+	pubKey, privKey := signature.EDDSA_BLS377.New(seed)
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
