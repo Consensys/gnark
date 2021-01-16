@@ -23,7 +23,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/signature"
-	"github.com/consensys/gurvy/bn256/twistededwards"
+	"github.com/consensys/gurvy/bls377/twistededwards"
 
 	"golang.org/x/crypto/blake2b"
 )
@@ -58,7 +58,7 @@ type Signature struct {
 }
 
 func init() {
-	signature.Register(signature.EDDSA_BN256, GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BLS377, GenerateKeyInterfaces)
 }
 
 // GenerateKey generates a public and private key pair.

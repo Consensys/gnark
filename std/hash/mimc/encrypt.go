@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/crypto/hash/mimc/bls377"
 	"github.com/consensys/gnark/crypto/hash/mimc/bls381"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
+	"github.com/consensys/gnark/crypto/hash/mimc/bw761"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -85,7 +86,7 @@ func newMimcBN256(seed string) MiMC {
 
 func newMimcBW761(seed string) MiMC {
 	res := MiMC{}
-	params := bn256.NewParams(seed)
+	params := bw761.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)

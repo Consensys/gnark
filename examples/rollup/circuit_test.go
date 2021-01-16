@@ -94,15 +94,15 @@ func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.Constraint
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID)
+	hashFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
 	}
-	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
-	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
 
-	merkle.VerifyProof(cs, hFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
-	merkle.VerifyProof(cs, hFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
 
 	return nil
 }

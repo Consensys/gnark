@@ -31,6 +31,10 @@ func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
+		if testing.Short() && name != "reference_small" {
+			continue
+		}
+
 		r1cs, err := frontend.Compile(gurvy.BW761, circuit.Circuit)
 		if err != nil {
 			t.Fatal(err)
