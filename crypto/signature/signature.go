@@ -27,6 +27,7 @@ package signature
 
 import (
 	"hash"
+	"io"
 )
 
 // PublicKey public key interface.
@@ -91,17 +92,17 @@ const (
 	EDDSA_BW761
 )
 
-var signatures = make([]func(seed [32]byte) (PublicKey, Signer), maxSignatures)
+var signatures = make([]func(io.Reader) (Signer, error), maxSignatures)
 
 // Register registers a key pair generating function for a given signature scheme.
 // We cannot import the corresponding constructors directly due to import cycles.
-func Register(ss SignatureScheme, f func(seed [32]byte) (PublicKey, Signer)) {
+func Register(ss SignatureScheme, f func(io.Reader) (Signer, error)) {
 	signatures[ss] = f
 }
 
 // New takes a seed and returns a new key pair
 // TODO allow the use of source of randomness rather than 32bytes (where teh randomness is on the user's hands)
-func (ss SignatureScheme) New(seed [32]byte) (PublicKey, Signer) {
+func (ss SignatureScheme) New(r io.Reader) (Signer, error) {
 	f := signatures[ss]
-	return f(seed)
+	return f(r)
 }

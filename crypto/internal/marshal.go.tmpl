@@ -8,10 +8,8 @@ import (
 // on the twisted Edwards as big endian integers.
 func (pk *PublicKey) Bytes() []byte {
 	var res [sizePublicKey]byte
-	x := pk.A.X.Bytes()
-	y := pk.A.Y.Bytes()
-	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
-	subtle.ConstantTimeCopy(1, res[sizeFr:], y[:])
+	pkBin := pk.A.Bytes()
+	subtle.ConstantTimeCopy(1, res[:sizeFr], pkBin[:])
 	return res[:]
 }
 
@@ -25,9 +23,8 @@ func (pk *PublicKey) SetBytes(buf []byte) (int, error) {
 	if len(buf) < sizePublicKey {
 		return n, io.ErrShortBuffer
 	}
-	pk.A.X.SetBytes(buf[:sizeFr])
-	pk.A.Y.SetBytes(buf[sizeFr : 2*sizeFr])
-	n += 2 * sizeFr
+	pk.A.SetBytes(buf[:sizeFr])
+	n += sizeFr
 	if !pk.A.IsOnCurve() {
 		return n, errNotOnCurve
 	}
@@ -40,12 +37,10 @@ func (pk *PublicKey) SetBytes(buf []byte) (int, error) {
 // scalar is in big endian, of size sizeFr.
 func (privKey *PrivateKey) Bytes() []byte {
 	var res [sizePrivateKey]byte
-	x := privKey.PublicKey.A.X.Bytes()
-	y := privKey.PublicKey.A.Y.Bytes()
-	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
-	subtle.ConstantTimeCopy(1, res[sizeFr:2*sizeFr], y[:])
-	subtle.ConstantTimeCopy(1, res[2*sizeFr:3*sizeFr], privKey.scalar[:])
-	subtle.ConstantTimeCopy(1, res[3*sizeFr:], privKey.randSrc[:])
+	pubkBin := privKey.PublicKey.A.Bytes()
+	subtle.ConstantTimeCopy(1, res[:sizeFr], pubkBin[:])
+	subtle.ConstantTimeCopy(1, res[sizeFr:2*sizeFr], privKey.scalar[:])
+	subtle.ConstantTimeCopy(1, res[2*sizeFr:], privKey.randSrc[:])
 	return res[:]
 }
 
@@ -59,14 +54,14 @@ func (privKey *PrivateKey) SetBytes(buf []byte) (int, error) {
 	if len(buf) < sizePrivateKey {
 		return n, io.ErrShortBuffer
 	}
-	privKey.PublicKey.A.X.SetBytes(buf[:sizeFr])
-	privKey.PublicKey.A.Y.SetBytes(buf[sizeFr : 2*sizeFr])
-	n += 2 * sizeFr
+	privKey.PublicKey.A.SetBytes(buf[:sizeFr])
+	n += sizeFr
 	if !privKey.PublicKey.A.IsOnCurve() {
 		return n, errNotOnCurve
 	}
-	subtle.ConstantTimeCopy(1, privKey.scalar[:], buf[2*sizeFr:3*sizeFr])
-	subtle.ConstantTimeCopy(1, privKey.randSrc[:], buf[3*sizeFr:])
+	subtle.ConstantTimeCopy(1, privKey.scalar[:], buf[sizeFr:2*sizeFr])
+	n += sizeFr
+	subtle.ConstantTimeCopy(1, privKey.randSrc[:], buf[2*sizeFr:])
 	n += sizeFr
 	return n, nil
 }
@@ -80,11 +75,9 @@ func (privKey *PrivateKey) SetBytes(buf []byte) (int, error) {
 // 	s is NOT blinded)
 func (sig *Signature) Bytes() []byte {
 	var res [sizeSignature]byte
-	x := sig.R.X.Bytes()
-	y := sig.R.Y.Bytes()
-	subtle.ConstantTimeCopy(1, res[:sizeFr], x[:])
-	subtle.ConstantTimeCopy(1, res[sizeFr:2*sizeFr], y[:])
-	subtle.ConstantTimeCopy(1, res[2*sizeFr:], sig.S[:])
+	sigRBin := sig.R.Bytes()
+	subtle.ConstantTimeCopy(1, res[:sizeFr], sigRBin[:])
+	subtle.ConstantTimeCopy(1, res[sizeFr:], sig.S[:])
 	return res[:]
 }
 
@@ -101,13 +94,12 @@ func (sig *Signature) SetBytes(buf []byte) (int, error) {
 	if len(buf) < sizeSignature {
 		return n, io.ErrShortBuffer
 	}
-	sig.R.X.SetBytes(buf[:sizeFr])
-	sig.R.Y.SetBytes(buf[sizeFr : 2*sizeFr])
-	n += 2 * sizeFr
+	sig.R.SetBytes(buf[:sizeFr])
+	n += sizeFr
 	if !sig.R.IsOnCurve() {
 		return n, errNotOnCurve
 	}
-	subtle.ConstantTimeCopy(1, sig.S[:], buf[2*sizeFr:3*sizeFr])
+	subtle.ConstantTimeCopy(1, sig.S[:], buf[sizeFr:2*sizeFr])
 	n += sizeFr
 	return n, nil
 }

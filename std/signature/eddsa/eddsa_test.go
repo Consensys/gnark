@@ -18,6 +18,7 @@ package eddsa
 
 import (
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
@@ -30,6 +31,10 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gurvy"
+	edwardsbls377 "github.com/consensys/gurvy/bls377/twistededwards"
+	edwardsbls381 "github.com/consensys/gurvy/bls381/twistededwards"
+	edwardsbn256 "github.com/consensys/gurvy/bn256/twistededwards"
+	edwardsbw761 "github.com/consensys/gurvy/bw761/twistededwards"
 )
 
 type eddsaCircuit struct {
@@ -39,33 +44,65 @@ type eddsaCircuit struct {
 }
 
 func parseSignature(id gurvy.ID, buf []byte) ([]byte, []byte, []byte) {
-	var sizeFr int
+	var pointbn256 edwardsbn256.PointAffine
+	var pointbls381 edwardsbls381.PointAffine
+	var pointbls377 edwardsbls377.PointAffine
+	var pointbw761 edwardsbw761.PointAffine
 	switch id {
 	case gurvy.BN256:
-		sizeFr = 32
+		pointbn256.SetBytes(buf[:32])
+		a, b := parsePoint(id, buf)
+		c := buf[32:]
+		return a[:], b[:], c
 	case gurvy.BLS381:
-		sizeFr = 32
+		pointbls381.SetBytes(buf[:32])
+		a, b := parsePoint(id, buf)
+		c := buf[32:]
+		return a[:], b[:], c
 	case gurvy.BLS377:
-		sizeFr = 32
+		pointbls377.SetBytes(buf[:32])
+		a, b := parsePoint(id, buf)
+		c := buf[32:]
+		return a[:], b[:], c
 	case gurvy.BW761:
-		sizeFr = 48
+		pointbw761.SetBytes(buf[:48])
+		a, b := parsePoint(id, buf)
+		c := buf[48:]
+		return a[:], b[:], c
+	default:
+		return buf, buf, buf
 	}
-	return buf[:sizeFr], buf[sizeFr : 2*sizeFr], buf[2*sizeFr:]
 }
 
-func parsePublicKey(id gurvy.ID, buf []byte) ([]byte, []byte) {
-	var sizeFr int
+func parsePoint(id gurvy.ID, buf []byte) ([]byte, []byte) {
+	var pointbn256 edwardsbn256.PointAffine
+	var pointbls381 edwardsbls381.PointAffine
+	var pointbls377 edwardsbls377.PointAffine
+	var pointbw761 edwardsbw761.PointAffine
 	switch id {
 	case gurvy.BN256:
-		sizeFr = 32
+		pointbn256.SetBytes(buf[:32])
+		a := pointbn256.X.Bytes()
+		b := pointbn256.Y.Bytes()
+		return a[:], b[:]
 	case gurvy.BLS381:
-		sizeFr = 32
+		pointbls381.SetBytes(buf[:32])
+		a := pointbls381.X.Bytes()
+		b := pointbls381.Y.Bytes()
+		return a[:], b[:]
 	case gurvy.BLS377:
-		sizeFr = 32
+		pointbls377.SetBytes(buf[:32])
+		a := pointbls377.X.Bytes()
+		b := pointbls377.Y.Bytes()
+		return a[:], b[:]
 	case gurvy.BW761:
-		sizeFr = 48
+		pointbw761.SetBytes(buf[:48])
+		a := pointbw761.X.Bytes()
+		b := pointbw761.Y.Bytes()
+		return a[:], b[:]
+	default:
+		return buf, buf
 	}
-	return buf[:sizeFr], buf[sizeFr:]
 }
 
 func (circuit *eddsaCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
@@ -112,7 +149,13 @@ func TestEddsa(t *testing.T) {
 
 		// generate parameters for the signatures
 		hFunc := conf.h.New("seed")
-		pubKey, privKey := conf.s.New(seed)
+		src := rand.NewSource(0)
+		r := rand.New(src)
+		privKey, err := conf.s.New(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pubKey := privKey.Public()
 
 		// pick a message to sign
 		var frMsg big.Int
@@ -146,7 +189,7 @@ func TestEddsa(t *testing.T) {
 			var witness eddsaCircuit
 			witness.Message.Assign(frMsg)
 
-			pubkeyAx, pubkeyAy := parsePublicKey(id, pubKey.Bytes())
+			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
 			var pbAx, pbAy big.Int
 			pbAx.SetBytes(pubkeyAx)
 			pbAy.SetBytes(pubkeyAy)
@@ -166,7 +209,7 @@ func TestEddsa(t *testing.T) {
 			var witness eddsaCircuit
 			witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
 
-			pubkeyAx, pubkeyAy := parsePublicKey(id, pubKey.Bytes())
+			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
 			witness.PublicKey.A.X.Assign(pubkeyAx)
 			witness.PublicKey.A.Y.Assign(pubkeyAy)
 

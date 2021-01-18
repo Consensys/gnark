@@ -18,6 +18,7 @@ package eddsa
 
 import (
 	"crypto/sha256"
+	"math/rand"
 	"testing"
 
 	"github.com/consensys/gnark/crypto/hash"
@@ -27,14 +28,20 @@ import (
 
 func TestSerialization(t *testing.T) {
 
-	var seed [32]byte
-	s := []byte("eddsa")
-	for i, v := range s {
-		seed[i] = v
-	}
+	src := rand.NewSource(0)
+	r := rand.New(src)
 
-	pubKey1, _ := signature.EDDSA_BN256.New(seed)
-	pubKey2, _ := signature.EDDSA_BN256.New(seed)
+	privKey1, err := signature.EDDSA_BN256.New(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubKey1 := privKey1.Public()
+
+	privKey2, err := signature.EDDSA_BN256.New(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubKey2 := privKey2.Public()
 
 	pubKeyBin1 := pubKey1.Bytes()
 	pubKey2.SetBytes(pubKeyBin1)
@@ -48,18 +55,30 @@ func TestSerialization(t *testing.T) {
 		}
 	}
 
+	privKeyBin1 := privKey1.Bytes()
+	privKey2.SetBytes(privKeyBin1)
+	privKeyBin2 := privKey2.Bytes()
+	if len(privKeyBin1) != len(privKeyBin2) {
+		t.Fatal("Inconistent size")
+	}
+	for i := 0; i < len(privKeyBin1); i++ {
+		if privKeyBin1[i] != privKeyBin2[i] {
+			t.Fatal("Error serialize(deserialize(.))")
+		}
+	}
 }
 
 func TestEddsaMIMC(t *testing.T) {
 
-	var seed [32]byte
-	s := []byte("eddsa")
-	for i, v := range s {
-		seed[i] = v
-	}
+	src := rand.NewSource(0)
+	r := rand.New(src)
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := signature.EDDSA_BN256.New(seed)
+	privKey, err := signature.EDDSA_BN256.New(r)
+	if err != nil {
+		t.Fatal(nil)
+	}
+	pubKey := privKey.Public()
 	hFunc := hash.MIMC_BN256.New("seed")
 
 	var frMsg fr.Element
@@ -94,18 +113,19 @@ func TestEddsaMIMC(t *testing.T) {
 
 func TestEddsaSHA256(t *testing.T) {
 
-	var seed [32]byte
-	s := []byte("eddsa")
-	for i, v := range s {
-		seed[i] = v
-	}
+	src := rand.NewSource(0)
+	r := rand.New(src)
 
 	hFunc := sha256.New()
 
 	// create eddsa obj and sign a message
 	// create eddsa obj and sign a message
 
-	pubKey, privKey := signature.EDDSA_BN256.New(seed)
+	privKey, err := signature.EDDSA_BN256.New(r)
+	pubKey := privKey.Public()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	signature, err := privKey.Sign([]byte("message"), hFunc)
 	if err != nil {
@@ -136,16 +156,17 @@ func TestEddsaSHA256(t *testing.T) {
 
 func BenchmarkVerify(b *testing.B) {
 
-	var seed [32]byte
-	s := []byte("eddsa")
-	for i, v := range s {
-		seed[i] = v
-	}
+	src := rand.NewSource(0)
+	r := rand.New(src)
 
 	hFunc := hash.MIMC_BN256.New("seed")
 
 	// create eddsa obj and sign a message
-	pubKey, privKey := signature.EDDSA_BN256.New(seed)
+	privKey, err := signature.EDDSA_BN256.New(r)
+	pubKey := privKey.Public()
+	if err != nil {
+		b.Fatal(err)
+	}
 	var frMsg fr.Element
 	frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978")
 	msgBin := frMsg.Bytes()
