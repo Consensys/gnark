@@ -42,8 +42,10 @@ func appendName(baseName, name string) string {
 	return baseName + "_" + name
 }
 
+// LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
 type LeafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
 
+// Visit using reflect, browse through exposed addressable fields from input, and calls handler() if leaf.type == target
 func Visit(input interface{}, baseName string, parentVisibility backend.Visibility, handler LeafHandler, target reflect.Type) error {
 
 	// types we are lOoutputoking for
