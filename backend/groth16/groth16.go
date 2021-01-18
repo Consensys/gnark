@@ -72,7 +72,7 @@ type VerifyingKey interface {
 	ExportSolidity(w io.Writer) error
 }
 
-// Verify runs the groth16.Verify algorithm on provided proof with given solution
+// Verify runs the groth16.Verify algorithm on provided proof with given witness
 func Verify(proof Proof, vk VerifyingKey, witness frontend.Witness) error {
 
 	switch _proof := proof.(type) {
@@ -105,8 +105,8 @@ func Verify(proof Proof, vk VerifyingKey, witness frontend.Witness) error {
 	}
 }
 
-// Prove generates the proof of knoweldge of a r1cs with solution.
-// if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
+// Prove generates the proof of knoweldge of a r1cs with witness.
+// if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
 func Prove(r1cs r1cs.R1CS, pk ProvingKey, witness frontend.Witness, force ...bool) (Proof, error) {
 

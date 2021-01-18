@@ -87,22 +87,25 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), err
 }
 
-// IsSolved returns nil if given assignment solves the R1CS and error otherwise
+// IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (r1cs *R1CS) IsSolved(assignment []fr.Element) error {
+func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
 	c := make([]fr.Element, r1cs.NbConstraints)
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	return r1cs.Solve(assignment, a, b, c, wireValues)
+	return r1cs.Solve(witness, a, b, c, wireValues)
 }
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
-// assignment: map[string]value: contains the input variables
+// witness: contains the input variables
 // a, b, c vectors: ab-c = hz
-// wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment []fr.Element, a, b, c, wireValues []fr.Element) error {
+// wireValues =  [intermediateVariables | secretInputs | publicInputs]
+func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) error {
+	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
+		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
+	}
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != int(r1cs.NbWires) {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
@@ -110,8 +113,8 @@ func (r1cs *R1CS) Solve(assignment []fr.Element, a, b, c, wireValues []fr.Elemen
 	privateStartIndex := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
-	copy(wireValues[privateStartIndex:], assignment) // TODO factorize
-	for i := 0; i < len(assignment); i++ {
+	copy(wireValues[privateStartIndex:], witness) // TODO factorize
+	for i := 0; i < len(witness); i++ {
 		wireInstantiated[i+privateStartIndex] = true
 	}
 

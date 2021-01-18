@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bw761/fft"
 
-	"errors"
+	"fmt"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gurvy"
 	"math/big"
@@ -50,12 +50,12 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// Prove generates the proof of knoweldge of a r1cs with solution.
-// if force flag is set, Prove ignores R1CS solving error (ie invalid solution) and executes
+// Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
+// if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution []fr.Element, force bool) (*Proof, error) {
-	if len(solution) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
-		return nil, errors.New("invalid witness size") // TODO contextual error
+func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, witness []fr.Element, force bool) (*Proof, error) {
+	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
+		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
 	}
 	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
@@ -64,7 +64,7 @@ func Prove(r1cs *bw761backend.R1CS, pk *ProvingKey, solution []fr.Element, force
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	if err := r1cs.Solve(solution, a, b, c, wireValues); err != nil && !force {
+	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil && !force {
 		return nil, err
 	}
 

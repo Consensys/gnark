@@ -75,25 +75,25 @@ func TestVerify(t *testing.T) {
 	}
 
 	// create cs
-	var circuit, assignment merkleCircuit
+	var circuit, witness merkleCircuit
 	circuit.Path = make([]frontend.Variable, len(proof))
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
-	assignment.Path = make([]frontend.Variable, len(proof))
-	assignment.Helper = make([]frontend.Variable, len(proof)-1)
+	witness.Path = make([]frontend.Variable, len(proof))
+	witness.Helper = make([]frontend.Variable, len(proof)-1)
 	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assignment.RootHash.Assign(merkleRoot)
+	witness.RootHash.Assign(merkleRoot)
 
 	for i := 0; i < len(proof); i++ {
-		assignment.Path[i].Assign(proof[i])
+		witness.Path[i].Assign(proof[i])
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment.Helper[i].Assign(proofHelper[i])
+		witness.Helper[i].Assign(proofHelper[i])
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.ProverSucceeded(r1cs, &assignment)
+	assert.ProverSucceeded(r1cs, &witness)
 }

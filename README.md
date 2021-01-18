@@ -130,8 +130,8 @@ assert := groth16.NewAssert(t)
 
 ```golang
 pk, vk := groth16.Setup(r1cs)
-proof, err := groth16.Prove(r1cs, pk, solution)
-err := groth16.Verify(proof, vk, solution)
+proof, err := groth16.Prove(r1cs, pk, witness)
+err := groth16.Verify(proof, vk, publicWitness)
 ```
 
 
