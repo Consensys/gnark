@@ -94,7 +94,7 @@ func newConstraintSystem() ConstraintSystem {
 	cs.internal.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
-	cs.public.variables[0] = cs.newPublicVariable(backend.OneWire)
+	cs.public.variables[0] = cs.newPublicVariable()
 
 	return cs
 }
@@ -465,7 +465,7 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 }
 
 // newPublicVariable creates a new public input
-func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
+func (cs *ConstraintSystem) newPublicVariable() Variable {
 
 	idx := len(cs.public.variables)
 	resVar := Wire{backend.Public, idx, nil}
@@ -476,7 +476,7 @@ func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
 }
 
 // newSecretVariable creates a new secret input
-func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
+func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
 	resVar := Wire{backend.Secret, idx, nil}
 

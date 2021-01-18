@@ -135,15 +135,15 @@ func rfAddSub() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		pVariablesCreated = append(pVariablesCreated, a)
 		incVariableName()
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		sVariablesCreated = append(sVariablesCreated, b)
 		incVariableName()
 
-		c := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		c := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		sVariablesCreated = append(sVariablesCreated, c)
 		incVariableName()
 
@@ -175,11 +175,11 @@ func rfMul() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -208,7 +208,7 @@ func rfInverse() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -237,11 +237,11 @@ func rfDiv() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -279,11 +279,11 @@ func rfXor() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -311,7 +311,7 @@ func rfToBinary() runfunc {
 		pVariablesCreated := make([]Variable, 0)
 		sVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -339,15 +339,15 @@ func rfSelect() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
-		c := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		c := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, c)
 
@@ -384,7 +384,7 @@ func rfConstant() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -413,11 +413,11 @@ func rfIsEqual() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -450,7 +450,7 @@ func rfFromBinary() runfunc {
 		iVariablesCreated := make([]Variable, 0)
 
 		for i := 0; i < 256; i++ {
-			pVariablesCreated[i] = systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+			pVariablesCreated[i] = systemUnderTest.(*ConstraintSystem).newPublicVariable()
 			incVariableName()
 		}
 
@@ -478,11 +478,11 @@ func rfIsBoolean() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -516,11 +516,11 @@ func rfMustBeLessOrEqVar() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -548,7 +548,7 @@ func rfMustBeLessOrEqConst() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
