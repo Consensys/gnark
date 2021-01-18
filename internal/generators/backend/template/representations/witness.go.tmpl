@@ -92,7 +92,7 @@ func WriteFull(w io.Writer, witness frontend.Witness) error {
 
     enc := curve.NewEncoder(w)
     for i := 0; i < len(v); i++ {
-        if err = enc.Encode(v[i]); err != nil {
+        if err = enc.Encode(&v[i]); err != nil {
             return err
         }
     }
@@ -111,7 +111,8 @@ func WritePublic(w io.Writer, witness frontend.Witness) error {
 
     enc := curve.NewEncoder(w)
     for i := 1; i < len(v); i++ { // skipping one_wire at [0]
-        if err = enc.Encode(v[i]); err != nil {
+        v[i].ToMont() // Public returns in regular form. that's not super clean, not perf critical for now. 
+        if err = enc.Encode(&v[i]); err != nil {
             return err
         }
     }

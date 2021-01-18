@@ -17,10 +17,12 @@ limitations under the License.
 package gnark
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
@@ -37,7 +39,7 @@ func TestIntegrationAPI(t *testing.T) {
 	}
 
 	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS377, gurvy.BLS381, gurvy.BW761}
-
+	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
 		t.Log(name)
@@ -51,20 +53,20 @@ func TestIntegrationAPI(t *testing.T) {
 		for _, curve := range curves {
 			t.Log(curve.String())
 
-			typedR1CS, err := frontend.Compile(curve, circuit.Circuit)
+			r1cs, err := frontend.Compile(curve, circuit.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			pk, vk, err := groth16.Setup(typedR1CS)
+			pk, vk, err := groth16.Setup(r1cs)
 			if err != nil {
 				t.Fatal(err)
 			}
-			correctProof, err := groth16.Prove(typedR1CS, pk, circuit.Good)
+			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good)
 			if err != nil {
 				t.Fatal(err)
 			}
-			wrongProof, err := groth16.Prove(typedR1CS, pk, circuit.Bad, true)
+			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -76,6 +78,25 @@ func TestIntegrationAPI(t *testing.T) {
 			err = groth16.Verify(wrongProof, vk, circuit.Public)
 			if err == nil {
 				t.Fatal("Verify should have failed")
+			}
+
+			// witness serialization tests.
+			{
+				buf.Reset()
+				if err = witness.WriteFull(&buf, circuit.Good, curve); err != nil {
+					t.Fatal("serializing full witness failed.", err)
+				}
+				correctProof, err := groth16.DeserializeAndProve(r1cs, pk, buf.Bytes())
+				if err != nil {
+					t.Fatal(err)
+				}
+				buf.Reset()
+				if err = witness.WritePublic(&buf, circuit.Public, curve); err != nil {
+					t.Fatal("serializing public witness failed.")
+				}
+				if err = groth16.DeserializeAndVerify(correctProof, vk, buf.Bytes()); err != nil {
+					t.Fatal("DeserializeAndVerify should have succeeded", err)
+				}
 			}
 
 		}
