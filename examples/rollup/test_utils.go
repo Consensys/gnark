@@ -18,6 +18,7 @@ package rollup
 
 import (
 	"hash"
+	"math/rand"
 	"testing"
 
 	eddsa "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
@@ -28,7 +29,6 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 
 	var acc Account
 	var rnd fr.Element
-	var brnd [32]byte
 	var privkey eddsa.PrivateKey
 
 	// create account, the i-th account has an balance of 20+i
@@ -36,8 +36,12 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	acc.nonce = uint64(i)
 	acc.balance.SetUint64(uint64(i) + 20)
 	rnd.SetUint64(uint64(i))
-	brnd = rnd.Bytes()
-	acc.pubKey, privkey = eddsa.GenerateKey(brnd)
+	src := rand.NewSource(int64(i))
+	r := rand.New(src)
+
+	// TODO handle error
+	privkey, _ = eddsa.GenerateKey(r)
+	acc.pubKey = privkey.PublicKey
 
 	return acc, privkey
 }

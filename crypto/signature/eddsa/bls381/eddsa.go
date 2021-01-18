@@ -20,6 +20,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"hash"
+	"io"
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/signature"
@@ -32,9 +33,9 @@ var errNotOnCurve = errors.New("point not on curve")
 
 const (
 	sizeFr         = 32
-	sizePublicKey  = 2 * sizeFr
-	sizeSignature  = 3 * sizeFr
-	sizePrivateKey = 3*sizeFr + 32
+	sizePublicKey  = sizeFr
+	sizeSignature  = 2 * sizeFr
+	sizePrivateKey = 2*sizeFr + 32
 )
 
 // PublicKey eddsa signature object
@@ -62,7 +63,7 @@ func init() {
 }
 
 // GenerateKey generates a public and private key pair.
-func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
+func GenerateKey(r io.Reader) (PrivateKey, error) {
 
 	c := twistededwards.GetEdwardsCurve()
 
@@ -70,6 +71,11 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 	var priv PrivateKey
 
 	// hash(h) = private_key || random_source, on 32 bytes each
+	seed := make([]byte, 32)
+	_, err := r.Read(seed)
+	if err != nil {
+		return priv, err
+	}
 	h := blake2b.Sum512(seed[:])
 	for i := 0; i < 32; i++ {
 		priv.randSrc[i] = h[i+32]
@@ -98,14 +104,14 @@ func GenerateKey(seed [32]byte) (PublicKey, PrivateKey) {
 
 	priv.PublicKey = pub
 
-	return pub, priv
+	return priv, nil
 }
 
 // GenerateKeyInterfaces generate interfaces for the public/private key.
 // This purpose of this function is to be registered in the list of signature schemes.
-func GenerateKeyInterfaces(seed [32]byte) (signature.PublicKey, signature.Signer) {
-	pub, priv := GenerateKey(seed)
-	return &pub, &priv
+func GenerateKeyInterfaces(r io.Reader) (signature.Signer, error) {
+	priv, err := GenerateKey(r)
+	return &priv, err
 }
 
 // Equal compares 2 public keys
@@ -118,7 +124,9 @@ func (pub *PublicKey) Equal(other signature.PublicKey) bool {
 // Public returns the public key associated to the private key.
 // From Signer interface defined in gnark/crypto/signature.
 func (privKey *PrivateKey) Public() signature.PublicKey {
-	return &privKey.PublicKey
+	var pub PublicKey
+	pub.A.Set(&privKey.PublicKey.A)
+	return &pub
 }
 
 // Sign sign a message
