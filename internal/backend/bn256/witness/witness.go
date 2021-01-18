@@ -18,6 +18,7 @@ package witness
 
 import (
 	"errors"
+	"io"
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
@@ -25,6 +26,8 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 
 	"github.com/consensys/gurvy/bn256/fr"
+
+	curve "github.com/consensys/gurvy/bn256"
 )
 
 // Full extracts the full witness secret || public (including ONE_WIRE)
@@ -93,6 +96,80 @@ func Public(w frontend.Witness) ([]fr.Element, error) {
 		return nil, err
 	}
 	return public, nil
+}
+
+const frSize = fr.Limbs * 8
+
+// WriteFull serialize full witness [secret|one_wire|public] by encoding provided values
+func WriteFull(w io.Writer, witness frontend.Witness) error {
+
+	v, err := Full(witness)
+	if err != nil {
+		return err
+	}
+
+	enc := curve.NewEncoder(w)
+	for i := 0; i < len(v); i++ {
+		if err = enc.Encode(v[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+// WritePublic serialize publicWitness [public] without one_wire by encoding provided values
+func WritePublic(w io.Writer, witness frontend.Witness) error {
+
+	v, err := Public(witness)
+	if err != nil {
+		return err
+	}
+
+	enc := curve.NewEncoder(w)
+	for i := 1; i < len(v); i++ { // skipping one_wire at [0]
+		if err = enc.Encode(v[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+// ReadFull decodes witness[]byte -> []fr.Element
+// witness is [secret|one_wire|public]
+// returned value is in Montgomery form
+func ReadFull(witness []byte) (r []fr.Element, err error) {
+	if (len(witness) % frSize) != 0 {
+		return nil, errors.New("invalid input size")
+	}
+	r = make([]fr.Element, (len(witness) / frSize))
+	offset := 0
+	for i := 0; i < len(r); i++ {
+		r[i].SetBytes(witness[offset : offset+frSize])
+		offset += frSize
+	}
+
+	return
+}
+
+// ReadPublic decodes publicWitness[]byte -> []fr.Element
+// publicWitness is [public], without one_wire
+// returned value is in Regular form, and contains the one_wire at position 0
+func ReadPublic(publicWitness []byte) (r []fr.Element, err error) {
+	if (len(publicWitness) % frSize) != 0 {
+		return nil, errors.New("invalid input size")
+	}
+	r = make([]fr.Element, (1 + len(publicWitness)/frSize))
+	r[0].SetOne().FromMont()
+	offset := 0
+	for i := 1; i < len(r); i++ {
+		r[i].SetBytes(publicWitness[offset : offset+frSize]).FromMont()
+		offset += frSize
+	}
+	return
 }
 
 func count(w frontend.Witness) (nbSecret, nbPublic int, err error) {

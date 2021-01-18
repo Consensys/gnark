@@ -72,10 +72,10 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 }
 
 // writeTo serialization format: 
-// [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
-func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
-	
-
+// follows bellman format: 
+// https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
+// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
+func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 	var enc *curve.Encoder
 	if raw {
 		enc = curve.NewEncoder(w, curve.RawEncoding())
@@ -84,84 +84,77 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (n int64, err error) {
 	}
 
 
-	// [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
-	err = enc.Encode(&vk.G1.Alpha)
-	n += enc.BytesWritten()
-	if err != nil {
-		return
+	// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2
+	if err := enc.Encode(&vk.G1.Alpha); err != nil {
+		return enc.BytesWritten(), err 
+	}
+	if err := enc.Encode(&vk.G1.Beta); err != nil {
+		return enc.BytesWritten(), err 
+	}
+	if err := enc.Encode(&vk.G2.Beta); err != nil {
+		return enc.BytesWritten(), err 
+	}
+	if err := enc.Encode(&vk.G2.Gamma); err != nil {
+		return enc.BytesWritten(), err 
+	}
+	if err := enc.Encode(&vk.G1.Delta); err != nil {
+		return enc.BytesWritten(), err 
+	}
+	if err := enc.Encode(&vk.G2.Delta); err != nil {
+		return enc.BytesWritten(), err 
 	}
 
-	err = enc.Encode(vk.G1.K)
-	n += enc.BytesWritten()
-	if err != nil {
-		return
+	// uint32(len(Kvk)),[Kvk]1
+	if err := enc.Encode(vk.G1.K); err != nil {
+		return enc.BytesWritten(), err 
 	}
-
-	err = enc.Encode(&vk.G2.Beta)
-	n += enc.BytesWritten()
-	if err != nil {
-		return
-	}
-
-	err = enc.Encode(&vk.G2.Delta)
-	n += enc.BytesWritten()
-	if err != nil {
-		return
-	}
-
-	err = enc.Encode(&vk.G2.Gamma)
-	n += enc.BytesWritten()
-	return
+	return enc.BytesWritten(), nil 
 }
 
 // ReadFrom attempts to decode a VerifyingKey from reader
 // VerifyingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed) 
-// serialization format:  cbor([]string(publicInputNames)), [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
-func (vk *VerifyingKey) ReadFrom(r io.Reader) (n int64, err error) {
+// serialization format:
+// https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
+// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
+func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 
-	// read vk.e
-	// [α]1, [Kvk]1, [β]2, [δ]2, [γ]2
 	dec := curve.NewDecoder(r)
 
-	err = dec.Decode(&vk.G1.Alpha)
-	n += dec.BytesRead()
-	if err != nil {
-		return
+	// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2
+	if err := dec.Decode(&vk.G1.Alpha); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&vk.G1.Beta); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&vk.G2.Beta); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&vk.G2.Gamma); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&vk.G1.Delta); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&vk.G2.Delta); err != nil {
+		return dec.BytesRead(), err
 	}
 
-	err = dec.Decode(&vk.G1.K)
-	n += dec.BytesRead()
-	if err != nil {
-		return
-	}
-
-	err = dec.Decode(&vk.G2.Beta)
-	n += dec.BytesRead()
-	if err != nil {
-		return
-	}
-
-	err = dec.Decode(&vk.G2.Delta)
-	n += dec.BytesRead()
-	if err != nil {
-		return
-	}
-
-	err = dec.Decode(&vk.G2.Gamma)
-	n += dec.BytesRead()
-	if err != nil {
-		return
+	// uint32(len(Kvk)),[Kvk]1
+	if err := dec.Decode(&vk.G1.K); err != nil {
+		return dec.BytesRead(), err
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
+	var err error 
 	vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
 	if err != nil {
-		return 
+		return dec.BytesRead(), err
 	}
 	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 	
-	return
+	return dec.BytesRead(), nil
 }
 
 

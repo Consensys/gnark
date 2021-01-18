@@ -56,8 +56,9 @@ type ProvingKey struct {
 type VerifyingKey struct {
 	// [α]1, [Kvk]1
 	G1 struct {
-		Alpha curve.G1Affine
-		K     []curve.G1Affine // The indexes correspond to the public wires
+		Alpha       curve.G1Affine
+		Beta, Delta curve.G1Affine   // unused, here for compatibility purposes
+		K           []curve.G1Affine // The indexes correspond to the public wires
 	}
 
 	// [β]2, [δ]2, [γ]2,
@@ -228,6 +229,11 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// Pairing: vk.e
 	vk.G1.Alpha = pk.G1.Alpha
 	vk.G2.Beta = pk.G2.Beta
+
+	// unused, here for compatibility purposes
+	vk.G1.Beta = pk.G1.Beta
+	vk.G1.Delta = pk.G1.Delta
+
 	vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
 	if err != nil {
 		return err
