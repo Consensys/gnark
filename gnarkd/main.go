@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -22,6 +23,12 @@ import (
 	"github.com/consensys/gnark/gnarkd/pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+)
+
+// -------------------------------------------------------------------------------------------------
+// flags
+var (
+	fCircuitDir = flag.String("circuits", "circuits", "circuits to load at init")
 )
 
 const (
@@ -39,7 +46,7 @@ var (
 // init logger
 func init() {
 	var err error
-	logger, err = zap.NewDevelopment()
+	logger, err = newZapConfig().Build()
 	if err != nil {
 		fmt.Println("unable to create logger")
 		os.Exit(1)
@@ -53,13 +60,39 @@ func main() {
 	defer log.Warn("stopping gnarkd")
 	defer logger.Sync() // flushes buffer, if any
 
+	// Parse flags
+	flag.Parse()
+
+	gnarkdServer, err := newServer()
+	if err != nil {
+		log.Fatalw("couldn't init gnarkd", "err", err)
+	}
+
+	// TODO @gbotrel make it TLS + flags for cert and key
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
 	}
 	s := grpc.NewServer()
-	pb.RegisterGroth16Server(s, &server{})
+	pb.RegisterGroth16Server(s, gnarkdServer)
 	if err := s.Serve(lis); err != nil {
 		log.Fatalw("failed to start server", "err", err)
+	}
+}
+
+func newZapConfig() zap.Config {
+	return zap.Config{
+		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
+		Development: false,
+		Sampling: &zap.SamplingConfig{
+			Initial:    100,
+			Thereafter: 100,
+		},
+		DisableCaller:     true,
+		DisableStacktrace: true,
+		Encoding:          "console",
+		EncoderConfig:     zap.NewDevelopmentEncoderConfig(),
+		OutputPaths:       []string{"stderr"},
+		ErrorOutputPaths:  []string{"stderr"},
 	}
 }
