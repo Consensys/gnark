@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package r1c
-
-import "github.com/consensys/gnark/backend"
+package backend
 
 // Term lightweight version of a term, no pointers
 // first 4 bits are reserved
@@ -39,48 +37,48 @@ const (
 )
 
 const (
-	nbBitsVariableID           = 29
-	nbBitsCoeffID              = 30
-	nbBitsCoeffValue           = 3
-	nbBitsConstraintVisibility = 2
+	nbBitsVariableID         = 29
+	nbBitsCoeffID            = 30
+	nbBitsCoeffValue         = 3
+	nbBitsVariableVisibility = 2
 )
 
 const (
-	shiftVariableID           = 0
-	shiftCoeffID              = nbBitsVariableID
-	shiftCoeffValue           = shiftCoeffID + nbBitsCoeffID
-	shiftConstraintVisibility = shiftCoeffValue + nbBitsCoeffValue
+	shiftVariableID         = 0
+	shiftCoeffID            = nbBitsVariableID
+	shiftCoeffValue         = shiftCoeffID + nbBitsCoeffID
+	shiftVariableVisibility = shiftCoeffValue + nbBitsCoeffValue
 )
 
 const (
-	maskVariableID           = uint64((1 << nbBitsVariableID) - 1)
-	maskCoeffID              = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
-	maskCoeffValue           = uint64((1<<nbBitsCoeffValue)-1) << shiftCoeffValue
-	maskConstraintVisibility = uint64((1<<nbBitsConstraintVisibility)-1) << shiftConstraintVisibility
+	maskVariableID         = uint64((1 << nbBitsVariableID) - 1)
+	maskCoeffID            = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
+	maskCoeffValue         = uint64((1<<nbBitsCoeffValue)-1) << shiftCoeffValue
+	maskVariableVisibility = uint64((1<<nbBitsVariableVisibility)-1) << shiftVariableVisibility
 )
 
-// Pack packs constraintID, coeffID and coeffValue into Term
+// Pack packs variableID, coeffID and coeffValue into Term
 // first 5 bits are reserved to encode visibility of the constraint and coeffValue of the coefficient
 // next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
 // next 29 bits represent the constraint used to compute the wire
 // if we support more than 500 millions constraints, this breaks (not so soon.)
-func Pack(constraintID, coeffID int, constraintVisibility backend.Visibility, coeffValue ...int) Term {
+func Pack(variableID, coeffID int, variableVisiblity Visibility, coeffValue ...int) Term {
 	var t Term
-	t.SetVariableID(constraintID)
+	t.SetVariableID(variableID)
 	t.SetCoeffID(coeffID)
 	if len(coeffValue) > 0 {
 		t.SetCoeffValue(coeffValue[0])
 	}
-	t.SetConstraintVisibility(constraintVisibility)
+	t.SetVariableVisibility(variableVisiblity)
 	return t
 }
 
-// Unpack returns coeffValue, coeffID and constraintID
-func (t Term) Unpack() (coeffValue, coeffID, constraintID int, constraintVisibility backend.Visibility) {
+// Unpack returns coeffValue, coeffID and variableID
+func (t Term) Unpack() (coeffValue, coeffID, variableID int, variableVisiblity Visibility) {
 	coeffValue = t.CoeffValue()
 	coeffID = t.CoeffID()
-	constraintID = t.VariableID()
-	constraintVisibility = t.ConstraintVisibility()
+	variableID = t.VariableID()
+	variableVisiblity = t.VariableVisibility()
 	return
 }
 
@@ -103,36 +101,36 @@ func (t Term) CoeffValue() int {
 	}
 }
 
-// ConstraintVisibility returns encoded backend.Visibility attribute
-func (t Term) ConstraintVisibility() backend.Visibility {
-	constraintVisibility := (uint64(t) & maskConstraintVisibility) >> shiftConstraintVisibility
-	switch constraintVisibility {
+// VariableVisibility returns encoded Visibility attribute
+func (t Term) VariableVisibility() Visibility {
+	variableVisiblity := (uint64(t) & maskVariableVisibility) >> shiftVariableVisibility
+	switch variableVisiblity {
 	case constraintInternal:
-		return backend.Internal
+		return Internal
 	case constraintPublic:
-		return backend.Public
+		return Public
 	case constraintSecret:
-		return backend.Secret
+		return Secret
 	default:
-		return backend.Unset
+		return Unset
 	}
 }
 
-// SetConstraintVisibility update the bits correponding to the constraintVisibility with its encoding
-func (t *Term) SetConstraintVisibility(v backend.Visibility) {
-	constraintVisibility := uint64(0)
+// SetVariableVisibility update the bits correponding to the variableVisiblity with its encoding
+func (t *Term) SetVariableVisibility(v Visibility) {
+	variableVisiblity := uint64(0)
 	switch v {
-	case backend.Internal:
-		constraintVisibility = constraintInternal
-	case backend.Public:
-		constraintVisibility = constraintPublic
-	case backend.Secret:
-		constraintVisibility = constraintSecret
+	case Internal:
+		variableVisiblity = constraintInternal
+	case Public:
+		variableVisiblity = constraintPublic
+	case Secret:
+		variableVisiblity = constraintSecret
 	default:
 		return
 	}
-	constraintVisibility <<= shiftConstraintVisibility
-	*t = Term((uint64(*t) & (^maskConstraintVisibility)) | constraintVisibility)
+	variableVisiblity <<= shiftVariableVisibility
+	*t = Term((uint64(*t) & (^maskVariableVisibility)) | variableVisiblity)
 }
 
 // SetCoeffValue update the bits correponding to the coeffValue with its encoding
@@ -164,16 +162,16 @@ func (t *Term) SetCoeffID(cID int) {
 	*t = Term((uint64(*t) & (^maskCoeffID)) | _coeffID)
 }
 
-// SetVariableID update the bits correponding to the constraintID with cID
+// SetVariableID update the bits correponding to the variableID with cID
 func (t *Term) SetVariableID(cID int) {
-	_constraintID := uint64(cID)
-	if (_constraintID & maskVariableID) != uint64(cID) {
-		panic("constraintID is too large, unsupported")
+	_variableID := uint64(cID)
+	if (_variableID & maskVariableID) != uint64(cID) {
+		panic("variableID is too large, unsupported")
 	}
-	*t = Term((uint64(*t) & (^maskVariableID)) | _constraintID)
+	*t = Term((uint64(*t) & (^maskVariableID)) | _variableID)
 }
 
-// VariableID returns the constraintID (see R1CS data structure)
+// VariableID returns the variableID (see R1CS data structure)
 func (t Term) VariableID() int {
 	return int((uint64(t) & maskVariableID))
 }

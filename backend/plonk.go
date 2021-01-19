@@ -12,25 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package r1c
+package backend
 
-// LinearExpression represent a linear expression of variables
-type LinearExpression []Term
-
-// R1C used to compute the wires
-type R1C struct {
-	L      LinearExpression
-	R      LinearExpression
-	O      LinearExpression
-	Solver SolvingMethod
+// PlonkConstraint used to compute the wires
+// L+R+M[0]M[1]+k=O
+type PlonkConstraint struct {
+	L, R, O Term
+	M       [2]Term
+	kID     int // stores only the ID of the constant term that is used
+	Solver  SolvingMethod
 }
-
-// SolvingMethod is used by the R1CS solver
-// note: it is not in backend/r1cs to avoid an import cycle
-type SolvingMethod uint8
-
-// SingleOuput and BinaryDec are types of solving method for rank-1 constraints
-const (
-	SingleOutput SolvingMethod = iota
-	BinaryDec
-)

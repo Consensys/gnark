@@ -15,7 +15,6 @@ package frontend
 
 import (
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 )
 
 // Wire of a circuit
@@ -32,7 +31,7 @@ type Wire struct {
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
 type Variable struct {
 	Wire
-	linExp    r1c.LinearExpression
+	linExp    backend.LinearExpression
 	isBoolean bool // TODO it doesn't work, we need a pointer for that
 }
 
@@ -53,8 +52,8 @@ func (v *Variable) Assign(value interface{}) {
 
 // getCopyLinExp returns a copy of the linear expression
 // to avoid sharing same data, leading to bugs when updating the variables id
-func (v *Variable) getLinExpCopy() r1c.LinearExpression {
-	res := make(r1c.LinearExpression, len(v.linExp))
+func (v *Variable) getLinExpCopy() backend.LinearExpression {
+	res := make(backend.LinearExpression, len(v.linExp))
 	copy(res, v.linExp)
 	return res
 }

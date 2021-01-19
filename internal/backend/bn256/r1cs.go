@@ -25,7 +25,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gurvy"
@@ -45,7 +44,7 @@ type R1CS struct {
 	// Constraints
 	NbConstraints   uint64 // total number of constraints
 	NbCOConstraints uint64 // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []r1c.R1C
+	Constraints     []backend.R1C
 	Coefficients    []fr.Element // R1C coefficients indexes point here
 }
 
@@ -182,7 +181,7 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 }
 
 // AddTerm returns res += (value * term.Coefficient)
-func (r1cs *R1CS) AddTerm(res *fr.Element, t r1c.Term, value fr.Element) *fr.Element {
+func (r1cs *R1CS) AddTerm(res *fr.Element, t backend.Term, value fr.Element) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
@@ -203,7 +202,7 @@ func (r1cs *R1CS) AddTerm(res *fr.Element, t r1c.Term, value fr.Element) *fr.Ele
 }
 
 // mulWireByCoeff returns into.Mul(into, term.Coefficient)
-func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t r1c.Term) *fr.Element {
+func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t backend.Term) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
@@ -222,7 +221,7 @@ func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t r1c.Term) *fr.Element {
 // compute left, right, o part of a r1cs constraint
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
-func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
+func instantiateR1C(r *backend.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
 
 	for _, t := range r.L {
 		r1cs.AddTerm(&a, t, wireValues[t.VariableID()])
@@ -244,21 +243,21 @@ func instantiateR1C(r *r1c.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.Element) {
+func (r1cs *R1CS) solveR1C(r *backend.R1C, wireInstantiated []bool, wireValues []fr.Element) {
 
 	switch r.Solver {
 
 	// in this case we solve a R1C by isolating the uncomputed wire
-	case r1c.SingleOutput:
+	case backend.SingleOutput:
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
 		var loc uint8
 
 		var a, b, c fr.Element
-		var termToCompute r1c.Term
+		var termToCompute backend.Term
 
-		processTerm := func(t r1c.Term, val *fr.Element, locValue uint8) {
+		processTerm := func(t backend.Term, val *fr.Element, locValue uint8) {
 			cID := t.VariableID()
 			if wireInstantiated[cID] {
 				r1cs.AddTerm(val, t, wireValues[cID])
@@ -315,7 +314,7 @@ func (r1cs *R1CS) solveR1C(r *r1c.R1C, wireInstantiated []bool, wireValues []fr.
 
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
-	case r1c.BinaryDec:
+	case backend.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
 		var n fr.Element

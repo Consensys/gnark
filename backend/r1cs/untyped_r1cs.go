@@ -19,7 +19,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 )
 
@@ -37,7 +36,7 @@ type UntypedR1CS struct {
 	// Constraints
 	NbConstraints   uint64 // total number of constraints
 	NbCOConstraints uint64 // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []r1c.R1C
+	Constraints     []backend.R1C
 	Coefficients    []big.Int
 }
 

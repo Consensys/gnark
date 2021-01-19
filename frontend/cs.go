@@ -79,8 +79,8 @@ func newConstraintSystem() ConstraintSystem {
 	cs := ConstraintSystem{
 		coeffs:      make([]big.Int, 0),
 		coeffsIDs:   make(map[string]int),
-		constraints: make([]r1c.R1C, 0, initialCapacity),
-		assertions:  make([]r1c.R1C, 0),
+		constraints: make([]backend.R1C, 0, initialCapacity),
+		assertions:  make([]backend.R1C, 0),
 	}
 
 	cs.public.variables = make([]Variable, 0)
@@ -100,7 +100,7 @@ func newConstraintSystem() ConstraintSystem {
 
 type logEntry struct {
 	format    string
-	toResolve []r1c.Term
+	toResolve []backend.Term
 }
 
 var (
@@ -111,7 +111,7 @@ var (
 )
 
 // debug info in case a variable is not set
-func debugInfoUnsetVariable(term r1c.Term) logEntry {
+func debugInfoUnsetVariable(term backend.Term) logEntry {
 	entry := logEntry{}
 	stack := getCallStack()
 	entry.format = stack[len(stack)-1]
@@ -127,10 +127,10 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 	return cs.public.variables[0]
 }
 
-// Term packs a variable and a coeff in a r1c.Term and returns it.
-func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) r1c.Term {
+// Term packs a variable and a coeff in a backend.Term and returns it.
+func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) backend.Term {
 
-	term := r1c.Pack(v.id, cs.coeffID(coeff), v.visibility)
+	term := backend.Pack(v.id, cs.coeffID(coeff), v.visibility)
 
 	if coeff.Cmp(bZero) == 0 {
 		term.SetCoeffValue(0)
@@ -153,9 +153,9 @@ func (cs *ConstraintSystem) NbConstraints() int {
 	return len(cs.constraints) + len(cs.assertions)
 }
 
-// LinearExpression packs a list of r1c.Term in a r1c.LinearExpression and returns it.
-func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpression {
-	res := make(r1c.LinearExpression, len(terms))
+// LinearExpression packs a list of backend.Term in a backend.LinearExpression and returns it.
+func (cs *ConstraintSystem) LinearExpression(terms ...backend.Term) backend.LinearExpression {
+	res := make(backend.LinearExpression, len(terms))
 	for i, args := range terms {
 		res[i] = args
 	}
@@ -164,10 +164,10 @@ func (cs *ConstraintSystem) LinearExpression(terms ...r1c.Term) r1c.LinearExpres
 
 // reduces redundancy in a linear expression
 // Non deterministic function
-func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibility backend.Visibility) r1c.LinearExpression {
+func (cs *ConstraintSystem) partialReduce(linExp backend.LinearExpression, visibility backend.Visibility) backend.LinearExpression {
 
 	if len(linExp) == 0 {
-		return r1c.LinearExpression{}
+		return backend.LinearExpression{}
 	}
 
 	coeffRecord := make(map[int]big.Int) // id variable -> coeff
@@ -196,7 +196,7 @@ func (cs *ConstraintSystem) partialReduce(linExp r1c.LinearExpression, visibilit
 	}
 
 	// creation of the reduced linear expression
-	var res r1c.LinearExpression
+	var res backend.LinearExpression
 	for k := range coeffRecord {
 		bCoeff := coeffRecord[k]
 		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
@@ -219,12 +219,12 @@ func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 
 // reduces redundancy in linear expression
 // Non deterministic function
-func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpression {
+func (cs *ConstraintSystem) reduce(linExp backend.LinearExpression) backend.LinearExpression {
 	reducePublic := cs.partialReduce(linExp, backend.Public)
 	reduceSecret := cs.partialReduce(linExp, backend.Secret)
 	reduceInternal := cs.partialReduce(linExp, backend.Internal)
 	reduceUnset := cs.partialReduce(linExp, backend.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
-	res := make(r1c.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
+	res := make(backend.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
 	accSize := 0
 	copy(res[:], reducePublic)
 	accSize += len(reducePublic)
@@ -237,6 +237,7 @@ func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpres
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {
+
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
 }
@@ -254,6 +255,8 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
 		NbCOConstraints: uint64(len(cs.constraints)),
 		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
+		SecretWires:     cs.secret.names,
+		PublicWires:     cs.public.names,
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
@@ -264,7 +267,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
 	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
-	offsetIDs := func(exp r1c.LinearExpression) error {
+	offsetIDs := func(exp backend.LinearExpression) error {
 		for j := 0; j < len(exp); j++ {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
@@ -370,7 +373,7 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 	if v.visibility == backend.Unset && len(v.linExp) > 0 {
 		iv := cs.newInternalVariable()
 		one := cs.getOneVariable()
-		constraint := r1c.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: r1c.SingleOutput}
+		constraint := backend.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: backend.SingleOutput}
 		cs.constraints = append(cs.constraints, constraint)
 		return iv
 	}
@@ -408,7 +411,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 		// if the variable is only in linExp form, we allocate it
 		_v := cs.allocate(v)
 
-		entry.toResolve = append(entry.toResolve, r1c.Pack(_v.id, 0, _v.visibility))
+		entry.toResolve = append(entry.toResolve, backend.Pack(_v.id, 0, _v.visibility))
 
 		if name == "" {
 			sbb.WriteString("%s")

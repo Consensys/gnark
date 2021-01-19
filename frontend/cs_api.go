@@ -57,8 +57,8 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // returns -le, the result is a copy
-func (cs *ConstraintSystem) negateLinExp(le r1c.LinearExpression) r1c.LinearExpression {
-	res := make(r1c.LinearExpression, len(le))
+func (cs *ConstraintSystem) negateLinExp(le backend.LinearExpression) backend.LinearExpression {
+	res := make(backend.LinearExpression, len(le))
 	var coeff, coeffCopy big.Int
 	for i, t := range le {
 		_, coeffID, variableID, constraintVis := t.Unpack()
@@ -100,7 +100,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 }
 
 func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
-	var linExp r1c.LinearExpression
+	var linExp backend.LinearExpression
 	lambda := backend.FromInterface(i)
 	for _, t := range v.linExp {
 		var coeffCopy big.Int
@@ -124,7 +124,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 			case Variable:
 				cs.completeDanglingVariable(&t2)
 				_res = cs.newInternalVariable() // only in this case we record the constraint in the cs
-				constraint := r1c.R1C{L: t1.getLinExpCopy(), R: t2.getLinExpCopy(), O: _res.getLinExpCopy(), Solver: r1c.SingleOutput}
+				constraint := backend.R1C{L: t1.getLinExpCopy(), R: t2.getLinExpCopy(), O: _res.getLinExpCopy(), Solver: backend.SingleOutput}
 				cs.constraints = append(cs.constraints, constraint)
 				return _res
 			default:
@@ -168,7 +168,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	L := v.linExp
 	R := res.linExp
 	O := cs.LinearExpression(cs.getOneTerm())
-	constraint := r1c.R1C{L: L, R: R, O: O, Solver: r1c.SingleOutput}
+	constraint := backend.R1C{L: L, R: R, O: O, Solver: backend.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -187,11 +187,11 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 		switch t2 := i2.(type) {
 		case Variable:
 			cs.completeDanglingVariable(&t2)
-			constraint := r1c.R1C{L: t2.linExp, R: res.linExp, O: t1.linExp, Solver: r1c.SingleOutput}
+			constraint := backend.R1C{L: t2.linExp, R: res.linExp, O: t1.linExp, Solver: backend.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 		default:
 			tmp := cs.Constant(t2)
-			constraint := r1c.R1C{L: tmp.getLinExpCopy(), R: res.getLinExpCopy(), O: t1.getLinExpCopy(), Solver: r1c.SingleOutput}
+			constraint := backend.R1C{L: tmp.getLinExpCopy(), R: res.getLinExpCopy(), O: t1.getLinExpCopy(), Solver: backend.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 		}
 	default:
@@ -199,12 +199,12 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 		case Variable:
 			cs.completeDanglingVariable(&t2)
 			tmp := cs.Constant(t1)
-			constraint := r1c.R1C{L: t2.getLinExpCopy(), R: res.getLinExpCopy(), O: tmp.getLinExpCopy(), Solver: r1c.SingleOutput}
+			constraint := backend.R1C{L: t2.getLinExpCopy(), R: res.getLinExpCopy(), O: tmp.getLinExpCopy(), Solver: backend.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 		default:
 			tmp1 := cs.Constant(t1)
 			tmp2 := cs.Constant(t2)
-			constraint := r1c.R1C{L: tmp2.getLinExpCopy(), R: res.getLinExpCopy(), O: tmp1.getLinExpCopy(), Solver: r1c.SingleOutput}
+			constraint := backend.R1C{L: tmp2.getLinExpCopy(), R: res.getLinExpCopy(), O: tmp1.getLinExpCopy(), Solver: backend.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 		}
 	}
@@ -226,7 +226,7 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 	v2 := cs.Add(a, b)   // no constraint recorded
 	v2 = cs.Sub(v2, res) // no constraint recorded
 
-	constraint := r1c.R1C{L: v1.getLinExpCopy(), R: b.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
+	constraint := backend.R1C{L: v1.getLinExpCopy(), R: b.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: backend.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -325,7 +325,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
 	r := cs.getOneVariable()
 
-	constraint := r1c.R1C{L: v.getLinExpCopy(), R: r.getLinExpCopy(), O: a.getLinExpCopy(), Solver: r1c.BinaryDec}
+	constraint := backend.R1C{L: v.getLinExpCopy(), R: r.getLinExpCopy(), O: a.getLinExpCopy(), Solver: backend.BinaryDec}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
@@ -344,7 +344,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 
 	var coeff big.Int
 
-	L := make(r1c.LinearExpression, len(b))
+	L := make(backend.LinearExpression, len(b))
 	for i := 0; i < len(L); i++ {
 		if i == 0 {
 			coeff.Set(bOne)
@@ -378,7 +378,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 		v := cs.Sub(t1, i2)  // no constraint is recorded
 		w := cs.Sub(res, i2) // no constraint is recorded
 		//cs.Println("u-v: ", v)
-		constraint := r1c.R1C{L: b.getLinExpCopy(), R: v.getLinExpCopy(), O: w.getLinExpCopy(), Solver: r1c.SingleOutput}
+		constraint := backend.R1C{L: b.getLinExpCopy(), R: v.getLinExpCopy(), O: w.getLinExpCopy(), Solver: backend.SingleOutput}
 		cs.constraints = append(cs.constraints, constraint)
 		return res
 	default:
@@ -388,7 +388,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 			res = cs.newInternalVariable()
 			v := cs.Sub(t1, t2)  // no constraint is recorded
 			w := cs.Sub(res, t2) // no constraint is recorded
-			constraint := r1c.R1C{L: b.getLinExpCopy(), R: v.getLinExpCopy(), O: w.getLinExpCopy(), Solver: r1c.SingleOutput}
+			constraint := backend.R1C{L: b.getLinExpCopy(), R: v.getLinExpCopy(), O: w.getLinExpCopy(), Solver: backend.SingleOutput}
 			cs.constraints = append(cs.constraints, constraint)
 			return res
 		default:
@@ -421,6 +421,8 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 	}
 }
 
+// creates a string formatted to display correctly a variable, from its linear expression representation
+// (i.e. the linear expression leading to it)
 func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
 
 	var res logEntry
@@ -450,7 +452,7 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	l := cs.Constant(i1) // no constraint is recorded
 	r := cs.Constant(1)  // no constraint is recorded
 	o := cs.Constant(i2) // no constraint is recorded
-	constraint := r1c.R1C{L: l.getLinExpCopy(), R: r.getLinExpCopy(), O: o.getLinExpCopy(), Solver: r1c.SingleOutput}
+	constraint := backend.R1C{L: l.getLinExpCopy(), R: r.getLinExpCopy(), O: o.getLinExpCopy(), Solver: backend.SingleOutput}
 
 	debugInfo.format += "["
 	lhs := cs.buildLogEntryFromVariable(l)
@@ -478,12 +480,12 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	o := cs.Constant(0) // no variable is recorded in the cs
 	v.isBoolean = true
 
-	constraint := r1c.R1C{L: v.getLinExpCopy(), R: _v.getLinExpCopy(), O: o.getLinExpCopy(), Solver: r1c.SingleOutput}
+	constraint := backend.R1C{L: v.getLinExpCopy(), R: _v.getLinExpCopy(), O: o.getLinExpCopy(), Solver: backend.SingleOutput}
 
 	// prepare debug info to be displayed in case the constraint is not solved
 	// debugInfo := logEntry{
 	// 	format:    fmt.Sprintf("%%s == (0 or 1)"),
-	// 	toResolve: []r1c.Term{r1c.Pack(v.id, 0, v.visibility)},
+	// 	toResolve: []backend.Term{backend.Pack(v.id, 0, v.visibility)},
 	// }
 	// stack := getCallStack()
 	debugInfo := logEntry{
@@ -525,7 +527,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 	dbgInfoBound := cs.buildLogEntryFromVariable(bound)
 	var debugInfo logEntry
 	debugInfo.format = dbgInfoW.format + " <= " + dbgInfoBound.format
-	debugInfo.toResolve = make([]r1c.Term, len(dbgInfoW.toResolve)+len(dbgInfoBound.toResolve))
+	debugInfo.toResolve = make([]backend.Term, len(dbgInfoW.toResolve)+len(dbgInfoBound.toResolve))
 	copy(debugInfo.toResolve[:], dbgInfoW.toResolve)
 	copy(debugInfo.toResolve[len(dbgInfoW.toResolve):], dbgInfoBound.toResolve)
 
@@ -558,7 +560,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 
 		o := cs.Constant(0) // no constraint is recorded
 
-		constraint := r1c.R1C{L: l.getLinExpCopy(), R: r.getLinExpCopy(), O: o.getLinExpCopy(), Solver: r1c.SingleOutput}
+		constraint := backend.R1C{L: l.getLinExpCopy(), R: r.getLinExpCopy(), O: o.getLinExpCopy(), Solver: backend.SingleOutput}
 		cs.addAssertion(constraint, debugInfo)
 	}
 
@@ -606,7 +608,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 
 				r := vBits[(i+1)*wordSize-1-j]
 				o := cs.Constant(0)
-				constraint := r1c.R1C{L: l.linExp, R: r.linExp, O: o.linExp, Solver: r1c.SingleOutput}
+				constraint := backend.R1C{L: l.linExp, R: r.linExp, O: o.linExp, Solver: backend.SingleOutput}
 				cs.addAssertion(constraint, debugInfo)
 
 			} else {

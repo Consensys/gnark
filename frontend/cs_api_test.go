@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
@@ -29,11 +28,11 @@ type deltaState = csState
 
 // contains information about a constraint system after a gnark function has been called
 type csResult struct {
-	cs                *ConstraintSystem // constraint system after it has been modified using gnark API
-	publicVariables   []Variable        // public variables created after calling a run function
-	secretVariables   []Variable        // secret variables created aftrer calling a run funcion
-	internalVariables []Variable        // variables resulting of the function call (from cs.Add, cs.Mul, etc)
-	solver            r1c.SolvingMethod // according to the solving method, different features are checked
+	cs                *ConstraintSystem     // constraint system after it has been modified using gnark API
+	publicVariables   []Variable            // public variables created after calling a run function
+	secretVariables   []Variable            // secret variables created aftrer calling a run funcion
+	internalVariables []Variable            // variables resulting of the function call (from cs.Add, cs.Mul, etc)
+	solver            backend.SolvingMethod // according to the solving method, different features are checked
 }
 
 type runfunc func(systemUnderTest commands.SystemUnderTest) commands.Result
@@ -147,7 +146,7 @@ func rfAddSub() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -180,7 +179,7 @@ func rfMul() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -209,7 +208,7 @@ func rfInverse() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -251,7 +250,7 @@ func rfDiv() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -284,7 +283,7 @@ func rfXor() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -311,7 +310,7 @@ func rfToBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.BinaryDec}
+			backend.BinaryDec}
 
 		return csRes
 	}
@@ -356,7 +355,7 @@ func rfSelect() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -385,7 +384,7 @@ func rfConstant() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -421,7 +420,7 @@ func rfIsEqual() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -450,7 +449,7 @@ func rfFromBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
@@ -488,7 +487,7 @@ func rfIsBoolean() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			backend.SingleOutput}
 
 		return csRes
 	}
