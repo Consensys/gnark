@@ -14,8 +14,52 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"net"
+	"os"
 
+	"github.com/consensys/gnark/gnarkd/pb"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+)
+
+const (
+	port = ":50051"
+)
+
+// -------------------------------------------------------------------------------------------------
+// logger
+var (
+	logger *zap.Logger
+	log    *zap.SugaredLogger
+)
+
+// -------------------------------------------------------------------------------------------------
+// init logger
+func init() {
+	var err error
+	logger, err = zap.NewDevelopment()
+	if err != nil {
+		fmt.Println("unable to create logger")
+		os.Exit(1)
+	}
+	log = logger.Sugar()
+}
+
+//go:generate protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  pb/gnarkd.proto
 func main() {
-	fmt.Println("gnarkd (wip)")
+	log.Info("starting gnarkd")
+	defer log.Warn("stopping gnarkd")
+	defer logger.Sync() // flushes buffer, if any
+
+	lis, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Fatalw("failed to listen tcp", "err", err)
+	}
+	s := grpc.NewServer()
+	pb.RegisterGroth16Server(s, &server{})
+	if err := s.Serve(lis); err != nil {
+		log.Fatalw("failed to start server", "err", err)
+	}
 }
