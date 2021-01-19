@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
+	"github.com/consensys/gnark/internal/backend/bls377/witness"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
@@ -57,16 +58,16 @@ func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, proof *groth16_bls377.Proof) {
 
 	// create a mock cs: knowing the preimage of a hash using mimc
-	var circuit, witness mimcCircuit
+	var circuit, w mimcCircuit
 	r1cs, err := frontend.Compile(gurvy.BLS377, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	witness.Data.Assign(preimage)
-	witness.Hash.Assign(publicHash)
+	w.Data.Assign(preimage)
+	w.Hash.Assign(publicHash)
 
-	correctAssignment, err := frontend.ParseWitness(&witness)
+	correctAssignment, err := witness.Full(&w)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,8 +83,13 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
+	correctAssignmentPublic, err := witness.Public(&w)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// before returning verifies that the proof passes on bls377
-	if err := groth16_bls377.Verify(proof, vk, correctAssignment); err != nil {
+	if err := groth16_bls377.Verify(proof, vk, correctAssignmentPublic); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -132,6 +138,9 @@ func TestVerifier(t *testing.T) {
 
 	// compute vk.e
 	e, err := bls377.Pair([]bls377.G1Affine{innerVk.G1.Alpha}, []bls377.G2Affine{innerVk.G2.Beta})
+	if err != nil {
+		t.Fatal(err)
+	}
 	witness.InnerVk.E.Assign(&e)
 
 	witness.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))

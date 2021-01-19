@@ -24,6 +24,16 @@ import (
 	"github.com/consensys/gnark/frontend"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
+
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
 )
 
 // Assert is a helper to test circuits
@@ -36,23 +46,17 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-// ProverFailed check that a solution does NOT solve a circuit
-//
-// solution must be map[string]interface{} or must implement frontend.Circuit
-// ( see frontend.ParseWitness )
-func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, solution interface{}) {
+// ProverFailed check that a witness does NOT solve a circuit
+func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, witness frontend.Witness) {
 	// setup
 	pk, err := DummySetup(r1cs)
 	assert.NoError(err)
 
-	_, err = Prove(r1cs, pk, assert.parseSolution(solution))
-	assert.Error(err, "proving with bad solution should output an error")
+	_, err = Prove(r1cs, pk, witness)
+	assert.Error(err, "proving with bad witness should output an error")
 }
 
-// ProverSucceeded check that a solution solves a circuit
-//
-// solution must be map[string]interface{} or must implement frontend.Circuit
-// ( see frontend.ParseWitness )
+// ProverSucceeded check that a witness solves a circuit
 //
 // 1. Runs groth16.Setup()
 //
@@ -65,9 +69,7 @@ func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, solution interface{}) {
 // 5. Ensure deserialization(serialization) of generated objects is correct
 //
 // ensure result vectors a*b=c, and check other properties like random sampling
-func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
-	_solution := assert.parseSolution(solution)
-
+func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) {
 	// setup
 	pk, vk, err := Setup(r1cs)
 	assert.NoError(err)
@@ -78,28 +80,28 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, solution interface{}) {
 		pk2, vk2, err := Setup(r1cs)
 		assert.NoError(err)
 
-		assert.True(pk2.IsDifferent(pk), "groth16 setup with same input should produce different outputs ")
-		assert.True(vk2.IsDifferent(vk), "groth16 setup with same input should produce different outputs ")
+		assert.True(pk2.IsDifferent(pk), "groth16 setup with same witness should produce different outputs ")
+		assert.True(vk2.IsDifferent(vk), "groth16 setup with same witness should produce different outputs ")
 	}
 
 	// ensure expected Values are computed correctly
-	assert.SolvingSucceeded(r1cs, _solution)
+	assert.SolvingSucceeded(r1cs, witness)
 
 	// prover
-	proof, err := Prove(r1cs, pk, _solution)
-	assert.NoError(err, "proving with good solution should not output an error")
+	proof, err := Prove(r1cs, pk, witness)
+	assert.NoError(err, "proving with good witness should not output an error")
 
-	// ensure random sampling; calling prove twice with same input should produce different proof
+	// ensure random sampling; calling prove twice with same witness should produce different proof
 	{
-		proof2, err := Prove(r1cs, pk, _solution)
-		assert.NoError(err, "proving with good solution should not output an error")
+		proof2, err := Prove(r1cs, pk, witness)
+		assert.NoError(err, "proving with good witness should not output an error")
 		assert.False(reflect.DeepEqual(proof, proof2), "calling prove twice with same input should produce different proof")
 	}
 
 	// verifier
 	{
-		err := Verify(proof, vk, _solution)
-		assert.NoError(err, "verifying proof with good solution should not output an error")
+		err := Verify(proof, vk, witness)
+		assert.NoError(err, "verifying proof with good witness should not output an error")
 	}
 
 	// serialization
@@ -133,24 +135,43 @@ func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 	assert.EqualValues(written, read, "number of bytes read and written don't match")
 }
 
-// SolvingSucceeded Verifies that the R1CS is solved with the given solution, without executing groth16 workflow
-//
-// solution must be map[string]interface{} or must implement frontend.Circuit
-// ( see frontend.ParseWitness )
-func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, solution interface{}) {
-	assert.NoError(r1cs.IsSolved(assert.parseSolution(solution)))
+// SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
+func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) {
+	assert.NoError(solveR1CS(r1cs, witness))
 }
 
-// SolvingFailed Verifies that the R1CS is not solved with the given solution, without executing groth16 workflow
-//
-// solution must be map[string]interface{} or must implement frontend.Circuit
-// ( see frontend.ParseWitness )
-func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, solution interface{}) {
-	assert.Error(r1cs.IsSolved(assert.parseSolution(solution)))
+// SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
+func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, witness frontend.Witness) {
+	assert.Error(solveR1CS(r1cs, witness))
 }
 
-func (assert *Assert) parseSolution(solution interface{}) map[string]interface{} {
-	_solution, err := frontend.ParseWitness(solution)
-	assert.NoError(err)
-	return _solution
+func solveR1CS(r1cs r1cs.R1CS, witness frontend.Witness) error {
+	switch _r1cs := r1cs.(type) {
+	case *backend_bls377.R1CS:
+		w, err := witness_bls377.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	case *backend_bls381.R1CS:
+		w, err := witness_bls381.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	case *backend_bn256.R1CS:
+		w, err := witness_bn256.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	case *backend_bw761.R1CS:
+		w, err := witness_bw761.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
 }

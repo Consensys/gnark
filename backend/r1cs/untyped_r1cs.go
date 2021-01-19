@@ -31,8 +31,6 @@ type UntypedR1CS struct {
 	NbWires       uint64
 	NbPublicWires uint64 // includes ONE wire
 	NbSecretWires uint64
-	SecretWires   []string // private wire names
-	PublicWires   []string // public wire names
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
@@ -71,11 +69,6 @@ func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
 // ReadFrom panics (can't deserialize untyped R1CS)
 func (r1cs *UntypedR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
-}
-
-// IsSolved call will panic as we can't solve a UntypedR1CS
-func (r1cs *UntypedR1CS) IsSolved(solution map[string]interface{}) error {
-	panic("not implemented")
 }
 
 // ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements

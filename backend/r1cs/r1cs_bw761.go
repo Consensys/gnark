@@ -28,8 +28,6 @@ func (r1cs *UntypedR1CS) toBW761() *bw761backend.R1CS {
 		NbWires:         r1cs.NbWires,
 		NbPublicWires:   r1cs.NbPublicWires,
 		NbSecretWires:   r1cs.NbSecretWires,
-		SecretWires:     r1cs.SecretWires,
-		PublicWires:     r1cs.PublicWires,
 		NbConstraints:   r1cs.NbConstraints,
 		NbCOConstraints: r1cs.NbCOConstraints,
 		Constraints:     r1cs.Constraints,

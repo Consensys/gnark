@@ -37,14 +37,14 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			// generate dummy circuit and solution
+			// generate dummy circuit and witness
 			pk, r1cs := generateCircuit(n, curveID)
-			input := generateSolution(n, curveID)
+			witness := generateSolution(n, curveID)
 
 			// measure proving time
 			start := time.Now()
 			// p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-			_, _ = groth16.Prove(r1cs, pk, &input)
+			_, _ = groth16.Prove(r1cs, pk, &witness)
 			// p.Stop()
 
 			took := time.Since(start)

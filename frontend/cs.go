@@ -40,12 +40,10 @@ import (
 type ConstraintSystem struct {
 	// Variables (aka wires)
 	public struct {
-		names     []string         // public inputs names
 		variables []Variable       // public inputs
 		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 	}
 	secret struct {
-		names     []string         // secret inputs names
 		variables []Variable       // secret inputs
 		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 	}
@@ -57,7 +55,6 @@ type ConstraintSystem struct {
 	// Constraints
 	constraints []r1c.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
 	assertions  []r1c.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
-	oneTerm     r1c.Term
 
 	// Coefficients in the constraints
 	coeffs    []big.Int      // list of unique coefficients.
@@ -86,11 +83,9 @@ func newConstraintSystem() ConstraintSystem {
 		assertions:  make([]r1c.R1C, 0),
 	}
 
-	cs.public.names = make([]string, 0)
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
 
-	cs.secret.names = make([]string, 0)
 	cs.secret.variables = make([]Variable, 0)
 	cs.secret.booleans = make(map[int]struct{})
 
@@ -98,7 +93,7 @@ func newConstraintSystem() ConstraintSystem {
 	cs.internal.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
-	cs.public.variables[0] = cs.newPublicVariable(backend.OneWire)
+	cs.public.variables[0] = cs.newPublicVariable()
 
 	return cs
 }
@@ -124,16 +119,8 @@ func debugInfoUnsetVariable(term r1c.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneLinExp() r1c.LinearExpression {
-	return cs.public.variables[0].linExp
-}
-
 func (cs *ConstraintSystem) getOneTerm() r1c.Term {
 	return cs.public.variables[0].linExp[0]
-}
-
-func (cs *ConstraintSystem) getOneWire() Wire {
-	return cs.public.variables[0].Wire
 }
 
 func (cs *ConstraintSystem) getOneVariable() Variable {
@@ -249,12 +236,6 @@ func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpres
 	return res
 }
 
-func (cs *ConstraintSystem) bigIntValue(term r1c.Term) big.Int {
-	var coeff big.Int
-	coeff.Set(&cs.coeffs[term.CoeffID()])
-	return coeff
-}
-
 func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
@@ -273,8 +254,6 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
 		NbCOConstraints: uint64(len(cs.constraints)),
 		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
-		SecretWires:     cs.secret.names,
-		PublicWires:     cs.public.names,
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
@@ -471,38 +450,22 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 }
 
 // newPublicVariable creates a new public input
-func (cs *ConstraintSystem) newPublicVariable(name string) Variable {
+func (cs *ConstraintSystem) newPublicVariable() Variable {
 
 	idx := len(cs.public.variables)
 	resVar := Wire{backend.Public, idx, nil}
 
-	// checks if the name is not already picked
-	for _, v := range cs.public.names {
-		if v == name {
-			panic("duplicate input name (public)")
-		}
-	}
-
 	res := cs.buildVarFromPartialVar(resVar)
-	cs.public.names = append(cs.public.names, name)
 	cs.public.variables = append(cs.public.variables, res)
 	return res
 }
 
 // newSecretVariable creates a new secret input
-func (cs *ConstraintSystem) newSecretVariable(name string) Variable {
+func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
 	resVar := Wire{backend.Secret, idx, nil}
 
-	// checks if the name is not already picked
-	for _, v := range cs.public.names {
-		if v == name {
-			panic("duplicate input name (secret)")
-		}
-	}
-
 	res := cs.buildVarFromPartialVar(resVar)
-	cs.secret.names = append(cs.secret.names, name)
 	cs.secret.variables = append(cs.secret.variables, res)
 	return res
 }

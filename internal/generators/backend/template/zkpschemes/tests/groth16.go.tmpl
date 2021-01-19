@@ -8,15 +8,18 @@ import (
 
 	{{if eq .Curve "BLS377"}}
 		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bls377/groth16"
+		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls377/witness"
 	{{else if eq .Curve "BLS381"}}
 		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bls381/groth16"
+		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls381/witness"
 	{{else if eq .Curve "BN256"}}
 		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bn256/groth16"
+		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 	{{ else if eq .Curve "BW761"}}
 		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bw761/groth16"
+		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 	{{end}}
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/backend/groth16"
@@ -37,42 +40,6 @@ func TestCircuits(t *testing.T) {
 	}
 }
 
-func TestParsePublicInput(t *testing.T) {
-
-	expectedNames := [2]string{"data", backend.OneWire}
-
-	inputOneWire := make(map[string]interface{})
-	inputOneWire[ backend.OneWire ] = 3
-	if _, err := {{toLower .Curve}}groth16.ParsePublicInput(expectedNames[:], inputOneWire); err == nil {
-		t.Fatal("expected ErrMissingAssigment error")
-	}
-
-	missingInput := make(map[string]interface{})
-	if _, err := {{toLower .Curve}}groth16.ParsePublicInput(expectedNames[:], missingInput); err == nil {
-		t.Fatal("expected ErrMissingAssigment")
-	}
-
-	correctInput := make(map[string]interface{})
-	correctInput[ "data" ] = 3
-	got, err := {{toLower .Curve}}groth16.ParsePublicInput(expectedNames[:], correctInput)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := make([]fr.Element, 2)
-	expected[0].SetUint64(3).FromMont()
-	expected[1].SetUint64(1).FromMont()
-	if len(got) != len(expected) {
-		t.Fatal("Unexpected length for assignment")
-	}
-	for i := 0; i < len(got); i++ {
-		if !got[i].Equal(&expected[i]) {
-			t.Fatal("error public assignment")
-		}
-	}
-
-}
-
 //--------------------//
 //     benches		  //
 //--------------------//
@@ -91,7 +58,7 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	return nil 
 }
 
-func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
+func referenceCircuit() (r1cs.R1CS, frontend.Witness) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
@@ -101,8 +68,8 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 		panic(err)
 	}
 	
-	good := make(map[string]interface{})
-	good["X"] = 2
+	var good refCircuit
+	good.X.Assign(2)
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -112,9 +79,9 @@ func referenceCircuit() (r1cs.R1CS, map[string]interface{}) {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good["Y"] = expectedY
+	good.Y.Assign(expectedY)
 
-	return r1cs, good
+	return r1cs, &good
 }
 
 func TestReferenceCircuit(t *testing.T) {
@@ -122,8 +89,8 @@ func TestReferenceCircuit(t *testing.T) {
 		t.SkipNow()
 	}
 	assert := groth16.NewAssert(t)
-	r1cs, solution := referenceCircuit()
-	assert.ProverSucceeded(r1cs, solution)
+	r1cs, witness := referenceCircuit()
+	assert.ProverSucceeded(r1cs, witness)
 }
 
 func BenchmarkSetup(b *testing.B) {
@@ -141,7 +108,11 @@ func BenchmarkSetup(b *testing.B) {
 }
 
 func BenchmarkProver(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	witness, err := {{toLower .Curve}}witness.Full(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 	
 	var pk {{toLower .Curve}}groth16.ProvingKey
 	{{toLower .Curve}}groth16.DummySetup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk)
@@ -149,18 +120,26 @@ func BenchmarkProver(b *testing.B) {
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
+			_, _ = {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, witness, false)
 		}
 	})
 }
 
 func BenchmarkVerifier(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	witness, err := {{toLower .Curve}}witness.Full(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
+	publicWitness, err := {{toLower .Curve}}witness.Public(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 	
 	var pk {{toLower .Curve}}groth16.ProvingKey
 	var vk {{toLower .Curve}}groth16.VerifyingKey
 	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
-	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
+	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, witness, false)
 	if err != nil {
 		panic(err)
 	}
@@ -168,7 +147,7 @@ func BenchmarkVerifier(b *testing.B) {
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = {{toLower .Curve}}groth16.Verify(proof, &vk, solution)
+			_ = {{toLower .Curve}}groth16.Verify(proof, &vk, publicWitness)
 		}
 	})
 }
@@ -176,12 +155,16 @@ func BenchmarkVerifier(b *testing.B) {
 
 
 func BenchmarkSerialization(b *testing.B) {
-	r1cs, solution := referenceCircuit()
+	r1cs, _solution := referenceCircuit()
+	witness, err := {{toLower .Curve}}witness.Full(_solution)
+	if err != nil {
+		b.Fatal(err)
+	}
 	
 	var pk {{toLower .Curve}}groth16.ProvingKey
 	var vk {{toLower .Curve}}groth16.VerifyingKey
 	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
-	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, solution, false)
+	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, witness, false)
 	if err != nil {
 		panic(err)
 	}

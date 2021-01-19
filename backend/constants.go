@@ -25,9 +25,6 @@ var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 // note: this types are shared between frontend and backend packages and are here to avoid import cycles
 // probably need a better naming / home for them
 
-// OneWire is the assignment label / name used for the constant wire one
-const OneWire = "ONE_WIRE"
-
 // Visibility encodes a Variable (or wire) visibility
 // Possible values are Unset, Internal, Secret or Public
 type Visibility uint8

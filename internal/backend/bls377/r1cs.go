@@ -39,8 +39,6 @@ type R1CS struct {
 	NbWires       uint64
 	NbPublicWires uint64 // includes ONE wire
 	NbSecretWires uint64
-	SecretWires   []string // private wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
-	PublicWires   []string // public wire names, correctly ordered (the i-th entry is the name of the (offset+)i-th wire)
 	Logs          []backend.LogEntry
 	DebugInfo     []backend.LogEntry
 
@@ -89,65 +87,35 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), err
 }
 
-// IsSolved returns nil if given assignment solves the R1CS and error otherwise
+// IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (r1cs *R1CS) IsSolved(assignment map[string]interface{}) error {
+func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
 	c := make([]fr.Element, r1cs.NbConstraints)
 	wireValues := make([]fr.Element, r1cs.NbWires)
-	return r1cs.Solve(assignment, a, b, c, wireValues)
+	return r1cs.Solve(witness, a, b, c, wireValues)
 }
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
-// assignment: map[string]value: contains the input variables
+// witness: contains the input variables
 // a, b, c vectors: ab-c = hz
-// wireValues =  [intermediateVariables | privateInputs | publicInputs]
-func (r1cs *R1CS) Solve(assignment map[string]interface{}, a, b, c, wireValues []fr.Element) error {
+// wireValues =  [intermediateVariables | secretInputs | publicInputs]
+func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) error {
+	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
+		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
+	}
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != int(r1cs.NbWires) {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
-
+	privateStartIndex := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, r1cs.NbWires)
-
-	// instantiate the public/ private inputs
-	// note that currently, there is a convertion from interface{} to fr.Element for each entry in the
-	// assignment map. It can cost a SetBigInt() which converts from Regular ton Montgomery rep (1 mul)
-	// while it's unlikely to be noticeable compared to the FFT and the MultiExp compute times,
-	// there should be a faster (statically typed) path
-	instantiateInputs := func(offset int, inputNames []string) error {
-		for i := 0; i < len(inputNames); i++ {
-			name := inputNames[i]
-			if name == backend.OneWire {
-				wireValues[i+offset].SetOne()
-				wireInstantiated[i+offset] = true
-			} else {
-				if val, ok := assignment[name]; ok {
-					wireValues[i+offset].SetInterface(val)
-					wireInstantiated[i+offset] = true
-				} else {
-					return fmt.Errorf("%q: %w", name, backend.ErrInputNotSet)
-				}
-			}
-		}
-		return nil
-	}
-	// instantiate private inputs
-	if r1cs.NbSecretWires != 0 {
-		offset := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires) // private input start index
-		if err := instantiateInputs(offset, r1cs.SecretWires); err != nil {
-			return err
-		}
-	}
-	// instantiate public inputs
-	{
-		offset := int(r1cs.NbWires - r1cs.NbPublicWires) // public input start index
-		if err := instantiateInputs(offset, r1cs.PublicWires); err != nil {
-			return err
-		}
+	copy(wireValues[privateStartIndex:], witness) // TODO factorize
+	for i := 0; i < len(witness); i++ {
+		wireInstantiated[i+privateStartIndex] = true
 	}
 
 	// now that we know all inputs are set, defer log printing once all wireValues are computed

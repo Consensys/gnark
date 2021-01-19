@@ -54,13 +54,11 @@ type ProvingKey struct {
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type VerifyingKey struct {
-	// ordered public input names
-	PublicInputs []string
-
 	// [α]1, [Kvk]1
 	G1 struct {
-		Alpha curve.G1Affine
-		K     []curve.G1Affine // The indexes correspond to the public wires
+		Alpha       curve.G1Affine
+		Beta, Delta curve.G1Affine   // unused, here for compatibility purposes
+		K           []curve.G1Affine // The indexes correspond to the public wires
 	}
 
 	// [β]2, [δ]2, [γ]2,
@@ -94,9 +92,6 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// Setting group for fft
 	domain := fft.NewDomain(r1cs.NbConstraints)
-
-	// Set public inputs in Verifying Key (Verify does not need the R1CS data structure)
-	vk.PublicInputs = r1cs.PublicWires
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -234,6 +229,11 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// Pairing: vk.e
 	vk.G1.Alpha = pk.G1.Alpha
 	vk.G2.Beta = pk.G2.Beta
+
+	// unused, here for compatibility purposes
+	vk.G1.Beta = pk.G1.Beta
+	vk.G1.Delta = pk.G1.Delta
+
 	vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
 	if err != nil {
 		return err

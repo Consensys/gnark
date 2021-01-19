@@ -6,13 +6,35 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gurvy"
 )
 
 // Circuit must be implemented by user-defined circuits
+//
+// the tag format is as follow:
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:"name,option"`
+// 		}
+// if empty, default resolves to variable name (here "Y") and secret visibility
+// similarly to json or xml struct tags, these are valid:
+// 		`gnark:",public"` or `gnark:"-"`
+// using "-" marks the variable as ignored by the Compile method. This can be useful when you need to
+// declare variables as aliases that are already allocated. For example
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:",public"`
+//			Z frontend.Variable `gnark:"-"`
+// 		}
+// it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
 type Circuit interface {
 	// Define declares the circuit's Constraints
 	Define(curveID gurvy.ID, cs *ConstraintSystem) error
+}
+
+// Witness embedds Circuit interface, used to distinguish APIs
+// that expect a Witness (with assigned values) versus a Circuit
+type Witness interface {
+	Circuit
 }
 
 // Compile will generate a R1CS from the given circuit
@@ -35,7 +57,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+	var handler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
 			if v.id != 0 {
@@ -47,19 +69,18 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 			}
 			switch visibility {
 			case backend.Unset, backend.Secret:
-				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
+				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
 			case backend.Public:
-				tInput.Set(reflect.ValueOf(cs.newPublicVariable(name)))
+				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
 			}
 
 			return nil
 		}
 		return errors.New("can't set val " + name)
 	}
-
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
-	if err := parseType(circuit, "", backend.Unset, handler); err != nil {
+	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
 		return nil, err
 	}
 
@@ -75,40 +96,4 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	}
 
 	return res, nil
-}
-
-// ParseWitness will returns a map[string]interface{} to be used as input in
-// in R1CS.Solve(), groth16.Prove()
-//
-// if input is not already a map[string]interface{}, it must implement frontend.Circuit
-func ParseWitness(input interface{}) (map[string]interface{}, error) {
-
-	switch c := input.(type) {
-	case map[string]interface{}:
-		return c, nil
-	case Circuit:
-		toReturn := make(map[string]interface{})
-
-		var extractHandler leafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-
-			v := tInput.Interface().(Variable)
-
-			if v.val != nil {
-				toReturn[name] = v.val
-			}
-
-			return nil
-		}
-
-		// recursively parse through reflection the circuits members to find all inputs that need to be allOoutputcated
-		// (secret or public inputs)
-		return toReturn, parseType(c, "", backend.Unset, extractHandler)
-	default:
-		rValue := reflect.ValueOf(input)
-		if rValue.Kind() != reflect.Ptr {
-			return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit (got a non-pointer value)")
-		}
-		return nil, errors.New("input must be map[string]interface{} or implement frontend.Circuit")
-	}
-
 }

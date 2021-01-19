@@ -22,7 +22,7 @@ import (
 	curve "github.com/consensys/gurvy/bw761"
 
 	"errors"
-	"github.com/consensys/gnark/backend"
+	"fmt"
 	"io"
 )
 
@@ -31,8 +31,12 @@ var (
 	errCorrectSubgroupCheckFailed = errors.New("points in the proof are not in the correct subgroup")
 )
 
-// Verify verifies a proof
-func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error {
+// Verify verifies a proof with given VerifyingKey and publicWitness
+// publicWitness must be in regular form (and not in Montgomery)
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
+	if len(publicWitness) != len(vk.G1.K) {
+		return fmt.Errorf("invalid witness size, got %d, expected %d (public)", len(publicWitness), len(vk.G1.K))
+	}
 
 	// check that the points in the proof are in the correct subgroup
 	if !proof.isValid() {
@@ -45,28 +49,14 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 	// compute (eKrsδ, eArBs)
 	go func() {
 		var errML error
-
-		// TODO temporary while bw761 API catches up in gurvy
-		var eKrsδ, eArBs curve.GT
-		eKrsδ, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs}, []curve.G2Affine{vk.G2.deltaNeg})
-		if errML != nil {
-			chDone <- errML
-			close(chDone)
-		}
-		eArBs, errML = curve.MillerLoop([]curve.G1Affine{proof.Ar}, []curve.G2Affine{proof.Bs})
-		doubleML.Mul(&eKrsδ, &eArBs)
-
+		doubleML, errML = curve.MillerLoop([]curve.G1Affine{proof.Krs, proof.Ar}, []curve.G2Affine{vk.G2.deltaNeg, proof.Bs})
 		chDone <- errML
 		close(chDone)
 	}()
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Affine
-	kInputs, err := ParsePublicInput(vk.PublicInputs, inputs)
-	if err != nil {
-		return err
-	}
-	kSum.MultiExp(vk.G1.K, kInputs)
+	kSum.MultiExp(vk.G1.K, publicWitness)
 
 	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.gammaNeg})
 	if err != nil {
@@ -84,30 +74,6 @@ func Verify(proof *Proof, vk *VerifyingKey, inputs map[string]interface{}) error
 		return errPairingCheckFailed
 	}
 	return nil
-}
-
-// ParsePublicInput return the ordered public input values
-// in regular form (used as scalars for multi exponentiation).
-// The function is public because it's needed for the recursive snark.
-func ParsePublicInput(expectedNames []string, input map[string]interface{}) ([]fr.Element, error) {
-	toReturn := make([]fr.Element, len(expectedNames))
-
-	for i := 0; i < len(expectedNames); i++ {
-		if expectedNames[i] == backend.OneWire {
-			// ONE_WIRE is a reserved name, it should not be set by the user
-			toReturn[i].SetOne()
-			toReturn[i].FromMont()
-		} else {
-			if val, ok := input[expectedNames[i]]; ok {
-				toReturn[i].SetInterface(val)
-				toReturn[i].FromMont()
-			} else {
-				return nil, backend.ErrInputNotSet
-			}
-		}
-	}
-
-	return toReturn, nil
 }
 
 // ExportSolidity not implemented for BW761

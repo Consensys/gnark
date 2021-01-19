@@ -26,7 +26,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/bls377/fft"
 
 	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 
 	"testing"
@@ -94,13 +93,16 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
-		func(p1 curve.G1Affine, p2 curve.G2Affine, rs string) bool {
+		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
 			var vk, vkCompressed, vkRaw VerifyingKey
 
 			// create a random vk
 			nbWires := 6
 
 			vk.G1.Alpha = p1
+			vk.G1.Beta = p1
+			vk.G1.Delta = p1
+
 			vk.G2.Gamma = p2
 			vk.G2.Beta = p2
 			vk.G2.Delta = p2
@@ -117,11 +119,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			vk.G1.K = make([]curve.G1Affine, nbWires)
 			for i := 0; i < nbWires; i++ {
 				vk.G1.K[i] = p1
-			}
-
-			vk.PublicInputs = make([]string, nbWires)
-			for i := 0; i < nbWires; i++ {
-				vk.PublicInputs[i] = rs
 			}
 
 			var bufCompressed bytes.Buffer
@@ -164,7 +161,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 		},
 		GenG1(),
 		GenG2(),
-		gen.AnyString(),
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
