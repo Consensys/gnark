@@ -21,7 +21,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 
 	frbls377 "github.com/consensys/gurvy/bls377/fr"
@@ -245,7 +244,7 @@ func (cs *ConstraintSystem) Or(a, b Variable) Variable {
 	v1 := cs.Sub(1, a)
 	v2 := cs.Sub(res, a)
 
-	constraint := r1c.R1C{L: b.getLinExpCopy(), R: v1.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: r1c.SingleOutput}
+	constraint := backend.R1C{L: b.getLinExpCopy(), R: v1.getLinExpCopy(), O: v2.getLinExpCopy(), Solver: backend.SingleOutput}
 	cs.constraints = append(cs.constraints, constraint)
 
 	return res
