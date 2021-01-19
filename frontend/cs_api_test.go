@@ -76,17 +76,6 @@ func checkSecretVariables(csRes csResult) bool {
 	return true
 }
 
-// TODO exepctedID can be 0, while being correct with the cached linear expression...
-func checkInternalVariables(csRes csResult) bool {
-	for i, args := range csRes.internalVariables {
-		expectedID := len(csRes.cs.internal.variables) - len(csRes.internalVariables) + i
-		if args.val != nil || args.id != expectedID {
-			return false
-		}
-	}
-	return true
-}
-
 // ------------------------------------------------------------------------------
 // post condition should hold when applying a function on the system
 
@@ -508,63 +497,7 @@ func rfIsBoolean() runfunc {
 
 var nsIsBoolean = deltaState{1, 1, 0, 0, 4}
 
-// bound a variable by another variable
-func rfMustBeLessOrEqVar() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsLessOrEqual(a, b)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
 var nsMustBeLessOrEqVar = deltaState{1, 1, 1281, 771, 768}
-
-// bound a variable by a constant
-func rfMustBeLessOrEqConst() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsLessOrEqual(a, 256)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
 
 var nsMustBeLessOrEqConst = csState{1, 0, 257, 2, 511} // nb internal variables: 256+HW(bound), nb constraints: 1+HW(bound), nb assertions: 256+HW(^bound)
 

@@ -17,7 +17,7 @@ func (circuit *checkAssertEqualCircuit) Define(curveID gurvy.ID, cs *frontend.Co
 	return nil
 }
 
-func checkAssertEqual() {
+func init() {
 
 	var circuit, good, bad, public checkAssertEqualCircuit
 

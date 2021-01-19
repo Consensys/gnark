@@ -487,7 +487,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	// }
 	// stack := getCallStack()
 	debugInfo := logEntry{
-		format:    fmt.Sprintf("error AssertIsBoolean"),
+		format:    "error AssertIsBoolean",
 		toResolve: nil,
 	}
 	stack := getCallStack()

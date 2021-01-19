@@ -55,7 +55,6 @@ type ConstraintSystem struct {
 	// Constraints
 	constraints []r1c.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
 	assertions  []r1c.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
-	oneTerm     r1c.Term
 
 	// Coefficients in the constraints
 	coeffs    []big.Int      // list of unique coefficients.
@@ -120,16 +119,8 @@ func debugInfoUnsetVariable(term r1c.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneLinExp() r1c.LinearExpression {
-	return cs.public.variables[0].linExp
-}
-
 func (cs *ConstraintSystem) getOneTerm() r1c.Term {
 	return cs.public.variables[0].linExp[0]
-}
-
-func (cs *ConstraintSystem) getOneWire() Wire {
-	return cs.public.variables[0].Wire
 }
 
 func (cs *ConstraintSystem) getOneVariable() Variable {
@@ -243,12 +234,6 @@ func (cs *ConstraintSystem) reduce(linExp r1c.LinearExpression) r1c.LinearExpres
 	accSize += len(reduceInternal)
 	copy(res[accSize:], reduceUnset)
 	return res
-}
-
-func (cs *ConstraintSystem) bigIntValue(term r1c.Term) big.Int {
-	var coeff big.Int
-	coeff.Set(&cs.coeffs[term.CoeffID()])
-	return coeff
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {

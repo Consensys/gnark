@@ -138,6 +138,9 @@ func TestVerifier(t *testing.T) {
 
 	// compute vk.e
 	e, err := bls377.Pair([]bls377.G1Affine{innerVk.G1.Alpha}, []bls377.G2Affine{innerVk.G2.Beta})
+	if err != nil {
+		t.Fatal(err)
+	}
 	witness.InnerVk.E.Assign(&e)
 
 	witness.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
