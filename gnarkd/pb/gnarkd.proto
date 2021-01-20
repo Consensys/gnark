@@ -44,22 +44,15 @@ message ProveRequest {
 }
 
 message ProveResult {
-	bytes proof = 3;
+	bytes proof = 1;
 }
-
 
 message CreateProveJobRequest {
 	string circuitID = 1;
 }
 
 message CreateProveJobResponse {
-	enum Status {
-		OK = 0;
-		NOK = 1;
-	}
-	Status status = 1;
-	optional string jobID = 2;
-	optional string err = 3;
+	string jobID = 1;
 }
 
 

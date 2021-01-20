@@ -54,7 +54,7 @@ func init() {
 	log = logger.Sugar()
 }
 
-//go:generate protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  pb/gnarkd.proto
+// protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  pb/gnarkd.proto
 func main() {
 	log.Info("starting gnarkd")
 	defer log.Warn("stopping gnarkd")
