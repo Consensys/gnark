@@ -27,7 +27,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/r1cs"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
 	"github.com/consensys/gurvy"
 )
 
@@ -53,8 +52,8 @@ type ConstraintSystem struct {
 	}
 
 	// Constraints
-	constraints []r1c.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions  []r1c.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
+	constraints []backend.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions  []backend.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
 
 	// Coefficients in the constraints
 	coeffs    []big.Int      // list of unique coefficients.
@@ -119,7 +118,7 @@ func debugInfoUnsetVariable(term backend.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneTerm() r1c.Term {
+func (cs *ConstraintSystem) getOneTerm() backend.Term {
 	return cs.public.variables[0].linExp[0]
 }
 
@@ -236,7 +235,7 @@ func (cs *ConstraintSystem) reduce(linExp backend.LinearExpression) backend.Line
 	return res
 }
 
-func (cs *ConstraintSystem) addAssertion(constraint r1c.R1C, debugInfo logEntry) {
+func (cs *ConstraintSystem) addAssertion(constraint backend.R1C, debugInfo logEntry) {
 
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
@@ -254,9 +253,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
 		NbSecretWires:   uint64(len(cs.secret.variables)),
 		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
 		NbCOConstraints: uint64(len(cs.constraints)),
-		Constraints:     make([]r1c.R1C, len(cs.constraints)+len(cs.assertions)),
-		SecretWires:     cs.secret.names,
-		PublicWires:     cs.public.names,
+		Constraints:     make([]backend.R1C, len(cs.constraints)+len(cs.assertions)),
 		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),

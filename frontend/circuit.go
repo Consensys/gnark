@@ -97,3 +97,50 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
 	return res, nil
 }
+
+// CompilePlonk WIP
+func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, error) {
+
+	// instantiate our constraint system
+	cs := newConstraintSystem()
+
+	// leaf handlers are called when encoutering leafs in the circuit data struct
+	// leafs are Constraints that need to be initialized in the context of compiling a circuit
+	var handler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+		if tInput.CanSet() {
+			v := tInput.Interface().(Variable)
+			if v.id != 0 {
+				v.id = 0
+				// return errors.New("circuit was already compiled")
+			}
+			if v.val != nil {
+				return errors.New("circuit has some assigned values, can't compile")
+			}
+			switch visibility {
+			case backend.Unset, backend.Secret:
+				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
+			case backend.Public:
+				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
+			}
+
+			return nil
+		}
+		return errors.New("can't set val " + name)
+	}
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
+	// (secret or public inputs)
+	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+		return nil, err
+	}
+
+	// call Define() to fill in the Constraints
+	if err := circuit.Define(curveID, &cs); err != nil {
+		return nil, err
+	}
+
+	var pcs PlonkCS
+	csToPlonk(&cs, &pcs)
+
+	return &pcs, nil
+
+}

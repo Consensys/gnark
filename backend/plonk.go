@@ -15,7 +15,8 @@
 package backend
 
 // PlonkConstraint used to compute the wires
-// L+R+M[0]M[1]+k=O
+// L+R+M[0]M[1]+O+k=0
+// if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
 type PlonkConstraint struct {
 	L, R, O Term
 	M       [2]Term
