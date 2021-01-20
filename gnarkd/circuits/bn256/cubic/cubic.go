@@ -1,9 +1,6 @@
-package main
+package cubic
 
 import (
-	"os"
-
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 )
@@ -23,28 +20,4 @@ func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
 	cs.AssertIsEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
 	return nil
-}
-
-//go:generate go run cubic.go
-func main() {
-	var circuit Circuit
-	r1cs, _ := frontend.Compile(gurvy.BN256, &circuit)
-
-	{
-		f, _ := os.Create("cubic.r1cs")
-		r1cs.WriteTo(f)
-		f.Close()
-	}
-
-	pk, vk, _ := groth16.Setup(r1cs)
-	{
-		f, _ := os.Create("cubic.pk")
-		pk.WriteTo(f)
-		f.Close()
-	}
-	{
-		f, _ := os.Create("cubic.vk")
-		vk.WriteTo(f)
-		f.Close()
-	}
 }

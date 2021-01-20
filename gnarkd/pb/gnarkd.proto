@@ -22,24 +22,48 @@ option go_package = "github.com/consensys/gnark/gnarkd/pb";
  Provides services to compute and verify Groth16 proofs
  */
 service Groth16 {
-	// Prove takes circuitID and optional witness as parameter. If optional witness is not specified
-	// ProveJobStatus will be in a status "awaiting for witness" which must be sent outside gRPC
-	// through a TCP connection. This ensure that the API can deal with large witnesses. 
-	// For small circuits, ProveResult may contain the proof. For large circuits, must use JobStatus and 
-	// await for async result
+	// Prove takes circuitID and witness as parameter
+	// this is a synchronous call and bypasses the job queue
+	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses, 
+	// use CreateProveJob instead
 	rpc Prove(ProveRequest) returns (ProveResult);
 
-	// JobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
-	rpc JobStatus(stream JobStatusRequest) returns (stream ProveResult);
+
+	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
+	rpc CreateProveJob(CreateProveJobRequest) returns (CreateProveJobResponse);
+
+	// ProveJobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
+	// Server may stream job results when they are done to connected clients, avoiding polling (WIP @gbotrel)
+	rpc ProveJobStatus(stream ProveJobStatusRequest) returns (stream ProveJobResult);
 }
 
 
 message ProveRequest {
 	string circuitID = 1;
-	optional bytes witness = 2;
+	bytes witness = 2;
 }
 
 message ProveResult {
+	bytes proof = 3;
+}
+
+
+message CreateProveJobRequest {
+	string circuitID = 1;
+}
+
+message CreateProveJobResponse {
+	enum Status {
+		OK = 0;
+		NOK = 1;
+	}
+	Status status = 1;
+	optional string jobID = 2;
+	optional string err = 3;
+}
+
+
+message ProveJobResult {
 	string jobID = 1;
 	enum Status {
 		QUEUED = 0;
@@ -53,6 +77,6 @@ message ProveResult {
 	optional bytes proof = 4;
 }
 
-message JobStatusRequest {
+message ProveJobStatusRequest {
 	string jobID = 1;
 }

@@ -15,12 +15,15 @@
 package main
 
 import (
+	"bytes"
 	context "context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	"github.com/consensys/gurvy"
 
@@ -56,6 +59,34 @@ func newServer() (*server, error) {
 	}
 
 	return toReturn, nil
+}
+
+// Prove takes circuitID and witness as parameter
+// this is a synchronous call and bypasses the job queue
+// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
+// use CreateProveJob instead
+func (s *server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.ProveResult, error) {
+	log.Debugw("Prove", "circuitID", request.CircuitID)
+	circuit, ok := s.circuits[request.CircuitID]
+	if !ok {
+		log.Errorw("Prove called with unknown circuitID", "ID", request.CircuitID)
+		return nil, grpc.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
+	}
+
+	proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, request.Witness)
+	if err != nil {
+		log.Error(err)
+		return nil, grpc.Errorf(codes.Internal, err.Error())
+	}
+
+	var buf bytes.Buffer
+	_, err = proof.WriteTo(&buf)
+	if err != nil {
+		log.Error(err)
+		return nil, grpc.Errorf(codes.Internal, err.Error())
+	}
+	log.Infow("successfully created proof", "circuitID", request.CircuitID)
+	return &pb.ProveResult{Proof: buf.Bytes()}, nil
 }
 
 // loadCircuits walk through fCircuitDir and caches proving keys, verifying keys, and R1CS
@@ -194,23 +225,4 @@ func (s *server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	log.Infow("successfully loaded circuit", "ID", circuitID)
 
 	return nil
-}
-
-// Prove takes circuitID and optional witness as parameter. If optional witness is not specified
-// ProveJobStatus will be in a status "awaiting for witness" which must be sent outside gRPC
-// through a TCP connection. This ensure that the API can deal with large witnesses.
-// For small circuits, ProveResult may contain the proof. For large circuits, must use JobStatus and
-// await for async result
-func (s *server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.ProveResult, error) {
-	log.Debugw("Prove", "circuitID", request.CircuitID)
-	if (request.Witness == nil) || (len(request.Witness) == 0) {
-		log.Debug("request has no witness attached")
-	}
-	return nil, nil
-}
-
-// JobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
-func (s *server) JobStatus(ss pb.Groth16_JobStatusServer) error {
-	log.Debugw("JobStatus")
-	return errors.New("not implemented")
 }

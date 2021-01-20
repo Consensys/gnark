@@ -15,10 +15,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"time"
 
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gurvy"
+
+	"github.com/consensys/gnark/gnarkd/circuits/bn256/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
 	"google.golang.org/grpc"
 )
@@ -39,9 +44,22 @@ func main() {
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	r, err := c.Prove(ctx, &pb.ProveRequest{CircuitID: "id"})
+
+	var w cubic.Circuit
+	w.X.Assign(3)
+	w.Y.Assign(35)
+	var buf bytes.Buffer
+	err = witness.WriteFull(&buf, &w, gurvy.BN256)
+	if err != nil {
+		log.Fatalf("serializing witness: %v", err)
+	}
+
+	_, err = c.Prove(ctx, &pb.ProveRequest{
+		CircuitID: "bn256/cubic",
+		Witness:   buf.Bytes(),
+	})
 	if err != nil {
 		log.Fatalf("could not prove: %v", err)
 	}
-	log.Printf("response: %s", r.GetJobID())
+	log.Println("proof ok")
 }
