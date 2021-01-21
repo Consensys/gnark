@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,15 +38,17 @@ import (
 	"github.com/consensys/gnark/gnarkd/pb"
 )
 
-// TODO @gbotrel add io.LimitReader with expect witness size in circuit struct in TCP protocol
-
-const defaultTTL = time.Hour * 3 // default TTL for keeping jobs in server.jobs
+const (
+	defaultTTL   = time.Hour * 3 // default TTL for keeping jobs in server.jobs
+	jobQueueSize = 10
+)
 
 // server implements Groth16Server
 type server struct {
 	pb.UnimplementedGroth16Server
-	circuits map[string]circuit // not thread safe as it is loaded once only
-	jobs     sync.Map           // key == uuid[string], value == proveJob
+	circuits   map[string]circuit // not thread safe as it is loaded once only
+	jobs       sync.Map           // key == uuid[string], value == proveJob
+	chJobQueue chan jobID         // TODO @gbotrel shutdown hook, close the queue, after closing the TCP socket
 }
 
 func newServer() (*server, error) {
@@ -53,7 +56,57 @@ func newServer() (*server, error) {
 	if err := s.loadCircuits(); err != nil {
 		return nil, err
 	}
+	s.chJobQueue = make(chan jobID, jobQueueSize)
+	go s.startWorker()
 	return s, nil
+}
+
+// called in a go routine
+func (s *server) startWorker() {
+	log.Info("starting worker")
+	var buf bytes.Buffer
+	for jobID := range s.chJobQueue {
+		log.Infow("executing job", "jobID", jobID)
+
+		_job, ok := s.jobs.Load(jobID)
+		if !ok {
+			log.Fatalw("inconsistant server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+		}
+		job := _job.(*proveJob)
+
+		job.setStatus(pb.ProveJobResult_RUNNING)
+
+		// note that job.witness and job.prove can only be accessed by this go routine at this point
+		circuit, ok := s.circuits[job.circuitID]
+		if !ok {
+			log.Fatalw("inconsistant server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
+		}
+
+		// run prove
+		proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
+		job.witness = nil // set witness to nil
+		if err != nil {
+			log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
+			job.err = err
+			job.setStatus(pb.ProveJobResult_ERRORED)
+			continue
+		}
+
+		// serialize proof
+		buf.Reset()
+		_, err = proof.WriteTo(&buf)
+		if err != nil {
+			log.Errorw("couldn't serialize proof", "err", err)
+			job.err = err
+			job.setStatus(pb.ProveJobResult_ERRORED)
+			continue
+		}
+
+		log.Infow("successfully computed proof", "jobID", job.id)
+		job.proof = buf.Bytes()
+		job.setStatus(pb.ProveJobResult_COMPLETED)
+	}
+	log.Info("stopping worker")
 }
 
 // Prove takes circuitID and witness as parameter
@@ -100,40 +153,18 @@ func (s *server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobR
 
 	// create job
 	job := proveJob{
-		id:         jobID(uuid.New().String()),
+		id:         uuid.New(),
 		status:     pb.ProveJobResult_WAITING_WITNESS, // default value
 		expiration: time.Now().Add(defaultTTL),
+		circuitID:  request.CircuitID,
 	}
 
 	// store job, waiting for witness via TCP socket
 	s.jobs.Store(job.id, &job)
 	log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
 
-	// TODO @gbotrel remove this, temporary, trigger job status change .
-	go func() {
-
-		<-time.After(time.Second * 2)
-		job.Lock()
-		job.status = pb.ProveJobResult_QUEUED
-		// job.Unlock()
-		// job.RLock()
-		for _, ch := range job.subscribers {
-			ch <- struct{}{}
-		}
-		job.Unlock()
-		<-time.After(time.Second * 2)
-		job.Lock()
-		job.status = pb.ProveJobResult_COMPLETED
-		// job.Unlock()
-		// job.RLock()
-		for _, ch := range job.subscribers {
-			ch <- struct{}{}
-		}
-		job.Unlock()
-	}()
-
 	// return job id
-	return &pb.CreateProveJobResponse{JobID: string(job.id)}, nil
+	return &pb.CreateProveJobResponse{JobID: job.id.String()}, nil
 }
 
 // SubscribeToProveJob enables a client to get job status changes from the server
@@ -141,7 +172,12 @@ func (s *server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobR
 // when job is done (ok or errored), server closes connection
 func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
 	// ensure jobID is valid
-	_job, ok := s.jobs.Load(jobID(request.JobID))
+	jobID, err := uuid.Parse(request.JobID)
+	if err != nil {
+		log.Errorw("invalid job id", "jobID", request.JobID)
+		return grpc.Errorf(codes.InvalidArgument, "invalid jobID %s", request.JobID)
+	}
+	_job, ok := s.jobs.Load(jobID)
 	if !ok {
 		log.Errorw("SubscribeToProveJob called with unknown jobID", "jobID", request.JobID)
 		return grpc.Errorf(codes.NotFound, "unknown job %s", request.JobID)
@@ -149,7 +185,7 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 
 	// check job status
 	job := _job.(*proveJob)
-	chJobUpdate := make(chan struct{}, 1)
+	chJobUpdate := make(chan struct{}, 2)
 	job.Lock()
 	jobFinished := job.isFinished()
 	if !jobFinished {
@@ -201,7 +237,7 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			job.RUnlock()
 
 			// send job status on stream.
-			log.Infow("sending job status update", "jobID", request.JobID, "status", job.status.String())
+			log.Infow("sending job status update", "jobID", request.JobID, "status", result.Status.String())
 			if err := stream.Send(result); err != nil {
 				log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
 				return grpc.Errorf(codes.Internal, "couldn't send response of finished job")
@@ -218,6 +254,77 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			}
 		}
 	}
+}
+
+func (s *server) startWitnessListener(l net.Listener) {
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		go s.receiveWitness(c)
+	}
+}
+
+func (s *server) receiveWitness(c net.Conn) {
+	log.Infow("receiving a witness", "remoteAddr", c.RemoteAddr().String())
+
+	defer c.Close()
+
+	// read jobID
+	var bufJobID [jobIDSize]byte
+	if _, err := io.ReadFull(c, bufJobID[:]); err != nil {
+		log.Errorw("when reading jobID on connection", "err", err)
+		c.Write([]byte("nok"))
+		return
+	}
+
+	// parse jobid
+	var jobID uuid.UUID
+	if err := jobID.UnmarshalBinary(bufJobID[:]); err != nil {
+		log.Errorw("when parsing jobID on connection", "err", err)
+		c.Write([]byte("nok"))
+		return
+	}
+
+	// find job
+	_job, ok := s.jobs.Load(jobID)
+	if !ok {
+		log.Errorw("unknown jobID", "jobID", jobID.String())
+		c.Write([]byte("nok"))
+		return
+	}
+
+	// check job status
+	job := _job.(*proveJob)
+	job.Lock()
+	if job.status != pb.ProveJobResult_WAITING_WITNESS {
+		job.Unlock()
+		log.Errorw("job is not waiting for witness, closing connection", "jobID", jobID.String())
+		c.Write([]byte("nok"))
+		return
+	}
+
+	// /!\  keeping the lock on the job while we get the witness /!\
+
+	circuit, ok := s.circuits[job.circuitID]
+	if !ok {
+		log.Fatalw("inconsistant server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
+	}
+
+	wBuf := make([]byte, circuit.fullWitnessSize)
+	if _, err := io.ReadFull(c, wBuf); err != nil {
+		job.Unlock()
+		log.Errorw("when parsing witness", "err", err, "jobID", jobID.String())
+		c.Write([]byte("nok"))
+	}
+	job.witness = wBuf
+	job.Unlock()
+	c.Write([]byte("ok"))
+
+	job.setStatus(pb.ProveJobResult_QUEUED)
+	s.chJobQueue <- jobID // queue the job
 }
 
 // loadCircuits walk through fCircuitDir and caches proving keys, verifying keys, and R1CS
@@ -317,6 +424,9 @@ func (s *server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	if circuit.r1cs == nil {
 		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
+
+	circuit.publicWitnessSize = int((circuit.r1cs.GetNbPublicWires() - 1)) * circuit.r1cs.SizeFrElement()
+	circuit.fullWitnessSize = int((circuit.r1cs.GetNbPublicWires() + circuit.r1cs.GetNbSecretWires())) * circuit.r1cs.SizeFrElement()
 
 	s.circuits[circuitID] = circuit
 

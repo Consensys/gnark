@@ -25,6 +25,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+// TODO @gbotrel add io.LimitReader with expect witness size in circuit struct in TCP protocol
+// TODO @gbotrel add TLS on the sockets
+// TODO @gbotrel graceful shutdown, if either of the listener fails
+
 // -------------------------------------------------------------------------------------------------
 // flags
 var (
@@ -32,7 +36,8 @@ var (
 )
 
 const (
-	port = ":50051"
+	witnessPort = ":9001"
+	grpcPort    = ":9002"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -69,14 +74,22 @@ func main() {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
 
-	// TODO @gbotrel make it TLS + flags for cert and key
-	lis, err := net.Listen("tcp", port)
+	grpcLis, err := net.Listen("tcp", grpcPort)
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
 	}
+	wLis, err := net.Listen("tcp", witnessPort)
+	if err != nil {
+		log.Fatalw("failed to listen tcp", "err", err)
+	}
+
+	// start witness listener
+	go gnarkdServer.startWitnessListener(wLis)
+
+	// start gRPC listener
 	s := grpc.NewServer()
 	pb.RegisterGroth16Server(s, gnarkdServer)
-	if err := s.Serve(lis); err != nil {
+	if err := s.Serve(grpcLis); err != nil {
 		log.Fatalw("failed to start server", "err", err)
 	}
 }

@@ -19,9 +19,11 @@ import (
 	"context"
 	"io"
 	"log"
+	"net"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gurvy"
+	"github.com/google/uuid"
 
 	"github.com/consensys/gnark/gnarkd/circuits/bn256/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
@@ -29,7 +31,7 @@ import (
 )
 
 const (
-	address = "localhost:50051"
+	address = "localhost:9002"
 )
 
 func main() {
@@ -86,6 +88,36 @@ func main() {
 				log.Fatalf("cannot receive %v", err)
 			}
 			log.Printf("Resp received: %s", resp.Status.String())
+			if resp.Status == pb.ProveJobResult_ERRORED {
+				log.Fatalf("with error %s", *resp.Err)
+			}
+		}
+	}()
+
+	go func() {
+		// send witness
+		conn, err := net.Dial("tcp", "127.0.0.1:9001")
+		if err != nil {
+			log.Fatalf("cannot connect to witness socket %v", err)
+			return
+		}
+
+		jobID, err := uuid.Parse(r.JobID)
+		if err != nil {
+			panic(err)
+		}
+		bjobID, err := jobID.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		_, err = conn.Write(bjobID)
+		if err != nil {
+			panic(err)
+		}
+		n, err := conn.Write(buf.Bytes())
+		log.Println("witness size", n)
+		if err != nil {
+			panic(err)
 		}
 	}()
 
