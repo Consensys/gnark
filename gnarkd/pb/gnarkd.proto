@@ -32,11 +32,11 @@ service Groth16 {
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	rpc CreateProveJob(CreateProveJobRequest) returns (CreateProveJobResponse);
 
-	// ProveJobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
-	// Server may stream job results when they are done to connected clients, avoiding polling (WIP @gbotrel)
-	rpc ProveJobStatus(stream ProveJobStatusRequest) returns (stream ProveJobResult);
+	// SubscribeToProveJob enables a client to get job status changes from the server
+	// at connection start, server sends current job status
+	// when job is done (ok or errored), server closes connection
+	rpc SubscribeToProveJob(SubscribeToProveJobRequest) returns (stream ProveJobResult);
 }
-
 
 message ProveRequest {
 	string circuitID = 1;
@@ -59,17 +59,17 @@ message CreateProveJobResponse {
 message ProveJobResult {
 	string jobID = 1;
 	enum Status {
-		QUEUED = 0;
-		RUNNING = 1;
-		COMPLETED = 2;
-		ERRORED = 3;
-		WAITING_WITNESS = 4;
+		WAITING_WITNESS = 0;
+		QUEUED = 1;
+		RUNNING = 2;
+		COMPLETED = 3;
+		ERRORED = 4;
 	}
 	Status status = 2;
 	optional string err = 3;
 	optional bytes proof = 4;
 }
 
-message ProveJobStatusRequest {
+message SubscribeToProveJobRequest {
 	string jobID = 1;
 }

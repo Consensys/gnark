@@ -54,6 +54,7 @@ func init() {
 	log = logger.Sugar()
 }
 
+// TODO @gbotrel ensure CircleCI builds do that.
 // protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  pb/gnarkd.proto
 func main() {
 	log.Info("starting gnarkd")

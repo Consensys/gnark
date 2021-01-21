@@ -18,9 +18,14 @@ import (
 	"bytes"
 	context "context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,33 +37,23 @@ import (
 	"github.com/consensys/gnark/gnarkd/pb"
 )
 
+// TODO @gbotrel add io.LimitReader with expect witness size in circuit struct in TCP protocol
+
+const defaultTTL = time.Hour * 3 // default TTL for keeping jobs in server.jobs
+
 // server implements Groth16Server
 type server struct {
 	pb.UnimplementedGroth16Server
-	circuits map[string]circuit
-}
-
-const (
-	pkExt   = ".pk"
-	vkExt   = ".vk"
-	r1csExt = ".r1cs"
-)
-
-type circuit struct {
-	pk   groth16.ProvingKey
-	vk   groth16.VerifyingKey
-	r1cs r1cs.R1CS
+	circuits map[string]circuit // not thread safe as it is loaded once only
+	jobs     sync.Map           // key == uuid[string], value == proveJob
 }
 
 func newServer() (*server, error) {
-
-	toReturn := &server{}
-
-	if err := toReturn.loadCircuits(); err != nil {
+	s := &server{}
+	if err := s.loadCircuits(); err != nil {
 		return nil, err
 	}
-
-	return toReturn, nil
+	return s, nil
 }
 
 // Prove takes circuitID and witness as parameter
@@ -67,26 +62,162 @@ func newServer() (*server, error) {
 // use CreateProveJob instead
 func (s *server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.ProveResult, error) {
 	log.Debugw("Prove", "circuitID", request.CircuitID)
+
+	// get circuit
 	circuit, ok := s.circuits[request.CircuitID]
 	if !ok {
-		log.Errorw("Prove called with unknown circuitID", "ID", request.CircuitID)
+		log.Errorw("Prove called with unknown circuitID", "circuitID", request.CircuitID)
 		return nil, grpc.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
+	// call groth16.Prove with witness
 	proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, request.Witness)
 	if err != nil {
 		log.Error(err)
 		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
 
+	// serialize proof
 	var buf bytes.Buffer
 	_, err = proof.WriteTo(&buf)
 	if err != nil {
 		log.Error(err)
 		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
+
+	// return proof
 	log.Infow("successfully created proof", "circuitID", request.CircuitID)
 	return &pb.ProveResult{Proof: buf.Bytes()}, nil
+}
+
+// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
+func (s *server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobRequest) (*pb.CreateProveJobResponse, error) {
+	// ensure circuitID is valid
+	if _, ok := s.circuits[request.CircuitID]; !ok {
+		log.Errorw("CreateProveJob called with unknown circuitID", "circuitID", request.CircuitID)
+		return nil, grpc.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
+	}
+
+	// create job
+	job := proveJob{
+		id:         jobID(uuid.New().String()),
+		status:     pb.ProveJobResult_WAITING_WITNESS, // default value
+		expiration: time.Now().Add(defaultTTL),
+	}
+
+	// store job, waiting for witness via TCP socket
+	s.jobs.Store(job.id, &job)
+	log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
+
+	// TODO @gbotrel remove this, temporary, trigger job status change .
+	go func() {
+
+		<-time.After(time.Second * 2)
+		job.Lock()
+		job.status = pb.ProveJobResult_QUEUED
+		// job.Unlock()
+		// job.RLock()
+		for _, ch := range job.subscribers {
+			ch <- struct{}{}
+		}
+		job.Unlock()
+		<-time.After(time.Second * 2)
+		job.Lock()
+		job.status = pb.ProveJobResult_COMPLETED
+		// job.Unlock()
+		// job.RLock()
+		for _, ch := range job.subscribers {
+			ch <- struct{}{}
+		}
+		job.Unlock()
+	}()
+
+	// return job id
+	return &pb.CreateProveJobResponse{JobID: string(job.id)}, nil
+}
+
+// SubscribeToProveJob enables a client to get job status changes from the server
+// at connection start, server sends current job status
+// when job is done (ok or errored), server closes connection
+func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
+	// ensure jobID is valid
+	_job, ok := s.jobs.Load(jobID(request.JobID))
+	if !ok {
+		log.Errorw("SubscribeToProveJob called with unknown jobID", "jobID", request.JobID)
+		return grpc.Errorf(codes.NotFound, "unknown job %s", request.JobID)
+	}
+
+	// check job status
+	job := _job.(*proveJob)
+	chJobUpdate := make(chan struct{}, 1)
+	job.Lock()
+	jobFinished := job.isFinished()
+	if !jobFinished {
+		// subscribe to updates
+		job.subscribe(chJobUpdate) // must be called under lock
+	}
+	job.Unlock()
+
+	// job is done we don't need to subscribe and just send the result, close the conn.
+	if jobFinished {
+		close(chJobUpdate)
+		result := &pb.ProveJobResult{JobID: request.JobID, Status: job.status, Proof: job.proof}
+		if job.err != nil {
+			errMsg := job.err.Error()
+			result.Err = &errMsg
+		}
+		if err := stream.Send(result); err != nil {
+			log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
+			return grpc.Errorf(codes.Internal, "couldn't send response of finished job")
+		}
+		return nil
+	}
+
+	// ensure we clean up after ourselves
+	defer func() {
+		job.Lock()
+		job.unsubscribe(chJobUpdate)
+		close(chJobUpdate)
+		job.Unlock()
+	}()
+
+	log.Debugw("waiting for updates on job", "jobID", request.JobID)
+
+	// wait for job update or connection being terminated
+	for {
+		select {
+		case <-stream.Context().Done():
+			log.Warnw("connection terminated", "jobID", request.JobID)
+			return grpc.ErrClientConnClosing
+		case _, ok := <-chJobUpdate:
+			// job status updated.
+			job.RLock()
+			result := &pb.ProveJobResult{JobID: request.JobID, Status: job.status, Proof: job.proof}
+			if job.err != nil {
+				errMsg := job.err.Error()
+				result.Err = &errMsg
+			}
+			jobFinished := job.isFinished()
+			job.RUnlock()
+
+			// send job status on stream.
+			log.Infow("sending job status update", "jobID", request.JobID, "status", job.status.String())
+			if err := stream.Send(result); err != nil {
+				log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
+				return grpc.Errorf(codes.Internal, "couldn't send response of finished job")
+			}
+
+			// we are done
+			if jobFinished {
+				return nil
+			}
+			if !ok {
+				// channel was closed
+				// TODO @gbotrel check under which circonstances this happens.
+				return nil
+			}
+		}
+	}
 }
 
 // loadCircuits walk through fCircuitDir and caches proving keys, verifying keys, and R1CS
@@ -133,96 +264,73 @@ func (s *server) loadCircuits() error {
 
 func (s *server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	circuitID := fmt.Sprintf("%s/%s", curveID.String(), filepath.Base(baseDir))
-	log.Debugw("walking through circuit", "ID", circuitID)
-	var (
-		pkPath   string
-		vkPath   string
-		r1csPath string
-	)
+	log.Debugw("looking for circuit in", "dir", circuitID)
 
+	// list files in dir
 	files, err := ioutil.ReadDir(baseDir)
 	if err != nil {
 		return err
 	}
 
+	// empty circuit with nil values
+	var circuit circuit
+
 	for _, f := range files {
-		if filepath.Ext(f.Name()) == pkExt {
-			if pkPath != "" {
+		if f.IsDir() {
+			continue
+		}
+		switch filepath.Ext(f.Name()) {
+		case pkExt:
+			if circuit.pk != nil {
 				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
 			}
-			pkPath = f.Name()
-		} else if filepath.Ext(f.Name()) == vkExt {
-			if vkPath != "" {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, vkExt)
+			circuit.pk = groth16.NewProvingKey(curveID)
+			if err := loadGnarkObject(circuit.pk, filepath.Join(baseDir, f.Name())); err != nil {
+				return err
 			}
-			vkPath = f.Name()
-		} else if filepath.Ext(f.Name()) == r1csExt {
-			if r1csPath != "" {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, r1csExt)
+		case vkExt:
+			if circuit.vk != nil {
+				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
 			}
-			r1csPath = f.Name()
+			circuit.vk = groth16.NewVerifyingKey(curveID)
+			if err := loadGnarkObject(circuit.vk, filepath.Join(baseDir, f.Name())); err != nil {
+				return err
+			}
+		case r1csExt:
+			if circuit.r1cs != nil {
+				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+			}
+			circuit.r1cs = r1cs.New(curveID)
+			if err := loadGnarkObject(circuit.r1cs, filepath.Join(baseDir, f.Name())); err != nil {
+				return err
+			}
 		}
 	}
 
-	if pkPath == "" && vkPath == "" && r1csPath == "" {
-		log.Warnw("directory contains no circuit objects", "dir", baseDir)
-		return nil
-	}
-	if pkPath == "" {
+	// ensure our circuit is full.
+	if circuit.pk == nil {
 		return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
 	}
-	if vkPath == "" {
-		return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
+	if circuit.vk == nil {
+		return fmt.Errorf("%s contains no %s files", baseDir, vkExt)
 	}
-	if r1csPath == "" {
-		return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
-	}
-
-	pk := groth16.NewProvingKey(curveID)
-	vk := groth16.NewVerifyingKey(curveID)
-	r1cs := r1cs.New(curveID)
-	// load proving key
-	{
-		file, err := os.Open(filepath.Join(baseDir, pkPath))
-		if err != nil {
-			return err
-		}
-		_, err = pk.ReadFrom(file)
-		file.Close()
-		if err != nil {
-			return err
-		}
+	if circuit.r1cs == nil {
+		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
 
-	{
-		file, err := os.Open(filepath.Join(baseDir, vkPath))
-		if err != nil {
-			return err
-		}
-		_, err = vk.ReadFrom(file)
-		file.Close()
-		if err != nil {
-			return err
-		}
-	}
+	s.circuits[circuitID] = circuit
 
-	{
-		file, err := os.Open(filepath.Join(baseDir, r1csPath))
-		if err != nil {
-			return err
-		}
-		_, err = r1cs.ReadFrom(file)
-		file.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	s.circuits[circuitID] = circuit{
-		pk, vk, r1cs,
-	}
-
-	log.Infow("successfully loaded circuit", "ID", circuitID)
+	log.Infow("successfully loaded circuit", "circuitID", circuitID)
 
 	return nil
+}
+
+func loadGnarkObject(o io.ReaderFrom, filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	_, err = o.ReadFrom(file)
+	file.Close()
+	return err
 }

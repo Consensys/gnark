@@ -25,9 +25,10 @@ type Groth16Client interface {
 	Prove(ctx context.Context, in *ProveRequest, opts ...grpc.CallOption) (*ProveResult, error)
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	CreateProveJob(ctx context.Context, in *CreateProveJobRequest, opts ...grpc.CallOption) (*CreateProveJobResponse, error)
-	// ProveJobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
-	// Server may stream job results when they are done to connected clients, avoiding polling (WIP @gbotrel)
-	ProveJobStatus(ctx context.Context, opts ...grpc.CallOption) (Groth16_ProveJobStatusClient, error)
+	// SubscribeToProveJob enables a client to get job status changes from the server
+	// at connection start, server sends current job status
+	// when job is done (ok or errored), server closes connection
+	SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (Groth16_SubscribeToProveJobClient, error)
 }
 
 type groth16Client struct {
@@ -56,30 +57,31 @@ func (c *groth16Client) CreateProveJob(ctx context.Context, in *CreateProveJobRe
 	return out, nil
 }
 
-func (c *groth16Client) ProveJobStatus(ctx context.Context, opts ...grpc.CallOption) (Groth16_ProveJobStatusClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Groth16_ServiceDesc.Streams[0], "/gnarkd.Groth16/ProveJobStatus", opts...)
+func (c *groth16Client) SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (Groth16_SubscribeToProveJobClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Groth16_ServiceDesc.Streams[0], "/gnarkd.Groth16/SubscribeToProveJob", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &groth16ProveJobStatusClient{stream}
+	x := &groth16SubscribeToProveJobClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
-type Groth16_ProveJobStatusClient interface {
-	Send(*ProveJobStatusRequest) error
+type Groth16_SubscribeToProveJobClient interface {
 	Recv() (*ProveJobResult, error)
 	grpc.ClientStream
 }
 
-type groth16ProveJobStatusClient struct {
+type groth16SubscribeToProveJobClient struct {
 	grpc.ClientStream
 }
 
-func (x *groth16ProveJobStatusClient) Send(m *ProveJobStatusRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *groth16ProveJobStatusClient) Recv() (*ProveJobResult, error) {
+func (x *groth16SubscribeToProveJobClient) Recv() (*ProveJobResult, error) {
 	m := new(ProveJobResult)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -98,9 +100,10 @@ type Groth16Server interface {
 	Prove(context.Context, *ProveRequest) (*ProveResult, error)
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error)
-	// ProveJobStatus is a bidirectional stream enabling clients to regularly poll the server to get their job status
-	// Server may stream job results when they are done to connected clients, avoiding polling (WIP @gbotrel)
-	ProveJobStatus(Groth16_ProveJobStatusServer) error
+	// SubscribeToProveJob enables a client to get job status changes from the server
+	// at connection start, server sends current job status
+	// when job is done (ok or errored), server closes connection
+	SubscribeToProveJob(*SubscribeToProveJobRequest, Groth16_SubscribeToProveJobServer) error
 	mustEmbedUnimplementedGroth16Server()
 }
 
@@ -114,8 +117,8 @@ func (UnimplementedGroth16Server) Prove(context.Context, *ProveRequest) (*ProveR
 func (UnimplementedGroth16Server) CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateProveJob not implemented")
 }
-func (UnimplementedGroth16Server) ProveJobStatus(Groth16_ProveJobStatusServer) error {
-	return status.Errorf(codes.Unimplemented, "method ProveJobStatus not implemented")
+func (UnimplementedGroth16Server) SubscribeToProveJob(*SubscribeToProveJobRequest, Groth16_SubscribeToProveJobServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToProveJob not implemented")
 }
 func (UnimplementedGroth16Server) mustEmbedUnimplementedGroth16Server() {}
 
@@ -166,30 +169,25 @@ func _Groth16_CreateProveJob_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_ProveJobStatus_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(Groth16Server).ProveJobStatus(&groth16ProveJobStatusServer{stream})
-}
-
-type Groth16_ProveJobStatusServer interface {
-	Send(*ProveJobResult) error
-	Recv() (*ProveJobStatusRequest, error)
-	grpc.ServerStream
-}
-
-type groth16ProveJobStatusServer struct {
-	grpc.ServerStream
-}
-
-func (x *groth16ProveJobStatusServer) Send(m *ProveJobResult) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *groth16ProveJobStatusServer) Recv() (*ProveJobStatusRequest, error) {
-	m := new(ProveJobStatusRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
+func _Groth16_SubscribeToProveJob_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToProveJobRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	return m, nil
+	return srv.(Groth16Server).SubscribeToProveJob(m, &groth16SubscribeToProveJobServer{stream})
+}
+
+type Groth16_SubscribeToProveJobServer interface {
+	Send(*ProveJobResult) error
+	grpc.ServerStream
+}
+
+type groth16SubscribeToProveJobServer struct {
+	grpc.ServerStream
+}
+
+func (x *groth16SubscribeToProveJobServer) Send(m *ProveJobResult) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // Groth16_ServiceDesc is the grpc.ServiceDesc for Groth16 service.
@@ -210,10 +208,9 @@ var Groth16_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "ProveJobStatus",
-			Handler:       _Groth16_ProveJobStatus_Handler,
+			StreamName:    "SubscribeToProveJob",
+			Handler:       _Groth16_SubscribeToProveJob_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "pb/gnarkd.proto",

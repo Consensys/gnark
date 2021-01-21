@@ -17,8 +17,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"log"
-	"time"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gurvy"
@@ -42,8 +42,7 @@ func main() {
 	c := pb.NewGroth16Client(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	var w cubic.Circuit
 	w.X.Assign(3)
@@ -62,4 +61,33 @@ func main() {
 		log.Fatalf("could not prove: %v", err)
 	}
 	log.Println("proof ok")
+
+	r, err := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn256/cubic"})
+	if err != nil {
+		log.Fatalf("could not create job: %v", err)
+	}
+	log.Println("job id:", r.JobID)
+
+	stream, err := c.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
+	if err != nil {
+		log.Fatalf("could not subscribe to job: %v", err)
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				done <- struct{}{}
+				return
+			}
+			if err != nil {
+				log.Fatalf("cannot receive %v", err)
+			}
+			log.Printf("Resp received: %s", resp.Status.String())
+		}
+	}()
+
+	<-done //we will wait until all response is received
 }

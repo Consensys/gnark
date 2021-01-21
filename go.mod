@@ -7,6 +7,7 @@ require (
 	github.com/consensys/gurvy v0.3.8-0.20210118135515-02bca07c2b11
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/golang/protobuf v1.4.3 // indirect
+	github.com/google/uuid v1.1.5
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/leanovate/gopter v0.2.9
 	github.com/stretchr/testify v1.7.0
