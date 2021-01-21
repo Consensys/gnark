@@ -34,6 +34,7 @@ type R1CS interface {
 	GetNbWires() uint64
 	GetNbPublicWires() uint64
 	GetNbSecretWires() uint64
+	SizeFrElement() int
 	GetNbCoefficients() int
 	GetCurveID() gurvy.ID
 }

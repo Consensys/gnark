@@ -51,6 +51,11 @@ func (r1cs *R1CS) GetNbSecretWires() uint64 {
 	return r1cs.NbSecretWires
 }
 
+// SizeFrElement return the size (in byte) of a fr.Element
+func (r1cs *R1CS) SizeFrElement() int {
+	return fr.Limbs * 8
+}
+
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
