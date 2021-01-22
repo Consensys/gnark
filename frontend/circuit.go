@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
@@ -88,8 +89,8 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 	if err := circuit.Define(curveID, &cs); err != nil {
 		return nil, err
 	}
-	// return R1CS
-	//return cs.toR1CS(curveID), nil
+
+	// offset the IDs
 	res, err := cs.toR1CS(curveID)
 	if err != nil {
 		return nil, err
@@ -140,6 +141,58 @@ func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, *ConstraintSyste
 
 	var pcs PlonkCS
 	csToPlonk(&cs, &pcs)
+
+	// offset the ID in a term
+	offsetIDTerm := func(t *backend.Term) error {
+
+		// in a PLONK constraint, not all terms are necessarily set,
+		// the terms which are not set are equal to zero. We just
+		// need to skip them.
+		if *t != 0 {
+			_, _, cID, cVisibility := t.Unpack()
+			switch cVisibility {
+			case backend.Public:
+				t.SetVariableID(cID + pcs.nbInternalVariables + pcs.nbSecretVariables)
+			case backend.Secret:
+				t.SetVariableID(cID + pcs.nbInternalVariables)
+			case backend.Unset:
+				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
+			}
+		}
+
+		return nil
+	}
+
+	offsetIDs := func(exp *backend.PlonkConstraint) error {
+		err := offsetIDTerm(&exp.L)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.R)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.O)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.M[0])
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.M[1])
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// offset the IDs of all constraints to that the variables are
+	// numbered like this: [internalVariables | secretVariables | publicVariables]
+	// TODO WIP handle assertions
+	for i := 0; i < len(pcs.constraints); i++ {
+		offsetIDs(&pcs.constraints[i])
+	}
 
 	return &pcs, &cs, nil
 

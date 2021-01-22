@@ -23,10 +23,13 @@ import (
 )
 
 // PlonkCS represents a Plonk like circuit
+// WIP does not contain logs for the moment
 type PlonkCS struct {
 
 	// Variables
 	nbInternalVariables int
+	nbPublicVariables   int
+	nbSecretVariables   int
 
 	// Constraints
 	constraints []backend.PlonkConstraint // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
@@ -134,9 +137,8 @@ func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpr
 	return _l, t
 }
 
-// change t's ID to csPcsMapping[t.ID] to get the corresponding variable in the pcs
-// the coef is negated as well, since constraints are of the form m+l=0, so solving
-// the constraint yields -variable.
+// change t's ID to csPcsMapping[t.ID] to get the corresponding variable in the pcs,
+// the coeff ID is changed as well so that it corresponds to a coeff in the pcs.
 func (pcs *PlonkCS) getCorrespondingTerm(t backend.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) backend.Term {
 
 	// if the variable is internal, we need the variable
@@ -182,6 +184,11 @@ func (pcs *PlonkCS) newInternalVariable(t ...backend.Term) backend.Term {
 // recordConstraint records a plonk constraint in the pcs
 func (pcs *PlonkCS) recordConstraint(c backend.PlonkConstraint) {
 	pcs.constraints = append(pcs.constraints, c)
+}
+
+// recordAssertion records a plonk constraint (assertion) in the pcs
+func (pcs *PlonkCS) recordAssertion(c backend.PlonkConstraint) {
+	pcs.assertions = append(pcs.assertions, c)
 }
 
 // if t=a*variable, it returns -a*variable
@@ -299,14 +306,40 @@ func (pcs *PlonkCS) r1cToPlonkConstraint(cs *ConstraintSystem, r1c backend.R1C, 
 
 }
 
+// r1cToPlonkAssertion splits a r1c assertion (meaning that
+// it's a r1c constraint that is not used to solve a variable,
+// like a boolean constraint).
+// l*r = o -> reduce l, r to l',r', then reduce o[:2] to o',
+// the PLONK constraint is l'*r'-o[0]-o[1]-o'=0
+func (pcs *PlonkCS) r1cToPlonkAssertion(cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS) {
+
+	oCopy := make([]backend.Term, len(r1c.O))
+	copy(oCopy, r1c.O)
+	lt := pcs.split(0, cs.coeffs, r1c.L, csPcsMapping)
+	rt := pcs.split(0, cs.coeffs, r1c.R, csPcsMapping)
+	var o [3]backend.Term
+	o[0] = pcs.getCorrespondingTerm(oCopy[0], cs.coeffs, csPcsMapping)
+	oCopy = oCopy[1:]
+	if len(oCopy) > 0 {
+		o[1] = pcs.getCorrespondingTerm(oCopy[0], cs.coeffs, csPcsMapping)
+		oCopy = oCopy[1:]
+	}
+	o[2] = pcs.split(0, cs.coeffs, oCopy, csPcsMapping)
+
+	// we can record the constraint, which is
+	// lt*rt-o[0]-o[1]-o[2]=0
+	pcs.recordAssertion(backend.PlonkConstraint{L: pcs.negate(o[0]), R: pcs.negate(o[1]), O: pcs.negate(o[2]), M: [2]backend.Term{lt, rt}})
+
+}
+
 func csToPlonk(cs *ConstraintSystem, pcs *PlonkCS) {
 
 	// build the coeffs slice
 	pcs.coeffs = make([]big.Int, len(cs.coeffs))
 	pcs.coeffsIDs = make(map[string]int)
 
-	// copy public/secret inputs
-	pcs.nbInternalVariables = 0
+	pcs.nbPublicVariables = len(cs.public.variables)
+	pcs.nbSecretVariables = len(cs.secret.variables)
 
 	// cs_variable_id -> plonk_cs_variable_id, neg
 	// need for reasonning on variables in the pcs (the
@@ -319,8 +352,8 @@ func csToPlonk(cs *ConstraintSystem, pcs *PlonkCS) {
 	for i := 0; i < len(cs.constraints); i++ {
 		pcs.r1cToPlonkConstraint(cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
 	}
-	// for i := 0; i < len(cs.assertions); i++ {
-
-	// }
+	for i := 0; i < len(cs.assertions); i++ {
+		pcs.r1cToPlonkAssertion(cs, cs.assertions[i], varPcsToVarCs)
+	}
 
 }
