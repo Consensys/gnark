@@ -47,6 +47,9 @@ func newPlonkCS() PlonkCS {
 	return pcs
 }
 
+type idCS = int
+type idPCS = int
+
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (pcs *PlonkCS) coeffID(b *big.Int) int {
@@ -131,16 +134,26 @@ func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpr
 	return _l, t
 }
 
-// change t's ID to varCsToVaPcs[t.ID] to get the corresponding variable in the pcs
+// change t's ID to csPcsMapping[t.ID] to get the corresponding variable in the pcs
 // the coef is negated as well, since constraints are of the form m+l=0, so solving
 // the constraint yields -variable.
-func (pcs *PlonkCS) getCorrespondingTerm(t backend.Term, csCoeffs []big.Int, varCsToVaPcs map[int]int) backend.Term {
-	id := varCsToVaPcs[t.VariableID()]
+func (pcs *PlonkCS) getCorrespondingTerm(t backend.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) backend.Term {
+
+	// if the variable is internal, we need the variable
+	// that corresponds in the pcs
+	if t.VariableVisibility() == backend.Internal {
+		t.SetVariableID(csPcsMapping[t.VariableID()])
+		coef := csCoeffs[t.CoeffID()]
+		cID := pcs.coeffID(&coef)
+		t.SetCoeffID(cID)
+		return t
+	}
+	// if the variable is an input, only the coeff ID needs to
+	// be updated so it corresponds to an ID in the pcs coeffs slice.
+	// Otherwise, the variable's ID and visibility is the same
 	coef := csCoeffs[t.CoeffID()]
-	coef.Neg(&coef)
 	cID := pcs.coeffID(&coef)
 	t.SetCoeffID(cID)
-	t.SetVariableID(id)
 	return t
 }
 
@@ -173,6 +186,14 @@ func (pcs *PlonkCS) recordConstraint(c backend.PlonkConstraint) {
 
 // if t=a*variable, it returns -a*variable
 func (pcs *PlonkCS) negate(t backend.Term) backend.Term {
+	// non existing term are zero, if we negate it it's no
+	// longer zero and checks to see if a variable exist will
+	// fail (ex: in r1cToPlonkConstraint we might call negate
+	// on non existing variables, when split is called with
+	// le = nil)
+	if t == 0 {
+		return t
+	}
 	coeff := pcs.coeffs[t.CoeffID()]
 	coeff.Neg(&coeff)
 	cID := pcs.coeffID(&coeff)
@@ -181,36 +202,32 @@ func (pcs *PlonkCS) negate(t backend.Term) backend.Term {
 }
 
 // split splits a linear expression to plonk constraints
-// ex: le = aiwi is split into
-// u1=a1w1+a2w2,
-// u2=a3w3+u1
-// ...
-// u_n-1=a_n-1w_n-1+u_n-2
-// split is called like this (reduce(le[0]))
-// split must be called when all variables in le are registered in pcs
-func (pcs *PlonkCS) split(l backend.Term, csCoeffs []big.Int, le backend.LinearExpression, varCsToVaPcs map[int]int) backend.Term {
-
-	// first call
-	if l == 0 {
-		t := pcs.getCorrespondingTerm(le[0], csCoeffs, varCsToVaPcs)
-		return pcs.split(t, csCoeffs, le[1:], varCsToVaPcs)
-	}
+// ex: le = aiwi is split into PLONK constraints (using sums)
+// of 3 terms).
+// split returns a term that is equal to aiwi
+func (pcs *PlonkCS) split(l backend.Term, csCoeffs []big.Int, le backend.LinearExpression, csPcsMapping map[idCS]idPCS) backend.Term {
 
 	// floor case
 	if len(le) == 0 {
 		return l
 	}
 
+	// first call
+	if l == 0 {
+		t := pcs.getCorrespondingTerm(le[0], csCoeffs, csPcsMapping)
+		return pcs.split(t, csCoeffs, le[1:], csPcsMapping)
+	}
+
 	// recursive case
-	r := pcs.getCorrespondingTerm(le[0], csCoeffs, varCsToVaPcs)
+	r := pcs.getCorrespondingTerm(le[0], csCoeffs, csPcsMapping)
 	o := pcs.newInternalVariable()
 	pcs.recordConstraint(backend.PlonkConstraint{L: l, R: r, O: o})
 	o = pcs.negate(o)
-	return pcs.split(o, csCoeffs, le[1:], varCsToVaPcs)
+	return pcs.split(o, csCoeffs, le[1:], csPcsMapping)
 
 }
 
-// r1cToplonkConstraint splits a r1c constraint.
+// r1cToPlonkConstraint splits a r1c constraint.
 // r1c: l*r=o, if the variable v to solve is in o,
 // we pop it from o, we write o=lin+v, we reduce l, r, lin
 // to l',r',lin' and we write l'*r'-lin-v=0.
@@ -219,10 +236,11 @@ func (pcs *PlonkCS) split(l backend.Term, csCoeffs []big.Int, le backend.LinearE
 // (lin'+v)*r'=o' -> lin'*r'+v*r'=o'
 // we split it in 2: n + lin'*r'=0
 // -n+v*r'=0
-func (pcs *PlonkCS) r1cToplonkConstraint(cs *ConstraintSystem, r1c backend.R1C, varCsToVaPcs map[int]int, solvedVariables []bool) {
+func (pcs *PlonkCS) r1cToPlonkConstraint(cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, id := findUnsolvedVariable(r1c, solvedVariables)
+	solvedVariables[id] = true
 
 	// ensure that the unsolved wire is in the left lineexp
 	l := r1c.L
@@ -236,32 +254,47 @@ func (pcs *PlonkCS) r1cToplonkConstraint(cs *ConstraintSystem, r1c backend.R1C, 
 	}
 
 	// pop the unsolved wire from the linearexpression
-	var toSolve backend.Term
 	if lro == 0 {
-		l, toSolve = popInternalVariable(l, id)
-		lt := pcs.split(0, cs.coeffs, l, varCsToVaPcs)
-		rt := pcs.split(0, cs.coeffs, r, varCsToVaPcs)
-		ot := pcs.split(0, cs.coeffs, o, varCsToVaPcs)
-		n := pcs.newInternalVariable()
-		// (lt+toSolve)*rt=ot (lt*rt+toSolve*rt = ot)
-		// lt*rt+n=0, so -n=lt*rt
-		pcs.recordConstraint(backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: n})
-		// toSolve*rt-n-ot=0 => res+lt*rt+ot=0
-		ot = pcs.negate(ot)
-		n = pcs.negate(n)
-		res := pcs.newInternalVariable()
-		pcs.recordConstraint(backend.PlonkConstraint{L: n, R: n, M: [2]backend.Term{res, rt}})
-		varCsToVaPcs[toSolve.VariableID()] = res.VariableID()
+
+		l, toSolve := popInternalVariable(l, id)
+
+		lt := pcs.split(0, cs.coeffs, l, csPcsMapping)
+		rt := pcs.split(0, cs.coeffs, r, csPcsMapping)
+		ot := pcs.split(0, cs.coeffs, o, csPcsMapping)
+
+		// if lt==0, it means that the r1c is of the form toSolve*(linear_combination)=linear_combination
+		if lt == 0 {
+			res := pcs.newInternalVariable()
+			csPcsMapping[id] = res.VariableID()
+			coef := cs.coeffs[toSolve.CoeffID()]
+			res.SetCoeffID(pcs.coeffID(&coef))
+
+			pcs.recordConstraint(backend.PlonkConstraint{M: [2]backend.Term{res, rt}, O: pcs.negate(ot)})
+		} else {
+			ltTimesRt := pcs.newInternalVariable()
+			ltTimesRt = pcs.negate(ltTimesRt)
+			pcs.recordConstraint(backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: ltTimesRt})
+
+			res := pcs.newInternalVariable()
+			csPcsMapping[id] = res.VariableID()
+			coef := cs.coeffs[toSolve.CoeffID()]
+			res.SetCoeffID(pcs.coeffID(&coef))
+
+			// res *rt + lt*rt - ot = 0
+			pcs.recordConstraint(backend.PlonkConstraint{L: ltTimesRt, M: [2]backend.Term{res, rt}, O: pcs.negate(ot)})
+		}
 	} else {
-		o, toSolve = popInternalVariable(o, id)
-		lt := pcs.split(0, cs.coeffs, l, varCsToVaPcs)
-		rt := pcs.split(0, cs.coeffs, r, varCsToVaPcs)
-		ot := pcs.split(0, cs.coeffs, o, varCsToVaPcs)
-		ot = pcs.negate(ot)
+		lt := pcs.split(0, cs.coeffs, l, csPcsMapping)
+		rt := pcs.split(0, cs.coeffs, r, csPcsMapping)
+		o, toSolve := popInternalVariable(o, id)
+		ot := pcs.split(0, cs.coeffs, o, csPcsMapping)
 		res := pcs.newInternalVariable()
-		// lr*rt-ot+res = 0
-		pcs.recordConstraint(backend.PlonkConstraint{L: ot, M: [2]backend.Term{lt, rt}, O: res})
-		varCsToVaPcs[toSolve.VariableID()] = res.VariableID()
+		coef := cs.coeffs[toSolve.CoeffID()]
+		coef.Neg(&coef)
+		res.SetCoeffID(pcs.coeffID(&coef))
+		// lr*rt-ot-coef.res = 0, so solving res is the same as solving toSolve in the cs
+		pcs.recordConstraint(backend.PlonkConstraint{L: pcs.negate(ot), M: [2]backend.Term{lt, rt}, O: res})
+		csPcsMapping[id] = res.VariableID()
 	}
 
 }
@@ -270,18 +303,21 @@ func csToPlonk(cs *ConstraintSystem, pcs *PlonkCS) {
 
 	// build the coeffs slice
 	pcs.coeffs = make([]big.Int, len(cs.coeffs))
+	pcs.coeffsIDs = make(map[string]int)
 
 	// copy public/secret inputs
 	pcs.nbInternalVariables = 0
 
-	// cs_variable_id -> plonk_cs_variable_id
-	// if a variable is solved, it is recorded in varPcsToVarCs
-	varPcsToVarCs := make(map[int]int)
+	// cs_variable_id -> plonk_cs_variable_id, neg
+	// need for reasonning on variables in the pcs (the
+	// boolean tells if pcs's id corresponds to +-cs's id
+	// false: +, true -)
+	varPcsToVarCs := make(map[idCS]idPCS)
 	solvedVariables := make([]bool, len(cs.internal.variables))
 
 	// convert the constraints invidually
 	for i := 0; i < len(cs.constraints); i++ {
-		pcs.r1cToplonkConstraint(cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
+		pcs.r1cToPlonkConstraint(cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
 	}
 	// for i := 0; i < len(cs.assertions); i++ {
 

@@ -99,7 +99,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 }
 
 // CompilePlonk WIP
-func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, error) {
+func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, *ConstraintSystem, error) {
 
 	// instantiate our constraint system
 	cs := newConstraintSystem()
@@ -130,17 +130,17 @@ func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, error) {
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
 	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// call Define() to fill in the Constraints
 	if err := circuit.Define(curveID, &cs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var pcs PlonkCS
 	csToPlonk(&cs, &pcs)
 
-	return &pcs, nil
+	return &pcs, &cs, nil
 
 }
