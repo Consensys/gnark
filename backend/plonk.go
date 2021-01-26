@@ -20,6 +20,6 @@ package backend
 type PlonkConstraint struct {
 	L, R, O Term
 	M       [2]Term
-	kID     int // stores only the ID of the constant term that is used
+	K       int // stores only the ID of the constant term that is used
 	Solver  SolvingMethod
 }
