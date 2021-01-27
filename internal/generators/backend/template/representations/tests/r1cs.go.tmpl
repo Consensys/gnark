@@ -1,12 +1,13 @@
 
 import (
-	{{ template "import_backend" . }}
 	"bytes"
 	"testing"
 	"reflect"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
+
+	{{ template "import_backend" . }}
 )
 func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer
@@ -34,7 +35,7 @@ func TestSerialization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var reconstructed {{ toLower .Curve}}backend.R1CS
+			var reconstructed {{toLower .Curve}}backend.R1CS
 			read , err = reconstructed.ReadFrom(&buffer)
 			if err != nil {
 				t.Fatal(err)

@@ -48,7 +48,7 @@ func main() {
 
 			fftDir := filepath.Join(d.RootPath, "fft")
 			groth16Dir := filepath.Join(d.RootPath, "groth16")
-			backendDir := d.RootPath
+			backendDir := filepath.Join(d.RootPath, "r1cs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
 			r1csDir := "../../../backend/r1cs/"
 
@@ -73,14 +73,14 @@ func main() {
 				panic(err)
 			}
 
-			if err := bgen.GenerateF(d, "backend", "./template/representations/", bavard.EntryF{
+			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", bavard.EntryF{
 				File:      filepath.Join(backendDir, "r1cs.go"),
 				TemplateF: []string{"r1cs.go.tmpl", importCurve},
 			}); err != nil {
 				panic(err)
 			}
 
-			if err := bgen.GenerateF(d, "backend_test", "./template/representations/", bavard.EntryF{
+			if err := bgen.GenerateF(d, "r1cs_test", "./template/representations/", bavard.EntryF{
 				File:      filepath.Join(backendDir, "r1cs_test.go"),
 				TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
 			}); err != nil {

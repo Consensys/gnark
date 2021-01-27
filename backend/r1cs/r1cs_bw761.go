@@ -17,7 +17,7 @@
 package r1cs
 
 import (
-	bw761backend "github.com/consensys/gnark/internal/backend/bw761"
+	bw761backend "github.com/consensys/gnark/internal/backend/bw761/r1cs"
 
 	"github.com/consensys/gurvy/bw761/fr"
 )

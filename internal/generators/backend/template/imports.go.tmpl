@@ -29,13 +29,13 @@
 
 {{ define "import_backend" }}
 {{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/r1cs"
 {{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/r1cs"
 {{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/r1cs"
 {{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/r1cs"
 {{end}}
 
 {{end}}

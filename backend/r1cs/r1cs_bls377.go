@@ -17,7 +17,7 @@
 package r1cs
 
 import (
-	bls377backend "github.com/consensys/gnark/internal/backend/bls377"
+	bls377backend "github.com/consensys/gnark/internal/backend/bls377/r1cs"
 
 	"github.com/consensys/gurvy/bls377/fr"
 )

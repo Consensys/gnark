@@ -25,10 +25,10 @@ import (
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/r1cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/r1cs"
 
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"

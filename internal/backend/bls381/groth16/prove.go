@@ -21,7 +21,7 @@ import (
 
 	curve "github.com/consensys/gurvy/bls381"
 
-	bls381backend "github.com/consensys/gnark/internal/backend/bls381"
+	bls381backend "github.com/consensys/gnark/internal/backend/bls381/r1cs"
 
 	"github.com/consensys/gnark/internal/backend/bls381/fft"
 

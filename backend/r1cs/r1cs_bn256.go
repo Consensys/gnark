@@ -17,7 +17,7 @@
 package r1cs
 
 import (
-	bn256backend "github.com/consensys/gnark/internal/backend/bn256"
+	bn256backend "github.com/consensys/gnark/internal/backend/bn256/r1cs"
 
 	"github.com/consensys/gurvy/bn256/fr"
 )
