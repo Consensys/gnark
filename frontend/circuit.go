@@ -2,10 +2,10 @@ package frontend
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gurvy"
@@ -38,6 +38,52 @@ type Witness interface {
 	Circuit
 }
 
+// buildCS builds the constraint system. It bootstraps the inputs
+// allocations by parsing the circuit's underlying structure, then
+// it builds the constraint system using the Define method.
+func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
+
+	// instantiate our constraint system
+	cs := newConstraintSystem()
+
+	// leaf handlers are called when encoutering leafs in the circuit data struct
+	// leafs are Constraints that need to be initialized in the context of compiling a circuit
+	var handler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+		if tInput.CanSet() {
+			v := tInput.Interface().(Variable)
+			if v.id != 0 {
+				v.id = 0
+				// return errors.New("circuit was already compiled")
+			}
+			if v.val != nil {
+				return errors.New("circuit has some assigned values, can't compile")
+			}
+			switch visibility {
+			case backend.Unset, backend.Secret:
+				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
+			case backend.Public:
+				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
+			}
+
+			return nil
+		}
+		return errors.New("can't set val " + name)
+	}
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
+	// (secret or public inputs)
+	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+		return cs, err
+	}
+
+	// call Define() to fill in the Constraints
+	if err := circuit.Define(curveID, &cs); err != nil {
+		return cs, err
+	}
+
+	return cs, nil
+
+}
+
 // Compile will generate a R1CS from the given circuit
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
@@ -53,44 +99,13 @@ type Witness interface {
 // 3. finally, it converts that to a R1CS
 func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 
-	// instantiate our constraint system
-	cs := newConstraintSystem()
-
-	// leaf handlers are called when encoutering leafs in the circuit data struct
-	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-		if tInput.CanSet() {
-			v := tInput.Interface().(Variable)
-			if v.id != 0 {
-				v.id = 0
-				// return errors.New("circuit was already compiled")
-			}
-			if v.val != nil {
-				return errors.New("circuit has some assigned values, can't compile")
-			}
-			switch visibility {
-			case backend.Unset, backend.Secret:
-				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
-			case backend.Public:
-				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
-			}
-
-			return nil
-		}
-		return errors.New("can't set val " + name)
-	}
-	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
-	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+	// build  the constraint system (basically calling Define)
+	cs, err := buildCS(curveID, circuit)
+	if err != nil {
 		return nil, err
 	}
 
-	// call Define() to fill in the Constraints
-	if err := circuit.Define(curveID, &cs); err != nil {
-		return nil, err
-	}
-
-	// offset the IDs
+	// offset the IDs -> interal_wire || secret_variables || public_variables
 	res, err := cs.toR1CS(curveID)
 	if err != nil {
 		return nil, err
@@ -100,100 +115,18 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 }
 
 // CompilePlonk WIP
-func CompilePlonk(curveID gurvy.ID, circuit Circuit) (*PlonkCS, *ConstraintSystem, error) {
+func CompilePlonk(curveID gurvy.ID, circuit Circuit) (plonk.CS, error) {
 
-	// instantiate our constraint system
-	cs := newConstraintSystem()
-
-	// leaf handlers are called when encoutering leafs in the circuit data struct
-	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-		if tInput.CanSet() {
-			v := tInput.Interface().(Variable)
-			if v.id != 0 {
-				v.id = 0
-				// return errors.New("circuit was already compiled")
-			}
-			if v.val != nil {
-				return errors.New("circuit has some assigned values, can't compile")
-			}
-			switch visibility {
-			case backend.Unset, backend.Secret:
-				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
-			case backend.Public:
-				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
-			}
-
-			return nil
-		}
-		return errors.New("can't set val " + name)
-	}
-	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
-	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", backend.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
-		return nil, nil, err
+	// build  the constraint system (basically calling Define)
+	cs, err := buildCS(curveID, circuit)
+	if err != nil {
+		return nil, err
 	}
 
-	// call Define() to fill in the Constraints
-	if err := circuit.Define(curveID, &cs); err != nil {
-		return nil, nil, err
-	}
+	// Converts the cs into PLONK constraints, and
+	// offset the IDs -> interal_wire || secret_variables || public_variables
+	res, err := cs.toPlonk(curveID)
 
-	var pcs PlonkCS
-	csToPlonk(&cs, &pcs)
-
-	// offset the ID in a term
-	offsetIDTerm := func(t *backend.Term) error {
-
-		// in a PLONK constraint, not all terms are necessarily set,
-		// the terms which are not set are equal to zero. We just
-		// need to skip them.
-		if *t != 0 {
-			_, _, cID, cVisibility := t.Unpack()
-			switch cVisibility {
-			case backend.Public:
-				t.SetVariableID(cID + pcs.nbInternalVariables + pcs.nbSecretVariables)
-			case backend.Secret:
-				t.SetVariableID(cID + pcs.nbInternalVariables)
-			case backend.Unset:
-				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
-			}
-		}
-
-		return nil
-	}
-
-	offsetIDs := func(exp *backend.PlonkConstraint) error {
-		err := offsetIDTerm(&exp.L)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.R)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.O)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.M[0])
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.M[1])
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// offset the IDs of all constraints to that the variables are
-	// numbered like this: [internalVariables | secretVariables | publicVariables]
-	// TODO WIP handle assertions
-	for i := 0; i < len(pcs.constraints); i++ {
-		offsetIDs(&pcs.constraints[i])
-	}
-
-	return &pcs, &cs, nil
+	return res, nil
 
 }

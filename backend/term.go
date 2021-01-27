@@ -30,10 +30,10 @@ const (
 )
 
 const (
-	_                  uint64 = 0b00
-	constraintPublic   uint64 = 0b01
-	constraintSecret   uint64 = 0b11
-	constraintInternal uint64 = 0b10
+	_                uint64 = 0b00
+	variablePublic   uint64 = 0b01
+	variableSecret   uint64 = 0b11
+	variableInternal uint64 = 0b10
 )
 
 const (
@@ -105,11 +105,11 @@ func (t Term) CoeffValue() int {
 func (t Term) VariableVisibility() Visibility {
 	variableVisiblity := (uint64(t) & maskVariableVisibility) >> shiftVariableVisibility
 	switch variableVisiblity {
-	case constraintInternal:
+	case variableInternal:
 		return Internal
-	case constraintPublic:
+	case variablePublic:
 		return Public
-	case constraintSecret:
+	case variableSecret:
 		return Secret
 	default:
 		return Unset
@@ -121,11 +121,11 @@ func (t *Term) SetVariableVisibility(v Visibility) {
 	variableVisiblity := uint64(0)
 	switch v {
 	case Internal:
-		variableVisiblity = constraintInternal
+		variableVisiblity = variableInternal
 	case Public:
-		variableVisiblity = constraintPublic
+		variableVisiblity = variablePublic
 	case Secret:
-		variableVisiblity = constraintSecret
+		variableVisiblity = variableSecret
 	default:
 		return
 	}

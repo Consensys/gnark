@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package r1cs expose the R1CS (rank-1 constraint system) interface
-package r1cs
+package plonk
 
 import (
 	"io"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/r1cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/r1cs"
-
 	"github.com/consensys/gurvy"
 )
 
-// R1CS represents a rank 1 constraint system
+// CS represents the constraint system which is used by PLONK
 // it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
-type R1CS interface {
+type CS interface {
 	io.WriterTo
 	io.ReaderFrom
 	GetNbConstraints() uint64
@@ -39,19 +33,19 @@ type R1CS interface {
 
 // New instantiate a concrete curved-typed R1CS and return a R1CS interface
 // This method exists for (de)serialization purposes
-func New(curveID gurvy.ID) R1CS {
-	var r1cs R1CS
-	switch curveID {
-	case gurvy.BN256:
-		r1cs = &backend_bn256.R1CS{}
-	case gurvy.BLS377:
-		r1cs = &backend_bls377.R1CS{}
-	case gurvy.BLS381:
-		r1cs = &backend_bls381.R1CS{}
-	case gurvy.BW761:
-		r1cs = &backend_bw761.R1CS{}
-	default:
-		panic("not implemented")
-	}
+func New(curveID gurvy.ID) CS {
+	var r1cs CS
+	// switch curveID {
+	// case gurvy.BN256:
+	// 	r1cs = &backend_bn256.R1CS{}
+	// case gurvy.BLS377:
+	// 	r1cs = &backend_bls377.R1CS{}
+	// case gurvy.BLS381:
+	// 	r1cs = &backend_bls381.R1CS{}
+	// case gurvy.BW761:
+	// 	r1cs = &backend_bw761.R1CS{}
+	// default:
+	// 	panic("not implemented")
+	// }
 	return r1cs
 }
