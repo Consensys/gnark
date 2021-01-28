@@ -55,9 +55,10 @@ type Server struct {
 	circuitDir string
 }
 
+// NewServer returns a server implementing the service as defined in pb/gnarkd.proto
 func NewServer(log *zap.SugaredLogger, circuitDir string) (*Server, error) {
 	if log == nil {
-		return nil, errors.New("please provide a logger") // TODO @gbotrel make that more flexible.
+		return nil, errors.New("please provide a logger")
 	}
 	s := &Server{
 		log:        log,

@@ -19,13 +19,13 @@ type proveJob struct {
 	circuitID   string
 	status      pb.ProveJobResult_Status
 	expiration  time.Time // TODO @gbotrel add a go routine that periodically wake up and clean up completed tasks
-	witness     []byte    // TODO @gbotrel set to nil when executor is done parsing.
+	witness     []byte
 	err         error
 	proof       []byte
 	subscribers []chan struct{}
 }
 
-// will call RLock
+// will lock job.
 func (job *proveJob) setStatus(status pb.ProveJobResult_Status) error {
 
 	job.Lock()
