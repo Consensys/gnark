@@ -84,10 +84,7 @@ func (s *Server) startWorker() {
 		}
 		job := _job.(*proveJob)
 
-		if err := job.setStatus(pb.ProveJobResult_RUNNING); err != nil {
-			s.log.Fatalw("when executing job", "err", err, "jobID", jobID.String())
-			return
-		}
+		s.updateJobStatusOrDie(job, pb.ProveJobResult_RUNNING)
 
 		// note that job.witness and job.prove can only be accessed by this go routine at this point
 		circuit, ok := s.circuits[job.circuitID]
@@ -101,10 +98,7 @@ func (s *Server) startWorker() {
 		if err != nil {
 			s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
 			job.err = err
-			if err := job.setStatus(pb.ProveJobResult_ERRORED); err != nil {
-				s.log.Fatalw("when setting job to error", "err", err, "jobID", jobID.String())
-				return
-			}
+			s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
 			continue
 		}
 
@@ -114,19 +108,13 @@ func (s *Server) startWorker() {
 		if err != nil {
 			s.log.Errorw("couldn't serialize proof", "err", err)
 			job.err = err
-			if err := job.setStatus(pb.ProveJobResult_ERRORED); err != nil {
-				s.log.Fatalw("when setting job to error", "err", err, "jobID", jobID.String())
-				return
-			}
+			s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
 			continue
 		}
 
 		s.log.Infow("successfully computed proof", "jobID", job.id)
 		job.proof = buf.Bytes()
-		if err := job.setStatus(pb.ProveJobResult_COMPLETED); err != nil {
-			s.log.Fatalw("when setting job to completed", "err", err, "jobID", jobID.String())
-			return
-		}
+		s.updateJobStatusOrDie(job, pb.ProveJobResult_COMPLETED)
 	}
 	s.log.Info("stopping worker")
 }
@@ -278,6 +266,12 @@ func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 	}
 }
 
+func (s *Server) updateJobStatusOrDie(job *proveJob, status pb.ProveJobResult_Status) {
+	if err := job.setStatus(status); err != nil {
+		s.log.Fatalw("when updating job status", "err", err, "jobID", job.id.String())
+	}
+}
+
 func (s *Server) StartWitnessListener(l net.Listener) {
 	for {
 		c, err := l.Accept()
@@ -290,31 +284,43 @@ func (s *Server) StartWitnessListener(l net.Listener) {
 }
 
 func (s *Server) receiveWitness(c net.Conn) {
+	defer c.Close()
+
 	s.log.Infow("receiving a witness", "remoteAddr", c.RemoteAddr().String())
 
-	defer c.Close()
+	// success handler
+	success := func() {
+		if _, err := c.Write([]byte("ok")); err != nil {
+			s.log.Errorw("when responding OK on witness socket", "err", err)
+		}
+	}
+
+	// fail handler
+	fail := func(err error) {
+		s.log.Errorw("receive witness failed", "err", err)
+		if _, err := c.Write([]byte("nok")); err != nil {
+			s.log.Errorw("when responding NOK on witness socket", "err", err)
+		}
+	}
 
 	// read jobID
 	var bufJobID [jobIDSize]byte
 	if _, err := io.ReadFull(c, bufJobID[:]); err != nil {
-		s.log.Errorw("when reading jobID on connection", "err", err)
-		c.Write([]byte("nok"))
+		fail(err)
 		return
 	}
 
 	// parse jobid
 	var jobID uuid.UUID
 	if err := jobID.UnmarshalBinary(bufJobID[:]); err != nil {
-		s.log.Errorw("when parsing jobID on connection", "err", err)
-		c.Write([]byte("nok"))
+		fail(err)
 		return
 	}
 
 	// find job
 	_job, ok := s.jobs.Load(jobID)
 	if !ok {
-		s.log.Errorw("unknown jobID", "jobID", jobID.String())
-		c.Write([]byte("nok"))
+		fail(fmt.Errorf("unknown jobID %s", jobID.String()))
 		return
 	}
 
@@ -323,8 +329,7 @@ func (s *Server) receiveWitness(c net.Conn) {
 	job.Lock()
 	if job.status != pb.ProveJobResult_WAITING_WITNESS {
 		job.Unlock()
-		s.log.Errorw("job is not waiting for witness, closing connection", "jobID", jobID.String())
-		c.Write([]byte("nok"))
+		fail(fmt.Errorf("job is not waiting for witness, jobID %s", jobID.String()))
 		return
 	}
 
@@ -338,19 +343,15 @@ func (s *Server) receiveWitness(c net.Conn) {
 	wBuf := make([]byte, circuit.fullWitnessSize)
 	if _, err := io.ReadFull(c, wBuf); err != nil {
 		job.Unlock()
-		s.log.Errorw("when parsing witness", "err", err, "jobID", jobID.String())
-		c.Write([]byte("nok"))
+		fail(err)
 		return
 	}
 	job.witness = wBuf
 	job.Unlock()
-	if err := job.setStatus(pb.ProveJobResult_QUEUED); err != nil {
-		s.log.Fatalw("when queuing job", "err", err, "jobID", jobID.String())
-		return
-	}
-	c.Write([]byte("ok"))
-
+	s.updateJobStatusOrDie(job, pb.ProveJobResult_QUEUED)
 	s.chJobQueue <- jobID // queue the job
+
+	success()
 }
 
 // loadCircuits walk through s.circuitDir and caches proving keys, verifying keys, and R1CS
@@ -383,7 +384,6 @@ func (s *Server) loadCircuits() error {
 			if err := s.loadCircuit(curve, filepath.Join(curveDir, f.Name())); err != nil {
 				return err
 			}
-
 		}
 
 	}
