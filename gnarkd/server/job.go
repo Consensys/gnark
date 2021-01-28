@@ -1,6 +1,7 @@
-package main
+package server
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,27 +26,30 @@ type proveJob struct {
 }
 
 // will call RLock
-func (job *proveJob) setStatus(status pb.ProveJobResult_Status) {
+func (job *proveJob) setStatus(status pb.ProveJobResult_Status) error {
 
 	job.Lock()
 	// ensure state machine transitions are valid.
 	switch status {
 	case pb.ProveJobResult_QUEUED:
 		if job.status != pb.ProveJobResult_WAITING_WITNESS {
-			log.Fatal("setting invalid status on a job", "jobID", job.id, "newStatus", status.String(), "currentStatus", job.status.String())
+			job.Unlock()
+			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
 		}
 	case pb.ProveJobResult_RUNNING:
 		if job.status != pb.ProveJobResult_QUEUED {
-			log.Fatal("setting invalid status on a job", "jobID", job.id, "newStatus", status.String(), "currentStatus", job.status.String())
+			job.Unlock()
+			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
 		}
 	case pb.ProveJobResult_ERRORED, pb.ProveJobResult_COMPLETED:
 		if job.status != pb.ProveJobResult_RUNNING {
-			log.Fatal("setting invalid status on a job", "jobID", job.id, "newStatus", status.String(), "currentStatus", job.status.String())
+			job.Unlock()
+			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
 		}
 	default:
-		log.Fatal("setting invalid status on a job", "jobID", job.id, "newStatus", status.String(), "currentStatus", job.status.String())
+		job.Unlock()
+		return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
 	}
-	log.Infow("job status change", "jobID", job.id, "newStatus", status.String(), "oldStatus", job.status.String())
 	job.status = status
 	job.Unlock()
 
@@ -54,6 +58,7 @@ func (job *proveJob) setStatus(status pb.ProveJobResult_Status) {
 		ch <- struct{}{}
 	}
 	job.RUnlock()
+	return nil
 }
 
 // must be called under lock
@@ -70,7 +75,6 @@ func (job *proveJob) unsubscribe(ch chan struct{}) {
 			return
 		}
 	}
-	log.Warn("unsubscribe from job couldn't find matching channel")
 	return
 }
 

@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/consensys/gnark/gnarkd/pb"
+	"github.com/consensys/gnark/gnarkd/server"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -69,7 +70,7 @@ func main() {
 	// Parse flags
 	flag.Parse()
 
-	gnarkdServer, err := newServer()
+	gnarkdServer, err := server.NewServer(log, *fCircuitDir)
 	if err != nil {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
@@ -84,7 +85,7 @@ func main() {
 	}
 
 	// start witness listener
-	go gnarkdServer.startWitnessListener(wLis)
+	go gnarkdServer.StartWitnessListener(wLis)
 
 	// start gRPC listener
 	s := grpc.NewServer()

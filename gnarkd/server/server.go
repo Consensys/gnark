@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package server
 
 import (
 	"bytes"
 	context "context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -39,20 +41,28 @@ import (
 )
 
 const (
-	defaultTTL   = time.Hour * 3 // default TTL for keeping jobs in server.jobs
+	defaultTTL   = time.Hour * 3 // default TTL for keeping jobs in Server.jobs
 	jobQueueSize = 10
 )
 
-// server implements Groth16Server
-type server struct {
+// Server implements Groth16Server
+type Server struct {
 	pb.UnimplementedGroth16Server
 	circuits   map[string]circuit // not thread safe as it is loaded once only
 	jobs       sync.Map           // key == uuid[string], value == proveJob
 	chJobQueue chan jobID         // TODO @gbotrel shutdown hook, close the queue, after closing the TCP socket
+	log        *zap.SugaredLogger
+	circuitDir string
 }
 
-func newServer() (*server, error) {
-	s := &server{}
+func NewServer(log *zap.SugaredLogger, circuitDir string) (*Server, error) {
+	if log == nil {
+		return nil, errors.New("please provide a logger") // TODO @gbotrel make that more flexible.
+	}
+	s := &Server{
+		log:        log,
+		circuitDir: circuitDir,
+	}
 	if err := s.loadCircuits(); err != nil {
 		return nil, err
 	}
@@ -62,33 +72,39 @@ func newServer() (*server, error) {
 }
 
 // called in a go routine
-func (s *server) startWorker() {
-	log.Info("starting worker")
+func (s *Server) startWorker() {
+	s.log.Info("starting worker")
 	var buf bytes.Buffer
 	for jobID := range s.chJobQueue {
-		log.Infow("executing job", "jobID", jobID)
+		s.log.Infow("executing job", "jobID", jobID)
 
 		_job, ok := s.jobs.Load(jobID)
 		if !ok {
-			log.Fatalw("inconsistant server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+			s.log.Fatalw("inconsistant Server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
 		}
 		job := _job.(*proveJob)
 
-		job.setStatus(pb.ProveJobResult_RUNNING)
+		if err := job.setStatus(pb.ProveJobResult_RUNNING); err != nil {
+			s.log.Fatalw("when executing job", "err", err, "jobID", jobID.String())
+			return
+		}
 
 		// note that job.witness and job.prove can only be accessed by this go routine at this point
 		circuit, ok := s.circuits[job.circuitID]
 		if !ok {
-			log.Fatalw("inconsistant server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
+			s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
 		}
 
 		// run prove
 		proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
 		job.witness = nil // set witness to nil
 		if err != nil {
-			log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
+			s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
 			job.err = err
-			job.setStatus(pb.ProveJobResult_ERRORED)
+			if err := job.setStatus(pb.ProveJobResult_ERRORED); err != nil {
+				s.log.Fatalw("when setting job to error", "err", err, "jobID", jobID.String())
+				return
+			}
 			continue
 		}
 
@@ -96,37 +112,43 @@ func (s *server) startWorker() {
 		buf.Reset()
 		_, err = proof.WriteTo(&buf)
 		if err != nil {
-			log.Errorw("couldn't serialize proof", "err", err)
+			s.log.Errorw("couldn't serialize proof", "err", err)
 			job.err = err
-			job.setStatus(pb.ProveJobResult_ERRORED)
+			if err := job.setStatus(pb.ProveJobResult_ERRORED); err != nil {
+				s.log.Fatalw("when setting job to error", "err", err, "jobID", jobID.String())
+				return
+			}
 			continue
 		}
 
-		log.Infow("successfully computed proof", "jobID", job.id)
+		s.log.Infow("successfully computed proof", "jobID", job.id)
 		job.proof = buf.Bytes()
-		job.setStatus(pb.ProveJobResult_COMPLETED)
+		if err := job.setStatus(pb.ProveJobResult_COMPLETED); err != nil {
+			s.log.Fatalw("when setting job to completed", "err", err, "jobID", jobID.String())
+			return
+		}
 	}
-	log.Info("stopping worker")
+	s.log.Info("stopping worker")
 }
 
 // Prove takes circuitID and witness as parameter
 // this is a synchronous call and bypasses the job queue
 // it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
 // use CreateProveJob instead
-func (s *server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.ProveResult, error) {
-	log.Debugw("Prove", "circuitID", request.CircuitID)
+func (s *Server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.ProveResult, error) {
+	s.log.Debugw("Prove", "circuitID", request.CircuitID)
 
 	// get circuit
 	circuit, ok := s.circuits[request.CircuitID]
 	if !ok {
-		log.Errorw("Prove called with unknown circuitID", "circuitID", request.CircuitID)
+		s.log.Errorw("Prove called with unknown circuitID", "circuitID", request.CircuitID)
 		return nil, grpc.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
 	// call groth16.Prove with witness
 	proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, request.Witness)
 	if err != nil {
-		log.Error(err)
+		s.log.Error(err)
 		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
 
@@ -134,20 +156,20 @@ func (s *server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.Prove
 	var buf bytes.Buffer
 	_, err = proof.WriteTo(&buf)
 	if err != nil {
-		log.Error(err)
+		s.log.Error(err)
 		return nil, grpc.Errorf(codes.Internal, err.Error())
 	}
 
 	// return proof
-	log.Infow("successfully created proof", "circuitID", request.CircuitID)
+	s.log.Infow("successfully created proof", "circuitID", request.CircuitID)
 	return &pb.ProveResult{Proof: buf.Bytes()}, nil
 }
 
 // CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
-func (s *server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobRequest) (*pb.CreateProveJobResponse, error) {
+func (s *Server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobRequest) (*pb.CreateProveJobResponse, error) {
 	// ensure circuitID is valid
 	if _, ok := s.circuits[request.CircuitID]; !ok {
-		log.Errorw("CreateProveJob called with unknown circuitID", "circuitID", request.CircuitID)
+		s.log.Errorw("CreateProveJob called with unknown circuitID", "circuitID", request.CircuitID)
 		return nil, grpc.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
@@ -161,25 +183,25 @@ func (s *server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobR
 
 	// store job, waiting for witness via TCP socket
 	s.jobs.Store(job.id, &job)
-	log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
+	s.log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
 
 	// return job id
 	return &pb.CreateProveJobResponse{JobID: job.id.String()}, nil
 }
 
-// SubscribeToProveJob enables a client to get job status changes from the server
-// at connection start, server sends current job status
-// when job is done (ok or errored), server closes connection
-func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
+// SubscribeToProveJob enables a client to get job status changes from the Server
+// at connection start, Server sends current job status
+// when job is done (ok or errored), Server closes connection
+func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
 	// ensure jobID is valid
 	jobID, err := uuid.Parse(request.JobID)
 	if err != nil {
-		log.Errorw("invalid job id", "jobID", request.JobID)
+		s.log.Errorw("invalid job id", "jobID", request.JobID)
 		return grpc.Errorf(codes.InvalidArgument, "invalid jobID %s", request.JobID)
 	}
 	_job, ok := s.jobs.Load(jobID)
 	if !ok {
-		log.Errorw("SubscribeToProveJob called with unknown jobID", "jobID", request.JobID)
+		s.log.Errorw("SubscribeToProveJob called with unknown jobID", "jobID", request.JobID)
 		return grpc.Errorf(codes.NotFound, "unknown job %s", request.JobID)
 	}
 
@@ -203,7 +225,7 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			result.Err = &errMsg
 		}
 		if err := stream.Send(result); err != nil {
-			log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
+			s.log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
 			return grpc.Errorf(codes.Internal, "couldn't send response of finished job")
 		}
 		return nil
@@ -217,13 +239,13 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 		job.Unlock()
 	}()
 
-	log.Debugw("waiting for updates on job", "jobID", request.JobID)
+	s.log.Debugw("waiting for updates on job", "jobID", request.JobID)
 
 	// wait for job update or connection being terminated
 	for {
 		select {
 		case <-stream.Context().Done():
-			log.Warnw("connection terminated", "jobID", request.JobID)
+			s.log.Warnw("connection terminated", "jobID", request.JobID)
 			return grpc.ErrClientConnClosing
 		case _, ok := <-chJobUpdate:
 			// job status updated.
@@ -237,9 +259,9 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			job.RUnlock()
 
 			// send job status on stream.
-			log.Infow("sending job status update", "jobID", request.JobID, "status", result.Status.String())
+			s.log.Infow("sending job status update", "jobID", request.JobID, "status", result.Status.String())
 			if err := stream.Send(result); err != nil {
-				log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
+				s.log.Errorw("couldn't send response of finished job", "jobID", request.JobID, "err", err)
 				return grpc.Errorf(codes.Internal, "couldn't send response of finished job")
 			}
 
@@ -256,26 +278,26 @@ func (s *server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 	}
 }
 
-func (s *server) startWitnessListener(l net.Listener) {
+func (s *Server) StartWitnessListener(l net.Listener) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			log.Error(err)
+			s.log.Error(err)
 			continue
 		}
 		go s.receiveWitness(c)
 	}
 }
 
-func (s *server) receiveWitness(c net.Conn) {
-	log.Infow("receiving a witness", "remoteAddr", c.RemoteAddr().String())
+func (s *Server) receiveWitness(c net.Conn) {
+	s.log.Infow("receiving a witness", "remoteAddr", c.RemoteAddr().String())
 
 	defer c.Close()
 
 	// read jobID
 	var bufJobID [jobIDSize]byte
 	if _, err := io.ReadFull(c, bufJobID[:]); err != nil {
-		log.Errorw("when reading jobID on connection", "err", err)
+		s.log.Errorw("when reading jobID on connection", "err", err)
 		c.Write([]byte("nok"))
 		return
 	}
@@ -283,7 +305,7 @@ func (s *server) receiveWitness(c net.Conn) {
 	// parse jobid
 	var jobID uuid.UUID
 	if err := jobID.UnmarshalBinary(bufJobID[:]); err != nil {
-		log.Errorw("when parsing jobID on connection", "err", err)
+		s.log.Errorw("when parsing jobID on connection", "err", err)
 		c.Write([]byte("nok"))
 		return
 	}
@@ -291,7 +313,7 @@ func (s *server) receiveWitness(c net.Conn) {
 	// find job
 	_job, ok := s.jobs.Load(jobID)
 	if !ok {
-		log.Errorw("unknown jobID", "jobID", jobID.String())
+		s.log.Errorw("unknown jobID", "jobID", jobID.String())
 		c.Write([]byte("nok"))
 		return
 	}
@@ -301,7 +323,7 @@ func (s *server) receiveWitness(c net.Conn) {
 	job.Lock()
 	if job.status != pb.ProveJobResult_WAITING_WITNESS {
 		job.Unlock()
-		log.Errorw("job is not waiting for witness, closing connection", "jobID", jobID.String())
+		s.log.Errorw("job is not waiting for witness, closing connection", "jobID", jobID.String())
 		c.Write([]byte("nok"))
 		return
 	}
@@ -310,39 +332,43 @@ func (s *server) receiveWitness(c net.Conn) {
 
 	circuit, ok := s.circuits[job.circuitID]
 	if !ok {
-		log.Fatalw("inconsistant server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
+		s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
 	}
 
 	wBuf := make([]byte, circuit.fullWitnessSize)
 	if _, err := io.ReadFull(c, wBuf); err != nil {
 		job.Unlock()
-		log.Errorw("when parsing witness", "err", err, "jobID", jobID.String())
+		s.log.Errorw("when parsing witness", "err", err, "jobID", jobID.String())
 		c.Write([]byte("nok"))
+		return
 	}
 	job.witness = wBuf
 	job.Unlock()
+	if err := job.setStatus(pb.ProveJobResult_QUEUED); err != nil {
+		s.log.Fatalw("when queuing job", "err", err, "jobID", jobID.String())
+		return
+	}
 	c.Write([]byte("ok"))
 
-	job.setStatus(pb.ProveJobResult_QUEUED)
 	s.chJobQueue <- jobID // queue the job
 }
 
-// loadCircuits walk through fCircuitDir and caches proving keys, verifying keys, and R1CS
+// loadCircuits walk through s.circuitDir and caches proving keys, verifying keys, and R1CS
 // path must be circuits/curveXX/circuitName/ and contains exactly one of each .pk, .vk and .R1CS
 // TODO @gbotrel caching strategy, v1 caches everything.
-func (s *server) loadCircuits() error {
+func (s *Server) loadCircuits() error {
 	s.circuits = make(map[string]circuit)
 	// ensure root dir exists
-	if _, err := os.Stat(*fCircuitDir); err != nil {
+	if _, err := os.Stat(s.circuitDir); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("directory %s doesn't exist", *fCircuitDir)
+			return fmt.Errorf("directory %s doesn't exist", s.circuitDir)
 		}
 		return err
 	}
 
 	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS381, gurvy.BLS377, gurvy.BW761}
 	for _, curve := range curves {
-		curveDir := filepath.Join(*fCircuitDir, curve.String())
+		curveDir := filepath.Join(s.circuitDir, curve.String())
 
 		subDirectories, err := ioutil.ReadDir(curveDir)
 		if err != nil {
@@ -363,15 +389,15 @@ func (s *server) loadCircuits() error {
 	}
 
 	if len(s.circuits) == 0 {
-		return fmt.Errorf("didn't find any circuits in %s", *fCircuitDir)
+		return fmt.Errorf("didn't find any circuits in %s", s.circuitDir)
 	}
 
 	return nil
 }
 
-func (s *server) loadCircuit(curveID gurvy.ID, baseDir string) error {
+func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	circuitID := fmt.Sprintf("%s/%s", curveID.String(), filepath.Base(baseDir))
-	log.Debugw("looking for circuit in", "dir", circuitID)
+	s.log.Debugw("looking for circuit in", "dir", circuitID)
 
 	// list files in dir
 	files, err := ioutil.ReadDir(baseDir)
@@ -430,7 +456,7 @@ func (s *server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 
 	s.circuits[circuitID] = circuit
 
-	log.Infow("successfully loaded circuit", "circuitID", circuitID)
+	s.log.Infow("successfully loaded circuit", "circuitID", circuitID)
 
 	return nil
 }
