@@ -30,15 +30,10 @@ import (
 // TODO @gbotrel add TLS on the sockets
 // TODO @gbotrel graceful shutdown, if either of the listener fails
 
-// -------------------------------------------------------------------------------------------------
-// flags
-var (
-	fCircuitDir = flag.String("circuits", "circuits", "circuits to load at init")
-)
-
 const (
 	witnessPort = ":9001"
 	grpcPort    = ":9002"
+	circuitDir  = "circuits"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -70,7 +65,7 @@ func main() {
 	// Parse flags
 	flag.Parse()
 
-	gnarkdServer, err := server.NewServer(log, *fCircuitDir)
+	gnarkdServer, err := server.NewServer(log, circuitDir)
 	if err != nil {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
