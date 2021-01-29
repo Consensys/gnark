@@ -29,6 +29,11 @@ service Groth16 {
 	rpc Prove(ProveRequest) returns (ProveResult);
 
 
+	// Verify takes circuitID, proof and public witness as parameter
+	// this is a synchronous call
+	rpc Verify(VerifyRequest) returns (VerifyResult);
+
+
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	rpc CreateProveJob(CreateProveJobRequest) returns (CreateProveJobResponse);
 
@@ -45,6 +50,16 @@ message ProveRequest {
 
 message ProveResult {
 	bytes proof = 1;
+}
+
+message VerifyRequest {
+	string circuitID = 1;
+	bytes proof = 2;
+	bytes publicWitness = 3;
+}
+
+message VerifyResult {
+	bool ok = 1;
 }
 
 message CreateProveJobRequest {

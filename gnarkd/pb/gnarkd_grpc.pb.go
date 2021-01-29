@@ -23,6 +23,9 @@ type Groth16Client interface {
 	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
 	// use CreateProveJob instead
 	Prove(ctx context.Context, in *ProveRequest, opts ...grpc.CallOption) (*ProveResult, error)
+	// Verify takes circuitID, proof and public witness as parameter
+	// this is a synchronous call
+	Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResult, error)
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	CreateProveJob(ctx context.Context, in *CreateProveJobRequest, opts ...grpc.CallOption) (*CreateProveJobResponse, error)
 	// SubscribeToProveJob enables a client to get job status changes from the server
@@ -42,6 +45,15 @@ func NewGroth16Client(cc grpc.ClientConnInterface) Groth16Client {
 func (c *groth16Client) Prove(ctx context.Context, in *ProveRequest, opts ...grpc.CallOption) (*ProveResult, error) {
 	out := new(ProveResult)
 	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/Prove", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *groth16Client) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResult, error) {
+	out := new(VerifyResult)
+	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/Verify", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +110,9 @@ type Groth16Server interface {
 	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
 	// use CreateProveJob instead
 	Prove(context.Context, *ProveRequest) (*ProveResult, error)
+	// Verify takes circuitID, proof and public witness as parameter
+	// this is a synchronous call
+	Verify(context.Context, *VerifyRequest) (*VerifyResult, error)
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error)
 	// SubscribeToProveJob enables a client to get job status changes from the server
@@ -113,6 +128,9 @@ type UnimplementedGroth16Server struct {
 
 func (UnimplementedGroth16Server) Prove(context.Context, *ProveRequest) (*ProveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Prove not implemented")
+}
+func (UnimplementedGroth16Server) Verify(context.Context, *VerifyRequest) (*VerifyResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Verify not implemented")
 }
 func (UnimplementedGroth16Server) CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateProveJob not implemented")
@@ -147,6 +165,24 @@ func _Groth16_Prove_Handler(srv interface{}, ctx context.Context, dec func(inter
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(Groth16Server).Prove(ctx, req.(*ProveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Groth16_Verify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(Groth16Server).Verify(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gnarkd.Groth16/Verify",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(Groth16Server).Verify(ctx, req.(*VerifyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -200,6 +236,10 @@ var Groth16_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Prove",
 			Handler:    _Groth16_Prove_Handler,
+		},
+		{
+			MethodName: "Verify",
+			Handler:    _Groth16_Verify_Handler,
 		},
 		{
 			MethodName: "CreateProveJob",
