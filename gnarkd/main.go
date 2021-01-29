@@ -65,11 +65,13 @@ func main() {
 	// Parse flags
 	flag.Parse()
 
+	// init the server and load the ciruits
 	gnarkdServer, err := server.NewServer(log, circuitDir)
 	if err != nil {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
 
+	// listen on the 2 sockets (1 for gRPC, 1 for plain TCP socket to receive large witnesses)
 	grpcLis, err := net.Listen("tcp", grpcPort)
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
