@@ -56,7 +56,7 @@ type Server struct {
 }
 
 // NewServer returns a server implementing the service as defined in pb/gnarkd.proto
-func NewServer(log *zap.SugaredLogger, circuitDir string) (*Server, error) {
+func NewServer(ctx context.Context, log *zap.SugaredLogger, circuitDir string) (*Server, error) {
 	if log == nil {
 		return nil, errors.New("please provide a logger")
 	}
@@ -68,56 +68,65 @@ func NewServer(log *zap.SugaredLogger, circuitDir string) (*Server, error) {
 		return nil, err
 	}
 	s.chJobQueue = make(chan jobID, jobQueueSize)
-	go s.startWorker()
+	go s.startWorker(ctx)
 	return s, nil
 }
 
 // called in a go routine
-func (s *Server) startWorker() {
+func (s *Server) startWorker(ctx context.Context) {
 	s.log.Info("starting worker")
 	var buf bytes.Buffer
-	for jobID := range s.chJobQueue {
-		s.log.Infow("executing job", "jobID", jobID)
+	for {
+		select {
+		case <-ctx.Done():
+			s.log.Info("stopping worker (context is Done())")
+			return
+		case jobID, ok := <-s.chJobQueue:
+			if !ok {
+				s.log.Info("stopping worker (s.chJobQueue is closed)")
+				return
+			}
+			s.log.Infow("executing job", "jobID", jobID)
 
-		_job, ok := s.jobs.Load(jobID)
-		if !ok {
-			s.log.Fatalw("inconsistant Server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+			_job, ok := s.jobs.Load(jobID)
+			if !ok {
+				s.log.Fatalw("inconsistant Server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+			}
+			job := _job.(*proveJob)
+
+			s.updateJobStatusOrDie(job, pb.ProveJobResult_RUNNING)
+
+			// note that job.witness and job.prove can only be accessed by this go routine at this point
+			circuit, ok := s.circuits[job.circuitID]
+			if !ok {
+				s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
+			}
+
+			// run prove
+			proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
+			job.witness = nil // set witness to nil
+			if err != nil {
+				s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
+				job.err = err
+				s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
+				continue
+			}
+
+			// serialize proof
+			buf.Reset()
+			_, err = proof.WriteTo(&buf)
+			if err != nil {
+				s.log.Errorw("couldn't serialize proof", "err", err)
+				job.err = err
+				s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
+				continue
+			}
+
+			s.log.Infow("successfully computed proof", "jobID", job.id)
+			job.proof = buf.Bytes()
+			s.updateJobStatusOrDie(job, pb.ProveJobResult_COMPLETED)
 		}
-		job := _job.(*proveJob)
-
-		s.updateJobStatusOrDie(job, pb.ProveJobResult_RUNNING)
-
-		// note that job.witness and job.prove can only be accessed by this go routine at this point
-		circuit, ok := s.circuits[job.circuitID]
-		if !ok {
-			s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
-		}
-
-		// run prove
-		proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
-		job.witness = nil // set witness to nil
-		if err != nil {
-			s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
-			job.err = err
-			s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
-			continue
-		}
-
-		// serialize proof
-		buf.Reset()
-		_, err = proof.WriteTo(&buf)
-		if err != nil {
-			s.log.Errorw("couldn't serialize proof", "err", err)
-			job.err = err
-			s.updateJobStatusOrDie(job, pb.ProveJobResult_ERRORED)
-			continue
-		}
-
-		s.log.Infow("successfully computed proof", "jobID", job.id)
-		job.proof = buf.Bytes()
-		s.updateJobStatusOrDie(job, pb.ProveJobResult_COMPLETED)
 	}
-	s.log.Info("stopping worker")
 }
 
 // Prove takes circuitID and witness as parameter
@@ -273,12 +282,13 @@ func (s *Server) updateJobStatusOrDie(job *proveJob, status pb.ProveJobResult_St
 	}
 }
 
+// StartWitnessListener listen on given socket for incoming connection
+// and read and try to interpret stream of bytes as a circuit witness
 func (s *Server) StartWitnessListener(l net.Listener) {
 	for {
 		c, err := l.Accept()
 		if err != nil {
-			s.log.Error(err)
-			continue
+			s.log.Fatalw("couldn't accept connection on witness tcp socket", "err", err)
 		}
 		go s.receiveWitness(c)
 	}

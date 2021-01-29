@@ -44,6 +44,6 @@ func TestJobStatusChange(t *testing.T) {
 
 	validTransitions(pb.ProveJobResult_WAITING_WITNESS, pb.ProveJobResult_QUEUED)
 	validTransitions(pb.ProveJobResult_QUEUED, pb.ProveJobResult_RUNNING)
-	validTransitions(pb.ProveJobResult_RUNNING, []pb.ProveJobResult_Status{pb.ProveJobResult_ERRORED, pb.ProveJobResult_COMPLETED}...)
+	validTransitions(pb.ProveJobResult_RUNNING, pb.ProveJobResult_ERRORED, pb.ProveJobResult_COMPLETED)
 
 }

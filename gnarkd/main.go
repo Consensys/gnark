@@ -15,10 +15,12 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/consensys/gnark/gnarkd/pb"
 	"github.com/consensys/gnark/gnarkd/server"
@@ -28,7 +30,6 @@ import (
 
 // TODO @gbotrel add io.LimitReader with expect witness size in circuit struct in TCP protocol
 // TODO @gbotrel add TLS on the sockets
-// TODO @gbotrel graceful shutdown, if either of the listener fails
 
 const (
 	witnessPort = ":9001"
@@ -62,11 +63,17 @@ func main() {
 	defer log.Warn("stopping gnarkd")
 	defer logger.Sync() // flushes buffer, if any
 
+	// catch sigterm and sigint.
+	chDone := make(chan os.Signal)
+	signal.Notify(chDone, syscall.SIGTERM, syscall.SIGINT)
+
 	// Parse flags
-	flag.Parse()
+	// flag.Parse()
 
 	// init the server and load the ciruits
-	gnarkdServer, err := server.NewServer(log, circuitDir)
+	serverCtx, cancelServer := context.WithCancel(context.Background())
+	defer cancelServer()
+	gnarkdServer, err := server.NewServer(serverCtx, log, circuitDir)
 	if err != nil {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
@@ -87,6 +94,16 @@ func main() {
 	// start gRPC listener
 	s := grpc.NewServer()
 	pb.RegisterGroth16Server(s, gnarkdServer)
+
+	go func() {
+		defer signal.Stop(chDone)
+		<-chDone
+
+		// clean up  if SIGINT or SIGTERM is caught.
+		s.GracefulStop()
+		cancelServer()
+	}()
+
 	if err := s.Serve(grpcLis); err != nil {
 		log.Fatalw("failed to start server", "err", err)
 	}
