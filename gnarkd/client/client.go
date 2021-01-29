@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gurvy"
@@ -93,10 +94,13 @@ func main() {
 			}
 		}
 	}()
-
+	<-time.After(4 * time.Second)
 	go func() {
 		// send witness
 		conn, err := net.Dial("tcp", "127.0.0.1:9001")
+		// set conn.Deadlines
+		defer conn.Close()
+
 		if err != nil {
 			log.Fatalf("cannot connect to witness socket %v", err)
 			return
@@ -114,8 +118,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		n, err := conn.Write(buf.Bytes())
-		log.Println("witness size", n)
+		_, err = conn.Write(buf.Bytes())
 		if err != nil {
 			panic(err)
 		}

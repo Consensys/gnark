@@ -41,7 +41,8 @@ import (
 )
 
 const (
-	defaultTTL   = time.Hour * 3 // default TTL for keeping jobs in Server.jobs
+	gcTicker     = time.Minute * 2 // gc running periodically
+	defaultTTL   = time.Hour * 3   // default TTL for keeping jobs in Server.jobs
 	jobQueueSize = 10
 )
 
@@ -50,9 +51,10 @@ type Server struct {
 	pb.UnimplementedGroth16Server
 	circuits   map[string]circuit // not thread safe as it is loaded once only
 	jobs       sync.Map           // key == uuid[string], value == proveJob
-	chJobQueue chan jobID         // TODO @gbotrel shutdown hook, close the queue, after closing the TCP socket
+	chJobQueue chan jobID
 	log        *zap.SugaredLogger
 	circuitDir string
+	ctx        context.Context
 }
 
 // NewServer returns a server implementing the service as defined in pb/gnarkd.proto
@@ -61,6 +63,7 @@ func NewServer(ctx context.Context, log *zap.SugaredLogger, circuitDir string) (
 		return nil, errors.New("please provide a logger")
 	}
 	s := &Server{
+		ctx:        ctx,
 		log:        log,
 		circuitDir: circuitDir,
 	}
@@ -69,10 +72,38 @@ func NewServer(ctx context.Context, log *zap.SugaredLogger, circuitDir string) (
 	}
 	s.chJobQueue = make(chan jobID, jobQueueSize)
 	go s.startWorker(ctx)
+	go s.startGC(ctx)
 	return s, nil
 }
 
-// called in a go routine
+// GC periodically walk through the jobs to remove them from the cache if TTL is expired.
+func (s *Server) startGC(ctx context.Context) {
+	gcTicker := time.NewTicker(gcTicker)
+	for {
+		select {
+		case <-ctx.Done():
+			gcTicker.Stop()
+			s.log.Info("stopping GC (context is Done())")
+			return
+		case <-gcTicker.C:
+			s.log.Debug("running GC")
+			s.jobs.Range(func(k, v interface{}) bool {
+				job := v.(*proveJob)
+				job.Lock()
+				if job.isFinished() || job.status == pb.ProveJobResult_WAITING_WITNESS {
+					if job.expiration.Before(time.Now()) {
+						s.log.Infow("job TTL expired, deleting", "jobID", job.id.String(), "status", job.status.String())
+						s.jobs.Delete(k)
+					}
+				}
+				job.Unlock()
+				return true
+			})
+		}
+	}
+}
+
+// worker executes groth16 prove async calls (listens to s.chJobQueue)
 func (s *Server) startWorker(ctx context.Context) {
 	s.log.Info("starting worker")
 	var buf bytes.Buffer
@@ -242,6 +273,9 @@ func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 	// wait for job update or connection being terminated
 	for {
 		select {
+		case <-s.ctx.Done():
+			s.log.Warnw("server stopping, closing client connection", "jobID", request.JobID)
+			return grpc.ErrServerStopped
 		case <-stream.Context().Done():
 			s.log.Warnw("connection terminated", "jobID", request.JobID)
 			return grpc.ErrClientConnClosing
@@ -295,14 +329,15 @@ func (s *Server) StartWitnessListener(l net.Listener) {
 }
 
 func (s *Server) receiveWitness(c net.Conn) {
-	defer c.Close()
-
 	s.log.Infow("receiving a witness", "remoteAddr", c.RemoteAddr().String())
 
 	// success handler
 	success := func() {
 		if _, err := c.Write([]byte("ok")); err != nil {
 			s.log.Errorw("when responding OK on witness socket", "err", err)
+		}
+		if err := c.Close(); err != nil {
+			s.log.Errorw("when closing", "err", err)
 		}
 	}
 
@@ -311,6 +346,9 @@ func (s *Server) receiveWitness(c net.Conn) {
 		s.log.Errorw("receive witness failed", "err", err)
 		if _, err := c.Write([]byte("nok")); err != nil {
 			s.log.Errorw("when responding NOK on witness socket", "err", err)
+		}
+		if err := c.Close(); err != nil {
+			s.log.Errorw("when closing", "err", err)
 		}
 	}
 

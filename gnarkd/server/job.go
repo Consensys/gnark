@@ -1,7 +1,7 @@
 package server
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const jobIDSize = 16
+const jobIDSize = len(uuid.UUID{})
 
 type jobID = uuid.UUID
 type proveJob struct {
@@ -18,39 +18,44 @@ type proveJob struct {
 	id          jobID
 	circuitID   string
 	status      pb.ProveJobResult_Status
-	expiration  time.Time // TODO @gbotrel add a go routine that periodically wake up and clean up completed tasks
+	expiration  time.Time
 	witness     []byte
 	err         error
 	proof       []byte
 	subscribers []chan struct{}
 }
 
+var errInvalidJobStatusTransition = errors.New("invalid job status transition")
+
 // will lock job.
+// change status and update TTL
+// returns error if status transition is invalid.
 func (job *proveJob) setStatus(status pb.ProveJobResult_Status) error {
 
 	job.Lock()
-	// ensure state machine transitions are valid.
+	// ensure state machine transitions are valid
 	switch status {
 	case pb.ProveJobResult_QUEUED:
 		if job.status != pb.ProveJobResult_WAITING_WITNESS {
 			job.Unlock()
-			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
+			return errInvalidJobStatusTransition
 		}
 	case pb.ProveJobResult_RUNNING:
 		if job.status != pb.ProveJobResult_QUEUED {
 			job.Unlock()
-			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
+			return errInvalidJobStatusTransition
 		}
 	case pb.ProveJobResult_ERRORED, pb.ProveJobResult_COMPLETED:
 		if job.status != pb.ProveJobResult_RUNNING {
 			job.Unlock()
-			return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
+			return errInvalidJobStatusTransition
 		}
 	default:
 		job.Unlock()
-		return fmt.Errorf("invalid status transition from %s to %s on job %s", job.status.String(), status.String(), job.id.String())
+		return errInvalidJobStatusTransition
 	}
 	job.status = status
+	job.expiration = time.Now().Add(defaultTTL)
 	job.Unlock()
 
 	job.RLock()

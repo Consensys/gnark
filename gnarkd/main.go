@@ -28,7 +28,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// TODO @gbotrel add io.LimitReader with expect witness size in circuit struct in TCP protocol
 // TODO @gbotrel add TLS on the sockets
 
 const (
@@ -100,8 +99,8 @@ func main() {
 		<-chDone
 
 		// clean up  if SIGINT or SIGTERM is caught.
-		s.GracefulStop()
 		cancelServer()
+		s.GracefulStop()
 	}()
 
 	if err := s.Serve(grpcLis); err != nil {
