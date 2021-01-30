@@ -151,12 +151,8 @@ func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			}
 
 			// we are done
-			if jobFinished {
-				return nil
-			}
-			if !ok {
-				// channel was closed
-				// TODO @gbotrel check under which circonstances this happens.
+			if jobFinished || !ok {
+				s.log.Infow("closing job stream channel", "jobID", request.JobID, "status", result.Status.String())
 				return nil
 			}
 		}
