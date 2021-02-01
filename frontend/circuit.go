@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/pcs"
 	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gurvy"
@@ -115,7 +115,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
 }
 
 // CompilePlonk WIP
-func CompilePlonk(curveID gurvy.ID, circuit Circuit) (plonk.CS, error) {
+func CompilePlonk(curveID gurvy.ID, circuit Circuit) (pcs.CS, error) {
 
 	// build  the constraint system (basically calling Define)
 	cs, err := buildCS(curveID, circuit)

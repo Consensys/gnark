@@ -21,7 +21,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/pcs"
 	"github.com/consensys/gurvy"
 )
 
@@ -30,7 +30,7 @@ type idPCS = int
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of Coeffs and returns the corresponding entry
-func coeffID(pcs *plonk.UntypedPlonkCS, b *big.Int) int {
+func coeffID(pcs *pcs.UntypedPlonkCS, b *big.Int) int {
 
 	// if the coeff is already stored, fetch its ID from the cs.CoeffsIDs map
 	key := b.Text(16)
@@ -94,7 +94,7 @@ func findUnsolvedVariable(r1c backend.R1C, solvedVariables []bool) (pos int, id 
 	return pos, id
 }
 
-// returns l with the term hanlding the id-th variable removed
+// returns l with the term (id+coef) holding the id-th variable removed
 // No side effects on l.
 func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpression, backend.Term) {
 	var t backend.Term
@@ -116,7 +116,7 @@ func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpr
 // a constant in a PLONK constraint.
 // returns the reduced linear expression and the ID of the coeff corresponding to the constant term (in pcs.Coeffs).
 // If there is no constant term, the id is 0
-func popConstantTerm(l backend.LinearExpression, cs *ConstraintSystem, pcs *plonk.UntypedPlonkCS) (backend.LinearExpression, int) {
+func popConstantTerm(l backend.LinearExpression, cs *ConstraintSystem, pcs *pcs.UntypedPlonkCS) (backend.LinearExpression, int) {
 
 	idOneWire := 0
 	resConstantID := 0 // the zero index contains the zero coef, it is reserved
@@ -140,7 +140,7 @@ func popConstantTerm(l backend.LinearExpression, cs *ConstraintSystem, pcs *plon
 
 // change t's ID to csPcsMapping[t.ID] to get the corresponding variable in the pcs,
 // the coeff ID is changed as well so that it corresponds to a coeff in the pcs.
-func getCorrespondingTerm(pcs *plonk.UntypedPlonkCS, t backend.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) backend.Term {
+func getCorrespondingTerm(pcs *pcs.UntypedPlonkCS, t backend.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) backend.Term {
 
 	// if the variable is internal, we need the variable
 	// that corresponds in the pcs
@@ -163,7 +163,7 @@ func getCorrespondingTerm(pcs *plonk.UntypedPlonkCS, t backend.Term, csCoeffs []
 // newInternalVariable creates a new term =1*new_variable and
 // records it in the pcs. If t is provided, the newly created
 // variable has the same coeff Id than t.
-func newInternalVariable(pcs *plonk.UntypedPlonkCS, t ...backend.Term) backend.Term {
+func newInternalVariable(pcs *pcs.UntypedPlonkCS, t ...backend.Term) backend.Term {
 
 	if len(t) == 0 {
 		cID := coeffID(pcs, bOne)
@@ -183,17 +183,33 @@ func newInternalVariable(pcs *plonk.UntypedPlonkCS, t ...backend.Term) backend.T
 }
 
 // recordConstraint records a plonk constraint in the pcs
-func recordConstraint(pcs *plonk.UntypedPlonkCS, c backend.PlonkConstraint) {
+// The function ensures that all variables ID are set, even
+// if the corresponding coefficients are 0.
+// A plonk constraint will always look like this:
+// L+R+L.R+O+K = 0
+func recordConstraint(pcs *pcs.UntypedPlonkCS, c backend.PlonkConstraint) {
+	if c.L == 0 {
+		c.L.SetVariableID(c.M[0].VariableID())
+	}
+	if c.R == 0 {
+		c.R.SetVariableID(c.M[1].VariableID())
+	}
+	if c.M[0] == 0 {
+		c.M[0].SetVariableID(c.L.VariableID())
+	}
+	if c.M[1] == 0 {
+		c.M[1].SetVariableID(c.R.VariableID())
+	}
 	pcs.Constraints = append(pcs.Constraints, c)
 }
 
 // recordAssertion records a plonk constraint (assertion) in the pcs
-func recordAssertion(pcs *plonk.UntypedPlonkCS, c backend.PlonkConstraint) {
+func recordAssertion(pcs *pcs.UntypedPlonkCS, c backend.PlonkConstraint) {
 	pcs.Assertions = append(pcs.Assertions, c)
 }
 
 // if t=a*variable, it returns -a*variable
-func negate(pcs *plonk.UntypedPlonkCS, t backend.Term) backend.Term {
+func negate(pcs *pcs.UntypedPlonkCS, t backend.Term) backend.Term {
 	// non existing term are zero, if we negate it it's no
 	// longer zero and checks to see if a variable exist will
 	// fail (ex: in r1cToPlonkConstraint we might call negate
@@ -217,7 +233,7 @@ func negate(pcs *plonk.UntypedPlonkCS, t backend.Term) backend.Term {
 // ..
 // wn' = wn-1'+an-2wn-2
 // split returns a term that is equal to aiwi (it's 1xaiwi)
-func split(pcs *plonk.UntypedPlonkCS, acc backend.Term, csCoeffs []big.Int, le backend.LinearExpression, csPcsMapping map[idCS]idPCS) backend.Term {
+func split(pcs *pcs.UntypedPlonkCS, acc backend.Term, csCoeffs []big.Int, le backend.LinearExpression, csPcsMapping map[idCS]idPCS) backend.Term {
 
 	// floor case
 	if len(le) == 0 {
@@ -239,7 +255,7 @@ func split(pcs *plonk.UntypedPlonkCS, acc backend.Term, csCoeffs []big.Int, le b
 
 }
 
-func r1cToPlonkConstraint(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToPlonkConstraint(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 	if r1c.Solver == backend.SingleOutput {
 		r1cToPlonkConstraintSingleOutput(pcs, cs, r1c, csPcsMapping, solvedVariables)
 	} else {
@@ -256,16 +272,19 @@ func r1cToPlonkConstraint(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c b
 // (lin'+v)*r'=o' -> lin'*r'+v*r'=o'
 // we split it in 2: n + lin'*r'=0
 // -n+v*r'=0
-func r1cToPlonkConstraintSingleOutput(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, id := findUnsolvedVariable(r1c, solvedVariables)
 	solvedVariables[id] = true
 
 	// ensure that the unsolved wire is in the left lineexp
-	l := r1c.L
-	r := r1c.R
-	o := r1c.O
+	l := make(backend.LinearExpression, len(r1c.L))
+	r := make(backend.LinearExpression, len(r1c.R))
+	o := make(backend.LinearExpression, len(r1c.O))
+	copy(l, r1c.L)
+	copy(r, r1c.R)
+	copy(o, r1c.O)
 	if lro == 1 {
 		r = r1c.L
 		l = r1c.R
@@ -282,7 +301,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *plonk.UntypedPlonkCS, cs *ConstraintS
 		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
-		// if lt==0, it means that the r1c is of the form (toSolve+lConstID)*(linear_combination+rConstID)=linear_combination+oConstID
+		// if lt==0, it means that the r1c is of the form (toSolve)*(linear_combination)=linear_combination
 		if lt == 0 {
 
 			res := newInternalVariable(pcs)
@@ -295,30 +314,43 @@ func r1cToPlonkConstraintSingleOutput(pcs *plonk.UntypedPlonkCS, cs *ConstraintS
 			recordConstraint(pcs, toRecord)
 
 		} else {
-			ltTimesRt := newInternalVariable(pcs)
-			ltTimesRt = negate(pcs, ltTimesRt)
-			recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: ltTimesRt})
+			// (x+lt)rt=ot =>
+			// lt.rt+u = 0
+			// v -u-ot = 0
+			// x.rt - v = 0 (=x.rt-u-ot=x.rt+lt.rt-ot)
+			u := newInternalVariable(pcs)
+			recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: u})
+
+			v := newInternalVariable(pcs)
+			recordConstraint(pcs, backend.PlonkConstraint{L: v, R: negate(pcs, u), O: negate(pcs, ot)})
 
 			res := newInternalVariable(pcs)
 			csPcsMapping[id] = res.VariableID()
 			coef := cs.coeffs[toSolve.CoeffID()]
 			res.SetCoeffID(coeffID(pcs, &coef))
 
-			// res *rt + lt*rt - ot = 0
-			recordConstraint(pcs, backend.PlonkConstraint{L: ltTimesRt, M: [2]backend.Term{res, rt}, O: negate(pcs, ot)})
+			recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{res, rt}, R: negate(pcs, v)})
 		}
 	} else { // the unsolved wire is in the linear term (r1c.O)
+
 		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 		o, toSolve := popInternalVariable(o, id)
 		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		// lt*rt-ot-coef.res = 0
+
+		// lt*rt + u = 0
+		u := newInternalVariable(pcs)
+		recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: u})
+
+		// u+ot+res = 0
 		res := newInternalVariable(pcs)
-		coef := cs.coeffs[toSolve.CoeffID()]
-		coef.Neg(&coef)
-		res.SetCoeffID(coeffID(pcs, &coef))
-		// lr*rt-ot-coef.res = 0, so solving res is the same as solving toSolve in the cs
-		recordConstraint(pcs, backend.PlonkConstraint{L: negate(pcs, ot), M: [2]backend.Term{lt, rt}, O: res})
 		csPcsMapping[id] = res.VariableID()
+		coef := cs.coeffs[toSolve.CoeffID()]
+		res.SetCoeffID(coeffID(pcs, &coef))
+
+		recordConstraint(pcs, backend.PlonkConstraint{R: u, L: ot, O: res})
 	}
 
 }
@@ -331,7 +363,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *plonk.UntypedPlonkCS, cs *ConstraintS
 // ...
 // an = 2*an-1+bn-1
 // b0,..,bn-1 is the binary decomposition
-func r1cToPlonkConstraintBinary(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
 	// find which part is aibi
 	var binDec backend.LinearExpression
@@ -399,7 +431,7 @@ func r1cToPlonkConstraintBinary(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem,
 // l*r = o -> reduce l,r,o to l',r',o', isolating the constants c0,c1,c2
 // (l'+c0)(r'+c1) = o' + c2
 // so l'r'+c0r'+c1l'+c0c1-c2-o'=0
-func r1cToPlonkAssertion(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS) {
+func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS) {
 
 	var cID [4]int
 	var pcsCoeffs [4]big.Int
@@ -445,10 +477,10 @@ func r1cToPlonkAssertion(pcs *plonk.UntypedPlonkCS, cs *ConstraintSystem, r1c ba
 
 }
 
-func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (plonk.CS, error) {
+func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 
 	// build the Coeffs slice
-	var res plonk.UntypedPlonkCS
+	var res pcs.UntypedPlonkCS
 
 	res.NbPublicVariables = len(cs.public.variables)
 	res.NbSecretVariables = len(cs.secret.variables)
@@ -487,7 +519,8 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (plonk.CS, error) {
 			case backend.Secret:
 				t.SetVariableID(cID + res.NbInternalVariables)
 			case backend.Unset:
-				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
+				//return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
+				return fmt.Errorf("%w", backend.ErrInputNotSet)
 			}
 		}
 
