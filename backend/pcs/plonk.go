@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package plonk
+package pcs
 
 import (
-	"io"
-
 	"github.com/consensys/gurvy"
 )
 
-// CS represents the constraint system which is used by PLONK
+// PlonkCS represents the constraint system which is used by PLONK
 // it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
 type CS interface {
-	io.WriterTo
-	io.ReaderFrom
+	// io.WriterTo
+	// io.ReaderFrom
 	GetNbConstraints() uint64
 	GetNbWires() uint64
 	GetNbCoefficients() int

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package plonk
+package pcs
 
 import (
 	"io"
@@ -58,17 +58,36 @@ func (upcs *UntypedPlonkCS) GetNbCoefficients() int {
 	return res
 }
 
-// WriteTo panics (can't serialize untyped R1CS)
-func (upcs *UntypedPlonkCS) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented: can't serialize untyped Plonk CS")
-}
-
 // GetCurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
 func (upcs *UntypedPlonkCS) GetCurveID() gurvy.ID {
 	return gurvy.UNKNOWN
+}
+
+// WriteTo panics (can't serialize untyped R1CS)
+func (upcs *UntypedPlonkCS) WriteTo(w io.Writer) (n int64, err error) {
+	panic("not implemented: can't serialize untyped Plonk CS")
 }
 
 // ReadFrom panics (can't deserialize untyped R1CS)
 func (upcs *UntypedPlonkCS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
 }
+
+// ToPlonkCS will convert the big.Int coefficients in the UntypedR1CS to field elements
+// in the basefield of the provided curveID and return a R1CS
+//
+// this should not be called in a normal circuit development workflow
+// func (upcs *UntypedPlonkCS) ToPlonkCS(curveID gurvy.ID) PlonkCS {
+// 	switch curveID {
+// 	case gurvy.BN256:
+// 		return upcs.toBN256()
+// 	// case gurvy.BLS377:
+// 	// 	return r1cs.toBLS377()
+// 	// case gurvy.BLS381:
+// 	// 	return r1cs.toBLS381()
+// 	// case gurvy.BW761:
+// 	// 	return r1cs.toBW761()
+// 	default:
+// 		panic("not implemented")
+// 	}
+// }
