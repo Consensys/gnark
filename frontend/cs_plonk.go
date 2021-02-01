@@ -97,12 +97,15 @@ func findUnsolvedVariable(r1c backend.R1C, solvedVariables []bool) (pos int, id 
 // returns l with the term (id+coef) holding the id-th variable removed
 // No side effects on l.
 func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpression, backend.Term) {
+	fmt.Printf("need to pop %d-th variable\n", id)
+	fmt.Printf("len l: %d\n", len(l))
 	var t backend.Term
 	_l := make([]backend.Term, len(l)-1)
 	c := 0
 	for i := 0; i < len(l); i++ {
 		v := l[i]
 		if v.VariableVisibility() == backend.Internal && v.VariableID() == id {
+			fmt.Println("going there")
 			t = v
 			continue
 		}
@@ -233,6 +236,7 @@ func negate(pcs *pcs.UntypedPlonkCS, t backend.Term) backend.Term {
 // ..
 // wn' = wn-1'+an-2wn-2
 // split returns a term that is equal to aiwi (it's 1xaiwi)
+// no side effects on le
 func split(pcs *pcs.UntypedPlonkCS, acc backend.Term, csCoeffs []big.Int, le backend.LinearExpression, csPcsMapping map[idCS]idPCS) backend.Term {
 
 	// floor case
@@ -276,19 +280,22 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, id := findUnsolvedVariable(r1c, solvedVariables)
-	solvedVariables[id] = true
 
 	// ensure that the unsolved wire is in the left lineexp
-	l := make(backend.LinearExpression, len(r1c.L))
-	r := make(backend.LinearExpression, len(r1c.R))
-	o := make(backend.LinearExpression, len(r1c.O))
-	copy(l, r1c.L)
-	copy(r, r1c.R)
+	var l, r, o backend.LinearExpression
+	o = make(backend.LinearExpression, len(r1c.O))
 	copy(o, r1c.O)
 	if lro == 1 {
-		r = r1c.L
-		l = r1c.R
-		o = r1c.O
+		l = make(backend.LinearExpression, len(r1c.R))
+		copy(l, r1c.R)
+		r = make(backend.LinearExpression, len(r1c.L))
+		copy(r, r1c.L)
+		lro = 0
+	} else {
+		l = make(backend.LinearExpression, len(r1c.L))
+		copy(l, r1c.L)
+		r = make(backend.LinearExpression, len(r1c.R))
+		copy(r, r1c.R)
 	}
 
 	// the unsolved wire is in the quadratic expression
@@ -352,7 +359,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 
 		recordConstraint(pcs, backend.PlonkConstraint{R: u, L: ot, O: res})
 	}
-
+	solvedVariables[id] = true
 }
 
 // r1cToPlonkConstraintBinary splits a r1c constraint corresponding
