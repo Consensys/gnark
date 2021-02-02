@@ -413,7 +413,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 		if name == "" {
 			sbb.WriteString("%s")
 		} else {
-			sbb.WriteString(fmt.Sprintf("[%s: %%s]", name))
+			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
 		}
 
 		foundVariable = true
@@ -472,6 +472,13 @@ func (cs *ConstraintSystem) newSecretVariable() Variable {
 
 type logValueHandler func(name string, tValue reflect.Value)
 
+func appendName(baseName, name string) string {
+	if baseName == "" {
+		return name
+	}
+	return baseName + "_" + name
+}
+
 func parseLogValue(input interface{}, name string, handler logValueHandler) {
 	tVariable := reflect.TypeOf(Variable{})
 
@@ -487,10 +494,21 @@ func parseLogValue(input interface{}, name string, handler logValueHandler) {
 			return
 		default:
 			for i := 0; i < tValue.NumField(); i++ {
-
 				value := tValue.Field(i).Interface()
-				parseLogValue(value, tValue.Type().Field(i).Name, handler)
+				_name := appendName(name, tValue.Type().Field(i).Name)
+				parseLogValue(value, _name, handler)
 			}
+		}
+	case reflect.Slice, reflect.Array:
+		if tValue.Len() == 0 {
+			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")
+			return
+		}
+		for j := 0; j < tValue.Len(); j++ {
+			value := tValue.Index(j).Interface()
+			entry := "[" + strconv.Itoa(j) + "]"
+			_name := appendName(name, entry)
+			parseLogValue(value, _name, handler)
 		}
 	}
 }
