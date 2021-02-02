@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -31,13 +32,14 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// TODO @gbotrel add TLS on the sockets
-
-const (
-	witnessPort = ":9001"
-	grpcPort    = ":9002"
-	circuitDir  = "circuits"
-	certDir     = "certs"
+// -------------------------------------------------------------------------------------------------
+// flags
+var (
+	fCircuitDir  = flag.String("circuit_dir", "circuits", "circuits root directory")
+	fCertFile    = flag.String("cert_file", "certs/gnarkd.crt", "TLS cert file")
+	fKeyFile     = flag.String("key_file", "certs/gnarkd.key", "TLS key file")
+	fgRPCPort    = flag.Int("grpc_port", 9002, "gRPC server port")
+	fWitnessPort = flag.Int("witness_port", 9001, "witness tcp socket port")
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -71,33 +73,33 @@ func main() {
 	signal.Notify(chDone, syscall.SIGTERM, syscall.SIGINT)
 
 	// Parse flags
-	// flag.Parse()
+	flag.Parse()
 
 	// init the server and load the ciruits
 	serverCtx, cancelServer := context.WithCancel(context.Background())
 	defer cancelServer()
-	gnarkdServer, err := server.NewServer(serverCtx, log, circuitDir)
+	gnarkdServer, err := server.NewServer(serverCtx, log, *fCircuitDir)
 	if err != nil {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
 
-	// get tls certificates
-	config := getTLSConfig()
+	// gnarkd listens on 2 sockets: 1 for the gRPC APIs, and 1 to receive (async) witnesses
 
-	wLis, err := tls.Listen("tcp", witnessPort, config)
+	// ---------------------------------------------------------------------------------------------
+	// WITNESS LISTENER
+	wLis, err := tls.Listen("tcp", fmt.Sprintf(":%d", *fWitnessPort), getTLSConfig())
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
 	}
-
-	// start witness listener
 	go gnarkdServer.StartWitnessListener(wLis)
 
-	// start gRPC service
-	grpcLis, err := net.Listen("tcp", grpcPort)
+	// ---------------------------------------------------------------------------------------------
+	// gRPC endpoint
+	grpcLis, err := net.Listen("tcp", fmt.Sprintf(":%d", *fgRPCPort))
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
 	}
-	creds, err := credentials.NewServerTLSFromFile("certs/gnarkd.crt", "certs/gnarkd.key")
+	creds, err := credentials.NewServerTLSFromFile(*fCertFile, *fKeyFile)
 	if err != nil {
 		log.Fatalw("failed to setup TLS", "err", err)
 	}
@@ -120,11 +122,11 @@ func main() {
 }
 
 func getTLSConfig() *tls.Config {
-	crt, err := ioutil.ReadFile("certs/gnarkd.crt")
+	crt, err := ioutil.ReadFile(*fCertFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	key, err := ioutil.ReadFile("certs/gnarkd.key")
+	key, err := ioutil.ReadFile(*fKeyFile)
 	if err != nil {
 		log.Fatal(err)
 	}
