@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -79,12 +81,10 @@ func main() {
 		log.Fatalw("couldn't init gnarkd", "err", err)
 	}
 
-	// listen on the 2 sockets (1 for gRPC, 1 for plain TCP socket to receive large witnesses)
-	grpcLis, err := net.Listen("tcp", grpcPort)
-	if err != nil {
-		log.Fatalw("failed to listen tcp", "err", err)
-	}
-	wLis, err := net.Listen("tcp", witnessPort)
+	// get tls certificates
+	config := getTLSConfig()
+
+	wLis, err := tls.Listen("tcp", witnessPort, config)
 	if err != nil {
 		log.Fatalw("failed to listen tcp", "err", err)
 	}
@@ -93,6 +93,10 @@ func main() {
 	go gnarkdServer.StartWitnessListener(wLis)
 
 	// start gRPC service
+	grpcLis, err := net.Listen("tcp", grpcPort)
+	if err != nil {
+		log.Fatalw("failed to listen tcp", "err", err)
+	}
 	creds, err := credentials.NewServerTLSFromFile("certs/gnarkd.crt", "certs/gnarkd.key")
 	if err != nil {
 		log.Fatalw("failed to setup TLS", "err", err)
@@ -107,11 +111,30 @@ func main() {
 		// clean up  if SIGINT or SIGTERM is caught.
 		cancelServer()
 		s.GracefulStop()
+		wLis.Close()
 	}()
 
 	if err := s.Serve(grpcLis); err != nil {
 		log.Fatalw("failed to start server", "err", err)
 	}
+}
+
+func getTLSConfig() *tls.Config {
+	crt, err := ioutil.ReadFile("certs/gnarkd.crt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	key, err := ioutil.ReadFile("certs/gnarkd.key")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cer, err := tls.X509KeyPair(crt, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return &tls.Config{Certificates: []tls.Certificate{cer}}
+
 }
 
 func newZapConfig() zap.Config {

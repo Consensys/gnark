@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"io"
 	"log"
-	"net"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
@@ -40,7 +39,9 @@ import (
 const address = "127.0.0.1:9002"
 
 func main() {
+
 	config := &tls.Config{
+		// TODO add CA cert
 		InsecureSkipVerify: true,
 	}
 	// Set up a connection to the server.
@@ -81,7 +82,7 @@ func main() {
 	}()
 	go func() {
 		// send witness
-		conn, _ := net.Dial("tcp", "127.0.0.1:9001")
+		conn, _ := tls.Dial("tcp", "127.0.0.1:9001", config)
 		defer conn.Close()
 
 		jobID, _ := uuid.Parse(r.JobID)
