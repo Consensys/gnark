@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark/gnarkd/server"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // TODO @gbotrel add TLS on the sockets
@@ -34,6 +35,7 @@ const (
 	witnessPort = ":9001"
 	grpcPort    = ":9002"
 	circuitDir  = "circuits"
+	certDir     = "certs"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -90,8 +92,12 @@ func main() {
 	// start witness listener
 	go gnarkdServer.StartWitnessListener(wLis)
 
-	// start gRPC listener
-	s := grpc.NewServer()
+	// start gRPC service
+	creds, err := credentials.NewServerTLSFromFile("certs/gnarkd.crt", "certs/gnarkd.key")
+	if err != nil {
+		log.Fatalw("failed to setup TLS", "err", err)
+	}
+	s := grpc.NewServer(grpc.Creds(creds))
 	pb.RegisterGroth16Server(s, gnarkdServer)
 
 	go func() {
