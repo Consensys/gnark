@@ -97,15 +97,12 @@ func findUnsolvedVariable(r1c backend.R1C, solvedVariables []bool) (pos int, id 
 // returns l with the term (id+coef) holding the id-th variable removed
 // No side effects on l.
 func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpression, backend.Term) {
-	fmt.Printf("need to pop %d-th variable\n", id)
-	fmt.Printf("len l: %d\n", len(l))
 	var t backend.Term
 	_l := make([]backend.Term, len(l)-1)
 	c := 0
 	for i := 0; i < len(l); i++ {
 		v := l[i]
 		if v.VariableVisibility() == backend.Internal && v.VariableID() == id {
-			fmt.Println("going there")
 			t = v
 			continue
 		}
@@ -118,11 +115,12 @@ func popInternalVariable(l backend.LinearExpression, id int) (backend.LinearExpr
 // pops the constant associated to the one_wire in the cs, which will become
 // a constant in a PLONK constraint.
 // returns the reduced linear expression and the ID of the coeff corresponding to the constant term (in pcs.Coeffs).
-// If there is no constant term, the id is 0
+// If there is no constant term, the id is 0 (the 0-th entry is reserved for this purpose).
 func popConstantTerm(l backend.LinearExpression, cs *ConstraintSystem, pcs *pcs.UntypedPlonkCS) (backend.LinearExpression, int) {
 
 	idOneWire := 0
 	resConstantID := 0 // the zero index contains the zero coef, it is reserved
+	var coef big.Int
 
 	lCopy := make(backend.LinearExpression, len(l))
 	copy(lCopy, l)
@@ -132,7 +130,7 @@ func popConstantTerm(l backend.LinearExpression, cs *ConstraintSystem, pcs *pcs.
 		vis := t.VariableVisibility()
 		if vis == backend.Public && id == idOneWire {
 			coefID := t.CoeffID()
-			coef := cs.coeffs[coefID]
+			coef.Set(&cs.coeffs[coefID])
 			resConstantID = coeffID(pcs, &coef)
 			lCopy = append(lCopy[:i], lCopy[i+1:]...)
 			break
@@ -221,10 +219,21 @@ func negate(pcs *pcs.UntypedPlonkCS, t backend.Term) backend.Term {
 	if t == 0 {
 		return t
 	}
-	coeff := pcs.Coeffs[t.CoeffID()]
+	var coeff big.Int
+	coeff.Set(&pcs.Coeffs[t.CoeffID()])
 	coeff.Neg(&coeff)
 	cID := coeffID(pcs, &coeff)
 	t.SetCoeffID(cID)
+	return t
+}
+
+// multiplies t by the coeff corresponding to idCoeff.
+func multiply(pcs *pcs.UntypedPlonkCS, t backend.Term, idCoeff int) backend.Term {
+	var c big.Int
+	c.Set(&pcs.Coeffs[t.CoeffID()])
+	c.Mul(&c, &pcs.Coeffs[idCoeff])
+	newID := coeffID(pcs, &c)
+	t.SetCoeffID(newID)
 	return t
 }
 
@@ -340,24 +349,60 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 		}
 	} else { // the unsolved wire is in the linear term (r1c.O)
 
+		// remove the constant term in l
+		l, constantl := popConstantTerm(l, cs, pcs)
 		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+
+		// remove the constant term in r
+		r, constantr := popConstantTerm(r, cs, pcs)
 		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		fmt.Printf("constant r: %s\n", pcs.Coeffs[constantr].String())
+		fmt.Println("")
+
 		o, toSolve := popInternalVariable(o, id)
 		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
-		// lt*rt-ot-coef.res = 0
+		if ot == 0 { // (lt + constantl)*(rt+constantr) = toSolve (i.e. ot = 0)
 
-		// lt*rt + u = 0
-		u := newInternalVariable(pcs)
-		recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: u})
+			res := newInternalVariable(pcs)
+			csPcsMapping[id] = res.VariableID()
+
+			var constk, c big.Int
+			// fmt.Println("rt coef: " + pcs.Coeffs[rt.CoeffID()].String())
+			// fmt.Println("rt coef: " + pcs.Coeffs[constantl].String())
+			// fmt.Println("")
+			constlrt := multiply(pcs, rt, constantl)
+			constrlt := multiply(pcs, lt, constantr)
+			constk.Set(&pcs.Coeffs[constantr])
+			constk.Mul(&constk, &pcs.Coeffs[constantl])
+			kID := coeffID(pcs, &constk)
+			fmt.Printf("k coeff: %d\n", kID)
+			fmt.Println("")
+
+			c.Set(&cs.coeffs[toSolve.CoeffID()])
+			c.Neg(&c)
+			id := coeffID(pcs, &c)
+			res.SetCoeffID(id)
+			recordConstraint(pcs, backend.PlonkConstraint{L: constlrt, R: constrlt, M: [2]backend.Term{lt, rt}, K: kID, O: res})
+
+		} else { // lt*rt = ot+o
+
+			var coef big.Int
+
+			//lt*rt+u=0
+			u := newInternalVariable(pcs)
+			recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: u})
+
+			// u+ot+res = 0 (=> lt*rt=ot+res)
+			res := newInternalVariable(pcs)
+			csPcsMapping[id] = res.VariableID()
+			coef.Set(&cs.coeffs[toSolve.CoeffID()])
+			coef.Neg(&coef)
+			res.SetCoeffID(coeffID(pcs, &coef))
+			recordConstraint(pcs, backend.PlonkConstraint{R: u, L: ot, O: res})
+		}
 
 		// u+ot+res = 0
-		res := newInternalVariable(pcs)
-		csPcsMapping[id] = res.VariableID()
-		coef := cs.coeffs[toSolve.CoeffID()]
-		res.SetCoeffID(coeffID(pcs, &coef))
-
-		recordConstraint(pcs, backend.PlonkConstraint{R: u, L: ot, O: res})
 	}
 	solvedVariables[id] = true
 }
@@ -440,15 +485,19 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 // so l'r'+c0r'+c1l'+c0c1-c2-o'=0
 func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS) {
 
+	// IDs of the constant terms (in the pcs)
 	var cID [4]int
+
 	var pcsCoeffs [4]big.Int
 
 	lCopy := make([]backend.Term, len(r1c.L))
 	copy(lCopy, r1c.L)
 	lCopy, cID[0] = popConstantTerm(lCopy, cs, pcs)
+
 	rCopy := make([]backend.Term, len(r1c.R))
 	copy(rCopy, r1c.R)
 	rCopy, cID[1] = popConstantTerm(rCopy, cs, pcs)
+
 	oCopy := make([]backend.Term, len(r1c.O))
 	copy(oCopy, r1c.O)
 	oCopy, cID[2] = popConstantTerm(oCopy, cs, pcs)
@@ -465,7 +514,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 	reducedCoef.Mul(&pcsCoeffs[0], &reducedCoef)
 	cID[0] = coeffID(pcs, &reducedCoef)
 
-	reducedCoef = cs.coeffs[lt.CoeffID()]
+	reducedCoef = pcs.Coeffs[lt.CoeffID()]
 	reducedCoef.Mul(&pcsCoeffs[1], &reducedCoef)
 	cID[1] = coeffID(pcs, &reducedCoef)
 
@@ -494,6 +543,9 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 
 	res.Constraints = make([]backend.PlonkConstraint, 0)
 	res.Assertions = make([]backend.PlonkConstraint, 0)
+
+	res.Logs = make([]backend.LogEntry, len(cs.logs))
+
 	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
 	res.CoeffsIDs = make(map[string]int)
 	// reserve the zeroth entry to store 0
@@ -565,5 +617,32 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 		offsetIDs(&res.Constraints[i])
 	}
 
-	return &res, nil
+	// offset IDs in the logs
+	for i := 0; i < len(cs.logs); i++ {
+		entry := backend.LogEntry{
+			Format: cs.logs[i].format,
+		}
+		for j := 0; j < len(cs.logs[i].toResolve); j++ {
+			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
+			switch cVisibility {
+			case backend.Public:
+				cID += res.NbInternalVariables + res.NbSecretVariables
+			case backend.Secret:
+				cID += res.NbInternalVariables
+			case backend.Internal:
+				cID = varPcsToVarCs[cID]
+			case backend.Unset:
+				panic("encountered unset visibility on a variable in logs id offset routine")
+			}
+			entry.ToResolve = append(entry.ToResolve, cID)
+		}
+
+		res.Logs[i] = entry
+	}
+
+	if curveID == gurvy.UNKNOWN {
+		return &res, nil
+	}
+
+	return res.ToPlonkCS(curveID), nil
 }

@@ -123,6 +123,11 @@ func CompilePlonk(curveID gurvy.ID, circuit Circuit) (pcs.CS, error) {
 		return nil, err
 	}
 
+	// ----- to delete -----
+	// tmp, _ := cs.toR1CS(gurvy.UNKNOWN)
+	// fmt.Println(r1cs.PrintCS(tmp))
+	// ---------------------
+
 	// Converts the cs into PLONK constraints, and
 	// offset the IDs -> interal_wire || secret_variables || public_variables
 	res, err := cs.toPlonk(curveID)
