@@ -1,3 +1,5 @@
+**WARNING**: this is an experimental feature and might not stay in `gnark` main repository in the future. 
+
 # gnarkd 
 
 `gnarkd` is a `gnark` Proving / Verifying server. 
@@ -11,10 +13,6 @@ In go:
 ```
 protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative  pb/gnarkd.proto
 ```
-
-## WIP
-* TLS connection
-* Docker image
 
 ## Under the hood
 
@@ -32,50 +30,4 @@ On this second connection, the server expects: `jobID` | `witness` .
 
 ## Example client (Go)
 
-```golang
-	// Set up a connection to the server.
-	conn, _ := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
-	c := pb.NewGroth16Client(conn)
-
-	ctx := context.Background()
-
-	var buf bytes.Buffer
-    var w cubic.Circuit
-	w.X.Assign(3)
-	w.Y.Assign(35)
-	witness.WriteFull(&buf, &w, gurvy.BN256)
-
-    // synchronous call 
-	proveRes, _ := c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn256/cubic",
-		Witness:   buf.Bytes(),
-	})
-
-    // async call
-	r, err := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn256/cubic"})
-	stream, err := c.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
-
-	done := make(chan struct{})
-	go func() {
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				done <- struct{}{}
-				return
-			}
-			log.Printf("new job status: %s", resp.Status.String())
-		}
-	}()
-	go func() {
-		// send witness
-		conn, err := net.Dial("tcp", "127.0.0.1:9001")
-		defer conn.Close()
-
-		jobID, err := uuid.Parse(r.JobID)
-		bjobID, err := jobID.MarshalBinary()
-		_, err = conn.Write(bjobID)
-		_, err = conn.Write(buf.Bytes())
-	}()
-
-	<-done 
-```
+See `client/example.go`. 
