@@ -550,37 +550,6 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 				}
 			}
 		}
-
-		// // if lt==0, it means that the r1c is of the form (toSolve)*(linear_combination)=linear_combination
-		// if len(l) == 0 {
-
-		// 	res := newInternalVariable(pcs)
-		// 	csPcsMapping[idCS] = res.VariableID()
-
-		// 	coef := cs.coeffs[toSolve.CoeffID()]
-		// 	res.SetCoeffID(coeffID(pcs, &coef))
-
-		// 	toRecord := backend.PlonkConstraint{M: [2]backend.Term{res, rt}, O: negate(pcs, ot)}
-		// 	recordConstraint(pcs, toRecord)
-
-		// } else {
-		// 	// (x+lt)rt=ot =>
-		// 	// lt.rt+u = 0
-		// 	// v -u-ot = 0
-		// 	// x.rt - v = 0 (=x.rt-u-ot=x.rt+lt.rt-ot)
-		// 	u := newInternalVariable(pcs)
-		// 	recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{lt, rt}, O: u})
-
-		// 	v := newInternalVariable(pcs)
-		// 	recordConstraint(pcs, backend.PlonkConstraint{L: v, R: negate(pcs, u), O: negate(pcs, ot)})
-
-		// 	res := newInternalVariable(pcs)
-		// 	csPcsMapping[idCS] = res.VariableID()
-		// 	coef := cs.coeffs[toSolve.CoeffID()]
-		// 	res.SetCoeffID(coeffID(pcs, &coef))
-
-		// 	recordConstraint(pcs, backend.PlonkConstraint{M: [2]backend.Term{res, rt}, R: negate(pcs, v)})
-		// }
 	} else { // the unsolved wire is in r1c.O
 
 		l, constantl := popConstantTerm(l, cs, pcs)
@@ -795,71 +764,75 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 
 // r1cToPlonkConstraintBinary splits a r1c constraint corresponding
 // to a binary decomposition.
-// if bi2^i=a (double indices=summation) then
-// a = 2*a1+b0
-// a2 = 2*a1+b1
-// ...
-// an = 2*an-1+bn-1
-// b0,..,bn-1 is the binary decomposition
 func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c backend.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
-	// find which part is aibi
-	var binDec backend.LinearExpression
-	if len(r1c.L) > 1 {
-		binDec = make(backend.LinearExpression, len(r1c.L))
-		copy(binDec, r1c.L)
-	} else { // normally this case should never occur, since from the api ToBinary fills the left linear exp...
-		binDec = make(backend.LinearExpression, len(r1c.R))
-		copy(binDec, r1c.R)
-	}
+	// from cs_api, le binary decomposition is r1c.L
+	binDec := make(backend.LinearExpression, len(r1c.L))
+	copy(binDec, r1c.L)
 
 	// reduce r1c.O (in case it's a linear combination)
-	ot := split(pcs, 0, cs.coeffs, r1c.O, csPcsMapping)
+	var ot backend.Term
+	o, constanto := popConstantTerm(r1c.O, cs, pcs)
+	if len(o) == 0 { // o is a constant term
+		ot = newInternalVariable(pcs)
+		recordConstraint(pcs, backend.PlonkConstraint{L: negate(pcs, ot), K: constanto})
+	} else {
+		ot = split(pcs, 0, cs.coeffs, o, csPcsMapping)
+		if constanto != 0 {
+			_ot := newInternalVariable(pcs)
+			recordConstraint(pcs, backend.PlonkConstraint{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
+			ot = _ot
+		}
+	}
 
 	// split the linear expression
 	nbBits := len(binDec)
 	two := big.NewInt(2)
-	one := big.NewInt(1)
 	acc := big.NewInt(1)
 	pcsTwoIdx := coeffID(pcs, two)
-	pcsOneIdx := coeffID(pcs, one)
 
-	// stores the id of the variables ai created
-	accAi := make([]backend.Term, nbBits)
-	accAi[0] = ot
+	// accumulators for the quotients and remainders when dividing by 2
+	accRi := make([]backend.Term, nbBits) // accRi[0] -> LSB
+	accQi := make([]backend.Term, nbBits+1)
+	accQi[0] = ot
+	fmt.Printf("accQi[0] visibility:  ")
+	switch accQi[0].VariableVisibility() {
+	case backend.Internal:
+		fmt.Printf("internal:\n")
+	case backend.Secret:
+		fmt.Printf("secret:\n")
+	case backend.Public:
+		fmt.Printf("public:\n")
+	default:
+		fmt.Println("unset")
+	}
 
-	for i := 0; i < nbBits-1; i++ {
+	for i := 0; i < nbBits; i++ {
 
-		// 2*ai+bi=ai-1
-		bi := newInternalVariable(pcs)
-		bi.SetCoeffID(coeffID(pcs, one))
-
-		ai := newInternalVariable(pcs)
-		ai.SetCoeffID(pcsTwoIdx)
+		accRi[i] = newInternalVariable(pcs)
+		accQi[i+1] = newInternalVariable(pcs)
 
 		// find the variable corresponding to the i-th bit (it's not ordered since getLinExpCopy is not deterministic)
 		// so we can update csPcsMapping
-		for k := 0; k < len(binDec)-1; k++ {
+		for k := 0; k < len(binDec); k++ {
 			t := binDec[k]
-			cID := t.CoeffID()
-			coef := cs.coeffs[cID]
+			coef := cs.coeffs[t.CoeffID()]
 			if coef.Cmp(acc) == 0 {
-				csID := t.VariableID()
-				csPcsMapping[csID] = bi.VariableID()
+				csPcsMapping[t.VariableID()] = accRi[i].VariableID()
 				binDec = append(binDec[:k], binDec[k+1:]...)
 				break
 			}
 		}
 		acc.Mul(acc, two)
 
-		o := accAi[i]
-		// 2*ai + bi - a_i-1 = 0
-		recordConstraint(pcs, backend.PlonkConstraint{L: ai, R: bi, O: negate(pcs, o), Solver: backend.BinaryDec})
-		ai.SetCoeffID(pcsOneIdx)
-		accAi[i+1] = ai
+		// 2*q[i+1] + ri - q[i] = 0
+		recordConstraint(pcs, backend.PlonkConstraint{
+			L:      multiply(pcs, accQi[i+1], pcsTwoIdx),
+			R:      accRi[i],
+			O:      negate(pcs, accQi[i]),
+			Solver: backend.BinaryDec,
+		})
 	}
-	lastTerm := accAi[nbBits-1]
-	csPcsMapping[binDec[0].VariableID()] = lastTerm.VariableID()
 
 }
 

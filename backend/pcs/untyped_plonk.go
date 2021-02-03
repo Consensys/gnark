@@ -35,6 +35,9 @@ type UntypedPlonkCS struct {
 	Constraints []backend.PlonkConstraint // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
 	Assertions  []backend.PlonkConstraint // list of Plonk constraints that yield no output (for example ensuring v1 == v2)
 
+	// Logs (e.g. variables that have been printed using cs.Println)
+	Logs []backend.LogEntry
+
 	// Coefficients in the constraints
 	Coeffs    []big.Int      // list of unique coefficients.
 	CoeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
@@ -77,17 +80,17 @@ func (upcs *UntypedPlonkCS) ReadFrom(r io.Reader) (n int64, err error) {
 // in the basefield of the provided curveID and return a R1CS
 //
 // this should not be called in a normal circuit development workflow
-// func (upcs *UntypedPlonkCS) ToPlonkCS(curveID gurvy.ID) PlonkCS {
-// 	switch curveID {
-// 	case gurvy.BN256:
-// 		return upcs.toBN256()
-// 	// case gurvy.BLS377:
-// 	// 	return r1cs.toBLS377()
-// 	// case gurvy.BLS381:
-// 	// 	return r1cs.toBLS381()
-// 	// case gurvy.BW761:
-// 	// 	return r1cs.toBW761()
-// 	default:
-// 		panic("not implemented")
-// 	}
-// }
+func (upcs *UntypedPlonkCS) ToPlonkCS(curveID gurvy.ID) CS {
+	switch curveID {
+	case gurvy.BN256:
+		return upcs.toBN256()
+	// case gurvy.BLS377:
+	// 	return r1cs.toBLS377()
+	// case gurvy.BLS381:
+	// 	return r1cs.toBLS381()
+	// case gurvy.BW761:
+	// 	return r1cs.toBW761()
+	default:
+		panic("not implemented")
+	}
+}
