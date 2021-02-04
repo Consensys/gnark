@@ -821,7 +821,6 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 			Solver: backend.BinaryDec,
 		})
 	}
-
 }
 
 // r1cToPlonkAssertion splits a r1c assertion (meaning that
@@ -1003,7 +1002,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 	zero := big.NewInt(0)
 	coeffID(&res, zero)
 
-	// cs_variable_id -> plonk_cs_variable_id
+	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
 	varPcsToVarCs := make(map[idCS]idPCS)
 	solvedVariables := make([]bool, len(cs.internal.variables))
 
@@ -1073,23 +1072,22 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 	// offset IDs in the logs
 	for i := 0; i < len(cs.logs); i++ {
 		entry := backend.LogEntry{
-			Format: cs.logs[i].format,
+			Format:    cs.logs[i].format,
+			ToResolve: make([]int, len(cs.logs[i].toResolve)),
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				cID += res.NbInternalVariables + res.NbSecretVariables
+				entry.ToResolve[cID] += res.NbInternalVariables + res.NbSecretVariables
 			case backend.Secret:
-				cID += res.NbInternalVariables
+				entry.ToResolve[cID] += res.NbInternalVariables
 			case backend.Internal:
-				cID = varPcsToVarCs[cID]
+				entry.ToResolve[cID] = varPcsToVarCs[cID]
 			case backend.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}
-			entry.ToResolve = append(entry.ToResolve, cID)
 		}
-
 		res.Logs[i] = entry
 	}
 

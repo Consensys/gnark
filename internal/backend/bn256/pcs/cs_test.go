@@ -25,11 +25,7 @@ import (
 )
 
 func TestCircuits(t *testing.T) {
-	names := [6]string{"AND", "div", "inv", "frombinary", "OR", "expo"}
-	//names := [1]string{"expo"}
-	//for name, circuit := range circuits.Circuits {
-	for _, name := range names {
-		circuit := circuits.Circuits[name]
+	for name, circuit := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			assert := plonk.NewAssert(t)
 			pcs, err := frontend.CompilePlonk(curve.ID, circuit.Circuit)

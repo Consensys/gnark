@@ -154,9 +154,10 @@ func (plonkcs *CS) solveConstraint(c backend.PlonkConstraint, wireInstantiated [
 		}
 
 	case backend.BinaryDec:
-		// 2*L + R = O, computed as a = c/2, b = c%2
+		// 2*L + R + O = 0, computed as a = c/2, b = c%2
 		var bo, bl, br, two big.Int
-		o := solution[c.O.VariableID()]
+		o := plonkcs.computeTerm(c.O, solution)
+		o.Neg(&o)
 		o.ToBigIntRegular(&bo)
 		two.SetInt64(2)
 		br.Mod(&bo, &two)
@@ -236,6 +237,7 @@ func (plonkcs *CS) Solve(witness []fr.Element) (solution []fr.Element, err error
 		plonkcs.solveConstraint(plonkcs.Constraints[i], wireInstantiated, solution)
 		err = plonkcs.checkConstraint(plonkcs.Constraints[i], solution)
 		if err != nil {
+			fmt.Printf("%d-th constraint\n", i)
 			return nil, err
 		}
 	}
@@ -247,16 +249,6 @@ func (plonkcs *CS) Solve(witness []fr.Element) (solution []fr.Element, err error
 			return nil, err
 		}
 	}
-
-	// for i := 0; i < plonkcs.NbInternalVariables; i++ {
-	// 	fmt.Printf("solution[%d]: %s\n", i, solution[i].String())
-	// }
-	// for i := plonkcs.NbInternalVariables; i < plonkcs.NbInternalVariables+plonkcs.NbSecretVariables; i++ {
-	// 	fmt.Printf("solution[%d] (s): %s\n", i, solution[i].String())
-	// }
-	// for i := plonkcs.NbInternalVariables + plonkcs.NbSecretVariables; i < len(solution); i++ {
-	// 	fmt.Printf("solution[%d] (p): %s\n", i, solution[i].String())
-	// }
 
 	return solution, nil
 
