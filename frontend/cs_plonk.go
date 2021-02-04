@@ -91,6 +91,7 @@ func findUnsolvedVariable(r1c backend.R1C, solvedVariables []bool) (pos int, id 
 			}
 		}
 	}
+
 	return pos, id
 }
 
@@ -579,7 +580,6 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					recordConstraint(pcs, backend.PlonkConstraint{K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + constanto
-
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 
 					var constk, c big.Int
@@ -676,7 +676,6 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					recordConstraint(pcs, backend.PlonkConstraint{L: ot, K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + o + constanto
-
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
@@ -722,7 +721,6 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					recordConstraint(pcs, backend.PlonkConstraint{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
 
 				} else { // (l + constantl)*(r + constantr) = toSolve + o + constanto
-
 					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
@@ -795,17 +793,6 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 	accRi := make([]backend.Term, nbBits) // accRi[0] -> LSB
 	accQi := make([]backend.Term, nbBits+1)
 	accQi[0] = ot
-	fmt.Printf("accQi[0] visibility:  ")
-	switch accQi[0].VariableVisibility() {
-	case backend.Internal:
-		fmt.Printf("internal:\n")
-	case backend.Secret:
-		fmt.Printf("secret:\n")
-	case backend.Public:
-		fmt.Printf("public:\n")
-	default:
-		fmt.Println("unset")
-	}
 
 	for i := 0; i < nbBits; i++ {
 
@@ -819,6 +806,7 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 			coef := cs.coeffs[t.CoeffID()]
 			if coef.Cmp(acc) == 0 {
 				csPcsMapping[t.VariableID()] = accRi[i].VariableID()
+				solvedVariables[t.VariableID()] = true
 				binDec = append(binDec[:k], binDec[k+1:]...)
 				break
 			}

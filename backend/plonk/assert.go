@@ -35,7 +35,7 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-// SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
+// SolvingSucceeded Verifies that the pcs.PCS is solved with the given witness, without executing plonk workflow
 func (assert *Assert) SolvingSucceeded(pcs pcs.CS, witness frontend.Witness) {
 	assert.NoError(solvePlonkSystem(pcs, witness))
 	// ----- to delete -----
@@ -44,6 +44,11 @@ func (assert *Assert) SolvingSucceeded(pcs pcs.CS, witness frontend.Witness) {
 	// 	fmt.Println(err)
 	// }
 	// ---------------------
+}
+
+// SolvingFailed Verifies that the pcs.PCS is not solved with the given witness, without executing plonk workflow
+func (assert *Assert) SolvingFailed(pcs pcs.CS, witness frontend.Witness) {
+	assert.Error(solvePlonkSystem(pcs, witness))
 }
 
 func solvePlonkSystem(pcs pcs.CS, witness frontend.Witness) error {
