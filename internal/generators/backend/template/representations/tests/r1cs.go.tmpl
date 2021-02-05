@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
 
-	{{ template "import_backend" . }}
+	{{ template "import_backend_r1cs" . }}
 )
 func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer

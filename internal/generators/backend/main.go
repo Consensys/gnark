@@ -48,42 +48,71 @@ func main() {
 
 			fftDir := filepath.Join(d.RootPath, "fft")
 			groth16Dir := filepath.Join(d.RootPath, "groth16")
-			backendDir := filepath.Join(d.RootPath, "r1cs")
+			backendR1csDir := filepath.Join(d.RootPath, "r1cs")
+			backendPcsDir := filepath.Join(d.RootPath, "pcs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
 			r1csDir := "../../../backend/r1cs/"
+			pcsDir := "../../../backend/pcs/"
 
-			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", bavard.EntryF{
-				File:      filepath.Join(r1csDir, "r1cs_"+strings.ToLower(d.Curve)+".go"),
-				TemplateF: []string{"r1cs.convertor.go.tmpl", importCurve},
-			}); err != nil {
-				panic(err)
-			}
-
+			// data generated in backend/
 			entries := []bavard.EntryF{
-				{File: filepath.Join(backendDir, "r1cs.go"), TemplateF: []string{"r1cs.go.tmpl", importCurve}},
+				{
+					File:      filepath.Join(r1csDir, "r1cs_"+strings.ToLower(d.Curve)+".go"),
+					TemplateF: []string{"r1cs.convertor.go.tmpl", importCurve},
+				},
 			}
-			if err := bgen.GenerateF(d, "backend", "./template/representations/", entries...); err != nil {
+			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
 			entries = []bavard.EntryF{
-				{File: filepath.Join(witnessDir, "witness.go"), TemplateF: []string{"witness.go.tmpl", importCurve}},
+				{
+					File:      filepath.Join(pcsDir, "pcs_"+strings.ToLower(d.Curve)+".go"),
+					TemplateF: []string{"pcs.convertor.go.tmpl", importCurve},
+				},
+			}
+			if err := bgen.GenerateF(d, "pcs", "./template/representations/", entries...); err != nil {
+				panic(err)
+			}
+
+			// data generated in internal/backend/<curve>/
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(backendR1csDir, "r1cs.go"),
+					TemplateF: []string{"r1cs.go.tmpl", importCurve},
+				},
+			}
+			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", entries...); err != nil {
+				panic(err)
+			}
+
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(backendPcsDir, "pcs.go"),
+					TemplateF: []string{"pcs.go.tmpl", importCurve},
+				},
+			}
+			if err := bgen.GenerateF(d, "pcs", "./template/representations/", entries...); err != nil {
+				panic(err)
+			}
+
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(witnessDir, "witness.go"),
+					TemplateF: []string{"witness.go.tmpl", importCurve},
+				},
 			}
 			if err := bgen.GenerateF(d, "witness", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
-			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", bavard.EntryF{
-				File:      filepath.Join(backendDir, "r1cs.go"),
-				TemplateF: []string{"r1cs.go.tmpl", importCurve},
-			}); err != nil {
-				panic(err)
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(backendR1csDir, "r1cs_test.go"),
+					TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
+				},
 			}
-
-			if err := bgen.GenerateF(d, "r1cs_test", "./template/representations/", bavard.EntryF{
-				File:      filepath.Join(backendDir, "r1cs_test.go"),
-				TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
-			}); err != nil {
+			if err := bgen.GenerateF(d, "r1cs_test", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 

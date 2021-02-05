@@ -17,14 +17,14 @@
 package pcs
 
 import (
-	bn256backend "github.com/consensys/gnark/internal/backend/bn256/pcs"
+	bls377backend "github.com/consensys/gnark/internal/backend/bls377/pcs"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
-func (plonkcs *UntypedPlonkCS) toBN256() *bn256backend.CS {
+func (plonkcs *UntypedPlonkCS) toBLS377() *bls377backend.CS {
 
-	toReturn := bn256backend.CS{
+	toReturn := bls377backend.CS{
 		NbInternalVariables: plonkcs.NbInternalVariables,
 		NbPublicVariables:   plonkcs.NbPublicVariables,
 		NbSecretVariables:   plonkcs.NbSecretVariables,

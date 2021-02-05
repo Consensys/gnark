@@ -15,11 +15,19 @@
 package plonk
 
 import (
-	"fmt"
 	"testing"
 
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/pcs"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
+
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/pcs"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
+
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/pcs"
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
+
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/pcs"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
 
 	"github.com/consensys/gnark/backend/pcs"
 	"github.com/consensys/gnark/frontend"
@@ -38,13 +46,7 @@ func NewAssert(t *testing.T) *Assert {
 
 // SolvingSucceeded Verifies that the pcs.PCS is solved with the given witness, without executing plonk workflow
 func (assert *Assert) SolvingSucceeded(pcs pcs.CS, witness frontend.Witness) {
-	//assert.NoError(solvePlonkSystem(pcs, witness))
-	// ----- to delete -----
-	err := solvePlonkSystem(pcs, witness)
-	if err != nil {
-		fmt.Println(err)
-	}
-	// ---------------------
+	assert.NoError(solvePlonkSystem(pcs, witness))
 }
 
 // SolvingFailed Verifies that the pcs.PCS is not solved with the given witness, without executing plonk workflow
@@ -56,6 +58,24 @@ func solvePlonkSystem(pcs pcs.CS, witness frontend.Witness) error {
 	switch _pcs := pcs.(type) {
 	case *backend_bn256.CS:
 		w, err := witness_bn256.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _pcs.IsSolved(w)
+	case *backend_bls381.CS:
+		w, err := witness_bls381.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _pcs.IsSolved(w)
+	case *backend_bls377.CS:
+		w, err := witness_bls377.Full(witness)
+		if err != nil {
+			return err
+		}
+		return _pcs.IsSolved(w)
+	case *backend_bw761.CS:
+		w, err := witness_bw761.Full(witness)
 		if err != nil {
 			return err
 		}
