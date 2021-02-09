@@ -36,18 +36,26 @@ func main() {
 	}
 
 	datas := []templateData{bls377, bls381, bn256, bw761}
+
 	const importCurve = "../imports.go.tmpl"
+
 	var wg sync.WaitGroup
+
 	for _, d := range datas {
+
 		wg.Add(1)
+
 		go func(d templateData) {
+
 			defer wg.Done()
+
 			if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
 				panic(err)
 			}
 
 			fftDir := filepath.Join(d.RootPath, "fft")
 			groth16Dir := filepath.Join(d.RootPath, "groth16")
+			plonkDir := filepath.Join(d.RootPath, "plonk")
 			backendR1csDir := filepath.Join(d.RootPath, "r1cs")
 			backendPcsDir := filepath.Join(d.RootPath, "pcs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
@@ -122,7 +130,6 @@ func main() {
 				{File: filepath.Join(fftDir, "fft_test.go"), TemplateF: []string{"tests/fft.go.tmpl", importCurve}},
 				{File: filepath.Join(fftDir, "fft.go"), TemplateF: []string{"fft.go.tmpl", importCurve}},
 			}
-
 			if err := bgen.GenerateF(d, "fft", "./template/fft/", entries...); err != nil {
 				panic(err)
 			}
@@ -134,17 +141,30 @@ func main() {
 				{File: filepath.Join(groth16Dir, "marshal.go"), TemplateF: []string{"groth16.marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), TemplateF: []string{"tests/groth16.marshal.go.tmpl", importCurve}},
 			}
-
 			if err := bgen.GenerateF(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
 				panic(err) // TODO handle
 			}
 
-			if err := bgen.GenerateF(d, "groth16_test", "./template/zkpschemes/", bavard.EntryF{
-				File:      filepath.Join(groth16Dir, "groth16_test.go"),
-				TemplateF: []string{"tests/groth16.go.tmpl", importCurve},
-			}); err != nil {
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(groth16Dir, "groth16_test.go"),
+					TemplateF: []string{"tests/groth16.go.tmpl", importCurve},
+				},
+			}
+			if err := bgen.GenerateF(d, "groth16_test", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
 			}
+
+			entries = []bavard.EntryF{
+				{
+					File:      filepath.Join(plonkDir, "plonk_test.go"),
+					TemplateF: []string{"tests/plonk.go.tmpl"},
+				},
+			}
+			if err := bgen.GenerateF(d, "plonk_test", "./template/zkpschemes/", entries...); err != nil {
+				panic(err)
+			}
+
 		}(d)
 
 	}
