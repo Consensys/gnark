@@ -988,7 +988,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 	// build the Coeffs slice
 	var res pcs.UntypedPlonkCS
 
-	res.NbPublicVariables = len(cs.public.variables)
+	res.NbPublicVariables = len(cs.public.variables) - 1 // the ONE_WIRE is discarded as it is not used in PLONK
 	res.NbSecretVariables = len(cs.secret.variables)
 
 	res.Constraints = make([]backend.PlonkConstraint, 0)
@@ -1024,7 +1024,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 			_, _, cID, cVisibility := t.Unpack()
 			switch cVisibility {
 			case backend.Public:
-				t.SetVariableID(cID + res.NbInternalVariables + res.NbSecretVariables)
+				t.SetVariableID(cID - 1 + res.NbInternalVariables + res.NbSecretVariables) // -1 because the ONE_WIRE's is not counted
 			case backend.Secret:
 				t.SetVariableID(cID + res.NbInternalVariables)
 			case backend.Unset:
@@ -1079,11 +1079,11 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case backend.Public:
-				entry.ToResolve[cID] += res.NbInternalVariables + res.NbSecretVariables
+				entry.ToResolve[j] += cID - 1 + res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
 			case backend.Secret:
-				entry.ToResolve[cID] += res.NbInternalVariables
+				entry.ToResolve[j] += cID + res.NbInternalVariables
 			case backend.Internal:
-				entry.ToResolve[cID] = varPcsToVarCs[cID]
+				entry.ToResolve[j] = varPcsToVarCs[cID]
 			case backend.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}

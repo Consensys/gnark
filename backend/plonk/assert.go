@@ -57,25 +57,25 @@ func (assert *Assert) SolvingFailed(pcs pcs.CS, witness frontend.Witness) {
 func solvePlonkSystem(pcs pcs.CS, witness frontend.Witness) error {
 	switch _pcs := pcs.(type) {
 	case *backend_bn256.CS:
-		w, err := witness_bn256.Full(witness)
+		w, err := witness_bn256.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bls381.CS:
-		w, err := witness_bls381.Full(witness)
+		w, err := witness_bls381.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bls377.CS:
-		w, err := witness_bls377.Full(witness)
+		w, err := witness_bls377.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bw761.CS:
-		w, err := witness_bw761.Full(witness)
+		w, err := witness_bw761.Full(witness, true)
 		if err != nil {
 			return err
 		}

@@ -84,12 +84,12 @@ func (upcs *UntypedPlonkCS) ToPlonkCS(curveID gurvy.ID) CS {
 	switch curveID {
 	case gurvy.BN256:
 		return upcs.toBN256()
-	// case gurvy.BLS377:
-	// 	return r1cs.toBLS377()
-	// case gurvy.BLS381:
-	// 	return r1cs.toBLS381()
-	// case gurvy.BW761:
-	// 	return r1cs.toBW761()
+	case gurvy.BLS377:
+		return upcs.toBLS377()
+	case gurvy.BLS381:
+		return upcs.toBLS381()
+	case gurvy.BW761:
+		return upcs.toBW761()
 	default:
 		panic("not implemented")
 	}
