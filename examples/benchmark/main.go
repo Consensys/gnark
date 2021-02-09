@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	bls381fr "github.com/consensys/gurvy/bls381/fr"
@@ -89,7 +89,7 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	return nil
 }
 
-func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r1cs.R1CS) {
+func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, backend.ConstraintSystem) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/pcs"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gurvy"
 )
@@ -97,7 +96,7 @@ func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
 // from the declarative code
 //
 // 3. finally, it converts that to a R1CS
-func Compile(curveID gurvy.ID, circuit Circuit) (r1cs.R1CS, error) {
+func Compile(curveID gurvy.ID, circuit Circuit) (backend.ConstraintSystem, error) {
 
 	// build  the constraint system (basically calling Define)
 	cs, err := buildCS(curveID, circuit)

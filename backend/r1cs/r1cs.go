@@ -16,8 +16,7 @@
 package r1cs
 
 import (
-	"io"
-
+	"github.com/consensys/gnark/backend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/r1cs"
@@ -26,24 +25,10 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// R1CS represents a rank 1 constraint system
-// it's underlying implementation is curve specific (i.e bn256/R1CS, ...)
-type R1CS interface {
-	io.WriterTo
-	io.ReaderFrom
-	GetNbConstraints() uint64
-	GetNbWires() uint64
-	GetNbPublicWires() uint64
-	GetNbSecretWires() uint64
-	SizeFrElement() int
-	GetNbCoefficients() int
-	GetCurveID() gurvy.ID
-}
-
 // New instantiate a concrete curved-typed R1CS and return a R1CS interface
 // This method exists for (de)serialization purposes
-func New(curveID gurvy.ID) R1CS {
-	var r1cs R1CS
+func New(curveID gurvy.ID) backend.ConstraintSystem {
+	var r1cs backend.ConstraintSystem
 	switch curveID {
 	case gurvy.BN256:
 		r1cs = &backend_bn256.R1CS{}

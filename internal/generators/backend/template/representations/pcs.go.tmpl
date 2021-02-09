@@ -18,8 +18,8 @@ type CS struct {
 	NbSecretVariables   int
 
 	// Constraints
-	Constraints []backend.PlonkConstraint // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
-	Assertions  []backend.PlonkConstraint // list of Plonk constraints that yield no output (for example ensuring v1 == v2)
+	Constraints []backend.SparseR1C // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
+	Assertions  []backend.SparseR1C // list of Plonk constraints that yield no output (for example ensuring v1 == v2)
 
 	// Logs (e.g. variables that have been printed using cs.Println)
 	Logs []backend.LogEntry
@@ -52,7 +52,7 @@ func (plonkcs *CS) GetCurveID() gurvy.ID {
 }
 
 // find unsolved variable
-func findUnsolvedVariable(c backend.PlonkConstraint, wireInstantiated []bool) int {
+func findUnsolvedVariable(c backend.SparseR1C, wireInstantiated []bool) int {
 	lro := -1 // 0 if the variable to solve is L, 1 if it's R, 2 if it's O
 	if c.L.CoeffID() != 0 && !wireInstantiated[c.L.VariableID()] {
 		lro = 0
@@ -89,7 +89,7 @@ func (plonkcs *CS) computeTerm(t backend.Term, solution []fr.Element) fr.Element
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (plonkcs *CS) solveConstraint(c backend.PlonkConstraint, wireInstantiated []bool, solution []fr.Element) {
+func (plonkcs *CS) solveConstraint(c backend.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
 
 	switch c.Solver {
 	case backend.SingleOutput:
@@ -166,7 +166,7 @@ func (plonkcs *CS) IsSolved(witness []fr.Element) error {
 }
 
 // checkConstraint verifies that the constraint holds
-func (plonkcs *CS) checkConstraint(c backend.PlonkConstraint, solution []fr.Element) error {
+func (plonkcs *CS) checkConstraint(c backend.SparseR1C, solution []fr.Element) error {
 	var res, a, b, zero fr.Element
 	res = plonkcs.computeTerm(c.L, solution)
 	a = plonkcs.computeTerm(c.R, solution)

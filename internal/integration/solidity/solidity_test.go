@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -32,7 +32,7 @@ type ExportSolidityTestSuite struct {
 	vk      groth16.VerifyingKey
 	pk      groth16.ProvingKey
 	circuit cubic.Circuit
-	r1cs    r1cs.R1CS
+	r1cs    backend.ConstraintSystem
 }
 
 func TestRunExportSolidityTestSuite(t *testing.T) {

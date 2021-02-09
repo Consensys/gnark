@@ -189,7 +189,7 @@ func newInternalVariable(pcs *pcs.UntypedPlonkCS, t ...backend.Term) backend.Ter
 // if the corresponding coefficients are 0.
 // A plonk constraint will always look like this:
 // L+R+L.R+O+K = 0
-func recordConstraint(pcs *pcs.UntypedPlonkCS, c backend.PlonkConstraint) {
+func recordConstraint(pcs *pcs.UntypedPlonkCS, c backend.SparseR1C) {
 	if c.L == 0 {
 		c.L.SetVariableID(c.M[0].VariableID())
 	}
@@ -206,7 +206,7 @@ func recordConstraint(pcs *pcs.UntypedPlonkCS, c backend.PlonkConstraint) {
 }
 
 // recordAssertion records a plonk constraint (assertion) in the pcs
-func recordAssertion(pcs *pcs.UntypedPlonkCS, c backend.PlonkConstraint) {
+func recordAssertion(pcs *pcs.UntypedPlonkCS, c backend.SparseR1C) {
 	pcs.Assertions = append(pcs.Assertions, c)
 }
 
@@ -263,7 +263,7 @@ func split(pcs *pcs.UntypedPlonkCS, acc backend.Term, csCoeffs []big.Int, le bac
 	// recursive case
 	r := getCorrespondingTerm(pcs, le[0], csCoeffs, csPcsMapping)
 	o := newInternalVariable(pcs)
-	recordConstraint(pcs, backend.PlonkConstraint{L: acc, R: r, O: o})
+	recordConstraint(pcs, backend.SparseR1C{L: acc, R: r, O: o})
 	o = negate(pcs, o)
 	return split(pcs, o, csCoeffs, le[1:], csPcsMapping)
 
@@ -327,7 +327,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, backend.PlonkConstraint{L: res, K: kID})
+					recordConstraint(pcs, backend.SparseR1C{L: res, K: kID})
 
 				} else { // (toSolve + constantl)*(r + constantr) = constanto
 
@@ -348,7 +348,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrres,
 						R: constlrt,
 						M: [2]backend.Term{res, rt},
@@ -375,7 +375,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: res,
 						R: lt,
 						K: kID,
@@ -396,7 +396,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrlt,
 						R: constlrt,
 						M: [2]backend.Term{lt, rt},
@@ -412,7 +412,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					constrres := multiply(pcs, res, constantr)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						R: constrres,
 						M: [2]backend.Term{res, rt},
 						O: negate(pcs, u),
@@ -438,7 +438,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, backend.PlonkConstraint{L: res, O: negate(pcs, ot), K: kID})
+					recordConstraint(pcs, backend.SparseR1C{L: res, O: negate(pcs, ot), K: kID})
 
 				} else { // (toSolve + constantl)*(r + constantr) = o + constanto
 					// toSolve*r + toSolve*constantr+constantl*r+constantl*constantr-constanto-o=0
@@ -462,7 +462,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrres,
 						R: constlrt,
 						M: [2]backend.Term{res, rt},
@@ -493,7 +493,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: res,
 						R: lt,
 						O: negate(pcs, ot),
@@ -517,7 +517,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrlt,
 						R: constlrt,
 						M: [2]backend.Term{lt, rt},
@@ -528,7 +528,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					// u+o+v = 0 (v = -u - o = [l*r + l*constantr +constantl*r+constantl*constantr-constanto] -  o)
 					v := newInternalVariable(pcs)
 					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: u,
 						R: ot,
 						O: v,
@@ -543,7 +543,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					constrres := multiply(pcs, res, constantr)
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						R: constrres,
 						M: [2]backend.Term{res, rt},
 						O: v,
@@ -577,7 +577,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{K: kID, O: res})
+					recordConstraint(pcs, backend.SparseR1C{K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + constanto
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
@@ -596,7 +596,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{R: constlrt, K: kID, O: res})
+					recordConstraint(pcs, backend.SparseR1C{R: constlrt, K: kID, O: res})
 
 				}
 
@@ -620,7 +620,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{L: constrlt, O: res, K: kID})
+					recordConstraint(pcs, backend.SparseR1C{L: constrlt, O: res, K: kID})
 
 				} else { // (l + constantl)*(r + constantr) = toSolve + constanto
 
@@ -643,7 +643,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrlt,
 						R: constlrt,
 						M: [2]backend.Term{lt, rt},
@@ -673,7 +673,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{L: ot, K: kID, O: res})
+					recordConstraint(pcs, backend.SparseR1C{L: ot, K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + o + constanto
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
@@ -694,7 +694,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
+					recordConstraint(pcs, backend.SparseR1C{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
 
 				}
 			} else {
@@ -718,7 +718,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, backend.PlonkConstraint{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
+					recordConstraint(pcs, backend.SparseR1C{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
 
 				} else { // (l + constantl)*(r + constantr) = toSolve + o + constanto
 					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
@@ -735,7 +735,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					kID := coeffID(pcs, &constk)
 
 					u := newInternalVariable(pcs)
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: constrlt,
 						R: constlrt,
 						M: [2]backend.Term{lt, rt},
@@ -748,7 +748,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *pcs.UntypedPlonkCS, cs *ConstraintSys
 					res := newInternalVariable(pcs)
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
-					recordConstraint(pcs, backend.PlonkConstraint{
+					recordConstraint(pcs, backend.SparseR1C{
 						L: u,
 						R: ot,
 						O: res,
@@ -773,12 +773,12 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 	o, constanto := popConstantTerm(r1c.O, cs, pcs)
 	if len(o) == 0 { // o is a constant term
 		ot = newInternalVariable(pcs)
-		recordConstraint(pcs, backend.PlonkConstraint{L: negate(pcs, ot), K: constanto})
+		recordConstraint(pcs, backend.SparseR1C{L: negate(pcs, ot), K: constanto})
 	} else {
 		ot = split(pcs, 0, cs.coeffs, o, csPcsMapping)
 		if constanto != 0 {
 			_ot := newInternalVariable(pcs)
-			recordConstraint(pcs, backend.PlonkConstraint{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
+			recordConstraint(pcs, backend.SparseR1C{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
 			ot = _ot
 		}
 	}
@@ -814,7 +814,7 @@ func r1cToPlonkConstraintBinary(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r
 		acc.Mul(acc, two)
 
 		// 2*q[i+1] + ri - q[i] = 0
-		recordConstraint(pcs, backend.PlonkConstraint{
+		recordConstraint(pcs, backend.SparseR1C{
 			L:      multiply(pcs, accQi[i+1], pcsTwoIdx),
 			R:      accRi[i],
 			O:      negate(pcs, accQi[i]),
@@ -852,7 +852,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{K: kID})
+				recordAssertion(pcs, backend.SparseR1C{K: kID})
 
 			} else { // constantl*(r + constantr) = constanto
 
@@ -865,7 +865,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{R: cosntlrt, K: kID})
+				recordAssertion(pcs, backend.SparseR1C{R: cosntlrt, K: kID})
 			}
 
 		} else {
@@ -880,7 +880,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{L: constrlt, K: kID})
+				recordAssertion(pcs, backend.SparseR1C{L: constrlt, K: kID})
 
 			} else { // (l + constantl)*(r + constantr) = constanto
 
@@ -895,7 +895,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{
+				recordAssertion(pcs, backend.SparseR1C{
 					L: constrlt,
 					R: constlrt,
 					M: [2]backend.Term{lt, rt},
@@ -917,7 +917,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{K: kID, O: negate(pcs, ot)})
+				recordAssertion(pcs, backend.SparseR1C{K: kID, O: negate(pcs, ot)})
 
 			} else { // constantl * (r + constantr) = o + constanto
 
@@ -931,7 +931,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{
+				recordAssertion(pcs, backend.SparseR1C{
 					R: constlrt,
 					K: kID,
 					O: negate(pcs, ot),
@@ -951,7 +951,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, backend.PlonkConstraint{
+				recordAssertion(pcs, backend.SparseR1C{
 					L: constrlt,
 					K: kID,
 					O: negate(pcs, ot),
@@ -971,7 +971,7 @@ func r1cToPlonkAssertion(pcs *pcs.UntypedPlonkCS, cs *ConstraintSystem, r1c back
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordConstraint(pcs, backend.PlonkConstraint{
+				recordConstraint(pcs, backend.SparseR1C{
 					L: constrlt,
 					R: constlrt,
 					M: [2]backend.Term{lt, rt},
@@ -991,8 +991,8 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 	res.NbPublicVariables = len(cs.public.variables) - 1 // the ONE_WIRE is discarded as it is not used in PLONK
 	res.NbSecretVariables = len(cs.secret.variables)
 
-	res.Constraints = make([]backend.PlonkConstraint, 0)
-	res.Assertions = make([]backend.PlonkConstraint, 0)
+	res.Constraints = make([]backend.SparseR1C, 0)
+	res.Assertions = make([]backend.SparseR1C, 0)
 
 	res.Logs = make([]backend.LogEntry, len(cs.logs))
 
@@ -1036,7 +1036,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
 		return nil
 	}
 
-	offsetIDs := func(exp *backend.PlonkConstraint) error {
+	offsetIDs := func(exp *backend.SparseR1C) error {
 		err := offsetIDTerm(&exp.L)
 		if err != nil {
 			return err

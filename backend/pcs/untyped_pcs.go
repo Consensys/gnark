@@ -32,8 +32,8 @@ type UntypedPlonkCS struct {
 	NbSecretVariables   int
 
 	// Constraints
-	Constraints []backend.PlonkConstraint // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
-	Assertions  []backend.PlonkConstraint // list of Plonk constraints that yield no output (for example ensuring v1 == v2)
+	Constraints []backend.SparseR1C // list of Plonk constraints that yield an output (for example v3 == v1 * v2, return v3)
+	Assertions  []backend.SparseR1C // list of Plonk constraints that yield no output (for example ensuring v1 == v2)
 
 	// Logs (e.g. variables that have been printed using cs.Println)
 	Logs []backend.LogEntry

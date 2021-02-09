@@ -30,8 +30,8 @@ import (
 	bn256groth16 "github.com/consensys/gnark/internal/backend/bn256/groth16"
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
@@ -67,7 +67,7 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	return nil
 }
 
-func referenceCircuit() (r1cs.R1CS, frontend.Witness) {
+func referenceCircuit() (backend.ConstraintSystem, frontend.Witness) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

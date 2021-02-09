@@ -12,8 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package backend provides circuit arithmetic representations and zero knowledge proof APIs.
-//
-// Functions is this package are not curve specific and point to internal/backend curve specific
-// implementation when needed
 package backend
+
+// SparseR1C used to compute the wires
+// L+R+M[0]M[1]+O+k=0
+// if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
+type SparseR1C struct {
+	L, R, O Term
+	M       [2]Term
+	K       int // stores only the ID of the constant term that is used
+	Solver  SolvingMethod
+}

@@ -242,7 +242,7 @@ func (cs *ConstraintSystem) addAssertion(constraint backend.R1C, debugInfo logEn
 }
 
 // toR1CS constructs a rank-1 constraint sytem
-func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (r1cs.R1CS, error) {
+func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (backend.ConstraintSystem, error) {
 
 	// wires = intermediatevariables | secret inputs | public inputs
 

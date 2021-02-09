@@ -89,7 +89,7 @@ func (r1cs *UntypedR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 // in the basefield of the provided curveID and return a R1CS
 //
 // this should not be called in a normal circuit development workflow
-func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) R1CS {
+func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) backend.ConstraintSystem {
 	switch curveID {
 	case gurvy.BN256:
 		return r1cs.toBN256()

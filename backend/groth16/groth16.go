@@ -20,6 +20,7 @@ import (
 
 	"github.com/consensys/gurvy"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
@@ -33,7 +34,6 @@ import (
 
 	gnarkio "github.com/consensys/gnark/io"
 
-	"github.com/consensys/gnark/backend/r1cs"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	groth16_bls381 "github.com/consensys/gnark/internal/backend/bls381/groth16"
 	groth16_bn256 "github.com/consensys/gnark/internal/backend/bn256/groth16"
@@ -142,7 +142,7 @@ func DeserializeAndVerify(proof Proof, vk VerifyingKey, publicWitness []byte) er
 // Prove generates the proof of knoweldge of a r1cs with witness.
 // if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs r1cs.R1CS, pk ProvingKey, witness frontend.Witness, force ...bool) (Proof, error) {
+func Prove(r1cs backend.ConstraintSystem, pk ProvingKey, witness frontend.Witness, force ...bool) (Proof, error) {
 
 	_force := false
 	if len(force) > 0 {
@@ -182,7 +182,7 @@ func Prove(r1cs r1cs.R1CS, pk ProvingKey, witness frontend.Witness, force ...boo
 // DeserializeAndProve behaves like Prove, except witness is a []byte
 // will attempt to deserialize witness []byte -> fr.Element
 // witness []byte must be [secret|one_wire|public]
-func DeserializeAndProve(r1cs r1cs.R1CS, pk ProvingKey, witness []byte, force ...bool) (Proof, error) {
+func DeserializeAndProve(r1cs backend.ConstraintSystem, pk ProvingKey, witness []byte, force ...bool) (Proof, error) {
 	_force := false
 	if len(force) > 0 {
 		_force = force[0]
@@ -219,7 +219,7 @@ func DeserializeAndProve(r1cs r1cs.R1CS, pk ProvingKey, witness []byte, force ..
 }
 
 // Setup runs groth16.Setup with provided R1CS
-func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey, error) {
+func Setup(r1cs backend.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
@@ -257,7 +257,7 @@ func Setup(r1cs r1cs.R1CS) (ProvingKey, VerifyingKey, error) {
 
 // DummySetup create a random ProvingKey with provided R1CS
 // it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
-func DummySetup(r1cs r1cs.R1CS) (ProvingKey, error) {
+func DummySetup(r1cs backend.ConstraintSystem) (ProvingKey, error) {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		var pk groth16_bls377.ProvingKey
