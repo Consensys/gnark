@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pcs
+package untyped
 
 import (
 	"io"
@@ -22,9 +22,9 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// UntypedPlonkCS represents a Plonk like circuit
+// SparseR1CS represents a Plonk like circuit
 // WIP does not contain logs for the moment
-type UntypedPlonkCS struct {
+type SparseR1CS struct {
 
 	// Variables
 	NbInternalVariables int
@@ -43,36 +43,48 @@ type UntypedPlonkCS struct {
 	CoeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 }
 
+func (upcs *SparseR1CS) GetNbPublicWires() uint64 {
+	return uint64(upcs.NbPublicVariables)
+}
+
+func (upcs *SparseR1CS) GetNbSecretWires() uint64 {
+	return uint64(upcs.NbSecretVariables)
+}
+
+func (upcs *SparseR1CS) SizeFrElement() int {
+	panic("not implemented")
+}
+
 // GetNbConstraints returns the number of constraints
-func (upcs *UntypedPlonkCS) GetNbConstraints() uint64 {
+func (upcs *SparseR1CS) GetNbConstraints() uint64 {
 	res := uint64(len(upcs.Constraints))
 	return res
 }
 
 // GetNbWires returns the number of wires (internal)
-func (upcs *UntypedPlonkCS) GetNbWires() uint64 {
+func (upcs *SparseR1CS) GetNbWires() uint64 {
 	res := uint64(upcs.NbInternalVariables)
 	return res
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (upcs *UntypedPlonkCS) GetNbCoefficients() int {
+func (upcs *SparseR1CS) GetNbCoefficients() int {
 	res := len(upcs.Coeffs)
 	return res
 }
 
 // GetCurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
-func (upcs *UntypedPlonkCS) GetCurveID() gurvy.ID {
+func (upcs *SparseR1CS) GetCurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
 // WriteTo panics (can't serialize untyped R1CS)
-func (upcs *UntypedPlonkCS) WriteTo(w io.Writer) (n int64, err error) {
+func (upcs *SparseR1CS) WriteTo(w io.Writer) (n int64, err error) {
 	panic("not implemented: can't serialize untyped Plonk CS")
 }
 
 // ReadFrom panics (can't deserialize untyped R1CS)
-func (upcs *UntypedPlonkCS) ReadFrom(r io.Reader) (n int64, err error) {
+func (upcs *SparseR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
 }
 
@@ -80,7 +92,7 @@ func (upcs *UntypedPlonkCS) ReadFrom(r io.Reader) (n int64, err error) {
 // in the basefield of the provided curveID and return a R1CS
 //
 // this should not be called in a normal circuit development workflow
-func (upcs *UntypedPlonkCS) ToPlonkCS(curveID gurvy.ID) CS {
+func (upcs *SparseR1CS) ToPlonkCS(curveID gurvy.ID) backend.ConstraintSystem {
 	switch curveID {
 	case gurvy.BN256:
 		return upcs.toBN256()

@@ -1,4 +1,5 @@
 import (
+	"io"
 	"fmt"
 	"math/big"
 
@@ -27,6 +28,29 @@ type CS struct {
 	// Coefficients in the constraints
 	Coeffs []fr.Element // list of unique coefficients.
 }
+
+
+func (plonkcs *CS) GetNbPublicWires() uint64 {
+	return uint64(plonkcs.NbPublicVariables)
+}
+
+func (plonkcs *CS) GetNbSecretWires() uint64 {
+	return uint64(plonkcs.NbSecretVariables)
+}
+
+func (plonkcs *CS) SizeFrElement() int {
+	return fr.Limbs * 8
+}
+
+func (plonkcs *CS) WriteTo(w io.Writer) (int64, error) {
+	panic("not implemented")
+}
+
+// ReadFrom attempts to decode R1CS from io.Reader using cbor
+func (plonkcs *CS) ReadFrom(r io.Reader) (int64, error) {
+	panic("not implemented")
+}
+
 
 // GetNbConstraints returns the number of constraints
 func (plonkcs *CS) GetNbConstraints() uint64 {

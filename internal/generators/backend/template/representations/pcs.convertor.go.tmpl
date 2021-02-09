@@ -3,7 +3,7 @@ import (
 	{{ template "import_fr" . }}
 )
 
-func (plonkcs *UntypedPlonkCS) to{{ toUpper .Curve}}() *{{ toLower .Curve}}backend.CS {
+func (plonkcs *SparseR1CS) to{{ toUpper .Curve}}() *{{ toLower .Curve}}backend.CS {
 
 	toReturn := {{ toLower .Curve}}backend.CS{
 		NbInternalVariables: plonkcs.NbInternalVariables,
