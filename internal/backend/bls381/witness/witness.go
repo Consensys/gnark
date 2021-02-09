@@ -32,17 +32,34 @@ import (
 
 // Full extracts the full witness secret || public (including ONE_WIRE)
 // and returns a slice of field elements in montgomery form
-func Full(w frontend.Witness) ([]fr.Element, error) {
+// TODO probably should replace variadic argument by something cleaner
+func Full(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 	nbSecret, nbPublic, err := count(w)
 	if err != nil {
 		return nil, err
 	}
 	secret := make([]fr.Element, nbSecret)
-	public := make([]fr.Element, nbPublic+1) // ONE_WIRE
-	public[0] = fr.One()
+	public := make([]fr.Element, nbPublic, nbPublic+1) // ONE_WIRE
+	if len(ditchOneWire) == 0 {
+		var tmp fr.Element
+		public = append(public, tmp)
+		public[0] = fr.One()
+	} else {
+		if !ditchOneWire[0] {
+			var tmp fr.Element
+			public = append(public, tmp)
+			public[0] = fr.One()
+		}
+	}
 
 	var i, j int
-	j++
+	if len(ditchOneWire) == 0 {
+		j++
+	} else {
+		if !ditchOneWire[0] {
+			j++
+		}
+	}
 	var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
@@ -68,17 +85,33 @@ func Full(w frontend.Witness) ([]fr.Element, error) {
 
 // Public extracts the public witness (including ONE_WIRE)
 // and returns a slice of field elements in REGULAR form
-func Public(w frontend.Witness) ([]fr.Element, error) {
+// TODO probably should replace variadic argument by something cleaner
+func Public(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 	_, nbPublic, err := count(w)
 	if err != nil {
 		return nil, err
 	}
-	public := make([]fr.Element, nbPublic+1) // ONE_WIRE
-	public[0] = fr.One()
-	public[0].FromMont()
+	public := make([]fr.Element, nbPublic, nbPublic+1) // ONE_WIRE
+	if len(ditchOneWire) == 0 {
+		var tmp fr.Element
+		public = append(public, tmp)
+		public[0] = fr.One()
+	} else {
+		if !ditchOneWire[0] {
+			var tmp fr.Element
+			public = append(public, tmp)
+			public[0] = fr.One()
+		}
+	}
 
 	var j int
-	j++
+	if len(ditchOneWire) == 0 {
+		j++
+	} else {
+		if !ditchOneWire[0] {
+			j++
+		}
+	}
 	var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
 
 		if visibility == backend.Public {
