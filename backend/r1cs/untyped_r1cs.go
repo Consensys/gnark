@@ -50,6 +50,21 @@ func (r1cs *UntypedR1CS) GetNbWires() uint64 {
 	return r1cs.NbWires
 }
 
+// GetNbPublicWires returns the number of public wires
+func (r1cs *UntypedR1CS) GetNbPublicWires() uint64 {
+	return r1cs.NbPublicWires
+}
+
+// SizeFrElement panics on a untyped R1CS
+func (r1cs *UntypedR1CS) SizeFrElement() int {
+	panic("not implemented")
+}
+
+// GetNbSecretWires returns the number of public wires
+func (r1cs *UntypedR1CS) GetNbSecretWires() uint64 {
+	return r1cs.NbSecretWires
+}
+
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *UntypedR1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
