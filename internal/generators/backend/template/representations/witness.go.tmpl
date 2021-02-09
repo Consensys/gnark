@@ -77,11 +77,13 @@ func Public(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
         var tmp fr.Element
         public = append(public, tmp)
         public[0] = fr.One()
+        public[0].FromMont()
     } else {
         if !ditchOneWire[0] {
             var tmp fr.Element
             public = append(public, tmp)
             public[0] = fr.One()
+            public[0].FromMont()
         }
     }
 
