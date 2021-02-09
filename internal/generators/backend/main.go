@@ -59,7 +59,7 @@ func main() {
 			backendR1csDir := filepath.Join(d.RootPath, "r1cs")
 			backendPcsDir := filepath.Join(d.RootPath, "pcs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
-			r1csDir := "../../../backend/r1cs/"
+			r1csDir := "../../../internal/backend/untyped/"
 			pcsDir := "../../../backend/pcs/"
 
 			// data generated in backend/
@@ -69,7 +69,7 @@ func main() {
 					TemplateF: []string{"r1cs.convertor.go.tmpl", importCurve},
 				},
 			}
-			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", entries...); err != nil {
+			if err := bgen.GenerateF(d, "untyped", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 

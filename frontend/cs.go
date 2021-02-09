@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs"
+	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gurvy"
 )
 
@@ -247,7 +247,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (backend.ConstraintSystem, 
 	// wires = intermediatevariables | secret inputs | public inputs
 
 	// setting up the result
-	res := r1cs.UntypedR1CS{
+	res := untyped.R1CS{
 		NbWires:         uint64(len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables)),
 		NbPublicWires:   uint64(len(cs.public.variables)),
 		NbSecretWires:   uint64(len(cs.secret.variables)),

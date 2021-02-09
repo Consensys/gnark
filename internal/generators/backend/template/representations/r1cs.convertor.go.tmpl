@@ -3,7 +3,7 @@ import (
 	{{ template "import_fr" . }}
 )
 
-func (r1cs *UntypedR1CS) to{{toUpper .Curve}}() *{{toLower .Curve}}backend.R1CS {
+func (r1cs *R1CS) to{{toUpper .Curve}}() *{{toLower .Curve}}backend.R1CS {
 
 	toReturn := {{toLower .Curve}}backend.R1CS{
 		NbWires:        	r1cs.NbWires,

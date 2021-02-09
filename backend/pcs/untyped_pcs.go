@@ -76,7 +76,7 @@ func (upcs *UntypedPlonkCS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
 }
 
-// ToPlonkCS will convert the big.Int coefficients in the UntypedR1CS to field elements
+// ToPlonkCS will convert the big.Int coefficients in the R1CS to field elements
 // in the basefield of the provided curveID and return a R1CS
 //
 // this should not be called in a normal circuit development workflow

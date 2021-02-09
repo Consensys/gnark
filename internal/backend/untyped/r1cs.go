@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package r1cs
+package untyped
 
 import (
 	"io"
@@ -22,10 +22,10 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// UntypedR1CS decsribes a set of UntypedR1CS constraint
+// R1CS decsribes a set of R1CS constraint
 // The coefficients from the rank-1 constraint it contains
 // are big.Int and not tied to a curve base field
-type UntypedR1CS struct {
+type R1CS struct {
 	// Wires
 	NbWires       uint64
 	NbPublicWires uint64 // includes ONE wire
@@ -41,55 +41,55 @@ type UntypedR1CS struct {
 }
 
 // GetNbConstraints returns the number of constraints
-func (r1cs *UntypedR1CS) GetNbConstraints() uint64 {
+func (r1cs *R1CS) GetNbConstraints() uint64 {
 	return r1cs.NbConstraints
 }
 
 // GetNbWires returns the number of wires
-func (r1cs *UntypedR1CS) GetNbWires() uint64 {
+func (r1cs *R1CS) GetNbWires() uint64 {
 	return r1cs.NbWires
 }
 
 // GetNbPublicWires returns the number of public wires
-func (r1cs *UntypedR1CS) GetNbPublicWires() uint64 {
+func (r1cs *R1CS) GetNbPublicWires() uint64 {
 	return r1cs.NbPublicWires
 }
 
 // SizeFrElement panics on a untyped R1CS
-func (r1cs *UntypedR1CS) SizeFrElement() int {
+func (r1cs *R1CS) SizeFrElement() int {
 	panic("not implemented")
 }
 
 // GetNbSecretWires returns the number of public wires
-func (r1cs *UntypedR1CS) GetNbSecretWires() uint64 {
+func (r1cs *R1CS) GetNbSecretWires() uint64 {
 	return r1cs.NbSecretWires
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (r1cs *UntypedR1CS) GetNbCoefficients() int {
+func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
 // WriteTo panics (can't serialize untyped R1CS)
-func (r1cs *UntypedR1CS) WriteTo(w io.Writer) (n int64, err error) {
+func (r1cs *R1CS) WriteTo(w io.Writer) (n int64, err error) {
 	panic("not implemented: can't serialize untyped R1CS")
 }
 
 // GetCurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
-func (r1cs *UntypedR1CS) GetCurveID() gurvy.ID {
+func (r1cs *R1CS) GetCurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
 // ReadFrom panics (can't deserialize untyped R1CS)
-func (r1cs *UntypedR1CS) ReadFrom(r io.Reader) (n int64, err error) {
+func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
 }
 
-// ToR1CS will convert the big.Int coefficients in the UntypedR1CS to field elements
+// ToR1CS will convert the big.Int coefficients in the R1CS to field elements
 // in the basefield of the provided curveID and return a R1CS
 //
 // this should not be called in a normal circuit development workflow
-func (r1cs *UntypedR1CS) ToR1CS(curveID gurvy.ID) backend.ConstraintSystem {
+func (r1cs *R1CS) ToR1CS(curveID gurvy.ID) backend.ConstraintSystem {
 	switch curveID {
 	case gurvy.BN256:
 		return r1cs.toBN256()
