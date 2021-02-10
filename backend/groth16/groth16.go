@@ -22,10 +22,10 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/r1cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/r1cs"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
 
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"

@@ -21,10 +21,10 @@ import (
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
 	"github.com/consensys/gnark/internal/backend/bls377/witness"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/r1cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"

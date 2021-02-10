@@ -346,8 +346,9 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
 
-	circuit.publicWitnessSize = int((circuit.r1cs.GetNbPublicWires() - 1)) * circuit.r1cs.SizeFrElement()
-	circuit.fullWitnessSize = int((circuit.r1cs.GetNbPublicWires() + circuit.r1cs.GetNbSecretWires())) * circuit.r1cs.SizeFrElement()
+	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
+	circuit.publicWitnessSize = int(nbPublicVariables-1) * circuit.r1cs.FrSize()
+	circuit.fullWitnessSize = int(nbPublicVariables+nbSecretVariables) * circuit.r1cs.FrSize()
 
 	s.circuits[circuitID] = circuit
 

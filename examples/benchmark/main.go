@@ -58,7 +58,7 @@ func main() {
 				NbCores:        runtime.NumCPU(),
 				NbCoefficients: r1cs.GetNbCoefficients(),
 				NbConstraints:  r1cs.GetNbConstraints(),
-				NbWires:        r1cs.GetNbWires(),
+				NbWires:        0, // TODO @gbotrel fixme
 				RunTime:        took.Milliseconds(),
 				MaxRAM:         (m.Sys / 1024 / 1024),
 				Throughput:     int(float64(r1cs.GetNbConstraints()) / took.Seconds()),
@@ -135,8 +135,8 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 
 type benchData struct {
 	Curve             string
-	NbConstraints     uint64
-	NbWires           uint64
+	NbConstraints     int
+	NbWires           int
 	NbCoefficients    int
 	MaxRAM            uint64
 	RunTime           int64

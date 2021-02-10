@@ -172,7 +172,7 @@ func (s *Server) Verify(ctx context.Context, request *pb.VerifyRequest) (*pb.Ver
 	}
 
 	// call groth16.Verify with witness
-	proof := groth16.NewProof(circuit.r1cs.GetCurveID())
+	proof := groth16.NewProof(circuit.r1cs.CurveID())
 	if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())

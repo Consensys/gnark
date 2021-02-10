@@ -18,16 +18,16 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/pcs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
 
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/pcs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/pcs"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
 
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/pcs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
 	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
 
 	"github.com/consensys/gnark/frontend"
@@ -56,25 +56,25 @@ func (assert *Assert) SolvingFailed(pcs backend.ConstraintSystem, witness fronte
 
 func solvePlonkSystem(pcs backend.ConstraintSystem, witness frontend.Witness) error {
 	switch _pcs := pcs.(type) {
-	case *backend_bn256.CS:
+	case *backend_bn256.SparseR1CS:
 		w, err := witness_bn256.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
-	case *backend_bls381.CS:
+	case *backend_bls381.SparseR1CS:
 		w, err := witness_bls381.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
-	case *backend_bls377.CS:
+	case *backend_bls377.SparseR1CS:
 		w, err := witness_bls377.Full(witness, true)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
-	case *backend_bw761.CS:
+	case *backend_bw761.SparseR1CS:
 		w, err := witness_bw761.Full(witness, true)
 		if err != nil {
 			return err

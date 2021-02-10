@@ -21,7 +21,7 @@ import (
 
 	curve "github.com/consensys/gurvy/bn256"
 
-	bn256backend "github.com/consensys/gnark/internal/backend/bn256/r1cs"
+	bn256backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
 
@@ -91,7 +91,7 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := int(r1cs.NbWires - r1cs.NbPublicWires)
 
 	// Setting group for fft
-	domain := fft.NewDomain(r1cs.NbConstraints)
+	domain := fft.NewDomain(uint64(r1cs.NbConstraints))
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -342,7 +342,7 @@ func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) error {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := fft.NewDomain(nbConstraints)
+	domain := fft.NewDomain(uint64(nbConstraints))
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

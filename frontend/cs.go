@@ -28,6 +28,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gurvy"
+
+	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
+	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"
+	bn256r1cs "github.com/consensys/gnark/internal/backend/bn256/cs"
+	bw761r1cs "github.com/consensys/gnark/internal/backend/bw761/cs"
 )
 
 // ConstraintSystem represents a Groth16 like circuit
@@ -248,13 +253,12 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (backend.ConstraintSystem, 
 
 	// setting up the result
 	res := untyped.R1CS{
-		NbWires:         uint64(len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables)),
-		NbPublicWires:   uint64(len(cs.public.variables)),
-		NbSecretWires:   uint64(len(cs.secret.variables)),
-		NbConstraints:   uint64(len(cs.constraints) + len(cs.assertions)),
-		NbCOConstraints: uint64(len(cs.constraints)),
+		NbWires:         len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables),
+		NbPublicWires:   len(cs.public.variables),
+		NbSecretWires:   len(cs.secret.variables),
+		NbConstraints:   len(cs.constraints) + len(cs.assertions),
+		NbCOConstraints: len(cs.constraints),
 		Constraints:     make([]backend.R1C, len(cs.constraints)+len(cs.assertions)),
-		Coefficients:    cs.coeffs,
 		Logs:            make([]backend.LogEntry, len(cs.logs)),
 		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
 	}
@@ -337,11 +341,20 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (backend.ConstraintSystem, 
 		res.DebugInfo[i] = entry
 	}
 
-	if curveID == gurvy.UNKNOWN {
+	switch curveID {
+	case gurvy.BLS377:
+		return bls377r1cs.NewR1CS(res, cs.coeffs), nil
+	case gurvy.BLS381:
+		return bls381r1cs.NewR1CS(res, cs.coeffs), nil
+	case gurvy.BN256:
+		return bn256r1cs.NewR1CS(res, cs.coeffs), nil
+	case gurvy.BW761:
+		return bw761r1cs.NewR1CS(res, cs.coeffs), nil
+	case gurvy.UNKNOWN:
 		return &res, nil
+	default:
+		panic("not implemtented")
 	}
-
-	return res.ToR1CS(curveID), nil
 }
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to

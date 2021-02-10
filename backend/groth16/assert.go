@@ -25,10 +25,10 @@ import (
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/r1cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/r1cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/r1cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/r1cs"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
 
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
@@ -105,12 +105,12 @@ func (assert *Assert) ProverSucceeded(r1cs backend.ConstraintSystem, witness fro
 	}
 
 	// serialization
-	assert.serializationSucceeded(proof, NewProof(r1cs.GetCurveID()))
-	assert.serializationSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
-	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(proof, NewProof(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
+	assert.serializationSucceeded(proof, NewProof(r1cs.CurveID()))
+	assert.serializationSucceeded(pk, NewProvingKey(r1cs.CurveID()))
+	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
+	assert.serializationRawSucceeded(proof, NewProof(r1cs.CurveID()))
+	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.CurveID()))
+	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
 }
 
 func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom) {

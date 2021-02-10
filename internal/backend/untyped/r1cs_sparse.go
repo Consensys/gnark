@@ -43,28 +43,27 @@ type SparseR1CS struct {
 	CoeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 }
 
-func (upcs *SparseR1CS) GetNbPublicWires() uint64 {
-	return uint64(upcs.NbPublicVariables)
+// GetNbVariables return number of internal, secret and public variables
+func (upcs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
+	internal = upcs.NbInternalVariables
+	secret = upcs.NbSecretVariables
+	public = upcs.NbPublicVariables
+	return
 }
 
-func (upcs *SparseR1CS) GetNbSecretWires() uint64 {
-	return uint64(upcs.NbSecretVariables)
-}
-
-func (upcs *SparseR1CS) SizeFrElement() int {
+// FrSize ...
+func (upcs *SparseR1CS) FrSize() int {
 	panic("not implemented")
 }
 
 // GetNbConstraints returns the number of constraints
-func (upcs *SparseR1CS) GetNbConstraints() uint64 {
-	res := uint64(len(upcs.Constraints))
-	return res
+func (upcs *SparseR1CS) GetNbConstraints() int {
+	return len(upcs.Constraints)
 }
 
 // GetNbWires returns the number of wires (internal)
-func (upcs *SparseR1CS) GetNbWires() uint64 {
-	res := uint64(upcs.NbInternalVariables)
-	return res
+func (upcs *SparseR1CS) GetNbWires() int {
+	return upcs.NbInternalVariables
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
@@ -73,8 +72,8 @@ func (upcs *SparseR1CS) GetNbCoefficients() int {
 	return res
 }
 
-// GetCurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
-func (upcs *SparseR1CS) GetCurveID() gurvy.ID {
+// CurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
+func (upcs *SparseR1CS) CurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
@@ -86,23 +85,4 @@ func (upcs *SparseR1CS) WriteTo(w io.Writer) (n int64, err error) {
 // ReadFrom panics (can't deserialize untyped R1CS)
 func (upcs *SparseR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented: can't deserialize untyped R1CS")
-}
-
-// ToPlonkCS will convert the big.Int coefficients in the R1CS to field elements
-// in the basefield of the provided curveID and return a R1CS
-//
-// this should not be called in a normal circuit development workflow
-func (upcs *SparseR1CS) ToPlonkCS(curveID gurvy.ID) backend.ConstraintSystem {
-	switch curveID {
-	case gurvy.BN256:
-		return upcs.toBN256()
-	case gurvy.BLS377:
-		return upcs.toBLS377()
-	case gurvy.BLS381:
-		return upcs.toBLS381()
-	case gurvy.BW761:
-		return upcs.toBW761()
-	default:
-		panic("not implemented")
-	}
 }

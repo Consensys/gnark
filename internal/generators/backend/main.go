@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/consensys/bavard"
@@ -56,44 +55,31 @@ func main() {
 			fftDir := filepath.Join(d.RootPath, "fft")
 			groth16Dir := filepath.Join(d.RootPath, "groth16")
 			plonkDir := filepath.Join(d.RootPath, "plonk")
-			backendR1csDir := filepath.Join(d.RootPath, "r1cs")
-			backendPcsDir := filepath.Join(d.RootPath, "pcs")
+			backendCSDir := filepath.Join(d.RootPath, "cs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
-			untypedDir := "../../../internal/backend/untyped/"
-
-			// data generated in backend/
-			entries := []bavard.EntryF{
-				{
-					File:      filepath.Join(untypedDir, "r1cs_"+strings.ToLower(d.Curve)+".go"),
-					TemplateF: []string{"r1cs.convertor.go.tmpl", importCurve},
-				},
-				{
-					File:      filepath.Join(untypedDir, "r1cs_sparse_"+strings.ToLower(d.Curve)+".go"),
-					TemplateF: []string{"pcs.convertor.go.tmpl", importCurve},
-				},
-			}
-			if err := bgen.GenerateF(d, "untyped", "./template/representations/", entries...); err != nil {
-				panic(err)
-			}
 
 			// data generated in internal/backend/<curve>/
-			entries = []bavard.EntryF{
+			entries := []bavard.EntryF{
 				{
-					File:      filepath.Join(backendR1csDir, "r1cs.go"),
+					File:      filepath.Join(backendCSDir, "r1cs.go"),
 					TemplateF: []string{"r1cs.go.tmpl", importCurve},
 				},
+				{
+					File:      filepath.Join(backendCSDir, "r1cs_sparse.go"),
+					TemplateF: []string{"r1cs.sparse.go.tmpl", importCurve},
+				},
 			}
-			if err := bgen.GenerateF(d, "r1cs", "./template/representations/", entries...); err != nil {
+			if err := bgen.GenerateF(d, "cs", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
 			entries = []bavard.EntryF{
 				{
-					File:      filepath.Join(backendPcsDir, "pcs.go"),
-					TemplateF: []string{"pcs.go.tmpl", importCurve},
+					File:      filepath.Join(backendCSDir, "r1cs_test.go"),
+					TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
 				},
 			}
-			if err := bgen.GenerateF(d, "pcs", "./template/representations/", entries...); err != nil {
+			if err := bgen.GenerateF(d, "cs_test", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
@@ -104,16 +90,6 @@ func main() {
 				},
 			}
 			if err := bgen.GenerateF(d, "witness", "./template/representations/", entries...); err != nil {
-				panic(err)
-			}
-
-			entries = []bavard.EntryF{
-				{
-					File:      filepath.Join(backendR1csDir, "r1cs_test.go"),
-					TemplateF: []string{"tests/r1cs.go.tmpl", importCurve},
-				},
-			}
-			if err := bgen.GenerateF(d, "r1cs_test", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 

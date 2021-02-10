@@ -29,25 +29,25 @@
 
 {{ define "import_backend_r1cs" }}
 {{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/r1cs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
 {{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/r1cs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
 {{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/r1cs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 {{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/r1cs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 {{end}}
 {{end}}
 
 {{ define "import_backend_pcs" }}
 {{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/pcs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
 {{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/pcs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
 {{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/pcs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 {{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/pcs"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 {{end}}
 {{end}}
 

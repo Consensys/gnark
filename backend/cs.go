@@ -6,14 +6,16 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// ConstraintSystem ...
 type ConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
-	GetNbConstraints() uint64
-	GetNbWires() uint64
-	GetNbPublicWires() uint64
-	GetNbSecretWires() uint64
-	SizeFrElement() int
+
+	// GetNbVariables return number of internal, secret and public variables
+	GetNbVariables() (internal, secret, public int)
+	GetNbConstraints() int
 	GetNbCoefficients() int
-	GetCurveID() gurvy.ID
+
+	CurveID() gurvy.ID
+	FrSize() int
 }

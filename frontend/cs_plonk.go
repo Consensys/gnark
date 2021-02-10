@@ -23,6 +23,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gurvy"
+
+	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
+	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"
+	bn256r1cs "github.com/consensys/gnark/internal/backend/bn256/cs"
+	bw761r1cs "github.com/consensys/gnark/internal/backend/bw761/cs"
 )
 
 type idCS = int
@@ -1091,9 +1096,19 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (backend.ConstraintSystem,
 		res.Logs[i] = entry
 	}
 
-	if curveID == gurvy.UNKNOWN {
+	switch curveID {
+	case gurvy.BLS377:
+		return bls377r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BLS381:
+		return bls381r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BN256:
+		return bn256r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BW761:
+		return bw761r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.UNKNOWN:
 		return &res, nil
+	default:
+		panic("not implemtented")
 	}
 
-	return res.ToPlonkCS(curveID), nil
 }

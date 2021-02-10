@@ -21,7 +21,7 @@ import (
 
 	curve "github.com/consensys/gurvy/bw761"
 
-	bw761backend "github.com/consensys/gnark/internal/backend/bw761/r1cs"
+	bw761backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 
 	"bytes"
 	"github.com/fxamacker/cbor/v2"
