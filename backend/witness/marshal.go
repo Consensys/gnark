@@ -12,6 +12,8 @@ import (
 	"github.com/consensys/gurvy"
 )
 
+// TODO @gbotrel --> may move this under a root gnark package, with gnark.Compile, gnark.WriteWitness(opts...), etc.
+
 // WriteFull serialize full witness [secret|one_wire|public] by encoding provided values into
 // fr.Element of provided curveID
 func WriteFull(w io.Writer, witness frontend.Witness, curveID gurvy.ID) error {

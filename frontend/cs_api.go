@@ -19,6 +19,11 @@ package frontend
 import (
 	"fmt"
 	"math/big"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -616,4 +621,64 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 			}
 		}
 	}
+}
+
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
+func (cs *ConstraintSystem) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	// for each argument, if it is a circuit structure and contains variable
+	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
+	// if it doesn't contain variable, call fmt.Sprint(arg) instead
+	entry := logEntry{}
+
+	// this is call recursively on the arguments using reflection on each argument
+	foundVariable := false
+
+	var handler logValueHandler = func(name string, tInput reflect.Value) {
+
+		v := tInput.Interface().(Variable)
+
+		// if the variable is only in linExp form, we allocate it
+		_v := cs.allocate(v)
+
+		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
+
+		if name == "" {
+			sbb.WriteString("%s")
+		} else {
+			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
+		}
+
+		foundVariable = true
+	}
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		foundVariable = false
+		parseLogValue(arg, "", handler)
+		if !foundVariable {
+			sbb.WriteString(fmt.Sprint(arg))
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	entry.format = sbb.String()
+
+	cs.logs = append(cs.logs, entry)
 }

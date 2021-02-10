@@ -32,6 +32,131 @@ import (
 type idCS = int
 type idPCS = int
 
+func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSystem, error) {
+
+	// build the Coeffs slice
+	var res compiled.SparseR1CS
+
+	res.NbPublicVariables = len(cs.public.variables) - 1 // the ONE_WIRE is discarded as it is not used in PLONK
+	res.NbSecretVariables = len(cs.secret.variables)
+
+	res.Constraints = make([]compiled.SparseR1C, 0)
+	res.Assertions = make([]compiled.SparseR1C, 0)
+
+	res.Logs = make([]compiled.LogEntry, len(cs.logs))
+
+	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
+	res.CoeffsIDs = make(map[string]int)
+	// reserve the zeroth entry to store 0
+	zero := big.NewInt(0)
+	coeffID(&res, zero)
+
+	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
+	varPcsToVarCs := make(map[idCS]idPCS)
+	solvedVariables := make([]bool, len(cs.internal.variables))
+
+	// convert the constraints invidually
+	for i := 0; i < len(cs.constraints); i++ {
+		r1cToPlonkConstraint(&res, cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
+	}
+	for i := 0; i < len(cs.assertions); i++ {
+		r1cToPlonkAssertion(&res, cs, cs.assertions[i], varPcsToVarCs)
+	}
+
+	// offset the ID in a term
+	offsetIDTerm := func(t *compiled.Term) error {
+
+		// in a PLONK constraint, not all terms are necessarily set,
+		// the terms which are not set are equal to zero. We just
+		// need to skip them.
+		if *t != 0 {
+			_, _, cID, cVisibility := t.Unpack()
+			switch cVisibility {
+			case compiled.Public:
+				t.SetVariableID(cID - 1 + res.NbInternalVariables + res.NbSecretVariables) // -1 because the ONE_WIRE's is not counted
+			case compiled.Secret:
+				t.SetVariableID(cID + res.NbInternalVariables)
+			case compiled.Unset:
+				//return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
+				return fmt.Errorf("%w", ErrInputNotSet)
+			}
+		}
+
+		return nil
+	}
+
+	offsetIDs := func(exp *compiled.SparseR1C) error {
+		err := offsetIDTerm(&exp.L)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.R)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.O)
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.M[0])
+		if err != nil {
+			return err
+		}
+		err = offsetIDTerm(&exp.M[1])
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// offset the IDs of all constraints to that the variables are
+	// numbered like this: [internalVariables | secretVariables | publicVariables]
+	for i := 0; i < len(res.Constraints); i++ {
+		offsetIDs(&res.Constraints[i])
+	}
+	for i := 0; i < len(res.Assertions); i++ {
+		offsetIDs(&res.Assertions[i])
+	}
+
+	// offset IDs in the logs
+	for i := 0; i < len(cs.logs); i++ {
+		entry := compiled.LogEntry{
+			Format:    cs.logs[i].format,
+			ToResolve: make([]int, len(cs.logs[i].toResolve)),
+		}
+		for j := 0; j < len(cs.logs[i].toResolve); j++ {
+			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
+			switch cVisibility {
+			case compiled.Public:
+				entry.ToResolve[j] += cID - 1 + res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
+			case compiled.Secret:
+				entry.ToResolve[j] += cID + res.NbInternalVariables
+			case compiled.Internal:
+				entry.ToResolve[j] = varPcsToVarCs[cID]
+			case compiled.Unset:
+				panic("encountered unset visibility on a variable in logs id offset routine")
+			}
+		}
+		res.Logs[i] = entry
+	}
+
+	switch curveID {
+	case gurvy.BLS377:
+		return bls377r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BLS381:
+		return bls381r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BN256:
+		return bn256r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.BW761:
+		return bw761r1cs.NewSparseR1CS(res, res.Coeffs), nil
+	case gurvy.UNKNOWN:
+		return &res, nil
+	default:
+		panic("not implemtented")
+	}
+
+}
+
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of Coeffs and returns the corresponding entry
 func coeffID(pcs *compiled.SparseR1CS, b *big.Int) int {
@@ -985,129 +1110,4 @@ func r1cToPlonkAssertion(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c com
 			}
 		}
 	}
-}
-
-func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem, error) {
-
-	// build the Coeffs slice
-	var res compiled.SparseR1CS
-
-	res.NbPublicVariables = len(cs.public.variables) - 1 // the ONE_WIRE is discarded as it is not used in PLONK
-	res.NbSecretVariables = len(cs.secret.variables)
-
-	res.Constraints = make([]compiled.SparseR1C, 0)
-	res.Assertions = make([]compiled.SparseR1C, 0)
-
-	res.Logs = make([]compiled.LogEntry, len(cs.logs))
-
-	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
-	res.CoeffsIDs = make(map[string]int)
-	// reserve the zeroth entry to store 0
-	zero := big.NewInt(0)
-	coeffID(&res, zero)
-
-	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
-	varPcsToVarCs := make(map[idCS]idPCS)
-	solvedVariables := make([]bool, len(cs.internal.variables))
-
-	// convert the constraints invidually
-	for i := 0; i < len(cs.constraints); i++ {
-		r1cToPlonkConstraint(&res, cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
-	}
-	for i := 0; i < len(cs.assertions); i++ {
-		r1cToPlonkAssertion(&res, cs, cs.assertions[i], varPcsToVarCs)
-	}
-
-	// offset the ID in a term
-	offsetIDTerm := func(t *compiled.Term) error {
-
-		// in a PLONK constraint, not all terms are necessarily set,
-		// the terms which are not set are equal to zero. We just
-		// need to skip them.
-		if *t != 0 {
-			_, _, cID, cVisibility := t.Unpack()
-			switch cVisibility {
-			case compiled.Public:
-				t.SetVariableID(cID - 1 + res.NbInternalVariables + res.NbSecretVariables) // -1 because the ONE_WIRE's is not counted
-			case compiled.Secret:
-				t.SetVariableID(cID + res.NbInternalVariables)
-			case compiled.Unset:
-				//return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
-				return fmt.Errorf("%w", ErrInputNotSet)
-			}
-		}
-
-		return nil
-	}
-
-	offsetIDs := func(exp *compiled.SparseR1C) error {
-		err := offsetIDTerm(&exp.L)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.R)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.O)
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.M[0])
-		if err != nil {
-			return err
-		}
-		err = offsetIDTerm(&exp.M[1])
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// offset the IDs of all constraints to that the variables are
-	// numbered like this: [internalVariables | secretVariables | publicVariables]
-	for i := 0; i < len(res.Constraints); i++ {
-		offsetIDs(&res.Constraints[i])
-	}
-	for i := 0; i < len(res.Assertions); i++ {
-		offsetIDs(&res.Assertions[i])
-	}
-
-	// offset IDs in the logs
-	for i := 0; i < len(cs.logs); i++ {
-		entry := compiled.LogEntry{
-			Format:    cs.logs[i].format,
-			ToResolve: make([]int, len(cs.logs[i].toResolve)),
-		}
-		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Public:
-				entry.ToResolve[j] += cID - 1 + res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
-			case compiled.Secret:
-				entry.ToResolve[j] += cID + res.NbInternalVariables
-			case compiled.Internal:
-				entry.ToResolve[j] = varPcsToVarCs[cID]
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in logs id offset routine")
-			}
-		}
-		res.Logs[i] = entry
-	}
-
-	switch curveID {
-	case gurvy.BLS377:
-		return bls377r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BLS381:
-		return bls381r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BN256:
-		return bn256r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BW761:
-		return bw761r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.UNKNOWN:
-		return &res, nil
-	default:
-		panic("not implemtented")
-	}
-
 }

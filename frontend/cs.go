@@ -18,8 +18,8 @@ package frontend
 
 import (
 	"fmt"
+	"io"
 	"math/big"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -27,11 +27,6 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gurvy"
-
-	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
-	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"
-	bn256r1cs "github.com/consensys/gnark/internal/backend/bn256/cs"
-	bw761r1cs "github.com/consensys/gnark/internal/backend/bw761/cs"
 )
 
 // ConstraintSystem represents a Groth16 like circuit
@@ -70,8 +65,18 @@ type ConstraintSystem struct {
 
 }
 
-func (cs *ConstraintSystem) buildVarFromPartialVar(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
+// CompiledConstraintSystem ...
+type CompiledConstraintSystem interface {
+	io.WriterTo
+	io.ReaderFrom
+
+	// GetNbVariables return number of internal, secret and public variables
+	GetNbVariables() (internal, secret, public int)
+	GetNbConstraints() int
+	GetNbCoefficients() int
+
+	CurveID() gurvy.ID
+	FrSize() int
 }
 
 // this has quite some impact on frontend performance, especially on large circuits size
@@ -245,117 +250,6 @@ func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logE
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
 }
 
-// toR1CS constructs a rank-1 constraint sytem
-func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, error) {
-
-	// wires = intermediatevariables | secret inputs | public inputs
-
-	// setting up the result
-	res := compiled.R1CS{
-		NbInternalWires: len(cs.internal.variables),
-		NbPublicWires:   len(cs.public.variables),
-		NbSecretWires:   len(cs.secret.variables),
-		NbConstraints:   len(cs.constraints) + len(cs.assertions),
-		NbCOConstraints: len(cs.constraints),
-		Constraints:     make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
-		Logs:            make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfo:       make([]compiled.LogEntry, len(cs.debugInfo)),
-	}
-
-	// computational constraints (= gates)
-	copy(res.Constraints, cs.constraints)
-	copy(res.Constraints[len(cs.constraints):], cs.assertions)
-
-	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
-	offsetIDs := func(exp compiled.LinearExpression) error {
-		for j := 0; j < len(exp); j++ {
-			_, _, cID, cVisibility := exp[j].Unpack()
-			switch cVisibility {
-			case compiled.Public:
-				exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
-			case compiled.Secret:
-				exp[j].SetVariableID(cID + len(cs.internal.variables))
-			case compiled.Unset:
-				return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
-			}
-		}
-		return nil
-	}
-
-	var err error
-	for i := 0; i < len(res.Constraints); i++ {
-		err = offsetIDs(res.Constraints[i].L)
-		if err != nil {
-			return &res, err
-		}
-		err = offsetIDs(res.Constraints[i].R)
-		if err != nil {
-			return &res, err
-		}
-		err = offsetIDs(res.Constraints[i].O)
-		if err != nil {
-			return &res, err
-		}
-	}
-
-	// we need to offset the ids in logs too
-	for i := 0; i < len(cs.logs); i++ {
-		entry := compiled.LogEntry{
-			Format: cs.logs[i].format,
-		}
-		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Public:
-				cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case compiled.Secret:
-				cID += len(cs.internal.variables)
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in logs id offset routine")
-			}
-			entry.ToResolve = append(entry.ToResolve, cID)
-		}
-
-		res.Logs[i] = entry
-	}
-
-	// offset ids in the debugInfo
-	for i := 0; i < len(cs.debugInfo); i++ {
-		entry := compiled.LogEntry{
-			Format: cs.debugInfo[i].format,
-		}
-		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Public:
-				cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case compiled.Secret:
-				cID += len(cs.internal.variables)
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in debugInfo id offset routine")
-			}
-			entry.ToResolve = append(entry.ToResolve, cID)
-		}
-
-		res.DebugInfo[i] = entry
-	}
-
-	switch curveID {
-	case gurvy.BLS377:
-		return bls377r1cs.NewR1CS(res, cs.coeffs), nil
-	case gurvy.BLS381:
-		return bls381r1cs.NewR1CS(res, cs.coeffs), nil
-	case gurvy.BN256:
-		return bn256r1cs.NewR1CS(res, cs.coeffs), nil
-	case gurvy.BW761:
-		return bw761r1cs.NewR1CS(res, cs.coeffs), nil
-	case gurvy.UNKNOWN:
-		return &res, nil
-	default:
-		panic("not implemtented")
-	}
-}
-
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
@@ -387,66 +281,6 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 		return iv
 	}
 	return v
-}
-
-// Println enables circuit debugging and behaves almost like fmt.Println()
-//
-// the print will be done once the R1CS.Solve() method is executed
-//
-// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
-	var sbb strings.Builder
-
-	// prefix log line with file.go:line
-	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
-	}
-
-	// for each argument, if it is a circuit structure and contains variable
-	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
-	// if it doesn't contain variable, call fmt.Sprint(arg) instead
-	entry := logEntry{}
-
-	// this is call recursively on the arguments using reflection on each argument
-	foundVariable := false
-
-	var handler logValueHandler = func(name string, tInput reflect.Value) {
-
-		v := tInput.Interface().(Variable)
-
-		// if the variable is only in linExp form, we allocate it
-		_v := cs.allocate(v)
-
-		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
-
-		if name == "" {
-			sbb.WriteString("%s")
-		} else {
-			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
-		}
-
-		foundVariable = true
-	}
-
-	for i, arg := range a {
-		if i > 0 {
-			sbb.WriteByte(' ')
-		}
-		foundVariable = false
-		parseLogValue(arg, "", handler)
-		if !foundVariable {
-			sbb.WriteString(fmt.Sprint(arg))
-		}
-	}
-	sbb.WriteByte('\n')
-
-	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
-	entry.format = sbb.String()
-
-	cs.logs = append(cs.logs, entry)
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -554,4 +388,8 @@ func getCallStack() []string {
 		}
 	}
 	return toReturn
+}
+
+func (cs *ConstraintSystem) buildVarFromPartialVar(pv Wire) Variable {
+	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
 }
