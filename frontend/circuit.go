@@ -95,7 +95,7 @@ func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
 // from the declarative code
 //
 // 3. finally, it converts that to a R1CS
-func Compile(curveID gurvy.ID, circuit Circuit) (backend.ConstraintSystem, error) {
+func Compile(curveID gurvy.ID, circuit Circuit) (CompiledConstraintSystem, error) {
 
 	// build  the constraint system (basically calling Define)
 	cs, err := buildCS(curveID, circuit)
@@ -113,7 +113,7 @@ func Compile(curveID gurvy.ID, circuit Circuit) (backend.ConstraintSystem, error
 }
 
 // CompilePlonk WIP
-func CompilePlonk(curveID gurvy.ID, circuit Circuit) (backend.ConstraintSystem, error) {
+func CompilePlonk(curveID gurvy.ID, circuit Circuit) (CompiledConstraintSystem, error) {
 
 	// build  the constraint system (basically calling Define)
 	cs, err := buildCS(curveID, circuit)

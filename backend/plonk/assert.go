@@ -17,7 +17,6 @@ package plonk
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
 
@@ -45,16 +44,16 @@ func NewAssert(t *testing.T) *Assert {
 }
 
 // SolvingSucceeded Verifies that the cs.PCS is solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingSucceeded(cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) SolvingSucceeded(cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	assert.NoError(Solve(cs, witness))
 }
 
 // SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingFailed(cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) SolvingFailed(cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	assert.Error(Solve(cs, witness))
 }
 
-func Solve(cs backend.ConstraintSystem, witness frontend.Witness) error {
+func Solve(cs frontend.CompiledConstraintSystem, witness frontend.Witness) error {
 	switch _pcs := cs.(type) {
 	case *backend_bn256.SparseR1CS:
 		w, err := witness_bn256.Full(witness, true)

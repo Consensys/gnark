@@ -988,7 +988,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c back
 	}
 }
 
-func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (backend.ConstraintSystem, error) {
+func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem, error) {
 
 	// build the Coeffs slice
 	var res untyped.SparseR1CS

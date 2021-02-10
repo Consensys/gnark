@@ -20,7 +20,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
@@ -47,7 +46,7 @@ func NewAssert(t *testing.T) *Assert {
 }
 
 // ProverFailed check that a witness does NOT solve a circuit
-func (assert *Assert) ProverFailed(r1cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) ProverFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	// setup
 	pk, err := DummySetup(r1cs)
 	assert.NoError(err)
@@ -69,7 +68,7 @@ func (assert *Assert) ProverFailed(r1cs backend.ConstraintSystem, witness fronte
 // 5. Ensure deserialization(serialization) of generated objects is correct
 //
 // ensure result vectors a*b=c, and check other properties like random sampling
-func (assert *Assert) ProverSucceeded(r1cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	// setup
 	pk, vk, err := Setup(r1cs)
 	assert.NoError(err)
@@ -136,16 +135,16 @@ func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingSucceeded(r1cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	assert.NoError(Solve(r1cs, witness))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingFailed(r1cs backend.ConstraintSystem, witness frontend.Witness) {
+func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) {
 	assert.Error(Solve(r1cs, witness))
 }
 
-func Solve(r1cs backend.ConstraintSystem, witness frontend.Witness) error {
+func Solve(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) error {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		w, err := witness_bls377.Full(witness)

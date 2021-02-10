@@ -1,4 +1,4 @@
-package backend
+package frontend
 
 import (
 	"io"
@@ -6,8 +6,8 @@ import (
 	"github.com/consensys/gurvy"
 )
 
-// ConstraintSystem ...
-type ConstraintSystem interface {
+// CompiledConstraintSystem ...
+type CompiledConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
