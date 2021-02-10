@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/internal/backend/untyped"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gurvy"
 )
@@ -84,7 +84,7 @@ func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler parser.LeafHandler = func(visibility untyped.Visibility, name string, tInput reflect.Value) error {
+	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			v := tInput.Interface().(Variable)
 			if v.id != 0 {
@@ -95,9 +95,9 @@ func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
 				return errors.New("circuit has some assigned values, can't compile")
 			}
 			switch visibility {
-			case untyped.Unset, untyped.Secret:
+			case compiled.Unset, compiled.Secret:
 				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
-			case untyped.Public:
+			case compiled.Public:
 				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
 			}
 
@@ -107,7 +107,7 @@ func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", untyped.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+	if err := parser.Visit(circuit, "", compiled.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
 		return cs, err
 	}
 

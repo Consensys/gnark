@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/internal/backend/untyped"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gurvy"
 
 	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
@@ -34,7 +34,7 @@ type idPCS = int
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of Coeffs and returns the corresponding entry
-func coeffID(pcs *untyped.SparseR1CS, b *big.Int) int {
+func coeffID(pcs *compiled.SparseR1CS, b *big.Int) int {
 
 	// if the coeff is already stored, fetch its ID from the cs.CoeffsIDs map
 	key := b.Text(16)
@@ -54,13 +54,13 @@ func coeffID(pcs *untyped.SparseR1CS, b *big.Int) int {
 // findUnsolvedVariable returns the variable to solve in the r1c. The variables
 // which are not internal are considered solve, otherwise the solvedVariables
 // slice hold the record of which variables have been solved.
-func findUnsolvedVariable(r1c untyped.R1C, solvedVariables []bool) (pos int, id int) {
+func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (pos int, id int) {
 	// find the variable to solve among L,R,O. pos=0,1,2 corresponds to left,right,o.
 	pos = -1
 	id = -1
 	for i := 0; i < len(r1c.L); i++ {
 		v := r1c.L[i].VariableVisibility()
-		if v != untyped.Internal {
+		if v != compiled.Internal {
 			continue
 		}
 		id = r1c.L[i].VariableID()
@@ -72,7 +72,7 @@ func findUnsolvedVariable(r1c untyped.R1C, solvedVariables []bool) (pos int, id 
 	if pos == -1 {
 		for i := 0; i < len(r1c.R); i++ {
 			v := r1c.R[i].VariableVisibility()
-			if v != untyped.Internal {
+			if v != compiled.Internal {
 				continue
 			}
 			id = r1c.R[i].VariableID()
@@ -85,7 +85,7 @@ func findUnsolvedVariable(r1c untyped.R1C, solvedVariables []bool) (pos int, id 
 	if pos == -1 {
 		for i := 0; i < len(r1c.O); i++ {
 			v := r1c.O[i].VariableVisibility()
-			if v != untyped.Internal {
+			if v != compiled.Internal {
 				continue
 			}
 			id = r1c.O[i].VariableID()
@@ -101,13 +101,13 @@ func findUnsolvedVariable(r1c untyped.R1C, solvedVariables []bool) (pos int, id 
 
 // returns l with the term (id+coef) holding the id-th variable removed
 // No side effects on l.
-func popInternalVariable(l untyped.LinearExpression, id int) (untyped.LinearExpression, untyped.Term) {
-	var t untyped.Term
-	_l := make([]untyped.Term, len(l)-1)
+func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearExpression, compiled.Term) {
+	var t compiled.Term
+	_l := make([]compiled.Term, len(l)-1)
 	c := 0
 	for i := 0; i < len(l); i++ {
 		v := l[i]
-		if v.VariableVisibility() == untyped.Internal && v.VariableID() == id {
+		if v.VariableVisibility() == compiled.Internal && v.VariableID() == id {
 			t = v
 			continue
 		}
@@ -121,19 +121,19 @@ func popInternalVariable(l untyped.LinearExpression, id int) (untyped.LinearExpr
 // a constant in a PLONK constraint.
 // returns the reduced linear expression and the ID of the coeff corresponding to the constant term (in pcs.Coeffs).
 // If there is no constant term, the id is 0 (the 0-th entry is reserved for this purpose).
-func popConstantTerm(l untyped.LinearExpression, cs *ConstraintSystem, pcs *untyped.SparseR1CS) (untyped.LinearExpression, int) {
+func popConstantTerm(l compiled.LinearExpression, cs *ConstraintSystem, pcs *compiled.SparseR1CS) (compiled.LinearExpression, int) {
 
 	idOneWire := 0
 	resConstantID := 0 // the zero index contains the zero coef, it is reserved
 	var coef big.Int
 
-	lCopy := make(untyped.LinearExpression, len(l))
+	lCopy := make(compiled.LinearExpression, len(l))
 	copy(lCopy, l)
 	for i := 0; i < len(l); i++ {
 		t := lCopy[i]
 		id := t.VariableID()
 		vis := t.VariableVisibility()
-		if vis == untyped.Public && id == idOneWire {
+		if vis == compiled.Public && id == idOneWire {
 			coefID := t.CoeffID()
 			coef.Set(&cs.coeffs[coefID])
 			resConstantID = coeffID(pcs, &coef)
@@ -146,11 +146,11 @@ func popConstantTerm(l untyped.LinearExpression, cs *ConstraintSystem, pcs *unty
 
 // change t's ID to csPcsMapping[t.ID] to get the corresponding variable in the pcs,
 // the coeff ID is changed as well so that it corresponds to a coeff in the pcs.
-func getCorrespondingTerm(pcs *untyped.SparseR1CS, t untyped.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) untyped.Term {
+func getCorrespondingTerm(pcs *compiled.SparseR1CS, t compiled.Term, csCoeffs []big.Int, csPcsMapping map[idCS]idPCS) compiled.Term {
 
 	// if the variable is internal, we need the variable
 	// that corresponds in the pcs
-	if t.VariableVisibility() == untyped.Internal {
+	if t.VariableVisibility() == compiled.Internal {
 		t.SetVariableID(csPcsMapping[t.VariableID()])
 		coef := csCoeffs[t.CoeffID()]
 		cID := coeffID(pcs, &coef)
@@ -169,12 +169,12 @@ func getCorrespondingTerm(pcs *untyped.SparseR1CS, t untyped.Term, csCoeffs []bi
 // newInternalVariable creates a new term =1*new_variable and
 // records it in the pcs. If t is provided, the newly created
 // variable has the same coeff Id than t.
-func newInternalVariable(pcs *untyped.SparseR1CS, t ...untyped.Term) untyped.Term {
+func newInternalVariable(pcs *compiled.SparseR1CS, t ...compiled.Term) compiled.Term {
 
 	if len(t) == 0 {
 		cID := coeffID(pcs, bOne)
 		vID := pcs.NbInternalVariables
-		res := untyped.Pack(vID, cID, untyped.Internal)
+		res := compiled.Pack(vID, cID, compiled.Internal)
 		pcs.NbInternalVariables++
 		return res
 	}
@@ -193,7 +193,7 @@ func newInternalVariable(pcs *untyped.SparseR1CS, t ...untyped.Term) untyped.Ter
 // if the corresponding coefficients are 0.
 // A plonk constraint will always look like this:
 // L+R+L.R+O+K = 0
-func recordConstraint(pcs *untyped.SparseR1CS, c untyped.SparseR1C) {
+func recordConstraint(pcs *compiled.SparseR1CS, c compiled.SparseR1C) {
 	if c.L == 0 {
 		c.L.SetVariableID(c.M[0].VariableID())
 	}
@@ -210,12 +210,12 @@ func recordConstraint(pcs *untyped.SparseR1CS, c untyped.SparseR1C) {
 }
 
 // recordAssertion records a plonk constraint (assertion) in the pcs
-func recordAssertion(pcs *untyped.SparseR1CS, c untyped.SparseR1C) {
+func recordAssertion(pcs *compiled.SparseR1CS, c compiled.SparseR1C) {
 	pcs.Assertions = append(pcs.Assertions, c)
 }
 
 // if t=a*variable, it returns -a*variable
-func negate(pcs *untyped.SparseR1CS, t untyped.Term) untyped.Term {
+func negate(pcs *compiled.SparseR1CS, t compiled.Term) compiled.Term {
 	// non existing term are zero, if we negate it it's no
 	// longer zero and checks to see if a variable exist will
 	// fail (ex: in r1cToPlonkConstraint we might call negate
@@ -233,7 +233,7 @@ func negate(pcs *untyped.SparseR1CS, t untyped.Term) untyped.Term {
 }
 
 // multiplies t by the coeff corresponding to idCoeff.
-func multiply(pcs *untyped.SparseR1CS, t untyped.Term, idCoeff int) untyped.Term {
+func multiply(pcs *compiled.SparseR1CS, t compiled.Term, idCoeff int) compiled.Term {
 	var c big.Int
 	c.Set(&pcs.Coeffs[t.CoeffID()])
 	c.Mul(&c, &pcs.Coeffs[idCoeff])
@@ -251,7 +251,7 @@ func multiply(pcs *untyped.SparseR1CS, t untyped.Term, idCoeff int) untyped.Term
 // wn' = wn-1'+an-2wn-2
 // split returns a term that is equal to aiwi (it's 1xaiwi)
 // no side effects on le
-func split(pcs *untyped.SparseR1CS, acc untyped.Term, csCoeffs []big.Int, le untyped.LinearExpression, csPcsMapping map[idCS]idPCS) untyped.Term {
+func split(pcs *compiled.SparseR1CS, acc compiled.Term, csCoeffs []big.Int, le compiled.LinearExpression, csPcsMapping map[idCS]idPCS) compiled.Term {
 
 	// floor case
 	if len(le) == 0 {
@@ -267,14 +267,14 @@ func split(pcs *untyped.SparseR1CS, acc untyped.Term, csCoeffs []big.Int, le unt
 	// recursive case
 	r := getCorrespondingTerm(pcs, le[0], csCoeffs, csPcsMapping)
 	o := newInternalVariable(pcs)
-	recordConstraint(pcs, untyped.SparseR1C{L: acc, R: r, O: o})
+	recordConstraint(pcs, compiled.SparseR1C{L: acc, R: r, O: o})
 	o = negate(pcs, o)
 	return split(pcs, o, csCoeffs, le[1:], csPcsMapping)
 
 }
 
-func r1cToPlonkConstraint(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c untyped.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
-	if r1c.Solver == untyped.SingleOutput {
+func r1cToPlonkConstraint(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+	if r1c.Solver == compiled.SingleOutput {
 		r1cToPlonkConstraintSingleOutput(pcs, cs, r1c, csPcsMapping, solvedVariables)
 	} else {
 		r1cToPlonkConstraintBinary(pcs, cs, r1c, csPcsMapping, solvedVariables)
@@ -282,26 +282,26 @@ func r1cToPlonkConstraint(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unt
 }
 
 // r1cToPlonkConstraintSingleOutput splits a r1c constraint
-func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c untyped.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToPlonkConstraintSingleOutput(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, solvedVariables)
 
 	// if the unsolved variable in not in o,
 	// ensure that it is in r1c.L
-	var l, r, o untyped.LinearExpression
-	o = make(untyped.LinearExpression, len(r1c.O))
+	var l, r, o compiled.LinearExpression
+	o = make(compiled.LinearExpression, len(r1c.O))
 	copy(o, r1c.O)
 	if lro == 1 {
-		l = make(untyped.LinearExpression, len(r1c.R))
+		l = make(compiled.LinearExpression, len(r1c.R))
 		copy(l, r1c.R)
-		r = make(untyped.LinearExpression, len(r1c.L))
+		r = make(compiled.LinearExpression, len(r1c.L))
 		copy(r, r1c.L)
 		lro = 0
 	} else {
-		l = make(untyped.LinearExpression, len(r1c.L))
+		l = make(compiled.LinearExpression, len(r1c.L))
 		copy(l, r1c.L)
-		r = make(untyped.LinearExpression, len(r1c.R))
+		r = make(compiled.LinearExpression, len(r1c.R))
 		copy(r, r1c.R)
 	}
 
@@ -331,7 +331,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, untyped.SparseR1C{L: res, K: kID})
+					recordConstraint(pcs, compiled.SparseR1C{L: res, K: kID})
 
 				} else { // (toSolve + constantl)*(r + constantr) = constanto
 
@@ -352,10 +352,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrres,
 						R: constlrt,
-						M: [2]untyped.Term{res, rt},
+						M: [2]compiled.Term{res, rt},
 						K: kID,
 					})
 
@@ -379,7 +379,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: res,
 						R: lt,
 						K: kID,
@@ -400,10 +400,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrlt,
 						R: constlrt,
-						M: [2]untyped.Term{lt, rt},
+						M: [2]compiled.Term{lt, rt},
 						O: u,
 						K: kID,
 					})
@@ -416,9 +416,9 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					constrres := multiply(pcs, res, constantr)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						R: constrres,
-						M: [2]untyped.Term{res, rt},
+						M: [2]compiled.Term{res, rt},
 						O: negate(pcs, u),
 					})
 				}
@@ -442,7 +442,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, untyped.SparseR1C{L: res, O: negate(pcs, ot), K: kID})
+					recordConstraint(pcs, compiled.SparseR1C{L: res, O: negate(pcs, ot), K: kID})
 
 				} else { // (toSolve + constantl)*(r + constantr) = o + constanto
 					// toSolve*r + toSolve*constantr+constantl*r+constantl*constantr-constanto-o=0
@@ -466,10 +466,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrres,
 						R: constlrt,
-						M: [2]untyped.Term{res, rt},
+						M: [2]compiled.Term{res, rt},
 						O: negate(pcs, ot),
 						K: kID,
 					})
@@ -497,7 +497,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					csPcsMapping[idCS] = res.VariableID()
 					res.SetCoeffID(id)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: res,
 						R: lt,
 						O: negate(pcs, ot),
@@ -521,10 +521,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					constk.Sub(&constk, &pcs.Coeffs[constanto])
 					kID := coeffID(pcs, &constk)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrlt,
 						R: constlrt,
-						M: [2]untyped.Term{lt, rt},
+						M: [2]compiled.Term{lt, rt},
 						O: u,
 						K: kID,
 					})
@@ -532,7 +532,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					// u+o+v = 0 (v = -u - o = [l*r + l*constantr +constantl*r+constantl*constantr-constanto] -  o)
 					v := newInternalVariable(pcs)
 					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: u,
 						R: ot,
 						O: v,
@@ -547,9 +547,9 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					constrres := multiply(pcs, res, constantr)
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						R: constrres,
-						M: [2]untyped.Term{res, rt},
+						M: [2]compiled.Term{res, rt},
 						O: v,
 					})
 				}
@@ -581,7 +581,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{K: kID, O: res})
+					recordConstraint(pcs, compiled.SparseR1C{K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + constanto
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
@@ -600,7 +600,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{R: constlrt, K: kID, O: res})
+					recordConstraint(pcs, compiled.SparseR1C{R: constlrt, K: kID, O: res})
 
 				}
 
@@ -624,7 +624,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{L: constrlt, O: res, K: kID})
+					recordConstraint(pcs, compiled.SparseR1C{L: constrlt, O: res, K: kID})
 
 				} else { // (l + constantl)*(r + constantr) = toSolve + constanto
 
@@ -647,10 +647,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrlt,
 						R: constlrt,
-						M: [2]untyped.Term{lt, rt},
+						M: [2]compiled.Term{lt, rt},
 						K: kID,
 						O: res,
 					})
@@ -677,7 +677,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{L: ot, K: kID, O: res})
+					recordConstraint(pcs, compiled.SparseR1C{L: ot, K: kID, O: res})
 
 				} else { // constantl*(r + constantr) = toSolve + o + constanto
 					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
@@ -698,7 +698,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
+					recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
 
 				}
 			} else {
@@ -722,7 +722,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
 
-					recordConstraint(pcs, untyped.SparseR1C{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
+					recordConstraint(pcs, compiled.SparseR1C{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
 
 				} else { // (l + constantl)*(r + constantr) = toSolve + o + constanto
 					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
@@ -739,10 +739,10 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					kID := coeffID(pcs, &constk)
 
 					u := newInternalVariable(pcs)
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: constrlt,
 						R: constlrt,
-						M: [2]untyped.Term{lt, rt},
+						M: [2]compiled.Term{lt, rt},
 						K: kID,
 						O: u,
 					})
@@ -752,7 +752,7 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 					res := newInternalVariable(pcs)
 					res.SetCoeffID(id)
 					csPcsMapping[idCS] = res.VariableID()
-					recordConstraint(pcs, untyped.SparseR1C{
+					recordConstraint(pcs, compiled.SparseR1C{
 						L: u,
 						R: ot,
 						O: res,
@@ -766,23 +766,23 @@ func r1cToPlonkConstraintSingleOutput(pcs *untyped.SparseR1CS, cs *ConstraintSys
 
 // r1cToPlonkConstraintBinary splits a r1c constraint corresponding
 // to a binary decomposition.
-func r1cToPlonkConstraintBinary(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c untyped.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToPlonkConstraintBinary(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 
 	// from cs_api, le binary decomposition is r1c.L
-	binDec := make(untyped.LinearExpression, len(r1c.L))
+	binDec := make(compiled.LinearExpression, len(r1c.L))
 	copy(binDec, r1c.L)
 
 	// reduce r1c.O (in case it's a linear combination)
-	var ot untyped.Term
+	var ot compiled.Term
 	o, constanto := popConstantTerm(r1c.O, cs, pcs)
 	if len(o) == 0 { // o is a constant term
 		ot = newInternalVariable(pcs)
-		recordConstraint(pcs, untyped.SparseR1C{L: negate(pcs, ot), K: constanto})
+		recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), K: constanto})
 	} else {
 		ot = split(pcs, 0, cs.coeffs, o, csPcsMapping)
 		if constanto != 0 {
 			_ot := newInternalVariable(pcs)
-			recordConstraint(pcs, untyped.SparseR1C{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
+			recordConstraint(pcs, compiled.SparseR1C{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
 			ot = _ot
 		}
 	}
@@ -794,8 +794,8 @@ func r1cToPlonkConstraintBinary(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r
 	pcsTwoIdx := coeffID(pcs, two)
 
 	// accumulators for the quotients and remainders when dividing by 2
-	accRi := make([]untyped.Term, nbBits) // accRi[0] -> LSB
-	accQi := make([]untyped.Term, nbBits+1)
+	accRi := make([]compiled.Term, nbBits) // accRi[0] -> LSB
+	accQi := make([]compiled.Term, nbBits+1)
 	accQi[0] = ot
 
 	for i := 0; i < nbBits; i++ {
@@ -818,11 +818,11 @@ func r1cToPlonkConstraintBinary(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r
 		acc.Mul(acc, two)
 
 		// 2*q[i+1] + ri - q[i] = 0
-		recordConstraint(pcs, untyped.SparseR1C{
+		recordConstraint(pcs, compiled.SparseR1C{
 			L:      multiply(pcs, accQi[i+1], pcsTwoIdx),
 			R:      accRi[i],
 			O:      negate(pcs, accQi[i]),
-			Solver: untyped.BinaryDec,
+			Solver: compiled.BinaryDec,
 		})
 	}
 }
@@ -831,11 +831,11 @@ func r1cToPlonkConstraintBinary(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r
 // it's a r1c constraint that is not used to solve a variable,
 // like a boolean constraint).
 // (l + constantl)*(r + constantr) = o + constanto
-func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c untyped.R1C, csPcsMapping map[idCS]idPCS) {
+func r1cToPlonkAssertion(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS) {
 
-	l := make(untyped.LinearExpression, len(r1c.L))
-	r := make(untyped.LinearExpression, len(r1c.R))
-	o := make(untyped.LinearExpression, len(r1c.O))
+	l := make(compiled.LinearExpression, len(r1c.L))
+	r := make(compiled.LinearExpression, len(r1c.R))
+	o := make(compiled.LinearExpression, len(r1c.O))
 	copy(l, r1c.L)
 	copy(r, r1c.R)
 	copy(o, r1c.O)
@@ -856,7 +856,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{K: kID})
+				recordAssertion(pcs, compiled.SparseR1C{K: kID})
 
 			} else { // constantl*(r + constantr) = constanto
 
@@ -869,7 +869,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{R: cosntlrt, K: kID})
+				recordAssertion(pcs, compiled.SparseR1C{R: cosntlrt, K: kID})
 			}
 
 		} else {
@@ -884,7 +884,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{L: constrlt, K: kID})
+				recordAssertion(pcs, compiled.SparseR1C{L: constrlt, K: kID})
 
 			} else { // (l + constantl)*(r + constantr) = constanto
 
@@ -899,10 +899,10 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{
+				recordAssertion(pcs, compiled.SparseR1C{
 					L: constrlt,
 					R: constlrt,
-					M: [2]untyped.Term{lt, rt},
+					M: [2]compiled.Term{lt, rt},
 					K: kID,
 				})
 			}
@@ -921,7 +921,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{K: kID, O: negate(pcs, ot)})
+				recordAssertion(pcs, compiled.SparseR1C{K: kID, O: negate(pcs, ot)})
 
 			} else { // constantl * (r + constantr) = o + constanto
 
@@ -935,7 +935,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{
+				recordAssertion(pcs, compiled.SparseR1C{
 					R: constlrt,
 					K: kID,
 					O: negate(pcs, ot),
@@ -955,7 +955,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordAssertion(pcs, untyped.SparseR1C{
+				recordAssertion(pcs, compiled.SparseR1C{
 					L: constrlt,
 					K: kID,
 					O: negate(pcs, ot),
@@ -975,10 +975,10 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 				constk.Sub(&constk, &pcs.Coeffs[constanto])
 				kID := coeffID(pcs, &constk)
 
-				recordConstraint(pcs, untyped.SparseR1C{
+				recordConstraint(pcs, compiled.SparseR1C{
 					L: constrlt,
 					R: constlrt,
-					M: [2]untyped.Term{lt, rt},
+					M: [2]compiled.Term{lt, rt},
 					K: kID,
 					O: negate(pcs, ot),
 				})
@@ -990,15 +990,15 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c unty
 func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem, error) {
 
 	// build the Coeffs slice
-	var res untyped.SparseR1CS
+	var res compiled.SparseR1CS
 
 	res.NbPublicVariables = len(cs.public.variables) - 1 // the ONE_WIRE is discarded as it is not used in PLONK
 	res.NbSecretVariables = len(cs.secret.variables)
 
-	res.Constraints = make([]untyped.SparseR1C, 0)
-	res.Assertions = make([]untyped.SparseR1C, 0)
+	res.Constraints = make([]compiled.SparseR1C, 0)
+	res.Assertions = make([]compiled.SparseR1C, 0)
 
-	res.Logs = make([]untyped.LogEntry, len(cs.logs))
+	res.Logs = make([]compiled.LogEntry, len(cs.logs))
 
 	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
 	res.CoeffsIDs = make(map[string]int)
@@ -1019,7 +1019,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem,
 	}
 
 	// offset the ID in a term
-	offsetIDTerm := func(t *untyped.Term) error {
+	offsetIDTerm := func(t *compiled.Term) error {
 
 		// in a PLONK constraint, not all terms are necessarily set,
 		// the terms which are not set are equal to zero. We just
@@ -1027,11 +1027,11 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem,
 		if *t != 0 {
 			_, _, cID, cVisibility := t.Unpack()
 			switch cVisibility {
-			case untyped.Public:
+			case compiled.Public:
 				t.SetVariableID(cID - 1 + res.NbInternalVariables + res.NbSecretVariables) // -1 because the ONE_WIRE's is not counted
-			case untyped.Secret:
+			case compiled.Secret:
 				t.SetVariableID(cID + res.NbInternalVariables)
-			case untyped.Unset:
+			case compiled.Unset:
 				//return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
 				return fmt.Errorf("%w", ErrInputNotSet)
 			}
@@ -1040,7 +1040,7 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem,
 		return nil
 	}
 
-	offsetIDs := func(exp *untyped.SparseR1C) error {
+	offsetIDs := func(exp *compiled.SparseR1C) error {
 		err := offsetIDTerm(&exp.L)
 		if err != nil {
 			return err
@@ -1075,20 +1075,20 @@ func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (CompiledConstraintSystem,
 
 	// offset IDs in the logs
 	for i := 0; i < len(cs.logs); i++ {
-		entry := untyped.LogEntry{
+		entry := compiled.LogEntry{
 			Format:    cs.logs[i].format,
 			ToResolve: make([]int, len(cs.logs[i].toResolve)),
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
-			case untyped.Public:
+			case compiled.Public:
 				entry.ToResolve[j] += cID - 1 + res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
-			case untyped.Secret:
+			case compiled.Secret:
 				entry.ToResolve[j] += cID + res.NbInternalVariables
-			case untyped.Internal:
+			case compiled.Internal:
 				entry.ToResolve[j] = varPcsToVarCs[cID]
-			case untyped.Unset:
+			case compiled.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}
 		}

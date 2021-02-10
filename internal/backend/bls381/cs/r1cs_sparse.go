@@ -22,21 +22,21 @@ import (
 
 	"github.com/consensys/gurvy"
 
-	"github.com/consensys/gnark/internal/backend/untyped"
+	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gurvy/bls381/fr"
 )
 
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
-	untyped.SparseR1CS
+	compiled.SparseR1CS
 
 	// Coefficients in the constraints
 	Coefficients []fr.Element // list of unique coefficients.
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS(r1cs untyped.SparseR1CS, coefficients []big.Int) *SparseR1CS {
+func NewSparseR1CS(r1cs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS {
 	cs := SparseR1CS{
 		r1cs,
 		make([]fr.Element, len(coefficients)),
@@ -62,7 +62,7 @@ func (cs *SparseR1CS) CurveID() gurvy.ID {
 }
 
 // find unsolved variable
-func findUnsolvedVariable(c untyped.SparseR1C, wireInstantiated []bool) int {
+func findUnsolvedVariable(c compiled.SparseR1C, wireInstantiated []bool) int {
 	lro := -1 // 0 if the variable to solve is L, 1 if it's R, 2 if it's O
 	if c.L.CoeffID() != 0 && !wireInstantiated[c.L.VariableID()] {
 		lro = 0
@@ -89,7 +89,7 @@ func findUnsolvedVariable(c untyped.SparseR1C, wireInstantiated []bool) int {
 }
 
 // computeTerm computes coef*variable
-func (cs *SparseR1CS) computeTerm(t untyped.Term, solution []fr.Element) fr.Element {
+func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Element {
 	var res fr.Element
 	res.Mul(&cs.Coefficients[t.CoeffID()], &solution[t.VariableID()])
 	return res
@@ -99,10 +99,10 @@ func (cs *SparseR1CS) computeTerm(t untyped.Term, solution []fr.Element) fr.Elem
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c untyped.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
 
 	switch c.Solver {
-	case untyped.SingleOutput:
+	case compiled.SingleOutput:
 
 		lro := findUnsolvedVariable(c, wireInstantiated)
 		if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
@@ -148,7 +148,7 @@ func (cs *SparseR1CS) solveConstraint(c untyped.SparseR1C, wireInstantiated []bo
 			wireInstantiated[c.O.VariableID()] = true
 		}
 
-	case untyped.BinaryDec:
+	case compiled.BinaryDec:
 		// 2*L + R + O = 0, computed as a = c/2, b = c%2
 		var bo, bl, br, two big.Int
 		o := cs.computeTerm(c.O, solution)
@@ -176,7 +176,7 @@ func (cs *SparseR1CS) IsSolved(witness []fr.Element) error {
 }
 
 // checkConstraint verifies that the constraint holds
-func (cs *SparseR1CS) checkConstraint(c untyped.SparseR1C, solution []fr.Element) error {
+func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Element) error {
 	var res, a, b, zero fr.Element
 	res = cs.computeTerm(c.L, solution)
 	a = cs.computeTerm(c.R, solution)
@@ -249,7 +249,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 
 }
 
-func logValue(entry untyped.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+func logValue(entry compiled.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
 	var toResolve []interface{}
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]

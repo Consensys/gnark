@@ -18,11 +18,11 @@
 // implementation when needed
 package backend
 
+// ID represent a unique ID for a proving scheme
+type ID uint16
+
 const (
 	UNKNOWN ID = iota
 	GROTH16
 	PLONK
 )
-
-// ID represent a unique ID for a proving scheme
-type ID uint16
