@@ -29,7 +29,6 @@ import (
 )
 
 // SparseR1CS represents a Plonk like circuit
-// WIP does not contain logs for the moment
 type SparseR1CS struct {
 	untyped.SparseR1CS
 

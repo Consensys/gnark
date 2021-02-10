@@ -90,7 +90,7 @@ func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
 	c := make([]fr.Element, r1cs.NbConstraints)
-	wireValues := make([]fr.Element, r1cs.NbWires)
+	wireValues := make([]fr.Element, r1cs.NbInternalWires+r1cs.NbPublicWires+r1cs.NbSecretWires)
 	return r1cs.Solve(witness, a, b, c, wireValues)
 }
 
@@ -103,13 +103,14 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
 		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
 	}
+	nbWires := r1cs.NbPublicWires + r1cs.NbSecretWires + r1cs.NbInternalWires
 	// compute the wires and the a, b, c polynomials
-	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != int(r1cs.NbWires) {
+	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != nbWires {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
-	privateStartIndex := int(r1cs.NbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
+	privateStartIndex := int(nbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
 	// keep track of wire that have a value
-	wireInstantiated := make([]bool, r1cs.NbWires)
+	wireInstantiated := make([]bool, nbWires)
 	copy(wireValues[privateStartIndex:], witness) // TODO factorize
 	for i := 0; i < len(witness); i++ {
 		wireInstantiated[i+privateStartIndex] = true

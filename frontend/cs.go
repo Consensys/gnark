@@ -253,7 +253,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (backend.ConstraintSystem, 
 
 	// setting up the result
 	res := untyped.R1CS{
-		NbWires:         len(cs.internal.variables) + len(cs.public.variables) + len(cs.secret.variables),
+		NbInternalWires: len(cs.internal.variables),
 		NbPublicWires:   len(cs.public.variables),
 		NbSecretWires:   len(cs.secret.variables),
 		NbConstraints:   len(cs.constraints) + len(cs.assertions),

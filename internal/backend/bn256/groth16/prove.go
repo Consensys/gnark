@@ -57,13 +57,13 @@ func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness []fr.Element, force 
 	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
 		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
 	}
-	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
+	nbPrivateWires := r1cs.NbSecretWires + r1cs.NbInternalWires
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
-	wireValues := make([]fr.Element, r1cs.NbWires)
+	wireValues := make([]fr.Element, r1cs.NbInternalWires+r1cs.NbPublicWires+r1cs.NbSecretWires)
 	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil && !force {
 		return nil, err
 	}
