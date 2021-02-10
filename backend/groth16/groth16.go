@@ -346,3 +346,22 @@ func NewProof(curveID gurvy.ID) Proof {
 
 	return proof
 }
+
+// NewCS instantiate a concrete curved-typed R1CS and return a R1CS interface
+// This method exists for (de)serialization purposes
+func NewCS(curveID gurvy.ID) backend.ConstraintSystem {
+	var r1cs backend.ConstraintSystem
+	switch curveID {
+	case gurvy.BN256:
+		r1cs = &backend_bn256.R1CS{}
+	case gurvy.BLS377:
+		r1cs = &backend_bls377.R1CS{}
+	case gurvy.BLS381:
+		r1cs = &backend_bls381.R1CS{}
+	case gurvy.BW761:
+		r1cs = &backend_bw761.R1CS{}
+	default:
+		panic("not implemented")
+	}
+	return r1cs
+}

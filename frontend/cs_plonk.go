@@ -21,7 +21,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/pcs"
 	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gurvy"
 )
@@ -984,7 +983,7 @@ func r1cToPlonkAssertion(pcs *untyped.SparseR1CS, cs *ConstraintSystem, r1c back
 	}
 }
 
-func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (pcs.CS, error) {
+func (cs *ConstraintSystem) toPlonk(curveID gurvy.ID) (backend.ConstraintSystem, error) {
 
 	// build the Coeffs slice
 	var res untyped.SparseR1CS

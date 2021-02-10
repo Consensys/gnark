@@ -33,7 +33,6 @@ import (
 	"github.com/consensys/gurvy"
 
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/gnarkd/pb"
 )
 
@@ -329,7 +328,7 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 			if circuit.r1cs != nil {
 				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
 			}
-			circuit.r1cs = r1cs.New(curveID)
+			circuit.r1cs = groth16.NewCS(curveID)
 			if err := loadGnarkObject(circuit.r1cs, filepath.Join(baseDir, f.Name())); err != nil {
 				return err
 			}
