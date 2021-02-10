@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -51,7 +52,7 @@ func TestAddAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssign
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssignAffine
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestDoubleAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAssign
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +178,7 @@ func TestDoubleAffineG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +218,7 @@ func TestNegG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1Neg
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +265,7 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	circuit.r = r
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

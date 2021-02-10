@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -92,7 +93,7 @@ func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, f
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
-	r1cs, err := frontend.Compile(curveID, &circuit)
+	r1cs, err := frontend.Compile(curveID, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}

@@ -17,7 +17,7 @@ limitations under the License.
 package fields
 
 import (
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy/bls377"
 	"github.com/consensys/gurvy/bls377/fp"
@@ -70,7 +70,7 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
-	buSquare := backend.FromInterface(ext.uSquare)
+	buSquare := utils.FromInterface(ext.uSquare)
 	l41 := cs.Mul(bd, buSquare)
 	l4 := cs.Add(ac, l41)
 	e.A0 = cs.Mul(l4, 1)

@@ -24,7 +24,6 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/internal/backend/untyped"
 
@@ -32,6 +31,9 @@ import (
 
 	"github.com/consensys/gurvy/bw761/fr"
 )
+
+// ErrUnsatisfiedConstraint can be generated when solving a R1CS
+var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 
 // R1CS decsribes a set of R1CS constraint
 type R1CS struct {
@@ -152,14 +154,14 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 		if !check.Equal(&c[i]) {
 			debugInfo := r1cs.DebugInfo[i-int(r1cs.NbCOConstraints)]
 			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
-			return fmt.Errorf("%w: %s", backend.ErrUnsatisfiedConstraint, debugInfoStr)
+			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
 
 	return nil
 }
 
-func (r1cs *R1CS) logValue(entry backend.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+func (r1cs *R1CS) logValue(entry untyped.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
 	var toResolve []interface{}
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]
@@ -180,7 +182,7 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 }
 
 // AddTerm returns res += (value * term.Coefficient)
-func (r1cs *R1CS) AddTerm(res *fr.Element, t backend.Term, value fr.Element) *fr.Element {
+func (r1cs *R1CS) AddTerm(res *fr.Element, t untyped.Term, value fr.Element) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
@@ -201,7 +203,7 @@ func (r1cs *R1CS) AddTerm(res *fr.Element, t backend.Term, value fr.Element) *fr
 }
 
 // mulWireByCoeff returns into.Mul(into, term.Coefficient)
-func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t backend.Term) *fr.Element {
+func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t untyped.Term) *fr.Element {
 	coeffValue := t.CoeffValue()
 	switch coeffValue {
 	case 1:
@@ -220,7 +222,7 @@ func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t backend.Term) *fr.Element {
 // compute left, right, o part of a r1cs constraint
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
-func instantiateR1C(r *backend.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
+func instantiateR1C(r *untyped.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
 
 	for _, t := range r.L {
 		r1cs.AddTerm(&a, t, wireValues[t.VariableID()])
@@ -242,21 +244,21 @@ func instantiateR1C(r *backend.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, 
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func (r1cs *R1CS) solveR1C(r *backend.R1C, wireInstantiated []bool, wireValues []fr.Element) {
+func (r1cs *R1CS) solveR1C(r *untyped.R1C, wireInstantiated []bool, wireValues []fr.Element) {
 
 	switch r.Solver {
 
 	// in this case we solve a R1C by isolating the uncomputed wire
-	case backend.SingleOutput:
+	case untyped.SingleOutput:
 
 		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 		// the content is the ID of the wire non instantiated
 		var loc uint8
 
 		var a, b, c fr.Element
-		var termToCompute backend.Term
+		var termToCompute untyped.Term
 
-		processTerm := func(t backend.Term, val *fr.Element, locValue uint8) {
+		processTerm := func(t untyped.Term, val *fr.Element, locValue uint8) {
 			cID := t.VariableID()
 			if wireInstantiated[cID] {
 				r1cs.AddTerm(val, t, wireValues[cID])
@@ -313,7 +315,7 @@ func (r1cs *R1CS) solveR1C(r *backend.R1C, wireInstantiated []bool, wireValues [
 
 	// in the case the R1C is solved by directly computing the binary decomposition
 	// of the variable
-	case backend.BinaryDec:
+	case untyped.BinaryDec:
 
 		// the binary decomposition must be called on the non Mont form of the number
 		var n fr.Element

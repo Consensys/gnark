@@ -21,6 +21,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
@@ -53,7 +54,7 @@ func TestIntegrationAPI(t *testing.T) {
 		for _, curve := range curves {
 			t.Log(curve.String())
 
-			r1cs, err := frontend.Compile(curve, circuit.Circuit)
+			r1cs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}

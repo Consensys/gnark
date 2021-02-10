@@ -19,6 +19,7 @@ package fields
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -47,7 +48,7 @@ func TestAddFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +81,7 @@ func TestSubFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestMulFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +152,7 @@ func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestMulByFpFp2(t *testing.T) {
 
 	var circuit, witness fp2MulByFp
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +190,7 @@ func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 func TestConjugateFp2(t *testing.T) {
 
 	var circuit, witness fp2Conjugate
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +225,7 @@ func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestInverseFp2(t *testing.T) {
 
 	var circuit, witness fp2Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func TestMulByImFp2(t *testing.T) {
 	// ext := Extension{uSquare: 5}
 
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	// r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

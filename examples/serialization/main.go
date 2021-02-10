@@ -5,6 +5,7 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 
 	"github.com/consensys/gnark/examples/cubic"
@@ -16,7 +17,7 @@ func main() {
 	var circuit cubic.Circuit
 
 	// compile a circuit
-	_r1cs, _ := frontend.Compile(gurvy.BN256, &circuit)
+	_r1cs, _ := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 
 	// R1CS implements io.WriterTo and io.ReaderFrom
 	var buf bytes.Buffer

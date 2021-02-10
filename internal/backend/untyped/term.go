@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package backend
+package untyped
 
 // Term lightweight version of a term, no pointers
 // first 4 bits are reserved

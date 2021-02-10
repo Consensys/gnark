@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
@@ -15,7 +16,7 @@ import (
 func main() {
 	var circuit cubic.Circuit
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}

@@ -6,22 +6,22 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gnark/internal/parser"
 )
 
 func TestStructTags(t *testing.T) {
 
-	testParseType := func(input interface{}, expected map[string]backend.Visibility) {
-		collected := make(map[string]backend.Visibility)
-		var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+	testParseType := func(input interface{}, expected map[string]untyped.Visibility) {
+		collected := make(map[string]untyped.Visibility)
+		var collectHandler parser.LeafHandler = func(visibility untyped.Visibility, name string, tInput reflect.Value) error {
 			if _, ok := collected[name]; ok {
 				return errors.New("duplicate name collected")
 			}
 			collected[name] = visibility
 			return nil
 		}
-		if err := parser.Visit(input, "", backend.Unset, collectHandler, reflect.TypeOf(Variable{})); err != nil {
+		if err := parser.Visit(input, "", untyped.Unset, collectHandler, reflect.TypeOf(Variable{})); err != nil {
 			t.Fatal(err)
 		}
 
@@ -44,9 +44,9 @@ func TestStructTags(t *testing.T) {
 		s := struct {
 			A, B Variable
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A"] = backend.Secret
-		expected["B"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["A"] = untyped.Secret
+		expected["B"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -55,9 +55,9 @@ func TestStructTags(t *testing.T) {
 			A Variable `gnark:"a, public"`
 			B Variable
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["a"] = backend.Public
-		expected["B"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["a"] = untyped.Public
+		expected["B"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -66,9 +66,9 @@ func TestStructTags(t *testing.T) {
 			A Variable `gnark:",public"`
 			B Variable
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A"] = backend.Public
-		expected["B"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["A"] = untyped.Public
+		expected["B"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -77,8 +77,8 @@ func TestStructTags(t *testing.T) {
 			A Variable `gnark:"-"`
 			B Variable
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["B"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["B"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -90,10 +90,10 @@ func TestStructTags(t *testing.T) {
 				D Variable
 			}
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A"] = backend.Public
-		expected["B"] = backend.Secret
-		expected["C_D"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["A"] = untyped.Public
+		expected["B"] = untyped.Secret
+		expected["C_D"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -111,11 +111,11 @@ func TestStructTags(t *testing.T) {
 			B Variable
 			C child
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A"] = backend.Public
-		expected["B"] = backend.Secret
-		expected["C_D"] = backend.Secret
-		expected["C_G_grandchild"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["A"] = untyped.Public
+		expected["B"] = untyped.Secret
+		expected["C_D"] = untyped.Secret
+		expected["C_G_grandchild"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -133,9 +133,9 @@ func TestStructTags(t *testing.T) {
 			A Variable `gnark:",public"`
 			B Variable
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A"] = backend.Public
-		expected["B"] = backend.Secret
+		expected := make(map[string]untyped.Visibility)
+		expected["A"] = untyped.Public
+		expected["B"] = untyped.Secret
 		testParseType(&s, expected)
 	}
 
@@ -144,9 +144,9 @@ func TestStructTags(t *testing.T) {
 		s := struct {
 			A [2]Variable `gnark:",public"`
 		}{}
-		expected := make(map[string]backend.Visibility)
-		expected["A_0"] = backend.Public
-		expected["A_1"] = backend.Public
+		expected := make(map[string]untyped.Visibility)
+		expected["A_0"] = untyped.Public
+		expected["A_1"] = untyped.Public
 		testParseType(&s, expected)
 	}
 
@@ -155,9 +155,9 @@ func TestStructTags(t *testing.T) {
 		s := struct {
 			A []Variable `gnark:",public"`
 		}{A: make([]Variable, 2)}
-		expected := make(map[string]backend.Visibility)
-		expected["A_0"] = backend.Public
-		expected["A_1"] = backend.Public
+		expected := make(map[string]untyped.Visibility)
+		expected["A_0"] = untyped.Public
+		expected["A_1"] = untyped.Public
 		testParseType(&s, expected)
 	}
 

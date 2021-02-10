@@ -21,8 +21,8 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gnark/internal/parser"
 
 	"github.com/consensys/gurvy/bls381/fr"
@@ -60,7 +60,7 @@ func Full(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 			j++
 		}
 	}
-	var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler parser.LeafHandler = func(visibility untyped.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
 		val := frontend.GetAssignedValue(v)
@@ -68,16 +68,16 @@ func Full(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 			return errors.New("variable " + name + " not assigned")
 		}
 
-		if visibility == backend.Secret {
+		if visibility == untyped.Secret {
 			secret[i].SetInterface(val)
 			i++
-		} else if visibility == backend.Public {
+		} else if visibility == untyped.Public {
 			public[j].SetInterface(val)
 			j++
 		}
 		return nil
 	}
-	if err := parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(w, "", untyped.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
 		return nil, err
 	}
 	return append(secret, public...), nil
@@ -114,9 +114,9 @@ func Public(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 			j++
 		}
 	}
-	var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler parser.LeafHandler = func(visibility untyped.Visibility, name string, tInput reflect.Value) error {
 
-		if visibility == backend.Public {
+		if visibility == untyped.Public {
 			v := tInput.Interface().(frontend.Variable)
 			val := frontend.GetAssignedValue(v)
 			if val == nil {
@@ -127,7 +127,7 @@ func Public(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
 		}
 		return nil
 	}
-	if err := parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(w, "", untyped.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
 		return nil, err
 	}
 	return public, nil
@@ -209,14 +209,14 @@ func ReadPublic(publicWitness []byte) (r []fr.Element, err error) {
 }
 
 func count(w frontend.Witness) (nbSecret, nbPublic int, err error) {
-	var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-		if visibility == backend.Secret {
+	var collectHandler parser.LeafHandler = func(visibility untyped.Visibility, name string, tInput reflect.Value) error {
+		if visibility == untyped.Secret {
 			nbSecret++
-		} else if visibility == backend.Public {
+		} else if visibility == untyped.Public {
 			nbPublic++
 		}
 		return nil
 	}
-	err = parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	err = parser.Visit(w, "", untyped.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
 	return
 }

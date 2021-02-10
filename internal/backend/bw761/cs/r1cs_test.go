@@ -18,6 +18,7 @@ package cs_test
 
 import (
 	"bytes"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
@@ -35,7 +36,7 @@ func TestSerialization(t *testing.T) {
 			continue
 		}
 
-		r1cs, err := frontend.Compile(gurvy.BW761, circuit.Circuit)
+		r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, circuit.Circuit)
 		if err != nil {
 			t.Fatal(err)
 		}

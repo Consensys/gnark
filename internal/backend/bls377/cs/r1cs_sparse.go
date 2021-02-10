@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gurvy"
 
 	"github.com/consensys/gnark/internal/backend/untyped"
@@ -63,7 +62,7 @@ func (cs *SparseR1CS) CurveID() gurvy.ID {
 }
 
 // find unsolved variable
-func findUnsolvedVariable(c backend.SparseR1C, wireInstantiated []bool) int {
+func findUnsolvedVariable(c untyped.SparseR1C, wireInstantiated []bool) int {
 	lro := -1 // 0 if the variable to solve is L, 1 if it's R, 2 if it's O
 	if c.L.CoeffID() != 0 && !wireInstantiated[c.L.VariableID()] {
 		lro = 0
@@ -90,7 +89,7 @@ func findUnsolvedVariable(c backend.SparseR1C, wireInstantiated []bool) int {
 }
 
 // computeTerm computes coef*variable
-func (cs *SparseR1CS) computeTerm(t backend.Term, solution []fr.Element) fr.Element {
+func (cs *SparseR1CS) computeTerm(t untyped.Term, solution []fr.Element) fr.Element {
 	var res fr.Element
 	res.Mul(&cs.Coefficients[t.CoeffID()], &solution[t.VariableID()])
 	return res
@@ -100,10 +99,10 @@ func (cs *SparseR1CS) computeTerm(t backend.Term, solution []fr.Element) fr.Elem
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
+func (cs *SparseR1CS) solveConstraint(c untyped.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
 
 	switch c.Solver {
-	case backend.SingleOutput:
+	case untyped.SingleOutput:
 
 		lro := findUnsolvedVariable(c, wireInstantiated)
 		if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
@@ -149,7 +148,7 @@ func (cs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated []bo
 			wireInstantiated[c.O.VariableID()] = true
 		}
 
-	case backend.BinaryDec:
+	case untyped.BinaryDec:
 		// 2*L + R + O = 0, computed as a = c/2, b = c%2
 		var bo, bl, br, two big.Int
 		o := cs.computeTerm(c.O, solution)
@@ -177,7 +176,7 @@ func (cs *SparseR1CS) IsSolved(witness []fr.Element) error {
 }
 
 // checkConstraint verifies that the constraint holds
-func (cs *SparseR1CS) checkConstraint(c backend.SparseR1C, solution []fr.Element) error {
+func (cs *SparseR1CS) checkConstraint(c untyped.SparseR1C, solution []fr.Element) error {
 	var res, a, b, zero fr.Element
 	res = cs.computeTerm(c.L, solution)
 	a = cs.computeTerm(c.R, solution)
@@ -191,7 +190,7 @@ func (cs *SparseR1CS) checkConstraint(c backend.SparseR1C, solution []fr.Element
 	a = cs.Coefficients[c.K]
 	res.Add(&res, &a)
 	if !res.Equal(&zero) {
-		return fmt.Errorf("%w", backend.ErrUnsatisfiedConstraint)
+		return fmt.Errorf("%w", ErrUnsatisfiedConstraint)
 	}
 	return nil
 }
@@ -250,7 +249,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 
 }
 
-func logValue(entry backend.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+func logValue(entry untyped.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
 	var toResolve []interface{}
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]

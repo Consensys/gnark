@@ -19,7 +19,7 @@ package frontend
 import (
 	"testing"
 
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/backend/untyped"
 )
 
 func TestPopVariable(t *testing.T) {
@@ -27,17 +27,17 @@ func TestPopVariable(t *testing.T) {
 	sizeAfterPoped := 29
 	nbInternalVars := 10
 
-	le := make([]backend.Term, 30)
+	le := make([]untyped.Term, 30)
 	for i := 0; i < 10; i++ {
-		le[i] = backend.Pack(i, 2*i, backend.Internal)
-		le[10+i] = backend.Pack(i, 2*(i+10), backend.Public)
-		le[20+i] = backend.Pack(i, 2*(i+20), backend.Secret)
+		le[i] = untyped.Pack(i, 2*i, untyped.Internal)
+		le[10+i] = untyped.Pack(i, 2*(i+10), untyped.Public)
+		le[20+i] = untyped.Pack(i, 2*(i+20), untyped.Secret)
 	}
 
 	for i := 0; i < nbInternalVars; i++ {
 		l, v := popInternalVariable(le, i)
 		_v := le[i]
-		_l := make(backend.LinearExpression, len(le)-1)
+		_l := make(untyped.LinearExpression, len(le)-1)
 		copy(_l, le[:i])
 		copy(_l[i:], le[i+1:])
 		if len(l) != sizeAfterPoped {
@@ -59,27 +59,27 @@ func TestFindUnsolvedVariable(t *testing.T) {
 	sizeLe := 10
 	totalInternalVariables := 3 * sizeLe / 2
 
-	l := make(backend.LinearExpression, sizeLe)
-	r := make(backend.LinearExpression, sizeLe)
-	o := make(backend.LinearExpression, sizeLe)
+	l := make(untyped.LinearExpression, sizeLe)
+	r := make(untyped.LinearExpression, sizeLe)
+	o := make(untyped.LinearExpression, sizeLe)
 	for i := 0; i < sizeLe/2; i++ {
-		l[i] = backend.Pack(3*i, i, backend.Internal)
-		l[i+sizeLe/2] = backend.Pack(3*i, i, backend.Public)
+		l[i] = untyped.Pack(3*i, i, untyped.Internal)
+		l[i+sizeLe/2] = untyped.Pack(3*i, i, untyped.Public)
 	}
 	for i := 0; i < sizeLe/2; i++ {
-		r[i] = backend.Pack(3*i+1, i, backend.Internal)
-		r[i+sizeLe/2] = backend.Pack(3*i+1, i, backend.Public)
+		r[i] = untyped.Pack(3*i+1, i, untyped.Internal)
+		r[i+sizeLe/2] = untyped.Pack(3*i+1, i, untyped.Public)
 	}
 	for i := 0; i < sizeLe/2; i++ {
-		o[i] = backend.Pack(3*i+2, i, backend.Internal)
-		o[i+sizeLe/2] = backend.Pack(3*i+2, i, backend.Public)
+		o[i] = untyped.Pack(3*i+2, i, untyped.Internal)
+		o[i+sizeLe/2] = untyped.Pack(3*i+2, i, untyped.Public)
 	}
 
 	solvedVariables := make([]bool, totalInternalVariables)
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = true
 	}
-	r1c := backend.R1C{L: l, R: r, O: o, Solver: backend.SingleOutput}
+	r1c := untyped.R1C{L: l, R: r, O: o, Solver: untyped.SingleOutput}
 
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = false

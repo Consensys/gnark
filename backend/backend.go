@@ -18,8 +18,6 @@
 // implementation when needed
 package backend
 
-import "errors"
-
 const (
 	UNKNOWN ID = iota
 	GROTH16
@@ -28,41 +26,3 @@ const (
 
 // ID represent a unique ID for a proving scheme
 type ID uint16
-
-// ErrInputNotSet can be generated when solving the R1CS (a missing assignment) or running a Verifier
-var ErrInputNotSet = errors.New("variable is not allocated")
-
-// ErrUnsatisfiedConstraint can be generated when solving a R1CS
-var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
-
-// note: this types are shared between frontend and backend packages and are here to avoid import cycles
-// probably need a better naming / home for them
-
-// LogEntry is used as a shared data structure between the frontend and the backend
-// to represent string values (in logs or debug info) where a value is not known at compile time
-// (which is the case for variables that need to be resolved in the R1CS)
-type LogEntry struct {
-	Format    string
-	ToResolve []int
-}
-
-// Visibility encodes a Variable (or wire) visibility
-// Possible values are Unset, Internal, Secret or Public
-type Visibility uint8
-
-const (
-	Unset Visibility = iota
-	Internal
-	Secret
-	Public
-)
-
-// SolvingMethod is used by the R1CS solver
-// note: it is not in backend/r1cs to avoid an import cycle
-type SolvingMethod uint8
-
-// SingleOuput and BinaryDec are types of solving method for rank-1 constraints
-const (
-	SingleOutput SolvingMethod = iota
-	BinaryDec
-)

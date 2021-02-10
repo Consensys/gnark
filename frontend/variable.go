@@ -14,13 +14,13 @@ limitations under the License.
 package frontend
 
 import (
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/backend/untyped"
 )
 
 // Wire of a circuit
 // They represent secret or public inputs in a circuit struct{} / definition (see circuit.Define(), type Tag)
 type Wire struct {
-	visibility backend.Visibility
+	visibility untyped.Visibility
 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
 	val        interface{}
 }
@@ -31,7 +31,7 @@ type Wire struct {
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
 type Variable struct {
 	Wire
-	linExp    backend.LinearExpression
+	linExp    untyped.LinearExpression
 	isBoolean bool // TODO it doesn't work, we need a pointer for that
 }
 
@@ -52,8 +52,8 @@ func (v *Variable) Assign(value interface{}) {
 
 // getCopyLinExp returns a copy of the linear expression
 // to avoid sharing same data, leading to bugs when updating the variables id
-func (v *Variable) getLinExpCopy() backend.LinearExpression {
-	res := make(backend.LinearExpression, len(v.linExp))
+func (v *Variable) getLinExpCopy() untyped.LinearExpression {
+	res := make(untyped.LinearExpression, len(v.linExp))
 	copy(res, v.linExp)
 	return res
 }

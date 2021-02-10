@@ -17,7 +17,6 @@ package untyped
 import (
 	"io"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gurvy"
 )
 
@@ -29,13 +28,13 @@ type R1CS struct {
 	NbInternalWires int
 	NbPublicWires   int // includes ONE wire
 	NbSecretWires   int
-	Logs            []backend.LogEntry
-	DebugInfo       []backend.LogEntry
+	Logs            []LogEntry
+	DebugInfo       []LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []backend.R1C
+	Constraints     []R1C
 }
 
 // GetNbConstraints returns the number of constraints

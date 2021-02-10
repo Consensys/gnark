@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/hash"
 	"github.com/consensys/gnark/crypto/signature"
@@ -179,7 +180,7 @@ func TestEddsa(t *testing.T) {
 
 		// create and compile the circuit for signature verification
 		var circuit eddsaCircuit
-		r1cs, err := frontend.Compile(id, &circuit)
+		r1cs, err := frontend.Compile(id, backend.GROTH16, &circuit)
 		if err != nil {
 			t.Fatal(err)
 		}

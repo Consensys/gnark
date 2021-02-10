@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/untyped"
 	"github.com/consensys/gurvy"
 
@@ -57,8 +56,8 @@ type ConstraintSystem struct {
 	}
 
 	// Constraints
-	constraints []backend.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions  []backend.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
+	constraints []untyped.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
+	assertions  []untyped.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
 
 	// Coefficients in the constraints
 	coeffs    []big.Int      // list of unique coefficients.
@@ -83,8 +82,8 @@ func newConstraintSystem() ConstraintSystem {
 	cs := ConstraintSystem{
 		coeffs:      make([]big.Int, 0),
 		coeffsIDs:   make(map[string]int),
-		constraints: make([]backend.R1C, 0, initialCapacity),
-		assertions:  make([]backend.R1C, 0),
+		constraints: make([]untyped.R1C, 0, initialCapacity),
+		assertions:  make([]untyped.R1C, 0),
 	}
 
 	cs.public.variables = make([]Variable, 0)
@@ -104,7 +103,7 @@ func newConstraintSystem() ConstraintSystem {
 
 type logEntry struct {
 	format    string
-	toResolve []backend.Term
+	toResolve []untyped.Term
 }
 
 var (
@@ -115,7 +114,7 @@ var (
 )
 
 // debug info in case a variable is not set
-func debugInfoUnsetVariable(term backend.Term) logEntry {
+func debugInfoUnsetVariable(term untyped.Term) logEntry {
 	entry := logEntry{}
 	stack := getCallStack()
 	entry.format = stack[len(stack)-1]
@@ -123,7 +122,7 @@ func debugInfoUnsetVariable(term backend.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneTerm() backend.Term {
+func (cs *ConstraintSystem) getOneTerm() untyped.Term {
 	return cs.public.variables[0].linExp[0]
 }
 
@@ -131,10 +130,10 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 	return cs.public.variables[0]
 }
 
-// Term packs a variable and a coeff in a backend.Term and returns it.
-func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) backend.Term {
+// Term packs a variable and a coeff in a untyped.Term and returns it.
+func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) untyped.Term {
 
-	term := backend.Pack(v.id, cs.coeffID(coeff), v.visibility)
+	term := untyped.Pack(v.id, cs.coeffID(coeff), v.visibility)
 
 	if coeff.Cmp(bZero) == 0 {
 		term.SetCoeffValue(0)
@@ -157,9 +156,9 @@ func (cs *ConstraintSystem) NbConstraints() int {
 	return len(cs.constraints) + len(cs.assertions)
 }
 
-// LinearExpression packs a list of backend.Term in a backend.LinearExpression and returns it.
-func (cs *ConstraintSystem) LinearExpression(terms ...backend.Term) backend.LinearExpression {
-	res := make(backend.LinearExpression, len(terms))
+// LinearExpression packs a list of untyped.Term in a untyped.LinearExpression and returns it.
+func (cs *ConstraintSystem) LinearExpression(terms ...untyped.Term) untyped.LinearExpression {
+	res := make(untyped.LinearExpression, len(terms))
 	for i, args := range terms {
 		res[i] = args
 	}
@@ -168,10 +167,10 @@ func (cs *ConstraintSystem) LinearExpression(terms ...backend.Term) backend.Line
 
 // reduces redundancy in a linear expression
 // Non deterministic function
-func (cs *ConstraintSystem) partialReduce(linExp backend.LinearExpression, visibility backend.Visibility) backend.LinearExpression {
+func (cs *ConstraintSystem) partialReduce(linExp untyped.LinearExpression, visibility untyped.Visibility) untyped.LinearExpression {
 
 	if len(linExp) == 0 {
-		return backend.LinearExpression{}
+		return untyped.LinearExpression{}
 	}
 
 	coeffRecord := make(map[int]big.Int) // id variable -> coeff
@@ -200,7 +199,7 @@ func (cs *ConstraintSystem) partialReduce(linExp backend.LinearExpression, visib
 	}
 
 	// creation of the reduced linear expression
-	var res backend.LinearExpression
+	var res untyped.LinearExpression
 	for k := range coeffRecord {
 		bCoeff := coeffRecord[k]
 		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
@@ -214,7 +213,7 @@ func (cs *ConstraintSystem) partialReduce(linExp backend.LinearExpression, visib
 // will not understand it since a.linExp is empty
 func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 	if len(v.linExp) == 0 {
-		tmp := Wire{backend.Unset, v.id, v.val}
+		tmp := Wire{untyped.Unset, v.id, v.val}
 		tmpVar := cs.buildVarFromPartialVar(tmp)
 		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
 		v.linExp = tmpVar.getLinExpCopy()
@@ -223,12 +222,12 @@ func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 
 // reduces redundancy in linear expression
 // Non deterministic function
-func (cs *ConstraintSystem) reduce(linExp backend.LinearExpression) backend.LinearExpression {
-	reducePublic := cs.partialReduce(linExp, backend.Public)
-	reduceSecret := cs.partialReduce(linExp, backend.Secret)
-	reduceInternal := cs.partialReduce(linExp, backend.Internal)
-	reduceUnset := cs.partialReduce(linExp, backend.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
-	res := make(backend.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
+func (cs *ConstraintSystem) reduce(linExp untyped.LinearExpression) untyped.LinearExpression {
+	reducePublic := cs.partialReduce(linExp, untyped.Public)
+	reduceSecret := cs.partialReduce(linExp, untyped.Secret)
+	reduceInternal := cs.partialReduce(linExp, untyped.Internal)
+	reduceUnset := cs.partialReduce(linExp, untyped.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
+	res := make(untyped.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
 	accSize := 0
 	copy(res[:], reducePublic)
 	accSize += len(reducePublic)
@@ -240,7 +239,7 @@ func (cs *ConstraintSystem) reduce(linExp backend.LinearExpression) backend.Line
 	return res
 }
 
-func (cs *ConstraintSystem) addAssertion(constraint backend.R1C, debugInfo logEntry) {
+func (cs *ConstraintSystem) addAssertion(constraint untyped.R1C, debugInfo logEntry) {
 
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
@@ -258,9 +257,9 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 		NbSecretWires:   len(cs.secret.variables),
 		NbConstraints:   len(cs.constraints) + len(cs.assertions),
 		NbCOConstraints: len(cs.constraints),
-		Constraints:     make([]backend.R1C, len(cs.constraints)+len(cs.assertions)),
-		Logs:            make([]backend.LogEntry, len(cs.logs)),
-		DebugInfo:       make([]backend.LogEntry, len(cs.debugInfo)),
+		Constraints:     make([]untyped.R1C, len(cs.constraints)+len(cs.assertions)),
+		Logs:            make([]untyped.LogEntry, len(cs.logs)),
+		DebugInfo:       make([]untyped.LogEntry, len(cs.debugInfo)),
 	}
 
 	// computational constraints (= gates)
@@ -268,16 +267,16 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
 	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
-	offsetIDs := func(exp backend.LinearExpression) error {
+	offsetIDs := func(exp untyped.LinearExpression) error {
 		for j := 0; j < len(exp); j++ {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
-			case backend.Public:
+			case untyped.Public:
 				exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
-			case backend.Secret:
+			case untyped.Secret:
 				exp[j].SetVariableID(cID + len(cs.internal.variables))
-			case backend.Unset:
-				return fmt.Errorf("%w: %s", backend.ErrInputNotSet, cs.unsetVariables[0].format)
+			case untyped.Unset:
+				return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
 			}
 		}
 		return nil
@@ -301,17 +300,17 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 
 	// we need to offset the ids in logs too
 	for i := 0; i < len(cs.logs); i++ {
-		entry := backend.LogEntry{
+		entry := untyped.LogEntry{
 			Format: cs.logs[i].format,
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
-			case backend.Public:
+			case untyped.Public:
 				cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case backend.Secret:
+			case untyped.Secret:
 				cID += len(cs.internal.variables)
-			case backend.Unset:
+			case untyped.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}
 			entry.ToResolve = append(entry.ToResolve, cID)
@@ -322,17 +321,17 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 
 	// offset ids in the debugInfo
 	for i := 0; i < len(cs.debugInfo); i++ {
-		entry := backend.LogEntry{
+		entry := untyped.LogEntry{
 			Format: cs.debugInfo[i].format,
 		}
 		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
 			switch cVisibility {
-			case backend.Public:
+			case untyped.Public:
 				cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case backend.Secret:
+			case untyped.Secret:
 				cID += len(cs.internal.variables)
-			case backend.Unset:
+			case untyped.Unset:
 				panic("encountered unset visibility on a variable in debugInfo id offset routine")
 			}
 			entry.ToResolve = append(entry.ToResolve, cID)
@@ -380,10 +379,10 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 // resulting in one more constraint in the system. If v is set OR v is
 // unset and linexp is emppty, it does nothing.
 func (cs *ConstraintSystem) allocate(v Variable) Variable {
-	if v.visibility == backend.Unset && len(v.linExp) > 0 {
+	if v.visibility == untyped.Unset && len(v.linExp) > 0 {
 		iv := cs.newInternalVariable()
 		one := cs.getOneVariable()
-		constraint := backend.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: backend.SingleOutput}
+		constraint := untyped.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: untyped.SingleOutput}
 		cs.constraints = append(cs.constraints, constraint)
 		return iv
 	}
@@ -421,7 +420,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 		// if the variable is only in linExp form, we allocate it
 		_v := cs.allocate(v)
 
-		entry.toResolve = append(entry.toResolve, backend.Pack(_v.id, 0, _v.visibility))
+		entry.toResolve = append(entry.toResolve, untyped.Pack(_v.id, 0, _v.visibility))
 
 		if name == "" {
 			sbb.WriteString("%s")
@@ -455,7 +454,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 func (cs *ConstraintSystem) newInternalVariable() Variable {
 	resVar := Wire{
 		id:         len(cs.internal.variables),
-		visibility: backend.Internal,
+		visibility: untyped.Internal,
 	}
 	res := cs.buildVarFromPartialVar(resVar)
 	cs.internal.variables = append(cs.internal.variables, res)
@@ -466,7 +465,7 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 func (cs *ConstraintSystem) newPublicVariable() Variable {
 
 	idx := len(cs.public.variables)
-	resVar := Wire{backend.Public, idx, nil}
+	resVar := Wire{untyped.Public, idx, nil}
 
 	res := cs.buildVarFromPartialVar(resVar)
 	cs.public.variables = append(cs.public.variables, res)
@@ -476,7 +475,7 @@ func (cs *ConstraintSystem) newPublicVariable() Variable {
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
-	resVar := Wire{backend.Secret, idx, nil}
+	resVar := Wire{untyped.Secret, idx, nil}
 
 	res := cs.buildVarFromPartialVar(resVar)
 	cs.secret.variables = append(cs.secret.variables, res)

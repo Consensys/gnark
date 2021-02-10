@@ -21,6 +21,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
 	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
@@ -80,7 +81,7 @@ func TestVerify(t *testing.T) {
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
 	witness.Path = make([]frontend.Variable, len(proof))
 	witness.Helper = make([]frontend.Variable, len(proof)-1)
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,6 +30,7 @@ import (
 	bls381groth16 "github.com/consensys/gnark/internal/backend/bls381/groth16"
 	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -40,7 +41,7 @@ func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			assert := groth16.NewAssert(t)
-			r1cs, err := frontend.Compile(curve.ID, circuit.Circuit)
+			r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, circuit.Circuit)
 			assert.NoError(err)
 			assert.ProverFailed(r1cs, circuit.Bad)
 			assert.ProverSucceeded(r1cs, circuit.Good)
@@ -71,7 +72,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Witness) {
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	r1cs, err := frontend.Compile(curve.ID, &circuit)
+	r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}

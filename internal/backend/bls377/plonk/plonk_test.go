@@ -19,6 +19,7 @@ package plonk_test
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -29,7 +30,7 @@ func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			assert := plonk.NewAssert(t)
-			pcs, err := frontend.CompilePlonk(curve.ID, circuit.Circuit)
+			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
 			assert.NoError(err)
 			assert.SolvingSucceeded(pcs, circuit.Good)
 			assert.SolvingFailed(pcs, circuit.Bad)
