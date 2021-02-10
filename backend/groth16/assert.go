@@ -137,15 +137,15 @@ func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
 func (assert *Assert) SolvingSucceeded(r1cs backend.ConstraintSystem, witness frontend.Witness) {
-	assert.NoError(solveR1CS(r1cs, witness))
+	assert.NoError(Solve(r1cs, witness))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
 func (assert *Assert) SolvingFailed(r1cs backend.ConstraintSystem, witness frontend.Witness) {
-	assert.Error(solveR1CS(r1cs, witness))
+	assert.Error(Solve(r1cs, witness))
 }
 
-func solveR1CS(r1cs backend.ConstraintSystem, witness frontend.Witness) error {
+func Solve(r1cs backend.ConstraintSystem, witness frontend.Witness) error {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		w, err := witness_bls377.Full(witness)

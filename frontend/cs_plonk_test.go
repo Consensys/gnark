@@ -95,22 +95,3 @@ func TestFindUnsolvedVariable(t *testing.T) {
 		solvedVariables[i] = true
 	}
 }
-
-// func TestSplit(t *testing.T) {
-
-// 	nbVariables := 10
-
-// 	pcs := newPlonkCS()
-// 	pcs.coeffs = append(pcs.coeffs, *bOne)
-// 	csCoeffs := []big.Int{*bOne}
-// 	varCsToVaPcs := make(map[int]int)
-
-// 	le := make(backend.LinearExpression, nbVariables)
-// 	for i := 0; i < nbVariables; i++ {
-// 		le[i] = backend.Pack(i, 0, backend.Internal)
-// 		varCsToVaPcs[i] = i
-// 	}
-
-// 	pcs.split(0, csCoeffs, le, varCsToVaPcs)
-
-// }

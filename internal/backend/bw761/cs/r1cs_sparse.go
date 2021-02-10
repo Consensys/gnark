@@ -48,17 +48,17 @@ func NewSparseR1CS(r1cs untyped.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	return &r
 }
 
-func (plonkcs *SparseR1CS) FrSize() int {
+func (cs *SparseR1CS) FrSize() int {
 	return fr.Limbs * 8
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (plonkcs *SparseR1CS) GetNbCoefficients() int {
-	return len(plonkcs.Coefficients)
+func (cs *SparseR1CS) GetNbCoefficients() int {
+	return len(cs.Coefficients)
 }
 
 // CurveID returns curve ID as defined in gurvy (gurvy.BW761)
-func (plonkcs *SparseR1CS) CurveID() gurvy.ID {
+func (cs *SparseR1CS) CurveID() gurvy.ID {
 	return gurvy.BW761
 }
 
@@ -90,9 +90,9 @@ func findUnsolvedVariable(c backend.SparseR1C, wireInstantiated []bool) int {
 }
 
 // computeTerm computes coef*variable
-func (plonkcs *SparseR1CS) computeTerm(t backend.Term, solution []fr.Element) fr.Element {
+func (cs *SparseR1CS) computeTerm(t backend.Term, solution []fr.Element) fr.Element {
 	var res fr.Element
-	res.Mul(&plonkcs.Coefficients[t.CoeffID()], &solution[t.VariableID()])
+	res.Mul(&cs.Coefficients[t.CoeffID()], &solution[t.VariableID()])
 	return res
 }
 
@@ -100,7 +100,7 @@ func (plonkcs *SparseR1CS) computeTerm(t backend.Term, solution []fr.Element) fr
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (plonkcs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
+func (cs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
 
 	switch c.Solver {
 	case backend.SingleOutput:
@@ -109,14 +109,14 @@ func (plonkcs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated
 		if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
 
 			var u1, u2, u3, den, num, v1, v2 fr.Element
-			u3.Mul(&plonkcs.Coefficients[c.M[0].CoeffID()], &plonkcs.Coefficients[c.M[1].CoeffID()])
-			u1.Set(&plonkcs.Coefficients[c.L.CoeffID()])
-			u2.Set(&plonkcs.Coefficients[c.R.CoeffID()])
+			u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
+			u1.Set(&cs.Coefficients[c.L.CoeffID()])
+			u2.Set(&cs.Coefficients[c.R.CoeffID()])
 			den.Mul(&u3, &solution[c.R.VariableID()]).Add(&den, &u1)
 
-			v1 = plonkcs.computeTerm(c.R, solution)
-			v2 = plonkcs.computeTerm(c.O, solution)
-			num.Add(&v1, &v2).Add(&num, &plonkcs.Coefficients[c.K])
+			v1 = cs.computeTerm(c.R, solution)
+			v2 = cs.computeTerm(c.O, solution)
+			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
 			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 			wireInstantiated[c.L.VariableID()] = true
@@ -124,26 +124,26 @@ func (plonkcs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated
 		} else if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
 
 			var u1, u2, u3, den, num, v1, v2 fr.Element
-			u3.Mul(&plonkcs.Coefficients[c.M[0].VariableID()], &plonkcs.Coefficients[c.M[1].VariableID()])
-			u1.Set(&plonkcs.Coefficients[c.L.CoeffID()])
-			u2.Set(&plonkcs.Coefficients[c.R.CoeffID()])
+			u3.Mul(&cs.Coefficients[c.M[0].VariableID()], &cs.Coefficients[c.M[1].VariableID()])
+			u1.Set(&cs.Coefficients[c.L.CoeffID()])
+			u2.Set(&cs.Coefficients[c.R.CoeffID()])
 			den.Mul(&u3, &solution[c.L.VariableID()]).Add(&den, &u2)
 
-			v1 = plonkcs.computeTerm(c.L, solution)
-			v2 = plonkcs.computeTerm(c.O, solution)
-			num.Add(&v1, &v2).Add(&num, &plonkcs.Coefficients[c.K])
+			v1 = cs.computeTerm(c.L, solution)
+			v2 = cs.computeTerm(c.O, solution)
+			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
 			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 			wireInstantiated[c.L.VariableID()] = true
 
 		} else { // O we solve for O
-			l := plonkcs.computeTerm(c.L, solution)
-			r := plonkcs.computeTerm(c.R, solution)
-			m := plonkcs.computeTerm(c.M[0], solution)
-			_m := plonkcs.computeTerm(c.M[1], solution)
+			l := cs.computeTerm(c.L, solution)
+			r := cs.computeTerm(c.R, solution)
+			m := cs.computeTerm(c.M[0], solution)
+			_m := cs.computeTerm(c.M[1], solution)
 			m.Mul(&m, &_m)
-			m.Add(&m, &l).Add(&m, &r).Add(&m, &plonkcs.Coefficients[c.K])
-			m.Div(&m, &plonkcs.Coefficients[c.O.CoeffID()])
+			m.Add(&m, &l).Add(&m, &r).Add(&m, &cs.Coefficients[c.K])
+			m.Div(&m, &cs.Coefficients[c.O.CoeffID()])
 
 			solution[c.O.VariableID()].Neg(&m)
 			wireInstantiated[c.O.VariableID()] = true
@@ -152,7 +152,7 @@ func (plonkcs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated
 	case backend.BinaryDec:
 		// 2*L + R + O = 0, computed as a = c/2, b = c%2
 		var bo, bl, br, two big.Int
-		o := plonkcs.computeTerm(c.O, solution)
+		o := cs.computeTerm(c.O, solution)
 		o.Neg(&o)
 		o.ToBigIntRegular(&bo)
 		two.SetInt64(2)
@@ -171,24 +171,24 @@ func (plonkcs *SparseR1CS) solveConstraint(c backend.SparseR1C, wireInstantiated
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (plonkcs *SparseR1CS) IsSolved(witness []fr.Element) error {
-	_, err := plonkcs.Solve(witness)
+func (cs *SparseR1CS) IsSolved(witness []fr.Element) error {
+	_, err := cs.Solve(witness)
 	return err
 }
 
 // checkConstraint verifies that the constraint holds
-func (plonkcs *SparseR1CS) checkConstraint(c backend.SparseR1C, solution []fr.Element) error {
+func (cs *SparseR1CS) checkConstraint(c backend.SparseR1C, solution []fr.Element) error {
 	var res, a, b, zero fr.Element
-	res = plonkcs.computeTerm(c.L, solution)
-	a = plonkcs.computeTerm(c.R, solution)
+	res = cs.computeTerm(c.L, solution)
+	a = cs.computeTerm(c.R, solution)
 	res.Add(&res, &a)
-	a = plonkcs.computeTerm(c.M[0], solution)
-	b = plonkcs.computeTerm(c.M[1], solution)
+	a = cs.computeTerm(c.M[0], solution)
+	b = cs.computeTerm(c.M[1], solution)
 	a.Mul(&a, &b)
 	res.Add(&res, &a)
-	a = plonkcs.computeTerm(c.O, solution)
+	a = cs.computeTerm(c.O, solution)
 	res.Add(&res, &a)
-	a = plonkcs.Coefficients[c.K]
+	a = cs.Coefficients[c.K]
 	res.Add(&res, &a)
 	if !res.Equal(&zero) {
 		return fmt.Errorf("%w", backend.ErrUnsatisfiedConstraint)
@@ -200,22 +200,22 @@ func (plonkcs *SparseR1CS) checkConstraint(c backend.SparseR1C, solution []fr.El
 // wireValues =  [intermediateVariables | secretInputs | publicInputs]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (plonkcs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err error) {
 
-	expectedWitnessSize := int(plonkcs.NbPublicVariables + plonkcs.NbSecretVariables)
+	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
 	if len(witness) != expectedWitnessSize {
 		return nil, fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
 			len(witness),
 			expectedWitnessSize,
-			plonkcs.NbPublicVariables,
-			plonkcs.NbSecretVariables,
+			cs.NbPublicVariables,
+			cs.NbSecretVariables,
 		)
 	}
 
 	// set the slices holding the solution and monitoring which variables have been solved
-	privateStartIndex := plonkcs.NbInternalVariables
-	nbVariables := plonkcs.NbInternalVariables + plonkcs.NbSecretVariables + plonkcs.NbPublicVariables
+	privateStartIndex := cs.NbInternalVariables
+	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
 	solution = make([]fr.Element, nbVariables)
 	wireInstantiated := make([]bool, nbVariables)
 
@@ -226,12 +226,12 @@ func (plonkcs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, e
 	}
 
 	// defer log printing once all wireValues are computed
-	defer plonkcs.printLogs(solution, wireInstantiated)
+	defer cs.printLogs(solution, wireInstantiated)
 
 	// loop through the constraints to solve the variables
-	for i := 0; i < len(plonkcs.Constraints); i++ {
-		plonkcs.solveConstraint(plonkcs.Constraints[i], wireInstantiated, solution)
-		err = plonkcs.checkConstraint(plonkcs.Constraints[i], solution)
+	for i := 0; i < len(cs.Constraints); i++ {
+		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution)
+		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)
 			return nil, err
@@ -239,8 +239,8 @@ func (plonkcs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, e
 	}
 
 	// loop through the assertions and check consistency
-	for i := 0; i < len(plonkcs.Assertions); i++ {
-		err = plonkcs.checkConstraint(plonkcs.Assertions[i], solution)
+	for i := 0; i < len(cs.Assertions); i++ {
+		err = cs.checkConstraint(cs.Assertions[i], solution)
 		if err != nil {
 			return nil, err
 		}
@@ -250,8 +250,7 @@ func (plonkcs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, e
 
 }
 
-// TODO plonkcs is not used, remove it
-func (plonkcs *SparseR1CS) logValue(entry backend.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+func logValue(entry backend.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
 	var toResolve []interface{}
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]
@@ -263,10 +262,10 @@ func (plonkcs *SparseR1CS) logValue(entry backend.LogEntry, wireValues []fr.Elem
 	return fmt.Sprintf(entry.Format, toResolve...)
 }
 
-func (plonkcs *SparseR1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
+func (cs *SparseR1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 
 	// for each log, resolve the wire values and print the log to stdout
-	for i := 0; i < len(plonkcs.Logs); i++ {
-		fmt.Print(plonkcs.logValue(plonkcs.Logs[i], wireValues, wireInstantiated))
+	for i := 0; i < len(cs.Logs); i++ {
+		fmt.Print(logValue(cs.Logs[i], wireValues, wireInstantiated))
 	}
 }

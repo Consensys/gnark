@@ -44,18 +44,18 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-// SolvingSucceeded Verifies that the pcs.PCS is solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingSucceeded(pcs backend.ConstraintSystem, witness frontend.Witness) {
-	assert.NoError(solvePlonkSystem(pcs, witness))
+// SolvingSucceeded Verifies that the cs.PCS is solved with the given witness, without executing plonk workflow
+func (assert *Assert) SolvingSucceeded(cs backend.ConstraintSystem, witness frontend.Witness) {
+	assert.NoError(Solve(cs, witness))
 }
 
-// SolvingFailed Verifies that the pcs.PCS is not solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingFailed(pcs backend.ConstraintSystem, witness frontend.Witness) {
-	assert.Error(solvePlonkSystem(pcs, witness))
+// SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
+func (assert *Assert) SolvingFailed(cs backend.ConstraintSystem, witness frontend.Witness) {
+	assert.Error(Solve(cs, witness))
 }
 
-func solvePlonkSystem(pcs backend.ConstraintSystem, witness frontend.Witness) error {
-	switch _pcs := pcs.(type) {
+func Solve(cs backend.ConstraintSystem, witness frontend.Witness) error {
+	switch _pcs := cs.(type) {
 	case *backend_bn256.SparseR1CS:
 		w, err := witness_bn256.Full(witness, true)
 		if err != nil {
