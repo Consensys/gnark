@@ -118,7 +118,7 @@ func BenchmarkSetup(b *testing.B) {
 
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution)
+	witness, err := bls381witness.Full(_solution, backend.GROTH16)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -136,11 +136,11 @@ func BenchmarkProver(b *testing.B) {
 
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution)
+	witness, err := bls381witness.Full(_solution, backend.GROTH16)
 	if err != nil {
 		b.Fatal(err)
 	}
-	publicWitness, err := bls381witness.Public(_solution)
+	publicWitness, err := bls381witness.Public(_solution, backend.GROTH16)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func BenchmarkVerifier(b *testing.B) {
 
 func BenchmarkSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution)
+	witness, err := bls381witness.Full(_solution, backend.GROTH16)
 	if err != nil {
 		b.Fatal(err)
 	}

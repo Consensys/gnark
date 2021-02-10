@@ -17,6 +17,7 @@ package plonk
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
 
@@ -56,25 +57,25 @@ func (assert *Assert) SolvingFailed(cs frontend.CompiledConstraintSystem, witnes
 func Solve(cs frontend.CompiledConstraintSystem, witness frontend.Witness) error {
 	switch _pcs := cs.(type) {
 	case *backend_bn256.SparseR1CS:
-		w, err := witness_bn256.Full(witness, true)
+		w, err := witness_bn256.Full(witness, backend.PLONK)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bls381.SparseR1CS:
-		w, err := witness_bls381.Full(witness, true)
+		w, err := witness_bls381.Full(witness, backend.PLONK)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bls377.SparseR1CS:
-		w, err := witness_bls377.Full(witness, true)
+		w, err := witness_bls377.Full(witness, backend.PLONK)
 		if err != nil {
 			return err
 		}
 		return _pcs.IsSolved(w)
 	case *backend_bw761.SparseR1CS:
-		w, err := witness_bw761.Full(witness, true)
+		w, err := witness_bw761.Full(witness, backend.PLONK)
 		if err != nil {
 			return err
 		}

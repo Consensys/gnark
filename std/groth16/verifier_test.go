@@ -68,7 +68,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	w.Data.Assign(preimage)
 	w.Hash.Assign(publicHash)
 
-	correctAssignment, err := witness.Full(&w)
+	correctAssignment, err := witness.Full(&w, backend.GROTH16)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
-	correctAssignmentPublic, err := witness.Public(&w)
+	correctAssignmentPublic, err := witness.Public(&w, backend.GROTH16)
 	if err != nil {
 		t.Fatal(err)
 	}

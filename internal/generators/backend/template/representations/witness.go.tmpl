@@ -5,6 +5,7 @@ import (
 
     "github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/frontend"
+    "github.com/consensys/gnark/backend"
     "github.com/consensys/gnark/internal/parser"
 
 	{{ template "import_fr" . }}
@@ -13,34 +14,28 @@ import (
 
 // Full extracts the full witness secret || public (including ONE_WIRE)
 // and returns a slice of field elements in montgomery form
-// TODO probably should replace variadic argument by something cleaner
-func Full(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error)  {
+func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error)  {
     nbSecret, nbPublic, err := count(w)
 	if err != nil {
 		return nil, err
 	}
-	secret := make([]fr.Element, nbSecret)
-	public := make([]fr.Element, nbPublic, nbPublic+1) // ONE_WIRE
-	if len(ditchOneWire)==0 {
-        var tmp fr.Element
-        public = append(public, tmp)
+
+    var public []fr.Element
+    secret := make([]fr.Element, nbSecret)
+
+    var i, j int // indexes for secret / public variables
+ 
+    switch zkpID {
+    case backend.GROTH16:
+        public = make([]fr.Element, nbPublic + 1) // contains ONE_WIRE
         public[0] = fr.One()
-    } else {
-        if !ditchOneWire[0] {
-             var tmp fr.Element
-            public = append(public, tmp)
-            public[0] = fr.One()
-        }
+        j++ // offset by 1
+    case backend.PLONK:
+        public = make([]fr.Element, nbPublic) // does not contains ONE_WIRE
+    default:
+        panic("not implemented")
     }
 
-	var i, j int
-	if len(ditchOneWire) ==0 {
-		j++
-	} else {
-        if !ditchOneWire[0] {
-            j++
-        }
-    }
     var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
         v := tInput.Interface().(frontend.Variable)
 
@@ -64,40 +59,31 @@ func Full(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error)  {
     return append(secret, public...), nil 
 }
 
-// Public extracts the public witness (including ONE_WIRE)
+// Public extracts the public witness (including ONE_WIRE if zkpID == GROTH16)
 // and returns a slice of field elements in REGULAR form 
-// TODO probably should replace variadic argument by something cleaner
-func Public(w frontend.Witness, ditchOneWire ...bool) ([]fr.Element, error) {
+func Public(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
     _, nbPublic, err := count(w)
 	if err != nil {
 		return nil, err
 	}
-	public := make([]fr.Element, nbPublic, nbPublic+1) // ONE_WIRE
-	if len(ditchOneWire)==0 {
-        var tmp fr.Element
-        public = append(public, tmp)
+	
+    var public []fr.Element
+    var j int // index for public variables
+ 
+    switch zkpID {
+    case backend.GROTH16:
+        public = make([]fr.Element, nbPublic + 1) // contains ONE_WIRE
         public[0] = fr.One()
         public[0].FromMont()
-    } else {
-        if !ditchOneWire[0] {
-            var tmp fr.Element
-            public = append(public, tmp)
-            public[0] = fr.One()
-            public[0].FromMont()
-        }
+        j++ // offset by 1
+    case backend.PLONK:
+        public = make([]fr.Element, nbPublic) // does not contains ONE_WIRE
+    default:
+        panic("not implemented")
     }
 
-	var j int
-	if len(ditchOneWire) ==0 {
-		j++
-	} else {
-        if !ditchOneWire[0] {
-            j++
-        }
-    }
+
     var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-        
-
        if visibility == compiled.Public {
             v := tInput.Interface().(frontend.Variable)
             val := frontend.GetAssignedValue(v)
@@ -120,7 +106,7 @@ const frSize = fr.Limbs * 8
 // WriteFull serialize full witness [secret|one_wire|public] by encoding provided values
 func WriteFull(w io.Writer, witness frontend.Witness) error {
 
-    v, err := Full(witness)
+    v, err := Full(witness, backend.GROTH16)
     if err != nil {
         return err
     }
@@ -139,7 +125,7 @@ func WriteFull(w io.Writer, witness frontend.Witness) error {
 // WritePublic serialize publicWitness [public] without one_wire by encoding provided values
 func WritePublic(w io.Writer, witness frontend.Witness) error {
 
-    v, err := Public(witness)
+    v, err := Public(witness, backend.GROTH16)
     if err != nil {
         return err
     }

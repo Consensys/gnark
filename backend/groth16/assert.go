@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
@@ -147,25 +148,25 @@ func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witn
 func Solve(r1cs frontend.CompiledConstraintSystem, witness frontend.Witness) error {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		w, err := witness_bls377.Full(witness)
+		w, err := witness_bls377.Full(witness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bls381.R1CS:
-		w, err := witness_bls381.Full(witness)
+		w, err := witness_bls381.Full(witness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bn256.R1CS:
-		w, err := witness_bn256.Full(witness)
+		w, err := witness_bn256.Full(witness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bw761.R1CS:
-		w, err := witness_bw761.Full(witness)
+		w, err := witness_bw761.Full(witness, backend.GROTH16)
 		if err != nil {
 			return err
 		}

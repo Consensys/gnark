@@ -20,6 +20,7 @@ import (
 
 	"github.com/consensys/gurvy"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
@@ -76,25 +77,25 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Witness) error 
 
 	switch _proof := proof.(type) {
 	case *groth16_bls377.Proof:
-		w, err := witness_bls377.Public(publicWitness)
+		w, err := witness_bls377.Public(publicWitness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), w)
 	case *groth16_bls381.Proof:
-		w, err := witness_bls381.Public(publicWitness)
+		w, err := witness_bls381.Public(publicWitness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), w)
 	case *groth16_bn256.Proof:
-		w, err := witness_bn256.Public(publicWitness)
+		w, err := witness_bn256.Public(publicWitness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
 		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), w)
 	case *groth16_bw761.Proof:
-		w, err := witness_bw761.Public(publicWitness)
+		w, err := witness_bw761.Public(publicWitness, backend.GROTH16)
 		if err != nil {
 			return err
 		}
@@ -150,25 +151,25 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		w, err := witness_bls377.Full(witness)
+		w, err := witness_bls377.Full(witness, backend.GROTH16)
 		if err != nil {
 			return nil, err
 		}
 		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), w, _force)
 	case *backend_bls381.R1CS:
-		w, err := witness_bls381.Full(witness)
+		w, err := witness_bls381.Full(witness, backend.GROTH16)
 		if err != nil {
 			return nil, err
 		}
 		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
 	case *backend_bn256.R1CS:
-		w, err := witness_bn256.Full(witness)
+		w, err := witness_bn256.Full(witness, backend.GROTH16)
 		if err != nil {
 			return nil, err
 		}
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), w, _force)
 	case *backend_bw761.R1CS:
-		w, err := witness_bw761.Full(witness)
+		w, err := witness_bw761.Full(witness, backend.GROTH16)
 		if err != nil {
 			return nil, err
 		}
