@@ -92,7 +92,7 @@ func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 	a := make([]fr.Element, r1cs.NbConstraints)
 	b := make([]fr.Element, r1cs.NbConstraints)
 	c := make([]fr.Element, r1cs.NbConstraints)
-	wireValues := make([]fr.Element, r1cs.NbInternalWires+r1cs.NbPublicWires+r1cs.NbSecretWires)
+	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
 	return r1cs.Solve(witness, a, b, c, wireValues)
 }
 
@@ -103,10 +103,10 @@ func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 // wireValues =  [publicWires | secretWires | internalWires ]
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) error {
-	if len(witness) != int(r1cs.NbPublicWires-1+r1cs.NbSecretWires) { // - 1 for ONE_WIRE
-		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicWires-1+r1cs.NbSecretWires), r1cs.NbPublicWires-1, r1cs.NbSecretWires)
+	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) { // - 1 for ONE_WIRE
+		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables-1, r1cs.NbSecretVariables)
 	}
-	nbWires := r1cs.NbPublicWires + r1cs.NbSecretWires + r1cs.NbInternalWires
+	nbWires := r1cs.NbPublicVariables + r1cs.NbSecretVariables + r1cs.NbInternalVariables
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != nbWires {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")

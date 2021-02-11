@@ -19,14 +19,14 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 
 	// setting up the result
 	res := compiled.R1CS{
-		NbInternalWires: len(cs.internal.variables),
-		NbPublicWires:   len(cs.public.variables),
-		NbSecretWires:   len(cs.secret.variables),
-		NbConstraints:   len(cs.constraints) + len(cs.assertions),
-		NbCOConstraints: len(cs.constraints),
-		Constraints:     make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
-		Logs:            make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfo:       make([]compiled.LogEntry, len(cs.debugInfo)),
+		NbInternalVariables: len(cs.internal.variables),
+		NbPublicVariables:   len(cs.public.variables),
+		NbSecretVariables:   len(cs.secret.variables),
+		NbConstraints:       len(cs.constraints) + len(cs.assertions),
+		NbCOConstraints:     len(cs.constraints),
+		Constraints:         make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
+		Logs:                make([]compiled.LogEntry, len(cs.logs)),
+		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 	}
 
 	// computational constraints (= gates)

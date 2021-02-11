@@ -25,11 +25,11 @@ import (
 // are big.Int and not tied to a curve base field
 type R1CS struct {
 	// Wires
-	NbInternalWires int
-	NbPublicWires   int // includes ONE wire
-	NbSecretWires   int
-	Logs            []LogEntry
-	DebugInfo       []LogEntry
+	NbInternalVariables int
+	NbPublicVariables   int // includes ONE wire
+	NbSecretVariables   int
+	Logs                []LogEntry
+	DebugInfo           []LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints
@@ -44,9 +44,9 @@ func (r1cs *R1CS) GetNbConstraints() int {
 
 // GetNbVariables return number of internal, secret and public variables
 func (r1cs *R1CS) GetNbVariables() (internal, secret, public int) {
-	internal = r1cs.NbInternalWires
-	secret = r1cs.NbSecretWires
-	public = r1cs.NbPublicWires
+	internal = r1cs.NbInternalVariables
+	secret = r1cs.NbSecretVariables
+	public = r1cs.NbPublicVariables
 	return
 }
 

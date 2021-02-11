@@ -86,9 +86,9 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	*/
 
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalWires + r1cs.NbPublicWires + r1cs.NbSecretWires
-	nbPublicWires := int(r1cs.NbPublicWires)
-	nbPrivateWires := r1cs.NbSecretWires + r1cs.NbInternalWires
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+	nbPublicWires := int(r1cs.NbPublicVariables)
+	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(r1cs.NbConstraints))
@@ -247,7 +247,7 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 func setupABC(r1cs *bn256backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
-	nbWires := r1cs.NbInternalWires + r1cs.NbPublicWires + r1cs.NbSecretWires
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
 	A = make([]fr.Element, nbWires)
 	B = make([]fr.Element, nbWires)
@@ -339,7 +339,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 // used for test or benchmarking purposes
 func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalWires + r1cs.NbPublicWires + r1cs.NbSecretWires
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
@@ -348,7 +348,7 @@ func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
 	pk.G1.B = make([]curve.G1Affine, nbWires)
-	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicWires)
+	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicVariables)
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires)
 
