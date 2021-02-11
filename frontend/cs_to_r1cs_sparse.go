@@ -73,9 +73,11 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 			_, _, cID, cVisibility := t.Unpack()
 			switch cVisibility {
 			case compiled.Public:
-				t.SetVariableID(cID - 1 + res.NbInternalVariables + res.NbSecretVariables) // -1 because the ONE_WIRE's is not counted
+				t.SetVariableID(cID - 1) // -1 because the ONE_WIRE's is not counted
 			case compiled.Secret:
-				t.SetVariableID(cID + res.NbInternalVariables)
+				t.SetVariableID(cID + res.NbPublicVariables)
+			case compiled.Internal:
+				t.SetVariableID(cID + res.NbPublicVariables + res.NbSecretVariables)
 			case compiled.Unset:
 				//return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
 				return fmt.Errorf("%w", ErrInputNotSet)
@@ -128,11 +130,11 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Public:
-				entry.ToResolve[j] += cID - 1 + res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
+				entry.ToResolve[j] += cID - 1 //+ res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
 			case compiled.Secret:
-				entry.ToResolve[j] += cID + res.NbInternalVariables
+				entry.ToResolve[j] += cID + res.NbPublicVariables
 			case compiled.Internal:
-				entry.ToResolve[j] = varPcsToVarCs[cID]
+				entry.ToResolve[j] = varPcsToVarCs[cID] + res.NbSecretVariables + res.NbPublicVariables
 			case compiled.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}

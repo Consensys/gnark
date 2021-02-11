@@ -348,7 +348,7 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 
 	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
 	circuit.publicWitnessSize = int(nbPublicVariables-1) * circuit.r1cs.FrSize()
-	circuit.fullWitnessSize = int(nbPublicVariables+nbSecretVariables) * circuit.r1cs.FrSize()
+	circuit.fullWitnessSize = int(nbPublicVariables+nbSecretVariables-1) * circuit.r1cs.FrSize()
 
 	s.circuits[circuitID] = circuit
 

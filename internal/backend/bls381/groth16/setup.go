@@ -127,22 +127,23 @@ func Setup(r1cs *bls381backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	vkK := make([]fr.Element, nbPublicWires)
 
 	var t0, t1 fr.Element
-	for i := 0; i < nbPrivateWires; i++ {
+
+	for i := 0; i < nbPublicWires; i++ {
 		t1.Mul(&A[i], &toxicWaste.beta)
 		t0.Mul(&B[i], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i]).
-			Div(&t1, &toxicWaste.delta)
-		pkK[i] = t1.ToRegular()
-	}
-
-	for i := 0; i < nbPublicWires; i++ {
-		t1.Mul(&A[i+nbPrivateWires], &toxicWaste.beta)
-		t0.Mul(&B[i+nbPrivateWires], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i+nbPrivateWires]).
 			Div(&t1, &toxicWaste.gamma)
 		vkK[i] = t1.ToRegular()
+	}
+
+	for i := 0; i < nbPrivateWires; i++ {
+		t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
+		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i+nbPublicWires]).
+			Div(&t1, &toxicWaste.delta)
+		pkK[i] = t1.ToRegular()
 	}
 
 	// convert A and B to regular form

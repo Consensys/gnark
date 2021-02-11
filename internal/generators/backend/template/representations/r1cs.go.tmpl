@@ -85,22 +85,24 @@ func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 // the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // witness: contains the input variables
 // a, b, c vectors: ab-c = hz
-// wireValues =  [intermediateVariables | secretInputs | publicInputs]
+// wireValues =  [publicWires | secretWires | internalWires ]
+// witness = [publicWires | secretWires] (without the ONE_WIRE !)
 func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) error {
-	if len(witness) != int(r1cs.NbPublicWires + r1cs.NbSecretWires) {
-		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires + r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
+	if len(witness) != int(r1cs.NbPublicWires - 1 + r1cs.NbSecretWires) { // - 1 for ONE_WIRE
+		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicWires -1 + r1cs.NbSecretWires), r1cs.NbPublicWires - 1, r1cs.NbSecretWires)
 	}
 	nbWires := r1cs.NbPublicWires + r1cs.NbSecretWires + r1cs.NbInternalWires
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != nbWires {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
-	privateStartIndex :=  int(nbWires - r1cs.NbPublicWires - r1cs.NbSecretWires)
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, nbWires)
-	copy(wireValues[privateStartIndex:], witness) // TODO factorize
+	wireInstantiated[0] = true // ONE_WIRE
+	wireValues[0].SetOne()
+	copy(wireValues[1:], witness) // TODO factorize
 	for i:=0; i < len(witness); i++ {
-		wireInstantiated[i+privateStartIndex] = true
+		wireInstantiated[i+1] = true
 	}
 	
 	// now that we know all inputs are set, defer log printing once all wireValues are computed

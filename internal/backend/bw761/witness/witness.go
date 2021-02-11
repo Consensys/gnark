@@ -31,7 +31,7 @@ import (
 	curve "github.com/consensys/gurvy/bw761"
 )
 
-// Full extracts the full witness secret || public (including ONE_WIRE)
+// Full extracts the full witness [ public | secret ]
 // and returns a slice of field elements in montgomery form
 func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	nbSecret, nbPublic, err := count(w)
@@ -39,21 +39,10 @@ func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 		return nil, err
 	}
 
-	var public []fr.Element
 	secret := make([]fr.Element, nbSecret)
+	public := make([]fr.Element, nbPublic, nbPublic+nbSecret) // does not contains ONE_WIRE
 
 	var i, j int // indexes for secret / public variables
-
-	switch zkpID {
-	case backend.GROTH16:
-		public = make([]fr.Element, nbPublic+1) // contains ONE_WIRE
-		public[0] = fr.One()
-		j++ // offset by 1
-	case backend.PLONK:
-		public = make([]fr.Element, nbPublic) // does not contains ONE_WIRE
-	default:
-		panic("not implemented")
-	}
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
@@ -75,10 +64,10 @@ func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	if err := parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
 		return nil, err
 	}
-	return append(secret, public...), nil
+	return append(public, secret...), nil
 }
 
-// Public extracts the public witness (including ONE_WIRE if zkpID == GROTH16)
+// Public extracts the public witness
 // and returns a slice of field elements in REGULAR form
 func Public(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	_, nbPublic, err := count(w)
@@ -86,20 +75,8 @@ func Public(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 		return nil, err
 	}
 
-	var public []fr.Element
-	var j int // index for public variables
-
-	switch zkpID {
-	case backend.GROTH16:
-		public = make([]fr.Element, nbPublic+1) // contains ONE_WIRE
-		public[0] = fr.One()
-		public[0].FromMont()
-		j++ // offset by 1
-	case backend.PLONK:
-		public = make([]fr.Element, nbPublic) // does not contains ONE_WIRE
-	default:
-		panic("not implemented")
-	}
+	public := make([]fr.Element, nbPublic) // does not contains ONE_WIRE
+	var j int                              // index for public variables
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
@@ -149,7 +126,7 @@ func WritePublic(w io.Writer, witness frontend.Witness) error {
 	}
 
 	enc := curve.NewEncoder(w)
-	for i := 1; i < len(v); i++ { // skipping one_wire at [0]
+	for i := 0; i < len(v); i++ {
 		v[i].ToMont() // Public returns in regular form. that's not super clean, not perf critical for now.
 		if err = enc.Encode(&v[i]); err != nil {
 			return err
@@ -184,10 +161,9 @@ func ReadPublic(publicWitness []byte) (r []fr.Element, err error) {
 	if (len(publicWitness) % frSize) != 0 {
 		return nil, errors.New("invalid input size")
 	}
-	r = make([]fr.Element, (1 + len(publicWitness)/frSize))
-	r[0].SetOne().FromMont()
+	r = make([]fr.Element, (len(publicWitness) / frSize))
 	offset := 0
-	for i := 1; i < len(r); i++ {
+	for i := 0; i < len(r); i++ {
 		r[i].SetBytes(publicWitness[offset : offset+frSize]).FromMont()
 		offset += frSize
 	}

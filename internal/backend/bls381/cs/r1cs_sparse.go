@@ -213,15 +213,14 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 	}
 
 	// set the slices holding the solution and monitoring which variables have been solved
-	privateStartIndex := cs.NbInternalVariables
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
 	solution = make([]fr.Element, nbVariables)
 	wireInstantiated := make([]bool, nbVariables)
 
-	// solution = [intermediateVariables | secretInputs | publicInputs] -> we fill secretInputs | publicInputs
-	copy(solution[privateStartIndex:], witness)
+	// solution = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
+	copy(solution, witness)
 	for i := 0; i < len(witness); i++ {
-		wireInstantiated[i+privateStartIndex] = true
+		wireInstantiated[i] = true
 	}
 
 	// defer log printing once all wireValues are computed

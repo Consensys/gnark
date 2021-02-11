@@ -15,7 +15,7 @@ import (
 // toR1CS constructs a rank-1 constraint sytem
 func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, error) {
 
-	// wires = intermediatevariables | secret inputs | public inputs
+	// wires = public wires  | secret wires | internal wires
 
 	// setting up the result
 	res := compiled.R1CS{
@@ -38,10 +38,12 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 		for j := 0; j < len(exp); j++ {
 			_, _, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
+			case compiled.Internal:
+				exp[j].SetVariableID(cID + len(cs.public.variables) + len(cs.secret.variables))
 			case compiled.Public:
-				exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
+				// exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
 			case compiled.Secret:
-				exp[j].SetVariableID(cID + len(cs.internal.variables))
+				exp[j].SetVariableID(cID + len(cs.public.variables))
 			case compiled.Unset:
 				return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
 			}
@@ -73,10 +75,12 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
+			case compiled.Internal:
+				cID += len(cs.public.variables) + len(cs.secret.variables)
 			case compiled.Public:
-				cID += len(cs.internal.variables) + len(cs.secret.variables)
+				// cID += len(cs.internal.variables) + len(cs.secret.variables)
 			case compiled.Secret:
-				cID += len(cs.internal.variables)
+				cID += len(cs.public.variables)
 			case compiled.Unset:
 				panic("encountered unset visibility on a variable in logs id offset routine")
 			}
@@ -94,10 +98,12 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
 			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
 			switch cVisibility {
+			case compiled.Internal:
+				cID += len(cs.public.variables) + len(cs.secret.variables)
 			case compiled.Public:
-				cID += len(cs.internal.variables) + len(cs.secret.variables)
+				// cID += len(cs.internal.variables) + len(cs.secret.variables)
 			case compiled.Secret:
-				cID += len(cs.internal.variables)
+				cID += len(cs.public.variables)
 			case compiled.Unset:
 				panic("encountered unset visibility on a variable in debugInfo id offset routine")
 			}
