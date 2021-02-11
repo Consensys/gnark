@@ -29,8 +29,6 @@ func NewSparseR1CS(r1cs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS
 	return &cs 
 }
 
-
-
 func (cs *SparseR1CS) FrSize() int {
 	return fr.Limbs * 8
 }

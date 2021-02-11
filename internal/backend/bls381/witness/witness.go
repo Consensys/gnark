@@ -32,7 +32,6 @@ import (
 )
 
 // Full extracts the full witness [ public | secret ]
-// and returns a slice of field elements in montgomery form
 func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	nbSecret, nbPublic, err := count(w)
 	if err != nil {
@@ -67,16 +66,16 @@ func Full(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	return append(public, secret...), nil
 }
 
-// Public extracts the public witness
-// and returns a slice of field elements in REGULAR form
+// Public extracts the public part of witness
 func Public(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 	_, nbPublic, err := count(w)
 	if err != nil {
 		return nil, err
 	}
 
-	public := make([]fr.Element, nbPublic) // does not contains ONE_WIRE
-	var j int                              // index for public variables
+	// note: does not contain ONE_WIRE for Groth16
+	public := make([]fr.Element, nbPublic)
+	var j int // index for public variables
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
@@ -85,7 +84,7 @@ func Public(w frontend.Witness, zkpID backend.ID) ([]fr.Element, error) {
 			if val == nil {
 				return errors.New("variable " + name + " not assigned")
 			}
-			public[j].SetInterface(val).FromMont()
+			public[j].SetInterface(val)
 			j++
 		}
 		return nil
@@ -127,7 +126,6 @@ func WritePublic(w io.Writer, witness frontend.Witness) error {
 
 	enc := curve.NewEncoder(w)
 	for i := 0; i < len(v); i++ {
-		v[i].ToMont() // Public returns in regular form. that's not super clean, not perf critical for now.
 		if err = enc.Encode(&v[i]); err != nil {
 			return err
 		}
@@ -164,7 +162,7 @@ func ReadPublic(publicWitness []byte) (r []fr.Element, err error) {
 	r = make([]fr.Element, (len(publicWitness) / frSize))
 	offset := 0
 	for i := 0; i < len(r); i++ {
-		r[i].SetBytes(publicWitness[offset : offset+frSize]).FromMont()
+		r[i].SetBytes(publicWitness[offset : offset+frSize])
 		offset += frSize
 	}
 	return

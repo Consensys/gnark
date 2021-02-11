@@ -32,7 +32,6 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-// publicWitness must be in regular form (and not in Montgomery)
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 	if len(publicWitness) != (len(vk.G1.K) - 1) {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
@@ -56,7 +55,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	kSum.MultiExp(vk.G1.K[1:], publicWitness)
+	_publicWitness := make([]fr.Element, len(publicWitness))
+	for i := 0; i < len(publicWitness); i++ {
+		_publicWitness[i] = publicWitness[i].ToRegular()
+	}
+	kSum.MultiExp(vk.G1.K[1:], _publicWitness)
 	kSum.AddMixed(&vk.G1.K[0])
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
