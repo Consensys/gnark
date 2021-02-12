@@ -49,8 +49,8 @@ func (cs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
 	return
 }
 
-// FrSize ...
-func (cs *SparseR1CS) FrSize() int {
+// SizeFullWitness ...
+func (cs *SparseR1CS) SizeFullWitness() int {
 	panic("not implemented")
 }
 

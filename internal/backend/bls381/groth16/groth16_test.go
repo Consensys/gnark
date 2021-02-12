@@ -67,7 +67,7 @@ func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 	return nil
 }
 
-func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Witness) {
+func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
@@ -118,7 +118,8 @@ func BenchmarkSetup(b *testing.B) {
 
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution, backend.GROTH16)
+	fullWitness := bls381witness.Witness{}
+	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -129,18 +130,20 @@ func BenchmarkProver(b *testing.B) {
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, witness, false)
+			_, _ = bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, fullWitness, false)
 		}
 	})
 }
 
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution, backend.GROTH16)
+	fullWitness := bls381witness.Witness{}
+	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
-	publicWitness, err := bls381witness.Public(_solution, backend.GROTH16)
+	publicWitness := bls381witness.Witness{}
+	err = publicWitness.FromPublicAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -148,7 +151,7 @@ func BenchmarkVerifier(b *testing.B) {
 	var pk bls381groth16.ProvingKey
 	var vk bls381groth16.VerifyingKey
 	bls381groth16.Setup(r1cs.(*bls381backend.R1CS), &pk, &vk)
-	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, witness, false)
+	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, fullWitness, false)
 	if err != nil {
 		panic(err)
 	}
@@ -163,7 +166,8 @@ func BenchmarkVerifier(b *testing.B) {
 
 func BenchmarkSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	witness, err := bls381witness.Full(_solution, backend.GROTH16)
+	fullWitness := bls381witness.Witness{}
+	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -171,7 +175,7 @@ func BenchmarkSerialization(b *testing.B) {
 	var pk bls381groth16.ProvingKey
 	var vk bls381groth16.VerifyingKey
 	bls381groth16.Setup(r1cs.(*bls381backend.R1CS), &pk, &vk)
-	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, witness, false)
+	proof, err := bls381groth16.Prove(r1cs.(*bls381backend.R1CS), &pk, fullWitness, false)
 	if err != nil {
 		panic(err)
 	}

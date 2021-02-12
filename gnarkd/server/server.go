@@ -142,7 +142,7 @@ func (s *Server) startWorker(ctx context.Context) {
 			}
 
 			// run prove
-			proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
+			proof, err := groth16.ReadAndProve(circuit.r1cs, circuit.pk, bytes.NewReader(job.witness))
 			job.witness = nil // set witness to nil
 			if err != nil {
 				s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
@@ -235,7 +235,7 @@ func (s *Server) receiveWitness(c net.Conn) {
 		s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
 	}
 
-	wBuf := make([]byte, circuit.fullWitnessSize)
+	wBuf := make([]byte, circuit.r1cs.SizeFullWitness()+4)
 	if _, err := io.ReadFull(c, wBuf); err != nil {
 		job.Unlock()
 		fail(err)
@@ -345,10 +345,6 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	if circuit.r1cs == nil {
 		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
-
-	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
-	circuit.publicWitnessSize = int(nbPublicVariables-1) * circuit.r1cs.FrSize()
-	circuit.fullWitnessSize = int(nbPublicVariables+nbSecretVariables-1) * circuit.r1cs.FrSize()
 
 	s.circuits[circuitID] = circuit
 

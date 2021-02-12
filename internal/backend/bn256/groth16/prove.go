@@ -25,6 +25,8 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
 
+	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
+
 	"fmt"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gurvy"
@@ -53,7 +55,7 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 // Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
 // if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness []fr.Element, force bool) (*Proof, error) {
+func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness bn256witness.Witness, force bool) (*Proof, error) {
 	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
 		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}

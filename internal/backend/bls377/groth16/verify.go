@@ -21,6 +21,8 @@ import (
 
 	curve "github.com/consensys/gurvy/bls377"
 
+	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
+
 	"errors"
 	"fmt"
 	"io"
@@ -32,7 +34,8 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls377witness.Witness) error {
+
 	if len(publicWitness) != (len(vk.G1.K) - 1) {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
@@ -55,11 +58,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	_publicWitness := make([]fr.Element, len(publicWitness))
+	__publicWitness := make([]fr.Element, len(publicWitness))
 	for i := 0; i < len(publicWitness); i++ {
-		_publicWitness[i] = publicWitness[i].ToRegular()
+		__publicWitness[i] = publicWitness[i].ToRegular()
 	}
-	kSum.MultiExp(vk.G1.K[1:], _publicWitness)
+	kSum.MultiExp(vk.G1.K[1:], __publicWitness)
 	kSum.AddMixed(&vk.G1.K[0])
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)

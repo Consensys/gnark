@@ -47,8 +47,9 @@ func NewSparseR1CS(r1cs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS
 	return &cs
 }
 
-func (cs *SparseR1CS) FrSize() int {
-	return fr.Limbs * 8
+// SizeFullWitness returns the size (in byte) of the expected full witness
+func (cs *SparseR1CS) SizeFullWitness() int {
+	return (cs.NbPublicVariables + cs.NbSecretVariables) * fr.Limbs * 8
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

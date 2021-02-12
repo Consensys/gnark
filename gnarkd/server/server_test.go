@@ -111,7 +111,9 @@ func TestProveSync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	err = witness.WriteFull(&bWitness, &w, gurvy.BN256)
+	_w := witness.New(gurvy.BN256)
+	assert.NoError(_w.FromFullAssignment(&w))
+	_, err = _w.WriteTo(&bWitness)
 	assert.NoError(err)
 
 	// 2. call prove
@@ -134,7 +136,9 @@ func TestProveSync(t *testing.T) {
 	wBad.X.Assign(4)
 	wBad.Y.Assign(42)
 	bWitness.Reset()
-	err = witness.WriteFull(&bWitness, &wBad, gurvy.BN256)
+
+	assert.NoError(_w.FromFullAssignment(&wBad))
+	_, err = _w.WriteTo(&bWitness)
 	assert.NoError(err)
 	proveResult, err = c.Prove(ctx, &pb.ProveRequest{
 		CircuitID: "bn256/cubic",
@@ -166,7 +170,9 @@ func TestProveAsync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	err = witness.WriteFull(&bWitness, &w, gurvy.BN256)
+	_w := witness.New(gurvy.BN256)
+	assert.NoError(_w.FromFullAssignment(&w))
+	_, err = _w.WriteTo(&bWitness)
 	assert.NoError(err)
 
 	// 2. call prove
@@ -252,7 +258,9 @@ func TestVerifySync(t *testing.T) {
 	_, err = proof.WriteRawTo(&bProof)
 	assert.NoError(err)
 
-	err = witness.WritePublic(&bWitness, &w, gurvy.BN256)
+	_w := witness.New(gurvy.BN256)
+	assert.NoError(_w.FromPublicAssignment(&w))
+	_, err = _w.WriteTo(&bWitness)
 	assert.NoError(err)
 
 	// 2. call verify

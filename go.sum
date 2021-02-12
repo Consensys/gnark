@@ -87,8 +87,11 @@ github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnht
 github.com/consensys/bavard v0.1.8-0.20210105233146-c16790d2aa8b h1:Ulx+x6FcZnw25LXxuohvLeu7B1xGQIGrOy12Z+QCAjU=
 github.com/consensys/bavard v0.1.8-0.20210105233146-c16790d2aa8b/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/goff v0.3.10/go.mod h1:xTldOBEHmFiYS0gPXd3NsaEqZWlnmeWcRLWgD3ba3xc=
+github.com/consensys/goff v0.3.12/go.mod h1:FwwjRPslW+WtseMdVaKhdCl7HdiLCzBaa6IdYDr56Q8=
 github.com/consensys/gurvy v0.3.8 h1:H2hvjvT2OFMgdMn5ZbhXqHt+F8DJ2clZW7Vmc0kFFxc=
 github.com/consensys/gurvy v0.3.8/go.mod h1:sN75xnsiD593XnhbhvG2PkOy194pZBzqShWF/kwuW/g=
+github.com/consensys/gurvy v0.3.9-0.20210211035947-d501001243b1 h1:xtdHzACe8SQxlZV+t1WjTUADBcpEr9arot/hAUi1yc0=
+github.com/consensys/gurvy v0.3.9-0.20210211035947-d501001243b1/go.mod h1:vYFpp9uPBH5ZtWug1Wsi4sEah3FKG/gWGNljXUQomss=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.13+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

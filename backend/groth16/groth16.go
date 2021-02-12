@@ -20,7 +20,6 @@ import (
 
 	"github.com/consensys/gurvy"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
@@ -68,35 +67,36 @@ type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
+	SizePublicWitness() int // size in byte of the expected public witness (len([]fr.Element) * fr.Size)
 	IsDifferent(interface{}) bool
 	ExportSolidity(w io.Writer) error
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given witness
-func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Witness) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error {
 
 	switch _proof := proof.(type) {
 	case *groth16_bls377.Proof:
-		w, err := witness_bls377.Public(publicWitness, backend.GROTH16)
-		if err != nil {
+		w := witness_bls377.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return err
 		}
 		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), w)
 	case *groth16_bls381.Proof:
-		w, err := witness_bls381.Public(publicWitness, backend.GROTH16)
-		if err != nil {
+		w := witness_bls381.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return err
 		}
 		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), w)
 	case *groth16_bn256.Proof:
-		w, err := witness_bn256.Public(publicWitness, backend.GROTH16)
-		if err != nil {
+		w := witness_bn256.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return err
 		}
 		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), w)
 	case *groth16_bw761.Proof:
-		w, err := witness_bw761.Public(publicWitness, backend.GROTH16)
-		if err != nil {
+		w := witness_bw761.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return err
 		}
 		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), w)
@@ -105,35 +105,37 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Witness) error 
 	}
 }
 
-// DeserializeAndVerify behaves like Verify, except the publicWitness is a []byte
-// will attempt to decode publicWitness []byte -> fr.Element with the good curve, returns an error if failed.
-// publicWitness must be [public] without the one_wire
-func DeserializeAndVerify(proof Proof, vk VerifyingKey, publicWitness []byte) error {
-	switch _proof := proof.(type) {
-	case *groth16_bls377.Proof:
-		w, err := witness_bls377.ReadPublic(publicWitness)
-		if err != nil {
+// ReadAndVerify behaves like Verify, except witness is read from a io.Reader
+// witness must be [uint32(nbElements) | publicVariables ]
+func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error {
+
+	_publicWitness := io.LimitReader(publicWitness, int64(vk.SizePublicWitness()+4)) // 4 == uint32(len)
+
+	switch _vk := vk.(type) {
+	case *groth16_bls377.VerifyingKey:
+		w := witness_bls377.Witness{}
+		if _, err := w.ReadFrom(_publicWitness); err != nil {
 			return err
 		}
-		return groth16_bls377.Verify(_proof, vk.(*groth16_bls377.VerifyingKey), w)
-	case *groth16_bls381.Proof:
-		w, err := witness_bls381.ReadPublic(publicWitness)
-		if err != nil {
+		return groth16_bls377.Verify(proof.(*groth16_bls377.Proof), _vk, w)
+	case *groth16_bls381.VerifyingKey:
+		w := witness_bls381.Witness{}
+		if _, err := w.ReadFrom(_publicWitness); err != nil {
 			return err
 		}
-		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), w)
-	case *groth16_bn256.Proof:
-		w, err := witness_bn256.ReadPublic(publicWitness)
-		if err != nil {
+		return groth16_bls381.Verify(proof.(*groth16_bls381.Proof), _vk, w)
+	case *groth16_bn256.VerifyingKey:
+		w := witness_bn256.Witness{}
+		if _, err := w.ReadFrom(_publicWitness); err != nil {
 			return err
 		}
-		return groth16_bn256.Verify(_proof, vk.(*groth16_bn256.VerifyingKey), w)
-	case *groth16_bw761.Proof:
-		w, err := witness_bw761.ReadPublic(publicWitness)
-		if err != nil {
+		return groth16_bn256.Verify(proof.(*groth16_bn256.Proof), _vk, w)
+	case *groth16_bw761.VerifyingKey:
+		w := witness_bw761.Witness{}
+		if _, err := w.ReadFrom(_publicWitness); err != nil {
 			return err
 		}
-		return groth16_bw761.Verify(_proof, vk.(*groth16_bw761.VerifyingKey), w)
+		return groth16_bw761.Verify(proof.(*groth16_bw761.Proof), _vk, w)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -142,7 +144,7 @@ func DeserializeAndVerify(proof Proof, vk VerifyingKey, publicWitness []byte) er
 // Prove generates the proof of knoweldge of a r1cs with witness.
 // if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Witness, force ...bool) (Proof, error) {
+func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, force ...bool) (Proof, error) {
 
 	_force := false
 	if len(force) > 0 {
@@ -151,26 +153,26 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		w, err := witness_bls377.Full(witness, backend.GROTH16)
-		if err != nil {
+		w := witness_bls377.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
 		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), w, _force)
 	case *backend_bls381.R1CS:
-		w, err := witness_bls381.Full(witness, backend.GROTH16)
-		if err != nil {
+		w := witness_bls381.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
 		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
 	case *backend_bn256.R1CS:
-		w, err := witness_bn256.Full(witness, backend.GROTH16)
-		if err != nil {
+		w := witness_bn256.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), w, _force)
 	case *backend_bw761.R1CS:
-		w, err := witness_bw761.Full(witness, backend.GROTH16)
-		if err != nil {
+		w := witness_bw761.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
 		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), w, _force)
@@ -179,37 +181,38 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 	}
 }
 
-// DeserializeAndProve behaves like Prove, except witness is a []byte
-// will attempt to deserialize witness []byte -> fr.Element
-// witness []byte must be [secret|one_wire|public]
-func DeserializeAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness []byte, force ...bool) (Proof, error) {
+// ReadAndProve behaves like Prove, except witness is read from a io.Reader
+// witness must be [uint32(nbElements) | publicVariables | secretVariables]
+func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, force ...bool) (Proof, error) {
 	_force := false
 	if len(force) > 0 {
 		_force = force[0]
 	}
 
+	_witness := io.LimitReader(witness, int64(r1cs.SizeFullWitness()+4)) // 4 == uint32(len)
+
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		w, err := witness_bls377.ReadFull(witness)
-		if err != nil {
+		w := witness_bls377.Witness{}
+		if _, err := w.ReadFrom(_witness); err != nil {
 			return nil, err
 		}
 		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), w, _force)
 	case *backend_bls381.R1CS:
-		w, err := witness_bls381.ReadFull(witness)
-		if err != nil {
+		w := witness_bls381.Witness{}
+		if _, err := w.ReadFrom(_witness); err != nil {
 			return nil, err
 		}
 		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
 	case *backend_bn256.R1CS:
-		w, err := witness_bn256.ReadFull(witness)
-		if err != nil {
+		w := witness_bn256.Witness{}
+		if _, err := w.ReadFrom(_witness); err != nil {
 			return nil, err
 		}
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), w, _force)
 	case *backend_bw761.R1CS:
-		w, err := witness_bw761.ReadFull(witness)
-		if err != nil {
+		w := witness_bw761.Witness{}
+		if _, err := w.ReadFrom(_witness); err != nil {
 			return nil, err
 		}
 		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), w, _force)

@@ -24,9 +24,3 @@ type Circuit interface {
 	// Define declares the circuit's Constraints
 	Define(curveID gurvy.ID, cs *ConstraintSystem) error
 }
-
-// Witness embedds Circuit interface, used to distinguish APIs
-// that expect a Witness (with assigned values) versus a Circuit
-type Witness interface {
-	Circuit
-}

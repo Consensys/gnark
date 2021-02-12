@@ -57,7 +57,10 @@ func main() {
 	var w cubic.Circuit
 	w.X.Assign(3)
 	w.Y.Assign(35)
-	witness.WriteFull(&buf, &w, gurvy.BN256)
+
+	_w := witness.New(gurvy.BN256)
+	_w.FromFullAssignment(&w)
+	_w.WriteTo(&buf)
 
 	// synchronous call
 	_, _ = c.Prove(ctx, &pb.ProveRequest{
