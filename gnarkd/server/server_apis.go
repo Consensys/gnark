@@ -131,7 +131,7 @@ func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			return grpc.ErrServerStopped
 		case <-stream.Context().Done():
 			s.log.Warnw("connection terminated", "jobID", request.JobID)
-			return grpc.ErrClientConnClosing
+			return status.Error(codes.Canceled, "connection terminated")
 		case _, ok := <-chJobUpdate:
 			// job status updated.
 			job.RLock()

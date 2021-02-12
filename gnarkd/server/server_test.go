@@ -140,7 +140,7 @@ func TestProveSync(t *testing.T) {
 	assert.NoError(_w.FromFullAssignment(&wBad))
 	_, err = _w.WriteTo(&bWitness)
 	assert.NoError(err)
-	proveResult, err = c.Prove(ctx, &pb.ProveRequest{
+	_, err = c.Prove(ctx, &pb.ProveRequest{
 		CircuitID: "bn256/cubic",
 		Witness:   bWitness.Bytes(),
 	})
