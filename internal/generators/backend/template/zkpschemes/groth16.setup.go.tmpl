@@ -34,12 +34,12 @@ type ProvingKey struct {
 type VerifyingKey struct {
 	// [α]1, [Kvk]1
 	G1 struct {
-		Alpha curve.G1Affine 
-		Beta, Delta curve.G1Affine // unused, here for compatibility purposes
-		K []curve.G1Affine // The indexes correspond to the public wires
+		Alpha       curve.G1Affine
+		Beta, Delta curve.G1Affine   // unused, here for compatibility purposes
+		K           []curve.G1Affine // The indexes correspond to the public wires
 	}
 
-	// [β]2, [δ]2, [γ]2, 
+	// [β]2, [δ]2, [γ]2,
 	// -[δ]2, -[γ]2: see proof.Verify() for more details
 	G2 struct {
 		Beta, Delta, Gamma curve.G2Affine
@@ -51,7 +51,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
+func Setup(r1cs *{{ toLower .Curve }}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	/*
 		Setup
@@ -69,12 +69,12 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(r1cs.NbConstraints))
+	domain := fft.NewDomain(uint64(r1cs.NbConstraints), 1)
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
 	if err != nil {
-		return err 
+		return err
 	}
 
 	// Setup coeffs to compute pk.G1.A, pk.G1.B, pk.G1.K
@@ -93,7 +93,7 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	// G1 scalars
 
 	// the G1 scalars are ordered (arbitrary) as follow:
-	// 
+	//
 	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
 	// len(A) == len(B) == nbWires
 	// len(pk.K) == nbPrivateWires
@@ -101,9 +101,8 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	// len(Z) == domain.Cardinality
 
 	// compute scalars for pkK and vkK
-	pkK := make([]fr.Element,nbPrivateWires)
-	vkK := make([]fr.Element,nbPublicWires)
-
+	pkK := make([]fr.Element, nbPrivateWires)
+	vkK := make([]fr.Element, nbPublicWires)
 
 	var t0, t1 fr.Element
 
@@ -125,13 +124,11 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 		pkK[i] = t1.ToRegular()
 	}
 
-
-
 	// convert A and B to regular form
-	for i:=0; i < int(nbWires); i++ {
+	for i := 0; i < int(nbWires); i++ {
 		A[i].FromMont()
 	}
-	for i:=0; i < int(nbWires); i++ {
+	for i := 0; i < int(nbWires); i++ {
 		B[i].FromMont()
 	}
 
@@ -144,15 +141,13 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 		Sub(&zdt, &one).
 		Div(&zdt, &toxicWaste.delta) // sets Zdt to Zdt/delta
 
-	
 	for i := 0; i < int(domain.Cardinality); i++ {
 		Z[i] = zdt.ToRegular()
 		zdt.MulAssign(&toxicWaste.t)
 	}
 
-
 	// compute our batch scalar multiplication with g1 elements
-	g1Scalars := make([]fr.Element,0, (nbWires*3) + int(domain.Cardinality) + 3)
+	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
@@ -167,22 +162,19 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	pk.G1.Beta = g1PointsAff[1]
 	pk.G1.Delta = g1PointsAff[2]
 
-	
-
-
 	offset := 3
-	pk.G1.A = g1PointsAff[offset:offset+nbWires]
+	pk.G1.A = g1PointsAff[offset : offset+nbWires]
 	offset += nbWires
 
-	pk.G1.B = g1PointsAff[offset:offset+nbWires]
+	pk.G1.B = g1PointsAff[offset : offset+nbWires]
 	offset += nbWires
 
-	pk.G1.K = g1PointsAff[offset:offset+nbPrivateWires]
+	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
 
-	pk.G1.Z = g1PointsAff[offset:offset+int(domain.Cardinality)]
+	pk.G1.Z = g1PointsAff[offset : offset+int(domain.Cardinality)]
 	bitReverse(pk.G1.Z)
-	
+
 	offset += int(domain.Cardinality)
 
 	vk.G1.K = g1PointsAff[offset:]
@@ -195,10 +187,9 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	// [[B(i)], [β], [δ], [γ]]
 	// len(B) == nbWires
 
-
 	// compute our batch scalar multiplication with g2 elements
 	g2Scalars := append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
-	
+
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
 	pk.G2.B = g2PointsAff[:nbWires]
@@ -213,27 +204,26 @@ func Setup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey, vk *VerifyingKe
 	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
-
 	// ---------------------------------------------------------------------------------------------
 	// Pairing: vk.e
 	vk.G1.Alpha = pk.G1.Alpha
 	vk.G2.Beta = pk.G2.Beta
-	
+
 	// unused, here for compatibility purposes
 	vk.G1.Beta = pk.G1.Beta
 	vk.G1.Delta = pk.G1.Delta
 
 	vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
 	if err != nil {
-		return err 
+		return err
 	}
 	// set domain
 	pk.Domain = *domain
 
-	return nil 
+	return nil
 }
 
-func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *{{ toLower .Curve }}backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
@@ -285,7 +275,6 @@ func setupABC(r1cs *{{toLower .Curve}}backend.R1CS, g *fft.Domain, toxicWaste to
 
 }
 
-
 // toxicWaste toxic waste
 type toxicWaste struct {
 
@@ -301,19 +290,19 @@ func sampleToxicWaste() (toxicWaste, error) {
 	res := toxicWaste{}
 
 	if _, err := res.t.SetRandom(); err != nil {
-		return res, err 
+		return res, err
 	}
 	if _, err := res.alpha.SetRandom(); err != nil {
-		return res, err 
+		return res, err
 	}
 	if _, err := res.beta.SetRandom(); err != nil {
-		return res, err 
+		return res, err
 	}
 	if _, err := res.gamma.SetRandom(); err != nil {
-		return res, err 
+		return res, err
 	}
 	if _, err := res.delta.SetRandom(); err != nil {
-		return res, err 
+		return res, err
 	}
 
 	res.alphaReg = res.alpha.ToRegular()
@@ -324,17 +313,15 @@ func sampleToxicWaste() (toxicWaste, error) {
 	return res, nil
 }
 
-
-
 // DummySetup fills a random ProvingKey
 // used for test or benchmarking purposes
-func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) error {
+func DummySetup(r1cs *{{ toLower .Curve }}backend.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(nbConstraints))
+	domain := fft.NewDomain(uint64(nbConstraints), 1)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
@@ -346,10 +333,9 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) error {
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
 	if err != nil {
-		return err 
+		return err
 	}
 
-	
 	var r1Jac curve.G1Jac
 	var r1Aff curve.G1Affine
 	var b big.Int
@@ -382,7 +368,6 @@ func DummySetup(r1cs *{{toLower .Curve}}backend.R1CS, pk *ProvingKey) error {
 	return nil
 }
 
-
 // IsDifferent returns true if provided vk is different than self
 // this is used by groth16.Assert to ensure random sampling
 func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
@@ -404,9 +389,9 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	pk2 := _other.(*ProvingKey)
 
 	if pk.G1.Alpha.Equal(&pk2.G1.Alpha) ||
-	pk.G1.Beta.Equal(&pk2.G1.Beta) || 
-	pk.G1.Delta.Equal(&pk2.G1.Delta) {
-		return false 
+		pk.G1.Beta.Equal(&pk2.G1.Beta) ||
+		pk.G1.Delta.Equal(&pk2.G1.Delta) {
+		return false
 	}
 
 	for i := 0; i < len(pk.G1.K); i++ {
@@ -420,7 +405,6 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
-
 // GetCurveID returns the curveID
 func (pk *ProvingKey) GetCurveID() gurvy.ID {
 	return curve.ID
@@ -431,12 +415,10 @@ func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-
 // SizePublicWitness returns the number of elements in the expected public witness
 func (vk *VerifyingKey) SizePublicWitness() int {
 	return (len(vk.G1.K) - 1)
 }
-
 
 // bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
@@ -446,8 +428,7 @@ func bitReverse(a []curve.G1Affine) {
 	for i := uint(0); i < n; i++ {
 		irev := bits.Reverse(i) >> nn
 		if irev > i {
-			a[i], a[irev] = a[irev],a[i]
+			a[i], a[irev] = a[irev], a[i]
 		}
 	}
 }
-

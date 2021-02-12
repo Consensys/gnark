@@ -29,15 +29,16 @@ import (
 )
 
 // Domain with a power of 2 cardinality
-// compute a field element of order 2x and store it in GeneratorSqRt
+// compute a field element of order 2x and store it in FinerGenerator
 // all other values can be derived from x, GeneratorSqrt
 type Domain struct {
-	Cardinality      uint64
-	CardinalityInv   fr.Element
-	Generator        fr.Element
-	GeneratorInv     fr.Element
-	GeneratorSqRt    fr.Element // generator of 2 adic subgroup of order 2*nb_constraints
-	GeneratorSqRtInv fr.Element
+	Cardinality       uint64
+	NbCosets          uint64
+	CardinalityInv    fr.Element
+	Generator         fr.Element
+	GeneratorInv      fr.Element
+	FinerGenerator    fr.Element
+	FinerGeneratorInv fr.Element
 
 	// the following slices are not serialized and are (re)computed through domain.preComputeTwiddles()
 
@@ -49,26 +50,30 @@ type Domain struct {
 
 	// we precompute these mostly to avoid the memory intensive bit reverse permutation in the groth16.Prover
 
-	// CosetTable[0] = 1
-	// CosetTable[0] = domain.GeneratorSqrt ^ 1
-	// CosetTable[1] = domain.GeneratorSqrt ^ 2
-	// ...
+	// CosetTable[i][j] = domain.Generator(i-th)Sqrt ^ j
 	// CosetTable = fft.BitReverse(CosetTable)
-	CosetTable []fr.Element
+	CosetTable [][]fr.Element
 
-	// CosetTableInv[0] = 1
-	// CosetTableInv[0] = domain.GeneratorSqrtInv ^ 1
-	// CosetTableInv[1] = domain.GeneratorSqrtInv ^ 2
-	// ...
+	// CosetTable[i][j] = domain.Generator(i-th)SqrtInv ^ j
 	// CosetTableInv = fft.BitReverse(CosetTableInv)
-	CosetTableInv []fr.Element
+	CosetTableInv [][]fr.Element
 }
 
 // NewDomain returns a subgroup with a power of 2 cardinality
 // cardinality >= m
-// compute a field element of order 2x and store it in GeneratorSqRt
-// all other values can be derived from x, GeneratorSqrt
-func NewDomain(m uint64) *Domain {
+// cosets is the number of shifts allowed from the primitive m-th root of 1
+// The code panics if m+cosets > max the maximum 2-adicity allowed.
+//
+// example:
+// --------
+//
+// * NewDomain(2^10, 4) outputs a new domain to perform fft with primitive 2^10-th
+// (i.e. on the group Z/2^10Z) along with the necessary precomputed data to perform "shifted"
+// fft on the cosets of (Z/2^14Z) / (Z/2^10Z).
+//
+// * NewDomain(2^10, 0) outputs a new domain to perform the simple fft with primitive 2^10-th
+// root of 1.
+func NewDomain(m, nbCosets uint64) *Domain {
 
 	// generator of the largest 2-adic subgroup
 	var rootOfUnity fr.Element
@@ -78,22 +83,28 @@ func NewDomain(m uint64) *Domain {
 
 	subGroup := &Domain{}
 	x := nextPowerOfTwo(m)
+	subGroup.Cardinality = uint64(x)
+	subGroup.NbCosets = nbCosets
 
-	// maxOderRoot is the largest power-of-two order for any element in the field
-	// set subGroup.GeneratorSqRt = rootOfUnity^(2^(maxOrderRoot-log(x)-1))
-	// to this end, compute expo = 2^(maxOrderRoot-log(x)-1)
+	// find generator for Z/2^(log(m))Z  and Z/2^(log(m)+cosets)Z
 	logx := uint64(bits.TrailingZeros64(x))
-	if logx > maxOrderRoot-1 {
+	if logx > maxOrderRoot {
 		panic("m is too big: the required root of unity does not exist")
 	}
-	expo := uint64(1 << (maxOrderRoot - logx - 1))
-	bExpo := new(big.Int).SetUint64(expo)
-	subGroup.GeneratorSqRt.Exp(rootOfUnity, bExpo)
+	logGen := logx + nbCosets
+	if logGen > maxOrderRoot {
+		panic("log(m) + cosets is too big: the required root of unity does not exist")
+	}
 
-	// Generator = GeneratorSqRt^2 has order x
-	subGroup.Generator.Mul(&subGroup.GeneratorSqRt, &subGroup.GeneratorSqRt) // order x
-	subGroup.Cardinality = uint64(x)
-	subGroup.GeneratorSqRtInv.Inverse(&subGroup.GeneratorSqRt)
+	expo := uint64(1 << (maxOrderRoot - logGen))
+	bExpo := new(big.Int).SetUint64(expo)
+	subGroup.FinerGenerator.Exp(rootOfUnity, bExpo)
+	subGroup.FinerGeneratorInv.Inverse(&subGroup.FinerGenerator)
+
+	// Generator = FinerGenerator^2 has order x
+	expo = uint64(1 << (maxOrderRoot - logx))
+	bExpo.SetUint64(expo)
+	subGroup.Generator.Exp(rootOfUnity, bExpo) // order x
 	subGroup.GeneratorInv.Inverse(&subGroup.Generator)
 	subGroup.CardinalityInv.SetUint64(uint64(x)).Inverse(&subGroup.CardinalityInv)
 
@@ -104,13 +115,19 @@ func NewDomain(m uint64) *Domain {
 }
 
 func (d *Domain) preComputeTwiddles() {
+
 	// nb fft stages
 	nbStages := uint64(bits.TrailingZeros64(d.Cardinality))
+	nbCosets := int(d.NbCosets)
 
 	d.Twiddles = make([][]fr.Element, nbStages)
 	d.TwiddlesInv = make([][]fr.Element, nbStages)
-	d.CosetTable = make([]fr.Element, d.Cardinality)
-	d.CosetTableInv = make([]fr.Element, d.Cardinality)
+	d.CosetTable = make([][]fr.Element, nbCosets)
+	d.CosetTableInv = make([][]fr.Element, nbCosets)
+	for i := 0; i < nbCosets; i++ {
+		d.CosetTable[i] = make([]fr.Element, d.Cardinality)
+		d.CosetTableInv[i] = make([]fr.Element, d.Cardinality)
+	}
 
 	var wg sync.WaitGroup
 
@@ -140,12 +157,36 @@ func (d *Domain) preComputeTwiddles() {
 		wg.Done()
 	}
 
-	wg.Add(4)
-	go twiddles(d.Twiddles, d.Generator)
-	go twiddles(d.TwiddlesInv, d.GeneratorInv)
-	go expTable(d.GeneratorSqRt, d.CosetTable)
-	expTable(d.GeneratorSqRtInv, d.CosetTableInv)
-	wg.Wait()
+	if nbCosets > 0 {
+		cosetGens := make([]fr.Element, nbCosets)
+		cosetGensInv := make([]fr.Element, nbCosets)
+		var accFiner, accFinerInv fr.Element
+		accFiner.Set(&d.FinerGenerator)
+		accFinerInv.Set(&d.FinerGeneratorInv)
+		for i := 0; i < nbCosets; i++ {
+			cosetGens[i].Set(&accFiner)
+			cosetGensInv[i].Set(&accFinerInv)
+			accFiner.Mul(&accFiner, &d.FinerGenerator)
+			accFinerInv.Mul(&accFinerInv, &d.FinerGeneratorInv)
+		}
+		wg.Add(2 + 2*nbCosets)
+		go twiddles(d.Twiddles, d.Generator)
+		go twiddles(d.TwiddlesInv, d.GeneratorInv)
+		for i := 0; i < nbCosets-1; i++ {
+			go expTable(cosetGens[i], d.CosetTable[i])
+			go expTable(cosetGensInv[i], d.CosetTableInv[i])
+		}
+		go expTable(cosetGens[nbCosets-1], d.CosetTable[nbCosets-1])
+		expTable(cosetGensInv[nbCosets-1], d.CosetTableInv[nbCosets-1])
+
+		wg.Wait()
+
+	} else {
+		wg.Add(2)
+		go twiddles(d.Twiddles, d.Generator)
+		twiddles(d.TwiddlesInv, d.GeneratorInv)
+		wg.Wait()
+	}
 
 }
 
@@ -200,9 +241,10 @@ func nextPowerOfTwo(n uint64) uint64 {
 // WriteTo writes a binary representation of the domain (without the precomputed twiddle factors)
 // to the provided writer
 func (d *Domain) WriteTo(w io.Writer) (int64, error) {
+
 	enc := curve.NewEncoder(w)
 
-	toEncode := []interface{}{d.Cardinality, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.GeneratorSqRt, &d.GeneratorSqRtInv}
+	toEncode := []interface{}{d.Cardinality, d.NbCosets, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FinerGenerator, &d.FinerGeneratorInv}
 
 	for _, v := range toEncode {
 		if err := enc.Encode(v); err != nil {
@@ -218,7 +260,7 @@ func (d *Domain) ReadFrom(r io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(r)
 
-	toDecode := []interface{}{&d.Cardinality, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.GeneratorSqRt, &d.GeneratorSqRtInv}
+	toDecode := []interface{}{&d.Cardinality, &d.NbCosets, &d.CardinalityInv, &d.Generator, &d.GeneratorInv, &d.FinerGenerator, &d.FinerGeneratorInv}
 
 	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {

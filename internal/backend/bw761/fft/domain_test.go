@@ -23,7 +23,8 @@ import (
 )
 
 func TestDomainSerialization(t *testing.T) {
-	domain := NewDomain(1 << 6)
+
+	domain := NewDomain(1<<6, 1)
 	var reconstructed Domain
 
 	var buf bytes.Buffer

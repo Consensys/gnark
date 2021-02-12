@@ -232,21 +232,21 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	c = append(c, padding...)
 	n = len(a)
 
-	domain.FFTInverse(a, fft.DIF)
-	domain.FFTInverse(b, fft.DIF)
-	domain.FFTInverse(c, fft.DIF)
+	domain.FFTInverse(a, fft.DIF, 0)
+	domain.FFTInverse(b, fft.DIF, 0)
+	domain.FFTInverse(c, fft.DIF, 0)
 
-	utils.Parallelize(n, func(start, end int) {
-		for i := start; i < end; i++ {
-			a[i].Mul(&a[i], &domain.CosetTable[i])
-			b[i].Mul(&b[i], &domain.CosetTable[i])
-			c[i].Mul(&c[i], &domain.CosetTable[i])
-		}
-	})
+	// utils.Parallelize(n, func(start, end int) {
+	// 	for i := start; i < end; i++ {
+	// 		a[i].Mul(&a[i], &domain.CosetTable[i])
+	// 		b[i].Mul(&b[i], &domain.CosetTable[i])
+	// 		c[i].Mul(&c[i], &domain.CosetTable[i])
+	// 	}
+	// })
 
-	domain.FFT(a, fft.DIT)
-	domain.FFT(b, fft.DIT)
-	domain.FFT(c, fft.DIT)
+	domain.FFT(a, fft.DIT, 1)
+	domain.FFT(b, fft.DIT, 1)
+	domain.FFT(c, fft.DIT, 1)
 
 	var minusTwoInv fr.Element
 	minusTwoInv.SetUint64(2)
@@ -264,13 +264,18 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	})
 
 	// ifft_coset
-	domain.FFTInverse(a, fft.DIF)
+	domain.FFTInverse(a, fft.DIF, 1)
 
-	utils.Parallelize(n, func(start, end int) {
+	utils.Parallelize(len(a), func(start, end int) {
 		for i := start; i < end; i++ {
-			a[i].Mul(&a[i], &domain.CosetTableInv[i]).FromMont()
+			a[i].FromMont()
 		}
 	})
+	// utils.Parallelize(n, func(start, end int) {
+	// 	for i := start; i < end; i++ {
+	// 		a[i].Mul(&a[i], &domain.CosetTableInv[i]).FromMont()
+	// 	}
+	// })
 
 	return a
 }

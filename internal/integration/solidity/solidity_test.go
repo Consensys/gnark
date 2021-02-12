@@ -40,7 +40,9 @@ func TestRunExportSolidityTestSuite(t *testing.T) {
 }
 
 func (t *ExportSolidityTestSuite) SetupTest() {
+
 	const gasLimit uint64 = 8000029
+
 	// setup simulated backend
 	key, _ := crypto.GenerateKey()
 	auth := bind.NewKeyedTransactor(key)
@@ -54,6 +56,9 @@ func (t *ExportSolidityTestSuite) SetupTest() {
 	t.NoError(err, "deploy verifier contract failed")
 	t.verifierContract = v
 	t.backend.Commit()
+
+	t.r1cs, err = frontend.Compile(gurvy.BN256, backend.GROTH16, &t.circuit)
+	t.NoError(err, "compiling R1CS failed")
 
 	// read proving and verifying keys
 	t.pk = groth16.NewProvingKey(gurvy.BN256)
@@ -71,12 +76,10 @@ func (t *ExportSolidityTestSuite) SetupTest() {
 		t.NoError(err, "reading verifying key failed")
 	}
 
-	t.r1cs, err = frontend.Compile(gurvy.BN256, backend.GROTH16, &t.circuit)
-	t.NoError(err, "compiling R1CS failed ")
-
 }
 
 func (t *ExportSolidityTestSuite) TestVerifyProof() {
+
 	// create a valid proof
 	var witness cubic.Circuit
 	witness.X.Assign(3)
