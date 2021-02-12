@@ -177,7 +177,7 @@ func TestProvingKeySerialization(t *testing.T) {
 			var pk, pkCompressed, pkRaw ProvingKey
 
 			// create a random pk
-			domain := fft.NewDomain(8)
+			domain := fft.NewDomain(8, 1)
 			pk.Domain = *domain
 
 			nbWires := 6

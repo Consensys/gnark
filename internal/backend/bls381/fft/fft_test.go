@@ -31,7 +31,7 @@ import (
 func TestFFT(t *testing.T) {
 	const maxSize = 1 << 10
 
-	domain := NewDomain(maxSize)
+	domain := NewDomain(maxSize, 0)
 
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 5
@@ -51,7 +51,7 @@ func TestFFT(t *testing.T) {
 			}
 			copy(backupPol, pol)
 
-			domain.FFT(pol, DIF)
+			domain.FFT(pol, DIF, 0)
 			BitReverse(pol)
 
 			sample := domain.Generator
@@ -79,7 +79,7 @@ func TestFFT(t *testing.T) {
 			copy(backupPol, pol)
 
 			BitReverse(pol)
-			domain.FFT(pol, DIT)
+			domain.FFT(pol, DIT, 0)
 
 			sample := domain.Generator
 			sample.Exp(sample, big.NewInt(int64(ithpower)))
@@ -105,8 +105,8 @@ func TestFFT(t *testing.T) {
 			copy(backupPol, pol)
 
 			BitReverse(pol)
-			domain.FFT(pol, DIT)
-			domain.FFTInverse(pol, DIF)
+			domain.FFT(pol, DIT, 0)
+			domain.FFTInverse(pol, DIF, 0)
 			BitReverse(pol)
 
 			check := true
@@ -129,8 +129,8 @@ func TestFFT(t *testing.T) {
 			}
 			copy(backupPol, pol)
 
-			domain.FFTInverse(pol, DIF)
-			domain.FFT(pol, DIT)
+			domain.FFTInverse(pol, DIF, 0)
+			domain.FFT(pol, DIT, 0)
 
 			check := true
 			for i := 0; i < len(pol); i++ {
@@ -182,10 +182,10 @@ func BenchmarkFFT(b *testing.B) {
 			sizeDomain := 1 << i
 			_pol := make([]fr.Element, sizeDomain)
 			copy(_pol, pol)
-			domain := NewDomain(uint64(sizeDomain))
+			domain := NewDomain(uint64(sizeDomain), 0)
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
-				domain.FFT(_pol, DIT)
+				domain.FFT(_pol, DIT, 0)
 			}
 		})
 	}

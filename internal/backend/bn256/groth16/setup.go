@@ -91,7 +91,7 @@ func Setup(r1cs *bn256backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(r1cs.NbConstraints))
+	domain := fft.NewDomain(uint64(r1cs.NbConstraints), 1)
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -343,7 +343,7 @@ func DummySetup(r1cs *bn256backend.R1CS, pk *ProvingKey) error {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(nbConstraints))
+	domain := fft.NewDomain(uint64(nbConstraints), 1)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)

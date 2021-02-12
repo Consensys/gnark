@@ -158,7 +158,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 func TestProvingKeySerialization(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
-	
+
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
@@ -166,7 +166,7 @@ func TestProvingKeySerialization(t *testing.T) {
 			var pk, pkCompressed, pkRaw ProvingKey
 
 			// create a random pk
-			domain := fft.NewDomain(8)
+			domain := fft.NewDomain(8, 1)
 			pk.Domain = *domain
 
 			nbWires := 6
@@ -221,7 +221,7 @@ func TestProvingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			return reflect.DeepEqual(&pk, &pkCompressed)  && reflect.DeepEqual(&pk, &pkRaw)
+			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
 		},
 		GenG1(),
 		GenG2(),

@@ -39,10 +39,19 @@ const butterflyThreshold = 16
 // FFT computes (recursively) the discrete Fourier transform of a and stores the result in a
 // if decimation == DIT (decimation in time), the input must be in bit-reversed order
 // if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
+// coset sets the shift of the fft (0 = no shift, standard fft)
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
+func (domain *Domain) FFT(a []fr.Element, decimation Decimation, coset uint64) {
 
 	numCPU := uint64(runtime.NumCPU())
+
+	if coset != 0 {
+		utils.Parallelize(len(a), func(start, end int) {
+			for i := start; i < end; i++ {
+				a[i].Mul(&a[i], &domain.CosetTable[coset-1][i])
+			}
+		})
+	}
 
 	// find the stage where we should stop spawning go routines in our recursive calls
 	// (ie when we have as many go routines running as we have available CPUs)
@@ -64,8 +73,9 @@ func (domain *Domain) FFT(a []fr.Element, decimation Decimation) {
 // FFTInverse computes (recursively) the inverse discrete Fourier transform of a and stores the result in a
 // if decimation == DIT (decimation in time), the input must be in bit-reversed order
 // if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
+// coset sets the shift of the fft (0 = no shift, standard fft)
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
-func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation) {
+func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation, coset uint64) {
 
 	numCPU := uint64(runtime.NumCPU())
 
@@ -85,11 +95,20 @@ func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation) {
 	}
 
 	// scale by CardinalityInv
-	utils.Parallelize(len(a), func(start, end int) {
-		for i := start; i < end; i++ {
-			a[i].MulAssign(&domain.CardinalityInv)
-		}
-	})
+	if coset != 0 {
+		utils.Parallelize(len(a), func(start, end int) {
+			for i := start; i < end; i++ {
+				a[i].Mul(&a[i], &domain.CosetTableInv[coset-1][i]).
+					MulAssign(&domain.CardinalityInv)
+			}
+		})
+	} else {
+		utils.Parallelize(len(a), func(start, end int) {
+			for i := start; i < end; i++ {
+				a[i].MulAssign(&domain.CardinalityInv)
+			}
+		})
+	}
 }
 
 func difFFT(a []fr.Element, twiddles [][]fr.Element, stage, maxSplits int, chDone chan struct{}) {
