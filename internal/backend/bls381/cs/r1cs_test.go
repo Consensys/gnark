@@ -29,8 +29,9 @@ import (
 )
 
 func TestSerialization(t *testing.T) {
-
+	var buffer bytes.Buffer
 	for name, circuit := range circuits.Circuits {
+		buffer.Reset()
 
 		r1cs, err := frontend.Compile(gurvy.BLS381, backend.GROTH16, circuit.Circuit)
 		if err != nil {
@@ -40,8 +41,8 @@ func TestSerialization(t *testing.T) {
 			continue
 		}
 
-		t.Run(name, func(t *testing.T) {
-			var buffer bytes.Buffer
+		{
+			t.Log(name)
 			var err error
 			var written, read int64
 			written, err = r1cs.WriteTo(&buffer)
@@ -60,6 +61,6 @@ func TestSerialization(t *testing.T) {
 			if !reflect.DeepEqual(r1cs, &reconstructed) {
 				t.Fatal("round trip serialization failed")
 			}
-		})
+		}
 	}
 }
