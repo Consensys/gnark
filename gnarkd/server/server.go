@@ -42,6 +42,11 @@ const (
 	jobQueueSize = 10
 )
 
+var (
+	errJobExpired   = errors.New("job expired")
+	errJobCancelled = errors.New("job cancelled")
+)
+
 // Server implements Groth16Server
 type Server struct {
 	pb.UnimplementedGroth16Server
@@ -97,14 +102,10 @@ func (s *Server) startGC(ctx context.Context) {
 			s.log.Debug("running GC")
 			s.jobs.Range(func(k, v interface{}) bool {
 				job := v.(*proveJob)
-				job.Lock()
-				if job.isFinished() || job.status == pb.ProveJobResult_WAITING_WITNESS {
-					if job.expiration.Before(time.Now()) {
-						s.log.Infow("job TTL expired, deleting", "jobID", job.id.String(), "status", job.status.String())
-						s.jobs.Delete(k)
-					}
+				if s.isExpired(job) {
+					s.log.Infow("job TTL expired", "jobID", job.id.String())
+					s.jobs.Delete(job.id)
 				}
-				job.Unlock()
 				return true
 			})
 		}
@@ -129,9 +130,15 @@ func (s *Server) startWorker(ctx context.Context) {
 
 			_job, ok := s.jobs.Load(jobID)
 			if !ok {
-				s.log.Fatalw("inconsistant Server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+				s.log.Errorw("inconsistant Server state: received a job in the job queue, that's not in the job sync.Map", "jobID", jobID)
+				continue
 			}
 			job := _job.(*proveJob)
+
+			if s.isExpired(job) {
+				s.log.Warnw("job TTL expired", "jobID", job.id.String())
+				continue
+			}
 
 			s.updateJobStatusOrDie(job, pb.ProveJobResult_RUNNING)
 
@@ -166,6 +173,21 @@ func (s *Server) startWorker(ctx context.Context) {
 			s.updateJobStatusOrDie(job, pb.ProveJobResult_COMPLETED)
 		}
 	}
+}
+
+func (s *Server) isExpired(job *proveJob) bool {
+	job.Lock()
+	defer job.Unlock()
+
+	if job.expiration.Before(time.Now()) {
+		job.status = pb.ProveJobResult_ERRORED
+		job.err = errJobExpired
+		for _, ch := range job.subscribers {
+			ch <- struct{}{}
+		}
+		return true
+	}
+	return false
 }
 
 func (s *Server) updateJobStatusOrDie(job *proveJob, status pb.ProveJobResult_Status) {

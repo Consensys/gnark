@@ -55,20 +55,79 @@ func (s *Server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobR
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
+	ttl := defaultTTL
+	if request.TTL != nil && (*request.TTL) > 0 {
+		ttl = time.Duration(*request.TTL) * time.Second
+	}
+
 	// create job
 	job := proveJob{
 		id:         uuid.New(),
 		status:     pb.ProveJobResult_WAITING_WITNESS, // default value
-		expiration: time.Now().Add(defaultTTL),
+		expiration: time.Now().Add(ttl),
 		circuitID:  request.CircuitID,
 	}
 
 	// store job, waiting for witness via TCP socket
 	s.jobs.Store(job.id, &job)
-	s.log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
+	s.log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id, "expiration", job.expiration.String())
 
 	// return job id
 	return &pb.CreateProveJobResponse{JobID: job.id.String()}, nil
+}
+
+// CancelProveJob does what it says it does.
+func (s *Server) CancelProveJob(ctx context.Context, request *pb.CancelProveJobRequest) (*pb.CancelProveJobResponse, error) {
+	// ensure jobID is valid
+	jobID, err := uuid.Parse(request.JobID)
+	if err != nil {
+		s.log.Errorw("invalid job id", "jobID", request.JobID)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid jobID %s", request.JobID)
+	}
+	_job, ok := s.jobs.Load(jobID)
+	if !ok {
+		s.log.Errorw("CancelProveJobRequest called with unknown jobID", "jobID", request.JobID)
+		return nil, status.Errorf(codes.NotFound, "unknown job %s", request.JobID)
+	}
+
+	job := _job.(*proveJob)
+	job.Lock()
+	defer job.Unlock()
+	if job.isFinished() {
+		return &pb.CancelProveJobResponse{}, nil
+	}
+
+	if job.status == pb.ProveJobResult_RUNNING {
+		s.log.Warnw("cancel job called on a running job, doing nothing", "jobID", request.JobID)
+		return nil, status.Errorf(codes.OutOfRange, "job %s can't be cancelled -- already RUNNING", request.JobID)
+	}
+
+	s.log.Infow("cancelling job", "jobID", request.JobID, "previousStatus", job.status.String())
+	job.err = errJobCancelled
+	job.status = pb.ProveJobResult_ERRORED
+	for _, ch := range job.subscribers {
+		ch <- struct{}{}
+	}
+
+	return &pb.CancelProveJobResponse{}, nil
+}
+
+// ListProveJob does what it says it does
+func (s *Server) ListProveJob(ctx context.Context, request *pb.ListProveJobRequest) (*pb.ListProveJobResponse, error) {
+	response := &pb.ListProveJobResponse{}
+	s.jobs.Range(func(k, v interface{}) bool {
+		job := v.(*proveJob)
+		job.RLock()
+		r := &pb.ProveJobResult{JobID: job.id.String(), Status: job.status}
+		if job.err != nil {
+			errMsg := job.err.Error()
+			r.Err = &errMsg
+		}
+		job.RUnlock()
+		response.Jobs = append(response.Jobs, r)
+		return true
+	})
+	return response, nil
 }
 
 // SubscribeToProveJob enables a client to get job status changes from the Server

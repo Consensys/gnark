@@ -37,6 +37,12 @@ service Groth16 {
 	// CreateProveJob enqueue a job into the job queue with WAITING_WITNESS status
 	rpc CreateProveJob(CreateProveJobRequest) returns (CreateProveJobResponse);
 
+	// CancelProveJob does what it says it does.
+	rpc CancelProveJob(CancelProveJobRequest) returns (CancelProveJobResponse);
+
+	// ListProveJob does what it says it does.
+	rpc ListProveJob(ListProveJobRequest) returns (ListProveJobResponse);
+
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
@@ -64,12 +70,28 @@ message VerifyResult {
 
 message CreateProveJobRequest {
 	string circuitID = 1;
+	optional int64 TTL = 2; // in seconds
 }
 
 message CreateProveJobResponse {
 	string jobID = 1;
 }
 
+message CancelProveJobRequest {
+	string jobID = 1;
+}
+
+message CancelProveJobResponse {
+
+}
+
+message ListProveJobRequest {
+
+}
+
+message ListProveJobResponse {
+	repeated ProveJobResult jobs = 1;
+}
 
 message ProveJobResult {
 	string jobID = 1;
