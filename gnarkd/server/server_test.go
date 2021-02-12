@@ -298,7 +298,7 @@ func TestJobTTL(t *testing.T) {
 	assert.Equal(errMsg, errJobExpired.Error())
 }
 
-func TestCancelJob(t *testing.T) {
+func TestCancelAndListJob(t *testing.T) {
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -348,6 +348,19 @@ func TestCancelJob(t *testing.T) {
 	<-done
 	assert.Equal(lastStatus, pb.ProveJobResult_ERRORED)
 	assert.Equal(errMsg, errJobCancelled.Error())
+
+	// send another job
+	r2, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
+		CircuitID: "bn256/cubic",
+	})
+	assert.NoError(err, "grpc sync create prove failed")
+
+	<-time.After(42 * time.Millisecond) // give some time to CreateProveJob to run
+	list, err := client.ListProveJob(ctx, &pb.ListProveJobRequest{})
+	assert.NoError(err)
+	assert.True(len(list.Jobs) == 2)
+	assert.True(list.Jobs[0].JobID == r.JobID || list.Jobs[1].JobID == r.JobID)
+	assert.True(list.Jobs[0].JobID == r2.JobID || list.Jobs[1].JobID == r2.JobID)
 }
 
 func TestVerifySync(t *testing.T) {

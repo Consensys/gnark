@@ -40,6 +40,9 @@ service Groth16 {
 	// CancelProveJob does what it says it does.
 	rpc CancelProveJob(CancelProveJobRequest) returns (CancelProveJobResponse);
 
+	// ListProveJob does what it says it does.
+	rpc ListProveJob(ListProveJobRequest) returns (ListProveJobResponse);
+
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
@@ -80,6 +83,14 @@ message CancelProveJobRequest {
 
 message CancelProveJobResponse {
 
+}
+
+message ListProveJobRequest {
+
+}
+
+message ListProveJobResponse {
+	repeated ProveJobResult jobs = 1;
 }
 
 message ProveJobResult {

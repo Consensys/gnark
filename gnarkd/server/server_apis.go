@@ -109,9 +109,25 @@ func (s *Server) CancelProveJob(ctx context.Context, request *pb.CancelProveJobR
 		ch <- struct{}{}
 	}
 
-	s.jobs.Delete(job.id)
-
 	return &pb.CancelProveJobResponse{}, nil
+}
+
+// ListProveJob does what it says it does
+func (s *Server) ListProveJob(ctx context.Context, request *pb.ListProveJobRequest) (*pb.ListProveJobResponse, error) {
+	response := &pb.ListProveJobResponse{}
+	s.jobs.Range(func(k, v interface{}) bool {
+		job := v.(*proveJob)
+		job.RLock()
+		r := &pb.ProveJobResult{JobID: job.id.String(), Status: job.status}
+		if job.err != nil {
+			errMsg := job.err.Error()
+			r.Err = &errMsg
+		}
+		job.RUnlock()
+		response.Jobs = append(response.Jobs, r)
+		return true
+	})
+	return response, nil
 }
 
 // SubscribeToProveJob enables a client to get job status changes from the Server

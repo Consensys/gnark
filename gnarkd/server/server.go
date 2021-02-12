@@ -104,6 +104,7 @@ func (s *Server) startGC(ctx context.Context) {
 				job := v.(*proveJob)
 				if s.isExpired(job) {
 					s.log.Infow("job TTL expired", "jobID", job.id.String())
+					s.jobs.Delete(job.id)
 				}
 				return true
 			})
@@ -184,7 +185,6 @@ func (s *Server) isExpired(job *proveJob) bool {
 		for _, ch := range job.subscribers {
 			ch <- struct{}{}
 		}
-		s.jobs.Delete(job.id)
 		return true
 	}
 	return false

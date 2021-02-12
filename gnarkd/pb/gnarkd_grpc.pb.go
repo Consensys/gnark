@@ -30,6 +30,8 @@ type Groth16Client interface {
 	CreateProveJob(ctx context.Context, in *CreateProveJobRequest, opts ...grpc.CallOption) (*CreateProveJobResponse, error)
 	// CancelProveJob does what it says it does.
 	CancelProveJob(ctx context.Context, in *CancelProveJobRequest, opts ...grpc.CallOption) (*CancelProveJobResponse, error)
+	// ListProveJob does what it says it does.
+	ListProveJob(ctx context.Context, in *ListProveJobRequest, opts ...grpc.CallOption) (*ListProveJobResponse, error)
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
@@ -74,6 +76,15 @@ func (c *groth16Client) CreateProveJob(ctx context.Context, in *CreateProveJobRe
 func (c *groth16Client) CancelProveJob(ctx context.Context, in *CancelProveJobRequest, opts ...grpc.CallOption) (*CancelProveJobResponse, error) {
 	out := new(CancelProveJobResponse)
 	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/CancelProveJob", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *groth16Client) ListProveJob(ctx context.Context, in *ListProveJobRequest, opts ...grpc.CallOption) (*ListProveJobResponse, error) {
+	out := new(ListProveJobResponse)
+	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/ListProveJob", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +139,8 @@ type Groth16Server interface {
 	CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error)
 	// CancelProveJob does what it says it does.
 	CancelProveJob(context.Context, *CancelProveJobRequest) (*CancelProveJobResponse, error)
+	// ListProveJob does what it says it does.
+	ListProveJob(context.Context, *ListProveJobRequest) (*ListProveJobResponse, error)
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
@@ -150,6 +163,9 @@ func (UnimplementedGroth16Server) CreateProveJob(context.Context, *CreateProveJo
 }
 func (UnimplementedGroth16Server) CancelProveJob(context.Context, *CancelProveJobRequest) (*CancelProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelProveJob not implemented")
+}
+func (UnimplementedGroth16Server) ListProveJob(context.Context, *ListProveJobRequest) (*ListProveJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProveJob not implemented")
 }
 func (UnimplementedGroth16Server) SubscribeToProveJob(*SubscribeToProveJobRequest, Groth16_SubscribeToProveJobServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToProveJob not implemented")
@@ -239,6 +255,24 @@ func _Groth16_CancelProveJob_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Groth16_ListProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProveJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(Groth16Server).ListProveJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gnarkd.Groth16/ListProveJob",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(Groth16Server).ListProveJob(ctx, req.(*ListProveJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Groth16_SubscribeToProveJob_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(SubscribeToProveJobRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -282,6 +316,10 @@ var Groth16_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelProveJob",
 			Handler:    _Groth16_CancelProveJob_Handler,
+		},
+		{
+			MethodName: "ListProveJob",
+			Handler:    _Groth16_ListProveJob_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
