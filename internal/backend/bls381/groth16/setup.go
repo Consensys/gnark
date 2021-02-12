@@ -437,9 +437,9 @@ func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 	return curve.ID
 }
 
-// SizePublicWitness returns the size (in byte) of the expected public witness
+// SizePublicWitness returns the number of elements in the expected public witness
 func (vk *VerifyingKey) SizePublicWitness() int {
-	return (len(vk.G1.K) - 1) * fr.Limbs * 8
+	return (len(vk.G1.K) - 1)
 }
 
 // bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine

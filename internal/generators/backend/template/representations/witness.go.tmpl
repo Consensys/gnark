@@ -30,20 +30,25 @@ func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
     return enc.BytesWritten() + 4, nil
 }
 
-// ReadFrom decodes witness from reader (implements io.ReaderFrom)
-func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
+// LimitReadFrom decodes witness from reader; first 4 bytes (uint32) must equal to expectedSize
+// this method won't read more than expectedSize * size(fr.Element)
+func (witness *Witness) LimitReadFrom(r io.Reader, expectedSize int) (int64, error) {
 
 	var buf [4]byte
 	if read, err := io.ReadFull(r, buf[:4]); err != nil {
         return int64(read), err 
     }
 	sliceLen := binary.BigEndian.Uint32(buf[:4])
+    if int(sliceLen) != expectedSize {
+        return 4, errors.New("invalid witness size")
+    }
 
     if len(*witness) != int(sliceLen) {
         *witness = make([]fr.Element, sliceLen)
     }
 
-    dec := curve.NewDecoder(r)
+    lr := io.LimitReader(r, int64(expectedSize * fr.Limbs * 8))
+    dec := curve.NewDecoder(lr)
 
     for i:=0; i < int(sliceLen); i++ {
         if err := dec.Decode(&(*witness)[i]); err != nil {

@@ -60,8 +60,8 @@ func (r1cs *R1CS) CurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
-// SizeFullWitness panics on a untyped R1CS
-func (r1cs *R1CS) SizeFullWitness() int {
+// FrSize panics
+func (r1cs *R1CS) FrSize() int {
 	panic("not implemented")
 }
 

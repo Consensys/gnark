@@ -76,9 +76,7 @@ func TestIntegrationAPI(t *testing.T) {
 			{
 				buf.Reset()
 
-				w := witness.New(curve)
-				assert.NoError(w.FromFullAssignment(circuit.Good))
-				_, err := w.WriteTo(&buf)
+				_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
 				assert.NoError(err)
 
 				correctProof, err := groth16.ReadAndProve(r1cs, pk, &buf)
@@ -86,8 +84,7 @@ func TestIntegrationAPI(t *testing.T) {
 
 				buf.Reset()
 
-				assert.NoError(w.FromPublicAssignment(circuit.Good))
-				_, err = w.WriteTo(&buf)
+				_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
 				assert.NoError(err)
 
 				err = groth16.ReadAndVerify(correctProof, vk, &buf)

@@ -53,11 +53,6 @@ func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	return &r
 }
 
-// SizeFullWitness returns the size (in byte) of the expected full witness
-func (r1cs *R1CS) SizeFullWitness() int {
-	return (r1cs.NbPublicVariables - 1 + r1cs.NbSecretVariables) * fr.Limbs * 8
-}
-
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
@@ -66,6 +61,11 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 // CurveID returns curve ID as defined in gurvy (gurvy.BLS381)
 func (r1cs *R1CS) CurveID() gurvy.ID {
 	return gurvy.BLS381
+}
+
+// FrSize return fr.Limbs * 8, size in byte of a fr element
+func (r1cs *R1CS) FrSize() int {
+	return fr.Limbs * 8
 }
 
 // WriteTo encodes R1CS into provided io.Writer using cbor

@@ -49,11 +49,6 @@ func (cs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
 	return
 }
 
-// SizeFullWitness ...
-func (cs *SparseR1CS) SizeFullWitness() int {
-	panic("not implemented")
-}
-
 // GetNbConstraints returns the number of constraints
 func (cs *SparseR1CS) GetNbConstraints() int {
 	return len(cs.Constraints)
@@ -62,6 +57,11 @@ func (cs *SparseR1CS) GetNbConstraints() int {
 // GetNbWires returns the number of wires (internal)
 func (cs *SparseR1CS) GetNbWires() int {
 	return cs.NbInternalVariables
+}
+
+// FrSize panics
+func (cs *SparseR1CS) FrSize() int {
+	panic("not implemented")
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

@@ -58,9 +58,7 @@ func main() {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_w := witness.New(gurvy.BN256)
-	_w.FromFullAssignment(&w)
-	_w.WriteTo(&buf)
+	witness.WriteFullTo(&buf, gurvy.BN256, &w)
 
 	// synchronous call
 	_, _ = c.Prove(ctx, &pb.ProveRequest{

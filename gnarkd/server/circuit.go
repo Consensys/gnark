@@ -12,7 +12,9 @@ const (
 )
 
 type circuit struct {
-	pk   groth16.ProvingKey
-	vk   groth16.VerifyingKey
-	r1cs frontend.CompiledConstraintSystem
+	pk                groth16.ProvingKey
+	vk                groth16.VerifyingKey
+	r1cs              frontend.CompiledConstraintSystem
+	fullWitnessSize   int
+	publicWitnessSize int
 }

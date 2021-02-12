@@ -235,7 +235,7 @@ func (s *Server) receiveWitness(c net.Conn) {
 		s.log.Fatalw("inconsistant Server state: couldn't find circuit pointed by job", "jobID", jobID.String(), "circuitID", job.circuitID)
 	}
 
-	wBuf := make([]byte, circuit.r1cs.SizeFullWitness()+4)
+	wBuf := make([]byte, circuit.fullWitnessSize)
 	if _, err := io.ReadFull(c, wBuf); err != nil {
 		job.Unlock()
 		fail(err)
@@ -345,6 +345,10 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 	if circuit.r1cs == nil {
 		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
+
+	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
+	circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.r1cs.FrSize()
+	circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.r1cs.FrSize()
 
 	s.circuits[circuitID] = circuit
 

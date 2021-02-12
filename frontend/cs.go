@@ -76,7 +76,7 @@ type CompiledConstraintSystem interface {
 	GetNbCoefficients() int
 
 	CurveID() gurvy.ID
-	SizeFullWitness() int // size in byte of the expected full witness (len([]fr.Element) * fr.Size)
+	FrSize() int
 }
 
 // this has quite some impact on frontend performance, especially on large circuits size

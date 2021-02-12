@@ -67,7 +67,7 @@ type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	io.WriterTo
 	io.ReaderFrom
-	SizePublicWitness() int // size in byte of the expected public witness (len([]fr.Element) * fr.Size)
+	SizePublicWitness() int // number of elements expected in the public witness
 	IsDifferent(interface{}) bool
 	ExportSolidity(w io.Writer) error
 }
@@ -109,30 +109,28 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 // witness must be [uint32(nbElements) | publicVariables ]
 func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error {
 
-	_publicWitness := io.LimitReader(publicWitness, int64(vk.SizePublicWitness()+4)) // 4 == uint32(len)
-
 	switch _vk := vk.(type) {
 	case *groth16_bls377.VerifyingKey:
 		w := witness_bls377.Witness{}
-		if _, err := w.ReadFrom(_publicWitness); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bls377.Verify(proof.(*groth16_bls377.Proof), _vk, w)
 	case *groth16_bls381.VerifyingKey:
 		w := witness_bls381.Witness{}
-		if _, err := w.ReadFrom(_publicWitness); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bls381.Verify(proof.(*groth16_bls381.Proof), _vk, w)
 	case *groth16_bn256.VerifyingKey:
 		w := witness_bn256.Witness{}
-		if _, err := w.ReadFrom(_publicWitness); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bn256.Verify(proof.(*groth16_bn256.Proof), _vk, w)
 	case *groth16_bw761.VerifyingKey:
 		w := witness_bw761.Witness{}
-		if _, err := w.ReadFrom(_publicWitness); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bw761.Verify(proof.(*groth16_bw761.Proof), _vk, w)
@@ -189,30 +187,31 @@ func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness
 		_force = force[0]
 	}
 
-	_witness := io.LimitReader(witness, int64(r1cs.SizeFullWitness()+4)) // 4 == uint32(len)
+	_, nbSecret, nbPublic := r1cs.GetNbVariables()
+	expectedSize := (nbSecret + nbPublic - 1)
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		w := witness_bls377.Witness{}
-		if _, err := w.ReadFrom(_witness); err != nil {
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
 		return groth16_bls377.Prove(_r1cs, pk.(*groth16_bls377.ProvingKey), w, _force)
 	case *backend_bls381.R1CS:
 		w := witness_bls381.Witness{}
-		if _, err := w.ReadFrom(_witness); err != nil {
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
 		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
 	case *backend_bn256.R1CS:
 		w := witness_bn256.Witness{}
-		if _, err := w.ReadFrom(_witness); err != nil {
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
 		return groth16_bn256.Prove(_r1cs, pk.(*groth16_bn256.ProvingKey), w, _force)
 	case *backend_bw761.R1CS:
 		w := witness_bw761.Witness{}
-		if _, err := w.ReadFrom(_witness); err != nil {
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
 		return groth16_bw761.Prove(_r1cs, pk.(*groth16_bw761.ProvingKey), w, _force)
