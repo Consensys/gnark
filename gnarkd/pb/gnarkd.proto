@@ -64,6 +64,7 @@ message VerifyResult {
 
 message CreateProveJobRequest {
 	string circuitID = 1;
+	optional int64 TTL = 2; // in seconds
 }
 
 message CreateProveJobResponse {

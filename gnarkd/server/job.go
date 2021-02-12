@@ -55,7 +55,8 @@ func (job *proveJob) setStatus(status pb.ProveJobResult_Status) error {
 		return errInvalidJobStatusTransition
 	}
 	job.status = status
-	job.expiration = time.Now().Add(defaultTTL)
+	// TODO @gbotrel TTL policy?
+	// job.expiration = time.Now().Add(defaultTTL)
 	job.Unlock()
 
 	job.RLock()

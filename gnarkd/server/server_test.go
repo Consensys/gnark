@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
@@ -191,8 +192,6 @@ func TestProveAsync(t *testing.T) {
 				done <- struct{}{}
 				return
 			}
-			assert.NoError(err)
-			assert.NotEqual(pb.ProveJobResult_ERRORED, resp.Status, "we don't expect the job to produce error")
 			lastStatus = resp.Status
 			if lastStatus == pb.ProveJobResult_COMPLETED {
 				rproof = resp.Proof
@@ -224,6 +223,79 @@ func TestProveAsync(t *testing.T) {
 	err = groth16.Verify(proof, gnarkdServer.circuits["bn256/cubic"].vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
+}
+
+func TestJobTTL(t *testing.T) {
+	assert := require.New(t)
+
+	// create grpc client connection
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "", grpc.WithContextDialer(
+		func(c context.Context, s string) (net.Conn, error) {
+			return grpcListener.Dial()
+		}), grpc.WithInsecure())
+
+	assert.NoError(err)
+	defer conn.Close()
+
+	client := pb.NewGroth16Client(conn)
+
+	// 1. serialize a valid witness
+	var (
+		w        cubic.Circuit
+		bWitness bytes.Buffer
+	)
+	w.X.Assign(3)
+	w.Y.Assign(35)
+
+	_, err = witness.WriteFullTo(&bWitness, gurvy.BN256, &w)
+	assert.NoError(err)
+
+	// 2. call prove
+	ttl := int64(1) // mark job as expired after 1 second
+	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
+		CircuitID: "bn256/cubic",
+		TTL:       &ttl,
+	})
+	assert.NoError(err, "grpc sync create prove failed")
+
+	// 3. subscribe to status changes
+	stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
+	assert.NoError(err, "couldn't subscribe to job")
+
+	done := make(chan struct{}, 1)
+	var lastStatus pb.ProveJobResult_Status
+	var errMsg string
+	go func() {
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				done <- struct{}{}
+				return
+			}
+			lastStatus = resp.Status
+			if lastStatus == pb.ProveJobResult_ERRORED {
+				errMsg = (*resp.Err)
+			}
+		}
+	}()
+
+	// 4. send wtness on the wire
+	<-time.After(1030 * time.Millisecond) // wait for TTL to expire
+	wc, err := witnessListener.Dial()
+	assert.NoError(err, "dialing witness socket")
+	defer wc.Close()
+	jobID, err := uuid.Parse(r.JobID)
+	assert.NoError(err)
+	bjobID, err := jobID.MarshalBinary()
+	assert.NoError(err)
+	_, err = wc.Write(bjobID)
+	assert.NoError(err)
+	_, err = wc.Write(bWitness.Bytes())
+	assert.NoError(err)
+	<-done
+	assert.Equal(lastStatus, pb.ProveJobResult_ERRORED)
+	assert.Equal(errMsg, errJobExpired.Error())
 }
 
 func TestVerifySync(t *testing.T) {

@@ -55,17 +55,22 @@ func (s *Server) CreateProveJob(ctx context.Context, request *pb.CreateProveJobR
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
+	ttl := defaultTTL
+	if request.TTL != nil && (*request.TTL) > 0 {
+		ttl = time.Duration(*request.TTL) * time.Second
+	}
+
 	// create job
 	job := proveJob{
 		id:         uuid.New(),
 		status:     pb.ProveJobResult_WAITING_WITNESS, // default value
-		expiration: time.Now().Add(defaultTTL),
+		expiration: time.Now().Add(ttl),
 		circuitID:  request.CircuitID,
 	}
 
 	// store job, waiting for witness via TCP socket
 	s.jobs.Store(job.id, &job)
-	s.log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id)
+	s.log.Infow("prove job created", "circuitID", request.CircuitID, "jobID", job.id, "expiration", job.expiration.String())
 
 	// return job id
 	return &pb.CreateProveJobResponse{JobID: job.id.String()}, nil
