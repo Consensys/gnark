@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // Tag is a (optional) struct tag one can add to Variable
@@ -43,10 +43,10 @@ func appendName(baseName, name string) string {
 }
 
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(visibility backend.Visibility, name string, tValue reflect.Value) error
+type LeafHandler func(visibility compiled.Visibility, name string, tValue reflect.Value) error
 
 // Visit using reflect, browse through exposed addressable fields from input, and calls handler() if leaf.type == target
-func Visit(input interface{}, baseName string, parentVisibility backend.Visibility, handler LeafHandler, target reflect.Type) error {
+func Visit(input interface{}, baseName string, parentVisibility compiled.Visibility, handler LeafHandler, target reflect.Type) error {
 
 	// types we are lOoutputoking for
 	// tVariable := reflect.TypeOf(frontend.Variable{})
@@ -74,7 +74,7 @@ func Visit(input interface{}, baseName string, parentVisibility backend.Visibili
 					continue // skipping "-"
 				}
 
-				visibility := backend.Secret
+				visibility := compiled.Secret
 				name := field.Name
 				if tag != "" {
 					// gnark tag is set
@@ -85,15 +85,15 @@ func Visit(input interface{}, baseName string, parentVisibility backend.Visibili
 					}
 
 					if opts.Contains(string(optSecret)) {
-						visibility = backend.Secret
+						visibility = compiled.Secret
 					} else if opts.Contains(string(optPublic)) {
-						visibility = backend.Public
+						visibility = compiled.Public
 					} else if opts.Contains(string(optEmbed)) {
 						name = ""
-						visibility = backend.Unset
+						visibility = compiled.Unset
 					}
 				}
-				if parentVisibility != backend.Unset {
+				if parentVisibility != compiled.Unset {
 					visibility = parentVisibility // parent visibility overhides
 				}
 

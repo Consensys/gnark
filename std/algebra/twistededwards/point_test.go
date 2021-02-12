@@ -19,6 +19,7 @@ package twistededwards
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -43,7 +44,7 @@ func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestIsOnCurve(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness mustBeOnCurve
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func TestAdd(t *testing.T) {
 
 	var circuit, witness add
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +125,7 @@ func TestAddGeneric(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness addGeneric
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func (circuit *double) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestDouble(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness double
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +204,7 @@ func TestScalarMul(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var circuit, witness scalarMul
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

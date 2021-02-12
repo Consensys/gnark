@@ -27,17 +27,28 @@
 
 {{end}}
 
-{{ define "import_backend" }}
+{{ define "import_backend_r1cs" }}
 {{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
 {{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
 {{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 {{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761"
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
+{{end}}
 {{end}}
 
+{{ define "import_backend_pcs" }}
+{{if eq .Curve "BLS377"}}
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
+{{else if eq .Curve "BLS381"}}
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
+{{else if eq .Curve "BN256"}}
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
+{{ else if eq .Curve "BW761"}}
+	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
+{{end}}
 {{end}}
 
 {{ define "import_fft" }}
@@ -49,5 +60,18 @@
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
 {{ else if eq .Curve "BW761"}}
 	"github.com/consensys/gnark/internal/backend/bw761/fft"
+{{end}}
+{{end}}
+
+
+{{ define "import_witness" }}
+{{if eq .Curve "BLS377"}}
+	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls377/witness"
+{{else if eq .Curve "BLS381"}}
+	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls381/witness"
+{{else if eq .Curve "BN256"}}
+	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bn256/witness"
+{{ else if eq .Curve "BW761"}}
+	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 {{end}}
 {{end}}

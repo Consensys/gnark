@@ -33,7 +33,6 @@ import (
 	"github.com/consensys/gurvy"
 
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/gnarkd/pb"
 )
 
@@ -143,7 +142,7 @@ func (s *Server) startWorker(ctx context.Context) {
 			}
 
 			// run prove
-			proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, job.witness)
+			proof, err := groth16.ReadAndProve(circuit.r1cs, circuit.pk, bytes.NewReader(job.witness))
 			job.witness = nil // set witness to nil
 			if err != nil {
 				s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
@@ -329,7 +328,7 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 			if circuit.r1cs != nil {
 				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
 			}
-			circuit.r1cs = r1cs.New(curveID)
+			circuit.r1cs = groth16.NewCS(curveID)
 			if err := loadGnarkObject(circuit.r1cs, filepath.Join(baseDir, f.Name())); err != nil {
 				return err
 			}
@@ -347,8 +346,9 @@ func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
 		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
 	}
 
-	circuit.publicWitnessSize = int((circuit.r1cs.GetNbPublicWires() - 1)) * circuit.r1cs.SizeFrElement()
-	circuit.fullWitnessSize = int((circuit.r1cs.GetNbPublicWires() + circuit.r1cs.GetNbSecretWires())) * circuit.r1cs.SizeFrElement()
+	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
+	circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.r1cs.FrSize()
+	circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.r1cs.FrSize()
 
 	s.circuits[circuitID] = circuit
 

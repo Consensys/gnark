@@ -2,8 +2,9 @@ import (
     "reflect"
     "errors"
     "io"
+    "encoding/binary"
 
-    "github.com/consensys/gnark/backend"
+    "github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/frontend"
     "github.com/consensys/gnark/internal/parser"
 
@@ -11,20 +12,69 @@ import (
     {{ template "import_curve" . }}
 )
 
-// Full extracts the full witness secret || public (including ONE_WIRE)
-// and returns a slice of field elements in montgomery form
-func Full(w frontend.Witness) ([]fr.Element, error)  {
-    nbSecret, nbPublic, err := count(w)
-    if err != nil {
-        return nil, err
-    }
-    secret := make([]fr.Element, nbSecret)
-    public := make([]fr.Element, nbPublic +1 ) // ONE_WIRE
-    public[0] = fr.One()
+type Witness []fr.Element
 
-    var i, j int 
-    j++
-    var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
+// WriteTo encodes witness to writer (implements io.WriterTo)
+func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
+    // encode slice length
+    if err := binary.Write(w, binary.BigEndian, uint32(len(*witness))); err != nil {
+        return 0, err 
+    }
+
+    enc := curve.NewEncoder(w)
+    for i:=0; i < len(*witness); i++ {
+        if err := enc.Encode(&(*witness)[i]); err != nil {
+            return enc.BytesWritten() + 4, err
+        }
+    }
+    return enc.BytesWritten() + 4, nil
+}
+
+// LimitReadFrom decodes witness from reader; first 4 bytes (uint32) must equal to expectedSize
+// this method won't read more than expectedSize * size(fr.Element)
+func (witness *Witness) LimitReadFrom(r io.Reader, expectedSize int) (int64, error) {
+
+	var buf [4]byte
+	if read, err := io.ReadFull(r, buf[:4]); err != nil {
+        return int64(read), err 
+    }
+	sliceLen := binary.BigEndian.Uint32(buf[:4])
+    if int(sliceLen) != expectedSize {
+        return 4, errors.New("invalid witness size")
+    }
+
+    if len(*witness) != int(sliceLen) {
+        *witness = make([]fr.Element, sliceLen)
+    }
+
+    lr := io.LimitReader(r, int64(expectedSize * fr.Limbs * 8))
+    dec := curve.NewDecoder(lr)
+
+    for i:=0; i < int(sliceLen); i++ {
+        if err := dec.Decode(&(*witness)[i]); err != nil {
+		    return dec.BytesRead() + 4, err
+	    }
+    }
+	
+
+    return dec.BytesRead() + 4, nil 
+}
+
+// FromFullAssignment extracts the full witness [ public | secret ]
+func (witness *Witness) FromFullAssignment(w frontend.Circuit) error  {
+    nbSecret, nbPublic := count(w)
+
+    if len(*witness) < (nbPublic + nbSecret) {
+        (*witness) = make(Witness, nbPublic + nbSecret) 
+    } else {
+        (*witness) = (*witness)[:nbPublic + nbSecret]
+    }
+    
+    
+    var i, j int // indexes for secret / public variables
+    i = nbPublic // offset
+
+    var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
         v := tInput.Interface().(frontend.Variable)
 
         val := frontend.GetAssignedValue(v)
@@ -32,139 +82,60 @@ func Full(w frontend.Witness) ([]fr.Element, error)  {
             return errors.New("variable " + name + " not assigned")
         }
 
-        if visibility == backend.Secret {
-            secret[i].SetInterface(val) 
+        if visibility == compiled.Secret {
+            (*witness)[i].SetInterface(val) 
             i++
-        } else if visibility == backend.Public {
-            public[j].SetInterface(val) 
+        } else if visibility == compiled.Public {
+            (*witness)[j].SetInterface(val) 
             j++
         }
         return nil
     }
-    if err := parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
-        return nil, err 
-    }
-    return append(secret, public...), nil 
+    return parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
 }
 
-// Public extracts the public witness (including ONE_WIRE)
-// and returns a slice of field elements in REGULAR form 
-func Public(w frontend.Witness) ([]fr.Element, error) {
-    _, nbPublic, err := count(w)
-    if err != nil {
-        return nil, err
+// FromPublicAssignment extracts the public part of witness 
+func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
+    _, nbPublic := count(w)
+	
+    // note: does not contain ONE_WIRE for Groth16
+     if len(*witness) < (nbPublic ) {
+        (*witness) = make(Witness, nbPublic ) 
+    } else {
+        (*witness) = (*witness)[:nbPublic ]
     }
-    public := make([]fr.Element, nbPublic +1 ) // ONE_WIRE
-    public[0] = fr.One()
-    public[0].FromMont()
-    
-    var  j int 
-    j++
-    var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-        
+    var j int // index for public variables
+ 
 
-       if visibility == backend.Public {
+    var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+       if visibility == compiled.Public {
             v := tInput.Interface().(frontend.Variable)
             val := frontend.GetAssignedValue(v)
             if val == nil {
                 return errors.New("variable " + name + " not assigned")
             }
-            public[j].SetInterface(val).FromMont() 
+            (*witness)[j].SetInterface(val)
             j++
         }
         return nil
     }
-    if err := parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
-        return nil, err 
-    }
-    return public, nil 
-}
-
-const frSize = fr.Limbs * 8
-
-// WriteFull serialize full witness [secret|one_wire|public] by encoding provided values
-func WriteFull(w io.Writer, witness frontend.Witness) error {
-
-    v, err := Full(witness)
-    if err != nil {
-        return err
-    }
-
-    enc := curve.NewEncoder(w)
-    for i := 0; i < len(v); i++ {
-        if err = enc.Encode(&v[i]); err != nil {
-            return err
-        }
-    }
-
-    return nil 
-
-}
-
-// WritePublic serialize publicWitness [public] without one_wire by encoding provided values
-func WritePublic(w io.Writer, witness frontend.Witness) error {
-
-    v, err := Public(witness)
-    if err != nil {
-        return err
-    }
-
-    enc := curve.NewEncoder(w)
-    for i := 1; i < len(v); i++ { // skipping one_wire at [0]
-        v[i].ToMont() // Public returns in regular form. that's not super clean, not perf critical for now. 
-        if err = enc.Encode(&v[i]); err != nil {
-            return err
-        }
-    }
-
-    return nil 
-
-}
-
-// ReadFull decodes witness[]byte -> []fr.Element
-// witness is [secret|one_wire|public]
-// returned value is in Montgomery form
-func ReadFull(witness []byte) (r []fr.Element, err error)  {
-    if (len(witness) % frSize) != 0 {
-		return nil, errors.New("invalid input size")
-	}
-	r = make([]fr.Element, (len(witness)/frSize))
-    offset := 0
-	for i := 0; i < len(r); i++ {
-		r[i].SetBytes(witness[offset : offset+frSize])
-		offset += frSize
-	}
-
-    return 
-}
-
-// ReadPublic decodes publicWitness[]byte -> []fr.Element
-// publicWitness is [public], without one_wire
-// returned value is in Regular form, and contains the one_wire at position 0
-func ReadPublic(publicWitness []byte) (r []fr.Element, err error)  {
-    if (len(publicWitness) % frSize) != 0 {
-		return nil, errors.New("invalid input size")
-	}
-	r = make([]fr.Element, (1 + len(publicWitness)/frSize))
-    r[0].SetOne().FromMont()
-	offset := 0
-	for i := 1; i < len(r); i++ {
-		r[i].SetBytes(publicWitness[offset : offset+frSize]).FromMont()
-		offset += frSize
-	}
-    return 
+    return parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
 }
 
 
-func count(w frontend.Witness) (nbSecret, nbPublic int, err error) {
-    var collectHandler parser.LeafHandler = func(visibility backend.Visibility, name string, tInput reflect.Value) error {
-        if visibility == backend.Secret {
+func count(w frontend.Circuit) (nbSecret, nbPublic int) {
+    var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+        if visibility == compiled.Secret {
             nbSecret++
-        } else if visibility == backend.Public {
+        } else if visibility == compiled.Public {
             nbPublic++
         }
         return nil
     }
-    err = parser.Visit(w, "", backend.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+    
+    err := parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+    if err != nil {
+        panic("count handler doesn't return an error -- this panic should not happen")
+    }
     return 
 }

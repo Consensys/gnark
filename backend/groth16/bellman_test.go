@@ -3,9 +3,11 @@ package groth16
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"testing"
 
 	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/bn256/fr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +104,12 @@ func TestVerifyBellmanProof(t *testing.T) {
 		require.NoError(t, err)
 
 		// verify groth16 proof
-		err = DeserializeAndVerify(proof, vk, inputsBytes)
+		// we need to prepend the number of elements in the witness.
+		var buf bytes.Buffer
+		binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
+		buf.Write(inputsBytes)
+
+		err = ReadAndVerify(proof, vk, &buf)
 		if test.ok {
 			assert.NoError(t, err)
 		}

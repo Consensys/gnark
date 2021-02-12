@@ -19,6 +19,7 @@ package fields
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -50,7 +51,7 @@ func (circuit *fp6Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestAddFp6(t *testing.T) {
 
 	var circuit, witness fp6Add
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func (circuit *fp6Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestSubFp6(t *testing.T) {
 
 	var circuit, witness fp6Sub
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +122,7 @@ func (circuit *fp6Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestMulFp6(t *testing.T) {
 
 	var circuit, witness fp6Mul
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +159,7 @@ func (circuit *fp6MulByNonResidue) Define(curveID gurvy.ID, cs *frontend.Constra
 func TestMulByNonResidueFp6(t *testing.T) {
 
 	var circuit, witness fp6MulByNonResidue
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func (circuit *fp6Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestInverseFp6(t *testing.T) {
 
 	var circuit, witness fp6Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +218,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// TODO fixme
 	t.Skip("missing e6.MulByE2")
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	// r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

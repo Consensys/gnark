@@ -19,6 +19,7 @@ package rollup
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
@@ -78,7 +79,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	r1cs, err := frontend.Compile(gurvy.BN256, &signatureCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &signatureCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -146,7 +147,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var inclusionProofCircuit circuitInclusionProof
-	r1cs, err := frontend.Compile(gurvy.BN256, &inclusionProofCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &inclusionProofCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -205,7 +206,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var updateAccountCircuit circuitUpdateAccount
-	r1cs, err := frontend.Compile(gurvy.BN256, &updateAccountCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &updateAccountCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -251,7 +252,7 @@ func TestCircuitFull(t *testing.T) {
 	// verifies the proofs of inclusion of the transfer
 
 	var rollupCircuit Circuit
-	r1cs, err := frontend.Compile(gurvy.BN256, &rollupCircuit)
+	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &rollupCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)

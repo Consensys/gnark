@@ -21,7 +21,7 @@ import (
 
 	curve "github.com/consensys/gurvy/bw761"
 
-	bw761backend "github.com/consensys/gnark/internal/backend/bw761"
+	bw761backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 
 	"github.com/consensys/gnark/internal/backend/bw761/fft"
 
@@ -86,12 +86,12 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	*/
 
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := int(r1cs.NbWires)
-	nbPublicWires := int(r1cs.NbPublicWires)
-	nbPrivateWires := int(r1cs.NbWires - r1cs.NbPublicWires)
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+	nbPublicWires := int(r1cs.NbPublicVariables)
+	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(r1cs.NbConstraints)
+	domain := fft.NewDomain(uint64(r1cs.NbConstraints))
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -127,22 +127,23 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	vkK := make([]fr.Element, nbPublicWires)
 
 	var t0, t1 fr.Element
-	for i := 0; i < nbPrivateWires; i++ {
+
+	for i := 0; i < nbPublicWires; i++ {
 		t1.Mul(&A[i], &toxicWaste.beta)
 		t0.Mul(&B[i], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i]).
-			Div(&t1, &toxicWaste.delta)
-		pkK[i] = t1.ToRegular()
-	}
-
-	for i := 0; i < nbPublicWires; i++ {
-		t1.Mul(&A[i+nbPrivateWires], &toxicWaste.beta)
-		t0.Mul(&B[i+nbPrivateWires], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i+nbPrivateWires]).
 			Div(&t1, &toxicWaste.gamma)
 		vkK[i] = t1.ToRegular()
+	}
+
+	for i := 0; i < nbPrivateWires; i++ {
+		t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
+		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i+nbPublicWires]).
+			Div(&t1, &toxicWaste.delta)
+		pkK[i] = t1.ToRegular()
 	}
 
 	// convert A and B to regular form
@@ -246,7 +247,7 @@ func Setup(r1cs *bw761backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 func setupABC(r1cs *bw761backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
-	nbWires := r1cs.NbWires
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
 	A = make([]fr.Element, nbWires)
 	B = make([]fr.Element, nbWires)
@@ -338,16 +339,16 @@ func sampleToxicWaste() (toxicWaste, error) {
 // used for test or benchmarking purposes
 func DummySetup(r1cs *bw761backend.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbWires
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := fft.NewDomain(nbConstraints)
+	domain := fft.NewDomain(uint64(nbConstraints))
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
 	pk.G1.B = make([]curve.G1Affine, nbWires)
-	pk.G1.K = make([]curve.G1Affine, r1cs.NbWires-r1cs.NbPublicWires)
+	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicVariables)
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires)
 
@@ -434,6 +435,11 @@ func (pk *ProvingKey) GetCurveID() gurvy.ID {
 // GetCurveID returns the curveID
 func (vk *VerifyingKey) GetCurveID() gurvy.ID {
 	return curve.ID
+}
+
+// SizePublicWitness returns the number of elements in the expected public witness
+func (vk *VerifyingKey) SizePublicWitness() int {
+	return (len(vk.G1.K) - 1)
 }
 
 // bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine

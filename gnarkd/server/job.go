@@ -80,7 +80,6 @@ func (job *proveJob) unsubscribe(ch chan struct{}) {
 			return
 		}
 	}
-	return
 }
 
 // must be called under lock

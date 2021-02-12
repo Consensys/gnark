@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/hash"
 	"github.com/consensys/gnark/frontend"
@@ -60,7 +61,7 @@ func TestMimcAll(t *testing.T) {
 
 		// minimal cs res = hash(data)
 		var circuit, witness, wrongWitness mimcCircuit
-		r1cs, err := frontend.Compile(curve, &circuit)
+		r1cs, err := frontend.Compile(curve, backend.GROTH16, &circuit)
 		if err != nil {
 			t.Fatal(err)
 		}

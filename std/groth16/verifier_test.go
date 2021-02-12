@@ -19,12 +19,13 @@ package groth16
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	groth16_bls377 "github.com/consensys/gnark/internal/backend/bls377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls377/witness"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -59,7 +60,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := frontend.Compile(gurvy.BLS377, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BLS377, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,9 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	w.Data.Assign(preimage)
 	w.Hash.Assign(publicHash)
 
-	correctAssignment, err := witness.Full(&w)
+	correctAssignment := witness.Witness{}
+
+	err = correctAssignment.FromFullAssignment(&w)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +86,8 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
-	correctAssignmentPublic, err := witness.Public(&w)
+	correctAssignmentPublic := witness.Witness{}
+	err = correctAssignmentPublic.FromPublicAssignment(&w)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +127,7 @@ func TestVerifier(t *testing.T) {
 	// create an empty cs
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

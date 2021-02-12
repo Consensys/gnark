@@ -21,9 +21,11 @@ import (
 
 	curve "github.com/consensys/gurvy/bn256"
 
-	bn256backend "github.com/consensys/gnark/internal/backend/bn256"
+	bn256backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
+
+	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 
 	"fmt"
 	"github.com/consensys/gnark/internal/utils"
@@ -53,17 +55,16 @@ func (proof *Proof) GetCurveID() gurvy.ID {
 // Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
 // if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness []fr.Element, force bool) (*Proof, error) {
-	if len(witness) != int(r1cs.NbPublicWires+r1cs.NbSecretWires) {
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicWires+r1cs.NbSecretWires), r1cs.NbPublicWires, r1cs.NbSecretWires)
+func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness bn256witness.Witness, force bool) (*Proof, error) {
+	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
+		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}
-	nbPrivateWires := r1cs.NbWires - r1cs.NbPublicWires
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
-	wireValues := make([]fr.Element, r1cs.NbWires)
+	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
 	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil && !force {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func Prove(r1cs *bn256backend.R1CS, pk *ProvingKey, witness []fr.Element, force 
 			krs2.MultiExp(pk.G1.Z, h, cpuSemaphore)
 			chKrs2Done <- struct{}{}
 		}()
-		krs.MultiExp(pk.G1.K[:nbPrivateWires], wireValues[:nbPrivateWires], cpuSemaphore)
+		krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], cpuSemaphore)
 		krs.AddMixed(&deltas[2])
 		n := 3
 		for n != 0 {

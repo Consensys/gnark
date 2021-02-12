@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -44,7 +45,7 @@ func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestAddFp12(t *testing.T) {
 
 	var circuit, witness fp12Add
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestSubFp12(t *testing.T) {
 
 	var circuit, witness fp12Sub
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +116,7 @@ func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestMulFp12(t *testing.T) {
 
 	var circuit, witness fp12Mul
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestConjugateFp12(t *testing.T) {
 
 	var circuit, witness fp12Conjugate
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestMulByVFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByV
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +227,7 @@ func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 func TestMulByV2WFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByV2W
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +267,7 @@ func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 func TestMulByVWFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByVW
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +313,7 @@ func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestFrobeniusFp12(t *testing.T) {
 
 	var circuit, witness fp12Frobenius
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +351,7 @@ func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 func TestInverseFp12(t *testing.T) {
 
 	var circuit, witness fp12Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +385,7 @@ func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 
 func TestExpFixedExpoFp12(t *testing.T) {
 	var circuit, witness fp12FixedExpo
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +421,7 @@ func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 
 func TestExpFinalExpoFp12(t *testing.T) {
 	var circuit, witness fp12FinalExpo
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,20 +20,17 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
-
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761"
-
-	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
 )
 
 // Assert is a helper to test circuits
@@ -47,11 +44,10 @@ func NewAssert(t *testing.T) *Assert {
 }
 
 // ProverFailed check that a witness does NOT solve a circuit
-func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, witness frontend.Witness) {
+func (assert *Assert) ProverFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 	// setup
 	pk, err := DummySetup(r1cs)
 	assert.NoError(err)
-
 	_, err = Prove(r1cs, pk, witness)
 	assert.Error(err, "proving with bad witness should output an error")
 }
@@ -69,7 +65,7 @@ func (assert *Assert) ProverFailed(r1cs r1cs.R1CS, witness frontend.Witness) {
 // 5. Ensure deserialization(serialization) of generated objects is correct
 //
 // ensure result vectors a*b=c, and check other properties like random sampling
-func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) {
+func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 	// setup
 	pk, vk, err := Setup(r1cs)
 	assert.NoError(err)
@@ -86,6 +82,8 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) 
 
 	// ensure expected Values are computed correctly
 	assert.SolvingSucceeded(r1cs, witness)
+
+	// extract full witness & public witness
 
 	// prover
 	proof, err := Prove(r1cs, pk, witness)
@@ -105,12 +103,12 @@ func (assert *Assert) ProverSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) 
 	}
 
 	// serialization
-	assert.serializationSucceeded(proof, NewProof(r1cs.GetCurveID()))
-	assert.serializationSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
-	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(proof, NewProof(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.GetCurveID()))
-	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.GetCurveID()))
+	assert.serializationSucceeded(proof, NewProof(r1cs.CurveID()))
+	assert.serializationSucceeded(pk, NewProvingKey(r1cs.CurveID()))
+	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
+	assert.serializationRawSucceeded(proof, NewProof(r1cs.CurveID()))
+	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.CurveID()))
+	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
 }
 
 func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
@@ -136,38 +134,40 @@ func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingSucceeded(r1cs r1cs.R1CS, witness frontend.Witness) {
-	assert.NoError(solveR1CS(r1cs, witness))
+func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.NoError(IsSolved(r1cs, witness))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingFailed(r1cs r1cs.R1CS, witness frontend.Witness) {
-	assert.Error(solveR1CS(r1cs, witness))
+func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.Error(IsSolved(r1cs, witness))
 }
 
-func solveR1CS(r1cs r1cs.R1CS, witness frontend.Witness) error {
+// IsSolved attempts to solve the constraint system with provided witness
+// returns nil if it succeeds, error otherwise.
+func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
-		w, err := witness_bls377.Full(witness)
-		if err != nil {
+		w := witness_bls377.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bls381.R1CS:
-		w, err := witness_bls381.Full(witness)
-		if err != nil {
+		w := witness_bls381.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bn256.R1CS:
-		w, err := witness_bn256.Full(witness)
-		if err != nil {
+		w := witness_bn256.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bw761.R1CS:
-		w, err := witness_bw761.Full(witness)
-		if err != nil {
+		w := witness_bw761.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)

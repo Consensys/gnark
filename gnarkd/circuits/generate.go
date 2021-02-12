@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/gnarkd/circuits/bn256/cubic"
@@ -12,7 +13,7 @@ import (
 //go:generate go run generate.go
 func main() {
 	var circuit cubic.Circuit
-	r1cs, _ := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, _ := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 
 	{
 		f, _ := os.Create("bn256/cubic/cubic.r1cs")

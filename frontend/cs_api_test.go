@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gurvy"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
@@ -29,11 +29,11 @@ type deltaState = csState
 
 // contains information about a constraint system after a gnark function has been called
 type csResult struct {
-	cs                *ConstraintSystem // constraint system after it has been modified using gnark API
-	publicVariables   []Variable        // public variables created after calling a run function
-	secretVariables   []Variable        // secret variables created aftrer calling a run funcion
-	internalVariables []Variable        // variables resulting of the function call (from cs.Add, cs.Mul, etc)
-	solver            r1c.SolvingMethod // according to the solving method, different features are checked
+	cs                *ConstraintSystem      // constraint system after it has been modified using gnark API
+	publicVariables   []Variable             // public variables created after calling a run function
+	secretVariables   []Variable             // secret variables created aftrer calling a run funcion
+	internalVariables []Variable             // variables resulting of the function call (from cs.Add, cs.Mul, etc)
+	solver            compiled.SolvingMethod // according to the solving method, different features are checked
 }
 
 type runfunc func(systemUnderTest commands.SystemUnderTest) commands.Result
@@ -147,7 +147,7 @@ func rfAddSub() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -180,7 +180,7 @@ func rfMul() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -209,7 +209,7 @@ func rfInverse() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -251,7 +251,7 @@ func rfDiv() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -284,7 +284,7 @@ func rfXor() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -311,7 +311,7 @@ func rfToBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.BinaryDec}
+			compiled.BinaryDec}
 
 		return csRes
 	}
@@ -356,7 +356,7 @@ func rfSelect() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -385,7 +385,7 @@ func rfConstant() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -421,7 +421,7 @@ func rfIsEqual() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -450,7 +450,7 @@ func rfFromBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -488,7 +488,7 @@ func rfIsBoolean() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -711,12 +711,12 @@ func TestUnsetVariables(t *testing.T) {
 
 	for name, arg := range mapFuncs {
 		t.Run(name, func(_t *testing.T) {
-			_, err := Compile(gurvy.UNKNOWN, arg)
+			_, err := Compile(gurvy.UNKNOWN, backend.GROTH16, arg)
 			if err == nil {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
 
-			if !errors.Is(err, backend.ErrInputNotSet) {
+			if !errors.Is(err, ErrInputNotSet) {
 				_t.Fatal("expected input not set error, got " + err.Error())
 			}
 		})

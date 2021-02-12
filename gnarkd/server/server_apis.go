@@ -28,7 +28,7 @@ func (s *Server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.Prove
 	}
 
 	// call groth16.Prove with witness
-	proof, err := groth16.DeserializeAndProve(circuit.r1cs, circuit.pk, request.Witness)
+	proof, err := groth16.ReadAndProve(circuit.r1cs, circuit.pk, bytes.NewReader(request.Witness))
 	if err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.Internal, err.Error())
@@ -131,7 +131,7 @@ func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, str
 			return grpc.ErrServerStopped
 		case <-stream.Context().Done():
 			s.log.Warnw("connection terminated", "jobID", request.JobID)
-			return grpc.ErrClientConnClosing
+			return status.Error(codes.Canceled, "connection terminated")
 		case _, ok := <-chJobUpdate:
 			// job status updated.
 			job.RLock()
@@ -172,12 +172,12 @@ func (s *Server) Verify(ctx context.Context, request *pb.VerifyRequest) (*pb.Ver
 	}
 
 	// call groth16.Verify with witness
-	proof := groth16.NewProof(circuit.r1cs.GetCurveID())
+	proof := groth16.NewProof(circuit.r1cs.CurveID())
 	if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
-	err := groth16.DeserializeAndVerify(proof, circuit.vk, request.PublicWitness)
+	err := groth16.ReadAndVerify(proof, circuit.vk, bytes.NewReader(request.PublicWitness))
 	if err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())

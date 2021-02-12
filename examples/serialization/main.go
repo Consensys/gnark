@@ -5,8 +5,8 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
@@ -17,14 +17,14 @@ func main() {
 	var circuit cubic.Circuit
 
 	// compile a circuit
-	_r1cs, _ := frontend.Compile(gurvy.BN256, &circuit)
+	_r1cs, _ := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
 
 	// R1CS implements io.WriterTo and io.ReaderFrom
 	var buf bytes.Buffer
 	_r1cs.WriteTo(&buf)
 
 	// gnark objects (R1CS, ProvingKey, VerifyingKey, Proof) must be instantiated like so:
-	newR1CS := r1cs.New(gurvy.BN256)
+	newR1CS := groth16.NewCS(gurvy.BN256)
 	newR1CS.ReadFrom(&buf)
 
 	// setup

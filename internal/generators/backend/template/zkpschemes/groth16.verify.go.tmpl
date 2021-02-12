@@ -1,6 +1,7 @@
 import (
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
+	{{ template "import_witness" . }}
 	"fmt"
 	"errors"
 	"io"
@@ -15,10 +16,10 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-// publicWitness must be in regular form (and not in Montgomery)
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
-	if len(publicWitness) != len(vk.G1.K) {
-		return  fmt.Errorf("invalid witness size, got %d, expected %d (public)", len(publicWitness), len(vk.G1.K))
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .Curve}}witness.Witness) error {
+
+	if len(publicWitness) != (len(vk.G1.K) - 1) {
+		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K) - 1)
 	}
 
 	// check that the points in the proof are in the correct subgroup
@@ -38,10 +39,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 	}()
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
-	var kSum curve.G1Affine
-	kSum.MultiExp(vk.G1.K, publicWitness)
+	var kSum curve.G1Jac
+	__publicWitness := make([]fr.Element, len(publicWitness))
+	for i:= 0; i < len(publicWitness);i++ {
+		__publicWitness[i] = publicWitness[i].ToRegular()
+	} 
+	kSum.MultiExp(vk.G1.K[1:], __publicWitness)
+	kSum.AddMixed(&vk.G1.K[0])
+	var kSumAff curve.G1Affine
+	kSumAff.FromJacobian(&kSum)
 
-	right, err := curve.MillerLoop([]curve.G1Affine{kSum}, []curve.G2Affine{vk.G2.gammaNeg})
+	right, err := curve.MillerLoop([]curve.G1Affine{kSumAff}, []curve.G2Affine{vk.G2.gammaNeg})
 	if err != nil {
 		return err
 	}

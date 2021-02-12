@@ -21,14 +21,18 @@ import (
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gurvy"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIntegrationAPI(t *testing.T) {
+
+	assert := require.New(t)
 
 	// create temporary dir for integration test
 	parentDir := "./integration_test"
@@ -53,50 +57,38 @@ func TestIntegrationAPI(t *testing.T) {
 		for _, curve := range curves {
 			t.Log(curve.String())
 
-			r1cs, err := frontend.Compile(curve, circuit.Circuit)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r1cs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
+			assert.NoError(err)
 
 			pk, vk, err := groth16.Setup(r1cs)
-			if err != nil {
-				t.Fatal(err)
-			}
-			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good)
-			if err != nil {
-				t.Fatal(err)
-			}
-			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, true)
-			if err != nil {
-				t.Fatal(err)
-			}
+			assert.NoError(err)
 
-			err = groth16.Verify(correctProof, vk, circuit.Public)
-			if err != nil {
-				t.Fatal("Verify should have succeeded")
-			}
-			err = groth16.Verify(wrongProof, vk, circuit.Public)
-			if err == nil {
-				t.Fatal("Verify should have failed")
-			}
+			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good)
+			assert.NoError(err)
+
+			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, true)
+			assert.NoError(err)
+
+			assert.NoError(groth16.Verify(correctProof, vk, circuit.Public))
+			assert.Error(groth16.Verify(wrongProof, vk, circuit.Public))
 
 			// witness serialization tests.
 			{
 				buf.Reset()
-				if err = witness.WriteFull(&buf, circuit.Good, curve); err != nil {
-					t.Fatal("serializing full witness failed.", err)
-				}
-				correctProof, err := groth16.DeserializeAndProve(r1cs, pk, buf.Bytes())
-				if err != nil {
-					t.Fatal(err)
-				}
+
+				_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+				assert.NoError(err)
+
+				correctProof, err := groth16.ReadAndProve(r1cs, pk, &buf)
+				assert.NoError(err)
+
 				buf.Reset()
-				if err = witness.WritePublic(&buf, circuit.Public, curve); err != nil {
-					t.Fatal("serializing public witness failed.")
-				}
-				if err = groth16.DeserializeAndVerify(correctProof, vk, buf.Bytes()); err != nil {
-					t.Fatal("DeserializeAndVerify should have succeeded", err)
-				}
+
+				_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+				assert.NoError(err)
+
+				err = groth16.ReadAndVerify(correctProof, vk, &buf)
+				assert.NoError(err)
 			}
 
 		}

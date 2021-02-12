@@ -19,6 +19,7 @@ package sw
 import (
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
@@ -48,7 +49,7 @@ func TestLineEvalBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalAffineBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingAffineBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +209,7 @@ func TestPairingBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

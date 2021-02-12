@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
@@ -32,7 +32,7 @@ type ExportSolidityTestSuite struct {
 	vk      groth16.VerifyingKey
 	pk      groth16.ProvingKey
 	circuit cubic.Circuit
-	r1cs    r1cs.R1CS
+	r1cs    frontend.CompiledConstraintSystem
 }
 
 func TestRunExportSolidityTestSuite(t *testing.T) {
@@ -71,7 +71,7 @@ func (t *ExportSolidityTestSuite) SetupTest() {
 		t.NoError(err, "reading verifying key failed")
 	}
 
-	t.r1cs, err = frontend.Compile(gurvy.BN256, &t.circuit)
+	t.r1cs, err = frontend.Compile(gurvy.BN256, backend.GROTH16, &t.circuit)
 	t.NoError(err, "compiling R1CS failed ")
 
 }

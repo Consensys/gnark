@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gurvy"
 	bls381fr "github.com/consensys/gurvy/bls381/fr"
@@ -58,7 +58,7 @@ func main() {
 				NbCores:        runtime.NumCPU(),
 				NbCoefficients: r1cs.GetNbCoefficients(),
 				NbConstraints:  r1cs.GetNbConstraints(),
-				NbWires:        r1cs.GetNbWires(),
+				NbWires:        0, // TODO @gbotrel fixme
 				RunTime:        took.Milliseconds(),
 				MaxRAM:         (m.Sys / 1024 / 1024),
 				Throughput:     int(float64(r1cs.GetNbConstraints()) / took.Seconds()),
@@ -89,11 +89,11 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	return nil
 }
 
-func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r1cs.R1CS) {
+func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, frontend.CompiledConstraintSystem) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
-	r1cs, err := frontend.Compile(curveID, &circuit)
+	r1cs, err := frontend.Compile(curveID, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}
@@ -135,8 +135,8 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 
 type benchData struct {
 	Curve             string
-	NbConstraints     uint64
-	NbWires           uint64
+	NbConstraints     int
+	NbWires           int
 	NbCoefficients    int
 	MaxRAM            uint64
 	RunTime           int64
