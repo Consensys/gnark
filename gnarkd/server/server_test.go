@@ -355,12 +355,23 @@ func TestCancelAndListJob(t *testing.T) {
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
-	<-time.After(42 * time.Millisecond) // give some time to CreateProveJob to run
 	list, err := client.ListProveJob(ctx, &pb.ListProveJobRequest{})
 	assert.NoError(err)
-	assert.True(len(list.Jobs) == 2)
-	assert.True(list.Jobs[0].JobID == r.JobID || list.Jobs[1].JobID == r.JobID)
-	assert.True(list.Jobs[0].JobID == r2.JobID || list.Jobs[1].JobID == r2.JobID)
+	assert.GreaterOrEqual(len(list.Jobs), 2)
+
+	foundR := false
+	foundR2 := false
+	for _, j := range list.Jobs {
+		if j.JobID == r.JobID {
+			foundR = true
+		}
+		if j.JobID == r2.JobID {
+			foundR2 = true
+		}
+	}
+
+	assert.True(foundR)
+	assert.True(foundR2)
 }
 
 func TestVerifySync(t *testing.T) {
