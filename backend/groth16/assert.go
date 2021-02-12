@@ -134,38 +134,40 @@ func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, _witness frontend.Circuit) {
-	assert.NoError(Solve(r1cs, _witness))
+func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.NoError(IsSolved(r1cs, witness))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, _witness frontend.Circuit) {
-	assert.Error(Solve(r1cs, _witness))
+func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.Error(IsSolved(r1cs, witness))
 }
 
-func Solve(r1cs frontend.CompiledConstraintSystem, _witness frontend.Circuit) error {
+// IsSolved attempts to solve the constraint system with provided witness
+// returns nil if it succeeds, error otherwise.
+func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls377.R1CS:
 		w := witness_bls377.Witness{}
-		if err := w.FromFullAssignment(_witness); err != nil {
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bls381.R1CS:
 		w := witness_bls381.Witness{}
-		if err := w.FromFullAssignment(_witness); err != nil {
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bn256.R1CS:
 		w := witness_bn256.Witness{}
-		if err := w.FromFullAssignment(_witness); err != nil {
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)
 	case *backend_bw761.R1CS:
 		w := witness_bw761.Witness{}
-		if err := w.FromFullAssignment(_witness); err != nil {
+		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w)

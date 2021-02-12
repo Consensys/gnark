@@ -57,10 +57,10 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 
 	// convert the constraints invidually
 	for i := 0; i < len(cs.constraints); i++ {
-		r1cToPlonkConstraint(&res, cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
+		r1cToSparseR1C(&res, cs, cs.constraints[i], varPcsToVarCs, solvedVariables)
 	}
 	for i := 0; i < len(cs.assertions); i++ {
-		r1cToPlonkAssertion(&res, cs, cs.assertions[i], varPcsToVarCs)
+		splitR1C(&res, cs, cs.assertions[i], varPcsToVarCs)
 	}
 
 	// offset the ID in a term
@@ -400,7 +400,7 @@ func split(pcs *compiled.SparseR1CS, acc compiled.Term, csCoeffs []big.Int, le c
 
 }
 
-func r1cToPlonkConstraint(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
+func r1cToSparseR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS, solvedVariables []bool) {
 	if r1c.Solver == compiled.SingleOutput {
 		r1cToPlonkConstraintSingleOutput(pcs, cs, r1c, csPcsMapping, solvedVariables)
 	} else {
@@ -954,11 +954,11 @@ func r1cToPlonkConstraintBinary(pcs *compiled.SparseR1CS, cs *ConstraintSystem, 
 	}
 }
 
-// r1cToPlonkAssertion splits a r1c assertion (meaning that
+// splitR1C splits a r1c assertion (meaning that
 // it's a r1c constraint that is not used to solve a variable,
 // like a boolean constraint).
 // (l + constantl)*(r + constantr) = o + constanto
-func r1cToPlonkAssertion(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS) {
+func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS) {
 
 	l := make(compiled.LinearExpression, len(r1c.L))
 	r := make(compiled.LinearExpression, len(r1c.R))

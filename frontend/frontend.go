@@ -14,7 +14,7 @@ import (
 // ErrInputNotSet triggered when trying to access a variable that was not allocated
 var ErrInputNotSet = errors.New("variable is not allocated")
 
-// Compile will generate a R1CS from the given circuit
+// Compile will generate a CompiledConstraintSystem from the given circuit
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
@@ -26,7 +26,9 @@ var ErrInputNotSet = errors.New("variable is not allocated")
 // 2. it then calls circuit.Define(curveID, constraintSystem) to build the internal constraint system
 // from the declarative code
 //
-// 3. finally, it converts that to a R1CS
+// 3. finally, it converts that to a CompiledConstraintSystem.
+// 		if zkpID == backend.GROTH16	--> R1CS
+//		if zkpID == backend.PLONK 	--> SparseR1CS
 func Compile(curveID gurvy.ID, zkpID backend.ID, circuit Circuit) (ccs CompiledConstraintSystem, err error) {
 
 	// build the constraint system (see Circuit.Define)
@@ -35,7 +37,6 @@ func Compile(curveID gurvy.ID, zkpID backend.ID, circuit Circuit) (ccs CompiledC
 		return nil, err
 	}
 
-	// offset the IDs -> interal_wire || secret_variables || public_variables
 	switch zkpID {
 	case backend.GROTH16:
 		ccs, err = cs.toR1CS(curveID)

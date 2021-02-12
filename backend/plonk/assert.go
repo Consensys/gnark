@@ -42,15 +42,17 @@ func NewAssert(t *testing.T) *Assert {
 
 // SolvingSucceeded Verifies that the cs.PCS is solved with the given witness, without executing plonk workflow
 func (assert *Assert) SolvingSucceeded(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.NoError(Solve(cs, witness))
+	assert.NoError(IsSolved(cs, witness))
 }
 
 // SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
 func (assert *Assert) SolvingFailed(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.Error(Solve(cs, witness))
+	assert.Error(IsSolved(cs, witness))
 }
 
-func Solve(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
+// IsSolved attempts to solve the constraint system with provided witness
+// returns nil if it succeeds, error otherwise.
+func IsSolved(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _pcs := cs.(type) {
 	case *backend_bn256.SparseR1CS:
 		w := witness_bn256.Witness{}

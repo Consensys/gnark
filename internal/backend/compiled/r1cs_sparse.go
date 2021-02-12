@@ -75,12 +75,12 @@ func (cs *SparseR1CS) CurveID() gurvy.ID {
 	return gurvy.UNKNOWN
 }
 
-// WriteTo panics (can't serialize untyped R1CS)
+// WriteTo panics
 func (cs *SparseR1CS) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented: can't serialize untyped Plonk CS")
+	panic("not implemented")
 }
 
-// ReadFrom panics (can't deserialize untyped R1CS)
+// ReadFrom panics
 func (cs *SparseR1CS) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented: can't deserialize untyped R1CS")
+	panic("not implemented")
 }
