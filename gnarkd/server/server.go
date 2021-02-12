@@ -42,7 +42,10 @@ const (
 	jobQueueSize = 10
 )
 
-var errJobExpired = errors.New("job expired")
+var (
+	errJobExpired   = errors.New("job expired")
+	errJobCancelled = errors.New("job cancelled")
+)
 
 // Server implements Groth16Server
 type Server struct {

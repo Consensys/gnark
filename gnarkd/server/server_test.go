@@ -298,6 +298,58 @@ func TestJobTTL(t *testing.T) {
 	assert.Equal(errMsg, errJobExpired.Error())
 }
 
+func TestCancelJob(t *testing.T) {
+	assert := require.New(t)
+
+	// create grpc client connection
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "", grpc.WithContextDialer(
+		func(c context.Context, s string) (net.Conn, error) {
+			return grpcListener.Dial()
+		}), grpc.WithInsecure())
+
+	assert.NoError(err)
+	defer conn.Close()
+
+	client := pb.NewGroth16Client(conn)
+
+	// 2. call prove
+	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
+		CircuitID: "bn256/cubic",
+	})
+	assert.NoError(err, "grpc sync create prove failed")
+
+	// 3. subscribe to status changes
+	stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
+	assert.NoError(err, "couldn't subscribe to job")
+
+	done := make(chan struct{}, 1)
+	var lastStatus pb.ProveJobResult_Status
+	var errMsg string
+	go func() {
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				done <- struct{}{}
+				return
+			}
+			lastStatus = resp.Status
+			if lastStatus == pb.ProveJobResult_ERRORED {
+				errMsg = (*resp.Err)
+			}
+		}
+	}()
+
+	<-time.After(92 * time.Millisecond) // give some time to SubscribeToProveJob to start
+	_, err = client.CancelProveJob(ctx, &pb.CancelProveJobRequest{
+		JobID: r.JobID,
+	})
+	assert.NoError(err)
+	<-done
+	assert.Equal(lastStatus, pb.ProveJobResult_ERRORED)
+	assert.Equal(errMsg, errJobCancelled.Error())
+}
+
 func TestVerifySync(t *testing.T) {
 	assert := require.New(t)
 
