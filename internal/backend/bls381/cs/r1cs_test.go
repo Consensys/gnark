@@ -29,7 +29,7 @@ import (
 )
 
 func TestSerialization(t *testing.T) {
-	var buffer bytes.Buffer
+
 	for name, circuit := range circuits.Circuits {
 
 		r1cs, err := frontend.Compile(gurvy.BLS381, backend.GROTH16, circuit.Circuit)
@@ -39,10 +39,9 @@ func TestSerialization(t *testing.T) {
 		if testing.Short() && r1cs.GetNbConstraints() > 50 {
 			continue
 		}
-		buffer.Reset()
 
 		t.Run(name, func(t *testing.T) {
-
+			var buffer bytes.Buffer
 			var err error
 			var written, read int64
 			written, err = r1cs.WriteTo(&buffer)
