@@ -7,7 +7,7 @@ require (
 	github.com/aristanetworks/goarista v0.0.0-20210204223745-64c208b2a430 // indirect
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/consensys/bavard v0.1.8-0.20210105233146-c16790d2aa8b
-	github.com/consensys/gurvy v0.3.9-0.20210211035947-d501001243b1
+	github.com/consensys/gurvy v0.3.8
 	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/ethereum/go-ethereum v1.9.25
