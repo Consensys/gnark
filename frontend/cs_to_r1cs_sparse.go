@@ -88,6 +88,33 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 	}
 
 	offsetIDs := func(exp *compiled.SparseR1C) error {
+
+		// ensure that L=M[0] and R=M[1] (up to scalar mul)
+		if exp.L.CoeffID() == 0 {
+			if exp.M[0] != 0 {
+				exp.L = exp.M[0]
+				exp.L.SetCoeffID(0)
+			}
+		} else {
+			if exp.M[0].CoeffID() == 0 {
+				exp.M[0] = exp.L
+				exp.M[0].SetCoeffID(0)
+			}
+		}
+
+		if exp.R.CoeffID() == 0 {
+			if exp.M[1] != 0 {
+				exp.R = exp.M[1]
+				exp.R.SetCoeffID(0)
+			}
+		} else {
+			if exp.M[1].CoeffID() == 0 {
+				exp.M[1] = exp.R
+				exp.M[1].SetCoeffID(0)
+			}
+		}
+
+		// offset each term in the constraint
 		err := offsetIDTerm(&exp.L)
 		if err != nil {
 			return err
@@ -112,7 +139,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 	}
 
 	// offset the IDs of all constraints to that the variables are
-	// numbered like this: [internalVariables | secretVariables | publicVariables]
+	// numbered like this: [ publicVariables|  secretVariables | internalVariables ] (public starts with ONE_WIRE)
 	for i := 0; i < len(res.Constraints); i++ {
 		offsetIDs(&res.Constraints[i])
 	}
