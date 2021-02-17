@@ -35,6 +35,9 @@ type Digest interface {
 type OpeningProof interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// ClaimedValue returns the claimed value from the proof
+	ClaimedValue() FieldElmt
 }
 
 // CommitmentScheme interface for a polynomial commitment scheme
