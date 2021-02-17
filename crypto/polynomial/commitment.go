@@ -30,8 +30,9 @@ type Digest interface {
 	io.ReaderFrom
 }
 
-// Proof interface that a polynomial commitment opening proof
-type Proof interface {
+// OpeningProof interface that a polynomial commitment opening proof
+// should implement.
+type OpeningProof interface {
 	io.WriterTo
 	io.ReaderFrom
 }
@@ -42,6 +43,6 @@ type CommitmentScheme interface {
 	io.ReaderFrom
 
 	Commit(p Polynomial) Digest
-	Open(p Polynomial, val FieldElmt) (Proof, FieldElmt)
-	Verify(d Digest, p Proof, v FieldElmt) bool
+	Open(p Polynomial, val FieldElmt) OpeningProof
+	Verify(d Digest, p OpeningProof, v FieldElmt) bool
 }

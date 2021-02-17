@@ -37,7 +37,9 @@ func (md *MockDigest) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 // MockProof empty struct
-type MockProof struct{}
+type MockProof struct {
+	ClaimedEvaluation fr.Element
+}
 
 // WriteTo mock impementation
 func (mp *MockProof) WriteTo(w io.Writer) (n int64, err error) {
@@ -75,13 +77,13 @@ func (mcs *MockCommitmentScheme) Commit(p *bn256.Poly) *MockDigest {
 // particular it assumes that the polynomial is representated using
 // the canonical basis, where p.Data[0] the degree 0 coefficient,
 // p.Data[len(p.Data)-1] is the highest coefficient).
-func (mcs *MockCommitmentScheme) Open(p *bn256.Poly, val *fr.Element) (*MockProof, *fr.Element) {
-	var res fr.Element
+func (mcs *MockCommitmentScheme) Open(p *bn256.Poly, val *fr.Element) *MockProof {
+	var res MockProof
 	for i := len(p.Data) - 1; i >= 0; i-- {
-		res.Add(&res, &p.Data[i])
-		res.Mul(&res, val)
+		res.ClaimedEvaluation.Add(&res.ClaimedEvaluation, &p.Data[i])
+		res.ClaimedEvaluation.Mul(&res.ClaimedEvaluation, val)
 	}
-	return nil, &res
+	return &res
 }
 
 // Verify mock implementation of verify
