@@ -51,6 +51,11 @@ func (mp *MockProof) ReadFrom(r io.Reader) (n int64, err error) {
 	return 0, nil
 }
 
+// ClaimedValue returns the claimed value from the proof
+func (mp *MockProof) ClaimedValue() fr.Element {
+	return mp.ClaimedEvaluation
+}
+
 // MockCommitmentScheme mock commitment, useful for testing polynomial based IOP
 // like PLONK, where the scheme should not depend on which polynomial commitment scheme
 // is used.

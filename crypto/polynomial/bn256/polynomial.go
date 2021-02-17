@@ -24,7 +24,7 @@ type Poly struct {
 }
 
 // Degree returns the degree of the polynomial, which is the length of Data.
-func (p *Poly) Degree() uint64 {
+func (p Poly) Degree() uint64 {
 	res := uint64(len(p.Data) - 1)
 	return res
 }
