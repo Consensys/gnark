@@ -16,12 +16,10 @@ package polynomial
 
 import "io"
 
-// FieldElmt represents a field element
-type FieldElmt interface{}
-
 // Polynomial interface that a polynomial should implement
 type Polynomial interface {
 	Degree() uint64
+	Eval(v interface{}) interface{}
 }
 
 // Digest interface that a polynomial commitment should implement
@@ -30,22 +28,36 @@ type Digest interface {
 	io.ReaderFrom
 }
 
-// OpeningProof interface that a polynomial commitment opening proof
+// OpeningProof interface that an opening proof
 // should implement.
 type OpeningProof interface {
 	io.WriterTo
 	io.ReaderFrom
-
-	// ClaimedValue returns the claimed value from the proof
-	ClaimedValue() FieldElmt
 }
 
-// CommitmentScheme interface for a polynomial commitment scheme
+// BatchOpeningProofSinglePoint interface that a bacth opening proof (single point)
+// should implement.
+type BatchOpeningProofSinglePoint interface {
+	io.WriterTo
+	io.ReaderFrom
+}
+
+// CommitmentScheme interface for an additively homomorphic
+// polynomial commitment scheme.
+// The function BatchOpenSinglePoint is proper to an additively
+// homomorphic commitment scheme.
 type CommitmentScheme interface {
 	io.WriterTo
 	io.ReaderFrom
 
 	Commit(p Polynomial) Digest
-	Open(p Polynomial, val FieldElmt) OpeningProof
-	Verify(d Digest, p OpeningProof, v FieldElmt) bool
+
+	Open(val interface{}, p Polynomial) OpeningProof
+	Verify(d Digest, p OpeningProof, v interface{}) bool
+
+	// BatchOpenSinglePoint creates a batch opening proof at _val of _p..., by computing
+	// an opening proof for for _p... bundled like _p[0]+challenge*_p[1]+challenge**2*_p[2]...
+	// This pattern works to the homomorphic property of the commitment scheme.
+	BatchOpenSinglePoint(_val, challenge interface{}, _p ...Polynomial) BatchOpeningProofSinglePoint
+	BatchVerifySinglePoint(_val, challenge interface{}, d ...Digest) bool
 }

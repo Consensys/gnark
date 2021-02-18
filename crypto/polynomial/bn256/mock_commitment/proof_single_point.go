@@ -12,32 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bn256
+package mockcommitment
 
 import (
-	"github.com/consensys/gurvy/bn256/fr"
+	"io"
 )
 
-// Poly polynomial represented by coefficients bn256 fr field.
-type Poly struct {
-	Data []fr.Element
+// MockBatchProofsSinglePoint empty struct
+type MockBatchProofsSinglePoint struct{}
+
+// WriteTo mock impementation
+func (mp *MockBatchProofsSinglePoint) WriteTo(w io.Writer) (n int64, err error) {
+	return 0, nil
 }
 
-// Degree returns the degree of the polynomial, which is the length of Data.
-func (p Poly) Degree() uint64 {
-	res := uint64(len(p.Data) - 1)
-	return res
-}
-
-// Eval evaluates p at v
-func (p Poly) Eval(v interface{}) interface{} {
-	var res, _v fr.Element
-	_v.Set(v.(*fr.Element))
-	s := len(p.Data)
-	res.Set(&p.Data[s-1])
-	for i := s - 2; i >= 0; i-- {
-		res.Mul(&res, &_v)
-		res.Add(&res, &p.Data[i])
-	}
-	return &res
+// ReadFrom mock impementation
+func (mp *MockBatchProofsSinglePoint) ReadFrom(r io.Reader) (n int64, err error) {
+	return 0, nil
 }
