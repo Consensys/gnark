@@ -151,21 +151,17 @@ func (d *Domain) preComputeTwiddles() {
 	expTable := func(sqrt fr.Element, t []fr.Element) {
 		t[0] = fr.One()
 		precomputeExpTable(sqrt, t)
-		BitReverse(t)
 		wg.Done()
 	}
 
 	if nbCosets > 0 {
 		cosetGens := make([]fr.Element, nbCosets)
 		cosetGensInv := make([]fr.Element, nbCosets)
-		var accFiner, accFinerInv fr.Element
-		accFiner.Set(&d.FinerGenerator)
-		accFinerInv.Set(&d.FinerGeneratorInv)
-		for i := 0; i < nbCosets; i++ {
-			cosetGens[i].Set(&accFiner)
-			cosetGensInv[i].Set(&accFinerInv)
-			accFiner.Mul(&accFiner, &d.FinerGenerator)
-			accFinerInv.Mul(&accFinerInv, &d.FinerGeneratorInv)
+		cosetGens[0].Set(&d.FinerGenerator)
+		cosetGensInv[0].Set(&d.FinerGeneratorInv)
+		for i := 1; i < nbCosets; i++ {
+			cosetGens[i].Mul(&cosetGens[i-1], &d.FinerGenerator)
+			cosetGensInv[i].Mul(&cosetGensInv[1], &d.FinerGeneratorInv)
 		}
 		wg.Add(2 + 2*nbCosets)
 		go twiddles(d.Twiddles, d.Generator)
