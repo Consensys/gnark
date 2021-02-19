@@ -41,6 +41,11 @@ const butterflyThreshold = 16
 // if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
 // coset sets the shift of the fft (0 = no shift, standard fft)
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
+//
+// example:
+// -------
+// domain := NewDomain(m, 2) -->  contains precomputed data for Z/mZ, and Z/4mZ
+// FFT(pol, DIT, 1) --> evaluates pol on the coset 1 in (Z/4mZ)/(Z/mZ)
 func (domain *Domain) FFT(a []fr.Element, decimation Decimation, coset uint64) {
 
 	numCPU := uint64(runtime.NumCPU())
