@@ -19,13 +19,11 @@ import (
 )
 
 // Poly polynomial represented by coefficients bn256 fr field.
-type Poly struct {
-	Data []fr.Element
-}
+type Poly []fr.Element
 
 // Degree returns the degree of the polynomial, which is the length of Data.
 func (p Poly) Degree() uint64 {
-	res := uint64(len(p.Data) - 1)
+	res := uint64(len(p) - 1)
 	return res
 }
 
@@ -33,11 +31,11 @@ func (p Poly) Degree() uint64 {
 func (p Poly) Eval(v interface{}) interface{} {
 	var res, _v fr.Element
 	_v.Set(v.(*fr.Element))
-	s := len(p.Data)
-	res.Set(&p.Data[s-1])
+	s := len(p)
+	res.Set(&p[s-1])
 	for i := s - 2; i >= 0; i-- {
 		res.Mul(&res, &_v)
-		res.Add(&res, &p.Data[i])
+		res.Add(&res, &p[i])
 	}
 	return &res
 }

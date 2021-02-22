@@ -233,7 +233,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)
-			return nil, err
+			return solution, err
 		}
 	}
 
@@ -241,7 +241,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 	for i := 0; i < len(cs.Assertions); i++ {
 		err = cs.checkConstraint(cs.Assertions[i], solution)
 		if err != nil {
-			return nil, err
+			return solution, err
 		}
 	}
 
