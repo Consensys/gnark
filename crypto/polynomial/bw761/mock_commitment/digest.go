@@ -18,17 +18,21 @@ package mockcommitment
 
 import (
 	"io"
+
+	"github.com/consensys/gnark/crypto/polynomial/bw761"
 )
 
-// MockBatchProofsSinglePoint empty struct
-type MockBatchProofsSinglePoint struct{}
+// MockDigest contains the polynomial itself
+type MockDigest struct {
+	Digest bw761.Poly
+}
 
 // WriteTo mock impementation
-func (mp *MockBatchProofsSinglePoint) WriteTo(w io.Writer) (n int64, err error) {
+func (md *MockDigest) WriteTo(w io.Writer) (n int64, err error) {
 	return 0, nil
 }
 
 // ReadFrom mock impementation
-func (mp *MockBatchProofsSinglePoint) ReadFrom(r io.Reader) (n int64, err error) {
+func (md *MockDigest) ReadFrom(r io.Reader) (n int64, err error) {
 	return 0, nil
 }

@@ -20,7 +20,7 @@ import (
 	"io"
 
 	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/bn256"
+	"github.com/consensys/gnark/crypto/polynomial/bls381"
 )
 
 // Scheme mock commitment, useful for testing polynomial based IOP
@@ -40,13 +40,13 @@ func (s *Scheme) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Commit returns nil
 func (s *Scheme) Commit(p polynomial.Polynomial) polynomial.Digest {
-	res := &MockDigest{Digest: p.(bn256.Poly)}
+	res := &MockDigest{Digest: p.(bls381.Poly)}
 	return res
 }
 
 // Open computes an opening proof of _p at _val.
 // Returns a MockProof, which is an empty interface.
-func (s *Scheme) Open(_val interface{}, _p polynomial.Polynomial) polynomial.OpeningProof { //Open(p *bn256.Poly, val *fr.Element) *MockProof {
+func (s *Scheme) Open(_val interface{}, _p polynomial.Polynomial) polynomial.OpeningProof { //Open(p *bls381.Poly, val *fr.Element) *MockProof {
 	return &MockProof{}
 }
 
@@ -58,7 +58,7 @@ func (s *Scheme) Verify(d polynomial.Digest, p polynomial.OpeningProof, v interf
 // BatchOpenSinglePoint computes a batch opening proof for _p at
 // a single point.
 // Returns an empty interface.
-func (s *Scheme) BatchOpenSinglePoint(_val, challenge interface{}, _p ...polynomial.Polynomial) polynomial.BatchOpeningProofSinglePoint { //Open(p *bn256.Poly, val *fr.Element) *MockProof {
+func (s *Scheme) BatchOpenSinglePoint(_val, challenge interface{}, _p ...polynomial.Polynomial) polynomial.BatchOpeningProofSinglePoint { //Open(p *bls381.Poly, val *fr.Element) *MockProof {
 	return &MockProof{}
 }
 

@@ -1,0 +1,25 @@
+import (
+	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
+)
+
+// Poly polynomial represented by coefficients {{ toLower .Curve }} fr field.
+type Poly []fr.Element
+
+// Degree returns the degree of the polynomial, which is the length of Data.
+func (p Poly) Degree() uint64 {
+	res := uint64(len(p) - 1)
+	return res
+}
+
+// Eval evaluates p at v
+func (p Poly) Eval(v interface{}) interface{} {
+	var res, _v fr.Element
+	_v.Set(v.(*fr.Element))
+	s := len(p)
+	res.Set(&p[s-1])
+	for i := s - 2; i >= 0; i-- {
+		res.Mul(&res, &_v)
+		res.Add(&res, &p[i])
+	}
+	return &res
+}
