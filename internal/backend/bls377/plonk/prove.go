@@ -156,7 +156,7 @@ func computeNumFirstClaim(publicData *PublicRaw, l, r, o []fr.Element) []fr.Elem
 // computeH computes h = num/Z, where:
 // * Z = X^m-1, m=2^n
 // * num (of size 2^{n+1}) is the evaluation of a polynomial of
-// 	degree 3*m on 2m=2^{n+1} points (coset 1 of (Z/2mZ)/(Z/mZ)).
+// 	degree 3*m on 2m=2^{n+1} points (coset 1 of (Z/4mZ)/(Z/2mZ)).
 // The result is h in the canonical basis.
 func computeH(num bls377.Poly, publicData *PublicRaw) bls377.Poly {
 
