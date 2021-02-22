@@ -19,13 +19,13 @@ package plonk
 import (
 	"math/big"
 
-	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	"github.com/consensys/gurvy/bn256/fr"
+	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
 // VerifyRaw verifies a PLONK proof
 // TODO use Fiat Shamir to derive the challenges
-func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bn256witness.Witness) bool {
+func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bls377witness.Witness) bool {
 
 	// step 1: verify that qlL+qrR+qmL.R+qoO+k=Z*H, by evaluating the LHS at the challenge zeta
 	var zeta fr.Element

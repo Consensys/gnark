@@ -20,11 +20,11 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/bn256"
-	"github.com/consensys/gnark/internal/backend/bn256/cs"
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
-	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark/crypto/polynomial/bls377"
+	"github.com/consensys/gnark/internal/backend/bls377/cs"
+	"github.com/consensys/gnark/internal/backend/bls377/fft"
+	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
+	"github.com/consensys/gurvy/bls377/fr"
 )
 
 // Proof PLONK proofs, consisting of opening proofs
@@ -38,13 +38,13 @@ type Proof struct {
 }
 
 // comute the solution l, r, o, and returns it in canonical form.
-func computeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) (bn256.Poly, bn256.Poly, bn256.Poly) {
+func computeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls377witness.Witness) (bls377.Poly, bls377.Poly, bls377.Poly) {
 
 	solution, _ := spr.Solve(witness)
 
 	s := publicData.DomainNum.Cardinality
 
-	var l, r, o bn256.Poly
+	var l, r, o bls377.Poly
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
@@ -158,7 +158,7 @@ func computeNumFirstClaim(publicData *PublicRaw, l, r, o []fr.Element) []fr.Elem
 // * num (of size 2^{n+1}) is the evaluation of a polynomial of
 // 	degree 3*m on 2m=2^{n+1} points (coset 1 of (Z/2mZ)/(Z/mZ)).
 // The result is h in the canonical basis.
-func computeH(num bn256.Poly, publicData *PublicRaw) bn256.Poly {
+func computeH(num bls377.Poly, publicData *PublicRaw) bls377.Poly {
 
 	h := make([]fr.Element, publicData.DomainH.Cardinality)
 
@@ -190,7 +190,7 @@ func computeH(num bn256.Poly, publicData *PublicRaw) bn256.Poly {
 //
 // It computes H such that qlL+qrR+qmL.R+qoO+k = H*Z, Z = X^m-1
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold, so we can cleanly check that the prover fails
-func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) *Proof {
+func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls377witness.Witness) *Proof {
 
 	// evaluate qlL+qrR+qmL.R+qoO+k on 2*m points
 	l, r, o := computeLRO(spr, publicData, witness)

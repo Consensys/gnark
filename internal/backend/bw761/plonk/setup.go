@@ -18,10 +18,10 @@ package plonk
 
 import (
 	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/bn256"
-	"github.com/consensys/gnark/internal/backend/bn256/cs"
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark/crypto/polynomial/bw761"
+	"github.com/consensys/gnark/internal/backend/bw761/cs"
+	"github.com/consensys/gnark/internal/backend/bw761/fft"
+	"github.com/consensys/gurvy/bw761/fr"
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,
@@ -33,7 +33,7 @@ type PublicRaw struct {
 	CommitmentScheme polynomial.CommitmentScheme
 
 	// LDE of qr,ql,qm,qo,k (so all polynomials are in Lagrange basis)
-	Ql, Qr, Qm, Qo, Qk bn256.Poly
+	Ql, Qr, Qm, Qo, Qk bw761.Poly
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
