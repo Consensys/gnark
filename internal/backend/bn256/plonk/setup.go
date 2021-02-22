@@ -19,6 +19,7 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial/bn256"
 	"github.com/consensys/gnark/internal/backend/bn256/cs"
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
+	"github.com/consensys/gurvy/bn256/fr"
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,
@@ -29,8 +30,8 @@ type PublicRaw struct {
 	// Commitment scheme that is used for an instantiation of PLONK
 	CommitmentScheme polynomial.CommitmentScheme
 
-	// LDE of qr,ql,qm,qo,k
-	Qr, Ql, Qm, Qo, Qk *bn256.Poly
+	// LDE of qr,ql,qm,qo,k (so all polynomials are in Lagrange basis)
+	Ql, Qr, Qm, Qo, Qk bn256.Poly
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
@@ -38,44 +39,60 @@ type PublicRaw struct {
 	// TODO add the permutation
 }
 
-// Setup from a sparseR1CS, it returns the LDE (in
-// Lagrange basis) of ql, qr, qm, qo, k.
-func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme) PublicRaw {
+// Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
+// the canonical basis.
+func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme) *PublicRaw {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
 
 	var res PublicRaw
 
+	// fft domains
+	sizeSystem := uint64(nbConstraints + nbAssertions)
+	res.DomainNum = fft.NewDomain(sizeSystem, 2)
+	res.DomainH = fft.NewDomain(2*sizeSystem, 1)
+
+	// commitment scheme
+	res.CommitmentScheme = polynomialCommitment
+
 	// public polynomials
+	res.Ql = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qr = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qm = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qo = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qk = make([]fr.Element, res.DomainNum.Cardinality)
 	for i := 0; i < nbConstraints; i++ {
 
-		res.Ql.Data[i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		res.Qr.Data[i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		res.Qm.Data[i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&res.Qm.Data[i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		res.Qo.Data[i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		res.Qk.Data[i].Set(&spr.Coefficients[spr.Constraints[i].K])
+		res.Ql[i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		res.Qr[i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		res.Qm[i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&res.Qm[i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		res.Qo[i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
+		res.Qk[i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 	for i := 0; i < nbAssertions; i++ {
 
 		index := nbConstraints + i
 
-		res.Ql.Data[index].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
-		res.Qr.Data[index].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
-		res.Qm.Data[index].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
-			Mul(&res.Qm.Data[index], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
-		res.Qo.Data[index].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
-		res.Qk.Data[index].Set(&spr.Coefficients[spr.Assertions[i].K])
+		res.Ql[index].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
+		res.Qr[index].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
+		res.Qm[index].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
+			Mul(&res.Qm[index], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
+		res.Qo[index].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
+		res.Qk[index].Set(&spr.Coefficients[spr.Assertions[i].K])
 	}
 
-	// commitment scheme
-	res.CommitmentScheme = polynomialCommitment
+	res.DomainNum.FFTInverse(res.Ql, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qr, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qm, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qo, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qk, fft.DIF, 0)
+	fft.BitReverse(res.Ql)
+	fft.BitReverse(res.Qr)
+	fft.BitReverse(res.Qm)
+	fft.BitReverse(res.Qo)
+	fft.BitReverse(res.Qk)
 
-	// fft domains
-	sizeSystem := uint64(nbConstraints + nbAssertions)
-	res.DomainNum = fft.NewDomain(sizeSystem, 4)
-	res.DomainH = fft.NewDomain(2*sizeSystem, 2)
-
-	return res
+	return &res
 }

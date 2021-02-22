@@ -27,31 +27,44 @@ import (
 
 // Proof PLONK proofs, consisting of opening proofs
 type Proof struct {
-	L, R, O, H polynomial.OpeningProof
+
+	// Claimed Values are the values of L,R,O,H at zeta (wip for the remaining values)
+	ClaimedValues [4]fr.Element
+
+	// batch opening proofs for L,R,O,H at zeta
+	BatchOpenings polynomial.BatchOpeningProofSinglePoint
 }
 
-func computeLRO(spr *cs.SparseR1CS, publicData PublicRaw, witness bn256witness.Witness) (bn256.Poly, bn256.Poly, bn256.Poly) {
+// comute the solution l, r, o, and returns it in canonical form.
+func computeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) (bn256.Poly, bn256.Poly, bn256.Poly) {
 
 	solution, _ := spr.Solve(witness)
 
 	s := publicData.DomainNum.Cardinality
 
 	var l, r, o bn256.Poly
-	l.Data = make([]fr.Element, s)
-	r.Data = make([]fr.Element, s)
-	o.Data = make([]fr.Element, s)
+	l = make([]fr.Element, s)
+	r = make([]fr.Element, s)
+	o = make([]fr.Element, s)
 
 	for i := 0; i < len(spr.Constraints); i++ {
-		l.Data[i].Set(&solution[spr.Constraints[i].L.VariableID()])
-		r.Data[i].Set(&solution[spr.Constraints[i].R.VariableID()])
-		o.Data[i].Set(&solution[spr.Constraints[i].O.VariableID()])
+		l[i].Set(&solution[spr.Constraints[i].L.VariableID()])
+		r[i].Set(&solution[spr.Constraints[i].R.VariableID()])
+		o[i].Set(&solution[spr.Constraints[i].O.VariableID()])
 	}
 	offset := len(spr.Constraints)
 	for i := 0; i < len(spr.Assertions); i++ {
-		l.Data[offset+i].Set(&solution[spr.Assertions[i].L.VariableID()])
-		r.Data[offset+i].Set(&solution[spr.Assertions[i].R.VariableID()])
-		o.Data[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
+		l[offset+i].Set(&solution[spr.Assertions[i].L.VariableID()])
+		r[offset+i].Set(&solution[spr.Assertions[i].R.VariableID()])
+		o[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
 	}
+
+	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
+	fft.BitReverse(l)
+	fft.BitReverse(r)
+	fft.BitReverse(o)
 
 	return l, r, o
 
@@ -65,31 +78,25 @@ func computeLRO(spr *cs.SparseR1CS, publicData PublicRaw, witness bn256witness.W
 // Both sizes of poly and res are powers of 2, len(res) = 2*len(poly).
 func evaluate(poly, res []fr.Element, domain *fft.Domain) {
 
-	// TODO play with DIT/DIF to minimize calls to BitReverse
-
-	// express poly in the canonical basis
-	domain.FFTInverse(poly, fft.DIF, 0)
-	fft.BitReverse(poly)
-
 	// build a copy of poly padded with 0 so it has the length of the closest power of 2 of poly
 	evaluations := make([][]fr.Element, 2)
 	evaluations[0] = make([]fr.Element, domain.Cardinality)
 	evaluations[1] = make([]fr.Element, domain.Cardinality)
 
+	// evaluations[i] must contain poly in the canonical basis
 	copy(evaluations[0], poly)
-	copy(evaluations[1], poly)
+	copy(evaluations[1], evaluations[0])
 
+	domain.FFT(evaluations[0], fft.DIF, 1)
+	domain.FFT(evaluations[1], fft.DIF, 3)
 	fft.BitReverse(evaluations[0])
 	fft.BitReverse(evaluations[1])
-	domain.FFT(evaluations[0], fft.DIT, 1)
-	domain.FFT(evaluations[1], fft.DIT, 3)
 
 	//res := make([]fr.Element, 2*domain.Cardinality)
 	for i := uint64(0); i < domain.Cardinality; i++ {
 		res[2*i].Set(&evaluations[0][i])
 		res[2*i+1].Set(&evaluations[1][i])
 	}
-
 }
 
 // computeNumFirstClaim computes the evaluation of lL+qrR+qqmL.R+qoO+k on
@@ -98,7 +105,7 @@ func evaluate(poly, res []fr.Element, domain *fft.Domain) {
 // qlL+qrR+qmL.R+qoO+k = H*Z, where Z=x^n-1
 //
 // l, r, o must be of size 2^n.
-func computeNumFirstClaim(publicData PublicRaw, l, r, o []fr.Element) []fr.Element {
+func computeNumFirstClaim(publicData *PublicRaw, l, r, o []fr.Element) []fr.Element {
 
 	// data
 	evalL := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
@@ -112,11 +119,11 @@ func computeNumFirstClaim(publicData PublicRaw, l, r, o []fr.Element) []fr.Eleme
 	evalQk := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
 
 	// public vectors
-	evaluate(publicData.Ql.Data, evalQl, publicData.DomainNum)
-	evaluate(publicData.Qr.Data, evalQr, publicData.DomainNum)
-	evaluate(publicData.Qm.Data, evalQm, publicData.DomainNum)
-	evaluate(publicData.Qo.Data, evalQo, publicData.DomainNum)
-	evaluate(publicData.Qk.Data, evalQk, publicData.DomainNum)
+	evaluate(publicData.Ql, evalQl, publicData.DomainNum)
+	evaluate(publicData.Qr, evalQr, publicData.DomainNum)
+	evaluate(publicData.Qm, evalQm, publicData.DomainNum)
+	evaluate(publicData.Qo, evalQo, publicData.DomainNum)
+	evaluate(publicData.Qk, evalQk, publicData.DomainNum)
 
 	// solution vectors
 	evaluate(l, evalL, publicData.DomainNum)
@@ -128,20 +135,20 @@ func computeNumFirstClaim(publicData PublicRaw, l, r, o []fr.Element) []fr.Eleme
 	var acc, buf fr.Element
 	for i := uint64(0); i < 2*publicData.DomainNum.Cardinality; i++ {
 
-		acc.Mul(&evalQl[i], &l[i]) // ql.l
+		acc.Mul(&evalQl[i], &evalL[i]) // ql.l
 
-		buf.Mul(&evalQr[i], &r[i])
+		buf.Mul(&evalQr[i], &evalR[i])
 		acc.Add(&acc, &buf) // ql.l + qr.r
 
-		buf.Mul(&evalQm[i], &l[i]).Mul(&buf, &r[i])
+		buf.Mul(&evalQm[i], &evalL[i]).Mul(&buf, &evalR[i])
 		acc.Add(&acc, &buf) // ql.l + qr.r + qm.l.r
 
-		buf.Mul(&evalQo[i], &o[i])
-		acc.Add(&acc, &buf)        // ql.l + qr.r + qm.l.r + qo.o
-		l[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
+		buf.Mul(&evalQo[i], &evalO[i])
+		acc.Add(&acc, &buf)            // ql.l + qr.r + qm.l.r + qo.o
+		evalL[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
 	}
 
-	return l
+	return evalL
 }
 
 // computeH computes h = num/Z, where:
@@ -149,36 +156,28 @@ func computeNumFirstClaim(publicData PublicRaw, l, r, o []fr.Element) []fr.Eleme
 // * num (of size 2^{n+1}) is the evaluation of a polynomial of
 // 	degree 3*m on 2m=2^{n+1} points (coset 1 of (Z/2mZ)/(Z/mZ)).
 // The result is h in the canonical basis.
-func computeH(num []fr.Element) []fr.Element {
+func computeH(num bn256.Poly, publicData *PublicRaw) bn256.Poly {
 
-	s := uint64(len(num))
-	domain := fft.NewDomain(s, 1)
+	h := make([]fr.Element, publicData.DomainH.Cardinality)
 
-	h := make([]fr.Element, domain.Cardinality)
-
-	var evalEven, evalOdd fr.Element
+	// evaluate Z
+	var one fr.Element
 	var expo big.Int
-	sizeDomainZ := domain.Cardinality / 2
-
-	expo.SetUint64(sizeDomainZ)
-	evalEven.Exp(domain.FinerGenerator, &expo)
-	expo.SetUint64(3 * sizeDomainZ)
-	evalOdd.Exp(domain.FinerGenerator, &expo)
-
-	// Z evaluated
-	zPoly := make([]fr.Element, domain.Cardinality)
-	for i := 0; i < int(sizeDomainZ); i++ {
-		zPoly[2*i].Set(&evalEven)
-		zPoly[2*i+1].Set(&evalOdd)
-	}
+	expo.SetUint64(publicData.DomainNum.Cardinality)
+	zPoly := make([]fr.Element, 2)
+	one.SetOne()
+	zPoly[0].Exp(publicData.DomainNum.FinerGenerator, &expo) // finerGen**DomainNum.Cardinality
+	zPoly[1].Square(&zPoly[0]).Mul(&zPoly[1], &zPoly[0])     // (finerGen**3)**DomainNum.Cardinality
+	zPoly[0].Sub(&zPoly[0], &one)
+	zPoly[1].Sub(&zPoly[1], &one)
 
 	// h = num/Z
-	for i := 0; i < int(domain.Cardinality); i++ {
-		h[i].Div(&num[i], &zPoly[i])
+	for i := 0; i < int(publicData.DomainH.Cardinality); i++ {
+		h[i].Div(&num[i], &zPoly[i%2])
 	}
 
 	// express h in the canonical basis
-	domain.FFTInverse(h, fft.DIF, 1)
+	publicData.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
 	return h
@@ -188,33 +187,35 @@ func computeH(num []fr.Element) []fr.Element {
 // l, r, o, outputs a proof that the assignment is valid.
 //
 // It computes H such that qlL+qrR+qmL.R+qoO+k = H*Z, Z = X^m-1
-func Prove(spr *cs.SparseR1CS, publicData PublicRaw, witness bn256witness.Witness) *Proof {
-
-	// computes opening
-	l, r, o := computeLRO(spr, publicData, witness)
+// TODO add a parameter to force the resolution of the system even if a constraint does not hold, so we can cleanly check that the prover fails
+func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) *Proof {
 
 	// evaluate qlL+qrR+qmL.R+qoO+k on 2*m points
-	num := bn256.Poly{
-		Data: computeNumFirstClaim(publicData, l.Data, r.Data, o.Data),
-	}
+	l, r, o := computeLRO(spr, publicData, witness)
+	num := computeNumFirstClaim(publicData, l, r, o)
 
 	// TODO wip, compute the remaining part of the num
 
 	// compute h (its evaluation)
-	h := bn256.Poly{
-		Data: computeH(num.Data),
-	}
+	h := computeH(num, publicData)
 
 	// compute challenge
-	// TODO use fiat Shamir to sample zeta
-	var zeta fr.Element
+	// TODO use fiat Shamir to sample zeta and challenge
+	var zeta, challenge fr.Element
 	zeta.SetString("2938092839238274283")
+	challenge.SetString("987545678")
 
 	proof := &Proof{}
-	proof.L = publicData.CommitmentScheme.Open(l, zeta)
-	proof.R = publicData.CommitmentScheme.Open(r, zeta)
-	proof.O = publicData.CommitmentScheme.Open(o, zeta)
-	proof.H = publicData.CommitmentScheme.Open(h, zeta)
+	tmp := l.Eval(&zeta)
+	proof.ClaimedValues[0].Set(tmp.(*fr.Element))
+	tmp = r.Eval(&zeta)
+	proof.ClaimedValues[1].Set(tmp.(*fr.Element))
+	tmp = o.Eval(&zeta)
+	proof.ClaimedValues[2].Set(tmp.(*fr.Element))
+	tmp = h.Eval(&zeta)
+	proof.ClaimedValues[3].Set(tmp.(*fr.Element))
+
+	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &challenge, l, r, o, h)
 
 	return proof
 }
