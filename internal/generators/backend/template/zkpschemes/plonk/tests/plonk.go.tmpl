@@ -3,11 +3,14 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
+	mockcommitment "github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}/mock_commitment"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/cs"
+	plonk{{ toLower .Curve }} "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/plonk"
+	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	curve "github.com/consensys/gurvy/{{ toLower .Curve }}"
 )
-
 
 func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
@@ -17,6 +20,55 @@ func TestCircuits(t *testing.T) {
 			assert.NoError(err)
 			assert.SolvingSucceeded(pcs, circuit.Good)
 			assert.SolvingFailed(pcs, circuit.Bad)
+		})
+	}
+}
+
+// TODO WIP -> once everything is clean move this to backend/plonk in assert
+func TestProver(t *testing.T) {
+
+	for name, circuit := range circuits.Circuits {
+
+		t.Run(name, func(t *testing.T) {
+
+			assert := plonk.NewAssert(t)
+			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
+			assert.NoError(err)
+
+			spr := pcs.(*cs.SparseR1CS)
+
+			scheme := mockcommitment.Scheme{}
+			publicData := plonk{{ toLower .Curve }}.Setup(spr, &scheme)
+
+			// correct proof
+			{
+				w := {{ toLower .Curve }}witness.Witness{}
+				w.FromFullAssignment(circuit.Good)
+
+				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, w)
+
+				w.FromPublicAssignment(circuit.Good)
+				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, w)
+
+				if !v {
+					t.Fatal("Correct proof verification failed")
+				}
+			}
+
+			// wrong proof
+			{
+				w := {{ toLower .Curve }}witness.Witness{}
+				w.FromFullAssignment(circuit.Bad)
+
+				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, w)
+
+				w.FromPublicAssignment(circuit.Good)
+				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, w)
+
+				if v {
+					t.Fatal("Wrong proof verification should have failed")
+				}
+			}
 		})
 	}
 }

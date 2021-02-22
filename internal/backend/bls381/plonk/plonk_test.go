@@ -21,7 +21,11 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
+	mockcommitment "github.com/consensys/gnark/crypto/polynomial/bls381/mock_commitment"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/bls381/cs"
+	plonkbls381 "github.com/consensys/gnark/internal/backend/bls381/plonk"
+	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	curve "github.com/consensys/gurvy/bls381"
 )
@@ -34,6 +38,55 @@ func TestCircuits(t *testing.T) {
 			assert.NoError(err)
 			assert.SolvingSucceeded(pcs, circuit.Good)
 			assert.SolvingFailed(pcs, circuit.Bad)
+		})
+	}
+}
+
+// TODO WIP -> once everything is clean move this to backend/plonk in assert
+func TestProver(t *testing.T) {
+
+	for name, circuit := range circuits.Circuits {
+
+		t.Run(name, func(t *testing.T) {
+
+			assert := plonk.NewAssert(t)
+			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
+			assert.NoError(err)
+
+			spr := pcs.(*cs.SparseR1CS)
+
+			scheme := mockcommitment.Scheme{}
+			publicData := plonkbls381.Setup(spr, &scheme)
+
+			// correct proof
+			{
+				w := bls381witness.Witness{}
+				w.FromFullAssignment(circuit.Good)
+
+				proof := plonkbls381.Prove(spr, publicData, w)
+
+				w.FromPublicAssignment(circuit.Good)
+				v := plonkbls381.VerifyRaw(proof, publicData, w)
+
+				if !v {
+					t.Fatal("Correct proof verification failed")
+				}
+			}
+
+			// wrong proof
+			{
+				w := bls381witness.Witness{}
+				w.FromFullAssignment(circuit.Bad)
+
+				proof := plonkbls381.Prove(spr, publicData, w)
+
+				w.FromPublicAssignment(circuit.Good)
+				v := plonkbls381.VerifyRaw(proof, publicData, w)
+
+				if v {
+					t.Fatal("Wrong proof verification should have failed")
+				}
+			}
 		})
 	}
 }
