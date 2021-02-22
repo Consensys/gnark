@@ -122,6 +122,7 @@ func main() {
 				panic(err)
 			}
 
+			// 1 - mock polynomial commitment
 			dir = filepath.Join(baseDir, "polynomial/", d.Package, "/mock_commitment/")
 			entriesF = []bavard.EntryF{
 				{File: filepath.Join(dir, "digest.go"), TemplateF: []string{"mock_commitment/digest.go.tmpl"}},
