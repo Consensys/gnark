@@ -38,30 +38,39 @@ type PublicRaw struct {
 // i-th entry of l||r||o is sent to the s[i]-th entry.
 func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 
-	sizeSystem := len(spr.Constraints) + len(spr.Assertions)
-	lro := make([]int, 3*sizeSystem)
+	sizeSolution := int(publicData.DomainNum.Cardinality)
 
-	publicData.Permutation = make([]int, 3*sizeSystem)
+	// position -> variable_ID
+	lro := make([]int, 3*sizeSolution)
+
+	publicData.Permutation = make([]int, 3*sizeSolution)
 	for i := 0; i < len(spr.Constraints); i++ {
 
 		lro[i] = spr.Constraints[i].L.VariableID()
-		lro[sizeSystem+i] = spr.Constraints[i].R.VariableID()
-		lro[2*sizeSystem+i] = spr.Constraints[i].O.VariableID()
+		lro[sizeSolution+i] = spr.Constraints[i].R.VariableID()
+		lro[2*sizeSolution+i] = spr.Constraints[i].O.VariableID()
 
 		publicData.Permutation[i] = -1
-		publicData.Permutation[sizeSystem+i] = -1
-		publicData.Permutation[2*sizeSystem+i] = -1
+		publicData.Permutation[sizeSolution+i] = -1
+		publicData.Permutation[2*sizeSolution+i] = -1
 	}
 	offset := len(spr.Constraints)
 	for i := 0; i < len(spr.Assertions); i++ {
 
 		lro[offset+i] = spr.Assertions[i].L.VariableID()
-		lro[offset+sizeSystem+i] = spr.Assertions[i].R.VariableID()
-		lro[offset+2*sizeSystem+i] = spr.Assertions[i].O.VariableID()
+		lro[offset+sizeSolution+i] = spr.Assertions[i].R.VariableID()
+		lro[offset+2*sizeSolution+i] = spr.Assertions[i].O.VariableID()
 
 		publicData.Permutation[offset+i] = -1
-		publicData.Permutation[offset+sizeSystem+i] = -1
-		publicData.Permutation[offset+2*sizeSystem+i] = -1
+		publicData.Permutation[offset+sizeSolution+i] = -1
+		publicData.Permutation[offset+2*sizeSolution+i] = -1
+	}
+	offset += len(spr.Assertions)
+	for i := 0; i < sizeSolution-offset; i++ {
+
+		publicData.Permutation[offset+i] = -1
+		publicData.Permutation[offset+sizeSolution+i] = -1
+		publicData.Permutation[offset+2*sizeSolution+i] = -1
 	}
 
 	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
@@ -72,12 +81,11 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 		cycle[i] = -1
 	}
 
-	for i := 0; i < 3*sizeSystem; i++ {
+	for i := 0; i < 3*sizeSolution; i++ {
 		if cycle[lro[i]] != -1 {
 			publicData.Permutation[i] = cycle[lro[i]]
 		}
 		cycle[lro[i]] = i
-
 	}
 
 	// complete the Permutation by filling the first IDs encountered
@@ -144,6 +152,9 @@ func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme)
 	fft.BitReverse(res.Qm)
 	fft.BitReverse(res.Qo)
 	fft.BitReverse(res.Qk)
+
+	// build permutation
+	buildPermutation(spr, &res)
 
 	return &res
 }
