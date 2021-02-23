@@ -27,6 +27,16 @@ import (
 	"github.com/consensys/gurvy/bls377/fr"
 )
 
+// TODO derive those random values using Fiat Shamir
+// zeta: value at which l, r, o, h are evaluated
+// vBundle: challenge used to bundle opening proofs at a single point (l+vBundle.r + vBundle**2*o + ...)
+var zeta, vBundle fr.Element
+
+func init() {
+	zeta.SetString("2938092839238274283")
+	vBundle.SetString("987545678")
+}
+
 // Proof PLONK proofs, consisting of opening proofs
 type Proof struct {
 
@@ -201,12 +211,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls377witness.Witn
 	// compute h (its evaluation)
 	h := computeH(num, publicData)
 
-	// compute challenge
-	// TODO use fiat Shamir to sample zeta and challenge
-	var zeta, challenge fr.Element
-	zeta.SetString("2938092839238274283")
-	challenge.SetString("987545678")
-
+	// compute bundled opening proof for l, r, o, h at zeta
 	proof := &Proof{}
 	tmp := l.Eval(&zeta)
 	proof.ClaimedValues[0].Set(tmp.(*fr.Element))
@@ -217,7 +222,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls377witness.Witn
 	tmp = h.Eval(&zeta)
 	proof.ClaimedValues[3].Set(tmp.(*fr.Element))
 
-	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &challenge, l, r, o, h)
+	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h)
 
 	return proof
 }

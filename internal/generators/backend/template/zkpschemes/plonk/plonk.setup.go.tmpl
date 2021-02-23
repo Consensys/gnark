@@ -8,14 +8,14 @@ import (
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,
-// which consists of the LDE of qr,ql,qm,qo,k of a sparse R1cs. The compact
+// which consists of the evaluations of the LDE of qr,ql,qm,qo,k. The compact
 // version of public data consists of commitments of qr,ql,qm,qo,k.
 type PublicRaw struct {
 
 	// Commitment scheme that is used for an instantiation of PLONK
 	CommitmentScheme polynomial.CommitmentScheme
 
-	// LDE of qr,ql,qm,qo,k (so all polynomials are in Lagrange basis)
+	// FFTinv of the LDE of qr,ql,qm,qo,k (so all polynomials are in canonical basis)
 	Ql, Qr, Qm, Qo, Qk {{ toLower .Curve }}.Poly
 
 	// Domains used for the FFTs
