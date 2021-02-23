@@ -38,7 +38,73 @@ type PublicRaw struct {
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
 
-	// TODO add the permutation
+	// position -> permuted position (position in [0,3*sizeSystem-1])
+	Permutation []int
+}
+
+// buildPermutation builds the Permutation associated with a circuit.
+//
+// The permutation s is composed of cycles of maximum length such that
+//
+// 			s. (l||r||o) = (l||r||o)
+//
+//, where l||r||o is the concatenation of the indices of l, r, o in
+// ql.l+qr.r+qm.l.r+qo.O+k = 0.
+//
+// The permutation is encoded as a slice s of size 3*size(l), where the
+// i-th entry of l||r||o is sent to the s[i]-th entry.
+func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
+
+	sizeSystem := len(spr.Constraints) + len(spr.Assertions)
+	lro := make([]int, 3*sizeSystem)
+
+	publicData.Permutation = make([]int, 3*sizeSystem)
+	for i := 0; i < len(spr.Constraints); i++ {
+
+		lro[i] = spr.Constraints[i].L.VariableID()
+		lro[sizeSystem+i] = spr.Constraints[i].R.VariableID()
+		lro[2*sizeSystem+i] = spr.Constraints[i].O.VariableID()
+
+		publicData.Permutation[i] = -1
+		publicData.Permutation[sizeSystem+i] = -1
+		publicData.Permutation[2*sizeSystem+i] = -1
+	}
+	offset := len(spr.Constraints)
+	for i := 0; i < len(spr.Assertions); i++ {
+
+		lro[offset+i] = spr.Assertions[i].L.VariableID()
+		lro[offset+sizeSystem+i] = spr.Assertions[i].R.VariableID()
+		lro[offset+2*sizeSystem+i] = spr.Assertions[i].O.VariableID()
+
+		publicData.Permutation[offset+i] = -1
+		publicData.Permutation[offset+sizeSystem+i] = -1
+		publicData.Permutation[offset+2*sizeSystem+i] = -1
+	}
+
+	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
+
+	// map ID -> last position the ID was seen
+	cycle := make([]int, nbVariables)
+	for i := 0; i < len(cycle); i++ {
+		cycle[i] = -1
+	}
+
+	for i := 0; i < 3*sizeSystem; i++ {
+		if cycle[lro[i]] != -1 {
+			publicData.Permutation[i] = cycle[lro[i]]
+		}
+		cycle[lro[i]] = i
+
+	}
+
+	// complete the Permutation by filling the first IDs encountered
+	counter := nbVariables
+	for iter := 0; counter > 0; iter++ {
+		if publicData.Permutation[iter] == -1 {
+			publicData.Permutation[iter] = cycle[lro[iter]]
+			counter--
+		}
+	}
 }
 
 // Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
