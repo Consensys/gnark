@@ -30,11 +30,13 @@ import (
 // TODO derive those random values using Fiat Shamir
 // zeta: value at which l, r, o, h are evaluated
 // vBundle: challenge used to bundle opening proofs at a single point (l+vBundle.r + vBundle**2*o + ...)
-var zeta, vBundle fr.Element
+// gamma: used in (l+X+gamma)*(r+u.X+gamma).(o.u**2X+gamma)
+var zeta, vBundle, gamma fr.Element
 
 func init() {
 	zeta.SetString("2938092839238274283")
 	vBundle.SetString("987545678")
+	gamma.SetString("8278263826")
 }
 
 // Proof PLONK proofs, consisting of opening proofs
@@ -47,12 +49,12 @@ type Proof struct {
 	BatchOpenings polynomial.BatchOpeningProofSinglePoint
 }
 
-// comute the solution l, r, o, and returns it in canonical form.
-func computeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) (bn256.Poly, bn256.Poly, bn256.Poly) {
+// ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
+func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) (bn256.Poly, bn256.Poly, bn256.Poly) {
 
 	solution, _ := spr.Solve(witness)
 
-	s := publicData.DomainNum.Cardinality
+	s := int(publicData.DomainNum.Cardinality)
 
 	var l, r, o bn256.Poly
 	l = make([]fr.Element, s)
@@ -71,14 +73,97 @@ func computeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.
 		o[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
 	}
 
-	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
-	fft.BitReverse(l)
-	fft.BitReverse(r)
-	fft.BitReverse(o)
+	// the padded constraints are dummy constraints -> the variable ID is 0 in those
+	// constraints. We therefore need to add solution[0] to l, r, o once we reach the
+	// dummy constraint, so that l, r, o is compliant with the permutation.
+	offset += len(spr.Assertions)
+	for i := 0; i < s-offset; i++ {
+		l[offset+i].Set(&solution[0])
+		r[offset+i].Set(&solution[0])
+		o[offset+i].Set(&solution[0])
+	}
 
 	return l, r, o
+
+}
+
+// ComputePermutations the permutation polynomials, Lagrange basis, associated to s1,s2,s3 in
+// the expression g = (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma).
+//
+// recall: at the end, we should have
+// Z(uX)*g(X) = Z(X)*(l+id+gamma)*(r+z.X+gamma)*(o+z**2.X+gamma) on <1,u,..,u^n-1>.
+func ComputePermutations(publicData *PublicRaw) (bn256.Poly, bn256.Poly, bn256.Poly) {
+
+	nbElmt := int(publicData.DomainNum.Cardinality)
+
+	// sID = [1,z,..,z**n-1,u,uz,..,uz**n-1,u**2,u**2.z,..,u**2.z**n-1]
+	sID := make([]fr.Element, 3*nbElmt)
+	sID[0].SetOne()
+	sID[nbElmt].Set(&publicData.DomainNum.FinerGenerator)
+	sID[2*nbElmt].Square(&publicData.DomainNum.FinerGenerator)
+
+	for i := 1; i < nbElmt; i++ {
+		sID[i].Mul(&sID[i-1], &publicData.DomainNum.Generator)                   // z**i -> z**i+1
+		sID[i+nbElmt].Mul(&sID[nbElmt+i-1], &publicData.DomainNum.Generator)     // u*z**i -> u*z**i+1
+		sID[i+2*nbElmt].Mul(&sID[2*nbElmt+i-1], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
+	}
+
+	// LDE (in Lagrange basis) of the permutations
+	s1 := make(bn256.Poly, nbElmt)
+	s2 := make(bn256.Poly, nbElmt)
+	s3 := make(bn256.Poly, nbElmt)
+	for i := 0; i < nbElmt; i++ {
+		s1[i].Set(&sID[publicData.Permutation[i]])
+		s2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
+		s3[i].Set(&sID[publicData.Permutation[2*nbElmt+i]])
+	}
+
+	return s1, s2, s3
+}
+
+// ComputeZ computes Z (LDE, in Lagrange basis), where:
+//
+// * Z of degree n (domainNum.Cardinality)
+// * Z(1)=1
+// 								  (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+//	* for i>1: Z(u**i) = Pi_{k<i} -------------------------------------------------------
+//								  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+func ComputeZ(l, r, o, s1, s2, s3 bn256.Poly, publicData *PublicRaw) bn256.Poly {
+
+	z := make(bn256.Poly, publicData.DomainNum.Cardinality)
+	nbElmts := int(publicData.DomainNum.Cardinality)
+
+	var f [3]fr.Element
+	var g [3]fr.Element
+	var u [3]fr.Element
+	u[0].SetOne()
+	u[1].Set(&publicData.DomainNum.FinerGenerator)
+	u[2].Square(&publicData.DomainNum.FinerGenerator)
+
+	z[0].SetOne()
+
+	for i := 0; i < nbElmts-1; i++ {
+
+		f[0].Add(&l[i], &u[0]).Add(&f[0], &gamma) //l_i+z**i+gamma
+		f[1].Add(&r[i], &u[1]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
+		f[2].Add(&o[i], &u[2]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
+
+		u[0].Mul(&u[0], &publicData.DomainNum.Generator) // z**i -> z**i+1
+		u[1].Mul(&u[1], &publicData.DomainNum.Generator) // u*z**i -> u*z**i+1
+		u[2].Mul(&u[2], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
+
+		g[0].Add(&l[i], &s1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
+		g[1].Add(&r[i], &s2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
+		g[2].Add(&o[i], &s3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
+
+		f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]) // (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+		g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+
+		z[i+1].Mul(&z[i], &f[0]).Div(&z[i+1], &g[0])
+
+	}
+
+	return z
 
 }
 
@@ -202,8 +287,14 @@ func computeH(num bn256.Poly, publicData *PublicRaw) bn256.Poly {
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold, so we can cleanly check that the prover fails
 func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witness) *Proof {
 
-	// evaluate qlL+qrR+qmL.R+qoO+k on 2*m points
-	l, r, o := computeLRO(spr, publicData, witness)
+	// evaluate qlL+qrR+qmL.R+qoO+k on 2*m points. First query l,r,o then put them back in canonical form, then evaluate
+	l, r, o := ComputeLRO(spr, publicData, witness)
+	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
+	fft.BitReverse(l)
+	fft.BitReverse(r)
+	fft.BitReverse(o)
 	num := computeNumFirstClaim(publicData, l, r, o)
 
 	// TODO wip, compute the remaining part of the num
