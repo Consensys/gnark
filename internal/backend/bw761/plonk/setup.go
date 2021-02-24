@@ -52,7 +52,8 @@ type PublicRaw struct {
 // ql.l+qr.r+qm.l.r+qo.O+k = 0.
 //
 // The permutation is encoded as a slice s of size 3*size(l), where the
-// i-th entry of l||r||o is sent to the s[i]-th entry.
+// i-th entry of l||r||o is sent to the s[i]-th entry, so it acts on a tab
+// like this: for i in tab: tab[i] = tab[permutation[i]]
 func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 
 	sizeSolution := int(publicData.DomainNum.Cardinality)
@@ -113,6 +114,7 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 			counter--
 		}
 	}
+
 }
 
 // Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
