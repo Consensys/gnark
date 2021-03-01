@@ -33,10 +33,11 @@ import (
 var zeta, vBundle, gamma, alpha fr.Element
 
 func init() {
+	//zeta.SetString("2938092839238274283")
 	zeta.SetString("2938092839238274283")
 	vBundle.SetString("987545678")
-	gamma.SetString("8278263826")
-	alpha.SetString("25678323434")
+	gamma.SetString("82782638268278263826")
+	alpha.SetString("2567832343425678323434")
 }
 
 // Proof PLONK proofs, consisting of opening proofs
@@ -95,9 +96,9 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 //
 // * Z of degree n (domainNum.Cardinality)
 // * Z(1)=1
-// 								  (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+// 								   (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
 //	* for i>1: Z(u**i) = Pi_{k<i} -------------------------------------------------------
-//								  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+//								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
 func ComputeZ(l, r, o bn256.Poly, publicData *PublicRaw) bn256.Poly {
@@ -110,7 +111,7 @@ func ComputeZ(l, r, o bn256.Poly, publicData *PublicRaw) bn256.Poly {
 	var u [3]fr.Element
 	u[0].SetOne()
 	u[1].Set(&publicData.Shifter[0])
-	u[2].Square(&publicData.Shifter[1])
+	u[2].Set(&publicData.Shifter[1])
 
 	z[0].SetOne()
 
@@ -120,10 +121,6 @@ func ComputeZ(l, r, o bn256.Poly, publicData *PublicRaw) bn256.Poly {
 		f[1].Add(&r[i], &u[1]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
 		f[2].Add(&o[i], &u[2]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
-		u[0].Mul(&u[0], &publicData.DomainNum.Generator) // z**i -> z**i+1
-		u[1].Mul(&u[1], &publicData.DomainNum.Generator) // u*z**i -> u*z**i+1
-		u[2].Mul(&u[2], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
-
 		g[0].Add(&l[i], &publicData.LS1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
 		g[1].Add(&r[i], &publicData.LS2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
 		g[2].Add(&o[i], &publicData.LS3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
@@ -132,6 +129,10 @@ func ComputeZ(l, r, o bn256.Poly, publicData *PublicRaw) bn256.Poly {
 		g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
 		z[i+1].Mul(&z[i], &f[0]).Div(&z[i+1], &g[0])
+
+		u[0].Mul(&u[0], &publicData.DomainNum.Generator) // z**i -> z**i+1
+		u[1].Mul(&u[1], &publicData.DomainNum.Generator) // u*z**i -> u*z**i+1
+		u[2].Mul(&u[2], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
 	}
 
 	return z
@@ -145,6 +146,8 @@ func ComputeZ(l, r, o bn256.Poly, publicData *PublicRaw) bn256.Poly {
 //
 // l, r, o are the evaluation of l,r,o on the odd cosets of (Z/8mZ)/(Z/mZ)
 func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []fr.Element {
+
+	res := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 
 	// evaluates ql, qr, qm, qo, k on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalQl := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -172,11 +175,11 @@ func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []
 		acc.Add(&acc, &buf) // ql.l + qr.r + qm.l.r
 
 		buf.Mul(&evalQo[i], &evalO[i])
-		acc.Add(&acc, &buf)            // ql.l + qr.r + qm.l.r + qo.o
-		evalL[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
+		acc.Add(&acc, &buf)          // ql.l + qr.r + qm.l.r + qo.o
+		res[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
 	}
 
-	return evalL
+	return res
 }
 
 // evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
@@ -218,15 +221,13 @@ func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bn256.Poly) {
 		uid[4*i+2].Mul(&id[4*i+2], &publicData.Shifter[0]) // shifter[0]*ID
 		uid[4*i+3].Mul(&id[4*i+3], &publicData.Shifter[0]) // shifter[0]*ID
 
-		uuid[i].Mul(&id[i], &publicData.Shifter[1])         // shifter[1]*ID
-		uuid[i+c].Mul(&id[i+c], &publicData.Shifter[1])     // shifter[1]*ID
-		uuid[i+2*c].Mul(&id[i+2*c], &publicData.Shifter[1]) // shifter[1]*ID
-		uuid[i+3*c].Mul(&id[i+3*c], &publicData.Shifter[1]) // shifter[1]*ID
+		uuid[4*i].Mul(&id[4*i], &publicData.Shifter[1])     // shifter[1]*ID
+		uuid[4*i+1].Mul(&id[4*i+1], &publicData.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+2].Mul(&id[4*i+2], &publicData.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+3].Mul(&id[4*i+3], &publicData.Shifter[1]) // shifter[1]*ID
 
 	}
-
 	return
-
 }
 
 // evalZ computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
@@ -249,7 +250,7 @@ func evalConstraintOrdering(publicData *PublicRaw, z, zu, evalL, evalR, evalO bn
 	evaluateCosets(publicData.CS3, evalS3, publicData.DomainNum)
 
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalID, evaluID, evaluuID := evalIDCosets(publicData)
+	evalID, evaluID, evaluuID := evalIDCosets(publicData) // CORRECT
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make(bn256.Poly, 4*publicData.DomainNum.Cardinality)
@@ -274,7 +275,7 @@ func evalConstraintOrdering(publicData *PublicRaw, z, zu, evalL, evalR, evalO bn
 		g[0].Mul(&g[0], &g[1]).
 			Mul(&g[0], &g[2]).
 			Mul(&g[0], &evalL[i]).
-			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)*l_i
+			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)*l_i
 
 		res[i].Sub(&g[0], &f[0])
 	}
@@ -306,8 +307,8 @@ func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
 
 	domain.FFT(evaluations[0], fft.DIF, 1)
 	domain.FFT(evaluations[1], fft.DIF, 3)
-	domain.FFT(evaluations[0], fft.DIF, 5)
-	domain.FFT(evaluations[1], fft.DIF, 7)
+	domain.FFT(evaluations[2], fft.DIF, 5)
+	domain.FFT(evaluations[3], fft.DIF, 7)
 	fft.BitReverse(evaluations[0])
 	fft.BitReverse(evaluations[1])
 	fft.BitReverse(evaluations[2])
@@ -361,19 +362,17 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering bn256.Po
 	bExpo.SetUint64(publicData.DomainNum.Cardinality)
 	var u [4]fr.Element
 	var uu fr.Element
+	var one fr.Element
+	one.SetOne()
 	uu.Square(&publicData.DomainNum.FinerGenerator)
-	u[0].Set(&publicData.DomainNum.FinerGenerator).
-		Exp(u[0], &bExpo).
-		Inverse(&u[0]) // (u**m)**-1
-	u[1].Mul(&u[0], &uu).
-		Exp(u[1], &bExpo).
-		Inverse(&u[1]) // (u**3)**-m
-	u[2].Mul(&u[1], &uu).
-		Exp(u[2], &bExpo).
-		Inverse(&u[2]) // (u**5)**-m
-	u[3].Mul(&u[2], &uu).
-		Exp(u[3], &bExpo).
-		Inverse(&u[3]) // (u**7)**-m
+	u[0].Set(&publicData.DomainNum.FinerGenerator)
+	u[1].Mul(&u[0], &uu)
+	u[2].Mul(&u[1], &uu)
+	u[3].Mul(&u[2], &uu)
+	u[0].Exp(u[0], &bExpo).Sub(&u[0], &one).Inverse(&u[0])
+	u[1].Exp(u[1], &bExpo).Sub(&u[1], &one).Inverse(&u[1])
+	u[2].Exp(u[2], &bExpo).Sub(&u[2], &one).Inverse(&u[2])
+	u[3].Exp(u[3], &bExpo).Sub(&u[3], &one).Inverse(&u[3])
 
 	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
@@ -400,28 +399,36 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witne
 	solution, _ := spr.Solve(witness)
 
 	// query l, r, o in Lagrange basis
-	l, r, o := ComputeLRO(spr, publicData, solution)
+	l, r, o := ComputeLRO(spr, publicData, solution) // CORRECT
+
+	// compute Z, the permutation accumulator polynomial, in Lagrange basis
+	z := ComputeZ(l, r, o, publicData) // CORRECT
+
+	// compute Z(uX), in Lagrange basis
+	zu := shiftZ(z) // CORRECT
+
+	// put l, r, o,  in canonical basis
+	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
+	fft.BitReverse(l) // CORRECT
+	fft.BitReverse(r) // CORRECT
+	fft.BitReverse(o) // CORRECT
 
 	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
 	evalL := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalR := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalO := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(publicData.Ql, evalL, publicData.DomainNum)
-	evaluateCosets(publicData.Qr, evalR, publicData.DomainNum)
-	evaluateCosets(publicData.Qm, evalO, publicData.DomainNum)
+	evaluateCosets(l, evalL, publicData.DomainNum) // CORRECT
+	evaluateCosets(r, evalR, publicData.DomainNum) // CORRECT
+	evaluateCosets(o, evalO, publicData.DomainNum) // CORRECT
 
 	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsInd := evalConstraints(publicData, evalL, evalR, evalO)
-
-	// compute Z, the permutation accumulator polynomial, in Lagrange basis
-	z := ComputeZ(l, r, o, publicData)
-
-	// compute Z(uX), in Lagrange basis
-	zu := shiftZ(z)
+	constraintsInd := evalConstraints(publicData, evalL, evalR, evalO) // CORRECT
 
 	// put back z, zu in canonical basis
-	publicData.DomainNum.FFTInverse(z, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(zu, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(z, fft.DIF, 0)  // CORRECT
+	publicData.DomainNum.FFTInverse(zu, fft.DIF, 0) // CORRECT
 	fft.BitReverse(z)
 	fft.BitReverse(zu)
 
@@ -433,18 +440,10 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witne
 	// so when dividing it by x^m-1, we obtain a degree 4m polynomial h, so we can
 	// perform radix 2 fft to evaluate h on 4m points. l is not divisible by h, so
 	// it does not impact the security of the scheme.
-	constraintsOrdering := evalConstraintOrdering(publicData, z, zu, evalL, evalR, evalO)
+	constraintsOrdering := evalConstraintOrdering(publicData, z, zu, evalL, evalR, evalO) // CORRECT
 
 	// compute h (its evaluation)
 	h := computeH(publicData, constraintsInd, constraintsOrdering)
-
-	// put l, r, o,  in canonical basis
-	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
-	fft.BitReverse(l)
-	fft.BitReverse(r)
-	fft.BitReverse(o)
 
 	// compute evaluations of l, r, o, h, z at zeta
 	proof := &Proof{}
@@ -471,5 +470,5 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bn256witness.Witne
 	// compute opening proof for z at z*zeta
 	proof.OpeningZShift = publicData.CommitmentScheme.Open(&zzeta, z)
 
-	return &Proof{}
+	return proof
 }

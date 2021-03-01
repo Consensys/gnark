@@ -15,7 +15,6 @@
 package plonk
 
 import (
-	"fmt"
 	"math/big"
 
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
@@ -45,7 +44,7 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bn256witness.W
 	qll.Mul(&ql, &proof.LROHZ[0])
 	qrr.Mul(&qr, &proof.LROHZ[1])
 	qmlr.Mul(&qm, &proof.LROHZ[0]).Mul(&qmlr, &proof.LROHZ[1])
-	qoo.Mul(&qo, &proof.LROHZ[3])
+	qoo.Mul(&qo, &proof.LROHZ[2])
 	constraintInd.Add(&qll, &qrr).
 		Add(&constraintInd, &qmlr).
 		Add(&constraintInd, &qoo).
@@ -63,18 +62,18 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bn256witness.W
 	s[1].Set(s2.(*fr.Element))
 	s[2].Set(s3.(*fr.Element))
 
-	g[0].Add(&proof.LROHZ[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
-	g[1].Add(&proof.LROHZ[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
-	g[2].Add(&proof.LROHZ[2], &s[2]).Add(&g[2], &gamma) // o+s3+gamma
-	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]).Mul(&g[0], &proof.LROHZ[0])
+	g[0].Add(&proof.LROHZ[0], &s[0]).Add(&g[0], &gamma)                  // l+s1+gamma
+	g[1].Add(&proof.LROHZ[1], &s[1]).Add(&g[1], &gamma)                  // r+s2+gamma
+	g[2].Add(&proof.LROHZ[2], &s[2]).Add(&g[2], &gamma)                  // o+s3+gamma
+	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]).Mul(&g[0], &proof.LROHZ[0]) // (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma)*l (zeta)
 
 	sZeta.Mul(&publicData.Shifter[0], &zeta)
 	ssZeta.Mul(&publicData.Shifter[1], &zeta)
 
-	f[0].Add(&proof.LROHZ[0], &zeta).Add(&f[0], &gamma)   // l+s1+gamma
-	f[1].Add(&proof.LROHZ[1], &sZeta).Add(&f[1], &gamma)  // r+s2+gamma
-	f[2].Add(&proof.LROHZ[2], &ssZeta).Add(&f[2], &gamma) // o+s3+gamma
-	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]).Mul(&f[0], &proof.LROHZ[0])
+	f[0].Add(&proof.LROHZ[0], &zeta).Add(&f[0], &gamma)                  // l+zeta+gamma
+	f[1].Add(&proof.LROHZ[1], &sZeta).Add(&f[1], &gamma)                 // r+u*zeta+gamma
+	f[2].Add(&proof.LROHZ[2], &ssZeta).Add(&f[2], &gamma)                // o+u*zeta+gamma
+	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]).Mul(&f[0], &proof.LROHZ[0]) // (l+zeta+gamma)*(r+u*zeta+gamma)*(r+u*zeta+gamma)*l (zeta)
 
 	g[0].Mul(&g[0], &proof.ZShift)
 	f[0].Mul(&f[0], &proof.LROHZ[4])
@@ -92,11 +91,7 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bn256witness.W
 	// rhs = h(zeta)(zeta**m-1)
 	var lhs, rhs fr.Element
 	lhs.Mul(&alpha, &constraintOrdering).Add(&lhs, &constraintInd)
-	rhs.Mul(&zzeta, &proof.LROHZ[4])
-
-	// Verfiy commitments WIP
-	fmt.Printf("lhs: %s\n", lhs.String())
-	fmt.Printf("rhs: %s\n", rhs.String())
+	rhs.Mul(&zzeta, &proof.LROHZ[3])
 
 	if !lhs.Equal(&rhs) {
 		return false
