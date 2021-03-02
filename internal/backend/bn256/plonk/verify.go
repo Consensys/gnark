@@ -87,10 +87,26 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bn256witness.W
 	bExpo.SetUint64(publicData.DomainNum.Cardinality)
 	zzeta.Exp(zeta, &bExpo).Sub(&zzeta, &one)
 
-	// lhs = qlL+qrR+qmL.R+qoO+k(zeta) + alpha*(zu*g1*g2*g3*l-z*f1*f2*f3*l)(zeta)
+	// evaluation of L1*(Z-1) at zeta (L1 = 1/m*[ (X**m-1)/(X-1) ])
+	var startsAtOne, tmp, c fr.Element
+	c.SetUint64(publicData.DomainNum.Cardinality)
+	tmp.Sub(&proof.LROHZ[4], &one) // Z(zeta)-1
+	startsAtOne.
+		Sub(&zeta, &one).
+		Mul(&startsAtOne, &c).
+		Inverse(&startsAtOne).     // 1/m*(zeta-1)
+		Mul(&startsAtOne, &zzeta). // 1/m * (zeta**m-1)/(zeta-1)
+		Mul(&startsAtOne, &tmp)    // (Z(zeta)-1)*L1(ze)
+
+	// lhs = qlL+qrR+qmL.R+qoO+k(zeta) + alpha*(zu*g1*g2*g3*l-z*f1*f2*f3*l)(zeta) + alpha**2*L1(Z-1)(zeta)
+	var lhs fr.Element
+	lhs.Mul(&alpha, &startsAtOne).
+		Add(&lhs, &constraintOrdering).
+		Mul(&lhs, &alpha).
+		Add(&lhs, &constraintInd)
+
 	// rhs = h(zeta)(zeta**m-1)
-	var lhs, rhs fr.Element
-	lhs.Mul(&alpha, &constraintOrdering).Add(&lhs, &constraintInd)
+	var rhs fr.Element
 	rhs.Mul(&zzeta, &proof.LROHZ[3])
 
 	if !lhs.Equal(&rhs) {
