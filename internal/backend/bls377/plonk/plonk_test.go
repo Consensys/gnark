@@ -46,6 +46,8 @@ func TestCircuits(t *testing.T) {
 func TestProver(t *testing.T) {
 
 	for name, circuit := range circuits.Circuits {
+		// name := "div"
+		// circuit := circuits.Circuits[name]
 
 		t.Run(name, func(t *testing.T) {
 
@@ -73,7 +75,7 @@ func TestProver(t *testing.T) {
 				}
 			}
 
-			// wrong proof
+			//wrong proof
 			{
 				w := bls377witness.Witness{}
 				w.FromFullAssignment(circuit.Bad)

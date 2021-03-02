@@ -32,14 +32,90 @@ type PublicRaw struct {
 	// Commitment scheme that is used for an instantiation of PLONK
 	CommitmentScheme polynomial.CommitmentScheme
 
-	// FFTinv of the LDE of qr,ql,qm,qo,k (so all polynomials are in canonical basis)
+	// qr,ql,qm,qo,k (in canonical basis)
 	Ql, Qr, Qm, Qo, Qk bls377.Poly
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
 
+	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
+	// extended domain = s || shifter[0].s || shifter[1].s
+	Shifter [2]fr.Element
+
+	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
+	LS1, LS2, LS3 bls377.Poly
+	CS1, CS2, CS3 bls377.Poly
+
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int
+}
+
+// Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
+// the canonical basis.
+func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme) *PublicRaw {
+
+	nbConstraints := len(spr.Constraints)
+	nbAssertions := len(spr.Assertions)
+
+	var res PublicRaw
+
+	// fft domains
+	sizeSystem := uint64(nbConstraints + nbAssertions)
+	res.DomainNum = fft.NewDomain(sizeSystem, 3)
+	res.DomainH = fft.NewDomain(4*sizeSystem, 1)
+
+	// shifters
+	res.Shifter[0].Set(&res.DomainNum.FinerGenerator)
+	res.Shifter[1].Square(&res.DomainNum.FinerGenerator)
+
+	// commitment scheme
+	res.CommitmentScheme = polynomialCommitment
+
+	// public polynomials
+	res.Ql = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qr = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qm = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qo = make([]fr.Element, res.DomainNum.Cardinality)
+	res.Qk = make([]fr.Element, res.DomainNum.Cardinality)
+	for i := 0; i < nbConstraints; i++ {
+
+		res.Ql[i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		res.Qr[i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		res.Qm[i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&res.Qm[i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		res.Qo[i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
+		res.Qk[i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	}
+	for i := 0; i < nbAssertions; i++ {
+
+		index := nbConstraints + i
+
+		res.Ql[index].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
+		res.Qr[index].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
+		res.Qm[index].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
+			Mul(&res.Qm[index], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
+		res.Qo[index].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
+		res.Qk[index].Set(&spr.Coefficients[spr.Assertions[i].K])
+	}
+
+	res.DomainNum.FFTInverse(res.Ql, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qr, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qm, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qo, fft.DIF, 0)
+	res.DomainNum.FFTInverse(res.Qk, fft.DIF, 0)
+	fft.BitReverse(res.Ql)
+	fft.BitReverse(res.Qr)
+	fft.BitReverse(res.Qm)
+	fft.BitReverse(res.Qo)
+	fft.BitReverse(res.Qk)
+
+	// build permutation
+	buildPermutation(spr, &res)
+
+	// set s1, s2, s3
+	ComputeS(&res)
+
+	return &res
 }
 
 // buildPermutation builds the Permutation associated with a circuit.
@@ -117,63 +193,55 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 
 }
 
-// Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
-// the canonical basis.
-func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme) *PublicRaw {
+// ComputeS computes the LDE (Lagrange basis) of the permutations
+// s1, s2, s3.
+//
+// ex: z gen of Z/mZ, u gen of Z/8mZ, then
+//
+// 1	z 	..	z**n-1	|	u	uz	..	u*z**n-1	|	u**2	u**2*z	..	u**2*z**n-1  |
+//  																					 |
+//        																				 | Permutation
+// s11  s12 ..   s1n	   s21 s22 	 ..		s2n		     s31 	s32 	..		s3n		 v
+// \---------------/       \--------------------/        \------------------------/
+// 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
+func ComputeS(publicData *PublicRaw) {
 
-	nbConstraints := len(spr.Constraints)
-	nbAssertions := len(spr.Assertions)
+	nbElmt := int(publicData.DomainNum.Cardinality)
 
-	var res PublicRaw
+	// sID = [1,z,..,z**n-1,u,uz,..,uz**n-1,u**2,u**2.z,..,u**2.z**n-1]
+	sID := make([]fr.Element, 3*nbElmt)
+	sID[0].SetOne()
+	sID[nbElmt].Set(&publicData.DomainNum.FinerGenerator)
+	sID[2*nbElmt].Square(&publicData.DomainNum.FinerGenerator)
 
-	// fft domains
-	sizeSystem := uint64(nbConstraints + nbAssertions)
-	res.DomainNum = fft.NewDomain(sizeSystem, 2)
-	res.DomainH = fft.NewDomain(2*sizeSystem, 1)
-
-	// commitment scheme
-	res.CommitmentScheme = polynomialCommitment
-
-	// public polynomials
-	res.Ql = make([]fr.Element, res.DomainNum.Cardinality)
-	res.Qr = make([]fr.Element, res.DomainNum.Cardinality)
-	res.Qm = make([]fr.Element, res.DomainNum.Cardinality)
-	res.Qo = make([]fr.Element, res.DomainNum.Cardinality)
-	res.Qk = make([]fr.Element, res.DomainNum.Cardinality)
-	for i := 0; i < nbConstraints; i++ {
-
-		res.Ql[i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		res.Qr[i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		res.Qm[i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&res.Qm[i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		res.Qo[i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		res.Qk[i].Set(&spr.Coefficients[spr.Constraints[i].K])
-	}
-	for i := 0; i < nbAssertions; i++ {
-
-		index := nbConstraints + i
-
-		res.Ql[index].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
-		res.Qr[index].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
-		res.Qm[index].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
-			Mul(&res.Qm[index], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
-		res.Qo[index].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
-		res.Qk[index].Set(&spr.Coefficients[spr.Assertions[i].K])
+	for i := 1; i < nbElmt; i++ {
+		sID[i].Mul(&sID[i-1], &publicData.DomainNum.Generator)                   // z**i -> z**i+1
+		sID[i+nbElmt].Mul(&sID[nbElmt+i-1], &publicData.DomainNum.Generator)     // u*z**i -> u*z**i+1
+		sID[i+2*nbElmt].Mul(&sID[2*nbElmt+i-1], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
 	}
 
-	res.DomainNum.FFTInverse(res.Ql, fft.DIF, 0)
-	res.DomainNum.FFTInverse(res.Qr, fft.DIF, 0)
-	res.DomainNum.FFTInverse(res.Qm, fft.DIF, 0)
-	res.DomainNum.FFTInverse(res.Qo, fft.DIF, 0)
-	res.DomainNum.FFTInverse(res.Qk, fft.DIF, 0)
-	fft.BitReverse(res.Ql)
-	fft.BitReverse(res.Qr)
-	fft.BitReverse(res.Qm)
-	fft.BitReverse(res.Qo)
-	fft.BitReverse(res.Qk)
+	// Lagrange form of S1, S2, S3
+	publicData.LS1 = make(bls377.Poly, nbElmt)
+	publicData.LS2 = make(bls377.Poly, nbElmt)
+	publicData.LS3 = make(bls377.Poly, nbElmt)
+	for i := 0; i < nbElmt; i++ {
+		publicData.LS1[i].Set(&sID[publicData.Permutation[i]])
+		publicData.LS2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
+		publicData.LS3[i].Set(&sID[publicData.Permutation[2*nbElmt+i]])
+	}
 
-	// build permutation
-	buildPermutation(spr, &res)
+	// Canonical form of S1, S2, S3
+	publicData.CS1 = make(bls377.Poly, nbElmt)
+	publicData.CS2 = make(bls377.Poly, nbElmt)
+	publicData.CS3 = make(bls377.Poly, nbElmt)
+	copy(publicData.CS1, publicData.LS1)
+	copy(publicData.CS2, publicData.LS2)
+	copy(publicData.CS3, publicData.LS3)
+	publicData.DomainNum.FFTInverse(publicData.CS1, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(publicData.CS2, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(publicData.CS3, fft.DIF, 0)
+	fft.BitReverse(publicData.CS1)
+	fft.BitReverse(publicData.CS2)
+	fft.BitReverse(publicData.CS3)
 
-	return &res
 }

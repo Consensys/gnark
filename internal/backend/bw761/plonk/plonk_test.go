@@ -44,8 +44,11 @@ func TestCircuits(t *testing.T) {
 
 // TODO WIP -> once everything is clean move this to backend/plonk in assert
 func TestProver(t *testing.T) {
+	t.Skip("skip for bw761")
 
 	for name, circuit := range circuits.Circuits {
+		// name := "div"
+		// circuit := circuits.Circuits[name]
 
 		t.Run(name, func(t *testing.T) {
 
@@ -73,7 +76,7 @@ func TestProver(t *testing.T) {
 				}
 			}
 
-			// wrong proof
+			//wrong proof
 			{
 				w := bw761witness.Witness{}
 				w.FromFullAssignment(circuit.Bad)

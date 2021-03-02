@@ -1,3 +1,5 @@
+{{ $Curve := toLower .Curve }}
+
 import (
 	"testing"
 
@@ -27,7 +29,13 @@ func TestCircuits(t *testing.T) {
 // TODO WIP -> once everything is clean move this to backend/plonk in assert
 func TestProver(t *testing.T) {
 
+	{{- if eq $Curve "bw761" }}
+	t.Skip("skip for bw761")
+	{{- end }}
+
 	for name, circuit := range circuits.Circuits {
+		// name := "div"
+		// circuit := circuits.Circuits[name]
 
 		t.Run(name, func(t *testing.T) {
 
@@ -55,7 +63,7 @@ func TestProver(t *testing.T) {
 				}
 			}
 
-			// wrong proof
+			//wrong proof
 			{
 				w := {{ toLower .Curve }}witness.Witness{}
 				w.FromFullAssignment(circuit.Bad)

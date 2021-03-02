@@ -30,29 +30,35 @@ import (
 // TODO derive those random values using Fiat Shamir
 // zeta: value at which l, r, o, h are evaluated
 // vBundle: challenge used to bundle opening proofs at a single point (l+vBundle.r + vBundle**2*o + ...)
-// gamma: used in (l+X+gamma)*(r+u.X+gamma).(o.u**2X+gamma)
-var zeta, vBundle, gamma fr.Element
+// gamma: used in (l+X+gamma)*(r+u.X+gamma).(o+u**2X+gamma)
+// alpha: used in qlL+qrR+qmL.R+qoO+k + alpha.(Z(uX)g1g2g3-Z(X)f1f2f3) + alpha**2L1(Z-1) = HZ
+var zeta, vBundle, gamma, alpha fr.Element
 
 func init() {
 	zeta.SetString("2938092839238274283")
 	vBundle.SetString("987545678")
-	gamma.SetString("8278263826")
+	gamma.SetString("82782638268278263826")
+	alpha.SetString("2567832343425678323434")
 }
 
 // Proof PLONK proofs, consisting of opening proofs
 type Proof struct {
 
-	// Claimed Values are the values of L,R,O,H at zeta (wip for the remaining values)
-	ClaimedValues [4]fr.Element
+	// Claimed Values are the values of L,R,O,H,Z at zeta
+	LROHZ [5]fr.Element
 
-	// batch opening proofs for L,R,O,H at zeta
+	// Claimed vales of Z(zX) at zeta
+	ZShift fr.Element
+
+	// batch opening proofs for L,R,O,H,Z at zeta
 	BatchOpenings polynomial.BatchOpeningProofSinglePoint
+
+	// opening proof for Z at z*zeta
+	OpeningZShift polynomial.OpeningProof
 }
 
 // ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
-func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bw761witness.Witness) (bw761.Poly, bw761.Poly, bw761.Poly) {
-
-	solution, _ := spr.Solve(witness)
+func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bw761.Poly, bw761.Poly, bw761.Poly) {
 
 	s := int(publicData.DomainNum.Cardinality)
 
@@ -87,48 +93,16 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, witness bw761witness.
 
 }
 
-// ComputePermutations the permutation polynomials, Lagrange basis, associated to s1,s2,s3 in
-// the expression g = (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma).
-//
-// recall: at the end, we should have
-// Z(uX)*g(X) = Z(X)*(l+id+gamma)*(r+z.X+gamma)*(o+z**2.X+gamma) on <1,u,..,u^n-1>.
-func ComputePermutations(publicData *PublicRaw) (bw761.Poly, bw761.Poly, bw761.Poly) {
-
-	nbElmt := int(publicData.DomainNum.Cardinality)
-
-	// sID = [1,z,..,z**n-1,u,uz,..,uz**n-1,u**2,u**2.z,..,u**2.z**n-1]
-	sID := make([]fr.Element, 3*nbElmt)
-	sID[0].SetOne()
-	sID[nbElmt].Set(&publicData.DomainNum.FinerGenerator)
-	sID[2*nbElmt].Square(&publicData.DomainNum.FinerGenerator)
-
-	for i := 1; i < nbElmt; i++ {
-		sID[i].Mul(&sID[i-1], &publicData.DomainNum.Generator)                   // z**i -> z**i+1
-		sID[i+nbElmt].Mul(&sID[nbElmt+i-1], &publicData.DomainNum.Generator)     // u*z**i -> u*z**i+1
-		sID[i+2*nbElmt].Mul(&sID[2*nbElmt+i-1], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
-	}
-
-	// LDE (in Lagrange basis) of the permutations
-	s1 := make(bw761.Poly, nbElmt)
-	s2 := make(bw761.Poly, nbElmt)
-	s3 := make(bw761.Poly, nbElmt)
-	for i := 0; i < nbElmt; i++ {
-		s1[i].Set(&sID[publicData.Permutation[i]])
-		s2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
-		s3[i].Set(&sID[publicData.Permutation[2*nbElmt+i]])
-	}
-
-	return s1, s2, s3
-}
-
-// ComputeZ computes Z (LDE, in Lagrange basis), where:
+// ComputeZ computes Z (in Lagrange basis), where:
 //
 // * Z of degree n (domainNum.Cardinality)
 // * Z(1)=1
-// 								  (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
-//	* for i>1: Z(u**i) = Pi_{k<i} -------------------------------------------------------
-//								  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
-func ComputeZ(l, r, o, s1, s2, s3 bw761.Poly, publicData *PublicRaw) bw761.Poly {
+// 								   (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+//	* for i>0: Z(u**i) = Pi_{k<i} -------------------------------------------------------
+//								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+//
+//	* l, r, o are the solution in Lagrange basis
+func ComputeZ(l, r, o bw761.Poly, publicData *PublicRaw) bw761.Poly {
 
 	z := make(bw761.Poly, publicData.DomainNum.Cardinality)
 	nbElmts := int(publicData.DomainNum.Cardinality)
@@ -137,8 +111,8 @@ func ComputeZ(l, r, o, s1, s2, s3 bw761.Poly, publicData *PublicRaw) bw761.Poly 
 	var g [3]fr.Element
 	var u [3]fr.Element
 	u[0].SetOne()
-	u[1].Set(&publicData.DomainNum.FinerGenerator)
-	u[2].Square(&publicData.DomainNum.FinerGenerator)
+	u[1].Set(&publicData.Shifter[0])
+	u[2].Set(&publicData.Shifter[1])
 
 	z[0].SetOne()
 
@@ -148,89 +122,46 @@ func ComputeZ(l, r, o, s1, s2, s3 bw761.Poly, publicData *PublicRaw) bw761.Poly 
 		f[1].Add(&r[i], &u[1]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
 		f[2].Add(&o[i], &u[2]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
-		u[0].Mul(&u[0], &publicData.DomainNum.Generator) // z**i -> z**i+1
-		u[1].Mul(&u[1], &publicData.DomainNum.Generator) // u*z**i -> u*z**i+1
-		u[2].Mul(&u[2], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
-
-		g[0].Add(&l[i], &s1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
-		g[1].Add(&r[i], &s2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
-		g[2].Add(&o[i], &s3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
+		g[0].Add(&l[i], &publicData.LS1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
+		g[1].Add(&r[i], &publicData.LS2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
+		g[2].Add(&o[i], &publicData.LS3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
 
 		f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]) // (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
 		g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
 		z[i+1].Mul(&z[i], &f[0]).Div(&z[i+1], &g[0])
 
+		u[0].Mul(&u[0], &publicData.DomainNum.Generator) // z**i -> z**i+1
+		u[1].Mul(&u[1], &publicData.DomainNum.Generator) // u*z**i -> u*z**i+1
+		u[2].Mul(&u[2], &publicData.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
 	}
 
 	return z
 
 }
 
-// evaluate evaluates a polynomial of degree m=domainNum.Cardinality on the 2 cosets
-// 1 and 3 of (Z/4mZ)/(Z/mZ), so it dodges Z/mZ (+Z/2mZ), the vanishing set of Z.
-//
-// Puts the result in res (of size 2*domain.Cardinality).
-//
-// Both sizes of poly and res are powers of 2, len(res) = 2*len(poly).
-func evaluate(poly, res []fr.Element, domain *fft.Domain) {
+// evalConstraints computes the evaluation of lL+qrR+qqmL.R+qoO+k on
+// the odd cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
+func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []fr.Element {
 
-	// build a copy of poly padded with 0 so it has the length of the closest power of 2 of poly
-	evaluations := make([][]fr.Element, 2)
-	evaluations[0] = make([]fr.Element, domain.Cardinality)
-	evaluations[1] = make([]fr.Element, domain.Cardinality)
+	res := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 
-	// evaluations[i] must contain poly in the canonical basis
-	copy(evaluations[0], poly)
-	copy(evaluations[1], evaluations[0])
+	// evaluates ql, qr, qm, qo, k on the odd cosets of (Z/8mZ)/(Z/mZ)
+	evalQl := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalQr := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalQm := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalQo := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalQk := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evaluateCosets(publicData.Ql, evalQl, publicData.DomainNum)
+	evaluateCosets(publicData.Qr, evalQr, publicData.DomainNum)
+	evaluateCosets(publicData.Qm, evalQm, publicData.DomainNum)
+	evaluateCosets(publicData.Qo, evalQo, publicData.DomainNum)
+	evaluateCosets(publicData.Qk, evalQk, publicData.DomainNum)
 
-	domain.FFT(evaluations[0], fft.DIF, 1)
-	domain.FFT(evaluations[1], fft.DIF, 3)
-	fft.BitReverse(evaluations[0])
-	fft.BitReverse(evaluations[1])
-
-	//res := make([]fr.Element, 2*domain.Cardinality)
-	for i := uint64(0); i < domain.Cardinality; i++ {
-		res[2*i].Set(&evaluations[0][i])
-		res[2*i+1].Set(&evaluations[1][i])
-	}
-}
-
-// computeNumFirstClaim computes the evaluation of lL+qrR+qqmL.R+qoO+k on
-// the coset 1 of (Z/4mZ)/(Z/2mZ), where m=nbConstraints+nbAssertions.
-//
-// qlL+qrR+qmL.R+qoO+k = H*Z, where Z=x^n-1
-//
-// l, r, o must be of size 2^n.
-func computeNumFirstClaim(publicData *PublicRaw, l, r, o []fr.Element) []fr.Element {
-
-	// data
-	evalL := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalR := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalO := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-
-	evalQl := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalQr := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalQm := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalQo := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-	evalQk := make([]fr.Element, 2*publicData.DomainNum.Cardinality)
-
-	// public vectors
-	evaluate(publicData.Ql, evalQl, publicData.DomainNum)
-	evaluate(publicData.Qr, evalQr, publicData.DomainNum)
-	evaluate(publicData.Qm, evalQm, publicData.DomainNum)
-	evaluate(publicData.Qo, evalQo, publicData.DomainNum)
-	evaluate(publicData.Qk, evalQk, publicData.DomainNum)
-
-	// solution vectors
-	evaluate(l, evalL, publicData.DomainNum)
-	evaluate(r, evalR, publicData.DomainNum)
-	evaluate(o, evalO, publicData.DomainNum)
-
-	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the coset
-	// 1 of (Z/4mZ)/(Z/2mZ)
+	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
+	// of (Z/8mZ)/(Z/mZ)
 	var acc, buf fr.Element
-	for i := uint64(0); i < 2*publicData.DomainNum.Cardinality; i++ {
+	for i := uint64(0); i < 4*publicData.DomainNum.Cardinality; i++ {
 
 		acc.Mul(&evalQl[i], &evalL[i]) // ql.l
 
@@ -241,79 +172,333 @@ func computeNumFirstClaim(publicData *PublicRaw, l, r, o []fr.Element) []fr.Elem
 		acc.Add(&acc, &buf) // ql.l + qr.r + qm.l.r
 
 		buf.Mul(&evalQo[i], &evalO[i])
-		acc.Add(&acc, &buf)            // ql.l + qr.r + qm.l.r + qo.o
-		evalL[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
+		acc.Add(&acc, &buf)          // ql.l + qr.r + qm.l.r + qo.o
+		res[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
 	}
 
-	return evalL
+	return res
 }
 
-// computeH computes h = num/Z, where:
-// * Z = X^m-1, m=2^n
-// * num (of size 2^{n+1}) is the evaluation of a polynomial of
-// 	degree 3*m on 2m=2^{n+1} points (coset 1 of (Z/4mZ)/(Z/2mZ)).
-// The result is h in the canonical basis.
-func computeH(num bw761.Poly, publicData *PublicRaw) bw761.Poly {
+// evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
+func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bw761.Poly) {
 
-	h := make([]fr.Element, publicData.DomainH.Cardinality)
+	// evaluation of id, uid, u**id on the cosets
+	id = make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	c := int(publicData.DomainNum.Cardinality)
+	id[0].SetOne()
+	id[1].SetOne()
+	id[2].SetOne()
+	id[3].SetOne()
+	for i := 1; i < c; i++ {
+		id[4*i].Mul(&id[4*(i-1)], &publicData.DomainNum.Generator)
+		id[4*i+1].Set(&id[4*i])
+		id[4*i+2].Set(&id[4*i])
+		id[4*i+3].Set(&id[4*i])
+	}
+	// at this stage, id = [1,1,1,1,|z,z,z,z|,...,|z**n-1,z**n-1,z**n-1,z**n-1]
 
-	// evaluate Z
-	var one fr.Element
-	var expo big.Int
-	expo.SetUint64(publicData.DomainNum.Cardinality)
-	zPoly := make([]fr.Element, 2)
-	one.SetOne()
-	zPoly[0].Exp(publicData.DomainNum.FinerGenerator, &expo) // finerGen**DomainNum.Cardinality
-	zPoly[1].Square(&zPoly[0]).Mul(&zPoly[1], &zPoly[0])     // (finerGen**3)**DomainNum.Cardinality
-	zPoly[0].Sub(&zPoly[0], &one)
-	zPoly[1].Sub(&zPoly[1], &one)
+	var uu fr.Element
+	uu.Square(&publicData.DomainNum.FinerGenerator)
+	var u [4]fr.Element
+	u[0].Set(&publicData.DomainNum.FinerGenerator)                // u
+	u[1].Mul(&u[0], &uu)                                          // u**3
+	u[2].Mul(&u[1], &uu)                                          // u**5
+	u[3].Mul(&u[2], &uu)                                          // u**7
+	uid = make([]fr.Element, 4*publicData.DomainNum.Cardinality)  // shifter[0]*ID evaluated on odd cosets of (Z/8mZ)/(Z/mZ)
+	uuid = make([]fr.Element, 4*publicData.DomainNum.Cardinality) // shifter[1]*ID evaluated on odd cosets of (Z/8mZ)/(Z/mZ)
+	for i := 0; i < c; i++ {
 
-	// h = num/Z
-	for i := 0; i < int(publicData.DomainH.Cardinality); i++ {
-		h[i].Div(&num[i], &zPoly[i%2])
+		id[4*i].Mul(&id[4*i], &u[0])     // coset u.<1,z,..,z**n-1>
+		id[4*i+1].Mul(&id[4*i+1], &u[1]) // coset u**3.<1,z,..,z**n-1>
+		id[4*i+2].Mul(&id[4*i+2], &u[2]) // coset u**5.<1,z,..,z**n-1>
+		id[4*i+3].Mul(&id[4*i+3], &u[3]) // coset u**7.<1,z,..,z**n-1>
+
+		uid[4*i].Mul(&id[4*i], &publicData.Shifter[0])     // shifter[0]*ID
+		uid[4*i+1].Mul(&id[4*i+1], &publicData.Shifter[0]) // shifter[0]*ID
+		uid[4*i+2].Mul(&id[4*i+2], &publicData.Shifter[0]) // shifter[0]*ID
+		uid[4*i+3].Mul(&id[4*i+3], &publicData.Shifter[0]) // shifter[0]*ID
+
+		uuid[4*i].Mul(&id[4*i], &publicData.Shifter[1])     // shifter[1]*ID
+		uuid[4*i+1].Mul(&id[4*i+1], &publicData.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+2].Mul(&id[4*i+2], &publicData.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+3].Mul(&id[4*i+3], &publicData.Shifter[1]) // shifter[1]*ID
+
+	}
+	return
+}
+
+// evalConstraintOrdering computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
+// cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
+//
+// z: permutation accumulator polynomial in canonical form
+// l, r, o: solution, in canonical form
+func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO bw761.Poly) bw761.Poly {
+
+	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
+	evalS1 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalS2 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalS3 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evaluateCosets(publicData.CS1, evalS1, publicData.DomainNum)
+	evaluateCosets(publicData.CS2, evalS2, publicData.DomainNum)
+	evaluateCosets(publicData.CS3, evalS3, publicData.DomainNum)
+
+	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
+	evalID, evaluID, evaluuID := evalIDCosets(publicData)
+
+	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
+	res := make(bw761.Poly, 4*publicData.DomainNum.Cardinality)
+
+	var f [3]fr.Element
+	var g [3]fr.Element
+	for i := 0; i < 4*int(publicData.DomainNum.Cardinality); i++ {
+
+		f[0].Add(&evalL[i], &evalID[i]).Add(&f[0], &gamma)   //l_i+z**i+gamma
+		f[1].Add(&evalR[i], &evaluID[i]).Add(&f[1], &gamma)  //r_i+u*z**i+gamma
+		f[2].Add(&evalO[i], &evaluuID[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
+
+		g[0].Add(&evalL[i], &evalS1[i]).Add(&g[0], &gamma) //l_i+s1+gamma
+		g[1].Add(&evalR[i], &evalS2[i]).Add(&g[1], &gamma) //r_i+s2+gamma
+		g[2].Add(&evalO[i], &evalS3[i]).Add(&g[2], &gamma) //o_i+s3+gamma
+
+		f[0].Mul(&f[0], &f[1]).
+			Mul(&f[0], &f[2]).
+			Mul(&f[0], &evalL[i]).
+			Mul(&f[0], &evalZ[i]) // z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)*l_i
+
+		g[0].Mul(&g[0], &g[1]).
+			Mul(&g[0], &g[2]).
+			Mul(&g[0], &evalL[i]).
+			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)*l_i
+
+		res[i].Sub(&g[0], &f[0])
 	}
 
-	// express h in the canonical basis
+	return res
+}
+
+// evalStartsAtOne computes the evaluation of L1*(z-1) on the odd cosets
+// of (Z/8mZ)/(Z/mZ).
+//
+// evalZ is the evaluation of z (=permutation constraint polynomial) on odd cosets of (Z/8mZ)/(Z/mZ)
+func evalStartsAtOne(publicData *PublicRaw, evalZ bw761.Poly) bw761.Poly {
+
+	// computes L1 (canonical form)
+	lOneLagrange := make([]fr.Element, publicData.DomainNum.Cardinality)
+	lOneLagrange[0].SetOne()
+	publicData.DomainNum.FFTInverse(lOneLagrange, fft.DIF, 0)
+	fft.BitReverse(lOneLagrange)
+
+	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
+	res := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evaluateCosets(lOneLagrange, res, publicData.DomainNum)
+
+	// // evaluates L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
+	var buf, one fr.Element
+	one.SetOne()
+	for i := 0; i < 4*int(publicData.DomainNum.Cardinality); i++ {
+		buf.Sub(&evalZ[i], &one)
+		res[i].Mul(&buf, &res[i])
+	}
+
+	return res
+}
+
+// evaluateCosets evaluates poly (canonical form) of degree m=domainNum.Cardinality on
+// the 4 odd cosets of (Z/8mZ)/(Z/mZ), so it dodges Z/mZ (+Z/2kmZ), which contains the
+// vanishing set of Z.
+//
+// Puts the result in res (of size 4*domain.Cardinality).
+//
+// Both sizes of poly and res are powers of 2, len(res) = 4*len(poly).
+func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
+
+	// build a copy of poly padded with 0 so it has the length of the closest power of 2 of poly
+	evaluations := make([][]fr.Element, 4)
+	evaluations[0] = make([]fr.Element, domain.Cardinality)
+	evaluations[1] = make([]fr.Element, domain.Cardinality)
+	evaluations[2] = make([]fr.Element, domain.Cardinality)
+	evaluations[3] = make([]fr.Element, domain.Cardinality)
+
+	// evaluations[i] must contain poly in the canonical basis
+	copy(evaluations[0], poly)
+	copy(evaluations[1], poly)
+	copy(evaluations[2], poly)
+	copy(evaluations[3], poly)
+
+	domain.FFT(evaluations[0], fft.DIF, 1)
+	domain.FFT(evaluations[1], fft.DIF, 3)
+	domain.FFT(evaluations[2], fft.DIF, 5)
+	domain.FFT(evaluations[3], fft.DIF, 7)
+	fft.BitReverse(evaluations[0])
+	fft.BitReverse(evaluations[1])
+	fft.BitReverse(evaluations[2])
+	fft.BitReverse(evaluations[3])
+
+	for i := uint64(0); i < domain.Cardinality; i++ {
+		res[4*i].Set(&evaluations[0][i])
+		res[4*i+1].Set(&evaluations[1][i])
+		res[4*i+2].Set(&evaluations[2][i])
+		res[4*i+3].Set(&evaluations[3][i])
+	}
+}
+
+// shiftZ turns z to z(uX) (both in Lagrange basis)
+func shiftZ(z bw761.Poly) bw761.Poly {
+
+	res := make(bw761.Poly, len(z))
+	copy(res, z)
+
+	var buf fr.Element
+	buf.Set(&res[0])
+	for i := 0; i < len(res)-1; i++ {
+		res[i].Set(&res[i+1])
+	}
+	res[len(res)-1].Set(&buf)
+
+	return res
+}
+
+// computeH computes h (canonical form) such that
+//
+// qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1*(z-1)= h.Z
+// \------------------/         \------------------------/             \-----/
+//    constraintsInd			    constraintOrdering					startsAtOne
+//
+// constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
+func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bw761.Poly) bw761.Poly {
+
+	h := make(bw761.Poly, 4*publicData.DomainNum.Cardinality)
+
+	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
+	var bExpo big.Int
+	bExpo.SetUint64(publicData.DomainNum.Cardinality)
+	var u [4]fr.Element
+	var uu fr.Element
+	var one fr.Element
+	one.SetOne()
+	uu.Square(&publicData.DomainNum.FinerGenerator)
+	u[0].Set(&publicData.DomainNum.FinerGenerator)
+	u[1].Mul(&u[0], &uu)
+	u[2].Mul(&u[1], &uu)
+	u[3].Mul(&u[2], &uu)
+	u[0].Exp(u[0], &bExpo).Sub(&u[0], &one).Inverse(&u[0]) // (X**m-1)**-1 at u
+	u[1].Exp(u[1], &bExpo).Sub(&u[1], &one).Inverse(&u[1]) // (X**m-1)**-1 at u**3
+	u[2].Exp(u[2], &bExpo).Sub(&u[2], &one).Inverse(&u[2]) // (X**m-1)**-1 at u**5
+	u[3].Exp(u[3], &bExpo).Sub(&u[3], &one).Inverse(&u[3]) // (X**m-1)**-1 at u**7
+
+	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1(X)(Z(X)-1)
+	// on the odd cosets of (Z/8mZ)/(Z/mZ)
+	for i := 0; i < 4*int(publicData.DomainNum.Cardinality); i++ {
+		h[i].Mul(&startsAtOne[i], &alpha).
+			Add(&h[i], &constraintOrdering[i]).
+			Mul(&h[i], &alpha).
+			Add(&h[i], &constraintsInd[i])
+	}
+
+	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
+	// on the odd cosets of (Z/8mZ)/(Z/mZ)
+	for i := 0; i < int(publicData.DomainNum.Cardinality); i++ {
+		h[4*i].Mul(&h[4*i], &u[0])
+		h[4*i+1].Mul(&h[4*i+1], &u[1])
+		h[4*i+2].Mul(&h[4*i+2], &u[2])
+		h[4*i+3].Mul(&h[4*i+3], &u[3])
+	}
+
+	// put h in canonical form
 	publicData.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
 	return h
+
 }
 
-// Prove from the public data representing a circuit, and the solution
-// l, r, o, outputs a proof that the assignment is valid.
-//
-// It computes H such that qlL+qrR+qmL.R+qoO+k = H*Z, Z = X^m-1
-// TODO add a parameter to force the resolution of the system even if a constraint does not hold, so we can cleanly check that the prover fails
+// Prove from the public data
+// TODO add a parameter to force the resolution of the system even if a constraint does not hold
 func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bw761witness.Witness) *Proof {
 
-	// evaluate qlL+qrR+qmL.R+qoO+k on 2*m points. First query l,r,o then put them back in canonical form, then evaluate
-	l, r, o := ComputeLRO(spr, publicData, witness)
+	// compute the solution
+	solution, _ := spr.Solve(witness)
+
+	// query l, r, o in Lagrange basis
+	l, r, o := ComputeLRO(spr, publicData, solution)
+
+	// compute Z, the permutation accumulator polynomial, in Lagrange basis
+	z := ComputeZ(l, r, o, publicData)
+
+	// compute Z(uX), in Lagrange basis
+	zu := shiftZ(z)
+
+	// put l, r, o,  in canonical basis
 	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
 	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
 	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
 	fft.BitReverse(l)
 	fft.BitReverse(r)
 	fft.BitReverse(o)
-	num := computeNumFirstClaim(publicData, l, r, o)
 
-	// TODO wip, compute the remaining part of the num
+	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
+	evalL := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalR := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalO := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evaluateCosets(l, evalL, publicData.DomainNum)
+	evaluateCosets(r, evalR, publicData.DomainNum)
+	evaluateCosets(o, evalO, publicData.DomainNum)
+
+	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
+	constraintsInd := evalConstraints(publicData, evalL, evalR, evalO)
+
+	// put back z, zu in canonical basis
+	publicData.DomainNum.FFTInverse(z, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(zu, fft.DIF, 0)
+	fft.BitReverse(z)
+	fft.BitReverse(zu)
+
+	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
+	evalZ := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evalZu := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
+	evaluateCosets(z, evalZ, publicData.DomainNum)
+	evaluateCosets(zu, evalZu, publicData.DomainNum)
+
+	// compute zu*g1*g2*g3*l-z*f1*f2*f3*l on the odd cosets of (Z/8mZ)/(Z/mZ)
+	//
+	// /!\ IMPORTANT NOTE /!\
+	//
+	// l is added so that zu*g1*g2*g3*l-z*f1*f2*f3*l is a degree 5m polynomial,
+	// so when dividing it by x^m-1, we obtain a degree 4m polynomial h, so we can
+	// perform radix 2 fft to evaluate h on 4m points. l is not divisible by h, so
+	// it does not impact the security of the scheme.
+	constraintsOrdering := evalConstraintOrdering(publicData, evalZ, evalZu, evalL, evalR, evalO)
+
+	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
+	startsAtOne := evalStartsAtOne(publicData, evalZ)
 
 	// compute h (its evaluation)
-	h := computeH(num, publicData)
+	h := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne)
 
-	// compute bundled opening proof for l, r, o, h at zeta
+	// compute evaluations of l, r, o, h, z at zeta
 	proof := &Proof{}
 	tmp := l.Eval(&zeta)
-	proof.ClaimedValues[0].Set(tmp.(*fr.Element))
+	proof.LROHZ[0].Set(tmp.(*fr.Element))
 	tmp = r.Eval(&zeta)
-	proof.ClaimedValues[1].Set(tmp.(*fr.Element))
+	proof.LROHZ[1].Set(tmp.(*fr.Element))
 	tmp = o.Eval(&zeta)
-	proof.ClaimedValues[2].Set(tmp.(*fr.Element))
+	proof.LROHZ[2].Set(tmp.(*fr.Element))
 	tmp = h.Eval(&zeta)
-	proof.ClaimedValues[3].Set(tmp.(*fr.Element))
+	proof.LROHZ[3].Set(tmp.(*fr.Element))
+	tmp = z.Eval(&zeta)
+	proof.LROHZ[4].Set(tmp.(*fr.Element))
 
-	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h)
+	// compute evaluation of z at z*zeta
+	var zzeta fr.Element
+	zzeta.Mul(&zeta, &publicData.DomainNum.Generator)
+	tmp = z.Eval(&zzeta)
+	proof.ZShift.Set(tmp.(*fr.Element))
+
+	// compute batch opening proof for l, r, o, h, z at zeta
+	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h, z)
+
+	// compute opening proof for z at z*zeta
+	proof.OpeningZShift = publicData.CommitmentScheme.Open(&zzeta, z)
 
 	return proof
 }
