@@ -244,13 +244,11 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 
 		f[0].Mul(&f[0], &f[1]).
 			Mul(&f[0], &f[2]).
-			Mul(&f[0], &evalL[i]).
-			Mul(&f[0], &evalZ[i]) // z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)*l_i
+			Mul(&f[0], &evalZ[i]) // z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)
 
 		g[0].Mul(&g[0], &g[1]).
 			Mul(&g[0], &g[2]).
-			Mul(&g[0], &evalL[i]).
-			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)*l_i
+			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
 		res[i].Sub(&g[0], &f[0])
 	}
@@ -441,14 +439,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness {{ toLower .Curve 
 	evaluateCosets(z, evalZ, publicData.DomainNum)
 	evaluateCosets(zu, evalZu, publicData.DomainNum)
 
-	// compute zu*g1*g2*g3*l-z*f1*f2*f3*l on the odd cosets of (Z/8mZ)/(Z/mZ)
-	//
-	// /!\ IMPORTANT NOTE /!\
-	//
-	// l is added so that zu*g1*g2*g3*l-z*f1*f2*f3*l is a degree 5m polynomial,
-	// so when dividing it by x^m-1, we obtain a degree 4m polynomial h, so we can
-	// perform radix 2 fft to evaluate h on 4m points. l is not divisible by h, so
-	// it does not impact the security of the scheme.
+	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	constraintsOrdering := evalConstraintOrdering(publicData, evalZ, evalZu, evalL, evalR, evalO)
 
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
