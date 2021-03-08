@@ -176,7 +176,7 @@ The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bl
 
 ### BN256
 
-| nb constraints | 100000|32000000|64000000|
+| number of constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |
 | bellman_ce (s/op)|0.43|106|214.8|
 | gnark (s/op)  |0.16|33.9|63.4|
@@ -186,7 +186,7 @@ On large circuits, that's **over 1M constraints per second**.
 
 ### BLS381
 
-| nb constraints | 100000|32000000|64000000|
+| number of constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |
 | bellman (s/op)|0.6|158|316.8|
 | gnark (s/op)  |0.23|47.6|90.7|
