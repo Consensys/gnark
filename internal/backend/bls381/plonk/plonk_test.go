@@ -58,17 +58,18 @@ func TestProver(t *testing.T) {
 			spr := pcs.(*cs.SparseR1CS)
 
 			scheme := mockcommitment.Scheme{}
-			publicData := plonkbls381.Setup(spr, &scheme)
+			wPublic := bls381witness.Witness{}
+			wPublic.FromPublicAssignment(circuit.Good)
+			publicData := plonkbls381.Setup(spr, &scheme, wPublic)
 
 			// correct proof
 			{
-				w := bls381witness.Witness{}
-				w.FromFullAssignment(circuit.Good)
 
-				proof := plonkbls381.Prove(spr, publicData, w)
+				wFull := bls381witness.Witness{}
+				wFull.FromFullAssignment(circuit.Good)
+				proof := plonkbls381.Prove(spr, publicData, wFull)
 
-				w.FromPublicAssignment(circuit.Good)
-				v := plonkbls381.VerifyRaw(proof, publicData, w)
+				v := plonkbls381.VerifyRaw(proof, publicData, wPublic)
 
 				if !v {
 					t.Fatal("Correct proof verification failed")
@@ -77,13 +78,11 @@ func TestProver(t *testing.T) {
 
 			//wrong proof
 			{
-				w := bls381witness.Witness{}
-				w.FromFullAssignment(circuit.Bad)
+				wFull := bls381witness.Witness{}
+				wFull.FromFullAssignment(circuit.Bad)
+				proof := plonkbls381.Prove(spr, publicData, wFull)
 
-				proof := plonkbls381.Prove(spr, publicData, w)
-
-				w.FromPublicAssignment(circuit.Good)
-				v := plonkbls381.VerifyRaw(proof, publicData, w)
+				v := plonkbls381.VerifyRaw(proof, publicData, wPublic)
 
 				if v {
 					t.Fatal("Wrong proof verification should have failed")

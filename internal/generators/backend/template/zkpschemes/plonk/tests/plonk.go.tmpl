@@ -46,17 +46,18 @@ func TestProver(t *testing.T) {
 			spr := pcs.(*cs.SparseR1CS)
 
 			scheme := mockcommitment.Scheme{}
-			publicData := plonk{{ toLower .Curve }}.Setup(spr, &scheme)
+			wPublic := {{ toLower .Curve }}witness.Witness{}
+			wPublic.FromPublicAssignment(circuit.Good)
+			publicData := plonk{{ toLower .Curve }}.Setup(spr, &scheme, wPublic)
 
 			// correct proof
 			{
-				w := {{ toLower .Curve }}witness.Witness{}
-				w.FromFullAssignment(circuit.Good)
 
-				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, w)
+				wFull := {{ toLower .Curve }}witness.Witness{}
+				wFull.FromFullAssignment(circuit.Good)
+				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, wFull)
 
-				w.FromPublicAssignment(circuit.Good)
-				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, w)
+				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, wPublic)
 
 				if !v {
 					t.Fatal("Correct proof verification failed")
@@ -65,13 +66,11 @@ func TestProver(t *testing.T) {
 
 			//wrong proof
 			{
-				w := {{ toLower .Curve }}witness.Witness{}
-				w.FromFullAssignment(circuit.Bad)
+				wFull := {{ toLower .Curve }}witness.Witness{}
+				wFull.FromFullAssignment(circuit.Bad)
+				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, wFull)
 
-				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, w)
-
-				w.FromPublicAssignment(circuit.Good)
-				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, w)
+				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, wPublic)
 
 				if v {
 					t.Fatal("Wrong proof verification should have failed")

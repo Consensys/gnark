@@ -58,6 +58,7 @@ type Proof struct {
 }
 
 // ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
+// solution = [ public | secret | internal ]
 func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bw761.Poly, bw761.Poly, bw761.Poly) {
 
 	s := int(publicData.DomainNum.Cardinality)
@@ -67,23 +68,25 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
 
-	for i := 0; i < len(spr.Constraints); i++ {
-		l[i].Set(&solution[spr.Constraints[i].L.VariableID()])
-		r[i].Set(&solution[spr.Constraints[i].R.VariableID()])
-		o[i].Set(&solution[spr.Constraints[i].O.VariableID()])
+	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
+		l[i].Set(&solution[i])
+		r[i].Set(&solution[0])
+		o[i].Set(&solution[0])
 	}
-	offset := len(spr.Constraints)
-	for i := 0; i < len(spr.Assertions); i++ {
+	offset := spr.NbPublicVariables
+	for i := 0; i < len(spr.Constraints); i++ { // constraints
+		l[offset+i].Set(&solution[spr.Constraints[i].L.VariableID()])
+		r[offset+i].Set(&solution[spr.Constraints[i].R.VariableID()])
+		o[offset+i].Set(&solution[spr.Constraints[i].O.VariableID()])
+	}
+	offset += len(spr.Constraints)
+	for i := 0; i < len(spr.Assertions); i++ { // assertions
 		l[offset+i].Set(&solution[spr.Assertions[i].L.VariableID()])
 		r[offset+i].Set(&solution[spr.Assertions[i].R.VariableID()])
 		o[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
 	}
-
-	// the padded constraints are dummy constraints -> the variable ID is 0 in those
-	// constraints. We therefore need to add solution[0] to l, r, o once we reach the
-	// dummy constraint, so that l, r, o is compliant with the permutation.
 	offset += len(spr.Assertions)
-	for i := 0; i < s-offset; i++ {
+	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
 		l[offset+i].Set(&solution[0])
 		r[offset+i].Set(&solution[0])
 		o[offset+i].Set(&solution[0])

@@ -3,6 +3,7 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
 	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/cs"
 	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/fft"
+	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
 	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
 )
 
@@ -32,9 +33,13 @@ type PublicRaw struct {
 	Permutation []int
 }
 
-// Setup from a sparseR1CS, it returns ql, qr, qm, qo, k in
-// the canonical basis.
-func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme) *PublicRaw {
+// Setup from a sparseR1CS
+// * sets LDE+canonical basis representations of the permutations
+// * sets the canonical basis of ql, qr, qm, qo, qk extended (i.e. containing also placeholders constraints -PUB_INPUT_i + qk_i=0)
+// * sets the fft domains that will be needed for handling polynomials
+// The publicWitness params is here to build the placeholder constraints (used in the verifier to complete the proof)
+// TODO in many places this function should handle raising errors
+func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness witness.Witness) *PublicRaw {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -42,7 +47,7 @@ func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme)
 	var res PublicRaw
 
 	// fft domains
-	sizeSystem := uint64(nbConstraints + nbAssertions)
+	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
 	res.DomainNum = fft.NewDomain(sizeSystem, 3)
 	res.DomainH = fft.NewDomain(4*sizeSystem, 1)
 
@@ -53,31 +58,39 @@ func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme)
 	// commitment scheme
 	res.CommitmentScheme = polynomialCommitment
 
-	// public polynomials
+	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	res.Ql = make([]fr.Element, res.DomainNum.Cardinality)
 	res.Qr = make([]fr.Element, res.DomainNum.Cardinality)
 	res.Qm = make([]fr.Element, res.DomainNum.Cardinality)
 	res.Qo = make([]fr.Element, res.DomainNum.Cardinality)
 	res.Qk = make([]fr.Element, res.DomainNum.Cardinality)
-	for i := 0; i < nbConstraints; i++ {
 
-		res.Ql[i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		res.Qr[i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		res.Qm[i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&res.Qm[i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		res.Qo[i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		res.Qk[i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+		res.Ql[i].SetOne().Neg(&res.Ql[i])
+		res.Qr[i].SetZero()
+		res.Qm[i].SetZero()
+		res.Qo[i].SetZero()
+		res.Qk[i].Set(&publicWitness[i])
 	}
-	for i := 0; i < nbAssertions; i++ {
+	offset := spr.NbPublicVariables
+	for i := 0; i < nbConstraints; i++ { // constraints
 
-		index := nbConstraints + i
+		res.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		res.Qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		res.Qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&res.Qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		res.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
+		res.Qk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	}
+	offset += nbConstraints
+	for i := 0; i < nbAssertions; i++ { // assertions
 
-		res.Ql[index].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
-		res.Qr[index].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
-		res.Qm[index].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
-			Mul(&res.Qm[index], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
-		res.Qo[index].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
-		res.Qk[index].Set(&spr.Coefficients[spr.Assertions[i].K])
+		res.Ql[offset+i].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
+		res.Qr[offset+i].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
+		res.Qm[offset+i].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
+			Mul(&res.Qm[offset+i], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
+		res.Qo[offset+i].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
+		res.Qk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
 	}
 
 	res.DomainNum.FFTInverse(res.Ql, fft.DIF, 0)
@@ -91,7 +104,7 @@ func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme)
 	fft.BitReverse(res.Qo)
 	fft.BitReverse(res.Qk)
 
-	// build permutation
+	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &res)
 
 	// set s1, s2, s3
@@ -120,18 +133,29 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 	lro := make([]int, 3*sizeSolution)
 
 	publicData.Permutation = make([]int, 3*sizeSolution)
-	for i := 0; i < len(spr.Constraints); i++ {
+	for i := 0; i < spr.NbPublicVariables; i++ { // IDs of LRO associated to placeholders (only L needs to be taken care of)
 
-		lro[i] = spr.Constraints[i].L.VariableID()
-		lro[sizeSolution+i] = spr.Constraints[i].R.VariableID()
-		lro[2*sizeSolution+i] = spr.Constraints[i].O.VariableID()
+		lro[i] = i
+		lro[sizeSolution+i] = 0
+		lro[2*sizeSolution+i] = 0
 
 		publicData.Permutation[i] = -1
 		publicData.Permutation[sizeSolution+i] = -1
 		publicData.Permutation[2*sizeSolution+i] = -1
 	}
-	offset := len(spr.Constraints)
-	for i := 0; i < len(spr.Assertions); i++ {
+	offset := spr.NbPublicVariables
+	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
+
+		lro[offset+i] = spr.Constraints[i].L.VariableID()
+		lro[sizeSolution+offset+i] = spr.Constraints[i].R.VariableID()
+		lro[2*sizeSolution+offset+i] = spr.Constraints[i].O.VariableID()
+
+		publicData.Permutation[i+offset] = -1
+		publicData.Permutation[sizeSolution+i+offset] = -1
+		publicData.Permutation[2*sizeSolution+i+offset] = -1
+	}
+	offset += len(spr.Constraints)
+	for i := 0; i < len(spr.Assertions); i++ { // IDs of LRO associated to assertions
 
 		lro[offset+i] = spr.Assertions[i].L.VariableID()
 		lro[offset+sizeSolution+i] = spr.Assertions[i].R.VariableID()
