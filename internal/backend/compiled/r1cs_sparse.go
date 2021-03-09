@@ -24,7 +24,7 @@ import (
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
 
-	// Variables
+	// Variables [ publicVariables|  secretVariables | internalVariables ]
 	NbInternalVariables int
 	NbPublicVariables   int
 	NbSecretVariables   int

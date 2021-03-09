@@ -138,8 +138,8 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 		return nil
 	}
 
-	// offset the IDs of all constraints to that the variables are
-	// numbered like this: [ publicVariables|  secretVariables | internalVariables ] (public starts with ONE_WIRE)
+	// offset the IDs of all constraints so that the variables are
+	// numbered like this: [ publicVariables|  secretVariables | internalVariables ]
 	for i := 0; i < len(res.Constraints); i++ {
 		offsetIDs(&res.Constraints[i])
 	}

@@ -197,7 +197,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Elemen
 }
 
 // Solve sets all the wires.
-// wireValues =  [intermediateVariables | secretInputs | publicInputs]
+// wireValues =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
 func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err error) {
