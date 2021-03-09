@@ -45,9 +45,11 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 
 	res.Logs = make([]compiled.LogEntry, len(cs.logs))
 
-	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
-	res.CoeffsIDs = make(map[string]int)
+	// this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
+	res.Coeffs = make([]big.Int, 1)
+
 	// reserve the zeroth entry to store 0
+	res.CoeffsIDs = make(map[string]int)
 	zero := big.NewInt(0)
 	coeffID(&res, zero)
 
