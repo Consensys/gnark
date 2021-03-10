@@ -46,7 +46,7 @@ func TestCircuits(t *testing.T) {
 func TestProver(t *testing.T) {
 
 	for name, circuit := range circuits.Circuits {
-		// name := "div"
+		// name := "range"
 		// circuit := circuits.Circuits[name]
 
 		t.Run(name, func(t *testing.T) {
@@ -64,7 +64,6 @@ func TestProver(t *testing.T) {
 
 			// correct proof
 			{
-
 				wFull := bls381witness.Witness{}
 				wFull.FromFullAssignment(circuit.Good)
 				proof := plonkbls381.Prove(spr, publicData, wFull)
@@ -89,5 +88,6 @@ func TestProver(t *testing.T) {
 				}
 			}
 		})
+
 	}
 }

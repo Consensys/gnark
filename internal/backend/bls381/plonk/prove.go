@@ -59,14 +59,15 @@ type Proof struct {
 
 // ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bls381.Poly, bls381.Poly, bls381.Poly) {
+func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bls381.Poly, bls381.Poly, bls381.Poly, bls381.Poly) {
 
 	s := int(publicData.DomainNum.Cardinality)
 
-	var l, r, o bls381.Poly
+	var l, r, o, partialL bls381.Poly
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
+	partialL = make([]fr.Element, s)
 
 	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
 		l[i].Set(&solution[i])
@@ -78,21 +79,24 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 		l[offset+i].Set(&solution[spr.Constraints[i].L.VariableID()])
 		r[offset+i].Set(&solution[spr.Constraints[i].R.VariableID()])
 		o[offset+i].Set(&solution[spr.Constraints[i].O.VariableID()])
+		partialL[offset+i].Set(&l[offset+i])
 	}
 	offset += len(spr.Constraints)
 	for i := 0; i < len(spr.Assertions); i++ { // assertions
 		l[offset+i].Set(&solution[spr.Assertions[i].L.VariableID()])
 		r[offset+i].Set(&solution[spr.Assertions[i].R.VariableID()])
 		o[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
+		partialL[offset+i].Set(&l[offset+i])
 	}
 	offset += len(spr.Assertions)
 	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
 		l[offset+i].Set(&solution[0])
 		r[offset+i].Set(&solution[0])
 		o[offset+i].Set(&solution[0])
+		partialL[offset+i].Set(&l[offset+i])
 	}
 
-	return l, r, o
+	return l, r, o, partialL
 
 }
 
@@ -421,7 +425,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witn
 	solution, _ := spr.Solve(witness)
 
 	// query l, r, o in Lagrange basis
-	l, r, o := ComputeLRO(spr, publicData, solution)
+	l, r, o, partialL := ComputeLRO(spr, publicData, solution)
 
 	// compute Z, the permutation accumulator polynomial, in Lagrange basis
 	z := ComputeZ(l, r, o, publicData)
@@ -429,13 +433,15 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witn
 	// compute Z(uX), in Lagrange basis
 	zu := shiftZ(z)
 
-	// put l, r, o,  in canonical basis
+	// put l, r, o, partialL  in canonical basis
 	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
 	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
 	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(partialL, fft.DIF, 0)
 	fft.BitReverse(l)
 	fft.BitReverse(r)
 	fft.BitReverse(o)
+	fft.BitReverse(partialL)
 
 	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
 	evalL := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -471,7 +477,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witn
 
 	// compute evaluations of l, r, o, h, z at zeta
 	proof := &Proof{}
-	tmp := l.Eval(&zeta)
+	tmp := partialL.Eval(&zeta)
 	proof.LROHZ[0].Set(tmp.(*fr.Element))
 	tmp = r.Eval(&zeta)
 	proof.LROHZ[1].Set(tmp.(*fr.Element))

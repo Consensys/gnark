@@ -47,7 +47,7 @@ func TestProver(t *testing.T) {
 	t.Skip("skip for bw761")
 
 	for name, circuit := range circuits.Circuits {
-		// name := "div"
+		// name := "range"
 		// circuit := circuits.Circuits[name]
 
 		t.Run(name, func(t *testing.T) {
@@ -65,7 +65,6 @@ func TestProver(t *testing.T) {
 
 			// correct proof
 			{
-
 				wFull := bw761witness.Witness{}
 				wFull.FromFullAssignment(circuit.Good)
 				proof := plonkbw761.Prove(spr, publicData, wFull)
@@ -90,5 +89,6 @@ func TestProver(t *testing.T) {
 				}
 			}
 		})
+
 	}
 }

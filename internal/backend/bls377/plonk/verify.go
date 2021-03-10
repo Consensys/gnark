@@ -40,13 +40,49 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bls377witness.
 	qo.Set(_qo.(*fr.Element))
 	qk.Set(_qk.(*fr.Element))
 
+	// evaluation of Z=X**m-1 at zeta
+	var zzeta, one fr.Element
+	var bExpo big.Int
+	one.SetOne()
+	bExpo.SetUint64(publicData.DomainNum.Cardinality)
+	zzeta.Exp(zeta, &bExpo).Sub(&zzeta, &one)
+
+	// complete L
+	// TODO use batch inversion
+	var lCompleted, den, acc, lagrange, xiLi fr.Element
+	lagrange.Set(&zzeta) // L_0(zeta) = 1/m*(zeta**m-1)/(zeta-1)
+	acc.SetOne()
+	den.Sub(&zeta, &acc)
+	lagrange.Div(&lagrange, &den).Mul(&lagrange, &publicData.DomainNum.CardinalityInv)
+	for i := 0; i < len(publicWitness); i++ {
+
+		xiLi.Mul(&lagrange, &publicWitness[i])
+		lCompleted.Add(&lCompleted, &xiLi)
+
+		// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)
+		lagrange.Mul(&lagrange, &publicData.DomainNum.Generator).
+			Mul(&lagrange, &den)
+		acc.Mul(&acc, &publicData.DomainNum.Generator)
+		den.Sub(&zeta, &acc)
+		lagrange.Div(&lagrange, &den)
+	}
+	lCompleted.Add(&lCompleted, &proof.LROHZ[0])
+
+	var lrohz [5]fr.Element
+	lrohz[0].Set(&lCompleted)
+	//lrohz[0].Set(&proof.LROHZ[0])
+	lrohz[1].Set(&proof.LROHZ[1])
+	lrohz[2].Set(&proof.LROHZ[2])
+	lrohz[3].Set(&proof.LROHZ[3])
+	lrohz[4].Set(&proof.LROHZ[4])
+
 	// evaluation of qlL+qrR+qmL.R+qoO+k at zeta
 	var constraintInd fr.Element
 	var qll, qrr, qmlr, qoo fr.Element
-	qll.Mul(&ql, &proof.LROHZ[0])
-	qrr.Mul(&qr, &proof.LROHZ[1])
-	qmlr.Mul(&qm, &proof.LROHZ[0]).Mul(&qmlr, &proof.LROHZ[1])
-	qoo.Mul(&qo, &proof.LROHZ[2])
+	qll.Mul(&ql, &lrohz[0])
+	qrr.Mul(&qr, &lrohz[1])
+	qmlr.Mul(&qm, &lrohz[0]).Mul(&qmlr, &lrohz[1])
+	qoo.Mul(&qo, &lrohz[2])
 	constraintInd.Add(&qll, &qrr).
 		Add(&constraintInd, &qmlr).
 		Add(&constraintInd, &qoo).
@@ -64,35 +100,28 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bls377witness.
 	s[1].Set(s2.(*fr.Element))
 	s[2].Set(s3.(*fr.Element))
 
-	g[0].Add(&proof.LROHZ[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
-	g[1].Add(&proof.LROHZ[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
-	g[2].Add(&proof.LROHZ[2], &s[2]).Add(&g[2], &gamma) // o+s3+gamma
-	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2])            // (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma) (zeta)
+	g[0].Add(&lrohz[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
+	g[1].Add(&lrohz[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
+	g[2].Add(&lrohz[2], &s[2]).Add(&g[2], &gamma) // o+s3+gamma
+	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2])      // (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma) (zeta)
 
 	sZeta.Mul(&publicData.Shifter[0], &zeta)
 	ssZeta.Mul(&publicData.Shifter[1], &zeta)
 
-	f[0].Add(&proof.LROHZ[0], &zeta).Add(&f[0], &gamma)   // l+zeta+gamma
-	f[1].Add(&proof.LROHZ[1], &sZeta).Add(&f[1], &gamma)  // r+u*zeta+gamma
-	f[2].Add(&proof.LROHZ[2], &ssZeta).Add(&f[2], &gamma) // o+u*zeta+gamma
-	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2])              // (l+zeta+gamma)*(r+u*zeta+gamma)*(r+u*zeta+gamma) (zeta)
+	f[0].Add(&lrohz[0], &zeta).Add(&f[0], &gamma)   // l+zeta+gamma
+	f[1].Add(&lrohz[1], &sZeta).Add(&f[1], &gamma)  // r+u*zeta+gamma
+	f[2].Add(&lrohz[2], &ssZeta).Add(&f[2], &gamma) // o+u*zeta+gamma
+	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2])        // (l+zeta+gamma)*(r+u*zeta+gamma)*(r+u*zeta+gamma) (zeta)
 
 	g[0].Mul(&g[0], &proof.ZShift)
-	f[0].Mul(&f[0], &proof.LROHZ[4])
+	f[0].Mul(&f[0], &lrohz[4])
 
 	constraintOrdering.Sub(&g[0], &f[0])
-
-	// evaluation of Z=X**m-1 at zeta
-	var zzeta, one fr.Element
-	var bExpo big.Int
-	one.SetOne()
-	bExpo.SetUint64(publicData.DomainNum.Cardinality)
-	zzeta.Exp(zeta, &bExpo).Sub(&zzeta, &one)
 
 	// evaluation of L1*(Z-1) at zeta (L1 = 1/m*[ (X**m-1)/(X-1) ])
 	var startsAtOne, tmp, c fr.Element
 	c.SetUint64(publicData.DomainNum.Cardinality)
-	tmp.Sub(&proof.LROHZ[4], &one) // Z(zeta)-1
+	tmp.Sub(&lrohz[4], &one) // Z(zeta)-1
 	startsAtOne.
 		Sub(&zeta, &one).
 		Mul(&startsAtOne, &c).
@@ -109,7 +138,7 @@ func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bls377witness.
 
 	// rhs = h(zeta)(zeta**m-1)
 	var rhs fr.Element
-	rhs.Mul(&zzeta, &proof.LROHZ[3])
+	rhs.Mul(&zzeta, &lrohz[3])
 
 	if !lhs.Equal(&rhs) {
 		return false

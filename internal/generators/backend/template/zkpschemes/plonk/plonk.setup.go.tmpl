@@ -93,6 +93,12 @@ func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme,
 		res.Qk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
 	}
 
+	// fmt.Printf("Ql: [")
+	// for i := 0; i < len(res.Ql); i++ {
+	// 	fmt.Printf("%s, ", res.Ql[i].String())
+	// }
+	// fmt.Println("]")
+
 	res.DomainNum.FFTInverse(res.Ql, fft.DIF, 0)
 	res.DomainNum.FFTInverse(res.Qr, fft.DIF, 0)
 	res.DomainNum.FFTInverse(res.Qm, fft.DIF, 0)
