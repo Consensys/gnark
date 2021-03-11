@@ -49,11 +49,3 @@ func (v *Variable) Assign(value interface{}) {
 	}
 	v.val = value
 }
-
-// getCopyLinExp returns a copy of the linear expression
-// to avoid sharing same data, leading to bugs when updating the variables id
-func (v *Variable) getLinExpCopy() compiled.LinearExpression {
-	res := make(compiled.LinearExpression, len(v.linExp))
-	copy(res, v.linExp)
-	return res
-}

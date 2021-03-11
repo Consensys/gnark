@@ -17,6 +17,13 @@ package compiled
 // LinearExpression represent a linear expression of variables
 type LinearExpression []Term
 
+// Clone returns a copy of the underlying slice
+func (l LinearExpression) Clone() LinearExpression {
+	res := make(LinearExpression, len(l))
+	copy(res, l)
+	return res
+}
+
 // R1C used to compute the wires
 type R1C struct {
 	L      LinearExpression
