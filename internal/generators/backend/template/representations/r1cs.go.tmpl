@@ -124,7 +124,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			panic("error solving r1c: " + a[i].String() + "*" + b[i].String() + "=" + c[i].String())
+			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, "couldn't solve computational constraint. May happen: div by 0 or no inverse found")
 		}
 	}
 
