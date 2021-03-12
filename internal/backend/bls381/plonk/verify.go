@@ -25,7 +25,7 @@ import (
 
 // VerifyRaw verifies a PLONK proof
 // TODO use Fiat Shamir to derive the challenges
-func VerifyRaw(proof *Proof, publicData *PublicRaw, publicWitness bls381witness.Witness) bool {
+func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bls381witness.Witness) bool {
 
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element

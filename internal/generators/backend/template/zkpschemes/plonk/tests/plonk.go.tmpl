@@ -48,13 +48,13 @@ func TestProver(t *testing.T) {
 			scheme := mockcommitment.Scheme{}
 			wPublic := {{ toLower .Curve }}witness.Witness{}
 			wPublic.FromPublicAssignment(circuit.Good)
-			publicData := plonk{{ toLower .Curve }}.Setup(spr, &scheme, wPublic)
+			publicData := plonk{{ toLower .Curve }}.SetupRaw(spr, &scheme, wPublic)
 
 			// correct proof
 			{
 				wFull := {{ toLower .Curve }}witness.Witness{}
 				wFull.FromFullAssignment(circuit.Good)
-				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, wFull)
+				proof := plonk{{ toLower .Curve }}.ProveRaw(spr, publicData, wFull)
 
 				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, wPublic)
 
@@ -67,7 +67,7 @@ func TestProver(t *testing.T) {
 			{
 				wFull := {{ toLower .Curve }}witness.Witness{}
 				wFull.FromFullAssignment(circuit.Bad)
-				proof := plonk{{ toLower .Curve }}.Prove(spr, publicData, wFull)
+				proof := plonk{{ toLower .Curve }}.ProveRaw(spr, publicData, wFull)
 
 				v := plonk{{ toLower .Curve }}.VerifyRaw(proof, publicData, wPublic)
 

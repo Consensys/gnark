@@ -60,13 +60,13 @@ func TestProver(t *testing.T) {
 			scheme := mockcommitment.Scheme{}
 			wPublic := bls381witness.Witness{}
 			wPublic.FromPublicAssignment(circuit.Good)
-			publicData := plonkbls381.Setup(spr, &scheme, wPublic)
+			publicData := plonkbls381.SetupRaw(spr, &scheme, wPublic)
 
 			// correct proof
 			{
 				wFull := bls381witness.Witness{}
 				wFull.FromFullAssignment(circuit.Good)
-				proof := plonkbls381.Prove(spr, publicData, wFull)
+				proof := plonkbls381.ProveRaw(spr, publicData, wFull)
 
 				v := plonkbls381.VerifyRaw(proof, publicData, wPublic)
 
@@ -79,7 +79,7 @@ func TestProver(t *testing.T) {
 			{
 				wFull := bls381witness.Witness{}
 				wFull.FromFullAssignment(circuit.Bad)
-				proof := plonkbls381.Prove(spr, publicData, wFull)
+				proof := plonkbls381.ProveRaw(spr, publicData, wFull)
 
 				v := plonkbls381.VerifyRaw(proof, publicData, wPublic)
 

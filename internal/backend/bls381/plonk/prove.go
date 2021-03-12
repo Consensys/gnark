@@ -41,8 +41,8 @@ func init() {
 	alpha.SetString("2567832343425678323434")
 }
 
-// Proof PLONK proofs, consisting of opening proofs
-type Proof struct {
+// ProofRaw PLONK proofs, consisting of opening proofs
+type ProofRaw struct {
 
 	// Claimed Values are the values of L,R,O,H,Z at zeta
 	LROHZ [5]fr.Element
@@ -417,9 +417,9 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 
 }
 
-// Prove from the public data
+// ProveRaw from the public data
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold
-func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witness) *Proof {
+func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witness) *ProofRaw {
 
 	// compute the solution
 	solution, _ := spr.Solve(witness)
@@ -476,7 +476,7 @@ func Prove(spr *cs.SparseR1CS, publicData *PublicRaw, witness bls381witness.Witn
 	h := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne)
 
 	// compute evaluations of l, r, o, h, z at zeta
-	proof := &Proof{}
+	proof := &ProofRaw{}
 	tmp := partialL.Eval(&zeta)
 	proof.LROHZ[0].Set(tmp.(*fr.Element))
 	tmp = r.Eval(&zeta)

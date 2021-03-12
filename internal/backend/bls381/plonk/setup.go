@@ -51,13 +51,13 @@ type PublicRaw struct {
 	Permutation []int
 }
 
-// Setup from a sparseR1CS
+// SetupRaw from a sparseR1CS
 // * sets LDE+canonical basis representations of the permutations
 // * sets the canonical basis of ql, qr, qm, qo, qk extended (i.e. containing also placeholders constraints -PUB_INPUT_i + qk_i=0)
 // * sets the fft domains that will be needed for handling polynomials
 // The publicWitness params is here to build the placeholder constraints (used in the verifier to complete the proof)
 // TODO in many places this function should handle raising errors
-func Setup(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness witness.Witness) *PublicRaw {
+func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness witness.Witness) *PublicRaw {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
