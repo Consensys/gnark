@@ -723,3 +723,17 @@ func TestUnsetVariables(t *testing.T) {
 	}
 
 }
+
+func TestPrintln(t *testing.T) {
+	// must not panic.
+	cs := newConstraintSystem()
+	one := cs.newPublicVariable()
+
+	cs.Println(nil)
+	cs.Println(1)
+	cs.Println("a")
+	cs.Println(new(big.Int).SetInt64(2))
+	cs.Println(one)
+
+	cs.Println(nil, 1, "a", new(big.Int), one)
+}
