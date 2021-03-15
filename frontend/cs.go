@@ -152,6 +152,16 @@ func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
 	return term
 }
 
+// newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
+// and return a R1C
+func newR1C(l, r, o Variable, s ...compiled.SolvingMethod) compiled.R1C {
+	solver := compiled.SingleOutput
+	if len(s) > 0 {
+		solver = s[0]
+	}
+	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone(), Solver: solver}
+}
+
 // NbConstraints enables circuit profiling and helps debugging
 // It returns the number of constraints created at the current stage of the circuit construction.
 //
@@ -219,19 +229,19 @@ func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visi
 func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 	if len(v.linExp) == 0 {
 		tmp := Wire{compiled.Unset, v.id, v.val}
-		tmpVar := cs.buildVarFromPartialVar(tmp)
+		tmpVar := cs.buildVarFromWire(tmp)
 		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
-		v.linExp = tmpVar.getLinExpCopy()
+		v.linExp = tmpVar.linExp // .Clone()
 	}
 }
 
 // reduces redundancy in linear expression
 // Non deterministic function
-func (cs *ConstraintSystem) reduce(linExp compiled.LinearExpression) compiled.LinearExpression {
-	reducePublic := cs.partialReduce(linExp, compiled.Public)
-	reduceSecret := cs.partialReduce(linExp, compiled.Secret)
-	reduceInternal := cs.partialReduce(linExp, compiled.Internal)
-	reduceUnset := cs.partialReduce(linExp, compiled.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
+func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+	reducePublic := cs.partialReduce(l, compiled.Public)
+	reduceSecret := cs.partialReduce(l, compiled.Secret)
+	reduceInternal := cs.partialReduce(l, compiled.Internal)
+	reduceUnset := cs.partialReduce(l, compiled.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
 	res := make(compiled.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
 	accSize := 0
 	copy(res[:], reducePublic)
@@ -276,8 +286,7 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 	if v.visibility == compiled.Unset && len(v.linExp) > 0 {
 		iv := cs.newInternalVariable()
 		one := cs.getOneVariable()
-		constraint := compiled.R1C{L: v.getLinExpCopy(), R: one.getLinExpCopy(), O: iv.getLinExpCopy(), Solver: compiled.SingleOutput}
-		cs.constraints = append(cs.constraints, constraint)
+		cs.constraints = append(cs.constraints, newR1C(v, one, iv))
 		return iv
 	}
 	return v
@@ -290,7 +299,7 @@ func (cs *ConstraintSystem) newInternalVariable() Variable {
 		id:         len(cs.internal.variables),
 		visibility: compiled.Internal,
 	}
-	res := cs.buildVarFromPartialVar(resVar)
+	res := cs.buildVarFromWire(resVar)
 	cs.internal.variables = append(cs.internal.variables, res)
 	return res
 }
@@ -301,7 +310,7 @@ func (cs *ConstraintSystem) newPublicVariable() Variable {
 	idx := len(cs.public.variables)
 	resVar := Wire{compiled.Public, idx, nil}
 
-	res := cs.buildVarFromPartialVar(resVar)
+	res := cs.buildVarFromWire(resVar)
 	cs.public.variables = append(cs.public.variables, res)
 	return res
 }
@@ -311,7 +320,7 @@ func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
 	resVar := Wire{compiled.Secret, idx, nil}
 
-	res := cs.buildVarFromPartialVar(resVar)
+	res := cs.buildVarFromWire(resVar)
 	cs.secret.variables = append(cs.secret.variables, res)
 	return res
 }
@@ -390,6 +399,6 @@ func getCallStack() []string {
 	return toReturn
 }
 
-func (cs *ConstraintSystem) buildVarFromPartialVar(pv Wire) Variable {
+func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
 	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
 }
