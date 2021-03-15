@@ -153,9 +153,10 @@ func (r1cs *R1CS) logValue(entry compiled.LogEntry, wireValues []fr.Element, wir
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]
 		if !wireInstantiated[wireID] {
-			panic("wire values was not instantiated")
+			toResolve = append(toResolve, "???")
+		} else {
+			toResolve = append(toResolve, wireValues[wireID].String())
 		}
-		toResolve = append(toResolve, wireValues[wireID].String())
 	}
 	return fmt.Sprintf(entry.Format, toResolve...)
 }

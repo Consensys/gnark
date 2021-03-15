@@ -349,9 +349,11 @@ func parseLogValue(input interface{}, name string, handler logValueHandler) {
 			return
 		default:
 			for i := 0; i < tValue.NumField(); i++ {
-				value := tValue.Field(i).Interface()
-				_name := appendName(name, tValue.Type().Field(i).Name)
-				parseLogValue(value, _name, handler)
+				if tValue.Field(i).CanInterface() {
+					value := tValue.Field(i).Interface()
+					_name := appendName(name, tValue.Type().Field(i).Name)
+					parseLogValue(value, _name, handler)
+				}
 			}
 		}
 	case reflect.Slice, reflect.Array:
