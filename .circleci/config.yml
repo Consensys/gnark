@@ -17,6 +17,7 @@ jobs:
       - run: git update-index --assume-unchanged go.sum
       - run: if [[ -n $(git status --porcelain) ]]; then echo "Git repo is dirty after runing go generate -- please don't modify generated files"; echo $(git diff);echo $(git status --porcelain); exit 1; fi
       - run: gotestsum --junitfile  /tmp/test-results/results.xml -- ./... -short -v
+      - run: go test -run=CSFuzzed -tags=gofuzz ./backend/groth16/... -v
       - store_test_results:
           path: /tmp/test-results
       - save_cache:

@@ -84,3 +84,10 @@ func (cs *SparseR1CS) WriteTo(w io.Writer) (n int64, err error) {
 func (cs *SparseR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 	panic("not implemented")
 }
+
+// SetLoggerOutput replace existing logger output with provided one
+// default uses os.Stdout
+// if nil is provided, logs are not printed
+func (cs *SparseR1CS) SetLoggerOutput(w io.Writer) {
+	panic("not implemented")
+}

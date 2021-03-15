@@ -19,13 +19,12 @@ func Fuzz(data []byte) int {
 		ccs, nbAssertions := frontend.CsFuzzed(data, curveID)
 		_, s, p := ccs.GetNbVariables()
 		wSize := s + p - 1
-
+		ccs.SetLoggerOutput(nil)
 		switch _r1cs := ccs.(type) {
 		case *backend_bls381.R1CS:
 			w := make(witness_bls381.Witness, wSize)
 			// make w random
 			err := _r1cs.IsSolved(w)
-			// TODO inverse can trigger a computational error, WIP
 			if nbAssertions == 0 && err != nil && !strings.Contains(err.Error(), "couldn't solve computational constraint") {
 				panic("no assertions, yet solving resulted in an error.")
 			}
@@ -33,7 +32,6 @@ func Fuzz(data []byte) int {
 			w := make(witness_bn256.Witness, wSize)
 			// make w random
 			err := _r1cs.IsSolved(w)
-			// TODO inverse can trigger a computational error, WIP
 			if nbAssertions == 0 && err != nil && !strings.Contains(err.Error(), "couldn't solve computational constraint") {
 				panic("no assertions, yet solving resulted in an error.")
 			}

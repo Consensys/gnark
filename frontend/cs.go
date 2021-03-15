@@ -75,6 +75,9 @@ type CompiledConstraintSystem interface {
 	GetNbConstraints() int
 	GetNbCoefficients() int
 
+	// SetLoggerOutput replace existing logger output with provided one
+	SetLoggerOutput(w io.Writer)
+
 	CurveID() gurvy.ID
 	FrSize() int
 }

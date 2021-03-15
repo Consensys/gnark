@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"os"
 
 	"github.com/fxamacker/cbor/v2"
 
@@ -39,6 +40,7 @@ var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 type R1CS struct {
 	compiled.R1CS
 	Coefficients []fr.Element // R1C coefficients indexes point here
+	loggerOut    io.Writer
 }
 
 // NewR1CS returns a new R1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -46,6 +48,7 @@ func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	r := R1CS{
 		r1cs,
 		make([]fr.Element, len(coefficients)),
+		os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		r.Coefficients[i].SetBigInt(&coefficients[i])
@@ -66,6 +69,13 @@ func (r1cs *R1CS) CurveID() gurvy.ID {
 // FrSize return fr.Limbs * 8, size in byte of a fr element
 func (r1cs *R1CS) FrSize() int {
 	return fr.Limbs * 8
+}
+
+// SetLoggerOutput replace existing logger output with provided one
+// default uses os.Stdout
+// if nil is provided, logs are not printed
+func (r1cs *R1CS) SetLoggerOutput(w io.Writer) {
+	r1cs.loggerOut = w
 }
 
 // WriteTo encodes R1CS into provided io.Writer using cbor
@@ -180,7 +190,10 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 
 	// for each log, resolve the wire values and print the log to stdout
 	for i := 0; i < len(r1cs.Logs); i++ {
-		fmt.Print(r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated))
+		logLine := r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated)
+		if r1cs.loggerOut != nil {
+			io.WriteString(r1cs.loggerOut, logLine)
+		}
 	}
 }
 
