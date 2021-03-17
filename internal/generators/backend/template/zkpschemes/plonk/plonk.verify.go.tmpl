@@ -27,11 +27,12 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 	qk.Set(_qk.(*fr.Element))
 
 	// evaluation of Z=X**m-1 at zeta
-	var zzeta, one fr.Element
+	var zetaPowerM, zzeta, one fr.Element
 	var bExpo big.Int
 	one.SetOne()
 	bExpo.SetUint64(publicData.DomainNum.Cardinality)
-	zzeta.Exp(zeta, &bExpo).Sub(&zzeta, &one)
+	zetaPowerM.Exp(zeta, &bExpo)
+	zzeta.Sub(&zetaPowerM, &one)
 
 	// complete L
 	// TODO use batch inversion
@@ -52,23 +53,28 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 		den.Sub(&zeta, &acc)
 		lagrange.Div(&lagrange, &den)
 	}
-	lCompleted.Add(&lCompleted, &proof.LROHZ[0])
+	lCompleted.Add(&lCompleted, &proof.LROZ[0])
 
-	var lrohz [5]fr.Element
-	lrohz[0].Set(&lCompleted)
-	//lrohz[0].Set(&proof.LROHZ[0])
-	lrohz[1].Set(&proof.LROHZ[1])
-	lrohz[2].Set(&proof.LROHZ[2])
-	lrohz[3].Set(&proof.LROHZ[3])
-	lrohz[4].Set(&proof.LROHZ[4])
+	var lroz [4]fr.Element
+	lroz[0].Set(&lCompleted)
+	lroz[1].Set(&proof.LROZ[1])
+	lroz[2].Set(&proof.LROZ[2])
+	lroz[3].Set(&proof.LROZ[3])
+
+	// hFull = h1(zeta)+zeta^m*h2(zeta)+zeta^2m*h3(zeta)
+	var hFull fr.Element
+	hFull.Mul(&proof.H[2], &zetaPowerM).
+		Add(&hFull, &proof.H[1]).
+		Mul(&hFull, &zetaPowerM).
+		Add(&hFull, &proof.H[0])
 
 	// evaluation of qlL+qrR+qmL.R+qoO+k at zeta
 	var constraintInd fr.Element
 	var qll, qrr, qmlr, qoo fr.Element
-	qll.Mul(&ql, &lrohz[0])
-	qrr.Mul(&qr, &lrohz[1])
-	qmlr.Mul(&qm, &lrohz[0]).Mul(&qmlr, &lrohz[1])
-	qoo.Mul(&qo, &lrohz[2])
+	qll.Mul(&ql, &lroz[0])
+	qrr.Mul(&qr, &lroz[1])
+	qmlr.Mul(&qm, &lroz[0]).Mul(&qmlr, &lroz[1])
+	qoo.Mul(&qo, &lroz[2])
 	constraintInd.Add(&qll, &qrr).
 		Add(&constraintInd, &qmlr).
 		Add(&constraintInd, &qoo).
@@ -86,28 +92,28 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 	s[1].Set(s2.(*fr.Element))
 	s[2].Set(s3.(*fr.Element))
 
-	g[0].Add(&lrohz[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
-	g[1].Add(&lrohz[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
-	g[2].Add(&lrohz[2], &s[2]).Add(&g[2], &gamma) // o+s3+gamma
-	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2])      // (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma) (zeta)
+	g[0].Add(&lroz[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
+	g[1].Add(&lroz[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
+	g[2].Add(&lroz[2], &s[2]).Add(&g[2], &gamma) // o+s3+gamma
+	g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2])     // (l+s1+gamma)*(r+s2+gamma)*(o+s3+gamma) (zeta)
 
 	sZeta.Mul(&publicData.Shifter[0], &zeta)
 	ssZeta.Mul(&publicData.Shifter[1], &zeta)
 
-	f[0].Add(&lrohz[0], &zeta).Add(&f[0], &gamma)   // l+zeta+gamma
-	f[1].Add(&lrohz[1], &sZeta).Add(&f[1], &gamma)  // r+u*zeta+gamma
-	f[2].Add(&lrohz[2], &ssZeta).Add(&f[2], &gamma) // o+u*zeta+gamma
-	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2])        // (l+zeta+gamma)*(r+u*zeta+gamma)*(r+u*zeta+gamma) (zeta)
+	f[0].Add(&lroz[0], &zeta).Add(&f[0], &gamma)   // l+zeta+gamma
+	f[1].Add(&lroz[1], &sZeta).Add(&f[1], &gamma)  // r+u*zeta+gamma
+	f[2].Add(&lroz[2], &ssZeta).Add(&f[2], &gamma) // o+u*zeta+gamma
+	f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2])       // (l+zeta+gamma)*(r+u*zeta+gamma)*(r+u*zeta+gamma) (zeta)
 
 	g[0].Mul(&g[0], &proof.ZShift)
-	f[0].Mul(&f[0], &lrohz[4])
+	f[0].Mul(&f[0], &lroz[3])
 
 	constraintOrdering.Sub(&g[0], &f[0])
 
 	// evaluation of L1*(Z-1) at zeta (L1 = 1/m*[ (X**m-1)/(X-1) ])
 	var startsAtOne, tmp, c fr.Element
 	c.SetUint64(publicData.DomainNum.Cardinality)
-	tmp.Sub(&lrohz[4], &one) // Z(zeta)-1
+	tmp.Sub(&lroz[3], &one) // Z(zeta)-1
 	startsAtOne.
 		Sub(&zeta, &one).
 		Mul(&startsAtOne, &c).
@@ -124,7 +130,7 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 
 	// rhs = h(zeta)(zeta**m-1)
 	var rhs fr.Element
-	rhs.Mul(&zzeta, &lrohz[3])
+	rhs.Mul(&zzeta, &hFull)
 
 	if !lhs.Equal(&rhs) {
 		return false

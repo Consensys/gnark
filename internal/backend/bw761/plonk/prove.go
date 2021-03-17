@@ -45,8 +45,11 @@ func init() {
 // ProofRaw PLONK proofs, consisting of opening proofs
 type ProofRaw struct {
 
-	// Claimed Values are the values of L,R,O,H,Z at zeta
-	LROHZ [5]fr.Element
+	// Claimed Values of L,R,O,Z at zeta
+	LROZ [4]fr.Element
+
+	// Claimed values of H split in H1+X^m*H2+X^2m*H3, where deg(Hi)=m-1
+	H [3]fr.Element
 
 	// Claimed vales of Z(zX) at zeta
 	ZShift fr.Element
@@ -364,16 +367,16 @@ func shiftZ(z bw761.Poly) bw761.Poly {
 	return res
 }
 
-// computeH computes h (canonical form) such that
+// computeH computes h in canonical form, split as h1+X^mh2+X^2mh3 such that
 //
 // qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1*(z-1)= h.Z
 // \------------------/         \------------------------/             \-----/
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bw761.Poly) bw761.Poly {
+func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bw761.Poly) (bw761.Poly, bw761.Poly, bw761.Poly) {
 
-	h := make(bw761.Poly, 4*publicData.DomainNum.Cardinality)
+	h := make(bw761.Poly, publicData.DomainH.Cardinality)
 
 	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var bExpo big.Int
@@ -414,7 +417,14 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 	publicData.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	return h
+	h1 := make(bw761.Poly, publicData.DomainNum.Cardinality)
+	h2 := make(bw761.Poly, publicData.DomainNum.Cardinality)
+	h3 := make(bw761.Poly, publicData.DomainNum.Cardinality)
+	copy(h1, h[:publicData.DomainNum.Cardinality])
+	copy(h2, h[publicData.DomainNum.Cardinality:2*publicData.DomainNum.Cardinality])
+	copy(h3, h[2*publicData.DomainNum.Cardinality:3*publicData.DomainNum.Cardinality])
+
+	return h1, h2, h3
 
 }
 
@@ -476,21 +486,27 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, witnessFull frontend.Ci
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	startsAtOne := evalStartsAtOne(publicData, evalZ)
 
-	// compute h (its evaluation)
-	h := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne)
+	// compute h in canonical form
+	h1, h2, h3 := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne)
 
-	// compute evaluations of l, r, o, h, z at zeta
+	// compute evaluations of l, r, o, z at zeta
 	proof := &ProofRaw{}
 	tmp := partialL.Eval(&zeta)
-	proof.LROHZ[0].Set(tmp.(*fr.Element))
+	proof.LROZ[0].Set(tmp.(*fr.Element))
 	tmp = r.Eval(&zeta)
-	proof.LROHZ[1].Set(tmp.(*fr.Element))
+	proof.LROZ[1].Set(tmp.(*fr.Element))
 	tmp = o.Eval(&zeta)
-	proof.LROHZ[2].Set(tmp.(*fr.Element))
-	tmp = h.Eval(&zeta)
-	proof.LROHZ[3].Set(tmp.(*fr.Element))
+	proof.LROZ[2].Set(tmp.(*fr.Element))
 	tmp = z.Eval(&zeta)
-	proof.LROHZ[4].Set(tmp.(*fr.Element))
+	proof.LROZ[3].Set(tmp.(*fr.Element))
+
+	// compute evaluations of h1, h2, h3 at zeta (so h(zeta)=h1(zeta)+zeta^m*h2(zeta)+zeta^2m*h3(zeta))
+	tmp = h1.Eval(&zeta)
+	proof.H[0].Set(tmp.(*fr.Element))
+	tmp = h2.Eval(&zeta)
+	proof.H[1].Set(tmp.(*fr.Element))
+	tmp = h3.Eval(&zeta)
+	proof.H[2].Set(tmp.(*fr.Element))
 
 	// compute evaluation of z at z*zeta
 	var zzeta fr.Element
@@ -499,7 +515,7 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, witnessFull frontend.Ci
 	proof.ZShift.Set(tmp.(*fr.Element))
 
 	// compute batch opening proof for l, r, o, h, z at zeta
-	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h, z)
+	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h1, h2, h3, z)
 
 	// compute opening proof for z at z*zeta
 	proof.OpeningZShift = publicData.CommitmentScheme.Open(&zzeta, z)
