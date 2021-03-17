@@ -21,67 +21,20 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
-	mockcommitment "github.com/consensys/gnark/crypto/polynomial/bn256/mock_commitment"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/bn256/cs"
-	plonkbn256 "github.com/consensys/gnark/internal/backend/bn256/plonk"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	curve "github.com/consensys/gurvy/bn256"
 )
 
 func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
+
 		t.Run(name, func(t *testing.T) {
 			assert := plonk.NewAssert(t)
 			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
 			assert.NoError(err)
-			assert.SolvingSucceeded(pcs, circuit.Good)
-			assert.SolvingFailed(pcs, circuit.Bad)
+			assert.ProverSucceeded(pcs, circuit.Good)
+			assert.ProverFailed(pcs, circuit.Bad)
 		})
-	}
-}
-
-// TODO WIP -> once everything is clean move this to backend/plonk in assert
-func TestProver(t *testing.T) {
-
-	for name, circuit := range circuits.Circuits {
-		// name := "range"
-		// circuit := circuits.Circuits[name]
-
-		t.Run(name, func(t *testing.T) {
-
-			assert := plonk.NewAssert(t)
-			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
-			assert.NoError(err)
-
-			spr := pcs.(*cs.SparseR1CS)
-
-			scheme := mockcommitment.Scheme{}
-
-			publicData := plonkbn256.SetupRaw(spr, &scheme, circuit.Public)
-
-			// correct proofs
-			{
-				proof := plonkbn256.ProveRaw(spr, publicData, circuit.Good)
-
-				v := plonkbn256.VerifyRaw(proof, publicData, circuit.Public)
-
-				if !v {
-					t.Fatal("Correct proof verification failed")
-				}
-			}
-
-			//wrong proof
-			{
-				proof := plonkbn256.ProveRaw(spr, publicData, circuit.Bad)
-
-				v := plonkbn256.VerifyRaw(proof, publicData, circuit.Public)
-
-				if v {
-					t.Fatal("Wrong proof verification should have failed")
-				}
-			}
-		})
-
 	}
 }
