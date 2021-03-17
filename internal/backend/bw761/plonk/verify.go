@@ -19,13 +19,17 @@ package plonk
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/frontend"
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
 // VerifyRaw verifies a PLONK proof
 // TODO use Fiat Shamir to derive the challenges
-func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bw761witness.Witness) bool {
+func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Circuit) bool {
+
+	wPublic := bw761witness.Witness{}
+	wPublic.FromPublicAssignment(publicWitness)
 
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element
@@ -54,9 +58,9 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bw761witnes
 	acc.SetOne()
 	den.Sub(&zeta, &acc)
 	lagrange.Div(&lagrange, &den).Mul(&lagrange, &publicData.DomainNum.CardinalityInv)
-	for i := 0; i < len(publicWitness); i++ {
+	for i := 0; i < len(wPublic); i++ {
 
-		xiLi.Mul(&lagrange, &publicWitness[i])
+		xiLi.Mul(&lagrange, &wPublic[i])
 		lCompleted.Add(&lCompleted, &xiLi)
 
 		// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)

@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/bn256/cs"
 	plonkbn256 "github.com/consensys/gnark/internal/backend/bn256/plonk"
-	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	curve "github.com/consensys/gurvy/bn256"
 )
@@ -58,17 +57,14 @@ func TestProver(t *testing.T) {
 			spr := pcs.(*cs.SparseR1CS)
 
 			scheme := mockcommitment.Scheme{}
-			wPublic := bn256witness.Witness{}
-			wPublic.FromPublicAssignment(circuit.Good)
-			publicData := plonkbn256.SetupRaw(spr, &scheme, wPublic)
 
-			// correct proof
+			publicData := plonkbn256.SetupRaw(spr, &scheme, circuit.Public)
+
+			// correct proofs
 			{
-				wFull := bn256witness.Witness{}
-				wFull.FromFullAssignment(circuit.Good)
-				proof := plonkbn256.ProveRaw(spr, publicData, wFull)
+				proof := plonkbn256.ProveRaw(spr, publicData, circuit.Good)
 
-				v := plonkbn256.VerifyRaw(proof, publicData, wPublic)
+				v := plonkbn256.VerifyRaw(proof, publicData, circuit.Public)
 
 				if !v {
 					t.Fatal("Correct proof verification failed")
@@ -77,11 +73,9 @@ func TestProver(t *testing.T) {
 
 			//wrong proof
 			{
-				wFull := bn256witness.Witness{}
-				wFull.FromFullAssignment(circuit.Bad)
-				proof := plonkbn256.ProveRaw(spr, publicData, wFull)
+				proof := plonkbn256.ProveRaw(spr, publicData, circuit.Bad)
 
-				v := plonkbn256.VerifyRaw(proof, publicData, wPublic)
+				v := plonkbn256.VerifyRaw(proof, publicData, circuit.Public)
 
 				if v {
 					t.Fatal("Wrong proof verification should have failed")

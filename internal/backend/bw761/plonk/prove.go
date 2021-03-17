@@ -21,6 +21,7 @@ import (
 
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/bw761"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/bw761/cs"
 	"github.com/consensys/gnark/internal/backend/bw761/fft"
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
@@ -419,10 +420,13 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 
 // ProveRaw from the public data
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold
-func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, witness bw761witness.Witness) *ProofRaw {
+func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, witnessFull frontend.Circuit) *ProofRaw {
+
+	wFull := bw761witness.Witness{}
+	wFull.FromFullAssignment(witnessFull)
 
 	// compute the solution
-	solution, _ := spr.Solve(witness)
+	solution, _ := spr.Solve(wFull)
 
 	// query l, r, o in Lagrange basis
 	l, r, o, partialL := ComputeLRO(spr, publicData, solution)
