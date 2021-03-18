@@ -36,7 +36,7 @@ You'll need to [install Go](https://golang.org/doc/install).
 go get github.com/consensys/gnark
 ```
 
-Note if that if you use go modules, in `go.mod` the module path is case sensitive (use `consensys` and not `ConsenSys`).
+Note that if you use go modules, in `go.mod` the module path is case sensitive (use `consensys` and not `ConsenSys`).
 
 ### Workflow
 
@@ -142,7 +142,7 @@ While several ZKP projects chose to develop their own language and compiler for 
 
 Relying on Go ---a mature and widely used language--- and its toolchain, has several benefits.
 
-Developpers can **debug**, **document**, **test** and **benchmark** their circuits as they would with any other Go program. Circuits can be versionned, unit tested and used into standard continious delivery workflows. IDE integration (we use VSCode) and all these features come for free and are stable accross platforms.
+Developers can **debug**, **document**, **test** and **benchmark** their circuits as they would with any other Go program. Circuits can be versionned, unit tested and used into standard continuous delivery workflows. IDE integration (we use VSCode) and all these features come for free and are stable across platforms.
 
 Moreover, `gnark` is not a black box and exposes APIs like a conventional cryptographic library (think `aes.encrypt([]byte)`). Complex solutions need this flexibility --- gRPC/REST APIs, serialization protocols, monitoring, logging, ... are all few lines of code away.
 
@@ -163,7 +163,7 @@ Currently gnark provides the following components (see `gnark/std`):
 * The Mimc hash function
 * Merkle tree (binary, without domain separation)
 * Twisted Edwards curve arithmetic (for bn256 and bls381)
-* Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
+* Signature (EdDSA Algorithm, following https://tools.ietf.org/html/rfc8032)
 * Groth16 verifier (1 layer recursive SNARK with BW761)
 
 ## Benchmarks
