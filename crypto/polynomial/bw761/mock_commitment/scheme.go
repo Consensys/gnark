@@ -51,8 +51,8 @@ func (s *Scheme) Open(_val interface{}, _p polynomial.Polynomial) polynomial.Ope
 }
 
 // Verify mock implementation of verify
-func (s *Scheme) Verify(d polynomial.Digest, p polynomial.OpeningProof, v interface{}) bool {
-	return true
+func (s *Scheme) Verify(d polynomial.Digest, p polynomial.OpeningProof, v interface{}) error {
+	return nil
 }
 
 // BatchOpenSinglePoint computes a batch opening proof for _p at _val.
@@ -65,8 +65,8 @@ func (s *Scheme) BatchVerifySinglePoint(
 	point interface{},
 	claimedValues interface{},
 	commitments interface{},
-	batchOpeningProof polynomial.BatchOpeningProofSinglePoint) bool {
+	batchOpeningProof polynomial.BatchOpeningProofSinglePoint) error {
 
-	return true
+	return nil
 
 }

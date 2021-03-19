@@ -16,6 +16,11 @@ package polynomial
 
 import "io"
 
+var (
+	ErrVerifyOpeningProof            = "error verifying opening proof"
+	ErrVerifyBatchOpeningSinglePoint = "error verifying batch opening proof at single point"
+)
+
 // Polynomial interface that a polynomial should implement
 type Polynomial interface {
 	Degree() uint64
@@ -53,7 +58,7 @@ type CommitmentScheme interface {
 	Commit(p Polynomial) Digest
 
 	Open(val interface{}, p Polynomial) OpeningProof
-	Verify(d Digest, p OpeningProof, v interface{}) bool
+	Verify(d Digest, p OpeningProof, v interface{}) error
 
 	// BatchOpenSinglePoint creates a batch opening proof at _val of a list of polynomials.
 	// It's an interactive protocol, made non interactive using Fiat Shamir.
@@ -68,5 +73,5 @@ type CommitmentScheme interface {
 		point interface{},
 		claimedValues interface{},
 		commitments interface{},
-		batchOpeningProof BatchOpeningProofSinglePoint) bool
+		batchOpeningProof BatchOpeningProofSinglePoint) error
 }
