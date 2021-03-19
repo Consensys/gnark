@@ -19,7 +19,6 @@ package plonk
 import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/bn256"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/bn256/cs"
 	"github.com/consensys/gnark/internal/backend/bn256/fft"
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
@@ -58,11 +57,7 @@ type PublicRaw struct {
 // * sets the fft domains that will be needed for handling polynomials
 // The publicWitness params is here to build the placeholder constraints (used in the verifier to complete the proof)
 // TODO in many places this function should handle raising errors
-func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness frontend.Circuit) *PublicRaw {
-
-	wPublic := bn256witness.Witness{}
-	// TODO handle error here
-	wPublic.FromPublicAssignment(publicWitness)
+func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness bn256witness.Witness) *PublicRaw {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -93,7 +88,7 @@ func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentSche
 		res.Qr[i].SetZero()
 		res.Qm[i].SetZero()
 		res.Qo[i].SetZero()
-		res.Qk[i].Set(&wPublic[i])
+		res.Qk[i].Set(&publicWitness[i])
 	}
 	offset := spr.NbPublicVariables
 	for i := 0; i < nbConstraints; i++ { // constraints

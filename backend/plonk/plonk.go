@@ -27,6 +27,11 @@ import (
 	plonkbls381 "github.com/consensys/gnark/internal/backend/bls381/plonk"
 	plonkbn256 "github.com/consensys/gnark/internal/backend/bn256/plonk"
 	plonkbw761 "github.com/consensys/gnark/internal/backend/bw761/plonk"
+
+	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
+	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
+	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
+	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 )
 
 // PublicData contains
@@ -42,24 +47,40 @@ type PublicData interface{}
 type Proof interface{}
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment polynomial.CommitmentScheme, publicWitness frontend.Circuit) PublicData {
+func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment polynomial.CommitmentScheme, publicWitness frontend.Circuit) (PublicData, error) {
 
 	switch _sparseR1cs := sparseR1cs.(type) {
 	case *backend_bn256.SparseR1CS:
-		publicData := plonkbn256.SetupRaw(_sparseR1cs, polynomialCommitment, publicWitness)
-		return publicData
+		w := bn256witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		publicData := plonkbn256.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
 
 	case *backend_bls381.SparseR1CS:
-		publicData := plonkbls381.SetupRaw(_sparseR1cs, polynomialCommitment, publicWitness)
-		return publicData
+		w := bls381witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		publicData := plonkbls381.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
 
 	case *backend_bls377.SparseR1CS:
-		publicData := plonkbls377.SetupRaw(_sparseR1cs, polynomialCommitment, publicWitness)
-		return publicData
+		w := bls377witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		publicData := plonkbls377.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
 
 	case *backend_bw761.SparseR1CS:
-		publicData := plonkbw761.SetupRaw(_sparseR1cs, polynomialCommitment, publicWitness)
-		return publicData
+		w := bw761witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		publicData := plonkbw761.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
 
 	default:
 		panic("unrecognized R1CS curve type")
@@ -68,32 +89,44 @@ func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment po
 }
 
 // Prove generates plonk proof from a circuit, associated preprocessed public data, and the witness
-func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, witnessFull frontend.Circuit) Proof {
+func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, fullWitness frontend.Circuit) (Proof, error) {
 
 	switch _sparseR1cs := sparseR1cs.(type) {
 	case *backend_bn256.SparseR1CS:
-		// TODO public data may not always be of type Raw
 		_publicData := publicData.(*plonkbn256.PublicRaw)
-		proof := plonkbn256.ProveRaw(_sparseR1cs, _publicData, witnessFull)
-		return proof
+		w := bn256witness.Witness{}
+		if err := w.FromFullAssignment(fullWitness); err != nil {
+			return nil, err
+		}
+		proof := plonkbn256.ProveRaw(_sparseR1cs, _publicData, w)
+		return proof, nil
 
 	case *backend_bls381.SparseR1CS:
-		// TODO public data may not always be of type Raw
 		_publicData := publicData.(*plonkbls381.PublicRaw)
-		proof := plonkbls381.ProveRaw(_sparseR1cs, _publicData, witnessFull)
-		return proof
+		w := bls381witness.Witness{}
+		if err := w.FromFullAssignment(fullWitness); err != nil {
+			return nil, err
+		}
+		proof := plonkbls381.ProveRaw(_sparseR1cs, _publicData, w)
+		return proof, nil
 
 	case *backend_bls377.SparseR1CS:
-		// TODO public data may not always be of type Raw
 		_publicData := publicData.(*plonkbls377.PublicRaw)
-		proof := plonkbls377.ProveRaw(_sparseR1cs, _publicData, witnessFull)
-		return proof
+		w := bls377witness.Witness{}
+		if err := w.FromFullAssignment(fullWitness); err != nil {
+			return nil, err
+		}
+		proof := plonkbls377.ProveRaw(_sparseR1cs, _publicData, w)
+		return proof, nil
 
 	case *backend_bw761.SparseR1CS:
-		// TODO public data may not always be of type Raw
 		_publicData := publicData.(*plonkbw761.PublicRaw)
-		proof := plonkbw761.ProveRaw(_sparseR1cs, _publicData, witnessFull)
-		return proof
+		w := bw761witness.Witness{}
+		if err := w.FromFullAssignment(fullWitness); err != nil {
+			return nil, err
+		}
+		proof := plonkbw761.ProveRaw(_sparseR1cs, _publicData, w)
+		return proof, nil
 
 	default:
 		panic("unrecognized R1CS curve type")
@@ -101,27 +134,45 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 }
 
 // Verify verifies a plonk proof, from the proof, preprocessed public data, and public witness.
-func Verify(proof Proof, publicData PublicData, publicWitness frontend.Circuit) bool {
+func Verify(proof Proof, publicData PublicData, publicWitness frontend.Circuit) error {
 
 	switch _proof := proof.(type) {
 
 	case *plonkbn256.ProofRaw:
 		_publicData := publicData.(*plonkbn256.PublicRaw)
-		return plonkbn256.VerifyRaw(_proof, _publicData, publicWitness)
+		w := bn256witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return plonkbn256.VerifyRaw(_proof, _publicData, w)
 
 	case *plonkbls381.ProofRaw:
 		_publicData := publicData.(*plonkbls381.PublicRaw)
-		return plonkbls381.VerifyRaw(_proof, _publicData, publicWitness)
+		w := bls381witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return plonkbls381.VerifyRaw(_proof, _publicData, w)
 
 	case *plonkbls377.ProofRaw:
 		_publicData := publicData.(*plonkbls377.PublicRaw)
-		return plonkbls377.VerifyRaw(_proof, _publicData, publicWitness)
+		w := bls377witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return plonkbls377.VerifyRaw(_proof, _publicData, w)
 
 	case *plonkbw761.ProofRaw:
 		_publicData := publicData.(*plonkbw761.PublicRaw)
-		return plonkbw761.VerifyRaw(_proof, _publicData, publicWitness)
+		w := bw761witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return plonkbw761.VerifyRaw(_proof, _publicData, w)
 
 	default:
 		panic("unrecognized proof type")
 	}
+
+	return nil
 }

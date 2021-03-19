@@ -17,19 +17,20 @@
 package plonk
 
 import (
+	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/frontend"
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 	"github.com/consensys/gurvy/bw761/fr"
 )
 
+var (
+	errLhsNeqRhs = errors.New("polynomial equality doesn't hold")
+)
+
 // VerifyRaw verifies a PLONK proof
 // TODO use Fiat Shamir to derive the challenges
-func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Circuit) bool {
-
-	wPublic := bw761witness.Witness{}
-	wPublic.FromPublicAssignment(publicWitness)
+func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bw761witness.Witness) error {
 
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element
@@ -59,9 +60,9 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 	acc.SetOne()
 	den.Sub(&zeta, &acc)
 	lagrange.Div(&lagrange, &den).Mul(&lagrange, &publicData.DomainNum.CardinalityInv)
-	for i := 0; i < len(wPublic); i++ {
+	for i := 0; i < len(publicWitness); i++ {
 
-		xiLi.Mul(&lagrange, &wPublic[i])
+		xiLi.Mul(&lagrange, &publicWitness[i])
 		lCompleted.Add(&lCompleted, &xiLi)
 
 		// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)
@@ -151,9 +152,9 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness frontend.Ci
 	rhs.Mul(&zzeta, &hFull)
 
 	if !lhs.Equal(&rhs) {
-		return false
+		return errLhsNeqRhs
 	}
 
-	return true
+	return nil
 
 }

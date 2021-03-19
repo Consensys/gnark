@@ -51,13 +51,16 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 	scheme := mockcommitment.Scheme{}
 
 	// generates public data
-	publicData := Setup(sparseR1cs, &scheme, witness)
+	publicData, err := Setup(sparseR1cs, &scheme, witness)
+	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof := Prove(sparseR1cs, publicData, witness)
+	proof, err := Prove(sparseR1cs, publicData, witness)
+	assert.NoError(err, "Proving with good witness should not output an error")
 
 	// verifies the proof
-	assert.True(Verify(proof, publicData, witness))
+	err = Verify(proof, publicData, witness)
+	assert.NoError(err, "Verifying correct proof with correct witness should not output an error")
 
 }
 
@@ -67,13 +70,15 @@ func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem,
 	scheme := mockcommitment.Scheme{}
 
 	// generates public data
-	publicData := Setup(sparseR1cs, &scheme, witness)
+	publicData, err := Setup(sparseR1cs, &scheme, witness)
+	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof := Prove(sparseR1cs, publicData, witness)
+	proof, err := Prove(sparseR1cs, publicData, witness)
 
 	// verifies the proof
-	assert.False(Verify(proof, publicData, witness))
+	err = Verify(proof, publicData, witness)
+	assert.Error(err, "Veryfing wrong proof should output an error")
 
 }
 
