@@ -224,6 +224,4 @@ func Verify(proof Proof, publicData PublicData, publicWitness frontend.Circuit) 
 	default:
 		panic("unrecognized proof type")
 	}
-
-	return nil
 }
