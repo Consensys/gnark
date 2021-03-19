@@ -32,6 +32,18 @@ var (
 // TODO use Fiat Shamir to derive the challenges
 func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn256witness.Witness) error {
 
+	// checks the opening proofs
+	// claimeValuesBatchOpening := []fr.Element{
+	// 	proof.LROZ[0],
+	// 	proof.LROZ[1],
+	// 	proof.LROZ[2],
+	// 	proof.LROZ[3],
+	// 	proof.H[0],
+	// 	proof.H[1],
+	// 	proof.H[2],
+	// }
+	// polynomialsCommitmentsToBatchOpen := []bn
+
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element
 	_ql := publicData.Ql.Eval(&zeta)
@@ -72,20 +84,20 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn256witnes
 		den.Sub(&zeta, &acc)
 		lagrange.Div(&lagrange, &den)
 	}
-	lCompleted.Add(&lCompleted, &proof.LROZ[0])
+	lCompleted.Add(&lCompleted, &proof.LROZH[0])
 
 	var lroz [4]fr.Element
 	lroz[0].Set(&lCompleted)
-	lroz[1].Set(&proof.LROZ[1])
-	lroz[2].Set(&proof.LROZ[2])
-	lroz[3].Set(&proof.LROZ[3])
+	lroz[1].Set(&proof.LROZH[1])
+	lroz[2].Set(&proof.LROZH[2])
+	lroz[3].Set(&proof.LROZH[3])
 
 	// hFull = h1(zeta)+zeta^m*h2(zeta)+zeta^2m*h3(zeta)
 	var hFull fr.Element
-	hFull.Mul(&proof.H[2], &zetaPowerM).
-		Add(&hFull, &proof.H[1]).
+	hFull.Mul(&proof.LROZH[6], &zetaPowerM).
+		Add(&hFull, &proof.LROZH[5]).
 		Mul(&hFull, &zetaPowerM).
-		Add(&hFull, &proof.H[0])
+		Add(&hFull, &proof.LROZH[4])
 
 	// evaluation of qlL+qrR+qmL.R+qoO+k at zeta
 	var constraintInd fr.Element

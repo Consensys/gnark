@@ -42,14 +42,14 @@ func init() {
 // ProofRaw PLONK proofs, consisting of opening proofs
 type ProofRaw struct {
 
-	// Claimed Values of L,R,O,Z at zeta
-	LROZ [4]fr.Element
-
-	// Claimed values of H split in H1+X^m*H2+X^2m*H3, where deg(Hi)=m-1
-	H [3]fr.Element
+	// Claimed Values of L,R,O,Z,H at zeta (where H split in H1+X^m*H2+X^2m*H3, where deg(Hi)=m-1)
+	LROZH [7]fr.Element
 
 	// Claimed vales of Z(zX) at zeta
 	ZShift fr.Element
+
+	// Commitments to L,R,O,Z,H
+	CommitmentsLROZH [7]polynomial.Digest
 
 	// batch opening proofs for L,R,O,H,Z at zeta
 	BatchOpenings polynomial.BatchOpeningProofSinglePoint
@@ -486,21 +486,21 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bn256witnes
 	// compute evaluations of l, r, o, z at zeta
 	proof := &ProofRaw{}
 	tmp := partialL.Eval(&zeta)
-	proof.LROZ[0].Set(tmp.(*fr.Element))
+	proof.LROZH[0].Set(tmp.(*fr.Element))
 	tmp = r.Eval(&zeta)
-	proof.LROZ[1].Set(tmp.(*fr.Element))
+	proof.LROZH[1].Set(tmp.(*fr.Element))
 	tmp = o.Eval(&zeta)
-	proof.LROZ[2].Set(tmp.(*fr.Element))
+	proof.LROZH[2].Set(tmp.(*fr.Element))
 	tmp = z.Eval(&zeta)
-	proof.LROZ[3].Set(tmp.(*fr.Element))
+	proof.LROZH[3].Set(tmp.(*fr.Element))
 
 	// compute evaluations of h1, h2, h3 at zeta (so h(zeta)=h1(zeta)+zeta^m*h2(zeta)+zeta^2m*h3(zeta))
 	tmp = h1.Eval(&zeta)
-	proof.H[0].Set(tmp.(*fr.Element))
+	proof.LROZH[4].Set(tmp.(*fr.Element))
 	tmp = h2.Eval(&zeta)
-	proof.H[1].Set(tmp.(*fr.Element))
+	proof.LROZH[5].Set(tmp.(*fr.Element))
 	tmp = h3.Eval(&zeta)
-	proof.H[2].Set(tmp.(*fr.Element))
+	proof.LROZH[6].Set(tmp.(*fr.Element))
 
 	// compute evaluation of z at z*zeta
 	var zzeta fr.Element
@@ -508,8 +508,18 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bn256witnes
 	tmp = z.Eval(&zzeta)
 	proof.ZShift.Set(tmp.(*fr.Element))
 
+	// compute commitments of l,r,o,z,h
+	// TODO when using Fiat Shamir, commitments need to be re ordered
+	proof.CommitmentsLROZH[0] = publicData.CommitmentScheme.Commit(l)
+	proof.CommitmentsLROZH[1] = publicData.CommitmentScheme.Commit(r)
+	proof.CommitmentsLROZH[2] = publicData.CommitmentScheme.Commit(o)
+	proof.CommitmentsLROZH[3] = publicData.CommitmentScheme.Commit(z)
+	proof.CommitmentsLROZH[4] = publicData.CommitmentScheme.Commit(h1)
+	proof.CommitmentsLROZH[5] = publicData.CommitmentScheme.Commit(h2)
+	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
+
 	// compute batch opening proof for l, r, o, h, z at zeta
-	polynomialsToOpenAtZeta := []bn256.Poly{l, r, o, h1, h2, h3, z}
+	polynomialsToOpenAtZeta := []bn256.Poly{l, r, o, z, h1, h2, h3}
 	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
 
 	// compute opening proof for z at z*zeta
