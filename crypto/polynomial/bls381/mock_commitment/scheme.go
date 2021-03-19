@@ -55,14 +55,18 @@ func (s *Scheme) Verify(d polynomial.Digest, p polynomial.OpeningProof, v interf
 	return true
 }
 
-// BatchOpenSinglePoint computes a batch opening proof for _p at
-// a single point.
-// Returns an empty interface.
-func (s *Scheme) BatchOpenSinglePoint(_val, challenge interface{}, _p ...polynomial.Polynomial) polynomial.BatchOpeningProofSinglePoint { //Open(p *bls381.Poly, val *fr.Element) *MockProof {
+// BatchOpenSinglePoint computes a batch opening proof for _p at _val.
+func (s *Scheme) BatchOpenSinglePoint(point interface{}, polynomials interface{}) polynomial.BatchOpeningProofSinglePoint {
 	return &MockProof{}
 }
 
 // BatchVerifySinglePoint computes a batch opening proof for
-func (s *Scheme) BatchVerifySinglePoint(_val, challenge interface{}, d ...polynomial.Digest) bool {
+func (s *Scheme) BatchVerifySinglePoint(
+	point interface{},
+	claimedValues interface{},
+	commitments interface{},
+	batchOpeningProof polynomial.BatchOpeningProofSinglePoint) bool {
+
 	return true
+
 }

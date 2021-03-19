@@ -55,9 +55,18 @@ type CommitmentScheme interface {
 	Open(val interface{}, p Polynomial) OpeningProof
 	Verify(d Digest, p OpeningProof, v interface{}) bool
 
-	// BatchOpenSinglePoint creates a batch opening proof at _val of _p..., by computing
-	// an opening proof for for _p... bundled like _p[0]+challenge*_p[1]+challenge**2*_p[2]...
-	// This pattern works to the homomorphic property of the commitment scheme.
-	BatchOpenSinglePoint(_val, challenge interface{}, _p ...Polynomial) BatchOpeningProofSinglePoint
-	BatchVerifySinglePoint(_val, challenge interface{}, d ...Digest) bool
+	// BatchOpenSinglePoint creates a batch opening proof at _val of a list of polynomials.
+	// It's an interactive protocol, made non interactive using Fiat Shamir.
+	BatchOpenSinglePoint(point interface{}, polynomials interface{}) BatchOpeningProofSinglePoint
+
+	// BatchVerifySinglePoint verifies a batched opening proof at a single point of a list of polynomials.
+	// point: point at which the polynomials are evaluated
+	// claimedValues: claimed values of the polynomials at _val
+	// commitments: list of commitments to the polynomials which are opened
+	// batchOpeningProof: the batched opening proof at a single point of the polynomials.
+	BatchVerifySinglePoint(
+		point interface{},
+		claimedValues interface{},
+		commitments interface{},
+		batchOpeningProof BatchOpeningProofSinglePoint) bool
 }

@@ -29,14 +29,12 @@ import (
 
 // TODO derive those random values using Fiat Shamir
 // zeta: value at which l, r, o, h are evaluated
-// vBundle: challenge used to bundle opening proofs at a single point (l+vBundle.r + vBundle**2*o + ...)
 // gamma: used in (l+X+gamma)*(r+u.X+gamma).(o+u**2X+gamma)
 // alpha: used in qlL+qrR+qmL.R+qoO+k + alpha.(Z(uX)g1g2g3-Z(X)f1f2f3) + alpha**2L1(Z-1) = HZ
-var zeta, vBundle, gamma, alpha fr.Element
+var zeta, gamma, alpha fr.Element
 
 func init() {
 	zeta.SetString("2938092839238274283")
-	vBundle.SetString("987545678")
 	gamma.SetString("82782638268278263826")
 	alpha.SetString("2567832343425678323434")
 }
@@ -511,7 +509,8 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls377witne
 	proof.ZShift.Set(tmp.(*fr.Element))
 
 	// compute batch opening proof for l, r, o, h, z at zeta
-	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, &vBundle, l, r, o, h1, h2, h3, z)
+	polynomialsToOpenAtZeta := []bls377.Poly{l, r, o, h1, h2, h3, z}
+	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
 
 	// compute opening proof for z at z*zeta
 	proof.OpeningZShift = publicData.CommitmentScheme.Open(&zzeta, z)
