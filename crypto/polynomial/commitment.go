@@ -58,7 +58,9 @@ type CommitmentScheme interface {
 	Commit(p Polynomial) Digest
 
 	Open(val interface{}, p Polynomial) OpeningProof
-	Verify(d Digest, p OpeningProof, v interface{}) error
+
+	// Verify verifies an opening proof of commitment at point
+	Verify(point interface{}, commitment Digest, proof OpeningProof) error
 
 	// BatchOpenSinglePoint creates a batch opening proof at _val of a list of polynomials.
 	// It's an interactive protocol, made non interactive using Fiat Shamir.

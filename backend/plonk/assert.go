@@ -17,8 +17,6 @@ package plonk
 import (
 	"testing"
 
-	mockcommitment "github.com/consensys/gnark/crypto/polynomial/bn256/mock_commitment"
-
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
@@ -47,11 +45,8 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 	// checks if the system is solvable
 	assert.SolvingSucceeded(sparseR1cs, witness)
 
-	// chosing the dummy commitment scheme (form bn256, it doesn't matter which curve is chosen)
-	scheme := mockcommitment.Scheme{}
-
 	// generates public data
-	publicData, err := Setup(sparseR1cs, &scheme, witness)
+	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -66,11 +61,8 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 
 func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
-	// chosing the dummy commitment scheme (form bn256, it doesn't matter which curve is chosen)
-	scheme := mockcommitment.Scheme{}
-
 	// generates public data
-	publicData, err := Setup(sparseR1cs, &scheme, witness)
+	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof

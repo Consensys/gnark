@@ -51,7 +51,7 @@ func (s *Scheme) Open(_val interface{}, _p polynomial.Polynomial) polynomial.Ope
 }
 
 // Verify mock implementation of verify
-func (s *Scheme) Verify(d polynomial.Digest, p polynomial.OpeningProof, v interface{}) error {
+func (s *Scheme) Verify(point interface{}, commitment polynomial.Digest, proof polynomial.OpeningProof) error {
 	return nil
 }
 

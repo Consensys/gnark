@@ -15,17 +15,14 @@ var (
 func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness {{ toLower .Curve }}witness.Witness) error {
 
 	// checks the opening proofs
-	// claimeValuesBatchOpening := []fr.Element{
-	// 	proof.LROZ[0],
-	// 	proof.LROZ[1],
-	// 	proof.LROZ[2],
-	// 	proof.LROZ[3],
-	// 	proof.H[0],
-	// 	proof.H[1],
-	// 	proof.H[2],
-	// }
-	// polynomialsCommitmentsToBatchOpen := []bn
-
+	err := publicData.CommitmentScheme.BatchVerifySinglePoint(&zeta, proof.LROZH, proof.CommitmentsLROZH, proof.BatchOpenings)
+	if err != nil {
+		return err
+	}
+	err = publicData.CommitmentScheme.Verify(&zeta, proof.CommitmentsLROZH[3], proof.OpeningZShift)
+	if err!=nil {
+		return err
+	}
 
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element

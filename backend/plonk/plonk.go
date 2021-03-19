@@ -18,6 +18,11 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/frontend"
 
+	mockcommitment_bls377 "github.com/consensys/gnark/crypto/polynomial/bls377/mock_commitment"
+	mockcommitment_bls381 "github.com/consensys/gnark/crypto/polynomial/bls381/mock_commitment"
+	mockcommitment_bn256 "github.com/consensys/gnark/crypto/polynomial/bn256/mock_commitment"
+	mockcommitment_bw761 "github.com/consensys/gnark/crypto/polynomial/bw761/mock_commitment"
+
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
@@ -79,6 +84,52 @@ func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment po
 		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return nil, err
 		}
+		publicData := plonkbw761.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
+
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+
+}
+
+// SetupDummyCommitment is used for testing purposes, it sets up public data with dummy polynomial commitment scheme.
+func SetupDummyCommitment(sparseR1cs frontend.CompiledConstraintSystem, publicWitness frontend.Circuit) (PublicData, error) {
+
+	switch _sparseR1cs := sparseR1cs.(type) {
+	case *backend_bn256.SparseR1CS:
+		w := bn256witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		polynomialCommitment := &mockcommitment_bn256.Scheme{}
+		publicData := plonkbn256.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
+
+	case *backend_bls381.SparseR1CS:
+		w := bls381witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		polynomialCommitment := &mockcommitment_bls381.Scheme{}
+		publicData := plonkbls381.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
+
+	case *backend_bls377.SparseR1CS:
+		w := bls377witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		polynomialCommitment := &mockcommitment_bls377.Scheme{}
+		publicData := plonkbls377.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
+
+	case *backend_bw761.SparseR1CS:
+		w := bw761witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		polynomialCommitment := &mockcommitment_bw761.Scheme{}
 		publicData := plonkbw761.SetupRaw(_sparseR1cs, polynomialCommitment, w)
 		return publicData, nil
 
