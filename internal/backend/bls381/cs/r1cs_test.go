@@ -41,6 +41,8 @@ func TestSerialization(t *testing.T) {
 			continue
 		}
 
+		r1cs.SetLoggerOutput(nil) // no need to serialize.
+
 		{
 			t.Log(name)
 			var err error
