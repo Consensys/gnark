@@ -9,11 +9,11 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/consensys/gurvy"
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc"
+	frbls377 "github.com/consensys/gurvy/ecc/bls12-377/fr"
+	frbls381 "github.com/consensys/gurvy/ecc/bls12-381/fr"
 	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
+	frbw761 "github.com/consensys/gurvy/ecc/bw6-761/fr"
 )
 
 func Fuzz(data []byte) int {
