@@ -8,15 +8,14 @@ import (
 	curve "github.com/consensys/gurvy/{{ toLower .Curve }}"
 )
 
-
 func TestCircuits(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			assert := plonk.NewAssert(t)
 			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
 			assert.NoError(err)
-			assert.SolvingSucceeded(pcs, circuit.Good)
-			assert.SolvingFailed(pcs, circuit.Bad)
+			assert.ProverSucceeded(pcs, circuit.Good)
+			assert.ProverFailed(pcs, circuit.Bad)
 		})
 	}
 }

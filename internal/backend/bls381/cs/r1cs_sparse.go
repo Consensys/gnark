@@ -63,30 +63,25 @@ func (cs *SparseR1CS) CurveID() gurvy.ID {
 }
 
 // find unsolved variable
+// returns 0 if the variable to solve is L, 1 if it's R, 2 if it's O
 func findUnsolvedVariable(c compiled.SparseR1C, wireInstantiated []bool) int {
-	lro := -1 // 0 if the variable to solve is L, 1 if it's R, 2 if it's O
 	if c.L.CoeffID() != 0 && !wireInstantiated[c.L.VariableID()] {
-		lro = 0
+		return 0
 	}
-	if lro == -1 {
-		if c.M[0].CoeffID() != 0 && !wireInstantiated[c.M[0].VariableID()] {
-			lro = 0 // M[0] corresponds to L by default
-		}
+	if c.M[0].CoeffID() != 0 && !wireInstantiated[c.M[0].VariableID()] {
+		// M[0] corresponds to L by default
+		return 0
 	}
-	if lro == -1 {
-		if c.R.CoeffID() != 0 && !wireInstantiated[c.R.VariableID()] {
-			lro = 1
-		}
+	if c.R.CoeffID() != 0 && !wireInstantiated[c.R.VariableID()] {
+		return 1
 	}
-	if lro == -1 {
-		if c.M[1].CoeffID() != 0 && !wireInstantiated[c.M[1].VariableID()] {
-			lro = 1 // M[0] corresponds to L by default
-		}
+	if c.M[1].CoeffID() != 0 && !wireInstantiated[c.M[1].VariableID()] {
+		// M[1] corresponds to R by default
+		return 1
 	}
-	if lro == -1 { // only O remains
-		lro = 2
-	}
-	return lro
+	// TODO panic if wire is already instantiated
+	// only O remains
+	return 2
 }
 
 // computeTerm computes coef*variable
@@ -197,7 +192,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Elemen
 }
 
 // Solve sets all the wires.
-// wireValues =  [intermediateVariables | secretInputs | publicInputs]
+// wireValues =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
 func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err error) {
@@ -233,7 +228,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)
-			return nil, err
+			return solution, err
 		}
 	}
 
@@ -241,7 +236,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 	for i := 0; i < len(cs.Assertions); i++ {
 		err = cs.checkConstraint(cs.Assertions[i], solution)
 		if err != nil {
-			return nil, err
+			return solution, err
 		}
 	}
 

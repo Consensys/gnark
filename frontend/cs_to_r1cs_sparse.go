@@ -45,9 +45,11 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 
 	res.Logs = make([]compiled.LogEntry, len(cs.logs))
 
-	res.Coeffs = make([]big.Int, 1) // this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
-	res.CoeffsIDs = make(map[string]int)
+	// this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
+	res.Coeffs = make([]big.Int, 1)
+
 	// reserve the zeroth entry to store 0
+	res.CoeffsIDs = make(map[string]int)
 	zero := big.NewInt(0)
 	coeffID(&res, zero)
 
@@ -88,6 +90,33 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 	}
 
 	offsetIDs := func(exp *compiled.SparseR1C) error {
+
+		// ensure that L=M[0] and R=M[1] (up to scalar mul)
+		if exp.L.CoeffID() == 0 {
+			if exp.M[0] != 0 {
+				exp.L = exp.M[0]
+				exp.L.SetCoeffID(0)
+			}
+		} else {
+			if exp.M[0].CoeffID() == 0 {
+				exp.M[0] = exp.L
+				exp.M[0].SetCoeffID(0)
+			}
+		}
+
+		if exp.R.CoeffID() == 0 {
+			if exp.M[1] != 0 {
+				exp.R = exp.M[1]
+				exp.R.SetCoeffID(0)
+			}
+		} else {
+			if exp.M[1].CoeffID() == 0 {
+				exp.M[1] = exp.R
+				exp.M[1].SetCoeffID(0)
+			}
+		}
+
+		// offset each term in the constraint
 		err := offsetIDTerm(&exp.L)
 		if err != nil {
 			return err
@@ -111,8 +140,8 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 		return nil
 	}
 
-	// offset the IDs of all constraints to that the variables are
-	// numbered like this: [internalVariables | secretVariables | publicVariables]
+	// offset the IDs of all constraints so that the variables are
+	// numbered like this: [ publicVariables|  secretVariables | internalVariables ]
 	for i := 0; i < len(res.Constraints); i++ {
 		offsetIDs(&res.Constraints[i])
 	}

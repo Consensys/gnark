@@ -32,8 +32,8 @@ func TestCircuits(t *testing.T) {
 			assert := plonk.NewAssert(t)
 			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
 			assert.NoError(err)
-			assert.SolvingSucceeded(pcs, circuit.Good)
-			assert.SolvingFailed(pcs, circuit.Bad)
+			assert.ProverSucceeded(pcs, circuit.Good)
+			assert.ProverFailed(pcs, circuit.Bad)
 		})
 	}
 }

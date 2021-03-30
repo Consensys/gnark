@@ -113,6 +113,27 @@ func main() {
 				panic(err)
 			}
 
+			// polynomial commitments
+			dir = filepath.Join(baseDir, "polynomial/", d.Package)
+			entriesF = []bavard.EntryF{
+				{File: filepath.Join(dir, "polynomial.go"), TemplateF: []string{"polynomial.go.tmpl"}},
+			}
+			if err := bgen.GenerateF(d, d.Package, ".", entriesF...); err != nil {
+				panic(err)
+			}
+
+			// 1 - mock polynomial commitment
+			dir = filepath.Join(baseDir, "polynomial/", d.Package, "/mock_commitment/")
+			entriesF = []bavard.EntryF{
+				{File: filepath.Join(dir, "digest.go"), TemplateF: []string{"mock_commitment/digest.go.tmpl"}},
+				{File: filepath.Join(dir, "proof.go"), TemplateF: []string{"mock_commitment/proof.go.tmpl"}},
+				{File: filepath.Join(dir, "proof_single_point.go"), TemplateF: []string{"mock_commitment/proof.single.point.go.tmpl"}},
+				{File: filepath.Join(dir, "scheme.go"), TemplateF: []string{"mock_commitment/scheme.go.tmpl"}},
+			}
+			if err := bgen.GenerateF(d, "mockcommitment", ".", entriesF...); err != nil {
+				panic(err)
+			}
+
 		}(d)
 	}
 

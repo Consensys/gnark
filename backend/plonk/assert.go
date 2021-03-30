@@ -40,44 +40,78 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-// SolvingSucceeded Verifies that the cs.PCS is solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingSucceeded(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.NoError(IsSolved(cs, witness))
+func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+
+	// checks if the system is solvable
+	assert.SolvingSucceeded(sparseR1cs, witness)
+
+	// generates public data
+	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	assert.NoError(err, "Generating public data should not have failed")
+
+	// generates the proof
+	proof, err := Prove(sparseR1cs, publicData, witness)
+	assert.NoError(err, "Proving with good witness should not output an error")
+
+	// verifies the proof
+	err = Verify(proof, publicData, witness)
+	assert.NoError(err, "Verifying correct proof with correct witness should not output an error")
+
+}
+
+func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+
+	// generates public data
+	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	assert.NoError(err, "Generating public data should not have failed")
+
+	// generates the proof
+	proof, err := Prove(sparseR1cs, publicData, witness)
+
+	// verifies the proof
+	err = Verify(proof, publicData, witness)
+	assert.Error(err, "Veryfing wrong proof should output an error")
+
+}
+
+// SolvingSucceeded Verifies that the sparse constraint system is solved with the given witness, without executing plonk workflow
+func (assert *Assert) SolvingSucceeded(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.NoError(IsSolved(sparseR1cs, witness))
 }
 
 // SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingFailed(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.Error(IsSolved(cs, witness))
+func (assert *Assert) SolvingFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.Error(IsSolved(sparseR1cs, witness))
 }
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
-func IsSolved(cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
-	switch _pcs := cs.(type) {
+func IsSolved(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
+	switch _sparseR1cs := sparseR1cs.(type) {
 	case *backend_bn256.SparseR1CS:
 		w := witness_bn256.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _pcs.IsSolved(w)
+		return _sparseR1cs.IsSolved(w)
 	case *backend_bls381.SparseR1CS:
 		w := witness_bls381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _pcs.IsSolved(w)
+		return _sparseR1cs.IsSolved(w)
 	case *backend_bls377.SparseR1CS:
 		w := witness_bls377.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _pcs.IsSolved(w)
+		return _sparseR1cs.IsSolved(w)
 	case *backend_bw761.SparseR1CS:
 		w := witness_bw761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _pcs.IsSolved(w)
+		return _sparseR1cs.IsSolved(w)
 	default:
 		panic("WIP")
 	}

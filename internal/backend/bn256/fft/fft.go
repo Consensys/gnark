@@ -41,16 +41,28 @@ const butterflyThreshold = 16
 // if decimation == DIF (decimation in frequency), the output will be in bit-reversed order
 // coset sets the shift of the fft (0 = no shift, standard fft)
 // len(a) must be a power of 2, and w must be a len(a)th root of unity in field F.
+//
+// example:
+// -------
+// domain := NewDomain(m, 2) -->  contains precomputed data for Z/mZ, and Z/4mZ
+// FFT(pol, DIT, 1) --> evaluates pol on the coset 1 in (Z/4mZ)/(Z/mZ)
 func (domain *Domain) FFT(a []fr.Element, decimation Decimation, coset uint64) {
 
 	numCPU := uint64(runtime.NumCPU())
 
 	if coset != 0 {
+		if decimation == DIT {
+			BitReverse(domain.CosetTable[coset-1])
+		}
 		utils.Parallelize(len(a), func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &domain.CosetTable[coset-1][i])
 			}
 		})
+		// put it back as we found it
+		if decimation == DIT {
+			BitReverse(domain.CosetTable[coset-1])
+		}
 	}
 
 	// find the stage where we should stop spawning go routines in our recursive calls
@@ -94,14 +106,21 @@ func (domain *Domain) FFTInverse(a []fr.Element, decimation Decimation, coset ui
 		panic("not implemented")
 	}
 
-	// scale by CardinalityInv
+	// scale by CardinalityInv (+ cosetTableInv is coset!=0)
 	if coset != 0 {
+		if decimation == DIF {
+			BitReverse(domain.CosetTableInv[coset-1])
+		}
 		utils.Parallelize(len(a), func(start, end int) {
 			for i := start; i < end; i++ {
 				a[i].Mul(&a[i], &domain.CosetTableInv[coset-1][i]).
 					MulAssign(&domain.CardinalityInv)
 			}
 		})
+		// put it back as we found it
+		if decimation == DIF {
+			BitReverse(domain.CosetTableInv[coset-1])
+		}
 	} else {
 		utils.Parallelize(len(a), func(start, end int) {
 			for i := start; i < end; i++ {

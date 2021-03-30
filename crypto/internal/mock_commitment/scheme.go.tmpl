@@ -1,0 +1,54 @@
+import (
+	"io"
+
+	"github.com/consensys/gnark/crypto/polynomial"
+	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
+)
+
+// Scheme mock commitment, useful for testing polynomial based IOP
+// like PLONK, where the scheme should not depend on which polynomial commitment scheme
+// is used.
+type Scheme struct{}
+
+// WriteTo panics
+func (s *Scheme) WriteTo(w io.Writer) (n int64, err error) {
+	return 0, nil
+}
+
+// ReadFrom panics
+func (s *Scheme) ReadFrom(r io.Reader) (n int64, err error) {
+	return 0, nil
+}
+
+// Commit returns nil
+func (s *Scheme) Commit(p polynomial.Polynomial) polynomial.Digest {
+	res := &MockDigest{Digest: p.({{ toLower .Curve }}.Poly)}
+	return res
+}
+
+// Open computes an opening proof of _p at _val.
+// Returns a MockProof, which is an empty interface.
+func (s *Scheme) Open(_val interface{}, _p polynomial.Polynomial) polynomial.OpeningProof { //Open(p *{{ toLower .Curve }}.Poly, val *fr.Element) *MockProof {
+	return &MockProof{}
+}
+
+// Verify mock implementation of verify
+func (s *Scheme) Verify(point interface{}, commitment polynomial.Digest, proof polynomial.OpeningProof) error {
+	return nil
+}
+
+// BatchOpenSinglePoint computes a batch opening proof for _p at _val.
+func (s *Scheme) BatchOpenSinglePoint(point interface{}, polynomials interface{}) polynomial.BatchOpeningProofSinglePoint {
+	return &MockProof{}
+}
+
+// BatchVerifySinglePoint computes a batch opening proof for
+func (s *Scheme) BatchVerifySinglePoint(
+	point interface{},
+	claimedValues interface{},
+	commitments interface{},
+	batchOpeningProof polynomial.BatchOpeningProofSinglePoint) error {
+
+	return nil
+
+}

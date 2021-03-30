@@ -33,7 +33,7 @@ func (cs *ConstraintSystem) toR1CS(curveID gurvy.ID) (CompiledConstraintSystem, 
 	copy(res.Constraints, cs.constraints)
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
-	// we just need to offset our ids, such that wires = [internalVariables | secretVariables | publicVariables]
+	// we just need to offset our ids, such that wires = [ public wires  | secret wires | internal wires ]
 	offsetIDs := func(exp compiled.LinearExpression) error {
 		for j := 0; j < len(exp); j++ {
 			_, _, cID, cVisibility := exp[j].Unpack()
