@@ -17,7 +17,7 @@
 package bls377
 
 import (
-	"github.com/consensys/gurvy/bls377/fr"
+	"github.com/consensys/gurvy/ecc/bls12-377/fr"
 )
 
 // Poly polynomial represented by coefficients bls377 fr field.

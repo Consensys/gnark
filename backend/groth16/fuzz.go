@@ -14,7 +14,7 @@ import (
 )
 
 func Fuzz(data []byte) int {
-	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 	for _, curveID := range curves {
 		ccs, nbAssertions := frontend.CsFuzzed(data, curveID)
 		_, s, p := ccs.GetNbVariables()

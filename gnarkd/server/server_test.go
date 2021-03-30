@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -112,22 +112,22 @@ func TestProveSync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, gurvy.BN256, &w)
+	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
 	assert.NoError(err)
 
 	// 2. call prove
 	proveResult, err := c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 		Witness:   bWitness.Bytes(),
 	})
 	assert.NoError(err, "grpc sync prove failed")
 
 	// 3. ensure returned proof is valid.
-	proof := groth16.NewProof(gurvy.BN256)
+	proof := groth16.NewProof(ecc.BN254)
 	_, err = proof.ReadFrom(bytes.NewReader(proveResult.Proof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn256/cubic"].vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 	// 4. create invalid proof
@@ -136,11 +136,11 @@ func TestProveSync(t *testing.T) {
 	wBad.Y.Assign(42)
 	bWitness.Reset()
 
-	_, err = witness.WriteFullTo(&bWitness, gurvy.BN256, &wBad)
+	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &wBad)
 	assert.NoError(err)
 
 	_, err = c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 		Witness:   bWitness.Bytes(),
 	})
 	assert.Error(err, "grpc sync false prove failed")
@@ -169,12 +169,12 @@ func TestProveAsync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, gurvy.BN256, &w)
+	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
 	assert.NoError(err)
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -216,11 +216,11 @@ func TestProveAsync(t *testing.T) {
 	assert.Equal(lastStatus, pb.ProveJobResult_COMPLETED)
 
 	// 3. ensure returned proof is valid.
-	proof := groth16.NewProof(gurvy.BN256)
+	proof := groth16.NewProof(ecc.BN254)
 	_, err = proof.ReadFrom(bytes.NewReader(rproof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn256/cubic"].vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 }
@@ -248,13 +248,13 @@ func TestJobTTL(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, gurvy.BN256, &w)
+	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
 	assert.NoError(err)
 
 	// 2. call prove
 	ttl := int64(1) // mark job as expired after 1 second
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 		TTL:       &ttl,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
@@ -315,7 +315,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -351,7 +351,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// send another job
 	r2, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -397,17 +397,17 @@ func TestVerifySync(t *testing.T) {
 	)
 	w.X.Assign(3)
 	w.Y.Assign(35)
-	proof, err := groth16.Prove(gnarkdServer.circuits["bn256/cubic"].r1cs, gnarkdServer.circuits["bn256/cubic"].pk, &w)
+	proof, err := groth16.Prove(gnarkdServer.circuits["bn254/cubic"].r1cs, gnarkdServer.circuits["bn254/cubic"].pk, &w)
 	assert.NoError(err)
 	_, err = proof.WriteRawTo(&bProof)
 	assert.NoError(err)
 
-	_, err = witness.WritePublicTo(&bWitness, gurvy.BN256, &w)
+	_, err = witness.WritePublicTo(&bWitness, ecc.BN254, &w)
 	assert.NoError(err)
 
 	// 2. call verify
 	vResult, err := client.Verify(ctx, &pb.VerifyRequest{
-		CircuitID:     "bn256/cubic",
+		CircuitID:     "bn254/cubic",
 		PublicWitness: bWitness.Bytes(),
 		Proof:         bProof.Bytes(),
 	})

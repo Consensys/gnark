@@ -22,7 +22,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/signature/eddsa"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 const (
@@ -87,7 +87,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) postInit(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	// edward curve params
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -124,7 +124,7 @@ func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.ConstraintSystem
 }
 
 // Define declares the circuit's constraints
-func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	if err := circuit.postInit(curveID, cs); err != nil {
 		return err
 	}

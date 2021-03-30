@@ -19,30 +19,30 @@ package mimc
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/hash/mimc/bls377"
-	"github.com/consensys/gnark/crypto/hash/mimc/bls381"
-	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
-	"github.com/consensys/gnark/crypto/hash/mimc/bw761"
+	"github.com/consensys/gurvy/ecc"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377/fr/mimc"
+	bls381 "github.com/consensys/gurvy/ecc/bls12-381/fr/mimc"
+	bn256 "github.com/consensys/gurvy/ecc/bn254/fr/mimc"
+	bw761 "github.com/consensys/gurvy/ecc/bw6-761/fr/mimc"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[gurvy.ID]func(string) MiMC
+var encryptFuncs map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var newMimc map[ecc.ID]func(string) MiMC
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
-	encryptFuncs[gurvy.BN256] = encryptBN256
-	encryptFuncs[gurvy.BLS381] = encryptBLS381
-	encryptFuncs[gurvy.BLS377] = encryptBLS377
-	encryptFuncs[gurvy.BW761] = encryptBW761
+	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs[ecc.BN254] = encryptBN256
+	encryptFuncs[ecc.BLS12_381] = encryptBLS381
+	encryptFuncs[ecc.BLS12_377] = encryptBLS377
+	encryptFuncs[ecc.BW6_761] = encryptBW761
 
-	newMimc = make(map[gurvy.ID]func(string) MiMC)
-	newMimc[gurvy.BN256] = newMimcBN256
-	newMimc[gurvy.BLS381] = newMimcBLS381
-	newMimc[gurvy.BLS377] = newMimcBLS377
-	newMimc[gurvy.BW761] = newMimcBW761
+	newMimc = make(map[ecc.ID]func(string) MiMC)
+	newMimc[ecc.BN254] = newMimcBN256
+	newMimc[ecc.BLS12_381] = newMimcBLS381
+	newMimc[ecc.BLS12_377] = newMimcBLS377
+	newMimc[ecc.BW6_761] = newMimcBW761
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ func newMimcBLS377(seed string) MiMC {
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BLS377
+	res.id = ecc.BLS12_377
 	return res
 }
 
@@ -68,7 +68,7 @@ func newMimcBLS381(seed string) MiMC {
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BLS381
+	res.id = ecc.BLS12_381
 	return res
 }
 
@@ -80,7 +80,7 @@ func newMimcBN256(seed string) MiMC {
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BN256
+	res.id = ecc.BN254
 	return res
 }
 
@@ -92,7 +92,7 @@ func newMimcBW761(seed string) MiMC {
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BW761
+	res.id = ecc.BW6_761
 	return res
 }
 

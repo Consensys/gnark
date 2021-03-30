@@ -27,12 +27,12 @@ import (
 
 	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy"
 
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc"
+	frbls377 "github.com/consensys/gurvy/ecc/bls12-377/fr"
+	frbls381 "github.com/consensys/gurvy/ecc/bls12-381/fr"
+	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
+	frbw761 "github.com/consensys/gurvy/ecc/bw6-761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -260,17 +260,17 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
+func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 
 	var expo big.Int
 	switch id {
-	case gurvy.BN256:
+	case ecc.BN254:
 		expo.Set(frbn256.Modulus())
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		expo.Set(frbls381.Modulus())
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		expo.Set(frbls377.Modulus())
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		expo.Set(frbw761.Modulus())
 	default:
 		panic("not implemented")

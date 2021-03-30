@@ -28,9 +28,9 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
-	"github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
 )
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
@@ -61,9 +61,9 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gurvy (gurvy.BW761)
-func (r1cs *R1CS) CurveID() gurvy.ID {
-	return gurvy.BW761
+// CurveID returns curve ID as defined in gnark-crypto (ecc.BW761)
+func (r1cs *R1CS) CurveID() ecc.ID {
+	return ecc.BW6_761
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element

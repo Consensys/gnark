@@ -18,7 +18,7 @@ package fields
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bls377"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 // E6 element in a quadratic extension

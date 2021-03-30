@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +83,7 @@ func TestVerifyBellmanProof(t *testing.T) {
 		},
 	} {
 		// decode verifying key
-		vk := NewVerifyingKey(gurvy.BLS381)
+		vk := NewVerifyingKey(ecc.BLS12_381)
 
 		vkBytes, err := base64.StdEncoding.DecodeString(test.vk)
 		require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestVerifyBellmanProof(t *testing.T) {
 		proofBytes, err := base64.StdEncoding.DecodeString(test.proof)
 		require.NoError(t, err)
 
-		proof := NewProof(gurvy.BLS381)
+		proof := NewProof(ecc.BLS12_381)
 		_, err = proof.ReadFrom(bytes.NewReader(proofBytes))
 		require.NoError(t, err)
 

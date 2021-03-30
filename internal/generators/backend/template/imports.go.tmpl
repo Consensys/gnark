@@ -1,26 +1,26 @@
 {{ define "import_fr" }}
 
 {{ if eq .Curve "BLS377"}}
-	"github.com/consensys/gurvy/bls377/fr"
+	"github.com/consensys/gurvy/ecc/bls12-377/fr"
 {{ else if eq .Curve "BLS381"}}
-	"github.com/consensys/gurvy/bls381/fr"
+	"github.com/consensys/gurvy/ecc/bls12-381/fr"
 {{ else if eq .Curve "BN256"}}
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 {{ else if eq .Curve "BW761"}}
-	"github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
 {{end}}
 
 {{end}}
 
 {{ define "import_curve" }}
 {{if eq .Curve "BLS377"}}
-	curve "github.com/consensys/gurvy/bls377"
+	curve "github.com/consensys/gurvy/ecc/bls12-377"
 {{else if eq .Curve "BLS381"}}
-	curve "github.com/consensys/gurvy/bls381"
+	curve "github.com/consensys/gurvy/ecc/bls12-381"
 {{else if eq .Curve "BN256"}}
-	curve "github.com/consensys/gurvy/bn256"	
+	curve "github.com/consensys/gurvy/ecc/bn254"	
 {{else if eq .Curve "BW761"}}
-	curve "github.com/consensys/gurvy/bw761"	
+	curve "github.com/consensys/gurvy/ecc/bw6-761"	
 {{end}}
 
 
@@ -53,13 +53,13 @@
 
 {{ define "import_fft" }}
 {{if eq .Curve "BLS377"}}
-	"github.com/consensys/gnark/internal/backend/bls377/fft"
+	"github.com/consensys/gurvy/ecc/bls12-377/fr/fft"
 {{else if eq .Curve "BLS381"}}
-	"github.com/consensys/gnark/internal/backend/bls381/fft"
+	"github.com/consensys/gurvy/ecc/bls12-381/fr/fft"
 {{else if eq .Curve "BN256"}}
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
+	"github.com/consensys/gurvy/ecc/bn254/fr/fft"
 {{ else if eq .Curve "BW761"}}
-	"github.com/consensys/gnark/internal/backend/bw761/fft"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr/fft"
 {{end}}
 {{end}}
 

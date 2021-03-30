@@ -23,8 +23,8 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gurvy/ecc"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 type lineEvalBLS377 struct {
@@ -32,7 +32,7 @@ type lineEvalBLS377 struct {
 	P    G1Jac `gnark:",public"`
 }
 
-func (circuit *lineEvalBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *lineEvalBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.AssertIsEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -49,7 +49,7 @@ func TestLineEvalBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ type lineEvalAffineBLS377 struct {
 	P    G1Affine `gnark:",public"`
 }
 
-func (circuit *lineEvalAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *lineEvalAffineBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalAffineBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.AssertIsEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -103,7 +103,7 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalAffineBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ type pairingAffineBLS377 struct {
 	pairingRes bls377.GT
 }
 
-func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingAffineBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -161,7 +161,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingAffineBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ type pairingBLS377 struct {
 	pairingRes bls377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -209,7 +209,7 @@ func TestPairingBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

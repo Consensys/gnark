@@ -17,19 +17,19 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 
-	curve "github.com/consensys/gurvy/bn256"
+	curve "github.com/consensys/gurvy/ecc/bn254"
 
 	bn256backend "github.com/consensys/gnark/internal/backend/bn256/cs"
 
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
+	"github.com/consensys/gurvy/ecc/bn254/fr/fft"
 
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 
 	"fmt"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"math/big"
 	"runtime"
 )
@@ -48,7 +48,7 @@ func (proof *Proof) isValid() bool {
 }
 
 // GetCurveID returns the curveID
-func (proof *Proof) GetCurveID() gurvy.ID {
+func (proof *Proof) GetCurveID() ecc.ID {
 	return curve.ID
 }
 

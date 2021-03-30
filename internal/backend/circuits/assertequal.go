@@ -2,7 +2,7 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 type checkAssertEqualCircuit struct {
@@ -10,7 +10,7 @@ type checkAssertEqualCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *checkAssertEqualCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *checkAssertEqualCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	cs.AssertIsEqual(circuit.X, circuit.Y)
 	c1 := cs.Add(circuit.X, circuit.Y)
 	cs.AssertIsEqual(c1, 6)

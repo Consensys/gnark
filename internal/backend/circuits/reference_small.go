@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 const nbConstraintsRefSmall = 5
@@ -14,7 +14,7 @@ type referenceSmallCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < nbConstraintsRefSmall; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

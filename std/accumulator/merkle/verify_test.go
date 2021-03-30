@@ -24,11 +24,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/crypto/accumulator/merkletree"
-	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
+	bn256 "github.com/consensys/gurvy/ecc/bn254/fr/mimc"
 )
 
 type merkleCircuit struct {
@@ -36,7 +36,7 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *merkleCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func TestVerify(t *testing.T) {
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
 	witness.Path = make([]frontend.Variable, len(proof))
 	witness.Helper = make([]frontend.Variable, len(proof)-1)
-	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

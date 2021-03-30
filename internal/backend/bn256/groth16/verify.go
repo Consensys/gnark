@@ -17,9 +17,9 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 
-	curve "github.com/consensys/gurvy/bn256"
+	curve "github.com/consensys/gurvy/ecc/bn254"
 
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
 

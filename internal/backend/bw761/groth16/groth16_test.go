@@ -17,9 +17,9 @@
 package groth16_test
 
 import (
-	"github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gurvy/bw761"
+	curve "github.com/consensys/gurvy/ecc/bw6-761"
 
 	bw761backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 
@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 func TestCircuits(t *testing.T) {
@@ -59,7 +59,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *refCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

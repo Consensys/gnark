@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +42,7 @@ func TestIntegrationAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS377, gurvy.BLS381, gurvy.BW761}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761}
 	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 

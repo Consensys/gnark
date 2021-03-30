@@ -12,13 +12,13 @@ import (
 	"github.com/consensys/gurvy"
 	frbls377 "github.com/consensys/gurvy/bls377/fr"
 	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
 	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 func Fuzz(data []byte) int {
 
-	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 	for _, curveID := range curves {
 		_, _ = CsFuzzed(data, curveID)
 	}
@@ -26,7 +26,7 @@ func Fuzz(data []byte) int {
 	return 1
 }
 
-func CsFuzzed(data []byte, curveID gurvy.ID) (ccs CompiledConstraintSystem, nbAssertions int) {
+func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem, nbAssertions int) {
 	cs := newConstraintSystem()
 	reader := bytes.NewReader(data)
 

@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 // run this from /integration/solidity to regenerate files
@@ -16,7 +16,7 @@ import (
 func main() {
 	var circuit cubic.Circuit
 
-	r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}

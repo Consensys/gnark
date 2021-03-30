@@ -1,8 +1,6 @@
 package frontend
 
-import (
-	"github.com/consensys/gurvy"
-)
+import "github.com/consensys/gurvy/ecc"
 
 // Circuit must be implemented by user-defined circuits
 //
@@ -22,5 +20,5 @@ import (
 // it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
 type Circuit interface {
 	// Define declares the circuit's Constraints
-	Define(curveID gurvy.ID, cs *ConstraintSystem) error
+	Define(curveID ecc.ID, cs *ConstraintSystem) error
 }

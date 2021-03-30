@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
 	{{ template "import_fr" . }}
 )
@@ -46,9 +46,9 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	return len(r1cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gurvy (gurvy.{{.Curve}})
-func (r1cs *R1CS) CurveID() gurvy.ID {
-	return gurvy.{{.Curve}}
+// CurveID returns curve ID as defined in gnark-crypto (ecc.{{.Curve}})
+func (r1cs *R1CS) CurveID() ecc.ID {
+	return ecc.{{.CurveID}}
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element

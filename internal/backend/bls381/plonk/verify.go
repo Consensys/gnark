@@ -21,7 +21,8 @@ import (
 	"math/big"
 
 	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
-	"github.com/consensys/gurvy/bls381/fr"
+
+	"github.com/consensys/gurvy/ecc/bls12-381/fr"
 )
 
 var (

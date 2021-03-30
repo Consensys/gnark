@@ -3,7 +3,7 @@ import (
 	"math/big"
 
 	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
-	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
+	{{ template "import_fr" . }}
 )
 
 var (

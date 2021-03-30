@@ -29,8 +29,8 @@ import (
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gurvy/ecc"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 //--------------------------------------------------------------------
@@ -44,7 +44,7 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	mimc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls377.VerifyingKey, pro
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := frontend.Compile(gurvy.BLS377, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS12_377, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *verifierCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// pairing data
 	var pairingInfo sw.PairingContext
@@ -127,7 +127,7 @@ func TestVerifier(t *testing.T) {
 	// create an empty cs
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestVerifier(t *testing.T) {
 // 	Verify(&cs, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
 
 // 	// create r1cs
-// 	r1cs := cs.ToR1CS().ToR1CS(gurvy.BW761)
+// 	r1cs := cs.ToR1CS().ToR1CS(ecc.BW6_761)
 
 // 	// create assignment, the private part consists of the proof,
 // 	// the public part is exactly the public part of the inner proof,

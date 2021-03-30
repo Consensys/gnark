@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"reflect"
 	"testing"
 
@@ -33,7 +33,7 @@ func TestSerialization(t *testing.T) {
 	for name, circuit := range circuits.Circuits {
 		buffer.Reset()
 
-		r1cs, err := frontend.Compile(gurvy.BLS377, backend.GROTH16, circuit.Circuit)
+		r1cs, err := frontend.Compile(ecc.BLS12_377, backend.GROTH16, circuit.Circuit)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -23,7 +23,8 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	curve "github.com/consensys/gurvy/bls381"
+
+	curve "github.com/consensys/gurvy/ecc/bls12-381"
 )
 
 func TestCircuits(t *testing.T) {

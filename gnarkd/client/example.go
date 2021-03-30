@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -58,7 +58,7 @@ func main() {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	witness.WriteFullTo(&buf, gurvy.BN256, &w)
+	witness.WriteFullTo(&buf, ecc.BN254, &w)
 
 	// synchronous call
 	_, _ = c.Prove(ctx, &pb.ProveRequest{

@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 type divCircuit struct {
@@ -12,7 +12,7 @@ type divCircuit struct {
 	Z    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *divCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.X)
 	d := cs.Div(m, circuit.Y)
 	cs.AssertIsEqual(d, circuit.Z)

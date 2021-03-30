@@ -20,9 +20,9 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bls377"
-	"github.com/consensys/gurvy/bls377/fp"
-	"github.com/consensys/gurvy/bw761/fr"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
+	"github.com/consensys/gurvy/ecc/bls12-377/fp"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
 )
 
 // G1Jac point in Jacobian coords

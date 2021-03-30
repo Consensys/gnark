@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 func TestFromInterfaceValidFormats(t *testing.T) {

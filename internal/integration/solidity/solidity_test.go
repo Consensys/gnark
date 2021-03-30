@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -57,18 +57,18 @@ func (t *ExportSolidityTestSuite) SetupTest() {
 	t.verifierContract = v
 	t.backend.Commit()
 
-	t.r1cs, err = frontend.Compile(gurvy.BN256, backend.GROTH16, &t.circuit)
+	t.r1cs, err = frontend.Compile(ecc.BN254, backend.GROTH16, &t.circuit)
 	t.NoError(err, "compiling R1CS failed")
 
 	// read proving and verifying keys
-	t.pk = groth16.NewProvingKey(gurvy.BN256)
+	t.pk = groth16.NewProvingKey(ecc.BN254)
 	{
 		f, _ := os.Open("cubic.pk")
 		_, err = t.pk.ReadFrom(f)
 		f.Close()
 		t.NoError(err, "reading proving key failed")
 	}
-	t.vk = groth16.NewVerifyingKey(gurvy.BN256)
+	t.vk = groth16.NewVerifyingKey(ecc.BN254)
 	{
 		f, _ := os.Open("cubic.vk")
 		_, err = t.vk.ReadFrom(f)

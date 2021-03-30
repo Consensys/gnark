@@ -30,7 +30,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/gnarkd/pb"
@@ -284,7 +284,7 @@ func (s *Server) loadCircuits() error {
 		return err
 	}
 
-	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS381, gurvy.BLS377, gurvy.BW761}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761}
 	for _, curve := range curves {
 		curveDir := filepath.Join(s.circuitDir, curve.String())
 
@@ -312,7 +312,7 @@ func (s *Server) loadCircuits() error {
 	return nil
 }
 
-func (s *Server) loadCircuit(curveID gurvy.ID, baseDir string) error {
+func (s *Server) loadCircuit(curveID ecc.ID, baseDir string) error {
 	circuitID := fmt.Sprintf("%s/%s", curveID.String(), filepath.Base(baseDir))
 	s.log.Debugw("looking for circuit in", "dir", circuitID)
 

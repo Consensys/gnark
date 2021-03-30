@@ -2,7 +2,7 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 type fromBinaryCircuit struct {
@@ -10,7 +10,7 @@ type fromBinaryCircuit struct {
 	Y              frontend.Variable `gnark:",public"`
 }
 
-func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fromBinaryCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	cs.AssertIsBoolean(circuit.B0)
 	cs.AssertIsBoolean(circuit.B1)
 	cs.AssertIsBoolean(circuit.B2)

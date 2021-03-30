@@ -22,24 +22,24 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
-	"github.com/consensys/gurvy/bls377/fp"
+	"github.com/consensys/gurvy/ecc"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
+	"github.com/consensys/gurvy/ecc/bls12-377/fp"
 )
 
 type e2TestCircuit struct {
 	A, B, C E2
-	define  func(curveID gurvy.ID, cs *frontend.ConstraintSystem, A, B, C E2) error
+	define  func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error
 }
 
-func (circuit *e2TestCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	return circuit.define(curveID, cs, circuit.A, circuit.B, circuit.C)
 }
 
 func TestAddFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID gurvy.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
 			expected := E2{}
 			expected.Add(cs, &A, &B)
 			expected.MustBeEqual(cs, C)
@@ -48,7 +48,7 @@ func TestAddFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestAddFp2(t *testing.T) {
 func TestSubFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID gurvy.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
 			expected := E2{}
 			expected.Sub(cs, &A, &B)
 			expected.MustBeEqual(cs, C)
@@ -81,7 +81,7 @@ func TestSubFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestSubFp2(t *testing.T) {
 func TestMulFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID gurvy.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
 			ext := Extension{uSquare: 5}
 			expected := E2{}
 			expected.Mul(cs, &A, &B, ext)
@@ -115,7 +115,7 @@ func TestMulFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E2{}
 	expected.MulByFp(cs, &circuit.A, circuit.B)
 
@@ -152,7 +152,7 @@ func (circuit *fp2MulByFp) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestMulByFpFp2(t *testing.T) {
 
 	var circuit, witness fp2MulByFp
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E2{}
 	expected.Conjugate(cs, &circuit.A)
 
@@ -190,7 +190,7 @@ func (circuit *fp2Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 func TestConjugateFp2(t *testing.T) {
 
 	var circuit, witness fp2Conjugate
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	ext := Extension{uSquare: 5}
 	expected := E2{}
 	expected.Inverse(cs, &circuit.A, ext)
@@ -225,7 +225,7 @@ func (circuit *fp2Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestInverseFp2(t *testing.T) {
 
 	var circuit, witness fp2Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestMulByImFp2(t *testing.T) {
 	// ext := Extension{uSquare: 5}
 
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	// r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

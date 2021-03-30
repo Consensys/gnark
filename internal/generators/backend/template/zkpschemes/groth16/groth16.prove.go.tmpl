@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"runtime"
 	"math/big"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -25,7 +25,7 @@ func (proof *Proof) isValid() bool {
 }
 
 // GetCurveID returns the curveID
-func (proof *Proof) GetCurveID() gurvy.ID {
+func (proof *Proof) GetCurveID() ecc.ID {
 	return curve.ID
 }
 

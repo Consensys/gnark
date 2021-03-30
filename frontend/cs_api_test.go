@@ -7,7 +7,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
@@ -573,7 +573,7 @@ type addCircuit struct {
 	A Variable
 }
 
-func (c *addCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *addCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.Add(unsetVar, c.A)
 	cs.AssertIsEqual(a, 3)
@@ -584,7 +584,7 @@ type subCircuit struct {
 	A Variable
 }
 
-func (c *subCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *subCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.Sub(unsetVar, c.A)
 	cs.AssertIsEqual(a, 3)
@@ -595,7 +595,7 @@ type mulCircuit struct {
 	A Variable
 }
 
-func (c *mulCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *mulCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Mul(unsetVar, c.A)
 	return nil
@@ -605,7 +605,7 @@ type invCircuit struct {
 	A Variable
 }
 
-func (c *invCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *invCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Inverse(unsetVar)
 	return nil
@@ -615,7 +615,7 @@ type divCircuit struct {
 	A Variable
 }
 
-func (c *divCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *divCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Div(unsetVar, c.A)
 	return nil
@@ -625,7 +625,7 @@ type xorCircuit struct {
 	A Variable
 }
 
-func (c *xorCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *xorCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Xor(unsetVar, c.A)
 	return nil
@@ -635,7 +635,7 @@ type toBinaryCircuit struct {
 	A Variable
 }
 
-func (c *toBinaryCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *toBinaryCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.ToBinary(unsetVar, 256)
 	return nil
@@ -645,7 +645,7 @@ type fromBinaryCircuit struct {
 	A Variable
 }
 
-func (c *fromBinaryCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *fromBinaryCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.FromBinary(unsetVar)
 	cs.AssertIsEqual(a, 3)
@@ -656,7 +656,7 @@ type selectCircuit struct {
 	A Variable
 }
 
-func (c *selectCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *selectCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Select(unsetVar, c.A, 1)
 	return nil
@@ -666,7 +666,7 @@ type isEqualCircuit struct {
 	A Variable
 }
 
-func (c *isEqualCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isEqualCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsEqual(unsetVar, c.A)
 	return nil
@@ -676,7 +676,7 @@ type isBooleanCircuit struct {
 	A Variable
 }
 
-func (c *isBooleanCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isBooleanCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsBoolean(unsetVar)
 	return nil
@@ -686,7 +686,7 @@ type isLessOrEq struct {
 	A Variable
 }
 
-func (c *isLessOrEq) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isLessOrEq) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsLessOrEqual(unsetVar, c.A)
 	return nil
@@ -711,7 +711,7 @@ func TestUnsetVariables(t *testing.T) {
 
 	for name, arg := range mapFuncs {
 		t.Run(name, func(_t *testing.T) {
-			_, err := Compile(gurvy.UNKNOWN, backend.GROTH16, arg)
+			_, err := Compile(ecc.UNKNOWN, backend.GROTH16, arg)
 			if err == nil {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}

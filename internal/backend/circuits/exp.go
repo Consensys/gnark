@@ -2,7 +2,7 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 type expCircuit struct {
@@ -10,7 +10,7 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *expCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	o := cs.Constant(1)
 	b := cs.ToBinary(circuit.E, 4)
 

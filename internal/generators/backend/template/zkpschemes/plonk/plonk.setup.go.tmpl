@@ -2,9 +2,10 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
 	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/cs"
-	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/fft"
 	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
-	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
+	
+	{{ template "import_fr" . }}
+	{{ template "import_fft" . }}
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,

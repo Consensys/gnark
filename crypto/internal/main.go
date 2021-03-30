@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/bavard"
 )
 
-var bgen = bavard.NewBatchGenerator(copyrightHolder, "gnark")
+var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 
 const (
 	baseDir         = "../"
@@ -50,35 +50,23 @@ func main() {
 
 	// mimc files
 	mimcbn256 := templateData{
-		Curve:    "BN256",
-		Path:     "../hash/mimc/bn256/",
-		FileName: "mimc_bn256.go",
-		Src:      []string{mimcCommonTemplate, mimcEncryptTemplate},
-		Package:  "bn256",
+		Curve:   "BN256",
+		Package: "bn256",
 	}
 
 	mimcbls381 := templateData{
-		Curve:    "BLS381",
-		Path:     "../hash/mimc/bls381/",
-		FileName: "mimc_bls381.go",
-		Src:      []string{mimcCommonTemplate, mimcEncryptTemplate},
-		Package:  "bls381",
+		Curve:   "BLS381",
+		Package: "bls381",
 	}
 
 	mimcbls377 := templateData{
-		Curve:    "BLS377",
-		Path:     "../hash/mimc/bls377/",
-		FileName: "mimc_bls377.go",
-		Src:      []string{mimcCommonTemplate, mimcEncryptTemplate},
-		Package:  "bls377",
+		Curve:   "BLS377",
+		Package: "bls377",
 	}
 
 	mimcbw761 := templateData{
-		Curve:    "BW761",
-		Path:     "../hash/mimc/bw761/",
-		FileName: "mimc_bw761.go",
-		Src:      []string{mimcCommonTemplate, mimcEncryptTemplate},
-		Package:  "bw761",
+		Curve:   "BW761",
+		Package: "bw761",
 	}
 
 	data := []templateData{
@@ -94,28 +82,9 @@ func main() {
 		go func(d templateData) {
 			defer wg.Done()
 
-			// mimc
-			if err := os.MkdirAll(d.Path, 0700); err != nil {
-				panic(err)
-			}
-			if err := generate(d); err != nil {
-				panic(err)
-			}
-
-			// eddsa
-			dir := filepath.Join(baseDir, "signature/eddsa/", d.Package)
-			entriesF := []bavard.EntryF{
-				{File: filepath.Join(dir, "eddsa.go"), TemplateF: []string{"eddsa.go.tmpl"}},
-				{File: filepath.Join(dir, "eddsa_test.go"), TemplateF: []string{"eddsa_test.go.tmpl"}},
-				{File: filepath.Join(dir, "marshal.go"), TemplateF: []string{"marshal.go.tmpl"}},
-			}
-			if err := bgen.GenerateF(d, "eddsa", ".", entriesF...); err != nil {
-				panic(err)
-			}
-
 			// polynomial commitments
-			dir = filepath.Join(baseDir, "polynomial/", d.Package)
-			entriesF = []bavard.EntryF{
+			dir := filepath.Join(baseDir, "polynomial/", d.Package)
+			entriesF := []bavard.EntryF{
 				{File: filepath.Join(dir, "polynomial.go"), TemplateF: []string{"polynomial.go.tmpl"}},
 			}
 			if err := bgen.GenerateF(d, d.Package, ".", entriesF...); err != nil {

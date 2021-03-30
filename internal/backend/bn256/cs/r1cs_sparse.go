@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 // SparseR1CS represents a Plonk like circuit
@@ -57,9 +57,9 @@ func (cs *SparseR1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gurvy (gurvy.BN256)
-func (cs *SparseR1CS) CurveID() gurvy.ID {
-	return gurvy.BN256
+// CurveID returns curve ID as defined in gnark-crypto (ecc.BN256)
+func (cs *SparseR1CS) CurveID() ecc.ID {
+	return ecc.BN254
 }
 
 // find unsolved variable

@@ -17,13 +17,13 @@
 package groth16
 
 import (
-	curve "github.com/consensys/gurvy/bls381"
+	curve "github.com/consensys/gurvy/ecc/bls12-381"
 
 	"bytes"
 	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark/internal/backend/bls381/fft"
+	"github.com/consensys/gurvy/ecc/bls12-381/fr/fft"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/prop"

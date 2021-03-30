@@ -12,9 +12,9 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	bls381fr "github.com/consensys/gurvy/bls381/fr"
-	bn256fr "github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gurvy/ecc"
+	bls381fr "github.com/consensys/gurvy/ecc/bls12-381/fr"
+	bn256fr "github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(-1)
 	}
 	ns := strings.Split(os.Args[1], ",")
-	curveIDs := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curveIDs := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
@@ -81,7 +81,7 @@ type benchCircuit struct {
 	n int
 }
 
-func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *benchCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < circuit.n; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
@@ -89,7 +89,7 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	return nil
 }
 
-func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, frontend.CompiledConstraintSystem) {
+func generateCircuit(nbConstraints int, curveID ecc.ID) (groth16.ProvingKey, frontend.CompiledConstraintSystem) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
@@ -103,12 +103,12 @@ func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, f
 	return pk, r1cs
 }
 
-func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit) {
+func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) {
 	witness.n = nbConstraints
 	witness.X.Assign(2)
 
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		// compute expected Y
 		var expectedY bn256fr.Element
 		expectedY.SetInterface(2)
@@ -117,7 +117,7 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 		}
 
 		witness.Y.Assign(expectedY)
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		// compute expected Y
 		var expectedY bls381fr.Element
 		expectedY.SetInterface(2)

@@ -20,9 +20,11 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/bn256"
 	"github.com/consensys/gnark/internal/backend/bn256/cs"
-	"github.com/consensys/gnark/internal/backend/bn256/fft"
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	"github.com/consensys/gurvy/bn256/fr"
+
+	"github.com/consensys/gurvy/ecc/bn254/fr"
+
+	"github.com/consensys/gurvy/ecc/bn254/fr/fft"
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,

@@ -17,9 +17,9 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/bls377/fr"
+	"github.com/consensys/gurvy/ecc/bls12-377/fr"
 
-	curve "github.com/consensys/gurvy/bls377"
+	curve "github.com/consensys/gurvy/ecc/bls12-377"
 
 	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
 

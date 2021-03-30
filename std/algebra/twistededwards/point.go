@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 // Point point on a twisted Edwards curve in a Snark cs
@@ -113,7 +113,7 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.ConstraintSystem, p1 *Point, 
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
 	var frSize int
-	if curve.ID == gurvy.BW761 {
+	if curve.ID == ecc.BW6_761 {
 		frSize = 384
 	} else {
 		frSize = 256
@@ -148,7 +148,7 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
 	var frSize int
-	if curve.ID == gurvy.BW761 {
+	if curve.ID == ecc.BW6_761 {
 		frSize = 384
 	} else {
 		frSize = 256

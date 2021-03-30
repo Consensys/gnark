@@ -18,7 +18,7 @@ package groth16
 import (
 	"io"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
 	"github.com/consensys/gnark/frontend"
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
@@ -292,16 +292,16 @@ func DummySetup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, error) {
 
 // NewProvingKey instantiates a curve-typed ProvingKey and returns an interface object
 // This function exists for serialization purposes
-func NewProvingKey(curveID gurvy.ID) ProvingKey {
+func NewProvingKey(curveID ecc.ID) ProvingKey {
 	var pk ProvingKey
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		pk = &groth16_bn256.ProvingKey{}
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		pk = &groth16_bls377.ProvingKey{}
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		pk = &groth16_bls381.ProvingKey{}
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		pk = &groth16_bw761.ProvingKey{}
 	default:
 		panic("not implemented")
@@ -311,16 +311,16 @@ func NewProvingKey(curveID gurvy.ID) ProvingKey {
 
 // NewVerifyingKey instantiates a curve-typed VerifyingKey and returns an interface
 // This function exists for serialization purposes
-func NewVerifyingKey(curveID gurvy.ID) VerifyingKey {
+func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	var vk VerifyingKey
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		vk = &groth16_bn256.VerifyingKey{}
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		vk = &groth16_bls377.VerifyingKey{}
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		vk = &groth16_bls381.VerifyingKey{}
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		vk = &groth16_bw761.VerifyingKey{}
 	default:
 		panic("not implemented")
@@ -331,16 +331,16 @@ func NewVerifyingKey(curveID gurvy.ID) VerifyingKey {
 
 // NewProof instantiates a curve-typed Proof and returns an interface
 // This function exists for serialization purposes
-func NewProof(curveID gurvy.ID) Proof {
+func NewProof(curveID ecc.ID) Proof {
 	var proof Proof
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		proof = &groth16_bn256.Proof{}
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		proof = &groth16_bls377.Proof{}
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		proof = &groth16_bls381.Proof{}
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		proof = &groth16_bw761.Proof{}
 	default:
 		panic("not implemented")
@@ -351,16 +351,16 @@ func NewProof(curveID gurvy.ID) Proof {
 
 // NewCS instantiate a concrete curved-typed R1CS and return a R1CS interface
 // This method exists for (de)serialization purposes
-func NewCS(curveID gurvy.ID) frontend.CompiledConstraintSystem {
+func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 	var r1cs frontend.CompiledConstraintSystem
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		r1cs = &backend_bn256.R1CS{}
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		r1cs = &backend_bls377.R1CS{}
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		r1cs = &backend_bls381.R1CS{}
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		r1cs = &backend_bw761.R1CS{}
 	default:
 		panic("not implemented")

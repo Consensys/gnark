@@ -22,9 +22,9 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/crypto/hash"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/crypto/hash"
+	"github.com/consensys/gurvy/ecc"
 )
 
 type mimcCircuit struct {
@@ -32,7 +32,7 @@ type mimcCircuit struct {
 	Data           frontend.Variable
 }
 
-func (circuit *mimcCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	mimc, err := NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -50,11 +50,11 @@ func TestMimcAll(t *testing.T) {
 	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487", 10)
 	tamperedData.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919488", 10)
 
-	curves := map[gurvy.ID]hash.Hash{
-		gurvy.BN256:  hash.MIMC_BN256,
-		gurvy.BLS381: hash.MIMC_BLS381,
-		gurvy.BLS377: hash.MIMC_BLS377,
-		gurvy.BW761:  hash.MIMC_BW761,
+	curves := map[ecc.ID]hash.Hash{
+		ecc.BN254:     hash.MIMC_BN254,
+		ecc.BLS12_381: hash.MIMC_BLS12_381,
+		ecc.BLS12_377: hash.MIMC_BLS12_377,
+		ecc.BW6_761:   hash.MIMC_BW6_761,
 	}
 
 	for curve, hashFunc := range curves {

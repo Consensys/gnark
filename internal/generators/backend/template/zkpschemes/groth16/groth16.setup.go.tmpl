@@ -3,7 +3,7 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_backend_r1cs" . }}
 	{{ template "import_fft" . }}
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"math/big"
 	"math/bits"
 )
@@ -406,12 +406,12 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 }
 
 // GetCurveID returns the curveID
-func (pk *ProvingKey) GetCurveID() gurvy.ID {
+func (pk *ProvingKey) GetCurveID() ecc.ID {
 	return curve.ID
 }
 
 // GetCurveID returns the curveID
-func (vk *VerifyingKey) GetCurveID() gurvy.ID {
+func (vk *VerifyingKey) GetCurveID() ecc.ID {
 	return curve.ID
 }
 

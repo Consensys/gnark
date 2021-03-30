@@ -7,24 +7,24 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gurvy/ecc"
 
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 func main() {
 	var circuit cubic.Circuit
 
 	// compile a circuit
-	_r1cs, _ := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
+	_r1cs, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 
 	// R1CS implements io.WriterTo and io.ReaderFrom
 	var buf bytes.Buffer
 	_r1cs.WriteTo(&buf)
 
 	// gnark objects (R1CS, ProvingKey, VerifyingKey, Proof) must be instantiated like so:
-	newR1CS := groth16.NewCS(gurvy.BN256)
+	newR1CS := groth16.NewCS(ecc.BN254)
 	newR1CS.ReadFrom(&buf)
 
 	// setup
@@ -35,7 +35,7 @@ func main() {
 	// but also gnarkio.WriterRawTo to serialize without point compression
 	buf.Reset()
 	pk.WriteRawTo(&buf)
-	newPK := groth16.NewProvingKey(gurvy.BN256)
+	newPK := groth16.NewProvingKey(ecc.BN254)
 	newPK.ReadFrom(&buf)
 
 	// library user is free to use another encoder like gob or cbor to serialize / deserialize objects

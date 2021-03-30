@@ -17,15 +17,15 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gurvy/bw761"
+	curve "github.com/consensys/gurvy/ecc/bw6-761"
 
 	bw761backend "github.com/consensys/gnark/internal/backend/bw761/cs"
 
-	"github.com/consensys/gnark/internal/backend/bw761/fft"
+	"github.com/consensys/gurvy/ecc/bw6-761/fr/fft"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 	"math/big"
 	"math/bits"
 )
@@ -428,12 +428,12 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 }
 
 // GetCurveID returns the curveID
-func (pk *ProvingKey) GetCurveID() gurvy.ID {
+func (pk *ProvingKey) GetCurveID() ecc.ID {
 	return curve.ID
 }
 
 // GetCurveID returns the curveID
-func (vk *VerifyingKey) GetCurveID() gurvy.ID {
+func (vk *VerifyingKey) GetCurveID() ecc.ID {
 	return curve.ID
 }
 

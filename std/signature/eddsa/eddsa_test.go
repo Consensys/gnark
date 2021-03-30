@@ -23,19 +23,19 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/crypto/hash"
-	"github.com/consensys/gnark/crypto/signature"
-	eddsabls377 "github.com/consensys/gnark/crypto/signature/eddsa/bls377"
-	eddsabls381 "github.com/consensys/gnark/crypto/signature/eddsa/bls381"
-	eddsabn256 "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
-	eddsabw761 "github.com/consensys/gnark/crypto/signature/eddsa/bw761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
-	"github.com/consensys/gurvy"
-	edwardsbls377 "github.com/consensys/gurvy/bls377/twistededwards"
-	edwardsbls381 "github.com/consensys/gurvy/bls381/twistededwards"
-	edwardsbn256 "github.com/consensys/gurvy/bn256/twistededwards"
-	edwardsbw761 "github.com/consensys/gurvy/bw761/twistededwards"
+	"github.com/consensys/gurvy/crypto/hash"
+	"github.com/consensys/gurvy/crypto/signature"
+	"github.com/consensys/gurvy/ecc"
+	edwardsbls377 "github.com/consensys/gurvy/ecc/bls12-377/twistededwards"
+	eddsabls377 "github.com/consensys/gurvy/ecc/bls12-377/twistededwards/eddsa"
+	edwardsbls381 "github.com/consensys/gurvy/ecc/bls12-381/twistededwards"
+	eddsabls381 "github.com/consensys/gurvy/ecc/bls12-381/twistededwards/eddsa"
+	edwardsbn256 "github.com/consensys/gurvy/ecc/bn254/twistededwards"
+	eddsabn256 "github.com/consensys/gurvy/ecc/bn254/twistededwards/eddsa"
+	edwardsbw761 "github.com/consensys/gurvy/ecc/bw6-761/twistededwards"
+	eddsabw761 "github.com/consensys/gurvy/ecc/bw6-761/twistededwards/eddsa"
 )
 
 type eddsaCircuit struct {
@@ -44,28 +44,28 @@ type eddsaCircuit struct {
 	Message   frontend.Variable `gnark:",public"`
 }
 
-func parseSignature(id gurvy.ID, buf []byte) ([]byte, []byte, []byte) {
+func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 	var pointbn256 edwardsbn256.PointAffine
 	var pointbls381 edwardsbls381.PointAffine
 	var pointbls377 edwardsbls377.PointAffine
 	var pointbw761 edwardsbw761.PointAffine
 	switch id {
-	case gurvy.BN256:
+	case ecc.BN254:
 		pointbn256.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
 		c := buf[32:]
 		return a[:], b[:], c
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		pointbls381.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
 		c := buf[32:]
 		return a[:], b[:], c
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		pointbls377.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
 		c := buf[32:]
 		return a[:], b[:], c
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		pointbw761.SetBytes(buf[:48])
 		a, b := parsePoint(id, buf)
 		c := buf[48:]
@@ -75,28 +75,28 @@ func parseSignature(id gurvy.ID, buf []byte) ([]byte, []byte, []byte) {
 	}
 }
 
-func parsePoint(id gurvy.ID, buf []byte) ([]byte, []byte) {
+func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 	var pointbn256 edwardsbn256.PointAffine
 	var pointbls381 edwardsbls381.PointAffine
 	var pointbls377 edwardsbls377.PointAffine
 	var pointbw761 edwardsbw761.PointAffine
 	switch id {
-	case gurvy.BN256:
+	case ecc.BN254:
 		pointbn256.SetBytes(buf[:32])
 		a := pointbn256.X.Bytes()
 		b := pointbn256.Y.Bytes()
 		return a[:], b[:]
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		pointbls381.SetBytes(buf[:32])
 		a := pointbls381.X.Bytes()
 		b := pointbls381.Y.Bytes()
 		return a[:], b[:]
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		pointbls377.SetBytes(buf[:32])
 		a := pointbls377.X.Bytes()
 		b := pointbls377.Y.Bytes()
 		return a[:], b[:]
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		pointbw761.SetBytes(buf[:48])
 		a := pointbw761.X.Bytes()
 		b := pointbw761.Y.Bytes()
@@ -106,7 +106,7 @@ func parsePoint(id gurvy.ID, buf []byte) ([]byte, []byte) {
 	}
 }
 
-func (circuit *eddsaCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -135,16 +135,16 @@ func TestEddsa(t *testing.T) {
 		s signature.SignatureScheme
 	}
 
-	signature.Register(signature.EDDSA_BN256, eddsabn256.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BLS381, eddsabls381.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BLS377, eddsabls377.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BW761, eddsabw761.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BN254, eddsabn256.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BLS12_381, eddsabls381.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BLS12_377, eddsabls377.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BW6_761, eddsabw761.GenerateKeyInterfaces)
 
-	confs := map[gurvy.ID]confSig{
-		gurvy.BN256:  {hash.MIMC_BN256, signature.EDDSA_BN256},
-		gurvy.BLS381: {hash.MIMC_BLS381, signature.EDDSA_BLS381},
-		gurvy.BLS377: {hash.MIMC_BLS377, signature.EDDSA_BLS377},
-		gurvy.BW761:  {hash.MIMC_BW761, signature.EDDSA_BW761},
+	confs := map[ecc.ID]confSig{
+		ecc.BN254:     {hash.MIMC_BN254, signature.EDDSA_BN254},
+		ecc.BLS12_381: {hash.MIMC_BLS12_381, signature.EDDSA_BLS12_381},
+		ecc.BLS12_377: {hash.MIMC_BLS12_377, signature.EDDSA_BLS12_377},
+		ecc.BW6_761:   {hash.MIMC_BW6_761, signature.EDDSA_BW6_761},
 	}
 	for id, conf := range confs {
 

@@ -21,7 +21,8 @@ import (
 	"math/big"
 
 	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	"github.com/consensys/gurvy/bn256/fr"
+
+	"github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 var (

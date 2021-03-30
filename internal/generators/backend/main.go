@@ -11,7 +11,7 @@ import (
 
 const copyrightHolder = "ConsenSys Software Inc."
 
-var bgen = bavard.NewBatchGenerator(copyrightHolder, "gnark")
+var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 
 //go:generate go run main.go
 func main() {
@@ -19,19 +19,23 @@ func main() {
 	bls377 := templateData{
 		RootPath: "../../../internal/backend/bls377/",
 		Curve:    "BLS377",
+		CurveID:  "BLS12_377",
 	}
 	bls381 := templateData{
 		RootPath: "../../../internal/backend/bls381/",
 		Curve:    "BLS381",
+		CurveID:  "BLS12_381",
 	}
 	bn256 := templateData{
 		RootPath: "../../../internal/backend/bn256/",
 		Curve:    "BN256",
+		CurveID:  "BN254",
 	}
 
 	bw761 := templateData{
 		RootPath: "../../../internal/backend/bw761/",
 		Curve:    "BW761",
+		CurveID:  "BW6_761",
 	}
 
 	datas := []templateData{bls377, bls381, bn256, bw761}
@@ -55,7 +59,6 @@ func main() {
 				panic(err)
 			}
 
-			fftDir := filepath.Join(d.RootPath, "fft")
 			groth16Dir := filepath.Join(d.RootPath, "groth16")
 			plonkDir := filepath.Join(d.RootPath, "plonk")
 			backendCSDir := filepath.Join(d.RootPath, "cs")
@@ -85,16 +88,6 @@ func main() {
 			}
 
 			entries = []bavard.EntryF{
-				{File: filepath.Join(fftDir, "domain_test.go"), TemplateF: []string{"tests/domain.go.tmpl", importCurve}},
-				{File: filepath.Join(fftDir, "domain.go"), TemplateF: []string{"domain.go.tmpl", importCurve}},
-				{File: filepath.Join(fftDir, "fft_test.go"), TemplateF: []string{"tests/fft.go.tmpl", importCurve}},
-				{File: filepath.Join(fftDir, "fft.go"), TemplateF: []string{"fft.go.tmpl", importCurve}},
-			}
-			if err := bgen.GenerateF(d, "fft", "./template/fft/", entries...); err != nil {
-				panic(err)
-			}
-
-			entries = []bavard.EntryF{
 				{File: filepath.Join(groth16Dir, "verify.go"), TemplateF: []string{"groth16/groth16.verify.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "prove.go"), TemplateF: []string{"groth16/groth16.prove.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "setup.go"), TemplateF: []string{"groth16/groth16.setup.go.tmpl", importCurve}},
@@ -114,16 +107,16 @@ func main() {
 
 			// plonk
 			entries = []bavard.EntryF{
-				{File: filepath.Join(plonkDir, "verify.go"), TemplateF: []string{"plonk/plonk.verify.go.tmpl"}},
-				{File: filepath.Join(plonkDir, "prove.go"), TemplateF: []string{"plonk/plonk.prove.go.tmpl"}},
-				{File: filepath.Join(plonkDir, "setup.go"), TemplateF: []string{"plonk/plonk.setup.go.tmpl"}},
+				{File: filepath.Join(plonkDir, "verify.go"), TemplateF: []string{"plonk/plonk.verify.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "prove.go"), TemplateF: []string{"plonk/plonk.prove.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "setup.go"), TemplateF: []string{"plonk/plonk.setup.go.tmpl", importCurve}},
 			}
 			if err := bgen.GenerateF(d, "plonk", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
 			}
 
 			entries = []bavard.EntryF{
-				{File: filepath.Join(plonkDir, "plonk_test.go"), TemplateF: []string{"plonk/tests/plonk.go.tmpl"}},
+				{File: filepath.Join(plonkDir, "plonk_test.go"), TemplateF: []string{"plonk/tests/plonk.go.tmpl", importCurve}},
 			}
 			if err := bgen.GenerateF(d, "plonk_test", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
@@ -148,4 +141,5 @@ func main() {
 type templateData struct {
 	RootPath string
 	Curve    string // BLS381, BLS377, BN256, BW761
+	CurveID  string
 }

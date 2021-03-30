@@ -101,7 +101,7 @@ func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 var circuit CubicCircuit
 
 // compiles our circuit into a R1CS
-r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
+r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 ```
 Using struct tags attributes (similarly to `json` or `xml` encoders in Golang), `frontend.Compile()` will parse the circuit structure and allocate the user secret and public inputs [TODO add godoc link for details]. 
 

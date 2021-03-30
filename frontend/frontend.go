@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 )
 
 // ErrInputNotSet triggered when trying to access a variable that was not allocated
@@ -29,7 +29,7 @@ var ErrInputNotSet = errors.New("variable is not allocated")
 // 3. finally, it converts that to a CompiledConstraintSystem.
 // 		if zkpID == backend.GROTH16	--> R1CS
 //		if zkpID == backend.PLONK 	--> SparseR1CS
-func Compile(curveID gurvy.ID, zkpID backend.ID, circuit Circuit) (ccs CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit) (ccs CompiledConstraintSystem, err error) {
 
 	// build the constraint system (see Circuit.Define)
 	cs, err := buildCS(curveID, circuit)
@@ -55,7 +55,7 @@ func Compile(curveID gurvy.ID, zkpID backend.ID, circuit Circuit) (ccs CompiledC
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID gurvy.ID, circuit Circuit) (ConstraintSystem, error) {
+func buildCS(curveID ecc.ID, circuit Circuit) (ConstraintSystem, error) {
 
 	// instantiate our constraint system
 	cs := newConstraintSystem()

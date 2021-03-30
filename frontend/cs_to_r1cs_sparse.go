@@ -21,7 +21,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gurvy/ecc"
 
 	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
 	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"
@@ -32,7 +32,7 @@ import (
 type idCS = int
 type idPCS = int
 
-func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSystem, error) {
+func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 
 	// build the Coeffs slice
 	var res compiled.SparseR1CS
@@ -172,15 +172,15 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID gurvy.ID) (CompiledConstraintSy
 	}
 
 	switch curveID {
-	case gurvy.BLS377:
+	case ecc.BLS12_377:
 		return bls377r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		return bls381r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BN256:
+	case ecc.BN254:
 		return bn256r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.BW761:
+	case ecc.BW6_761:
 		return bw761r1cs.NewSparseR1CS(res, res.Coeffs), nil
-	case gurvy.UNKNOWN:
+	case ecc.UNKNOWN:
 		return &res, nil
 	default:
 		panic("not implemtented")

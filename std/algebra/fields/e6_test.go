@@ -22,8 +22,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
+	"github.com/consensys/gurvy/ecc"
+	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 func getBLS377ExtensionFp6(cs *frontend.ConstraintSystem) Extension {
@@ -41,7 +41,7 @@ type fp6Add struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E6{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -51,7 +51,7 @@ func (circuit *fp6Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestAddFp6(t *testing.T) {
 
 	var circuit, witness fp6Add
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ type fp6Sub struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E6{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -86,7 +86,7 @@ func (circuit *fp6Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestSubFp6(t *testing.T) {
 
 	var circuit, witness fp6Sub
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ type fp6Mul struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
@@ -122,7 +122,7 @@ func (circuit *fp6Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestMulFp6(t *testing.T) {
 
 	var circuit, witness fp6Mul
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ type fp6MulByNonResidue struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6MulByNonResidue) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.MulByNonResidue(cs, &circuit.A, ext)
@@ -159,7 +159,7 @@ func (circuit *fp6MulByNonResidue) Define(curveID gurvy.ID, cs *frontend.Constra
 func TestMulByNonResidueFp6(t *testing.T) {
 
 	var circuit, witness fp6MulByNonResidue
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ type fp6Inverse struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Inverse(cs, &circuit.A, ext)
@@ -195,7 +195,7 @@ func (circuit *fp6Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestInverseFp6(t *testing.T) {
 
 	var circuit, witness fp6Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// TODO fixme
 	t.Skip("missing e6.MulByE2")
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	// r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
@@ -249,7 +249,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// expectedValues := make(map[string]*fp.Element)
 	// getExpectedValuesFp6(expectedValues, "c", c)
 
-	// r1cs := cs.ToR1CS().ToR1CS(gurvy.BW761)
+	// r1cs := cs.ToR1CS().ToR1CS(ecc.BW6_761)
 
 	// // inspect and compare the results
 	// res, err := r1cs.Inspect(inputs, false)

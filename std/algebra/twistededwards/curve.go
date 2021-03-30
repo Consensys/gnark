@@ -21,35 +21,35 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/crypto/utils"
-	"github.com/consensys/gurvy"
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	edbls377 "github.com/consensys/gurvy/bls377/twistededwards"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
-	edbn256 "github.com/consensys/gurvy/bn256/twistededwards"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
-	edbw761 "github.com/consensys/gurvy/bw761/twistededwards"
+	"github.com/consensys/gurvy/ecc"
+	frbls377 "github.com/consensys/gurvy/ecc/bls12-377/fr"
+	edbls377 "github.com/consensys/gurvy/ecc/bls12-377/twistededwards"
+	frbls381 "github.com/consensys/gurvy/ecc/bls12-381/fr"
+	edbls381 "github.com/consensys/gurvy/ecc/bls12-381/twistededwards"
+	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
+	edbn256 "github.com/consensys/gurvy/ecc/bn254/twistededwards"
+	frbw761 "github.com/consensys/gurvy/ecc/bw6-761/fr"
+	edbw761 "github.com/consensys/gurvy/ecc/bw6-761/twistededwards"
 )
 
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
 	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
-	ID                                           gurvy.ID
+	ID                                           ecc.ID
 }
 
-var newTwistedEdwards map[gurvy.ID]func() EdCurve
+var newTwistedEdwards map[ecc.ID]func() EdCurve
 
 func init() {
-	newTwistedEdwards = make(map[gurvy.ID]func() EdCurve)
-	newTwistedEdwards[gurvy.BLS381] = newEdBLS381
-	newTwistedEdwards[gurvy.BN256] = newEdBN256
-	newTwistedEdwards[gurvy.BLS377] = newEdBLS377
-	newTwistedEdwards[gurvy.BW761] = newEdBW761
+	newTwistedEdwards = make(map[ecc.ID]func() EdCurve)
+	newTwistedEdwards[ecc.BLS12_381] = newEdBLS381
+	newTwistedEdwards[ecc.BN254] = newEdBN256
+	newTwistedEdwards[ecc.BLS12_377] = newEdBLS377
+	newTwistedEdwards[ecc.BW6_761] = newEdBW761
 }
 
 // NewEdCurve returns an Edwards curve parameters
-func NewEdCurve(id gurvy.ID) (EdCurve, error) {
+func NewEdCurve(id ecc.ID) (EdCurve, error) {
 	if constructor, ok := newTwistedEdwards[id]; ok {
 		return constructor(), nil
 	}
@@ -72,7 +72,7 @@ func newEdBN256() EdCurve {
 		Order:    utils.FromInterface(edcurve.Order),
 		BaseX:    utils.FromInterface(edcurve.Base.X),
 		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BN256,
+		ID:       ecc.BN254,
 	}
 	res.Modulus.Set(frbn256.Modulus())
 
@@ -93,7 +93,7 @@ func newEdBLS381() EdCurve {
 		Order:    utils.FromInterface(edcurve.Order),
 		BaseX:    utils.FromInterface(edcurve.Base.X),
 		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BLS381,
+		ID:       ecc.BLS12_381,
 	}
 	res.Modulus.Set(frbls381.Modulus())
 
@@ -113,7 +113,7 @@ func newEdBLS377() EdCurve {
 		Order:    utils.FromInterface(edcurve.Order),
 		BaseX:    utils.FromInterface(edcurve.Base.X),
 		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BLS377,
+		ID:       ecc.BLS12_377,
 	}
 	res.Modulus.Set(frbls377.Modulus())
 
@@ -133,7 +133,7 @@ func newEdBW761() EdCurve {
 		Order:    utils.FromInterface(edcurve.Order),
 		BaseX:    utils.FromInterface(edcurve.Base.X),
 		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BW761,
+		ID:       ecc.BW6_761,
 	}
 	res.Modulus.Set(frbw761.Modulus())
 

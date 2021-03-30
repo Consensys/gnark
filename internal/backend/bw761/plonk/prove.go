@@ -22,9 +22,11 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/bw761"
 	"github.com/consensys/gnark/internal/backend/bw761/cs"
-	"github.com/consensys/gnark/internal/backend/bw761/fft"
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
-	"github.com/consensys/gurvy/bw761/fr"
+
+	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+
+	"github.com/consensys/gurvy/ecc/bw6-761/fr/fft"
 )
 
 // TODO derive those random values using Fiat Shamir
