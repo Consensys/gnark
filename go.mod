@@ -7,7 +7,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.5.8 // indirect
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f
-	github.com/consensys/gurvy v0.3.9-0.20210330222619-5643f2598493
+	github.com/consensys/gnark-crypto v0.3.9-0.20210331004624-40908b944059 // indirect
 	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/ethereum/go-ethereum v1.10.1
 	github.com/fxamacker/cbor/v2 v2.2.0

@@ -25,8 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy/ecc"
 )
 
 // ConstraintSystem represents a Groth16 like circuit

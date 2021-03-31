@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // SparseR1CS represents a Plonk like circuit

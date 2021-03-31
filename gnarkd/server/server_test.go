@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
-	"github.com/consensys/gurvy/ecc"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

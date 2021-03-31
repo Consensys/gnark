@@ -17,7 +17,7 @@ package compiled
 import (
 	"io"
 
-	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // R1CS decsribes a set of R1CS constraint

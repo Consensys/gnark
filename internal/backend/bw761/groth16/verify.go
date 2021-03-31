@@ -17,9 +17,9 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gurvy/ecc/bw6-761"
+	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 

@@ -26,9 +26,9 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gurvy/ecc/bw6-761"
+	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 )
 
 type Witness []fr.Element

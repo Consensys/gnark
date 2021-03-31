@@ -1,8 +1,8 @@
 package cubic
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/ecc"
 )
 
 // Circuit defines a simple circuit

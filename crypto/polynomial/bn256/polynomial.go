@@ -17,7 +17,7 @@
 package bn256
 
 import (
-	"github.com/consensys/gurvy/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
 
 // Poly polynomial represented by coefficients bn256 fr field.

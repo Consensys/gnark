@@ -22,7 +22,7 @@ import (
 
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 var (

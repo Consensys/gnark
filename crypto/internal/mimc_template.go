@@ -80,7 +80,7 @@ import (
 	"hash"
 	"math/big"
 
-	"github.com/consensys/gurvy/{{ toLower .Curve }}/fr"
+	"github.com/consensys/gnark-crypto/{{ toLower .Curve }}/fr"
 	"golang.org/x/crypto/sha3"
 )
 

@@ -68,7 +68,7 @@ Examples are located in `/examples`.
 // Circuit must be implemented by user-defined circuits
 type Circuit interface {
 	// Define declares the circuit's Constraints
-	Define(curveID gurvy.ID, cs *ConstraintSystem) error
+	Define(curveID ecc.ID, cs *ConstraintSystem) error
 }
 ```
 

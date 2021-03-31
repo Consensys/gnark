@@ -17,19 +17,19 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
-	curve "github.com/consensys/gurvy/ecc/bls12-381"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
 	bls381backend "github.com/consensys/gnark/internal/backend/bls381/cs"
 
-	"github.com/consensys/gurvy/ecc/bls12-381/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 
 	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
 
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gurvy/ecc"
 	"math/big"
 	"runtime"
 )

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	bls381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	bn256fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/ecc"
-	bls381fr "github.com/consensys/gurvy/ecc/bls12-381/fr"
-	bn256fr "github.com/consensys/gurvy/ecc/bn254/fr"
 )
 
 func main() {

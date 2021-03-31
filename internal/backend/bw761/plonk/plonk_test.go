@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 
-	curve "github.com/consensys/gurvy/ecc/bw6-761"
+	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 )
 
 func TestCircuits(t *testing.T) {

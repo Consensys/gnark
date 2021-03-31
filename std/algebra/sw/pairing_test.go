@@ -19,12 +19,12 @@ package sw
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy/ecc"
-	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 type lineEvalBLS377 struct {

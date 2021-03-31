@@ -19,8 +19,8 @@ package twistededwards
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/ecc"
 )
 
 // Point point on a twisted Edwards curve in a Snark cs

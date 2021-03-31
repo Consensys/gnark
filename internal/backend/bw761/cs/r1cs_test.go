@@ -18,10 +18,10 @@ package cs_test
 
 import (
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/consensys/gurvy/ecc"
 	"reflect"
 	"testing"
 

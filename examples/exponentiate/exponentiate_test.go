@@ -3,10 +3,10 @@ package exponentiate
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/ecc"
 )
 
 func TestExponentiate(t *testing.T) {

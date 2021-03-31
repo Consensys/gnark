@@ -17,9 +17,9 @@ limitations under the License.
 package sw
 
 import (
+	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
 )
 
 // G2Jac point in Jacobian coords

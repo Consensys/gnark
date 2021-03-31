@@ -17,15 +17,15 @@
 package groth16
 
 import (
-	"github.com/consensys/gurvy/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
-	curve "github.com/consensys/gurvy/ecc/bls12-377"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
 	bls377backend "github.com/consensys/gnark/internal/backend/bls377/cs"
 
-	"github.com/consensys/gurvy/ecc/bls12-377/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 
-	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gnark-crypto/ecc"
 	"math/big"
 	"math/bits"
 )

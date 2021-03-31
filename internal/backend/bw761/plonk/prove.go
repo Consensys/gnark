@@ -24,9 +24,9 @@ import (
 	"github.com/consensys/gnark/internal/backend/bw761/cs"
 	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
 
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	"github.com/consensys/gurvy/ecc/bw6-761/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 )
 
 // TODO derive those random values using Fiat Shamir

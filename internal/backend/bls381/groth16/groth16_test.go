@@ -17,9 +17,9 @@
 package groth16_test
 
 import (
-	"github.com/consensys/gurvy/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
-	curve "github.com/consensys/gurvy/ecc/bls12-381"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
 	bls381backend "github.com/consensys/gnark/internal/backend/bls381/cs"
 
@@ -30,11 +30,11 @@ import (
 	bls381groth16 "github.com/consensys/gnark/internal/backend/bls381/groth16"
 	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/consensys/gurvy/ecc"
 )
 
 func TestCircuits(t *testing.T) {

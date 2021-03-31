@@ -3,11 +3,11 @@ package witness
 import (
 	"io"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
 	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
-	"github.com/consensys/gurvy/ecc"
 
 	"github.com/consensys/gnark/frontend"
 )

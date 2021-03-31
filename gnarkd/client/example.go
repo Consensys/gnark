@@ -21,10 +21,10 @@ import (
 	"io"
 	"log"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
-	"github.com/consensys/gurvy/ecc"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

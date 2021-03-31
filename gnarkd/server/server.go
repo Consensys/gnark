@@ -30,7 +30,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/consensys/gurvy/ecc"
+	"github.com/consensys/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/gnarkd/pb"

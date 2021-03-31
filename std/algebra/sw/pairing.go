@@ -19,9 +19,9 @@ package sw
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy/ecc"
 )
 
 // PairingContext contains useful info about the pairing

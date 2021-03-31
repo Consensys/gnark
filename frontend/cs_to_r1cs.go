@@ -3,8 +3,8 @@ package frontend
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy/ecc"
 
 	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
 	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"

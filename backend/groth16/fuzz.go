@@ -5,12 +5,12 @@ package groth16
 import (
 	"strings"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
 	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
 	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
-	"github.com/consensys/gurvy/ecc"
 )
 
 func Fuzz(data []byte) int {

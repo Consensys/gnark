@@ -1,6 +1,6 @@
 package frontend
 
-import "github.com/consensys/gurvy/ecc"
+import "github.com/consensys/gnark-crypto/ecc"
 
 // Circuit must be implemented by user-defined circuits
 //

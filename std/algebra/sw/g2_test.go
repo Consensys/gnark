@@ -20,14 +20,14 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy/ecc"
-	"github.com/consensys/gurvy/ecc/bls12-377/fr"
 
-	bls377 "github.com/consensys/gurvy/ecc/bls12-377"
+	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 // -------------------------------------------------------------------------------------------------

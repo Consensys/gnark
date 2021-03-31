@@ -20,16 +20,16 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	frbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	edbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	frbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	edbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	frbn256 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	edbn256 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	frbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	edbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark/crypto/utils"
-	"github.com/consensys/gurvy/ecc"
-	frbls377 "github.com/consensys/gurvy/ecc/bls12-377/fr"
-	edbls377 "github.com/consensys/gurvy/ecc/bls12-377/twistededwards"
-	frbls381 "github.com/consensys/gurvy/ecc/bls12-381/fr"
-	edbls381 "github.com/consensys/gurvy/ecc/bls12-381/twistededwards"
-	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
-	edbn256 "github.com/consensys/gurvy/ecc/bn254/twistededwards"
-	frbw761 "github.com/consensys/gurvy/ecc/bw6-761/fr"
-	edbw761 "github.com/consensys/gurvy/ecc/bw6-761/twistededwards"
 )
 
 // EdCurve stores the info on the chosen edwards curve

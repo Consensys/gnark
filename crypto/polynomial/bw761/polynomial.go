@@ -17,7 +17,7 @@
 package bw761
 
 import (
-	"github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // Poly polynomial represented by coefficients bw761 fr field.

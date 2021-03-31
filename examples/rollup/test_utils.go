@@ -21,8 +21,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/consensys/gurvy/ecc/bn254/fr"
-	"github.com/consensys/gurvy/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
 func createAccount(i int) (Account, eddsa.PrivateKey) {

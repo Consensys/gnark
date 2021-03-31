@@ -5,10 +5,10 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
-	"github.com/consensys/gurvy/ecc"
 )
 
 // ErrInputNotSet triggered when trying to access a variable that was not allocated

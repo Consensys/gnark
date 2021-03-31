@@ -19,8 +19,8 @@ package rollup
 import (
 	"hash"
 
-	"github.com/consensys/gurvy/ecc/bn254/fr"
-	"github.com/consensys/gurvy/ecc/bn254/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
 // Transfer describe a rollup transfer

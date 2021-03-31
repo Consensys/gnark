@@ -93,10 +93,13 @@ github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnht
 github.com/consensys/bavard v0.1.8-0.20210105233146-c16790d2aa8b/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f h1:Smz/coLzPOgl74T1haF8SfqPAkB760cSO59+FyLPzG0=
 github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
+github.com/consensys/gnark-crypto v0.3.8/go.mod h1:sN75xnsiD593XnhbhvG2PkOy194pZBzqShWF/kwuW/g=
+github.com/consensys/gnark-crypto v0.3.9-0.20210330222619-5643f2598493 h1:hBXj801aKHNWs3w7ZAtUM3q62zTydYH9H7TdZlp9jq8=
+github.com/consensys/gnark-crypto v0.3.9-0.20210330222619-5643f2598493/go.mod h1:t/boJPCVZjAa5Pe4649G4sjtra7c6fxsDWYLT9/TuqA=
+github.com/consensys/gnark-crypto v0.3.9-0.20210331004624-40908b944059 h1:FN/M3ppW6wf1nZ13tkA+hWItegLkvqrXuYPPgyIRabs=
+github.com/consensys/gnark-crypto v0.3.9-0.20210331004624-40908b944059/go.mod h1:oDtZm0fpMkgHyoxoxXAL1bFzqNvwhpzOnTHwvh4ounE=
 github.com/consensys/goff v0.3.10/go.mod h1:xTldOBEHmFiYS0gPXd3NsaEqZWlnmeWcRLWgD3ba3xc=
 github.com/consensys/gurvy v0.3.8/go.mod h1:sN75xnsiD593XnhbhvG2PkOy194pZBzqShWF/kwuW/g=
-github.com/consensys/gurvy v0.3.9-0.20210330222619-5643f2598493 h1:hBXj801aKHNWs3w7ZAtUM3q62zTydYH9H7TdZlp9jq8=
-github.com/consensys/gurvy v0.3.9-0.20210330222619-5643f2598493/go.mod h1:t/boJPCVZjAa5Pe4649G4sjtra7c6fxsDWYLT9/TuqA=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.13+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

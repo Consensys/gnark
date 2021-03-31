@@ -28,11 +28,11 @@ import (
 	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
-	"github.com/consensys/gurvy/ecc"
-	frbls377 "github.com/consensys/gurvy/ecc/bls12-377/fr"
-	frbls381 "github.com/consensys/gurvy/ecc/bls12-381/fr"
-	frbn256 "github.com/consensys/gurvy/ecc/bn254/fr"
-	frbw761 "github.com/consensys/gurvy/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc"
+	frbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	frbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	frbn256 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	frbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // Add returns res = i1+i2+...in
