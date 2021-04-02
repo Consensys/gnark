@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	bls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
@@ -50,7 +50,7 @@ func init() {
 
 func newMimcBLS377(seed string) MiMC {
 	res := MiMC{}
-	params := bls377.NewParams(seed)
+	params := bls12377.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)

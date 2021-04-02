@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
-	witness_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
@@ -147,8 +147,8 @@ func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witn
 // returns nil if it succeeds, error otherwise.
 func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _r1cs := r1cs.(type) {
-	case *backend_bls377.R1CS:
-		w := witness_bls377.Witness{}
+	case *backend_bls12377.R1CS:
+		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

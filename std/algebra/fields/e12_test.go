@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
@@ -51,7 +51,7 @@ func TestAddFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Add(&a, &b)
@@ -86,7 +86,7 @@ func TestSubFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Sub(&a, &b)
@@ -122,7 +122,7 @@ func TestMulFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Mul(&a, &b)
@@ -157,7 +157,7 @@ func TestConjugateFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	a.SetRandom()
 	c.Conjugate(&a)
 
@@ -193,8 +193,8 @@ func TestMulByVFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByV(&a, &b)
@@ -233,8 +233,8 @@ func TestMulByV2WFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByV2W(&a, &b)
@@ -273,8 +273,8 @@ func TestMulByVWFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByVW(&a, &b)
@@ -319,7 +319,7 @@ func TestFrobeniusFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c, d, e bls377.E12
+	var a, c, d, e bls12377.E12
 	a.SetRandom()
 	c.Frobenius(&a)
 	d.FrobeniusSquare(&a)
@@ -357,7 +357,7 @@ func TestInverseFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	a.SetRandom()
 	c.Inverse(&a)
 
@@ -391,7 +391,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	expo := uint64(9586122913090633729)
 
 	a.SetRandom()
@@ -427,10 +427,10 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 
 	a.SetRandom()
-	c = bls377.FinalExponentiation(&a)
+	c = bls12377.FinalExponentiation(&a)
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)

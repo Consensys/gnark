@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
@@ -54,7 +54,7 @@ func TestAddFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E2
+	var a, b, c bls12377.E2
 	a.SetRandom()
 	b.SetRandom()
 	c.Add(&a, &b)
@@ -87,7 +87,7 @@ func TestSubFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E2
+	var a, b, c bls12377.E2
 	a.SetRandom()
 	b.SetRandom()
 	c.Sub(&a, &b)
@@ -121,7 +121,7 @@ func TestMulFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, b, c bls377.E2
+	var a, b, c bls12377.E2
 	a.SetRandom()
 	b.SetRandom()
 	c.Mul(&a, &b)
@@ -158,14 +158,14 @@ func TestMulByFpFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E2
+	var a, c bls12377.E2
 	var b fp.Element
 	a.SetRandom()
 	b.SetRandom()
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
-	witness.B.Assign(bls377FpTobw761fr(&b))
+	witness.B.Assign(bls12377FpTobw761fr(&b))
 
 	witness.C.Assign(&c)
 
@@ -196,7 +196,7 @@ func TestConjugateFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E2
+	var a, c bls12377.E2
 	a.SetRandom()
 	c.Conjugate(&a)
 
@@ -231,7 +231,7 @@ func TestInverseFp2(t *testing.T) {
 	}
 
 	// witness values
-	var a, c bls377.E2
+	var a, c bls12377.E2
 	a.SetRandom()
 	c.Inverse(&a)
 
@@ -256,7 +256,7 @@ func TestMulByImFp2(t *testing.T) {
 	// }
 
 	// // witness values
-	// var a, c bls377.E2
+	// var a, c bls12377.E2
 	// a.SetRandom()
 
 	// // TODO c.MulByNonSquare(&a)

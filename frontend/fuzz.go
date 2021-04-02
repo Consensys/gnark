@@ -10,7 +10,7 @@ import (
 	"math/rand"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	frbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	frbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
@@ -156,15 +156,15 @@ func (cs *ConstraintSystem) shuffleVariables(seed int64, withConstant bool) []in
 			v[i+offset] = i
 		}
 		offset += n
-		v[offset] = frbls377.Modulus()
+		v[offset] = frbls12377.Modulus()
 		v[offset+1] = frbls381.Modulus()
 		v[offset+2] = frbn254.Modulus()
 		v[offset+3] = frbw761.Modulus()
-		v[offset+4] = new(big.Int).Sub(frbls377.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+4] = new(big.Int).Sub(frbls12377.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+5] = new(big.Int).Sub(frbls381.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+6] = new(big.Int).Sub(frbn254.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+7] = new(big.Int).Sub(frbw761.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+8] = new(big.Int).Add(frbls377.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+8] = new(big.Int).Add(frbls12377.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+9] = new(big.Int).Add(frbls381.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+10] = new(big.Int).Add(frbn254.Modulus(), new(big.Int).SetUint64(1))
 		v[offset+11] = new(big.Int).Add(frbw761.Modulus(), new(big.Int).SetUint64(1))

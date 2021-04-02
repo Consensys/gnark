@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 
-	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	// sample 2 random points
 	_a := randomPointG1()
 	_b := randomPointG1()
-	var a, b, c bls377.G1Affine
+	var a, b, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
@@ -173,7 +173,7 @@ func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG1()
-	var a, c bls377.G1Affine
+	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
@@ -255,7 +255,7 @@ func TestScalarMulG1(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG1()
-	var a, c bls377.G1Affine
+	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// random scalar
@@ -284,9 +284,9 @@ func TestScalarMulG1(t *testing.T) {
 
 }
 
-func randomPointG1() bls377.G1Jac {
+func randomPointG1() bls12377.G1Jac {
 
-	p1, _, _, _ := bls377.Generators()
+	p1, _, _, _ := bls12377.Generators()
 
 	var r1 fr.Element
 	var b big.Int

@@ -27,7 +27,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
 
-	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ func TestAddAssignAffineG2(t *testing.T) {
 	// sample 2 random points
 	_a := randomPointG2()
 	_b := randomPointG2()
-	var a, b, c bls377.G2Affine
+	var a, b, c bls12377.G2Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
@@ -174,7 +174,7 @@ func TestDoubleAffineG2(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG2()
-	var a, c bls377.G2Affine
+	var a, c bls12377.G2Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
@@ -236,8 +236,8 @@ func TestNegG2(t *testing.T) {
 
 }
 
-func randomPointG2() bls377.G2Jac {
-	_, p2, _, _ := bls377.Generators()
+func randomPointG2() bls12377.G2Jac {
+	_, p2, _, _ := bls12377.Generators()
 
 	var r1 fr.Element
 	var b big.Int

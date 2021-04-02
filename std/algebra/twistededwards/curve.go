@@ -21,8 +21,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	edbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	frbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	edbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -102,7 +102,7 @@ func newEdBLS381() EdCurve {
 
 func newEdBLS377() EdCurve {
 
-	edcurve := edbls377.GetEdwardsCurve()
+	edcurve := edbls12377.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
@@ -115,7 +115,7 @@ func newEdBLS377() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_377,
 	}
-	res.Modulus.Set(frbls377.Modulus())
+	res.Modulus.Set(frbls12377.Modulus())
 
 	return res
 }
