@@ -144,7 +144,7 @@ func main() {
 
 type templateData struct {
 	RootPath string
-	Curve    string // BLS381, BLS377, BN256, BW761
+	Curve    string // BLS381, BLS377, BN254, BW761
 	Package  string
 	CurveID  string
 }

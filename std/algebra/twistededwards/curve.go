@@ -43,7 +43,7 @@ var newTwistedEdwards map[ecc.ID]func() EdCurve
 func init() {
 	newTwistedEdwards = make(map[ecc.ID]func() EdCurve)
 	newTwistedEdwards[ecc.BLS12_381] = newEdBLS381
-	newTwistedEdwards[ecc.BN254] = newEdBN256
+	newTwistedEdwards[ecc.BN254] = newEdBN254
 	newTwistedEdwards[ecc.BLS12_377] = newEdBLS377
 	newTwistedEdwards[ecc.BW6_761] = newEdBW761
 }
@@ -59,7 +59,7 @@ func NewEdCurve(id ecc.ID) (EdCurve, error) {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newEdBN256() EdCurve {
+func newEdBN254() EdCurve {
 
 	edcurve := edbn256.GetEdwardsCurve()
 	var cofactorReg big.Int

@@ -1,6 +1,6 @@
 import (
-	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
+	"github.com/consensys/gnark-crypto/polynomial"
+	{{.Package }} "github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial"
 	
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
@@ -17,7 +17,7 @@ type PublicRaw struct {
 	CommitmentScheme polynomial.CommitmentScheme
 
 	// qr,ql,qm,qo,k (in canonical basis)
-	Ql, Qr, Qm, Qo, Qk {{.Package }}.Poly
+	Ql, Qr, Qm, Qo, Qk {{.Package }}.Polynomial
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
@@ -27,8 +27,8 @@ type PublicRaw struct {
 	Shifter [2]fr.Element
 
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
-	LS1, LS2, LS3 {{.Package }}.Poly
-	CS1, CS2, CS3 {{.Package }}.Poly
+	LS1, LS2, LS3 {{.Package }}.Polynomial
+	CS1, CS2, CS3 {{.Package }}.Polynomial
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int
@@ -229,9 +229,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Lagrange form of S1, S2, S3
-	publicData.LS1 = make({{.Package }}.Poly, nbElmt)
-	publicData.LS2 = make({{.Package }}.Poly, nbElmt)
-	publicData.LS3 = make({{.Package }}.Poly, nbElmt)
+	publicData.LS1 = make({{.Package }}.Polynomial, nbElmt)
+	publicData.LS2 = make({{.Package }}.Polynomial, nbElmt)
+	publicData.LS3 = make({{.Package }}.Polynomial, nbElmt)
 	for i := 0; i < nbElmt; i++ {
 		publicData.LS1[i].Set(&sID[publicData.Permutation[i]])
 		publicData.LS2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
@@ -239,9 +239,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Canonical form of S1, S2, S3
-	publicData.CS1 = make({{.Package }}.Poly, nbElmt)
-	publicData.CS2 = make({{.Package }}.Poly, nbElmt)
-	publicData.CS3 = make({{.Package }}.Poly, nbElmt)
+	publicData.CS1 = make({{.Package }}.Polynomial, nbElmt)
+	publicData.CS2 = make({{.Package }}.Polynomial, nbElmt)
+	publicData.CS3 = make({{.Package }}.Polynomial, nbElmt)
 	copy(publicData.CS1, publicData.LS1)
 	copy(publicData.CS2, publicData.LS2)
 	copy(publicData.CS3, publicData.LS3)

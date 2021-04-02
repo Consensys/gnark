@@ -33,13 +33,13 @@ var newMimc map[ecc.ID]func(string) MiMC
 
 func init() {
 	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
-	encryptFuncs[ecc.BN254] = encryptBN256
+	encryptFuncs[ecc.BN254] = encryptBN254
 	encryptFuncs[ecc.BLS12_381] = encryptBLS381
 	encryptFuncs[ecc.BLS12_377] = encryptBLS377
 	encryptFuncs[ecc.BW6_761] = encryptBW761
 
 	newMimc = make(map[ecc.ID]func(string) MiMC)
-	newMimc[ecc.BN254] = newMimcBN256
+	newMimc[ecc.BN254] = newMimcBN254
 	newMimc[ecc.BLS12_381] = newMimcBLS381
 	newMimc[ecc.BLS12_377] = newMimcBLS377
 	newMimc[ecc.BW6_761] = newMimcBW761
@@ -72,7 +72,7 @@ func newMimcBLS381(seed string) MiMC {
 	return res
 }
 
-func newMimcBN256(seed string) MiMC {
+func newMimcBN254(seed string) MiMC {
 	res := MiMC{}
 	params := bn256.NewParams(seed)
 	for _, v := range params {
@@ -100,7 +100,7 @@ func newMimcBW761(seed string) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
 	// one := big.NewInt(1)

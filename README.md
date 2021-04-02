@@ -21,7 +21,7 @@ src="banner_gnark.png">
 
 - [x] BLS377
 - [x] BLS381
-- [x] BN256
+- [x] BN254
 - [x] BW761
 
 ## Getting started
@@ -174,7 +174,7 @@ Here are our measurements for the **Prover**. These benchmarks ran on a AWS c5a.
 
 The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
 
-### BN256
+### BN254
 
 | nb constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |

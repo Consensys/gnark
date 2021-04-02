@@ -21,8 +21,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/crypto/hash"
-	"github.com/consensys/gnark-crypto/crypto/signature"
 	"github.com/consensys/gnark-crypto/ecc"
 	edwardsbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	eddsabls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards/eddsa"
@@ -32,6 +30,8 @@ import (
 	eddsabn256 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	edwardsbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	eddsabw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
+	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark-crypto/signature"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"

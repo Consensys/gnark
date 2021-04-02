@@ -17,8 +17,8 @@
 package plonk
 
 import (
-	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/bn254"
+	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
+	"github.com/consensys/gnark-crypto/polynomial"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -38,7 +38,7 @@ type PublicRaw struct {
 	CommitmentScheme polynomial.CommitmentScheme
 
 	// qr,ql,qm,qo,k (in canonical basis)
-	Ql, Qr, Qm, Qo, Qk bn254.Poly
+	Ql, Qr, Qm, Qo, Qk bn254.Polynomial
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
@@ -48,8 +48,8 @@ type PublicRaw struct {
 	Shifter [2]fr.Element
 
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
-	LS1, LS2, LS3 bn254.Poly
-	CS1, CS2, CS3 bn254.Poly
+	LS1, LS2, LS3 bn254.Polynomial
+	CS1, CS2, CS3 bn254.Polynomial
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int
@@ -249,9 +249,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Lagrange form of S1, S2, S3
-	publicData.LS1 = make(bn254.Poly, nbElmt)
-	publicData.LS2 = make(bn254.Poly, nbElmt)
-	publicData.LS3 = make(bn254.Poly, nbElmt)
+	publicData.LS1 = make(bn254.Polynomial, nbElmt)
+	publicData.LS2 = make(bn254.Polynomial, nbElmt)
+	publicData.LS3 = make(bn254.Polynomial, nbElmt)
 	for i := 0; i < nbElmt; i++ {
 		publicData.LS1[i].Set(&sID[publicData.Permutation[i]])
 		publicData.LS2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
@@ -259,9 +259,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Canonical form of S1, S2, S3
-	publicData.CS1 = make(bn254.Poly, nbElmt)
-	publicData.CS2 = make(bn254.Poly, nbElmt)
-	publicData.CS3 = make(bn254.Poly, nbElmt)
+	publicData.CS1 = make(bn254.Polynomial, nbElmt)
+	publicData.CS2 = make(bn254.Polynomial, nbElmt)
+	publicData.CS3 = make(bn254.Polynomial, nbElmt)
 	copy(publicData.CS1, publicData.LS1)
 	copy(publicData.CS2, publicData.LS2)
 	copy(publicData.CS3, publicData.LS3)

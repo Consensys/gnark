@@ -19,8 +19,8 @@ package plonk
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/polynomial"
-	"github.com/consensys/gnark/crypto/polynomial/bw6-761"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
+	"github.com/consensys/gnark-crypto/polynomial"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
@@ -64,11 +64,11 @@ type ProofRaw struct {
 
 // ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bw6761.Poly, bw6761.Poly, bw6761.Poly, bw6761.Poly) {
+func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) (bw6761.Polynomial, bw6761.Polynomial, bw6761.Polynomial, bw6761.Polynomial) {
 
 	s := int(publicData.DomainNum.Cardinality)
 
-	var l, r, o, partialL bw6761.Poly
+	var l, r, o, partialL bw6761.Polynomial
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
@@ -114,9 +114,9 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func ComputeZ(l, r, o bw6761.Poly, publicData *PublicRaw) bw6761.Poly {
+func ComputeZ(l, r, o bw6761.Polynomial, publicData *PublicRaw) bw6761.Polynomial {
 
-	z := make(bw6761.Poly, publicData.DomainNum.Cardinality)
+	z := make(bw6761.Polynomial, publicData.DomainNum.Cardinality)
 	nbElmts := int(publicData.DomainNum.Cardinality)
 
 	var f [3]fr.Element
@@ -192,7 +192,7 @@ func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []
 }
 
 // evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
-func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bw6761.Poly) {
+func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bw6761.Polynomial) {
 
 	// evaluation of id, uid, u**id on the cosets
 	id = make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -244,7 +244,7 @@ func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bw6761.Poly) {
 //
 // z: permutation accumulator polynomial in canonical form
 // l, r, o: solution, in canonical form
-func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO bw6761.Poly) bw6761.Poly {
+func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO bw6761.Polynomial) bw6761.Polynomial {
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -258,7 +258,7 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 	evalID, evaluID, evaluuID := evalIDCosets(publicData)
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
-	res := make(bw6761.Poly, 4*publicData.DomainNum.Cardinality)
+	res := make(bw6761.Polynomial, 4*publicData.DomainNum.Cardinality)
 
 	var f [3]fr.Element
 	var g [3]fr.Element
@@ -290,7 +290,7 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 // of (Z/8mZ)/(Z/mZ).
 //
 // evalZ is the evaluation of z (=permutation constraint polynomial) on odd cosets of (Z/8mZ)/(Z/mZ)
-func evalStartsAtOne(publicData *PublicRaw, evalZ bw6761.Poly) bw6761.Poly {
+func evalStartsAtOne(publicData *PublicRaw, evalZ bw6761.Polynomial) bw6761.Polynomial {
 
 	// computes L1 (canonical form)
 	lOneLagrange := make([]fr.Element, publicData.DomainNum.Cardinality)
@@ -353,9 +353,9 @@ func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
 }
 
 // shiftZ turns z to z(uX) (both in Lagrange basis)
-func shiftZ(z bw6761.Poly) bw6761.Poly {
+func shiftZ(z bw6761.Polynomial) bw6761.Polynomial {
 
-	res := make(bw6761.Poly, len(z))
+	res := make(bw6761.Polynomial, len(z))
 	copy(res, z)
 
 	var buf fr.Element
@@ -375,9 +375,9 @@ func shiftZ(z bw6761.Poly) bw6761.Poly {
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bw6761.Poly) (bw6761.Poly, bw6761.Poly, bw6761.Poly) {
+func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bw6761.Polynomial) (bw6761.Polynomial, bw6761.Polynomial, bw6761.Polynomial) {
 
-	h := make(bw6761.Poly, publicData.DomainH.Cardinality)
+	h := make(bw6761.Polynomial, publicData.DomainH.Cardinality)
 
 	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var bExpo big.Int
@@ -418,9 +418,9 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 	publicData.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make(bw6761.Poly, publicData.DomainNum.Cardinality)
-	h2 := make(bw6761.Poly, publicData.DomainNum.Cardinality)
-	h3 := make(bw6761.Poly, publicData.DomainNum.Cardinality)
+	h1 := make(bw6761.Polynomial, publicData.DomainNum.Cardinality)
+	h2 := make(bw6761.Polynomial, publicData.DomainNum.Cardinality)
+	h3 := make(bw6761.Polynomial, publicData.DomainNum.Cardinality)
 	copy(h1, h[:publicData.DomainNum.Cardinality])
 	copy(h2, h[publicData.DomainNum.Cardinality:2*publicData.DomainNum.Cardinality])
 	copy(h3, h[2*publicData.DomainNum.Cardinality:3*publicData.DomainNum.Cardinality])
@@ -523,7 +523,7 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bw6_761witn
 	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
 
 	// compute batch opening proof for l, r, o, h, z at zeta
-	polynomialsToOpenAtZeta := []bw6761.Poly{l, r, o, z, h1, h2, h3}
+	polynomialsToOpenAtZeta := []bw6761.Polynomial{l, r, o, z, h1, h2, h3}
 	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
 
 	// compute opening proof for z at z*zeta

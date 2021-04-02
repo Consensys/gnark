@@ -15,13 +15,13 @@
 package plonk
 
 import (
-	"github.com/consensys/gnark/crypto/polynomial"
+	"github.com/consensys/gnark-crypto/polynomial"
 	"github.com/consensys/gnark/frontend"
 
-	mockcommitment_bls377 "github.com/consensys/gnark/crypto/polynomial/bls12-377/mock_commitment"
-	mockcommitment_bls381 "github.com/consensys/gnark/crypto/polynomial/bls12-381/mock_commitment"
-	mockcommitment_bn256 "github.com/consensys/gnark/crypto/polynomial/bn254/mock_commitment"
-	mockcommitment_bw761 "github.com/consensys/gnark/crypto/polynomial/bw6-761/mock_commitment"
+	mockcommitment_bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial/mockcommitment"
+	mockcommitment_bls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial/mockcommitment"
+	mockcommitment_bn256 "github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial/mockcommitment"
+	mockcommitment_bw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/mockcommitment"
 
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"

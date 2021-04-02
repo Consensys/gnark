@@ -8,6 +8,8 @@ github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f h1:Smz/coLzPOgl
 github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/gnark-crypto v0.4.0 h1:KHf7Ta876Ys6L8+i0DLRRKOAa3PfJ8oobAX1CEeIa4A=
 github.com/consensys/gnark-crypto v0.4.0/go.mod h1:wK/gpXP9B06qTzTVML71GhKD1ygP9xOzukbI68NJqsQ=
+github.com/consensys/gnark-crypto v0.4.1-0.20210402220956-8b5530fc18e4 h1:3ZTe/0VqiVzB7bZOkBZsVQEsCBGsUBVbLks7n+sKfWE=
+github.com/consensys/gnark-crypto v0.4.1-0.20210402220956-8b5530fc18e4/go.mod h1:wK/gpXP9B06qTzTVML71GhKD1ygP9xOzukbI68NJqsQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

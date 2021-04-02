@@ -62,7 +62,7 @@ type ProvingKey interface {
 //
 // it's underlying implementation is curve specific (see gnark/internal/backend)
 //
-// ExportSolidity is implemented for BN256 and will return an error with other curves
+// ExportSolidity is implemented for BN254 and will return an error with other curves
 type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	io.WriterTo
