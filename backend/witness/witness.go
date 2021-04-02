@@ -6,7 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
 	"github.com/consensys/gnark/frontend"
@@ -18,7 +18,7 @@ import (
 func WriteFullTo(w io.Writer, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
 	switch curveID {
 	case ecc.BN254:
-		_witness := &witness_bn256.Witness{}
+		_witness := &witness_bn254.Witness{}
 		if err := _witness.FromFullAssignment(witness); err != nil {
 			return 0, err
 		}
@@ -52,7 +52,7 @@ func WriteFullTo(w io.Writer, curveID ecc.ID, witness frontend.Circuit) (int64, 
 func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) (int64, error) {
 	switch curveID {
 	case ecc.BN254:
-		_witness := &witness_bn256.Witness{}
+		_witness := &witness_bn254.Witness{}
 		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
 			return 0, err
 		}

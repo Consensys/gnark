@@ -26,8 +26,8 @@ import (
 	eddsabls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards/eddsa"
 	edwardsbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	eddsabls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
-	edwardsbn256 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	eddsabn256 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
+	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	eddsabn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	edwardsbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	eddsabw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/hash"
@@ -45,13 +45,13 @@ type eddsaCircuit struct {
 }
 
 func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
-	var pointbn256 edwardsbn256.PointAffine
+	var pointbn254 edwardsbn254.PointAffine
 	var pointbls381 edwardsbls381.PointAffine
 	var pointbls377 edwardsbls377.PointAffine
 	var pointbw761 edwardsbw761.PointAffine
 	switch id {
 	case ecc.BN254:
-		pointbn256.SetBytes(buf[:32])
+		pointbn254.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
 		c := buf[32:]
 		return a[:], b[:], c
@@ -76,15 +76,15 @@ func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 }
 
 func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
-	var pointbn256 edwardsbn256.PointAffine
+	var pointbn254 edwardsbn254.PointAffine
 	var pointbls381 edwardsbls381.PointAffine
 	var pointbls377 edwardsbls377.PointAffine
 	var pointbw761 edwardsbw761.PointAffine
 	switch id {
 	case ecc.BN254:
-		pointbn256.SetBytes(buf[:32])
-		a := pointbn256.X.Bytes()
-		b := pointbn256.Y.Bytes()
+		pointbn254.SetBytes(buf[:32])
+		a := pointbn254.X.Bytes()
+		b := pointbn254.Y.Bytes()
 		return a[:], b[:]
 	case ecc.BLS12_381:
 		pointbls381.SetBytes(buf[:32])
@@ -135,7 +135,7 @@ func TestEddsa(t *testing.T) {
 		s signature.SignatureScheme
 	}
 
-	signature.Register(signature.EDDSA_BN254, eddsabn256.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BN254, eddsabn254.GenerateKeyInterfaces)
 	signature.Register(signature.EDDSA_BLS12_381, eddsabls381.GenerateKeyInterfaces)
 	signature.Register(signature.EDDSA_BLS12_377, eddsabls377.GenerateKeyInterfaces)
 	signature.Register(signature.EDDSA_BW6_761, eddsabw761.GenerateKeyInterfaces)

@@ -30,7 +30,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	frbls377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	frbls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	frbn256 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	frbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
@@ -264,7 +264,7 @@ func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 	var expo big.Int
 	switch id {
 	case ecc.BN254:
-		expo.Set(frbn256.Modulus())
+		expo.Set(frbn254.Modulus())
 	case ecc.BLS12_381:
 		expo.Set(frbls381.Modulus())
 	case ecc.BLS12_377:

@@ -162,7 +162,7 @@ Currently gnark provides the following components (see `gnark/std`):
 
 * The Mimc hash function
 * Merkle tree (binary, without domain separation)
-* Twisted Edwards curve arithmetic (for bn256 and bls381)
+* Twisted Edwards curve arithmetic (for bn254 and bls381)
 * Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
 * Groth16 verifier (1 layer recursive SNARK with BW761)
 
@@ -172,7 +172,7 @@ It is difficult to *fairly* and precisely compare benchmarks between libraries. 
 
 Here are our measurements for the **Prover**. These benchmarks ran on a AWS c5a.24xlarge instance, with hyperthreading disabled.
 
-The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
+The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn254, matterlabs).  
 
 ### BN254
 

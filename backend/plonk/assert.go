@@ -19,13 +19,13 @@ import (
 
 	backend_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	"github.com/consensys/gnark/frontend"
 	witness_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/stretchr/testify/require"
 )
@@ -88,8 +88,8 @@ func (assert *Assert) SolvingFailed(sparseR1cs frontend.CompiledConstraintSystem
 // returns nil if it succeeds, error otherwise.
 func IsSolved(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _sparseR1cs := sparseR1cs.(type) {
-	case *backend_bn256.SparseR1CS:
-		w := witness_bn256.Witness{}
+	case *backend_bn254.SparseR1CS:
+		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

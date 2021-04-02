@@ -62,12 +62,12 @@ func main() {
 
 	// synchronous call
 	_, _ = c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 		Witness:   buf.Bytes(),
 	})
 
 	// async call
-	r, _ := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn256/cubic"})
+	r, _ := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn254/cubic"})
 	stream, _ := c.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
 
 	done := make(chan struct{})

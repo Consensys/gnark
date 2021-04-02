@@ -9,8 +9,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn254/cs"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 )
 
 func Fuzz(data []byte) int {
@@ -28,8 +28,8 @@ func Fuzz(data []byte) int {
 			if nbAssertions == 0 && err != nil && !strings.Contains(err.Error(), "couldn't solve computational constraint") {
 				panic("no assertions, yet solving resulted in an error.")
 			}
-		case *backend_bn256.R1CS:
-			w := make(witness_bn256.Witness, wSize)
+		case *backend_bn254.R1CS:
+			w := make(witness_bn254.Witness, wSize)
 			// make w random
 			err := _r1cs.IsSolved(w)
 			if nbAssertions == 0 && err != nil && !strings.Contains(err.Error(), "couldn't solve computational constraint") {
