@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
-	bls381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
@@ -117,7 +117,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewR1CS(res, cs.coeffs), nil
 	case ecc.BLS12_381:
-		return bls381r1cs.NewR1CS(res, cs.coeffs), nil
+		return bls12381r1cs.NewR1CS(res, cs.coeffs), nil
 	case ecc.BN254:
 		return bn254r1cs.NewR1CS(res, cs.coeffs), nil
 	case ecc.BW6_761:

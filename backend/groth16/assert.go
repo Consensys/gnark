@@ -23,8 +23,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
@@ -153,8 +153,8 @@ func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) 
 			return err
 		}
 		return _r1cs.IsSolved(w)
-	case *backend_bls381.R1CS:
-		w := witness_bls381.Witness{}
+	case *backend_bls12381.R1CS:
+		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

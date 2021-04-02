@@ -21,7 +21,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
-	bls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 
@@ -62,7 +62,7 @@ func newMimcBLS377(seed string) MiMC {
 
 func newMimcBLS381(seed string) MiMC {
 	res := MiMC{}
-	params := bls381.NewParams(seed)
+	params := bls12381.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)

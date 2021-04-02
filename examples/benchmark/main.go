@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
@@ -119,7 +119,7 @@ func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) 
 		witness.Y.Assign(expectedY)
 	case ecc.BLS12_381:
 		// compute expected Y
-		var expectedY bls381fr.Element
+		var expectedY bls12381fr.Element
 		expectedY.SetInterface(2)
 		for i := 0; i < nbConstraints; i++ {
 			expectedY.MulAssign(&expectedY)

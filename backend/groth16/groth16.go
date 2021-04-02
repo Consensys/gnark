@@ -22,19 +22,19 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
 	gnarkio "github.com/consensys/gnark/io"
 
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
-	groth16_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
+	groth16_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
 	groth16_bn254 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	groth16_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 )
@@ -82,12 +82,12 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 			return err
 		}
 		return groth16_bls12377.Verify(_proof, vk.(*groth16_bls12377.VerifyingKey), w)
-	case *groth16_bls381.Proof:
-		w := witness_bls381.Witness{}
+	case *groth16_bls12381.Proof:
+		w := witness_bls12381.Witness{}
 		if err := w.FromPublicAssignment(publicWitness); err != nil {
 			return err
 		}
-		return groth16_bls381.Verify(_proof, vk.(*groth16_bls381.VerifyingKey), w)
+		return groth16_bls12381.Verify(_proof, vk.(*groth16_bls12381.VerifyingKey), w)
 	case *groth16_bn254.Proof:
 		w := witness_bn254.Witness{}
 		if err := w.FromPublicAssignment(publicWitness); err != nil {
@@ -116,12 +116,12 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 			return err
 		}
 		return groth16_bls12377.Verify(proof.(*groth16_bls12377.Proof), _vk, w)
-	case *groth16_bls381.VerifyingKey:
-		w := witness_bls381.Witness{}
+	case *groth16_bls12381.VerifyingKey:
+		w := witness_bls12381.Witness{}
 		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
 			return err
 		}
-		return groth16_bls381.Verify(proof.(*groth16_bls381.Proof), _vk, w)
+		return groth16_bls12381.Verify(proof.(*groth16_bls12381.Proof), _vk, w)
 	case *groth16_bn254.VerifyingKey:
 		w := witness_bn254.Witness{}
 		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
@@ -156,12 +156,12 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 			return nil, err
 		}
 		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, _force)
-	case *backend_bls381.R1CS:
-		w := witness_bls381.Witness{}
+	case *backend_bls12381.R1CS:
+		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, _force)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
@@ -197,12 +197,12 @@ func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness
 			return nil, err
 		}
 		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, _force)
-	case *backend_bls381.R1CS:
-		w := witness_bls381.Witness{}
+	case *backend_bls12381.R1CS:
+		w := witness_bls12381.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bls381.Prove(_r1cs, pk.(*groth16_bls381.ProvingKey), w, _force)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, _force)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
@@ -231,10 +231,10 @@ func Setup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, er
 			return nil, nil, err
 		}
 		return &pk, &vk, nil
-	case *backend_bls381.R1CS:
-		var pk groth16_bls381.ProvingKey
-		var vk groth16_bls381.VerifyingKey
-		if err := groth16_bls381.Setup(_r1cs, &pk, &vk); err != nil {
+	case *backend_bls12381.R1CS:
+		var pk groth16_bls12381.ProvingKey
+		var vk groth16_bls12381.VerifyingKey
+		if err := groth16_bls12381.Setup(_r1cs, &pk, &vk); err != nil {
 			return nil, nil, err
 		}
 		return &pk, &vk, nil
@@ -267,9 +267,9 @@ func DummySetup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, error) {
 			return nil, err
 		}
 		return &pk, nil
-	case *backend_bls381.R1CS:
-		var pk groth16_bls381.ProvingKey
-		if err := groth16_bls381.DummySetup(_r1cs, &pk); err != nil {
+	case *backend_bls12381.R1CS:
+		var pk groth16_bls12381.ProvingKey
+		if err := groth16_bls12381.DummySetup(_r1cs, &pk); err != nil {
 			return nil, err
 		}
 		return &pk, nil
@@ -300,7 +300,7 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	case ecc.BLS12_377:
 		pk = &groth16_bls12377.ProvingKey{}
 	case ecc.BLS12_381:
-		pk = &groth16_bls381.ProvingKey{}
+		pk = &groth16_bls12381.ProvingKey{}
 	case ecc.BW6_761:
 		pk = &groth16_bw761.ProvingKey{}
 	default:
@@ -319,7 +319,7 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	case ecc.BLS12_377:
 		vk = &groth16_bls12377.VerifyingKey{}
 	case ecc.BLS12_381:
-		vk = &groth16_bls381.VerifyingKey{}
+		vk = &groth16_bls12381.VerifyingKey{}
 	case ecc.BW6_761:
 		vk = &groth16_bw761.VerifyingKey{}
 	default:
@@ -339,7 +339,7 @@ func NewProof(curveID ecc.ID) Proof {
 	case ecc.BLS12_377:
 		proof = &groth16_bls12377.Proof{}
 	case ecc.BLS12_381:
-		proof = &groth16_bls381.Proof{}
+		proof = &groth16_bls12381.Proof{}
 	case ecc.BW6_761:
 		proof = &groth16_bw761.Proof{}
 	default:
@@ -359,7 +359,7 @@ func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 	case ecc.BLS12_377:
 		r1cs = &backend_bls12377.R1CS{}
 	case ecc.BLS12_381:
-		r1cs = &backend_bls381.R1CS{}
+		r1cs = &backend_bls12381.R1CS{}
 	case ecc.BW6_761:
 		r1cs = &backend_bw761.R1CS{}
 	default:
