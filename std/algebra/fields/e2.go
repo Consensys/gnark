@@ -123,8 +123,8 @@ func (e *E2) Inverse(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
 
 // Assign a value to self (witness assignment)
 func (e *E2) Assign(a *bls12377.E2) {
-	e.A0.Assign(bls12377FpTobw761fr(&a.A0))
-	e.A1.Assign(bls12377FpTobw761fr(&a.A1))
+	e.A0.Assign(bls12377FpTobw6761fr(&a.A0))
+	e.A1.Assign(bls12377FpTobw6761fr(&a.A1))
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
@@ -133,7 +133,7 @@ func (e *E2) MustBeEqual(cs *frontend.ConstraintSystem, other E2) {
 	cs.AssertIsEqual(e.A1, other.A1)
 }
 
-func bls12377FpTobw761fr(a *fp.Element) (r fr.Element) {
+func bls12377FpTobw6761fr(a *fp.Element) (r fr.Element) {
 	for i, v := range a {
 		r[i] = v
 	}

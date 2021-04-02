@@ -165,7 +165,7 @@ func TestMulByFpFp2(t *testing.T) {
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
-	witness.B.Assign(bls12377FpTobw761fr(&b))
+	witness.B.Assign(bls12377FpTobw6761fr(&b))
 
 	witness.C.Assign(&c)
 

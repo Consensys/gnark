@@ -7,7 +7,7 @@ import (
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -36,7 +36,7 @@ func WriteFullTo(w io.Writer, curveID ecc.ID, witness frontend.Circuit) (int64, 
 		}
 		return _witness.WriteTo(w)
 	case ecc.BW6_761:
-		_witness := &witness_bw761.Witness{}
+		_witness := &witness_bw6761.Witness{}
 		if err := _witness.FromFullAssignment(witness); err != nil {
 			return 0, err
 		}
@@ -70,7 +70,7 @@ func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) 
 		}
 		return _witness.WriteTo(w)
 	case ecc.BW6_761:
-		_witness := &witness_bw761.Witness{}
+		_witness := &witness_bw6761.Witness{}
 		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
 			return 0, err
 		}

@@ -31,7 +31,7 @@ import (
 	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	frbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -270,7 +270,7 @@ func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 	case ecc.BLS12_377:
 		expo.Set(frbls12377.Modulus())
 	case ecc.BW6_761:
-		expo.Set(frbw761.Modulus())
+		expo.Set(frbw6761.Modulus())
 	default:
 		panic("not implemented")
 	}

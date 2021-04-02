@@ -27,7 +27,7 @@ import (
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -159,24 +159,24 @@ func TestVerifier(t *testing.T) {
 	witness.Hash.Assign(publicHash)
 
 	// verifies the cs
-	assertbw761 := groth16.NewAssert(t)
+	assertbw6761 := groth16.NewAssert(t)
 
-	assertbw761.SolvingSucceeded(r1cs.(*backend_bw761.R1CS), &witness)
+	assertbw6761.SolvingSucceeded(r1cs.(*backend_bw6761.R1CS), &witness)
 
 	/* comment from here */
 
 	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
-	// generate groth16 instance on bw761 (setup, prove, verify)
-	// var vk groth16_bw761.VerifyingKey
-	// var pk groth16_bw761.ProvingKey
+	// generate groth16 instance on bw6761 (setup, prove, verify)
+	// var vk groth16_bw6761.VerifyingKey
+	// var pk groth16_bw6761.ProvingKey
 
-	// groth16_bw761.Setup(&r1cs, &pk, &vk)
-	// proof, err := groth16_bw761.Prove(&r1cs, &pk, correctAssignment)
+	// groth16_bw6761.Setup(&r1cs, &pk, &vk)
+	// proof, err := groth16_bw6761.Prove(&r1cs, &pk, correctAssignment)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
 
-	// res, err := groth16_bw761.Verify(proof, &vk, correctAssignment)
+	// res, err := groth16_bw6761.Verify(proof, &vk, correctAssignment)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

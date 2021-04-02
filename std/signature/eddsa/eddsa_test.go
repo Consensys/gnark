@@ -28,8 +28,8 @@ import (
 	eddsabls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	eddsabn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
-	edwardsbw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	eddsabw761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
+	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+	eddsabw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature"
 	"github.com/consensys/gnark/backend"
@@ -48,7 +48,7 @@ func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
-	var pointbw761 edwardsbw761.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
 	switch id {
 	case ecc.BN254:
 		pointbn254.SetBytes(buf[:32])
@@ -66,7 +66,7 @@ func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 		c := buf[32:]
 		return a[:], b[:], c
 	case ecc.BW6_761:
-		pointbw761.SetBytes(buf[:48])
+		pointbw6761.SetBytes(buf[:48])
 		a, b := parsePoint(id, buf)
 		c := buf[48:]
 		return a[:], b[:], c
@@ -79,7 +79,7 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
-	var pointbw761 edwardsbw761.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
 	switch id {
 	case ecc.BN254:
 		pointbn254.SetBytes(buf[:32])
@@ -97,9 +97,9 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 		b := pointbls12377.Y.Bytes()
 		return a[:], b[:]
 	case ecc.BW6_761:
-		pointbw761.SetBytes(buf[:48])
-		a := pointbw761.X.Bytes()
-		b := pointbw761.Y.Bytes()
+		pointbw6761.SetBytes(buf[:48])
+		a := pointbw6761.X.Bytes()
+		b := pointbw6761.Y.Bytes()
 		return a[:], b[:]
 	default:
 		return buf, buf
@@ -138,7 +138,7 @@ func TestEddsa(t *testing.T) {
 	signature.Register(signature.EDDSA_BN254, eddsabn254.GenerateKeyInterfaces)
 	signature.Register(signature.EDDSA_BLS12_381, eddsabls12381.GenerateKeyInterfaces)
 	signature.Register(signature.EDDSA_BLS12_377, eddsabls12377.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BW6_761, eddsabw761.GenerateKeyInterfaces)
+	signature.Register(signature.EDDSA_BW6_761, eddsabw6761.GenerateKeyInterfaces)
 
 	confs := map[ecc.ID]confSig{
 		ecc.BN254:     {hash.MIMC_BN254, signature.EDDSA_BN254},

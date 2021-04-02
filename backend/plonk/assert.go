@@ -20,13 +20,13 @@ import (
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	"github.com/consensys/gnark/frontend"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,8 +106,8 @@ func IsSolved(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Cir
 			return err
 		}
 		return _sparseR1cs.IsSolved(w)
-	case *backend_bw761.SparseR1CS:
-		w := witness_bw761.Witness{}
+	case *backend_bw6761.SparseR1CS:
+		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

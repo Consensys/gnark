@@ -9,7 +9,7 @@ import (
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
-	bw761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 
 // toR1CS constructs a rank-1 constraint sytem
@@ -121,7 +121,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	case ecc.BN254:
 		return bn254r1cs.NewR1CS(res, cs.coeffs), nil
 	case ecc.BW6_761:
-		return bw761r1cs.NewR1CS(res, cs.coeffs), nil
+		return bw6761r1cs.NewR1CS(res, cs.coeffs), nil
 	case ecc.UNKNOWN:
 		return &res, nil
 	default:

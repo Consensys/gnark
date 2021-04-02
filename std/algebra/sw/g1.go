@@ -264,7 +264,7 @@ func (p *G1Affine) ScalarMul(cs *frontend.ConstraintSystem, p1 *G1Affine, s inte
 
 }
 
-func bls12377FpTobw761fr(a *fp.Element) (r fr.Element) {
+func bls12377FpTobw6761fr(a *fp.Element) (r fr.Element) {
 	for i, v := range a {
 		r[i] = v
 	}
@@ -273,9 +273,9 @@ func bls12377FpTobw761fr(a *fp.Element) (r fr.Element) {
 
 // Assign a value to self (witness assignment)
 func (p *G1Jac) Assign(p1 *bls12377.G1Jac) {
-	p.X.Assign(bls12377FpTobw761fr(&p1.X))
-	p.Y.Assign(bls12377FpTobw761fr(&p1.Y))
-	p.Z.Assign(bls12377FpTobw761fr(&p1.Z))
+	p.X.Assign(bls12377FpTobw6761fr(&p1.X))
+	p.Y.Assign(bls12377FpTobw6761fr(&p1.Y))
+	p.Z.Assign(bls12377FpTobw6761fr(&p1.Z))
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
@@ -287,8 +287,8 @@ func (p *G1Jac) MustBeEqual(cs *frontend.ConstraintSystem, other G1Jac) {
 
 // Assign a value to self (witness assignment)
 func (p *G1Affine) Assign(p1 *bls12377.G1Affine) {
-	p.X.Assign(bls12377FpTobw761fr(&p1.X))
-	p.Y.Assign(bls12377FpTobw761fr(&p1.Y))
+	p.X.Assign(bls12377FpTobw6761fr(&p1.X))
+	p.Y.Assign(bls12377FpTobw6761fr(&p1.Y))
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system

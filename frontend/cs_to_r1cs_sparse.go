@@ -26,7 +26,7 @@ import (
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
-	bw761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 
 type idCS = int
@@ -179,7 +179,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	case ecc.BN254:
 		return bn254r1cs.NewSparseR1CS(res, res.Coeffs), nil
 	case ecc.BW6_761:
-		return bw761r1cs.NewSparseR1CS(res, res.Coeffs), nil
+		return bw6761r1cs.NewSparseR1CS(res, res.Coeffs), nil
 	case ecc.UNKNOWN:
 		return &res, nil
 	default:
