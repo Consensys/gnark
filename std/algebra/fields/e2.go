@@ -20,7 +20,6 @@ import (
 	bls377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -70,7 +69,7 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
-	buSquare := utils.FromInterface(ext.uSquare)
+	buSquare := frontend.FromInterface(ext.uSquare)
 	l41 := cs.Mul(bd, buSquare)
 	l4 := cs.Add(ac, l41)
 	e.A0 = cs.Mul(l4, 1)
