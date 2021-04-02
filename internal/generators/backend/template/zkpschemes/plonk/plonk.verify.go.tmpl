@@ -2,8 +2,8 @@ import (
 	"errors"
 	"math/big"
 
-	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
 	{{ template "import_fr" . }}
+	{{ template "import_witness" . }}
 )
 
 var (
@@ -12,7 +12,7 @@ var (
 
 // VerifyRaw verifies a PLONK proof
 // TODO use Fiat Shamir to derive the challenges
-func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness {{ toLower .Curve }}witness.Witness) error {
+func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness {{ toLower .CurveID }}witness.Witness) error {
 
 	// checks the opening proofs
 	err := publicData.CommitmentScheme.BatchVerifySinglePoint(&zeta, proof.LROZH, proof.CommitmentsLROZH, proof.BatchOpenings)

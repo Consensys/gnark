@@ -23,10 +23,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
-	bls377r1cs "github.com/consensys/gnark/internal/backend/bls377/cs"
-	bls381r1cs "github.com/consensys/gnark/internal/backend/bls381/cs"
-	bn256r1cs "github.com/consensys/gnark/internal/backend/bn256/cs"
-	bw761r1cs "github.com/consensys/gnark/internal/backend/bw761/cs"
+	bls377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	bls381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	bn256r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
+	bw761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 
 type idCS = int

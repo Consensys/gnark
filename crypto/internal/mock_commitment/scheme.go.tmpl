@@ -22,7 +22,7 @@ func (s *Scheme) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Commit returns nil
 func (s *Scheme) Commit(p polynomial.Polynomial) polynomial.Digest {
-	res := &MockDigest{Digest: p.({{ toLower .Curve }}.Poly)}
+	res := &MockDigest{Digest: p.({{ toLower .Package }}.Poly)}
 	return res
 }
 

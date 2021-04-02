@@ -20,6 +20,7 @@ const (
 // templateData meta data for template generation
 type templateData struct {
 	Curve    string
+	CurveID  string
 	Path     string
 	FileName string
 	Src      []string
@@ -45,35 +46,39 @@ func generate(d templateData) error {
 	return nil
 }
 
-//go:generate go run main.go mimc_template.go
+//go:generate go run main.go
 func main() {
 
 	// mimc files
-	mimcbn256 := templateData{
-		Curve:   "BN256",
-		Package: "bn256",
+	bn254 := templateData{
+		Curve:   "BN254",
+		CurveID: "BN254",
+		Package: "bn254",
 	}
 
-	mimcbls381 := templateData{
-		Curve:   "BLS381",
-		Package: "bls381",
+	bls12_381 := templateData{
+		Curve:   "BLS12-381",
+		CurveID: "BLS12_381",
+		Package: "bls12381",
 	}
 
-	mimcbls377 := templateData{
-		Curve:   "BLS377",
-		Package: "bls377",
+	bls12_377 := templateData{
+		Curve:   "BLS12-377",
+		CurveID: "BLS12_377",
+		Package: "bls12377",
 	}
 
-	mimcbw761 := templateData{
-		Curve:   "BW761",
-		Package: "bw761",
+	bw761 := templateData{
+		Curve:   "BW6-761",
+		CurveID: "BW6_761",
+		Package: "bw6761",
 	}
 
 	data := []templateData{
-		mimcbn256,
-		mimcbls381,
-		mimcbls377,
-		mimcbw761,
+		bn254,
+		bls12_381,
+		bls12_377,
+		bw761,
 	}
 
 	var wg sync.WaitGroup
@@ -83,7 +88,7 @@ func main() {
 			defer wg.Done()
 
 			// polynomial commitments
-			dir := filepath.Join(baseDir, "polynomial/", d.Package)
+			dir := filepath.Join(baseDir, "polynomial/", strings.ToLower(d.Curve))
 			entriesF := []bavard.EntryF{
 				{File: filepath.Join(dir, "polynomial.go"), TemplateF: []string{"polynomial.go.tmpl"}},
 			}
@@ -92,7 +97,7 @@ func main() {
 			}
 
 			// 1 - mock polynomial commitment
-			dir = filepath.Join(baseDir, "polynomial/", d.Package, "/mock_commitment/")
+			dir = filepath.Join(dir, "/mock_commitment/")
 			entriesF = []bavard.EntryF{
 				{File: filepath.Join(dir, "digest.go"), TemplateF: []string{"mock_commitment/digest.go.tmpl"}},
 				{File: filepath.Join(dir, "proof.go"), TemplateF: []string{"mock_commitment/proof.go.tmpl"}},

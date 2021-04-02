@@ -18,25 +18,25 @@ import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/frontend"
 
-	mockcommitment_bls377 "github.com/consensys/gnark/crypto/polynomial/bls377/mock_commitment"
-	mockcommitment_bls381 "github.com/consensys/gnark/crypto/polynomial/bls381/mock_commitment"
-	mockcommitment_bn256 "github.com/consensys/gnark/crypto/polynomial/bn256/mock_commitment"
-	mockcommitment_bw761 "github.com/consensys/gnark/crypto/polynomial/bw761/mock_commitment"
+	mockcommitment_bls377 "github.com/consensys/gnark/crypto/polynomial/bls12-377/mock_commitment"
+	mockcommitment_bls381 "github.com/consensys/gnark/crypto/polynomial/bls12-381/mock_commitment"
+	mockcommitment_bn256 "github.com/consensys/gnark/crypto/polynomial/bn254/mock_commitment"
+	mockcommitment_bw761 "github.com/consensys/gnark/crypto/polynomial/bw6-761/mock_commitment"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
-	plonkbls377 "github.com/consensys/gnark/internal/backend/bls377/plonk"
-	plonkbls381 "github.com/consensys/gnark/internal/backend/bls381/plonk"
-	plonkbn256 "github.com/consensys/gnark/internal/backend/bn256/plonk"
-	plonkbw761 "github.com/consensys/gnark/internal/backend/bw761/plonk"
+	plonkbls377 "github.com/consensys/gnark/internal/backend/bls12-377/plonk"
+	plonkbls381 "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
+	plonkbn256 "github.com/consensys/gnark/internal/backend/bn254/plonk"
+	plonkbw761 "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
 
-	bls377witness "github.com/consensys/gnark/internal/backend/bls377/witness"
-	bls381witness "github.com/consensys/gnark/internal/backend/bls381/witness"
-	bn256witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	bw761witness "github.com/consensys/gnark/internal/backend/bw761/witness"
+	bls377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	bls381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	bn256witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	bw761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 )
 
 // PublicData contains

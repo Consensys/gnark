@@ -3,11 +3,10 @@ import (
 
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
-	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/cs"
-	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
-	
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
+	{{ template "import_witness" . }}
+	{{ template "import_backend_cs" . }}
 
 )
 
@@ -44,11 +43,11 @@ type ProofRaw struct {
 
 // ComputeLRO extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) ({{ toLower .Curve }}.Poly, {{ toLower .Curve }}.Poly, {{ toLower .Curve }}.Poly, {{ toLower .Curve }}.Poly) {
+func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element) ({{ .Package }}.Poly, {{ .Package }}.Poly, {{ .Package }}.Poly, {{ .Package }}.Poly) {
 
 	s := int(publicData.DomainNum.Cardinality)
 
-	var l, r, o, partialL {{ toLower .Curve }}.Poly
+	var l, r, o, partialL {{ .Package }}.Poly
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
@@ -94,9 +93,9 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func ComputeZ(l, r, o {{ toLower .Curve }}.Poly, publicData *PublicRaw) {{ toLower .Curve }}.Poly {
+func ComputeZ(l, r, o {{ .Package }}.Poly, publicData *PublicRaw) {{ .Package }}.Poly {
 
-	z := make({{ toLower .Curve }}.Poly, publicData.DomainNum.Cardinality)
+	z := make({{ .Package }}.Poly, publicData.DomainNum.Cardinality)
 	nbElmts := int(publicData.DomainNum.Cardinality)
 
 	var f [3]fr.Element
@@ -172,7 +171,7 @@ func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []
 }
 
 // evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
-func evalIDCosets(publicData *PublicRaw) (id, uid, uuid {{ toLower .Curve }}.Poly) {
+func evalIDCosets(publicData *PublicRaw) (id, uid, uuid {{ .Package }}.Poly) {
 
 	// evaluation of id, uid, u**id on the cosets
 	id = make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -224,7 +223,7 @@ func evalIDCosets(publicData *PublicRaw) (id, uid, uuid {{ toLower .Curve }}.Pol
 //
 // z: permutation accumulator polynomial in canonical form
 // l, r, o: solution, in canonical form
-func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO {{ toLower .Curve }}.Poly) {{ toLower .Curve }}.Poly {
+func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO {{ .Package }}.Poly) {{ .Package }}.Poly {
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -238,7 +237,7 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 	evalID, evaluID, evaluuID := evalIDCosets(publicData)
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
-	res := make({{ toLower .Curve }}.Poly, 4*publicData.DomainNum.Cardinality)
+	res := make({{ .Package }}.Poly, 4*publicData.DomainNum.Cardinality)
 
 	var f [3]fr.Element
 	var g [3]fr.Element
@@ -270,7 +269,7 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 // of (Z/8mZ)/(Z/mZ).
 //
 // evalZ is the evaluation of z (=permutation constraint polynomial) on odd cosets of (Z/8mZ)/(Z/mZ)
-func evalStartsAtOne(publicData *PublicRaw, evalZ {{ toLower .Curve }}.Poly) {{ toLower .Curve }}.Poly {
+func evalStartsAtOne(publicData *PublicRaw, evalZ {{ .Package }}.Poly) {{ .Package }}.Poly {
 
 	// computes L1 (canonical form)
 	lOneLagrange := make([]fr.Element, publicData.DomainNum.Cardinality)
@@ -333,9 +332,9 @@ func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
 }
 
 // shiftZ turns z to z(uX) (both in Lagrange basis)
-func shiftZ(z {{ toLower .Curve }}.Poly) {{ toLower .Curve }}.Poly {
+func shiftZ(z {{ .Package }}.Poly) {{ .Package }}.Poly {
 
-	res := make({{ toLower .Curve }}.Poly, len(z))
+	res := make({{ .Package }}.Poly, len(z))
 	copy(res, z)
 
 	var buf fr.Element
@@ -355,9 +354,9 @@ func shiftZ(z {{ toLower .Curve }}.Poly) {{ toLower .Curve }}.Poly {
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne {{ toLower .Curve }}.Poly) ({{ toLower .Curve }}.Poly, {{ toLower .Curve }}.Poly, {{ toLower .Curve }}.Poly) {
+func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne {{ .Package }}.Poly) ({{ .Package }}.Poly, {{ .Package }}.Poly, {{ .Package }}.Poly) {
 
-	h := make({{ toLower .Curve }}.Poly, publicData.DomainH.Cardinality)
+	h := make({{ .Package }}.Poly, publicData.DomainH.Cardinality)
 
 	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var bExpo big.Int
@@ -398,9 +397,9 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 	publicData.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make({{ toLower .Curve }}.Poly, publicData.DomainNum.Cardinality)
-	h2 := make({{ toLower .Curve }}.Poly, publicData.DomainNum.Cardinality)
-	h3 := make({{ toLower .Curve }}.Poly, publicData.DomainNum.Cardinality)
+	h1 := make({{ .Package }}.Poly, publicData.DomainNum.Cardinality)
+	h2 := make({{ .Package }}.Poly, publicData.DomainNum.Cardinality)
+	h3 := make({{ .Package }}.Poly, publicData.DomainNum.Cardinality)
 	copy(h1, h[:publicData.DomainNum.Cardinality])
 	copy(h2, h[publicData.DomainNum.Cardinality:2*publicData.DomainNum.Cardinality])
 	copy(h3, h[2*publicData.DomainNum.Cardinality:3*publicData.DomainNum.Cardinality])
@@ -411,7 +410,7 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 
 // ProveRaw from the public data
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold
-func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness {{ toLower .Curve }}witness.Witness) *ProofRaw {
+func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness {{toLower .CurveID}}witness.Witness) *ProofRaw {
 
 	// compute the solution
 	solution, _ := spr.Solve(fullWitness)
@@ -503,7 +502,7 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness {{ toLower 
 	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
 
 	// compute batch opening proof for l, r, o, h, z at zeta
-	polynomialsToOpenAtZeta := []{{ toLower .Curve }}.Poly{l, r, o, z, h1, h2, h3}
+	polynomialsToOpenAtZeta := []{{ .Package }}.Poly{l, r, o, z, h1, h2, h3}
 	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
 
 	// compute opening proof for z at z*zeta

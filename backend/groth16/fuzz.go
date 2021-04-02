@@ -7,10 +7,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
 )
 
 func Fuzz(data []byte) int {

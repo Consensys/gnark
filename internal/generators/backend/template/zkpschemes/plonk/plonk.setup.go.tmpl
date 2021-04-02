@@ -1,11 +1,11 @@
 import (
 	"github.com/consensys/gnark/crypto/polynomial"
 	"github.com/consensys/gnark/crypto/polynomial/{{ toLower .Curve }}"
-	"github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/cs"
-	{{ toLower .Curve }}witness "github.com/consensys/gnark/internal/backend/{{ toLower .Curve }}/witness"
 	
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
+	{{ template "import_witness" . }}
+	{{ template "import_backend_cs" . }}
 )
 
 // PublicRaw represents the raw public data corresponding to a circuit,
@@ -17,7 +17,7 @@ type PublicRaw struct {
 	CommitmentScheme polynomial.CommitmentScheme
 
 	// qr,ql,qm,qo,k (in canonical basis)
-	Ql, Qr, Qm, Qo, Qk {{ toLower .Curve }}.Poly
+	Ql, Qr, Qm, Qo, Qk {{.Package }}.Poly
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
@@ -27,8 +27,8 @@ type PublicRaw struct {
 	Shifter [2]fr.Element
 
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
-	LS1, LS2, LS3 {{ toLower .Curve }}.Poly
-	CS1, CS2, CS3 {{ toLower .Curve }}.Poly
+	LS1, LS2, LS3 {{.Package }}.Poly
+	CS1, CS2, CS3 {{.Package }}.Poly
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int
@@ -40,7 +40,7 @@ type PublicRaw struct {
 // * sets the fft domains that will be needed for handling polynomials
 // The publicWitness params is here to build the placeholder constraints (used in the verifier to complete the proof)
 // TODO in many places this function should handle raising errors
-func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness {{ toLower .Curve }}witness.Witness) *PublicRaw {
+func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentScheme, publicWitness {{ toLower .CurveID }}witness.Witness) *PublicRaw {
 
 
 	nbConstraints := len(spr.Constraints)
@@ -229,9 +229,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Lagrange form of S1, S2, S3
-	publicData.LS1 = make({{ toLower .Curve }}.Poly, nbElmt)
-	publicData.LS2 = make({{ toLower .Curve }}.Poly, nbElmt)
-	publicData.LS3 = make({{ toLower .Curve }}.Poly, nbElmt)
+	publicData.LS1 = make({{.Package }}.Poly, nbElmt)
+	publicData.LS2 = make({{.Package }}.Poly, nbElmt)
+	publicData.LS3 = make({{.Package }}.Poly, nbElmt)
 	for i := 0; i < nbElmt; i++ {
 		publicData.LS1[i].Set(&sID[publicData.Permutation[i]])
 		publicData.LS2[i].Set(&sID[publicData.Permutation[nbElmt+i]])
@@ -239,9 +239,9 @@ func ComputeS(publicData *PublicRaw) {
 	}
 
 	// Canonical form of S1, S2, S3
-	publicData.CS1 = make({{ toLower .Curve }}.Poly, nbElmt)
-	publicData.CS2 = make({{ toLower .Curve }}.Poly, nbElmt)
-	publicData.CS3 = make({{ toLower .Curve }}.Poly, nbElmt)
+	publicData.CS1 = make({{.Package }}.Poly, nbElmt)
+	publicData.CS2 = make({{.Package }}.Poly, nbElmt)
+	publicData.CS3 = make({{.Package }}.Poly, nbElmt)
 	copy(publicData.CS1, publicData.LS1)
 	copy(publicData.CS2, publicData.LS2)
 	copy(publicData.CS3, publicData.LS3)

@@ -1,13 +1,5 @@
 import (
-	{{ if eq .Curve "BLS377"}}
-		"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	{{ else if eq .Curve "BLS381"}}
-		"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	{{ else if eq .Curve "BN256"}}
-		"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	{{ else if eq .Curve "BW761"}}
-		"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	{{end}}
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 )
 
 // Poly polynomial represented by coefficients {{ toLower .Curve }} fr field.

@@ -8,14 +8,14 @@ import (
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark-crypto/ecc"
 
-	{{ template "import_backend_r1cs" . }}
+	{{ template "import_backend_cs" . }}
 )
 func TestSerialization(t *testing.T) {
 	var buffer bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 		buffer.Reset()
 
-		{{if eq .Curve "BW761"}}
+		{{if eq .Curve "BW6-761"}}
 			if testing.Short() && name != "reference_small" {
 				continue
 			}
@@ -39,7 +39,7 @@ func TestSerialization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var reconstructed {{toLower .Curve}}backend.R1CS
+			var reconstructed cs.R1CS
 			read , err = reconstructed.ReadFrom(&buffer)
 			if err != nil {
 				t.Fatal(err)

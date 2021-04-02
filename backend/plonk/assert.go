@@ -17,16 +17,16 @@ package plonk
 import (
 	"testing"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
+	backend_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	backend_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bn256 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	backend_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	"github.com/consensys/gnark/frontend"
-	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,77 +1,23 @@
 {{ define "import_fr" }}
-
-{{ if eq .Curve "BLS377"}}
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-{{ else if eq .Curve "BLS381"}}
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-{{ else if eq .Curve "BN256"}}
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-{{ else if eq .Curve "BW761"}}
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-{{end}}
-
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"	
 {{end}}
 
 {{ define "import_curve" }}
-{{if eq .Curve "BLS377"}}
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
-{{else if eq .Curve "BLS381"}}
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-{{else if eq .Curve "BN256"}}
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"	
-{{else if eq .Curve "BW761"}}
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"	
+	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"	
 {{end}}
 
-
-
-{{end}}
-
-{{ define "import_backend_r1cs" }}
-{{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
-{{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
-{{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
-{{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
-{{end}}
-{{end}}
-
-{{ define "import_backend_pcs" }}
-{{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls377/cs"
-{{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bls381/cs"
-{{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bn256/cs"
-{{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}backend "github.com/consensys/gnark/internal/backend/bw761/cs"
-{{end}}
+{{ define "import_backend_cs" }}
+	"github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/cs"
 {{end}}
 
 {{ define "import_fft" }}
-{{if eq .Curve "BLS377"}}
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
-{{else if eq .Curve "BLS381"}}
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
-{{else if eq .Curve "BN256"}}
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-{{ else if eq .Curve "BW761"}}
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fft"
 {{end}}
-{{end}}
-
 
 {{ define "import_witness" }}
-{{if eq .Curve "BLS377"}}
-	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls377/witness"
-{{else if eq .Curve "BLS381"}}
-	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls381/witness"
-{{else if eq .Curve "BN256"}}
-	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-{{ else if eq .Curve "BW761"}}
-	{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bw761/witness"
+	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
 {{end}}
+
+{{ define "import_groth16" }}
+	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/groth16"
 {{end}}

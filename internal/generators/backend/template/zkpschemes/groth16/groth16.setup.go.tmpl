@@ -1,7 +1,7 @@
 import (
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
-	{{ template "import_backend_r1cs" . }}
+	{{ template "import_backend_cs" . }}
 	{{ template "import_fft" . }}
 	"github.com/consensys/gnark-crypto/ecc"
 	"math/big"
@@ -51,7 +51,7 @@ type VerifyingKey struct {
 }
 
 // Setup constructs the SRS
-func Setup(r1cs *{{ toLower .Curve }}backend.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
+func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	/*
 		Setup
@@ -223,7 +223,7 @@ func Setup(r1cs *{{ toLower .Curve }}backend.R1CS, pk *ProvingKey, vk *Verifying
 	return nil
 }
 
-func setupABC(r1cs *{{ toLower .Curve }}backend.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *cs.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
@@ -315,7 +315,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 
 // DummySetup fills a random ProvingKey
 // used for test or benchmarking purposes
-func DummySetup(r1cs *{{ toLower .Curve }}backend.R1CS, pk *ProvingKey) error {
+func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 	nbConstraints := r1cs.NbConstraints

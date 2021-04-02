@@ -1,24 +1,12 @@
 import (
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
-	{{ template "import_backend_r1cs" . }}
+	{{ template "import_backend_cs" . }}
+	{{ template "import_witness" . }}
+	{{ template "import_groth16" . }}
 	"bytes"
 	"testing"
 	"github.com/fxamacker/cbor/v2"
-
-	{{if eq .Curve "BLS377"}}
-		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bls377/groth16"
-		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls377/witness"
-	{{else if eq .Curve "BLS381"}}
-		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bls381/groth16"
-		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bls381/witness"
-	{{else if eq .Curve "BN256"}}
-		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bn256/groth16"
-		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bn256/witness"
-	{{ else if eq .Curve "BW761"}}
-		{{toLower .Curve}}groth16 "github.com/consensys/gnark/internal/backend/bw761/groth16"
-		{{toLower .Curve}}witness "github.com/consensys/gnark/internal/backend/bw761/witness"
-	{{end}}
 
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/backend"
@@ -96,53 +84,53 @@ func TestReferenceCircuit(t *testing.T) {
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 	
-	var pk {{toLower .Curve}}groth16.ProvingKey
-	var vk {{toLower .Curve}}groth16.VerifyingKey
+	var pk {{toLower .CurveID}}groth16.ProvingKey
+	var vk {{toLower .CurveID}}groth16.VerifyingKey
 	b.ResetTimer()
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
+			{{toLower .CurveID}}groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
 		}
 	})
 }
 
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := {{toLower .Curve}}witness.Witness{}
+	fullWitness := {{toLower .CurveID}}witness.Witness{}
 	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
 	
-	var pk {{toLower .Curve}}groth16.ProvingKey
-	{{toLower .Curve}}groth16.DummySetup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk)
+	var pk {{toLower .CurveID}}groth16.ProvingKey
+	{{toLower .CurveID}}groth16.DummySetup(r1cs.(*cs.R1CS), &pk)
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, fullWitness, false)
+			_, _ = {{toLower .CurveID}}groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, false)
 		}
 	})
 }
 
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := {{toLower .Curve}}witness.Witness{}
+	fullWitness := {{toLower .CurveID}}witness.Witness{}
 	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
-	publicWitness := {{toLower .Curve}}witness.Witness{}
+	publicWitness := {{toLower .CurveID}}witness.Witness{}
 	err = publicWitness.FromPublicAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
 	
-	var pk {{toLower .Curve}}groth16.ProvingKey
-	var vk {{toLower .Curve}}groth16.VerifyingKey
-	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
-	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, fullWitness, false)
+	var pk {{toLower .CurveID}}groth16.ProvingKey
+	var vk {{toLower .CurveID}}groth16.VerifyingKey
+	{{toLower .CurveID}}groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
+	proof, err := {{toLower .CurveID}}groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, false)
 	if err != nil {
 		panic(err)
 	}
@@ -150,7 +138,7 @@ func BenchmarkVerifier(b *testing.B) {
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = {{toLower .Curve}}groth16.Verify(proof, &vk, publicWitness)
+			_ = {{toLower .CurveID}}groth16.Verify(proof, &vk, publicWitness)
 		}
 	})
 }
@@ -159,23 +147,23 @@ func BenchmarkVerifier(b *testing.B) {
 
 func BenchmarkSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := {{toLower .Curve}}witness.Witness{}
+	fullWitness := {{toLower .CurveID}}witness.Witness{}
 	err := fullWitness.FromFullAssignment(_solution)
 	if err != nil {
 		b.Fatal(err)
 	}
 	
-	var pk {{toLower .Curve}}groth16.ProvingKey
-	var vk {{toLower .Curve}}groth16.VerifyingKey
-	{{toLower .Curve}}groth16.Setup(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, &vk)
-	proof, err := {{toLower .Curve}}groth16.Prove(r1cs.(*{{toLower .Curve}}backend.R1CS), &pk, fullWitness, false)
+	var pk {{toLower .CurveID}}groth16.ProvingKey
+	var vk {{toLower .CurveID}}groth16.VerifyingKey
+	{{toLower .CurveID}}groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
+	proof, err := {{toLower .CurveID}}groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, false)
 	if err != nil {
 		panic(err)
 	}
 
 	b.ReportAllocs()
 
-	{{ $base := toLower .Curve }}
+	{{ $base := toLower .CurveID }}
 	
 	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.ProvingKey") "Name" "pk" }}
 	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.Proof") "Name" "proof" }}

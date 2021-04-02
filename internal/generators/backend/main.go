@@ -16,29 +16,33 @@ var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 //go:generate go run main.go
 func main() {
 
-	bls377 := templateData{
-		RootPath: "../../../internal/backend/bls377/",
-		Curve:    "BLS377",
+	bls12_377 := templateData{
+		RootPath: "../../../internal/backend/bls12-377/",
+		Curve:    "BLS12-377",
 		CurveID:  "BLS12_377",
+		Package:  "bls12377",
 	}
-	bls381 := templateData{
-		RootPath: "../../../internal/backend/bls381/",
-		Curve:    "BLS381",
+	bls12_381 := templateData{
+		RootPath: "../../../internal/backend/bls12-381/",
+		Curve:    "BLS12-381",
 		CurveID:  "BLS12_381",
+		Package:  "bls12381",
 	}
-	bn256 := templateData{
-		RootPath: "../../../internal/backend/bn256/",
-		Curve:    "BN256",
+	bn254 := templateData{
+		RootPath: "../../../internal/backend/bn254/",
+		Curve:    "BN254",
 		CurveID:  "BN254",
+		Package:  "bn254",
 	}
 
-	bw761 := templateData{
-		RootPath: "../../../internal/backend/bw761/",
-		Curve:    "BW761",
+	bw6_761 := templateData{
+		RootPath: "../../../internal/backend/bw6-761/",
+		Curve:    "BW6-761",
 		CurveID:  "BW6_761",
+		Package:  "bw6761",
 	}
 
-	datas := []templateData{bls377, bls381, bn256, bw761}
+	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761}
 
 	const importCurve = "../imports.go.tmpl"
 
@@ -141,5 +145,6 @@ func main() {
 type templateData struct {
 	RootPath string
 	Curve    string // BLS381, BLS377, BN256, BW761
+	Package  string
 	CurveID  string
 }

@@ -4,10 +4,10 @@ import (
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
+	witness_bls377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	witness_bls381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bn256 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bw761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
 	"github.com/consensys/gnark/frontend"
 )
