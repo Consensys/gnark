@@ -165,7 +165,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	for i := 0; i < int(domain.Cardinality); i++ {
 		Z[i] = zdt.ToRegular()
-		zdt.MulAssign(&toxicWaste.t)
+		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
 	// compute our batch scalar multiplication with g1 elements
@@ -286,10 +286,10 @@ func setupABC(r1cs *cs.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Eleme
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
-		ithLagrangePolt.MulAssign(&w)
+		ithLagrangePolt.Mul(&ithLagrangePolt, &w)
 		tmp.Sub(&toxicWaste.t, &wi)
-		ithLagrangePolt.MulAssign(&tmp)
-		wi.MulAssign(&w)
+		ithLagrangePolt.Mul(&ithLagrangePolt, &tmp)
+		wi.Mul(&wi, &w)
 		tmp.Sub(&toxicWaste.t, &wi)
 		ithLagrangePolt.Div(&ithLagrangePolt, &tmp)
 	}

@@ -112,7 +112,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, forc
 
 	// using this ensures that our multiExps running in parallel won't use more than
 	// provided CPUs
-	cpuSemaphore := curve.NewCPUSemaphore(runtime.NumCPU())
+	cpuSemaphore := ecc.NewCPUSemaphore(runtime.NumCPU())
 
 	chBs1Done := make(chan struct{}, 1)
 	computeBS1 := func() {

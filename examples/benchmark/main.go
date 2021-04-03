@@ -113,7 +113,7 @@ func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) 
 		var expectedY bn254fr.Element
 		expectedY.SetInterface(2)
 		for i := 0; i < nbConstraints; i++ {
-			expectedY.MulAssign(&expectedY)
+			expectedY.Mul(&expectedY, &expectedY)
 		}
 
 		witness.Y.Assign(expectedY)
@@ -122,7 +122,7 @@ func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) 
 		var expectedY bls12381fr.Element
 		expectedY.SetInterface(2)
 		for i := 0; i < nbConstraints; i++ {
-			expectedY.MulAssign(&expectedY)
+			expectedY.Mul(&expectedY, &expectedY)
 		}
 
 		witness.Y.Assign(expectedY)
