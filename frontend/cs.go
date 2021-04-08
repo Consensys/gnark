@@ -25,8 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy"
 )
 
 // ConstraintSystem represents a Groth16 like circuit
@@ -78,7 +78,7 @@ type CompiledConstraintSystem interface {
 	// SetLoggerOutput replace existing logger output with provided one
 	SetLoggerOutput(w io.Writer)
 
-	CurveID() gurvy.ID
+	CurveID() ecc.ID
 	FrSize() int
 }
 

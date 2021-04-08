@@ -9,16 +9,16 @@ import (
 	"math/big"
 	"math/rand"
 
-	"github.com/consensys/gurvy"
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gnark-crypto/ecc"
+	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 func Fuzz(data []byte) int {
 
-	curves := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 	for _, curveID := range curves {
 		_, _ = CsFuzzed(data, curveID)
 	}
@@ -26,7 +26,7 @@ func Fuzz(data []byte) int {
 	return 1
 }
 
-func CsFuzzed(data []byte, curveID gurvy.ID) (ccs CompiledConstraintSystem, nbAssertions int) {
+func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem, nbAssertions int) {
 	cs := newConstraintSystem()
 	reader := bytes.NewReader(data)
 
@@ -156,18 +156,18 @@ func (cs *ConstraintSystem) shuffleVariables(seed int64, withConstant bool) []in
 			v[i+offset] = i
 		}
 		offset += n
-		v[offset] = frbls377.Modulus()
-		v[offset+1] = frbls381.Modulus()
-		v[offset+2] = frbn256.Modulus()
-		v[offset+3] = frbw761.Modulus()
-		v[offset+4] = new(big.Int).Sub(frbls377.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+5] = new(big.Int).Sub(frbls381.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+6] = new(big.Int).Sub(frbn256.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+7] = new(big.Int).Sub(frbw761.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+8] = new(big.Int).Add(frbls377.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+9] = new(big.Int).Add(frbls381.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+10] = new(big.Int).Add(frbn256.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+11] = new(big.Int).Add(frbw761.Modulus(), new(big.Int).SetUint64(1))
+		v[offset] = frbls12377.Modulus()
+		v[offset+1] = frbls12381.Modulus()
+		v[offset+2] = frbn254.Modulus()
+		v[offset+3] = frbw6761.Modulus()
+		v[offset+4] = new(big.Int).Sub(frbls12377.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+5] = new(big.Int).Sub(frbls12381.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+6] = new(big.Int).Sub(frbn254.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+7] = new(big.Int).Sub(frbw6761.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+8] = new(big.Int).Add(frbls12377.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+9] = new(big.Int).Add(frbls12381.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+10] = new(big.Int).Add(frbn254.Modulus(), new(big.Int).SetUint64(1))
+		v[offset+11] = new(big.Int).Add(frbw6761.Modulus(), new(big.Int).SetUint64(1))
 	}
 
 	rand.Seed(seed)

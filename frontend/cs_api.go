@@ -25,14 +25,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark/crypto/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gurvy"
 
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
+	"github.com/consensys/gnark-crypto/ecc"
+	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -106,7 +105,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 	var linExp compiled.LinearExpression
-	lambda := utils.FromInterface(i)
+	lambda := FromInterface(i)
 	for _, t := range v.linExp {
 		var coeffCopy big.Int
 		_, coeffID, variableID, constraintVis := t.Unpack()
@@ -142,8 +141,8 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 				_res = cs.mulConstant(t1, t2)
 				return _res
 			default:
-				n1 := utils.FromInterface(t1)
-				n2 := utils.FromInterface(t2)
+				n1 := FromInterface(t1)
+				n2 := FromInterface(t2)
 				n1.Mul(&n1, &n2)
 				_res = cs.Constant(n1)
 				return _res
@@ -260,18 +259,18 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *ConstraintSystem) IsZero(a Variable, id gurvy.ID) Variable {
+func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 
 	var expo big.Int
 	switch id {
-	case gurvy.BN256:
-		expo.Set(frbn256.Modulus())
-	case gurvy.BLS381:
-		expo.Set(frbls381.Modulus())
-	case gurvy.BLS377:
-		expo.Set(frbls377.Modulus())
-	case gurvy.BW761:
-		expo.Set(frbw761.Modulus())
+	case ecc.BN254:
+		expo.Set(frbn254.Modulus())
+	case ecc.BLS12_381:
+		expo.Set(frbls12381.Modulus())
+	case ecc.BLS12_377:
+		expo.Set(frbls12377.Modulus())
+	case ecc.BW6_761:
+		expo.Set(frbw6761.Modulus())
 	default:
 		panic("not implemented")
 	}
@@ -384,8 +383,8 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 			return res
 		default:
 			// in this case, no constraint is recorded
-			n1 := utils.FromInterface(t1)
-			n2 := utils.FromInterface(t2)
+			n1 := FromInterface(t1)
+			n2 := FromInterface(t2)
 			diff := n1.Sub(&n2, &n1)
 			res = cs.Mul(b, diff) // no constraint is recorded
 			res = cs.Add(res, t2) // no constraint is recorded
@@ -396,7 +395,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 // Constant will return (and allocate if neccesary) a constant Variable
 //
-// input can be a Variable or must be convertible to big.Int (see utils.FromInterface)
+// input can be a Variable or must be convertible to big.Int (see FromInterface)
 func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 	switch t := input.(type) {
@@ -404,7 +403,7 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 		cs.completeDanglingVariable(&t)
 		return t
 	default:
-		n := utils.FromInterface(t)
+		n := FromInterface(t)
 		if n.Cmp(bOne) == 0 {
 			return cs.getOneVariable()
 		}
@@ -503,7 +502,7 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 		cs.completeDanglingVariable(&b)
 		cs.mustBeLessOrEqVar(v, b)
 	default:
-		cs.mustBeLessOrEqCst(v, utils.FromInterface(b))
+		cs.mustBeLessOrEqCst(v, FromInterface(b))
 	}
 
 }

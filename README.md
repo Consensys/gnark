@@ -21,7 +21,7 @@ src="banner_gnark.png">
 
 - [x] BLS377
 - [x] BLS381
-- [x] BN256
+- [x] BN254
 - [x] BW761
 
 ## Getting started
@@ -68,7 +68,7 @@ Examples are located in `/examples`.
 // Circuit must be implemented by user-defined circuits
 type Circuit interface {
 	// Define declares the circuit's Constraints
-	Define(curveID gurvy.ID, cs *ConstraintSystem) error
+	Define(curveID ecc.ID, cs *ConstraintSystem) error
 }
 ```
 
@@ -101,7 +101,7 @@ func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 var circuit CubicCircuit
 
 // compiles our circuit into a R1CS
-r1cs, err := frontend.Compile(gurvy.BN256, backend.GROTH16, &circuit)
+r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 ```
 Using struct tags attributes (similarly to `json` or `xml` encoders in Golang), `frontend.Compile()` will parse the circuit structure and allocate the user secret and public inputs [TODO add godoc link for details]. 
 
@@ -162,7 +162,7 @@ Currently gnark provides the following components (see `gnark/std`):
 
 * The Mimc hash function
 * Merkle tree (binary, without domain separation)
-* Twisted Edwards curve arithmetic (for bn256 and bls381)
+* Twisted Edwards curve arithmetic (for bn254 and bls381)
 * Signature (eddsa aglorithm, following https://tools.ietf.org/html/rfc8032)
 * Groth16 verifier (1 layer recursive SNARK with BW761)
 
@@ -172,9 +172,9 @@ It is difficult to *fairly* and precisely compare benchmarks between libraries. 
 
 Here are our measurements for the **Prover**. These benchmarks ran on a AWS c5a.24xlarge instance, with hyperthreading disabled.
 
-The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn256, matterlabs).  
+The same circuit (computing 2^(2^x)) is benchmarked using `gnark`, `bellman` (bls381, ZCash), `bellman_ce` (bn254, matterlabs).  
 
-### BN256
+### BN254
 
 | nb constraints | 100000|32000000|64000000|
 | -------- | --------| -------- | -------- |

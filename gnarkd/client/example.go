@@ -21,10 +21,10 @@ import (
 	"io"
 	"log"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/gnarkd/pb"
-	"github.com/consensys/gurvy"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -58,16 +58,16 @@ func main() {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	witness.WriteFullTo(&buf, gurvy.BN256, &w)
+	witness.WriteFullTo(&buf, ecc.BN254, &w)
 
 	// synchronous call
 	_, _ = c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn256/cubic",
+		CircuitID: "bn254/cubic",
 		Witness:   buf.Bytes(),
 	})
 
 	// async call
-	r, _ := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn256/cubic"})
+	r, _ := c.CreateProveJob(ctx, &pb.CreateProveJobRequest{CircuitID: "bn254/cubic"})
 	stream, _ := c.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
 
 	done := make(chan struct{})

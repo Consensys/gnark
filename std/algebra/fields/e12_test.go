@@ -20,11 +20,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
 )
 
 //--------------------------------------------------------------------
@@ -35,7 +35,7 @@ type fp12Add struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -45,13 +45,13 @@ func (circuit *fp12Add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestAddFp12(t *testing.T) {
 
 	var circuit, witness fp12Add
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Add(&a, &b)
@@ -70,7 +70,7 @@ type fp12Sub struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -80,13 +80,13 @@ func (circuit *fp12Sub) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestSubFp12(t *testing.T) {
 
 	var circuit, witness fp12Sub
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Sub(&a, &b)
@@ -105,7 +105,7 @@ type fp12Mul struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
@@ -116,13 +116,13 @@ func (circuit *fp12Mul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) 
 func TestMulFp12(t *testing.T) {
 
 	var circuit, witness fp12Mul
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, b, c bls377.E12
+	var a, b, c bls12377.E12
 	a.SetRandom()
 	b.SetRandom()
 	c.Mul(&a, &b)
@@ -141,7 +141,7 @@ type fp12Conjugate struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	expected.Conjugate(cs, &circuit.A)
 	expected.MustBeEqual(cs, circuit.C)
@@ -151,13 +151,13 @@ func (circuit *fp12Conjugate) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestConjugateFp12(t *testing.T) {
 
 	var circuit, witness fp12Conjugate
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	a.SetRandom()
 	c.Conjugate(&a)
 
@@ -175,7 +175,7 @@ type fp12MulByV struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12MulByV) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV(cs, &circuit.A, &circuit.B, ext)
@@ -187,14 +187,14 @@ func (circuit *fp12MulByV) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func TestMulByVFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByV
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByV(&a, &b)
@@ -215,7 +215,7 @@ type fp12MulByV2W struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12MulByV2W) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByV2W(cs, &circuit.A, &circuit.B, ext)
@@ -227,14 +227,14 @@ func (circuit *fp12MulByV2W) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 func TestMulByV2WFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByV2W
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByV2W(&a, &b)
@@ -255,7 +255,7 @@ type fp12MulByVW struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12MulByVW) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.MulByVW(cs, &circuit.A, &circuit.B, ext)
@@ -267,14 +267,14 @@ func (circuit *fp12MulByVW) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 func TestMulByVWFp12(t *testing.T) {
 
 	var circuit, witness fp12MulByVW
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
-	var b bls377.E2
+	var a, c bls12377.E12
+	var b bls12377.E2
 	b.SetRandom()
 	a.SetRandom()
 	c.MulByVW(&a, &b)
@@ -294,7 +294,7 @@ type fp12Frobenius struct {
 	C, D, E E12 `gnark:",public"`
 }
 
-func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Frobenius) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	ext := GetBLS377ExtensionFp12(cs)
 	fb := E12{}
 	fb.Frobenius(cs, &circuit.A, ext)
@@ -313,13 +313,13 @@ func (circuit *fp12Frobenius) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestFrobeniusFp12(t *testing.T) {
 
 	var circuit, witness fp12Frobenius
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c, d, e bls377.E12
+	var a, c, d, e bls12377.E12
 	a.SetRandom()
 	c.Frobenius(&a)
 	d.FrobeniusSquare(&a)
@@ -340,7 +340,7 @@ type fp12Inverse struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expected.Inverse(cs, &circuit.A, ext)
@@ -351,13 +351,13 @@ func (circuit *fp12Inverse) Define(curveID gurvy.ID, cs *frontend.ConstraintSyst
 func TestInverseFp12(t *testing.T) {
 
 	var circuit, witness fp12Inverse
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	a.SetRandom()
 	c.Inverse(&a)
 
@@ -374,7 +374,7 @@ type fp12FixedExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12FixedExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
@@ -385,13 +385,13 @@ func (circuit *fp12FixedExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 
 func TestExpFixedExpoFp12(t *testing.T) {
 	var circuit, witness fp12FixedExpo
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 	expo := uint64(9586122913090633729)
 
 	a.SetRandom()
@@ -410,7 +410,7 @@ type fp12FinalExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12FinalExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
@@ -421,16 +421,16 @@ func (circuit *fp12FinalExpo) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 
 func TestExpFinalExpoFp12(t *testing.T) {
 	var circuit, witness fp12FinalExpo
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// witness values
-	var a, c bls377.E12
+	var a, c bls12377.E12
 
 	a.SetRandom()
-	c = bls377.FinalExponentiation(&a)
+	c = bls12377.FinalExponentiation(&a)
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)

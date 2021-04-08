@@ -18,8 +18,8 @@ protoc --experimental_allow_proto3_optional --go_out=. --go_opt=paths=source_rel
 
 When `gnarkd` starts, it loads the circuits defined in `circuits/` folder. Circuits must be stored in a separate folder, under a curve subfolder.
 Example: 
-* `circuits/bn256/cubic` will contain `cubic.pk`, `cubic.vk` and `cubic.r1cs`.
-* CircuitID (as needed in the APIs) is then `bn256/cubic` 
+* `circuits/bn254/cubic` will contain `cubic.pk`, `cubic.vk` and `cubic.r1cs`.
+* CircuitID (as needed in the APIs) is then `bn254/cubic` 
 
 `gnarkd` listens on 2 distinct TCP connections: one for gRPC, one for receiving large witnesses on async calls.
 

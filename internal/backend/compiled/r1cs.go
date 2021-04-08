@@ -17,7 +17,7 @@ package compiled
 import (
 	"io"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // R1CS decsribes a set of R1CS constraint
@@ -55,9 +55,9 @@ func (r1cs *R1CS) GetNbCoefficients() int {
 	panic("not implemented")
 }
 
-// CurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
-func (r1cs *R1CS) CurveID() gurvy.ID {
-	return gurvy.UNKNOWN
+// CurveID returns ecc.UNKNOWN as this is a untyped R1CS using big.Int
+func (r1cs *R1CS) CurveID() ecc.ID {
+	return ecc.UNKNOWN
 }
 
 // FrSize panics

@@ -1,15 +1,15 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type isZero struct {
 	X, Y frontend.Variable
 }
 
-func (circuit *isZero) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *isZero) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	a := cs.IsZero(circuit.X, curveID)
 	b := cs.IsZero(circuit.Y, curveID)

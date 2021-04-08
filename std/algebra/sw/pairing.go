@@ -19,9 +19,9 @@ package sw
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy/utils"
 )
 
 // PairingContext contains useful info about the pairing
@@ -107,7 +107,7 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Jac, Q G2Jac, res *fields.E12
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
 	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
-	utils.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
+	ecc.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
 
 	res.SetOne(cs)
 
@@ -162,7 +162,7 @@ func MillerLoopAffine(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res
 	var ateLoopNaf [64]int8
 	var ateLoopBigInt big.Int
 	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
-	utils.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
+	ecc.NafDecomposition(&ateLoopBigInt, ateLoopNaf[:])
 
 	res.SetOne(cs)
 

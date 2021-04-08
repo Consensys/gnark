@@ -17,8 +17,8 @@ limitations under the License.
 package fields
 
 import (
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bls377"
 )
 
 // E6 element in a quadratic extension
@@ -157,7 +157,7 @@ func (e *E6) Inverse(cs *frontend.ConstraintSystem, e1 *E6, ext Extension) *E6 {
 }
 
 // Assign a value to self (witness assignment)
-func (e *E6) Assign(a *bls377.E6) {
+func (e *E6) Assign(a *bls12377.E6) {
 	e.B0.Assign(&a.B0)
 	e.B1.Assign(&a.B1)
 	e.B2.Assign(&a.B2)

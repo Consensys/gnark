@@ -18,7 +18,7 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // SparseR1CS represents a Plonk like circuit
@@ -70,9 +70,9 @@ func (cs *SparseR1CS) GetNbCoefficients() int {
 	return res
 }
 
-// CurveID returns gurvy.UNKNOWN as this is a untyped R1CS using big.Int
-func (cs *SparseR1CS) CurveID() gurvy.ID {
-	return gurvy.UNKNOWN
+// CurveID returns ecc.UNKNOWN as this is a untyped R1CS using big.Int
+func (cs *SparseR1CS) CurveID() ecc.ID {
+	return ecc.UNKNOWN
 }
 
 // WriteTo panics

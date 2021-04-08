@@ -1,15 +1,15 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type invCircuit struct {
 	X, Y, Z frontend.Variable
 }
 
-func (circuit *invCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *invCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.Y)
 	u := cs.Inverse(circuit.Y)
 	v := cs.Mul(m, u)

@@ -19,7 +19,7 @@ package rollup
 import (
 	"testing"
 
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
 
 func TestOperatorReadAccount(t *testing.T) {

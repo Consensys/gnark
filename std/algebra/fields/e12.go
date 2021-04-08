@@ -17,8 +17,8 @@ limitations under the License.
 package fields
 
 import (
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bls377"
 )
 
 // Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp6->Fp12 (Fp2 = Fp(u), Fp6 = Fp2(v), Fp12 = Fp6(w))
@@ -57,7 +57,7 @@ type E12 struct {
 	C0, C1 E6
 }
 
-// GetBLS377ExtensionFp12 get extension field parameters for bls377
+// GetBLS377ExtensionFp12 get extension field parameters for bls12377
 func GetBLS377ExtensionFp12(cs *frontend.ConstraintSystem) Extension {
 	res := Extension{}
 	res.uSquare = 5
@@ -302,7 +302,7 @@ func (e *E12) Select(cs *frontend.ConstraintSystem, b frontend.Variable, r1, r2 
 }
 
 // FixedExponentiation compute e1**exponent, where the exponent is hardcoded
-// This function is only used for the final expo of the pairing for bls377, so the exponent is supposed to be hardcoded
+// This function is only used for the final expo of the pairing for bls12377, so the exponent is supposed to be hardcoded
 // and on 64 bits.
 func (e *E12) FixedExponentiation(cs *frontend.ConstraintSystem, e1 *E12, exponent uint64, ext Extension) *E12 {
 
@@ -373,7 +373,7 @@ func (e *E12) FinalExpoBLS(cs *frontend.ConstraintSystem, e1 *E12, genT uint64, 
 }
 
 // Assign a value to self (witness assignment)
-func (e *E12) Assign(a *bls377.E12) {
+func (e *E12) Assign(a *bls12377.E12) {
 	e.C0.Assign(&a.C0)
 	e.C1.Assign(&a.C1)
 }

@@ -17,11 +17,10 @@ limitations under the License.
 package fields
 
 import (
-	"github.com/consensys/gnark/crypto/utils"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy/bls377"
-	"github.com/consensys/gurvy/bls377/fp"
-	"github.com/consensys/gurvy/bw761/fr"
 )
 
 // E2 element in a quadratic extension
@@ -70,7 +69,7 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 	e.A1 = cs.Mul(l3, 1)
 
 	// 1C
-	buSquare := utils.FromInterface(ext.uSquare)
+	buSquare := frontend.FromInterface(ext.uSquare)
 	l41 := cs.Mul(bd, buSquare)
 	l4 := cs.Add(ac, l41)
 	e.A0 = cs.Mul(l4, 1)
@@ -123,9 +122,9 @@ func (e *E2) Inverse(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
 }
 
 // Assign a value to self (witness assignment)
-func (e *E2) Assign(a *bls377.E2) {
-	e.A0.Assign(bls377FpTobw761fr(&a.A0))
-	e.A1.Assign(bls377FpTobw761fr(&a.A1))
+func (e *E2) Assign(a *bls12377.E2) {
+	e.A0.Assign(bls12377FpTobw6761fr(&a.A0))
+	e.A1.Assign(bls12377FpTobw6761fr(&a.A1))
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
@@ -134,7 +133,7 @@ func (e *E2) MustBeEqual(cs *frontend.ConstraintSystem, other E2) {
 	cs.AssertIsEqual(e.A1, other.A1)
 }
 
-func bls377FpTobw761fr(a *fp.Element) (r fr.Element) {
+func bls12377FpTobw6761fr(a *fp.Element) (r fr.Element) {
 	for i, v := range a {
 		r[i] = v
 	}

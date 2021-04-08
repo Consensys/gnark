@@ -20,36 +20,36 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/utils"
-	"github.com/consensys/gurvy"
-	frbls377 "github.com/consensys/gurvy/bls377/fr"
-	edbls377 "github.com/consensys/gurvy/bls377/twistededwards"
-	frbls381 "github.com/consensys/gurvy/bls381/fr"
-	edbls381 "github.com/consensys/gurvy/bls381/twistededwards"
-	frbn256 "github.com/consensys/gurvy/bn256/fr"
-	edbn256 "github.com/consensys/gurvy/bn256/twistededwards"
-	frbw761 "github.com/consensys/gurvy/bw761/fr"
-	edbw761 "github.com/consensys/gurvy/bw761/twistededwards"
+	"github.com/consensys/gnark-crypto/ecc"
+	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+	"github.com/consensys/gnark/frontend"
 )
 
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
 	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
-	ID                                           gurvy.ID
+	ID                                           ecc.ID
 }
 
-var newTwistedEdwards map[gurvy.ID]func() EdCurve
+var newTwistedEdwards map[ecc.ID]func() EdCurve
 
 func init() {
-	newTwistedEdwards = make(map[gurvy.ID]func() EdCurve)
-	newTwistedEdwards[gurvy.BLS381] = newEdBLS381
-	newTwistedEdwards[gurvy.BN256] = newEdBN256
-	newTwistedEdwards[gurvy.BLS377] = newEdBLS377
-	newTwistedEdwards[gurvy.BW761] = newEdBW761
+	newTwistedEdwards = make(map[ecc.ID]func() EdCurve)
+	newTwistedEdwards[ecc.BLS12_381] = newEdBLS381
+	newTwistedEdwards[ecc.BN254] = newEdBN254
+	newTwistedEdwards[ecc.BLS12_377] = newEdBLS377
+	newTwistedEdwards[ecc.BW6_761] = newEdBW761
 }
 
 // NewEdCurve returns an Edwards curve parameters
-func NewEdCurve(id gurvy.ID) (EdCurve, error) {
+func NewEdCurve(id ecc.ID) (EdCurve, error) {
 	if constructor, ok := newTwistedEdwards[id]; ok {
 		return constructor(), nil
 	}
@@ -59,22 +59,22 @@ func NewEdCurve(id gurvy.ID) (EdCurve, error) {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newEdBN256() EdCurve {
+func newEdBN254() EdCurve {
 
-	edcurve := edbn256.GetEdwardsCurve()
+	edcurve := edbn254.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(cofactorReg),
-		Order:    utils.FromInterface(edcurve.Order),
-		BaseX:    utils.FromInterface(edcurve.Base.X),
-		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BN256,
+		A:        frontend.FromInterface(edcurve.A),
+		D:        frontend.FromInterface(edcurve.D),
+		Cofactor: frontend.FromInterface(cofactorReg),
+		Order:    frontend.FromInterface(edcurve.Order),
+		BaseX:    frontend.FromInterface(edcurve.Base.X),
+		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		ID:       ecc.BN254,
 	}
-	res.Modulus.Set(frbn256.Modulus())
+	res.Modulus.Set(frbn254.Modulus())
 
 	return res
 
@@ -82,60 +82,60 @@ func newEdBN256() EdCurve {
 
 func newEdBLS381() EdCurve {
 
-	edcurve := edbls381.GetEdwardsCurve()
+	edcurve := edbls12381.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(cofactorReg),
-		Order:    utils.FromInterface(edcurve.Order),
-		BaseX:    utils.FromInterface(edcurve.Base.X),
-		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BLS381,
+		A:        frontend.FromInterface(edcurve.A),
+		D:        frontend.FromInterface(edcurve.D),
+		Cofactor: frontend.FromInterface(cofactorReg),
+		Order:    frontend.FromInterface(edcurve.Order),
+		BaseX:    frontend.FromInterface(edcurve.Base.X),
+		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		ID:       ecc.BLS12_381,
 	}
-	res.Modulus.Set(frbls381.Modulus())
+	res.Modulus.Set(frbls12381.Modulus())
 
 	return res
 }
 
 func newEdBLS377() EdCurve {
 
-	edcurve := edbls377.GetEdwardsCurve()
+	edcurve := edbls12377.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(cofactorReg),
-		Order:    utils.FromInterface(edcurve.Order),
-		BaseX:    utils.FromInterface(edcurve.Base.X),
-		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BLS377,
+		A:        frontend.FromInterface(edcurve.A),
+		D:        frontend.FromInterface(edcurve.D),
+		Cofactor: frontend.FromInterface(cofactorReg),
+		Order:    frontend.FromInterface(edcurve.Order),
+		BaseX:    frontend.FromInterface(edcurve.Base.X),
+		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		ID:       ecc.BLS12_377,
 	}
-	res.Modulus.Set(frbls377.Modulus())
+	res.Modulus.Set(frbls12377.Modulus())
 
 	return res
 }
 
 func newEdBW761() EdCurve {
 
-	edcurve := edbw761.GetEdwardsCurve()
+	edcurve := edbw6761.GetEdwardsCurve()
 	var cofactorReg big.Int
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(cofactorReg),
-		Order:    utils.FromInterface(edcurve.Order),
-		BaseX:    utils.FromInterface(edcurve.Base.X),
-		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       gurvy.BW761,
+		A:        frontend.FromInterface(edcurve.A),
+		D:        frontend.FromInterface(edcurve.D),
+		Cofactor: frontend.FromInterface(cofactorReg),
+		Order:    frontend.FromInterface(edcurve.Order),
+		BaseX:    frontend.FromInterface(edcurve.Base.X),
+		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		ID:       ecc.BW6_761,
 	}
-	res.Modulus.Set(frbw761.Modulus())
+	res.Modulus.Set(frbw6761.Modulus())
 
 	return res
 }

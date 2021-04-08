@@ -1,8 +1,8 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type andCircuit struct {
@@ -11,7 +11,7 @@ type andCircuit struct {
 	Res   [4]frontend.Variable
 }
 
-func (circuit *andCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	a := cs.And(circuit.Left[0], circuit.Right[0])
 	b := cs.And(circuit.Left[1], circuit.Right[1])
 	c := cs.And(circuit.Left[2], circuit.Right[2])

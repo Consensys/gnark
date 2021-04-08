@@ -19,12 +19,12 @@ package sw
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377"
 )
 
 type lineEvalBLS377 struct {
@@ -32,7 +32,7 @@ type lineEvalBLS377 struct {
 	P    G1Jac `gnark:",public"`
 }
 
-func (circuit *lineEvalBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *lineEvalBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.AssertIsEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -49,13 +49,13 @@ func TestLineEvalBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var Q, R bls377.G2Jac
-	var P bls377.G1Jac
+	var Q, R bls12377.G2Jac
+	var P bls12377.G1Jac
 
 	Q.X.A0.SetString("11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624")
 	Q.X.A1.SetString("153924906120314059329163510034379429156688480181182668999642334674073859906019623717844462092443710331558842221198")
@@ -86,7 +86,7 @@ type lineEvalAffineBLS377 struct {
 	P    G1Affine `gnark:",public"`
 }
 
-func (circuit *lineEvalAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *lineEvalAffineBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	var expected LineEvalRes
 	LineEvalAffineBLS377(cs, circuit.Q, circuit.R, circuit.P, &expected, fields.GetBLS377ExtensionFp12(cs))
 	cs.AssertIsEqual(expected.r0.A0, "220291599185938038585565774521033812062947190299680306664648725201730830885666933651848261361463591330567860207241")
@@ -103,13 +103,13 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 
 	// create the cs
 	var circuit, witness lineEvalAffineBLS377
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var Q, R bls377.G2Affine
-	var P bls377.G1Affine
+	var Q, R bls12377.G2Affine
+	var P bls12377.G1Affine
 
 	Q.X.A0.SetString("11467063222684898633036104763692544506257812867640109164430855414494851760297509943081481005947955008078272733624")
 	Q.X.A1.SetString("153924906120314059329163510034379429156688480181182668999642334674073859906019623717844462092443710331558842221198")
@@ -135,10 +135,10 @@ func TestLineEvalAffineBLS377(t *testing.T) {
 type pairingAffineBLS377 struct {
 	Q          G2Affine
 	P          G1Affine `gnark:",public"`
-	pairingRes bls377.GT
+	pairingRes bls12377.GT
 }
 
-func (circuit *pairingAffineBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingAffineBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -161,7 +161,7 @@ func TestPairingAffineBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingAffineBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,10 +178,10 @@ func TestPairingAffineBLS377(t *testing.T) {
 type pairingBLS377 struct {
 	Q          G2Jac
 	P          G1Jac `gnark:",public"`
-	pairingRes bls377.GT
+	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -201,15 +201,15 @@ func (circuit *pairingBLS377) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestPairingBLS377(t *testing.T) {
 	// pairing test data
 	_P, _Q, pairingRes := pairingData()
-	var Q bls377.G2Jac
-	var P bls377.G1Jac
+	var Q bls12377.G2Jac
+	var P bls12377.G1Jac
 	P.FromAffine(&_P)
 	Q.FromAffine(&_Q)
 
 	// create cs
 	var circuit, witness pairingBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(gurvy.BW761, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestPairingBLS377(t *testing.T) {
 
 }
 
-func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, pairingRes bls377.GT) {
+func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls12377.GT) {
 	P.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
 	P.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
 
@@ -232,13 +232,13 @@ func pairingData() (P bls377.G1Affine, Q bls377.G2Affine, pairingRes bls377.GT) 
 	Q.Y.A0.SetString("178797786102020318006939402153521323286173305074858025240458924050651930669327663166574060567346617543016897467207")
 	Q.Y.A1.SetString("246194676937700783734853490842104812127151341609821057456393698060154678349106147660301543343243364716364400889778")
 
-	milRes, _ := bls377.MillerLoop([]bls377.G1Affine{P}, []bls377.G2Affine{Q})
-	pairingRes = bls377.FinalExponentiation(&milRes)
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
 
 	return
 }
 
-func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls377.GT) {
+func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls12377.GT) {
 	cs.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	cs.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	cs.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)

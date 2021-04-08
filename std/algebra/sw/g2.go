@@ -17,9 +17,9 @@ limitations under the License.
 package sw
 
 import (
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gurvy/bls377"
 )
 
 // G2Jac point in Jacobian coords
@@ -195,7 +195,7 @@ func (p *G2Jac) Double(cs *frontend.ConstraintSystem, p1 *G2Jac, ext fields.Exte
 }
 
 // Assign a value to self (witness assignment)
-func (p *G2Jac) Assign(p1 *bls377.G2Jac) {
+func (p *G2Jac) Assign(p1 *bls12377.G2Jac) {
 	p.X.Assign(&p1.X)
 	p.Y.Assign(&p1.Y)
 	p.Z.Assign(&p1.Z)
@@ -209,7 +209,7 @@ func (p *G2Jac) MustBeEqual(cs *frontend.ConstraintSystem, other G2Jac) {
 }
 
 // Assign a value to self (witness assignment)
-func (p *G2Affine) Assign(p1 *bls377.G2Affine) {
+func (p *G2Affine) Assign(p1 *bls12377.G2Affine) {
 	p.X.Assign(&p1.X)
 	p.Y.Assign(&p1.Y)
 }

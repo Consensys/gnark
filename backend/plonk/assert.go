@@ -17,16 +17,16 @@ package plonk
 import (
 	"testing"
 
-	backend_bls377 "github.com/consensys/gnark/internal/backend/bls377/cs"
-	backend_bls381 "github.com/consensys/gnark/internal/backend/bls381/cs"
-	backend_bn256 "github.com/consensys/gnark/internal/backend/bn256/cs"
-	backend_bw761 "github.com/consensys/gnark/internal/backend/bw761/cs"
+	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	"github.com/consensys/gnark/frontend"
-	witness_bls377 "github.com/consensys/gnark/internal/backend/bls377/witness"
-	witness_bls381 "github.com/consensys/gnark/internal/backend/bls381/witness"
-	witness_bn256 "github.com/consensys/gnark/internal/backend/bn256/witness"
-	witness_bw761 "github.com/consensys/gnark/internal/backend/bw761/witness"
+	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,26 +88,26 @@ func (assert *Assert) SolvingFailed(sparseR1cs frontend.CompiledConstraintSystem
 // returns nil if it succeeds, error otherwise.
 func IsSolved(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
 	switch _sparseR1cs := sparseR1cs.(type) {
-	case *backend_bn256.SparseR1CS:
-		w := witness_bn256.Witness{}
+	case *backend_bn254.SparseR1CS:
+		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _sparseR1cs.IsSolved(w)
-	case *backend_bls381.SparseR1CS:
-		w := witness_bls381.Witness{}
+	case *backend_bls12381.SparseR1CS:
+		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _sparseR1cs.IsSolved(w)
-	case *backend_bls377.SparseR1CS:
-		w := witness_bls377.Witness{}
+	case *backend_bls12377.SparseR1CS:
+		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
 		return _sparseR1cs.IsSolved(w)
-	case *backend_bw761.SparseR1CS:
-		w := witness_bw761.Witness{}
+	case *backend_bw6761.SparseR1CS:
+		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
