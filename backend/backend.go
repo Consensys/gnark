@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package backend provides circuit arithmetic representations and zero knowledge proof APIs.
-//
-// Functions is this package are not curve specific and point to internal/backend curve specific
-// implementation when needed
+// Package backend implements Zero Knowledge Proof systems: it consumes circuit compiled with gnark/frontend.
 package backend
 
 // ID represent a unique ID for a proving scheme

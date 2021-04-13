@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package io offers useful serialization interfaces for gnark objects.
+// Package io offers serialization interfaces for gnark objects.
 package io
 
 import (

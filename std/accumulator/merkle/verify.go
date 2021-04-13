@@ -42,6 +42,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package merkle provides a ZKP-circuit function to verify merkle proofs.
 package merkle
 
 import (

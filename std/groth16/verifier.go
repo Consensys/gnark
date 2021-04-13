@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package groth16 provides a ZKP-circuit function to verify BLS12_377 Groth16 inside a BW6_761 circuit.
 package groth16
 
 import (

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package mimc provides a ZKP-circuit function to compute a MiMC hash.
 package mimc
 
 import (

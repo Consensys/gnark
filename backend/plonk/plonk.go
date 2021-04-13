@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package plonk implements PLONK Zero Knowledge Proof system.
+//
+// See also
+//
+// https://eprint.iacr.org/2019/953
 package plonk
 
 import (
@@ -40,14 +45,15 @@ import (
 )
 
 // PublicData contains
-// * polynomials corresponding to the coefficients ql,qr,qm,qo,qk (either raw or committed)
-// * polynomials corresponding to the permutations s1,s2,s3 (either raw or committed)
-// * the commitment scheme
-// * the fft domains
+//
+// 	- polynomials corresponding to the coefficients ql,qr,qm,qo,qk (either raw or committed)
+// 	- polynomials corresponding to the permutations s1,s2,s3 (either raw or committed)
+// 	- the commitment scheme
+// 	- the fft domains
 type PublicData interface{}
 
-// Proof contains a plonk proof. The content of the proof might vary according
-// to the plonk version which is chosen.
+// Proof content might vary according to the PLONK version which is chosen.
+//
 // For instance it can be the commitments of L,R,O,H,Z and the opening proofs.
 type Proof interface{}
 
@@ -139,7 +145,7 @@ func SetupDummyCommitment(sparseR1cs frontend.CompiledConstraintSystem, publicWi
 
 }
 
-// Prove generates plonk proof from a circuit, associated preprocessed public data, and the witness
+// Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
 func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, fullWitness frontend.Circuit) (Proof, error) {
 
 	switch _sparseR1cs := sparseR1cs.(type) {
@@ -184,7 +190,7 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 	}
 }
 
-// Verify verifies a plonk proof, from the proof, preprocessed public data, and public witness.
+// Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
 func Verify(proof Proof, publicData PublicData, publicWitness frontend.Circuit) error {
 
 	switch _proof := proof.(type) {

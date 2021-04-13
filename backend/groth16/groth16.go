@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package groth16 implements Groth16 zkSNARK workflow (https://eprint.iacr.org/2016/260.pdf)
+// Package groth16 implements Groth16 Zero Knowledge Proof system  (aka zkSNARK).
+//
+// See also
+//
+// https://eprint.iacr.org/2016/260.pdf
 package groth16
 
 import (
@@ -50,7 +54,7 @@ type Proof interface {
 
 // ProvingKey represents a Groth16 ProvingKey
 //
-// it's underlying implementation is curve specific (see gnark/internal/backend)
+// it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 type ProvingKey interface {
 	gnarkio.WriterRawTo
 	io.WriterTo
@@ -60,7 +64,7 @@ type ProvingKey interface {
 
 // VerifyingKey represents a Groth16 VerifyingKey
 //
-// it's underlying implementation is curve specific (see gnark/internal/backend)
+// it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 //
 // ExportSolidity is implemented for BN254 and will return an error with other curves
 type VerifyingKey interface {
@@ -106,7 +110,8 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 }
 
 // ReadAndVerify behaves like Verify, except witness is read from a io.Reader
-// witness must be [uint32(nbElements) | publicVariables ]
+// witness must be encoded following the binary serialization protocol described in
+// gnark/backend/witness package
 func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error {
 
 	switch _vk := vk.(type) {
@@ -139,9 +144,10 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 	}
 }
 
-// Prove generates the proof of knoweldge of a r1cs with witness.
-// if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
-// the FFTs and MultiExponentiations to compute an (invalid) Proof object
+// Prove runs the groth16.Prove algorithm.
+//
+// If force flag is set, executes all the prover computations, even if the witness is invalid
+// (in which case it will produce an invalid proof)
 func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, force ...bool) (Proof, error) {
 
 	_force := false
@@ -179,8 +185,9 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 	}
 }
 
-// ReadAndProve behaves like Prove, except witness is read from a io.Reader
-// witness must be [uint32(nbElements) | publicVariables | secretVariables]
+// ReadAndProve behaves like Prove, , except witness is read from a io.Reader
+// witness must be encoded following the binary serialization protocol described in
+// gnark/backend/witness package
 func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, force ...bool) (Proof, error) {
 	_force := false
 	if len(force) > 0 {
@@ -220,7 +227,14 @@ func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness
 	}
 }
 
-// Setup runs groth16.Setup with provided R1CS
+// Setup runs groth16.Setup with provided R1CS and outputs a key pair associated with the circuit.
+//
+// Note that careful consideration must be given to this step in production environment.
+// groth16.Setup uses some randomness to precompute the Proving and Verifying keys. If the process
+// or machine leaks this randomness, an attacker could break the ZKP protocol.
+//
+// Two main solutions to this deployment issues are: running the Setup through a MPC (multi party computation)
+// or using a ZKP backend like PLONK where the per-circuit Setup is deterministic.
 func Setup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 	switch _r1cs := r1cs.(type) {
