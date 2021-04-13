@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package client provides a minimalist example of a gRPC client connecting to gnarkd/server.
 package main
 
 import (

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package eddsa provides a ZKP-circuit function to verify a EdDSA signature.
 package eddsa
 
 import (

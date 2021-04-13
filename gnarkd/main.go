@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package gnarkd provides experimental gRPC endpoints to create and verify proofs with gnark.
 package main
 
 import (

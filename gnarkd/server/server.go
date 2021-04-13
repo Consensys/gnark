@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package server implements a gRPC server following protobuf description of the proof service in gnarkd/pb.
 package server
 
 import (
