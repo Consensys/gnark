@@ -4,10 +4,10 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
-github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f h1:Smz/coLzPOgl74T1haF8SfqPAkB760cSO59+FyLPzG0=
-github.com/consensys/bavard v0.1.8-0.20210329205436-c3e862ba4e5f/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
-github.com/consensys/gnark-crypto v0.4.1-0.20210402235606-bea9b40ae01c h1:HGUtuTXY+Xhqfv20nDaQspKvcBm1oXO4H8a0vXI1Nhs=
-github.com/consensys/gnark-crypto v0.4.1-0.20210402235606-bea9b40ae01c/go.mod h1:wK/gpXP9B06qTzTVML71GhKD1ygP9xOzukbI68NJqsQ=
+github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572 h1:+R8G1+Ftumd0DaveLgMIjrFPcAS4G8MsVXWXiyZL5BY=
+github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
+github.com/consensys/gnark-crypto v0.4.1-0.20210413004505-7c6275f1e3a9 h1:cgA17xtezKnYOpcYiZvda21Y6mjii2Xf3l9RwFJgcSE=
+github.com/consensys/gnark-crypto v0.4.1-0.20210413004505-7c6275f1e3a9/go.mod h1:lnwZ2dJfim9gnyN9hSRW52un1bLFx0S4k/g4L+OOVhY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
