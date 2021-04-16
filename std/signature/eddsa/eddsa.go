@@ -32,7 +32,7 @@ type PublicKey struct {
 
 // Signature stores a signature  (to be used in gnark circuit)
 type Signature struct {
-	R      PublicKey
+	R      twistededwards.Point
 	S1, S2 frontend.Variable // S = S1*basis + S2, where basis if 1/2 log r (ex 128 in case of bn256)
 }
 
@@ -42,8 +42,8 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	data := []frontend.Variable{
-		sig.R.A.X,
-		sig.R.A.Y,
+		sig.R.X,
+		sig.R.Y,
 		pubKey.A.X,
 		pubKey.A.Y,
 		msg,
@@ -89,7 +89,7 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	//rhs = cofactor*(R+H(R,A,M)*A)
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstant, pubKey.Curve).
-		AddGeneric(cs, &rhs, &sig.R.A, pubKey.Curve).
+		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve).
 		ScalarMulNonFixedBase(cs, &rhs, cofactorConstant, pubKey.Curve)
 	rhs.MustBeOnCurve(cs, pubKey.Curve)
 

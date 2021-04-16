@@ -173,8 +173,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	// set witnesses for the transfer
 	o.witnesses.Transfers[numTransfer].Amount.Assign(t.amount)
-	o.witnesses.Transfers[numTransfer].Signature.R.A.X.Assign(t.signature.R.X)
-	o.witnesses.Transfers[numTransfer].Signature.R.A.Y.Assign(t.signature.R.Y)
+	o.witnesses.Transfers[numTransfer].Signature.R.X.Assign(t.signature.R.X)
+	o.witnesses.Transfers[numTransfer].Signature.R.Y.Assign(t.signature.R.Y)
 	o.witnesses.Transfers[numTransfer].Signature.S1.Assign(t.signature.S[:16])
 	o.witnesses.Transfers[numTransfer].Signature.S2.Assign(t.signature.S[16:])
 

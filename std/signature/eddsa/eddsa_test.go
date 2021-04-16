@@ -130,12 +130,6 @@ func TestEddsa(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
 
-	var seed [32]byte
-	s := []byte("eddsa")
-	for i, v := range s {
-		seed[i] = v
-	}
-
 	type confSig struct {
 		h hash.Hash
 		s signature.SignatureScheme
@@ -204,8 +198,8 @@ func TestEddsa(t *testing.T) {
 			witness.PublicKey.A.Y.Assign(pubkeyAy)
 
 			sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
-			witness.Signature.R.A.X.Assign(sigRx)
-			witness.Signature.R.A.Y.Assign(sigRy)
+			witness.Signature.R.X.Assign(sigRx)
+			witness.Signature.R.Y.Assign(sigRy)
 			witness.Signature.S1.Assign(sigS1)
 			witness.Signature.S2.Assign(sigS2)
 
@@ -213,22 +207,22 @@ func TestEddsa(t *testing.T) {
 		}
 
 		// verification with incorrect Message
-		// {
-		// 	var witness eddsaCircuit
-		// 	witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
+		{
+			var witness eddsaCircuit
+			witness.Message.Assign("44717650746155748460101257525078853138837311576962212923649547644148297035979")
 
-		// 	pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
-		// 	witness.PublicKey.A.X.Assign(pubkeyAx)
-		// 	witness.PublicKey.A.Y.Assign(pubkeyAy)
+			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
+			witness.PublicKey.A.X.Assign(pubkeyAx)
+			witness.PublicKey.A.Y.Assign(pubkeyAy)
 
-		// 	sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
-		// 	witness.Signature.R.A.X.Assign(sigRx)
-		// 	witness.Signature.R.A.Y.Assign(sigRy)
-		// 	witness.Signature.S1.Assign(sigS1)
-		// 	witness.Signature.S2.Assign(sigS2)
+			sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
+			witness.Signature.R.X.Assign(sigRx)
+			witness.Signature.R.Y.Assign(sigRy)
+			witness.Signature.S1.Assign(sigS1)
+			witness.Signature.S2.Assign(sigS2)
 
-		// 	assert.SolvingFailed(r1cs, &witness)
-		// }
+			assert.SolvingFailed(r1cs, &witness)
+		}
 
 	}
 }

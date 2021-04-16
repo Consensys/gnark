@@ -117,7 +117,6 @@ func (circuit *Circuit) postInit(curveID ecc.ID, cs *frontend.ConstraintSystem) 
 		circuit.Transfers[i].Nonce = circuit.SenderAccountsBefore[i].Nonce
 		circuit.Transfers[i].SenderPubKey = circuit.PublicKeysSender[i]
 		circuit.Transfers[i].ReceiverPubKey = circuit.PublicKeysReceiver[i]
-		circuit.Transfers[i].Signature.R.Curve = params
 
 	}
 	return nil
