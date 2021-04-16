@@ -55,27 +55,27 @@ func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte, []byte) {
 	case ecc.BN254:
 		pointbn254.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		c1 := buf[32:48]
-		c2 := buf[48:]
-		return a[:], b[:], c1, c2
+		s1 := buf[32:48] // r is 256 bits, so s = 2^128*s1 + s2
+		s2 := buf[48:]
+		return a[:], b[:], s1, s2
 	case ecc.BLS12_381:
 		pointbls12381.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		c1 := buf[32:48]
-		c2 := buf[48:]
-		return a[:], b[:], c1, c2
+		s1 := buf[32:48]
+		s2 := buf[48:]
+		return a[:], b[:], s1, s2
 	case ecc.BLS12_377:
 		pointbls12377.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		c1 := buf[32:48]
-		c2 := buf[48:]
-		return a[:], b[:], c1, c2
+		s1 := buf[32:48]
+		s2 := buf[48:]
+		return a[:], b[:], s1, s2
 	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48])
+		pointbw6761.SetBytes(buf[:48]) // r is 384 bits, so s = 2^192*s1 + s2
 		a, b := parsePoint(id, buf)
-		c1 := buf[48:72]
-		c2 := buf[72:]
-		return a[:], b[:], c1, c2
+		s1 := buf[48:72]
+		s2 := buf[72:]
+		return a[:], b[:], s1, s2
 	default:
 		return buf, buf, buf, buf
 	}
