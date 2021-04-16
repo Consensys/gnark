@@ -18,6 +18,7 @@ limitations under the License.
 package eddsa
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -31,8 +32,8 @@ type PublicKey struct {
 
 // Signature stores a signature  (to be used in gnark circuit)
 type Signature struct {
-	R PublicKey
-	S frontend.Variable // TODO S must be split in 2, because it can be bigger than r (Hasse bound)
+	R      PublicKey
+	S1, S2 frontend.Variable // S = S1*basis + S2, where basis if 1/2 log r (ex 128 in case of bn256)
 }
 
 // Verify verifies an eddsa signature
@@ -58,8 +59,31 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	cofactorConstant := cs.Constant(pubKey.Curve.Cofactor)
 	lhs := twistededwards.Point{}
 
-	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve).
-		ScalarMulNonFixedBase(cs, &lhs, cofactorConstant, pubKey.Curve)
+	var basis frontend.Variable
+	switch pubKey.Curve.ID {
+	case ecc.BN254:
+		basis = cs.Constant("340282366920938463463374607431768211456") // 2**128
+	case ecc.BLS12_381:
+		basis = cs.Constant("340282366920938463463374607431768211456")
+	case ecc.BLS12_377:
+		basis = cs.Constant("340282366920938463463374607431768211456")
+	case ecc.BW6_761:
+		basis = cs.Constant("6277101735386680763835789423207666416102355444464034512896") // 2**192
+	default:
+		panic("curve is not supported")
+	}
+
+	// [cofactor*(2^basis*S1 +  S2)]G
+	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S1, pubKey.Curve).
+		ScalarMulNonFixedBase(cs, &lhs, basis, pubKey.Curve)
+
+	tmp := twistededwards.Point{}
+	tmp.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S2, pubKey.Curve)
+
+	lhs.AddGeneric(cs, &lhs, &tmp, pubKey.Curve)
+
+	lhs.ScalarMulNonFixedBase(cs, &lhs, cofactorConstant, pubKey.Curve)
+
 	lhs.MustBeOnCurve(cs, pubKey.Curve)
 
 	//rhs = cofactor*(R+H(R,A,M)*A)

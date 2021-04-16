@@ -44,6 +44,7 @@ func (t *circuitSignature) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 }
 
 func TestCircuitSignature(t *testing.T) {
+
 	const nbAccounts = 10
 
 	operator, users := createOperator(nbAccounts)
