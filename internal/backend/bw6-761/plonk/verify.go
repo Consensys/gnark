@@ -22,6 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 )
 
@@ -30,11 +32,40 @@ var (
 )
 
 // VerifyRaw verifies a PLONK proof
-// TODO use Fiat Shamir to derive the challenges
 func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bw6_761witness.Witness) error {
 
+	// create a transcript manager to apply Fiat Shamir and get the challenges
+	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	fs.Bind("gamma", proof.CommitmentsLROZH[0].Bytes())
+	fs.Bind("gamma", proof.CommitmentsLROZH[1].Bytes())
+	fs.Bind("gamma", proof.CommitmentsLROZH[2].Bytes())
+	bgamma, err := fs.ComputeChallenge("gamma")
+	if err != nil {
+		return err
+	}
+	var gamma fr.Element
+	gamma.SetBytes(bgamma)
+
+	fs.Bind("alpha", proof.CommitmentsLROZH[3].Bytes())
+	balpha, err := fs.ComputeChallenge("alpha")
+	if err != nil {
+		return err
+	}
+	var alpha fr.Element
+	alpha.SetBytes(balpha)
+
+	fs.Bind("zeta", proof.CommitmentsLROZH[4].Bytes())
+	fs.Bind("zeta", proof.CommitmentsLROZH[5].Bytes())
+	fs.Bind("zeta", proof.CommitmentsLROZH[6].Bytes())
+	bzeta, err := fs.ComputeChallenge("zeta")
+	if err != nil {
+		return err
+	}
+	var zeta fr.Element
+	zeta.SetBytes(bzeta)
+
 	// checks the opening proofs
-	err := publicData.CommitmentScheme.BatchVerifySinglePoint(&zeta, proof.LROZH, proof.CommitmentsLROZH, proof.BatchOpenings)
+	err = publicData.CommitmentScheme.BatchVerifySinglePoint(&zeta, proof.LROZH, proof.CommitmentsLROZH, proof.BatchOpenings)
 	if err != nil {
 		return err
 	}
