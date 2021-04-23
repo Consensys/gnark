@@ -29,19 +29,9 @@ import (
 	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
+
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
-
-// TODO derive those random values using Fiat Shamir
-// zeta: value at which l, r, o, h are evaluated
-// gamma: used in (l+X+gamma)*(r+u.X+gamma).(o+u**2X+gamma)
-// alpha: used in qlL+qrR+qmL.R+qoO+k + alpha.(Z(uX)g1g2g3-Z(X)f1f2f3) + alpha**2L1(Z-1) = HZ
-var zeta, gamma, alpha fr.Element
-
-func init() {
-	zeta.SetString("2938092839238274283")
-	gamma.SetString("82782638268278263826")
-	alpha.SetString("2567832343425678323434")
-}
 
 // ProofRaw PLONK proofs, consisting of opening proofs
 type ProofRaw struct {
@@ -114,7 +104,7 @@ func ComputeLRO(spr *cs.SparseR1CS, publicData *PublicRaw, solution []fr.Element
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func ComputeZ(l, r, o bls12377.Polynomial, publicData *PublicRaw) bls12377.Polynomial {
+func ComputeZ(l, r, o bls12377.Polynomial, publicData *PublicRaw, gamma fr.Element) bls12377.Polynomial {
 
 	z := make(bls12377.Polynomial, publicData.DomainNum.Cardinality)
 	nbElmts := int(publicData.DomainNum.Cardinality)
@@ -244,7 +234,7 @@ func evalIDCosets(publicData *PublicRaw) (id, uid, uuid bls12377.Polynomial) {
 //
 // z: permutation accumulator polynomial in canonical form
 // l, r, o: solution, in canonical form
-func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO bls12377.Polynomial) bls12377.Polynomial {
+func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, evalO bls12377.Polynomial, gamma fr.Element) bls12377.Polynomial {
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
@@ -375,7 +365,7 @@ func shiftZ(z bls12377.Polynomial) bls12377.Polynomial {
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bls12377.Polynomial) (bls12377.Polynomial, bls12377.Polynomial, bls12377.Polynomial) {
+func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsAtOne bls12377.Polynomial, alpha fr.Element) (bls12377.Polynomial, bls12377.Polynomial, bls12377.Polynomial) {
 
 	h := make(bls12377.Polynomial, publicData.DomainH.Cardinality)
 
@@ -433,35 +423,59 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold
 func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls12_377witness.Witness) *ProofRaw {
 
+	// create a transcript manager to apply Fiat Shamir
+	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+
+	// result
+	proof := &ProofRaw{}
+
 	// compute the solution
 	solution, _ := spr.Solve(fullWitness)
 
 	// query l, r, o in Lagrange basis
-	l, r, o, partialL := ComputeLRO(spr, publicData, solution)
+	ll, lr, lo, partialL := ComputeLRO(spr, publicData, solution)
+
+	// save ll, lr, lo, and make a copy of them in canonical basis.
+	// We commit them and derive gamma from them.
+	cl := make(bls12377.Polynomial, len(ll))
+	cr := make(bls12377.Polynomial, len(lr))
+	co := make(bls12377.Polynomial, len(lo))
+	copy(cl, ll)
+	copy(cr, lr)
+	copy(co, lo)
+	publicData.DomainNum.FFTInverse(cl, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(cr, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(co, fft.DIF, 0)
+	publicData.DomainNum.FFTInverse(partialL, fft.DIF, 0)
+	fft.BitReverse(cl)
+	fft.BitReverse(cr)
+	fft.BitReverse(co)
+	fft.BitReverse(partialL)
+
+	// derive gamma from the Comm(l), Comm(r), Comm(o)
+	proof.CommitmentsLROZH[0] = publicData.CommitmentScheme.Commit(cl)
+	proof.CommitmentsLROZH[1] = publicData.CommitmentScheme.Commit(cr)
+	proof.CommitmentsLROZH[2] = publicData.CommitmentScheme.Commit(co)
+	fs.Bind("gamma", proof.CommitmentsLROZH[0].Bytes())
+	fs.Bind("gamma", proof.CommitmentsLROZH[1].Bytes())
+	fs.Bind("gamma", proof.CommitmentsLROZH[2].Bytes())
+	bgamma, _ := fs.ComputeChallenge("gamma")
+	var gamma fr.Element
+	gamma.SetBytes(bgamma)
 
 	// compute Z, the permutation accumulator polynomial, in Lagrange basis
-	z := ComputeZ(l, r, o, publicData)
+	z := ComputeZ(ll, lr, lo, publicData, gamma)
 
 	// compute Z(uX), in Lagrange basis
 	zu := shiftZ(z)
-
-	// put l, r, o, partialL  in canonical basis
-	publicData.DomainNum.FFTInverse(l, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(r, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(o, fft.DIF, 0)
-	publicData.DomainNum.FFTInverse(partialL, fft.DIF, 0)
-	fft.BitReverse(l)
-	fft.BitReverse(r)
-	fft.BitReverse(o)
-	fft.BitReverse(partialL)
 
 	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
 	evalL := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalR := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalO := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(l, evalL, publicData.DomainNum)
-	evaluateCosets(r, evalR, publicData.DomainNum)
-	evaluateCosets(o, evalO, publicData.DomainNum)
+	evaluateCosets(cl, evalL, publicData.DomainNum)
+	evaluateCosets(cr, evalR, publicData.DomainNum)
+	evaluateCosets(co, evalO, publicData.DomainNum)
 
 	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
 	constraintsInd := evalConstraints(publicData, evalL, evalR, evalO)
@@ -479,21 +493,42 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls12_377wi
 	evaluateCosets(zu, evalZu, publicData.DomainNum)
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsOrdering := evalConstraintOrdering(publicData, evalZ, evalZu, evalL, evalR, evalO)
+	constraintsOrdering := evalConstraintOrdering(publicData, evalZ, evalZu, evalL, evalR, evalO, gamma)
 
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	startsAtOne := evalStartsAtOne(publicData, evalZ)
 
+	// commit to Z
+	proof.CommitmentsLROZH[3] = publicData.CommitmentScheme.Commit(z)
+
+	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
+	fs.Bind("alpha", proof.CommitmentsLROZH[3].Bytes())
+	balpha, _ := fs.ComputeChallenge("alpha")
+	var alpha fr.Element
+	alpha.SetBytes(balpha)
+
 	// compute h in canonical form
-	h1, h2, h3 := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne)
+	h1, h2, h3 := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne, alpha)
+
+	// commit to h (3 commitments h1 + x*h2 + x**2*h3)
+	proof.CommitmentsLROZH[4] = publicData.CommitmentScheme.Commit(h1)
+	proof.CommitmentsLROZH[5] = publicData.CommitmentScheme.Commit(h2)
+	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
+
+	// derive zeta, the point of evaluation
+	fs.Bind("zeta", proof.CommitmentsLROZH[4].Bytes())
+	fs.Bind("zeta", proof.CommitmentsLROZH[5].Bytes())
+	fs.Bind("zeta", proof.CommitmentsLROZH[6].Bytes())
+	bzeta, _ := fs.ComputeChallenge("zeta")
+	var zeta fr.Element
+	zeta.SetBytes(bzeta)
 
 	// compute evaluations of l, r, o, z at zeta
-	proof := &ProofRaw{}
 	tmp := partialL.Eval(&zeta)
 	proof.LROZH[0].Set(tmp.(*fr.Element))
-	tmp = r.Eval(&zeta)
+	tmp = cr.Eval(&zeta)
 	proof.LROZH[1].Set(tmp.(*fr.Element))
-	tmp = o.Eval(&zeta)
+	tmp = co.Eval(&zeta)
 	proof.LROZH[2].Set(tmp.(*fr.Element))
 	tmp = z.Eval(&zeta)
 	proof.LROZH[3].Set(tmp.(*fr.Element))
@@ -512,18 +547,8 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls12_377wi
 	tmp = z.Eval(&zzeta)
 	proof.ZShift.Set(tmp.(*fr.Element))
 
-	// compute commitments of l,r,o,z,h
-	// TODO when using Fiat Shamir, commitments need to be re ordered
-	proof.CommitmentsLROZH[0] = publicData.CommitmentScheme.Commit(l)
-	proof.CommitmentsLROZH[1] = publicData.CommitmentScheme.Commit(r)
-	proof.CommitmentsLROZH[2] = publicData.CommitmentScheme.Commit(o)
-	proof.CommitmentsLROZH[3] = publicData.CommitmentScheme.Commit(z)
-	proof.CommitmentsLROZH[4] = publicData.CommitmentScheme.Commit(h1)
-	proof.CommitmentsLROZH[5] = publicData.CommitmentScheme.Commit(h2)
-	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
-
 	// compute batch opening proof for l, r, o, h, z at zeta
-	polynomialsToOpenAtZeta := []bls12377.Polynomial{l, r, o, z, h1, h2, h3}
+	polynomialsToOpenAtZeta := []bls12377.Polynomial{cl, cr, co, z, h1, h2, h3}
 	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
 
 	// compute opening proof for z at z*zeta

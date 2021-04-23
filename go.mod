@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572
-	github.com/consensys/gnark-crypto v0.4.1-0.20210413004505-7c6275f1e3a9
+	github.com/consensys/gnark-crypto v0.4.1-0.20210423194514-c4cb13afd8af
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.2.0
@@ -15,7 +15,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c // indirect
-	golang.org/x/sys v0.0.0-20210402192133-700132347e07 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/genproto v0.0.0-20210402141018-6c239bbf2bb1 // indirect
 	google.golang.org/grpc v1.36.1
