@@ -343,7 +343,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	nbConstraints := r1cs.NbConstraints
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(nbConstraints), 1)
+	domain := fft.NewDomain(uint64(nbConstraints), 1, true)
 
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires)
