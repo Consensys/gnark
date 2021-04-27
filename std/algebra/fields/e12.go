@@ -59,9 +59,13 @@ type E12 struct {
 
 // GetBLS377ExtensionFp12 get extension field parameters for bls12377
 func GetBLS377ExtensionFp12(cs *frontend.ConstraintSystem) Extension {
+
 	res := Extension{}
-	res.uSquare = 5
+
+	res.uSquare = -5
+
 	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
+
 	res.wSquare = &E6{
 		B0: E2{cs.Constant(0), cs.Constant(0)},
 		B1: E2{cs.Constant(1), cs.Constant(0)},
@@ -150,6 +154,57 @@ func (e *E12) Conjugate(cs *frontend.ConstraintSystem, e1 *E12) *E12 {
 	zero := NewFp6Zero(cs)
 	e.C1.Sub(cs, &zero, &e1.C1)
 	e.C0 = e1.C0
+	return e
+}
+
+// MulBy034 multiplication by sparse element
+func (e *E12) MulBy034(cs *frontend.ConstraintSystem, c0, c3, c4 *E2, ext Extension) *E12 {
+
+	var z0, z1, z2, z3, z4, z5, tmp1, tmp2 E2
+	var t [12]E2
+
+	z0 = e.C0.B0
+	z1 = e.C0.B1
+	z2 = e.C0.B2
+	z3 = e.C1.B0
+	z4 = e.C1.B1
+	z5 = e.C1.B2
+
+	tmp1.MulByIm(cs, c3, ext) // MulByNonResidue
+	tmp2.MulByIm(cs, c4, ext) // MulByNonResidue
+
+	t[0].Mul(cs, &tmp1, &z5, ext)
+	t[1].Mul(cs, &tmp2, &z4, ext)
+	t[2].Mul(cs, c3, &z3, ext)
+	t[3].Mul(cs, &tmp2, &z5, ext)
+	t[4].Mul(cs, c3, &z4, ext)
+	t[5].Mul(cs, c4, &z3, ext)
+	t[6].Mul(cs, c3, &z0, ext)
+	t[7].Mul(cs, &tmp2, &z2, ext)
+	t[8].Mul(cs, c3, &z1, ext)
+	t[9].Mul(cs, c4, &z0, ext)
+	t[10].Mul(cs, c3, &z2, ext)
+	t[11].Mul(cs, c4, &z1, ext)
+
+	e.C0.B0.Mul(cs, c0, &z0, ext).
+		Add(cs, &e.C0.B0, &t[0]).
+		Add(cs, &e.C0.B0, &t[1])
+	e.C0.B1.Mul(cs, c0, &z1, ext).
+		Add(cs, &e.C0.B1, &t[2]).
+		Add(cs, &e.C0.B1, &t[3])
+	e.C0.B2.Mul(cs, c0, &z2, ext).
+		Add(cs, &e.C0.B2, &t[4]).
+		Add(cs, &e.C0.B2, &t[5])
+	e.C1.B0.Mul(cs, c0, &z3, ext).
+		Add(cs, &e.C1.B0, &t[6]).
+		Add(cs, &e.C1.B0, &t[7])
+	e.C1.B1.Mul(cs, c0, &z4, ext).
+		Add(cs, &e.C1.B1, &t[8]).
+		Add(cs, &e.C1.B1, &t[9])
+	e.C1.B2.Mul(cs, c0, &z5, ext).
+		Add(cs, &e.C1.B2, &t[10]).
+		Add(cs, &e.C1.B2, &t[11])
+
 	return e
 }
 
@@ -325,50 +380,45 @@ func (e *E12) FixedExponentiation(cs *frontend.ConstraintSystem, e1 *E12, expone
 	return e
 }
 
-// FinalExpoBLS final  exponentation for curves of the bls family (t is the parameter used to generate the curve)
-func (e *E12) FinalExpoBLS(cs *frontend.ConstraintSystem, e1 *E12, genT uint64, ext Extension) *E12 {
+// FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
+func (e *E12) FinalExponentiation(cs *frontend.ConstraintSystem, e1 *E12, genT uint64, ext Extension) *E12 {
 
-	res := *e1
+	result := *e1
 
-	var t [6]E12
+	// https://eprint.iacr.org/2016/130.pdf
+	var t [3]E12
 
-	t[0].FrobeniusCube(cs, e1, ext).FrobeniusCube(cs, &t[0], ext)
+	// easy part
+	t[0].Conjugate(cs, &result)
+	result.Inverse(cs, &result, ext)
+	t[0].Mul(cs, &t[0], &result, ext)
+	result.FrobeniusSquare(cs, &t[0], ext).
+		Mul(cs, &result, &t[0], ext)
 
-	res.Inverse(cs, &res, ext)
-	t[0].Mul(cs, &t[0], &res, ext)
-
-	res.FrobeniusSquare(cs, &t[0], ext).Mul(cs, &res, &t[0], ext)
-
-	t[0].ConjugateFp12(cs, &res).Mul(cs, &t[0], &t[0], ext)
-	t[5].FixedExponentiation(cs, &res, genT, ext)
-	t[1].Mul(cs, &t[5], &t[5], ext)
-	t[3].Mul(cs, &t[0], &t[5], ext)
-
-	t[0].FixedExponentiation(cs, &t[3], genT, ext)
+	// hard part (up to permutation)
+	// Daiki Hayashida and Kenichiro Hayasaka
+	// and Tadanori Teruya
+	// https://eprint.iacr.org/2020/875.pdf
+	t[0].Mul(cs, &result, &result, ext) // TODO use cyclo square
+	t[1].FixedExponentiation(cs, &result, genT, ext)
+	t[2].Conjugate(cs, &result)
+	t[1].Mul(cs, &t[1], &t[2], ext)
+	t[2].FixedExponentiation(cs, &t[1], genT, ext)
+	t[1].Conjugate(cs, &t[1])
+	t[1].Mul(cs, &t[1], &t[2], ext)
+	t[2].FixedExponentiation(cs, &t[1], genT, ext)
+	t[1].Frobenius(cs, &t[1], ext)
+	t[1].Mul(cs, &t[1], &t[2], ext)
+	result.Mul(cs, &result, &t[0], ext)
+	t[0].FixedExponentiation(cs, &t[1], genT, ext)
 	t[2].FixedExponentiation(cs, &t[0], genT, ext)
-	t[4].FixedExponentiation(cs, &t[2], genT, ext)
+	t[0].FrobeniusSquare(cs, &t[1], ext)
+	t[1].Conjugate(cs, &t[1])
+	t[1].Mul(cs, &t[1], &t[2], ext)
+	t[1].Mul(cs, &t[1], &t[0], ext)
+	result.Mul(cs, &result, &t[1], ext)
 
-	t[4].Mul(cs, &t[1], &t[4], ext)
-	t[1].FixedExponentiation(cs, &t[4], genT, ext)
-	t[3].Conjugate(cs, &t[3])
-	t[1].Mul(cs, &t[3], &t[1], ext)
-	t[1].Mul(cs, &t[1], &res, ext)
-
-	t[0].Mul(cs, &t[0], &res, ext)
-	t[0].FrobeniusCube(cs, &t[0], ext)
-
-	t[3].Conjugate(cs, &res)
-	t[4].Mul(cs, &t[3], &t[4], ext)
-	t[4].Frobenius(cs, &t[4], ext)
-
-	t[5].Mul(cs, &t[2], &t[5], ext)
-	t[5].FrobeniusSquare(cs, &t[5], ext)
-
-	t[5].Mul(cs, &t[5], &t[0], ext)
-	t[5].Mul(cs, &t[5], &t[4], ext)
-	t[5].Mul(cs, &t[5], &t[1], ext)
-
-	*e = t[5]
+	*e = result
 	return e
 }
 

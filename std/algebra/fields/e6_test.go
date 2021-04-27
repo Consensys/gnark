@@ -28,7 +28,7 @@ import (
 
 func getBLS377ExtensionFp6(cs *frontend.ConstraintSystem) Extension {
 	res := Extension{}
-	res.uSquare = 5
+	res.uSquare = -5
 	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
 	return res
 }

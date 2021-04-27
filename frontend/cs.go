@@ -130,10 +130,6 @@ func debugInfoUnsetVariable(term compiled.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneTerm() compiled.Term {
-	return cs.public.variables[0].linExp[0]
-}
-
 func (cs *ConstraintSystem) getOneVariable() Variable {
 	return cs.public.variables[0]
 }

@@ -50,8 +50,8 @@ func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentSche
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	res.DomainNum = fft.NewDomain(sizeSystem, 3)
-	res.DomainH = fft.NewDomain(4*sizeSystem, 1)
+	res.DomainNum = fft.NewDomain(sizeSystem, 3, false)
+	res.DomainH = fft.NewDomain(4*sizeSystem, 1, false)
 
 	// shifters
 	res.Shifter[0].Set(&res.DomainNum.FinerGenerator)

@@ -414,7 +414,7 @@ func (circuit *fp12FinalExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(cs)
 	expo := uint64(9586122913090633729)
-	expected.FinalExpoBLS(cs, &circuit.A, expo, ext)
+	expected.FinalExponentiation(cs, &circuit.A, expo, ext)
 	expected.MustBeEqual(cs, circuit.C)
 	return nil
 }
@@ -438,4 +438,48 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	// cs values
 	assert := groth16.NewAssert(t)
 	assert.SolvingSucceeded(r1cs, &witness)
+}
+
+type fp12MulBy034 struct {
+	A       E12 `gnark:",public"`
+	W       E12
+	B, C, D E2
+}
+
+func (circuit *fp12MulBy034) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	ext := GetBLS377ExtensionFp12(cs)
+	circuit.A.MulBy034(cs, &circuit.B, &circuit.C, &circuit.D, ext)
+	circuit.A.MustBeEqual(cs, circuit.W)
+	return nil
+}
+
+func TestFp12MulBy034(t *testing.T) {
+
+	var circuit, witness fp12MulBy034
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var a bls12377.E12
+	var b, c, d bls12377.E2
+	a.SetRandom()
+	witness.A.Assign(&a)
+
+	b.SetRandom()
+	witness.B.Assign(&b)
+
+	c.SetRandom()
+	witness.C.Assign(&c)
+
+	d.SetRandom()
+	witness.D.Assign(&d)
+
+	a.MulBy034(&b, &c, &d)
+
+	witness.W.Assign(&a)
+
+	assert := groth16.NewAssert(t)
+	assert.SolvingSucceeded(r1cs, &witness)
+
 }

@@ -53,10 +53,10 @@ func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerV
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoop(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoop(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
@@ -73,7 +73,7 @@ func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerV
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoopAffine(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoop(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12
@@ -82,7 +82,7 @@ func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerV
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExpoBLS(cs, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(cs, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MustBeEqual(cs, resPairing)
