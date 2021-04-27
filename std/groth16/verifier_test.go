@@ -107,9 +107,11 @@ type verifierCircuit struct {
 func (circuit *verifierCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// pairing data
-	var pairingInfo sw.PairingContext
-	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(cs)
-	pairingInfo.AteLoop = 9586122913090633729
+	ateLoop := uint64(9586122913090633729)
+	ext := fields.GetBLS377ExtensionFp12(cs)
+	pairingInfo := sw.PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	// create the verifier cs
 	Verify(cs, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
