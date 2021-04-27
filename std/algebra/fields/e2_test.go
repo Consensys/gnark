@@ -37,6 +37,7 @@ func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 }
 
 func TestAddFp2(t *testing.T) {
+
 	// test circuit
 	circuit := e2TestCircuit{
 		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
@@ -70,6 +71,7 @@ func TestAddFp2(t *testing.T) {
 }
 
 func TestSubFp2(t *testing.T) {
+
 	// test circuit
 	circuit := e2TestCircuit{
 		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
@@ -106,7 +108,7 @@ func TestMulFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
 		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
-			ext := Extension{uSquare: 5}
+			ext := Extension{uSquare: -5}
 			expected := E2{}
 			expected.Mul(cs, &A, &B, ext)
 			expected.MustBeEqual(cs, C)
@@ -214,7 +216,7 @@ type fp2Inverse struct {
 }
 
 func (circuit *fp2Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	ext := Extension{uSquare: 5}
+	ext := Extension{uSquare: -5}
 	expected := E2{}
 	expected.Inverse(cs, &circuit.A, ext)
 

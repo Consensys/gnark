@@ -148,7 +148,7 @@ func (circuit *pairingAffineBLS377) Define(curveID ecc.ID, cs *frontend.Constrai
 	pairingRes := fields.E12{}
 
 	MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(cs, &milRes, ateLoop, ext)
 
 	mustbeEq(cs, pairingRes, &circuit.pairingRes)
 
@@ -156,6 +156,7 @@ func (circuit *pairingAffineBLS377) Define(curveID ecc.ID, cs *frontend.Constrai
 }
 
 func TestPairingAffineBLS377(t *testing.T) {
+
 	P, Q, pairingRes := pairingData()
 
 	// create cs
@@ -176,8 +177,8 @@ func TestPairingAffineBLS377(t *testing.T) {
 }
 
 type pairingBLS377 struct {
-	Q          G2Jac
-	P          G1Jac `gnark:",public"`
+	P          G1Affine `gnark:",public"`
+	Q          G2Affine
 	pairingRes bls12377.GT
 }
 
@@ -186,12 +187,14 @@ func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
 	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
-	pairingRes.FinalExpoBLS(cs, &milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(cs, &milRes, ateLoop, ext)
 
 	mustbeEq(cs, pairingRes, &circuit.pairingRes)
 
@@ -199,12 +202,9 @@ func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 }
 
 func TestPairingBLS377(t *testing.T) {
+
 	// pairing test data
-	_P, _Q, pairingRes := pairingData()
-	var Q bls12377.G2Jac
-	var P bls12377.G1Jac
-	P.FromAffine(&_P)
-	Q.FromAffine(&_Q)
+	P, Q, pairingRes := pairingData()
 
 	// create cs
 	var circuit, witness pairingBLS377
@@ -224,17 +224,9 @@ func TestPairingBLS377(t *testing.T) {
 }
 
 func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls12377.GT) {
-	P.X.SetString("68333130937826953018162399284085925021577172705782285525244777453303237942212457240213897533859360921141590695983")
-	P.Y.SetString("243386584320553125968203959498080829207604143167922579970841210259134422887279629198736754149500839244552761526603")
-
-	Q.X.A0.SetString("129200027147742761118726589615458929865665635908074731940673005072449785691019374448547048953080140429883331266310")
-	Q.X.A1.SetString("218164455698855406745723400799886985937129266327098023241324696183914328661520330195732120783615155502387891913936")
-	Q.Y.A0.SetString("178797786102020318006939402153521323286173305074858025240458924050651930669327663166574060567346617543016897467207")
-	Q.Y.A1.SetString("246194676937700783734853490842104812127151341609821057456393698060154678349106147660301543343243364716364400889778")
-
+	_, _, P, Q = bls12377.Generators()
 	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
-
 	return
 }
 
