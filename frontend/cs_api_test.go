@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/r1cs/r1c"
-	"github.com/consensys/gurvy"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
@@ -29,11 +29,11 @@ type deltaState = csState
 
 // contains information about a constraint system after a gnark function has been called
 type csResult struct {
-	cs                *ConstraintSystem // constraint system after it has been modified using gnark API
-	publicVariables   []Variable        // public variables created after calling a run function
-	secretVariables   []Variable        // secret variables created aftrer calling a run funcion
-	internalVariables []Variable        // variables resulting of the function call (from cs.Add, cs.Mul, etc)
-	solver            r1c.SolvingMethod // according to the solving method, different features are checked
+	cs                *ConstraintSystem      // constraint system after it has been modified using gnark API
+	publicVariables   []Variable             // public variables created after calling a run function
+	secretVariables   []Variable             // secret variables created aftrer calling a run funcion
+	internalVariables []Variable             // variables resulting of the function call (from cs.Add, cs.Mul, etc)
+	solver            compiled.SolvingMethod // according to the solving method, different features are checked
 }
 
 type runfunc func(systemUnderTest commands.SystemUnderTest) commands.Result
@@ -76,17 +76,6 @@ func checkSecretVariables(csRes csResult) bool {
 	return true
 }
 
-// TODO exepctedID can be 0, while being correct with the cached linear expression...
-func checkInternalVariables(csRes csResult) bool {
-	for i, args := range csRes.internalVariables {
-		expectedID := len(csRes.cs.internal.variables) - len(csRes.internalVariables) + i
-		if args.val != nil || args.id != expectedID {
-			return false
-		}
-	}
-	return true
-}
-
 // ------------------------------------------------------------------------------
 // post condition should hold when applying a function on the system
 
@@ -114,9 +103,7 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 	// }
 
 	// checks the state of the constraint system
-	if len(csRes.cs.public.names) != st.nbPublicVariables ||
-		len(csRes.cs.public.variables) != st.nbPublicVariables ||
-		len(csRes.cs.secret.names) != st.nbSecretVariables ||
+	if len(csRes.cs.public.variables) != st.nbPublicVariables ||
 		len(csRes.cs.secret.variables) != st.nbSecretVariables ||
 		len(csRes.cs.internal.variables) != st.nbInternalVariables ||
 		len(csRes.cs.constraints) != st.nbConstraints ||
@@ -137,15 +124,15 @@ func rfAddSub() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		pVariablesCreated = append(pVariablesCreated, a)
 		incVariableName()
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		sVariablesCreated = append(sVariablesCreated, b)
 		incVariableName()
 
-		c := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		c := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		sVariablesCreated = append(sVariablesCreated, c)
 		incVariableName()
 
@@ -160,7 +147,7 @@ func rfAddSub() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -177,11 +164,11 @@ func rfMul() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -193,7 +180,7 @@ func rfMul() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -210,7 +197,7 @@ func rfInverse() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -222,7 +209,7 @@ func rfInverse() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -239,11 +226,11 @@ func rfDiv() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -264,7 +251,7 @@ func rfDiv() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -281,11 +268,11 @@ func rfXor() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -297,7 +284,7 @@ func rfXor() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -313,7 +300,7 @@ func rfToBinary() runfunc {
 		pVariablesCreated := make([]Variable, 0)
 		sVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -324,7 +311,7 @@ func rfToBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.BinaryDec}
+			compiled.BinaryDec}
 
 		return csRes
 	}
@@ -341,15 +328,15 @@ func rfSelect() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
-		c := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		c := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, c)
 
@@ -369,7 +356,7 @@ func rfSelect() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -386,7 +373,7 @@ func rfConstant() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
@@ -398,7 +385,7 @@ func rfConstant() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -415,11 +402,11 @@ func rfIsEqual() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -434,7 +421,7 @@ func rfIsEqual() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -452,7 +439,7 @@ func rfFromBinary() runfunc {
 		iVariablesCreated := make([]Variable, 0)
 
 		for i := 0; i < 256; i++ {
-			pVariablesCreated[i] = systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+			pVariablesCreated[i] = systemUnderTest.(*ConstraintSystem).newPublicVariable()
 			incVariableName()
 		}
 
@@ -463,7 +450,7 @@ func rfFromBinary() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -480,11 +467,11 @@ func rfIsBoolean() runfunc {
 		sVariablesCreated := make([]Variable, 0)
 		iVariablesCreated := make([]Variable, 0)
 
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
+		a := systemUnderTest.(*ConstraintSystem).newPublicVariable()
 		incVariableName()
 		pVariablesCreated = append(pVariablesCreated, a)
 
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
+		b := systemUnderTest.(*ConstraintSystem).newSecretVariable()
 		incVariableName()
 		sVariablesCreated = append(sVariablesCreated, b)
 
@@ -501,7 +488,7 @@ func rfIsBoolean() runfunc {
 			pVariablesCreated,
 			sVariablesCreated,
 			iVariablesCreated,
-			r1c.SingleOutput}
+			compiled.SingleOutput}
 
 		return csRes
 	}
@@ -510,63 +497,7 @@ func rfIsBoolean() runfunc {
 
 var nsIsBoolean = deltaState{1, 1, 0, 0, 4}
 
-// bound a variable by another variable
-func rfMustBeLessOrEqVar() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		b := systemUnderTest.(*ConstraintSystem).newSecretVariable(variableName.String())
-		incVariableName()
-		sVariablesCreated = append(sVariablesCreated, b)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsLessOrEqual(a, b)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
-
 var nsMustBeLessOrEqVar = deltaState{1, 1, 1281, 771, 768}
-
-// bound a variable by a constant
-func rfMustBeLessOrEqConst() runfunc {
-	res := func(systemUnderTest commands.SystemUnderTest) commands.Result {
-
-		pVariablesCreated := make([]Variable, 0)
-		sVariablesCreated := make([]Variable, 0)
-		iVariablesCreated := make([]Variable, 0)
-
-		a := systemUnderTest.(*ConstraintSystem).newPublicVariable(variableName.String())
-		incVariableName()
-		pVariablesCreated = append(pVariablesCreated, a)
-
-		systemUnderTest.(*ConstraintSystem).AssertIsLessOrEqual(a, 256)
-
-		csRes := csResult{
-			systemUnderTest.(*ConstraintSystem),
-			pVariablesCreated,
-			sVariablesCreated,
-			iVariablesCreated,
-			r1c.SingleOutput}
-
-		return csRes
-	}
-	return res
-}
 
 var nsMustBeLessOrEqConst = csState{1, 0, 257, 2, 511} // nb internal variables: 256+HW(bound), nb constraints: 1+HW(bound), nb assertions: 256+HW(^bound)
 
@@ -642,7 +573,7 @@ type addCircuit struct {
 	A Variable
 }
 
-func (c *addCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *addCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.Add(unsetVar, c.A)
 	cs.AssertIsEqual(a, 3)
@@ -653,7 +584,7 @@ type subCircuit struct {
 	A Variable
 }
 
-func (c *subCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *subCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.Sub(unsetVar, c.A)
 	cs.AssertIsEqual(a, 3)
@@ -664,7 +595,7 @@ type mulCircuit struct {
 	A Variable
 }
 
-func (c *mulCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *mulCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Mul(unsetVar, c.A)
 	return nil
@@ -674,7 +605,7 @@ type invCircuit struct {
 	A Variable
 }
 
-func (c *invCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *invCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Inverse(unsetVar)
 	return nil
@@ -684,7 +615,7 @@ type divCircuit struct {
 	A Variable
 }
 
-func (c *divCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *divCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Div(unsetVar, c.A)
 	return nil
@@ -694,7 +625,7 @@ type xorCircuit struct {
 	A Variable
 }
 
-func (c *xorCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *xorCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Xor(unsetVar, c.A)
 	return nil
@@ -704,7 +635,7 @@ type toBinaryCircuit struct {
 	A Variable
 }
 
-func (c *toBinaryCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *toBinaryCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.ToBinary(unsetVar, 256)
 	return nil
@@ -714,7 +645,7 @@ type fromBinaryCircuit struct {
 	A Variable
 }
 
-func (c *fromBinaryCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *fromBinaryCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	a := cs.FromBinary(unsetVar)
 	cs.AssertIsEqual(a, 3)
@@ -725,7 +656,7 @@ type selectCircuit struct {
 	A Variable
 }
 
-func (c *selectCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *selectCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.Select(unsetVar, c.A, 1)
 	return nil
@@ -735,7 +666,7 @@ type isEqualCircuit struct {
 	A Variable
 }
 
-func (c *isEqualCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isEqualCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsEqual(unsetVar, c.A)
 	return nil
@@ -745,7 +676,7 @@ type isBooleanCircuit struct {
 	A Variable
 }
 
-func (c *isBooleanCircuit) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isBooleanCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsBoolean(unsetVar)
 	return nil
@@ -755,7 +686,7 @@ type isLessOrEq struct {
 	A Variable
 }
 
-func (c *isLessOrEq) Define(curveID gurvy.ID, cs *ConstraintSystem) error {
+func (c *isLessOrEq) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 	var unsetVar Variable
 	cs.AssertIsLessOrEqual(unsetVar, c.A)
 	return nil
@@ -780,15 +711,29 @@ func TestUnsetVariables(t *testing.T) {
 
 	for name, arg := range mapFuncs {
 		t.Run(name, func(_t *testing.T) {
-			_, err := Compile(gurvy.UNKNOWN, arg)
+			_, err := Compile(ecc.UNKNOWN, backend.GROTH16, arg)
 			if err == nil {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
 
-			if !errors.Is(err, backend.ErrInputNotSet) {
+			if !errors.Is(err, ErrInputNotSet) {
 				_t.Fatal("expected input not set error, got " + err.Error())
 			}
 		})
 	}
 
+}
+
+func TestPrintln(t *testing.T) {
+	// must not panic.
+	cs := newConstraintSystem()
+	one := cs.newPublicVariable()
+
+	cs.Println(nil)
+	cs.Println(1)
+	cs.Println("a")
+	cs.Println(new(big.Int).SetInt64(2))
+	cs.Println(one)
+
+	cs.Println(nil, 1, "a", new(big.Int), one)
 }

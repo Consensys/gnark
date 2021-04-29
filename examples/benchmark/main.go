@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/r1cs"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	bls381fr "github.com/consensys/gurvy/bls381/fr"
-	bn256fr "github.com/consensys/gurvy/bn256/fr"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(-1)
 	}
 	ns := strings.Split(os.Args[1], ",")
-	curveIDs := []gurvy.ID{gurvy.BN256, gurvy.BLS381}
+	curveIDs := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
@@ -37,14 +37,14 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			// generate dummy circuit and solution
+			// generate dummy circuit and witness
 			pk, r1cs := generateCircuit(n, curveID)
-			input := generateSolution(n, curveID)
+			witness := generateSolution(n, curveID)
 
 			// measure proving time
 			start := time.Now()
 			// p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-			_, _ = groth16.Prove(r1cs, pk, &input)
+			_, _ = groth16.Prove(r1cs, pk, &witness)
 			// p.Stop()
 
 			took := time.Since(start)
@@ -58,7 +58,7 @@ func main() {
 				NbCores:        runtime.NumCPU(),
 				NbCoefficients: r1cs.GetNbCoefficients(),
 				NbConstraints:  r1cs.GetNbConstraints(),
-				NbWires:        r1cs.GetNbWires(),
+				NbWires:        0, // TODO @gbotrel fixme
 				RunTime:        took.Milliseconds(),
 				MaxRAM:         (m.Sys / 1024 / 1024),
 				Throughput:     int(float64(r1cs.GetNbConstraints()) / took.Seconds()),
@@ -81,7 +81,7 @@ type benchCircuit struct {
 	n int
 }
 
-func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *benchCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < circuit.n; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
@@ -89,11 +89,11 @@ func (circuit *benchCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSys
 	return nil
 }
 
-func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r1cs.R1CS) {
+func generateCircuit(nbConstraints int, curveID ecc.ID) (groth16.ProvingKey, frontend.CompiledConstraintSystem) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
-	r1cs, err := frontend.Compile(curveID, &circuit)
+	r1cs, err := frontend.Compile(curveID, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}
@@ -103,26 +103,26 @@ func generateCircuit(nbConstraints int, curveID gurvy.ID) (groth16.ProvingKey, r
 	return pk, r1cs
 }
 
-func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit) {
+func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) {
 	witness.n = nbConstraints
 	witness.X.Assign(2)
 
 	switch curveID {
-	case gurvy.BN256:
+	case ecc.BN254:
 		// compute expected Y
-		var expectedY bn256fr.Element
+		var expectedY bn254fr.Element
 		expectedY.SetInterface(2)
 		for i := 0; i < nbConstraints; i++ {
-			expectedY.MulAssign(&expectedY)
+			expectedY.Mul(&expectedY, &expectedY)
 		}
 
 		witness.Y.Assign(expectedY)
-	case gurvy.BLS381:
+	case ecc.BLS12_381:
 		// compute expected Y
-		var expectedY bls381fr.Element
+		var expectedY bls12381fr.Element
 		expectedY.SetInterface(2)
 		for i := 0; i < nbConstraints; i++ {
-			expectedY.MulAssign(&expectedY)
+			expectedY.Mul(&expectedY, &expectedY)
 		}
 
 		witness.Y.Assign(expectedY)
@@ -135,8 +135,8 @@ func generateSolution(nbConstraints int, curveID gurvy.ID) (witness benchCircuit
 
 type benchData struct {
 	Curve             string
-	NbConstraints     uint64
-	NbWires           uint64
+	NbConstraints     int
+	NbWires           int
 	NbCoefficients    int
 	MaxRAM            uint64
 	RunTime           int64

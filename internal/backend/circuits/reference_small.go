@@ -3,8 +3,8 @@ package circuits
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 const nbConstraintsRefSmall = 5
@@ -14,7 +14,7 @@ type referenceSmallCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	for i := 0; i < nbConstraintsRefSmall; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
@@ -24,10 +24,6 @@ func (circuit *referenceSmallCircuit) Define(curveID gurvy.ID, cs *frontend.Cons
 
 func init() {
 	var circuit, good, bad, public referenceSmallCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(2)
 
@@ -46,5 +42,5 @@ func init() {
 
 	public.Y.Assign(expectedY)
 
-	addEntry("reference_small", r1cs, &good, &bad, &public)
+	addEntry("reference_small", &circuit, &good, &bad, &public)
 }

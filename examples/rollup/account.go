@@ -19,8 +19,8 @@ package rollup
 import (
 	"encoding/binary"
 
-	eddsa "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
 var (

@@ -3,8 +3,8 @@ package circuits
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type divCircuit struct {
@@ -12,7 +12,7 @@ type divCircuit struct {
 	Z    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *divCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.X)
 	d := cs.Div(m, circuit.Y)
 	cs.AssertIsEqual(d, circuit.Z)
@@ -21,10 +21,6 @@ func (circuit *divCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 
 func init() {
 	var circuit, good, bad, public divCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	// expected Z
 	var expectedZ big.Int
@@ -40,5 +36,5 @@ func init() {
 
 	public.Z.Assign(expectedZ)
 
-	addEntry("div", r1cs, &good, &bad, &public)
+	addEntry("div", &circuit, &good, &bad, &public)
 }

@@ -3,8 +3,8 @@ package mimc
 import (
 	"testing"
 
-	"github.com/consensys/gurvy"
-
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 )
@@ -14,7 +14,7 @@ func TestPreimage(t *testing.T) {
 
 	var mimcCircuit Circuit
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &mimcCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &mimcCircuit)
 	assert.NoError(err)
 
 	{
@@ -27,7 +27,7 @@ func TestPreimage(t *testing.T) {
 	{
 		var witness Circuit
 		witness.PreImage.Assign(35)
-		witness.Hash.Assign("19226210204356004706765360050059680583735587569269469539941275797408975356275")
+		witness.Hash.Assign("16130099170765464552823636852555369511329944820189892919423002775646948828469")
 		assert.ProverSucceeded(r1cs, &witness)
 	}
 

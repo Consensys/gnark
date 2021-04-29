@@ -1,8 +1,8 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type expCircuit struct {
@@ -10,7 +10,7 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *expCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	o := cs.Constant(1)
 	b := cs.ToBinary(circuit.E, 4)
 
@@ -27,10 +27,6 @@ func (circuit *expCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 
 func init() {
 	var circuit, good, bad, public expCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(2)
 	good.E.Assign(12)
@@ -42,5 +38,5 @@ func init() {
 
 	public.Y.Assign(4096)
 
-	addEntry("expo", r1cs, &good, &bad, &public)
+	addEntry("expo", &circuit, &good, &bad, &public)
 }

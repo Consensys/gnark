@@ -1,15 +1,15 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type invCircuit struct {
 	X, Y, Z frontend.Variable
 }
 
-func (circuit *invCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *invCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	m := cs.Mul(circuit.X, circuit.Y)
 	u := cs.Inverse(circuit.Y)
 	v := cs.Mul(m, u)
@@ -20,10 +20,6 @@ func (circuit *invCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 func init() {
 
 	var circuit, good, bad, public invCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.X.Assign(6)
 	good.Y.Assign(12)
@@ -33,5 +29,5 @@ func init() {
 	bad.Y.Assign(12)
 	bad.Z.Assign(5)
 
-	addEntry("inv", r1cs, &good, &bad, &public)
+	addEntry("inv", &circuit, &good, &bad, &public)
 }

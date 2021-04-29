@@ -18,17 +18,17 @@ package merkle
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/accumulator/merkletree"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/crypto/accumulator/merkletree"
-	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bn256/fr"
 )
 
 type merkleCircuit struct {
@@ -36,7 +36,7 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *merkleCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	hFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
@@ -63,36 +63,38 @@ func TestVerify(t *testing.T) {
 	// build & verify proof for an elmt in the file
 	proofIndex := uint64(0)
 	segmentSize := 32
-	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn256.NewMiMC("seed"), segmentSize, proofIndex)
+	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn254.NewMiMC("seed"), segmentSize, proofIndex)
 	if err != nil {
 		t.Fatal(err)
 		os.Exit(-1)
 	}
 	proofHelper := GenerateProofHelper(proof, proofIndex, numLeaves)
 
-	verified := merkletree.VerifyProof(bn256.NewMiMC("seed"), merkleRoot, proof, proofIndex, numLeaves)
+	verified := merkletree.VerifyProof(bn254.NewMiMC("seed"), merkleRoot, proof, proofIndex, numLeaves)
 	if !verified {
 		t.Fatal("The merkle proof in plain go should pass")
 	}
 
 	// create cs
-	var circuit merkleCircuit
+	var circuit, witness merkleCircuit
 	circuit.Path = make([]frontend.Variable, len(proof))
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	witness.Path = make([]frontend.Variable, len(proof))
+	witness.Helper = make([]frontend.Variable, len(proof)-1)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assignment := make(map[string]interface{})
-	assignment["RootHash"] = merkleRoot
+	witness.RootHash.Assign(merkleRoot)
+
 	for i := 0; i < len(proof); i++ {
-		assignment[fmt.Sprintf("Path_%d", i)] = proof[i]
+		witness.Path[i].Assign(proof[i])
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		assignment[fmt.Sprintf("Helper_%d", i)] = proofHelper[i]
+		witness.Helper[i].Assign(proofHelper[i])
 	}
 
 	assert := groth16.NewAssert(t)
-	assert.ProverSucceeded(r1cs, assignment)
+	assert.ProverSucceeded(r1cs, &witness)
 }

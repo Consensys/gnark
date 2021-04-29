@@ -1,8 +1,8 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type fromBinaryCircuit struct {
@@ -10,7 +10,7 @@ type fromBinaryCircuit struct {
 	Y              frontend.Variable `gnark:",public"`
 }
 
-func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fromBinaryCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	cs.AssertIsBoolean(circuit.B0)
 	cs.AssertIsBoolean(circuit.B1)
 	cs.AssertIsBoolean(circuit.B2)
@@ -24,10 +24,6 @@ func (circuit *fromBinaryCircuit) Define(curveID gurvy.ID, cs *frontend.Constrai
 
 func init() {
 	var circuit, good, bad, public fromBinaryCircuit
-	r1cs, err := frontend.Compile(gurvy.UNKNOWN, &circuit)
-	if err != nil {
-		panic(err)
-	}
 
 	good.B0.Assign(1)
 	good.B1.Assign(0)
@@ -43,5 +39,5 @@ func init() {
 
 	public.Y.Assign(13)
 
-	addEntry("frombinary", r1cs, &good, &bad, &public)
+	addEntry("frombinary", &circuit, &good, &bad, &public)
 }

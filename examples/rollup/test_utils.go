@@ -18,18 +18,17 @@ package rollup
 
 import (
 	"hash"
+	"math/rand"
 	"testing"
 
-	mimc "github.com/consensys/gnark/crypto/hash/mimc/bn256"
-	eddsa "github.com/consensys/gnark/crypto/signature/eddsa/bn256"
-	"github.com/consensys/gurvy/bn256/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
-func createAccount(i int, h hash.Hash) (Account, eddsa.PrivateKey) {
+func createAccount(i int) (Account, eddsa.PrivateKey) {
 
 	var acc Account
 	var rnd fr.Element
-	var brnd [32]byte
 	var privkey eddsa.PrivateKey
 
 	// create account, the i-th account has an balance of 20+i
@@ -37,8 +36,12 @@ func createAccount(i int, h hash.Hash) (Account, eddsa.PrivateKey) {
 	acc.nonce = uint64(i)
 	acc.balance.SetUint64(uint64(i) + 20)
 	rnd.SetUint64(uint64(i))
-	brnd = rnd.Bytes()
-	acc.pubKey, privkey = eddsa.New(brnd, h)
+	src := rand.NewSource(int64(i))
+	r := rand.New(src)
+
+	// TODO handle error
+	privkey, _ = eddsa.GenerateKey(r)
+	acc.pubKey = privkey.PublicKey
 
 	return acc, privkey
 }
@@ -46,16 +49,14 @@ func createAccount(i int, h hash.Hash) (Account, eddsa.PrivateKey) {
 // Returns a newly created operator and tha private keys of the associated accounts
 func createOperator(nbAccounts int) (Operator, []eddsa.PrivateKey) {
 
-	hFunc := mimc.NewMiMC("seed")
-
-	operator := NewOperator(nbAccounts, hFunc)
+	operator := NewOperator(nbAccounts)
 
 	userAccounts := make([]eddsa.PrivateKey, nbAccounts)
 
 	// randomly fill the accounts
 	for i := 0; i < nbAccounts; i++ {
 
-		acc, privkey := createAccount(i, hFunc)
+		acc, privkey := createAccount(i)
 
 		// fill the index map of the operator
 		b := acc.pubKey.A.X.Bytes()

@@ -19,11 +19,12 @@ package rollup
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gurvy"
 )
 
 type circuitSignature struct {
@@ -31,7 +32,7 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (t *circuitSignature) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
@@ -43,6 +44,7 @@ func (t *circuitSignature) Define(curveID gurvy.ID, cs *frontend.ConstraintSyste
 }
 
 func TestCircuitSignature(t *testing.T) {
+
 	const nbAccounts = 10
 
 	operator, users := createOperator(nbAccounts)
@@ -78,7 +80,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	r1cs, err := frontend.Compile(gurvy.BN256, &signatureCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &signatureCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -90,19 +92,19 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (t *circuitInclusionProof) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID)
+	hashFunc, err := mimc.NewMiMC("seed", curveID)
 	if err != nil {
 		return err
 	}
-	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
-	merkle.VerifyProof(cs, hFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
 
-	merkle.VerifyProof(cs, hFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
-	merkle.VerifyProof(cs, hFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
 
 	return nil
 }
@@ -146,7 +148,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var inclusionProofCircuit circuitInclusionProof
-	r1cs, err := frontend.Compile(gurvy.BN256, &inclusionProofCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &inclusionProofCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -158,7 +160,7 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (t *circuitUpdateAccount) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
@@ -205,7 +207,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var updateAccountCircuit circuitUpdateAccount
-	r1cs, err := frontend.Compile(gurvy.BN256, &updateAccountCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &updateAccountCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)
@@ -251,7 +253,7 @@ func TestCircuitFull(t *testing.T) {
 	// verifies the proofs of inclusion of the transfer
 
 	var rollupCircuit Circuit
-	r1cs, err := frontend.Compile(gurvy.BN256, &rollupCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &rollupCircuit)
 	assert.NoError(err)
 
 	assert.ProverSucceeded(r1cs, &operator.witnesses)

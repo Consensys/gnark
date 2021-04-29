@@ -21,9 +21,12 @@ import (
 	"hash"
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/accumulator/merkletree"
+	"github.com/consensys/gnark-crypto/accumulator/merkletree"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 )
+
+var hFunc = mimc.NewMiMC("seed")
 
 // BatchSize size of a batch of transactions to put in a snark
 var BatchSize = 10
@@ -55,24 +58,24 @@ type Operator struct {
 
 // NewOperator creates a new operator.
 // nbAccounts is the number of accounts managed by this operator, h is the hash function for the merkle proofs
-func NewOperator(nbAccounts int, h hash.Hash) Operator {
+func NewOperator(nbAccounts int) Operator {
 	res := Operator{}
 
 	// create a list of empty accounts
 	res.State = make([]byte, SizeAccount*nbAccounts)
 
 	// initialize hash of the state
-	res.HashState = make([]byte, h.Size()*nbAccounts)
+	res.HashState = make([]byte, hFunc.Size()*nbAccounts)
 	for i := 0; i < nbAccounts; i++ {
-		h.Reset()
-		h.Write(res.State[i*SizeAccount : i*SizeAccount+SizeAccount])
-		s := h.Sum([]byte{})
-		copy(res.HashState[i*h.Size():(i+1)*h.Size()], s)
+		hFunc.Reset()
+		hFunc.Write(res.State[i*SizeAccount : i*SizeAccount+SizeAccount])
+		s := hFunc.Sum([]byte{})
+		copy(res.HashState[i*hFunc.Size():(i+1)*hFunc.Size()], s)
 	}
 
 	res.AccountMap = make(map[string]uint64)
 	res.nbAccounts = nbAccounts
-	res.h = h
+	res.h = hFunc
 	res.q = NewQueue(BatchSize)
 	res.batch = 0
 	return res
@@ -86,7 +89,6 @@ func (o *Operator) readAccount(i uint64) (Account, error) {
 	if err != nil {
 		return res, err
 	}
-	res.pubKey.HFunc = o.h
 	return res, nil
 }
 
@@ -171,9 +173,10 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	// set witnesses for the transfer
 	o.witnesses.Transfers[numTransfer].Amount.Assign(t.amount)
-	o.witnesses.Transfers[numTransfer].Signature.R.A.X.Assign(t.signature.R.X)
-	o.witnesses.Transfers[numTransfer].Signature.R.A.Y.Assign(t.signature.R.Y)
-	o.witnesses.Transfers[numTransfer].Signature.S.Assign(t.signature.S)
+	o.witnesses.Transfers[numTransfer].Signature.R.X.Assign(t.signature.R.X)
+	o.witnesses.Transfers[numTransfer].Signature.R.Y.Assign(t.signature.R.Y)
+	o.witnesses.Transfers[numTransfer].Signature.S1.Assign(t.signature.S[:16])
+	o.witnesses.Transfers[numTransfer].Signature.S2.Assign(t.signature.S[16:])
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
 	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)

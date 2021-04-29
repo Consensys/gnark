@@ -1,8 +1,8 @@
 package exponentiate
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 // Circuit y == x**e
@@ -18,7 +18,7 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// number of bits of exponent
 	const bitSize = 8

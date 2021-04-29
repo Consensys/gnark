@@ -20,12 +20,13 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
-	"github.com/consensys/gurvy/bls377/fr"
 
-	"github.com/consensys/gurvy/bls377"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -36,7 +37,7 @@ type g1AddAssign struct {
 	C    G1Jac `gnark:",public"`
 }
 
-func (circuit *g1AddAssign) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1AddAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -51,7 +52,7 @@ func TestAddAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssign
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ type g1AddAssignAffine struct {
 	C    G1Affine `gnark:",public"`
 }
 
-func (circuit *g1AddAssignAffine) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.AddAssign(cs, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -89,13 +90,13 @@ func TestAddAssignAffineG1(t *testing.T) {
 	// sample 2 random points
 	_a := randomPointG1()
 	_b := randomPointG1()
-	var a, b, c bls377.G1Affine
+	var a, b, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
 	// create the cs
 	var circuit, witness g1AddAssignAffine
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ type g1DoubleAssign struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1DoubleAssign) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1DoubleAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.DoubleAssign(cs)
 	expected.MustBeEqual(cs, circuit.C)
@@ -136,7 +137,7 @@ func TestDoubleAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAssign
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ type g1DoubleAffine struct {
 	C G1Affine `gnark:",public"`
 }
 
-func (circuit *g1DoubleAffine) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1DoubleAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := circuit.A
 	expected.Double(cs, &circuit.A)
 	expected.MustBeEqual(cs, circuit.C)
@@ -172,12 +173,12 @@ func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG1()
-	var a, c bls377.G1Affine
+	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +204,7 @@ type g1Neg struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1Neg) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1Neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := G1Jac{}
 	expected.Neg(cs, &circuit.A)
 	expected.MustBeEqual(cs, circuit.C)
@@ -217,7 +218,7 @@ func TestNegG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1Neg
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +244,7 @@ type g1ScalarMul struct {
 	r fr.Element
 }
 
-func (circuit *g1ScalarMul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1ScalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	expected := G1Affine{}
 	expected.ScalarMul(cs, &circuit.A, circuit.r.String(), 256)
 	expected.MustBeEqual(cs, circuit.C)
@@ -254,7 +255,7 @@ func TestScalarMulG1(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG1()
-	var a, c bls377.G1Affine
+	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// random scalar
@@ -264,7 +265,7 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	circuit.r = r
-	r1cs, err := frontend.Compile(gurvy.BW761, &circuit)
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,9 +284,9 @@ func TestScalarMulG1(t *testing.T) {
 
 }
 
-func randomPointG1() bls377.G1Jac {
+func randomPointG1() bls12377.G1Jac {
 
-	p1, _, _, _ := bls377.Generators()
+	p1, _, _, _ := bls12377.Generators()
 
 	var r1 fr.Element
 	var b big.Int

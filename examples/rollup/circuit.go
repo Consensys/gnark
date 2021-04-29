@@ -17,12 +17,12 @@ limitations under the License.
 package rollup
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/signature/eddsa"
-	"github.com/consensys/gurvy"
 )
 
 const (
@@ -87,7 +87,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) postInit(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	// edward curve params
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -117,14 +117,13 @@ func (circuit *Circuit) postInit(curveID gurvy.ID, cs *frontend.ConstraintSystem
 		circuit.Transfers[i].Nonce = circuit.SenderAccountsBefore[i].Nonce
 		circuit.Transfers[i].SenderPubKey = circuit.PublicKeysSender[i]
 		circuit.Transfers[i].ReceiverPubKey = circuit.PublicKeysReceiver[i]
-		circuit.Transfers[i].Signature.R.Curve = params
 
 	}
 	return nil
 }
 
 // Define declares the circuit's constraints
-func (circuit *Circuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	if err := circuit.postInit(curveID, cs); err != nil {
 		return err
 	}

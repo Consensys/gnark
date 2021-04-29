@@ -3,9 +3,10 @@ package exponentiate
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 func TestExponentiate(t *testing.T) {
@@ -14,7 +15,7 @@ func TestExponentiate(t *testing.T) {
 
 	var expCircuit Circuit
 	// compiles our circuit into a R1CS
-	r1cs, err := frontend.Compile(gurvy.BN256, &expCircuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &expCircuit)
 	if err != nil {
 		t.Fatal(err)
 	}

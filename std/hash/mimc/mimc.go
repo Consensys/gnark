@@ -14,25 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package mimc provides a ZKP-circuit function to compute a MiMC hash.
 package mimc
 
 import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-
-	"github.com/consensys/gurvy"
 )
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
 type MiMC struct {
 	params []big.Int
-	id     gurvy.ID
+	id     ecc.ID
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id gurvy.ID) (MiMC, error) {
+func NewMiMC(seed string, id ecc.ID) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed), nil
 	}

@@ -19,16 +19,17 @@ package twistededwards
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
 type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -43,12 +44,12 @@ func (circuit *mustBeOnCurve) Define(curveID gurvy.ID, cs *frontend.ConstraintSy
 func TestIsOnCurve(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness mustBeOnCurve
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	params, err := NewEdCurve(gurvy.BN256)
+	params, err := NewEdCurve(ecc.BN254)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +66,7 @@ type add struct {
 	P Point
 }
 
-func (circuit *add) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -87,7 +88,7 @@ func TestAdd(t *testing.T) {
 
 	var circuit, witness add
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ type addGeneric struct {
 	P1, P2 Point
 }
 
-func (circuit *addGeneric) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -124,7 +125,7 @@ func TestAddGeneric(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness addGeneric
 
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +145,7 @@ type double struct {
 	P Point
 }
 
-func (circuit *double) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -162,7 +163,7 @@ func (circuit *double) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) e
 func TestDouble(t *testing.T) {
 	assert := groth16.NewAssert(t)
 	var circuit, witness double
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +179,7 @@ type scalarMul struct {
 	P Point
 }
 
-func (circuit *scalarMul) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -203,7 +204,7 @@ func TestScalarMul(t *testing.T) {
 	assert := groth16.NewAssert(t)
 
 	var circuit, witness scalarMul
-	r1cs, err := frontend.Compile(gurvy.BN256, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}

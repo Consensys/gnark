@@ -19,27 +19,30 @@ package mimc
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/crypto/hash/mimc/bls377"
-	"github.com/consensys/gnark/crypto/hash/mimc/bls381"
-	"github.com/consensys/gnark/crypto/hash/mimc/bn256"
+	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
+	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gurvy"
 )
 
-var encryptFuncs map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[gurvy.ID]func(string) MiMC
+var encryptFuncs map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var newMimc map[ecc.ID]func(string) MiMC
 
 func init() {
-	encryptFuncs = make(map[gurvy.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
-	encryptFuncs[gurvy.BN256] = encryptBN256
-	encryptFuncs[gurvy.BLS381] = encryptBLS381
-	encryptFuncs[gurvy.BLS377] = encryptBLS377
+	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs[ecc.BN254] = encryptBN254
+	encryptFuncs[ecc.BLS12_381] = encryptBLS381
+	encryptFuncs[ecc.BLS12_377] = encryptBLS377
+	encryptFuncs[ecc.BW6_761] = encryptBW761
 
-	newMimc = make(map[gurvy.ID]func(string) MiMC)
-	newMimc[gurvy.BN256] = newMimcBN256
-	newMimc[gurvy.BLS381] = newMimcBLS381
-	newMimc[gurvy.BLS377] = newMimcBLS377
+	newMimc = make(map[ecc.ID]func(string) MiMC)
+	newMimc[ecc.BN254] = newMimcBN254
+	newMimc[ecc.BLS12_381] = newMimcBLS381
+	newMimc[ecc.BLS12_377] = newMimcBLS377
+	newMimc[ecc.BW6_761] = newMimcBW761
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -47,37 +50,49 @@ func init() {
 
 func newMimcBLS377(seed string) MiMC {
 	res := MiMC{}
-	params := bls377.NewParams(seed)
+	params := bls12377.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BLS377
+	res.id = ecc.BLS12_377
 	return res
 }
 
 func newMimcBLS381(seed string) MiMC {
 	res := MiMC{}
-	params := bls381.NewParams(seed)
+	params := bls12381.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BLS381
+	res.id = ecc.BLS12_381
 	return res
 }
 
-func newMimcBN256(seed string) MiMC {
+func newMimcBN254(seed string) MiMC {
 	res := MiMC{}
-	params := bn256.NewParams(seed)
+	params := bn254.NewParams(seed)
 	for _, v := range params {
 		var cpy big.Int
 		v.ToBigIntRegular(&cpy)
 		res.params = append(res.params, cpy)
 	}
-	res.id = gurvy.BN256
+	res.id = ecc.BN254
+	return res
+}
+
+func newMimcBW761(seed string) MiMC {
+	res := MiMC{}
+	params := bw6761.NewParams(seed)
+	for _, v := range params {
+		var cpy big.Int
+		v.ToBigIntRegular(&cpy)
+		res.params = append(res.params, cpy)
+	}
+	res.id = ecc.BW6_761
 	return res
 }
 
@@ -85,17 +100,14 @@ func newMimcBN256(seed string) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN256(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
 
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
-		//for i := 0; i < 1; i++ {
-		// tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
 		tmp := cs.Add(res, key, h.params[i])
-		// res = (res+k+c)^7
+		// res = (res+k+c)^5
 		res = cs.Mul(tmp, tmp)
-		res = cs.Mul(res, tmp)
 		res = cs.Mul(res, res)
 		res = cs.Mul(res, tmp)
 	}
@@ -110,7 +122,22 @@ func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Varia
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		//tmp := cs.LinearExpression(cs.Term(res, one), cs.Term(key, one), cs.Term(cs.Constant(1), &h.params[i]))
+		tmp := cs.Add(res, key, h.params[i])
+		// res = (res+k+c)^5
+		res = cs.Mul(tmp, tmp) // square
+		res = cs.Mul(res, res) // square
+		res = cs.Mul(res, tmp) // mul
+	}
+	res = cs.Add(res, key)
+	return res
+}
+
+// execution of a mimc run expressed as r1cs
+func encryptBW761(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+
+	res := message
+
+	for i := 0; i < len(h.params); i++ {
 		tmp := cs.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
 		res = cs.Mul(tmp, tmp) // square
