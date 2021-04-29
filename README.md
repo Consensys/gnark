@@ -25,6 +25,7 @@ You can also get in touch directly: zkteam@consensys.net
 
 ## `gnark` Users
 
+
 To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
 
 
@@ -82,6 +83,7 @@ pk, vk := groth16.Setup(r1cs)
 proof, err := groth16.Prove(r1cs, pk, witness)
 err := groth16.Verify(proof, vk, publicWitness)
 ```
+
 
 ____
 
