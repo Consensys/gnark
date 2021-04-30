@@ -85,7 +85,7 @@ type CompiledConstraintSystem interface {
 
 // this has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-const initialCapacity = 1e6
+const initialCapacity = 0 // 1e6
 
 func newConstraintSystem() ConstraintSystem {
 	cs := ConstraintSystem{
