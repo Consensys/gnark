@@ -2,12 +2,13 @@
 [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark)
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
-[![Documentation Status](https://readthedocs.org/projects/pegasys-gnark/badge/)][`gnark` User Documentation]
+[![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation]
+
+<img  width="100px"
+src="logo_new.png">
 
 `gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open source and developed under the Apache 2.0 license
 
-<img style="display: block;margin: auto;" width="80%"
-src="banner_gnark.png">
 
 ## Useful Links
 
@@ -104,7 +105,7 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 
 
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
-[`gnark` User Documentation]: https://docs.gnark.consensys.net
+[`gnark` User Documentation]: https://docs.gnark.consensys.net/en/0.4.0/
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
-[Proving schemes and curves]: https://docs.gnark.consensys.net
+[Proving schemes and curves]: https://docs.gnark.consensys.net/en/0.4.0/Concepts/schemes_curves/
 
