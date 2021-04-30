@@ -206,7 +206,6 @@ func quickSort(l compiled.LinearExpression) compiled.LinearExpression {
 }
 
 // reduces redundancy in a linear expression
-// Non deterministic function
 func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visibility compiled.Visibility) compiled.LinearExpression {
 
 	if len(linExp) == 0 {
