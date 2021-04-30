@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -179,32 +180,6 @@ func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.Li
 	return res
 }
 
-// quickSort sorts l from lowest var ID to highest var ID.
-// There is no duplicate ID in l.
-func quickSort(l compiled.LinearExpression) compiled.LinearExpression {
-	if len(l) == 0 {
-		return nil
-	}
-	l1 := make(compiled.LinearExpression, 0, len(l))
-	l2 := make(compiled.LinearExpression, 0, len(l))
-	_, _, m, _ := l[0].Unpack()
-	for i := 1; i < len(l); i++ {
-		_, _, vID, _ := l[i].Unpack()
-		if vID < m {
-			l1 = append(l1, l[i])
-		} else {
-			l2 = append(l2, l[i])
-		}
-	}
-	l1 = quickSort(l1)
-	l2 = quickSort(l2)
-	res := make(compiled.LinearExpression, len(l))
-	copy(res, l1)
-	res[len(l1)] = l[0]
-	copy(res[len(l1)+1:], l2)
-	return res
-}
-
 // reduces redundancy in a linear expression
 func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visibility compiled.Visibility) compiled.LinearExpression {
 
@@ -244,7 +219,7 @@ func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visi
 		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
 	}
 
-	res = quickSort(res)
+	sort.Sort(res)
 
 	return res
 }

@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -18,11 +19,11 @@ func TestQuickSort(t *testing.T) {
 		rand = rand % 13
 	}
 
-	sorted := quickSort(toSort)
+	sort.Sort(toSort)
 
 	for i := 0; i < 10; i++ {
-		_, _, cur, _ := sorted[i].Unpack()
-		_, _, next, _ := sorted[i+1].Unpack()
+		_, _, cur, _ := toSort[i].Unpack()
+		_, _, next, _ := toSort[i+1].Unpack()
 		if cur >= next {
 			t.Fatal("err sorting linear expression")
 		}
