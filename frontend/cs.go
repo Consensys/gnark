@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -180,7 +181,6 @@ func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.Li
 }
 
 // reduces redundancy in a linear expression
-// Non deterministic function
 func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visibility compiled.Visibility) compiled.LinearExpression {
 
 	if len(linExp) == 0 {
@@ -219,10 +219,12 @@ func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visi
 		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
 	}
 
+	sort.Sort(res)
+
 	return res
 }
 
-// complete allocate linExp if linExp is empty. If a variable
+// completeDanglingVariable allocates linExp if linExp is empty. If a variable
 // is created like 'var a Variable', it will be unset but Compile(..)
 // will not understand it since a.linExp is empty
 func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
@@ -235,21 +237,30 @@ func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
 }
 
 // reduces redundancy in linear expression
-// Non deterministic function
+// The reduces linear expression stores the variables as public||secret||internal||unset
+// for each visibility, the variables are sorted from lowest ID to highest ID
 func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+
 	reducePublic := cs.partialReduce(l, compiled.Public)
 	reduceSecret := cs.partialReduce(l, compiled.Secret)
 	reduceInternal := cs.partialReduce(l, compiled.Internal)
 	reduceUnset := cs.partialReduce(l, compiled.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
+
 	res := make(compiled.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
+
 	accSize := 0
+
 	copy(res[:], reducePublic)
 	accSize += len(reducePublic)
+
 	copy(res[accSize:], reduceSecret)
 	accSize += len(reduceSecret)
+
 	copy(res[accSize:], reduceInternal)
 	accSize += len(reduceInternal)
+
 	copy(res[accSize:], reduceUnset)
+
 	return res
 }
 
