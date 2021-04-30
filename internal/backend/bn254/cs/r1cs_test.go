@@ -29,9 +29,10 @@ import (
 )
 
 func TestSerialization(t *testing.T) {
-	var buffer bytes.Buffer
+
+	var buffer, buffer2 bytes.Buffer
+
 	for name, circuit := range circuits.Circuits {
-		buffer.Reset()
 
 		r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit.Circuit)
 		if err != nil {
@@ -41,9 +42,17 @@ func TestSerialization(t *testing.T) {
 			continue
 		}
 
-		r1cs.SetLoggerOutput(nil) // no need to serialize.
+		// copmpile a second time to ensure determinism
+		r1cs2, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit.Circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		// no need to serialize.
+		r1cs.SetLoggerOutput(nil)
+		r1cs2.SetLoggerOutput(nil)
 		{
+			buffer.Reset()
 			t.Log(name)
 			var err error
 			var written, read int64
@@ -59,9 +68,48 @@ func TestSerialization(t *testing.T) {
 			if written != read {
 				t.Fatal("didn't read same number of bytes we wrote")
 			}
-			// compare both
+			// compare original and reconstructed
 			if !reflect.DeepEqual(r1cs, &reconstructed) {
 				t.Fatal("round trip serialization failed")
+			}
+		}
+
+		// ensure determinism in compilation / serialization / reconstruction
+		{
+			buffer.Reset()
+			n, err := r1cs.WriteTo(&buffer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n == 0 {
+				t.Fatal("No bytes are written")
+			}
+
+			buffer2.Reset()
+			_, err = r1cs2.WriteTo(&buffer2)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(buffer.Bytes(), buffer2.Bytes()) {
+				t.Fatal("compilation of R1CS is not deterministic")
+			}
+
+			var r, r2 cs.R1CS
+			n, err = r.ReadFrom(&buffer)
+			if err != nil {
+				t.Fatal(nil)
+			}
+			if n == 0 {
+				t.Fatal("No bytes are read")
+			}
+			_, err = r2.ReadFrom(&buffer2)
+			if err != nil {
+				t.Fatal(nil)
+			}
+
+			if !reflect.DeepEqual(r, r2) {
+				t.Fatal("compilation of R1CS is not deterministic (reconstruction)")
 			}
 		}
 	}

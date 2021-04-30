@@ -7,6 +7,29 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
+func TestQuickSort(t *testing.T) {
+
+	toSort := make(compiled.LinearExpression, 12)
+	rand := 3
+	for i := 0; i < 12; i++ {
+		toSort[i].SetVariableVisibility(compiled.Secret)
+		toSort[i].SetVariableID(rand)
+		rand += 3
+		rand = rand % 13
+	}
+
+	sorted := quickSort(toSort)
+
+	for i := 0; i < 10; i++ {
+		_, _, cur, _ := sorted[i].Unpack()
+		_, _, next, _ := sorted[i+1].Unpack()
+		if cur >= next {
+			t.Fatal("err sorting linear expression")
+		}
+	}
+
+}
+
 func TestReduce(t *testing.T) {
 
 	cs := newConstraintSystem()
