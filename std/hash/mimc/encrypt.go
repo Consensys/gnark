@@ -22,9 +22,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -110,6 +110,7 @@ func newMimcBLS315(seed string) MiMC {
 	res.id = ecc.BLS24_315
 	return res
 }
+
 // -------------------------------------------------------------------------------------------------
 // encryptions functions
 

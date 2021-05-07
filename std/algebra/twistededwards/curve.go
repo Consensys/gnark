@@ -25,12 +25,12 @@ import (
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	frbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	frbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -48,7 +48,7 @@ func init() {
 	newTwistedEdwards[ecc.BN254] = newEdBN254
 	newTwistedEdwards[ecc.BLS12_377] = newEdBLS377
 	newTwistedEdwards[ecc.BW6_761] = newEdBW761
-    newTwistedEdwards[ecc.BLS24_315] = newEdBLS315
+	newTwistedEdwards[ecc.BLS24_315] = newEdBLS315
 }
 
 // NewEdCurve returns an Edwards curve parameters
