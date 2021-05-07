@@ -14,13 +14,13 @@ src="banner_gnark.png">
 * [`gnark` User Documentation]
 * [`gnark` Issues]
 
-## Issues 
+## Issues
 
 `gnark` issues are tracked [in the GitHub issues tab][`gnark` Issues].
 
 If you have any questions, queries or comments, [GitHub discussions] is the place to find us.
 
-You can also get in touch directly: zkteam@consensys.net 
+You can also get in touch directly: zkteam@consensys.net
 
 
 ## `gnark` Users
@@ -49,6 +49,7 @@ which can be instantiated with the following curves
 - [x] BLS12-381
 - [x] BLS12-377
 - [x] BW6-761
+- [x] BLS24-315
 
 ### Example
 
@@ -95,7 +96,7 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our [code of condu
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/consensys/gnark/tags). 
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/consensys/gnark/tags).
 
 
 ## License
@@ -107,4 +108,3 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 [`gnark` User Documentation]: https://docs.gnark.consensys.net
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
 [Proving schemes and curves]: https://docs.gnark.consensys.net
-

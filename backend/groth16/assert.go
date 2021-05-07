@@ -29,6 +29,8 @@ import (
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
@@ -167,6 +169,12 @@ func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) 
 		return _r1cs.IsSolved(w)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	case *backend_bls24315.R1CS:
+		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

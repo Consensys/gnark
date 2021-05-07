@@ -42,7 +42,7 @@ func TestIntegrationAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315}
 	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
