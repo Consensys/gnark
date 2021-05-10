@@ -132,46 +132,41 @@ func (cs *ConstraintSystem) shuffleVariables(seed int64, withConstant bool) []in
 	var v []interface{}
 	n := len(cs.public.variables) + len(cs.secret.variables) + len(cs.internal.variables)
 	if withConstant {
-		v = make([]interface{}, n*2+4*3)
+		v = make([]interface{}, 0, n*2+4*3)
 	} else {
-		v = make([]interface{}, n)
+		v = make([]interface{}, 0, n)
 	}
 
-	offset := 0
 	for i := 0; i < len(cs.public.variables); i++ {
-		v[i+offset] = cs.public.variables[i]
+		v = append(v, cs.public.variables[i])
 	}
-	offset += len(cs.public.variables)
 	for i := 0; i < len(cs.secret.variables); i++ {
-		v[i+offset] = cs.secret.variables[i]
+		v = append(v, cs.secret.variables[i])
 	}
-	offset += len(cs.secret.variables)
 	for i := 0; i < len(cs.internal.variables); i++ {
-		v[i+offset] = cs.internal.variables[i]
+		v = append(v, cs.internal.variables[i])
 	}
-	offset += len(cs.internal.variables)
 
 	if withConstant {
 		// let's add some constants to the mix.
 		for i := 0; i < n; i++ {
-			v[i+offset] = i
+			v = append(v, i)
 		}
-		offset += n
-		v[offset] = frbls12377.Modulus()
-		v[offset+1] = frbls12381.Modulus()
-		v[offset+2] = frbn254.Modulus()
-		v[offset+3] = frbw6761.Modulus()
-		v[offset+4] = frbls24315.Modulus()
-		v[offset+5] = new(big.Int).Sub(frbls12377.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+6] = new(big.Int).Sub(frbls12381.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+7] = new(big.Int).Sub(frbn254.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+8] = new(big.Int).Sub(frbw6761.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+9] = new(big.Int).Sub(frbls24315.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+10] = new(big.Int).Add(frbls12377.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+11] = new(big.Int).Add(frbls12381.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+12] = new(big.Int).Add(frbn254.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+13] = new(big.Int).Add(frbw6761.Modulus(), new(big.Int).SetUint64(1))
-		v[offset+14] = new(big.Int).Add(frbls24315.Modulus(), new(big.Int).SetUint64(1))
+		v = append(v, frbls12377.Modulus())
+		v = append(v, frbls12381.Modulus())
+		v = append(v, frbn254.Modulus())
+		v = append(v, frbw6761.Modulus())
+		v = append(v, frbls24315.Modulus())
+		v = append(v, new(big.Int).Sub(frbls12377.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Sub(frbls12381.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Sub(frbn254.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Sub(frbw6761.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Sub(frbls24315.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Add(frbls12377.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Add(frbls12381.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Add(frbn254.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Add(frbw6761.Modulus(), new(big.Int).SetUint64(1)))
+		v = append(v, new(big.Int).Add(frbls24315.Modulus(), new(big.Int).SetUint64(1)))
 	}
 
 	rand.Seed(seed)
