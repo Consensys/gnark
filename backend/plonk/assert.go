@@ -66,7 +66,7 @@ func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem,
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, err := Prove(sparseR1cs, publicData, witness)
+	proof, _ := Prove(sparseR1cs, publicData, witness)
 
 	// verifies the proof
 	err = Verify(proof, publicData, witness)

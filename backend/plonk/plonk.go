@@ -155,7 +155,10 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		proof := plonkbn254.ProveRaw(_sparseR1cs, _publicData, w)
+		proof, err := plonkbn254.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
 		return proof, nil
 
 	case *backend_bls12381.SparseR1CS:
@@ -164,7 +167,10 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		proof := plonkbls12381.ProveRaw(_sparseR1cs, _publicData, w)
+		proof, err := plonkbls12381.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
 		return proof, nil
 
 	case *backend_bls12377.SparseR1CS:
@@ -173,7 +179,10 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		proof := plonkbls12377.ProveRaw(_sparseR1cs, _publicData, w)
+		proof, err := plonkbls12377.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
 		return proof, nil
 
 	case *backend_bw6761.SparseR1CS:
@@ -182,7 +191,10 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		proof := plonkbw6761.ProveRaw(_sparseR1cs, _publicData, w)
+		proof, err := plonkbw6761.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
 		return proof, nil
 
 	default:

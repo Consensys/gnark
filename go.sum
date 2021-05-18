@@ -18,6 +18,14 @@ github.com/consensys/gnark-crypto v0.4.1-0.20210427094325-28eb607a1205 h1:0OaqB5
 github.com/consensys/gnark-crypto v0.4.1-0.20210427094325-28eb607a1205/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
 github.com/consensys/gnark-crypto v0.4.1-0.20210428083642-6bd055b79906 h1:w3Aub8k49m4IecSqRwFaTeqp8uAJDGtbIIEfgH5E+Ok=
 github.com/consensys/gnark-crypto v0.4.1-0.20210428083642-6bd055b79906/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210512230428-06a96f6d77e9 h1:I2wwCiziMHxwRUzdL6XPiMWxaq+B2lnRhRTP6aF08oQ=
+github.com/consensys/gnark-crypto v0.4.1-0.20210512230428-06a96f6d77e9/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210517142844-ca859aa5beba h1:IsEeZkmGGpW8nJFyss3bBpfTWRzDHrxVEYR09mvIi+k=
+github.com/consensys/gnark-crypto v0.4.1-0.20210517142844-ca859aa5beba/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210518125048-97be147e2772 h1:a+jELPsP1ZBhki3XKJ0Q/QELEm9Zkz5DMyy6MHi9oC4=
+github.com/consensys/gnark-crypto v0.4.1-0.20210518125048-97be147e2772/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210518165244-bafe2b3250bd h1:alnW18BGy69t+sO/62CtP2tuu7sWI4KmOHyn2ldLv58=
+github.com/consensys/gnark-crypto v0.4.1-0.20210518165244-bafe2b3250bd/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
