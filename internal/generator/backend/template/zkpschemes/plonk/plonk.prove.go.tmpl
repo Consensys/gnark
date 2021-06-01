@@ -520,7 +520,7 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness {{ toLower 
 	// compute h in canonical form
 	h1, h2, h3 := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
-	// commit to h (3 commitments h1 + x*h2 + x**2*h3)
+	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
 	proof.CommitmentsLROZH[4], err = publicData.CommitmentScheme.Commit(&h1)
 	if err != nil {
 		return proof, err
