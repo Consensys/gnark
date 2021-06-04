@@ -90,9 +90,12 @@ func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
-	decoder := cbor.NewDecoder(r)
-
-	err := decoder.Decode(r1cs)
+	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	if err != nil {
+		return 0, err
+	}
+	decoder := dm.NewDecoder(r)
+	err = decoder.Decode(r1cs)
 	return int64(decoder.NumBytesRead()), err
 }
 
