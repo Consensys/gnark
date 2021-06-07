@@ -2,33 +2,39 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/gnarkd/circuits/bn254/cubic"
 )
 
 //go:generate go run generate.go
 func main() {
 	var circuit cubic.Circuit
-	r1cs, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	const curve = ecc.BN254
+	const backend = backend.GROTH16
+	ccs, _ := frontend.Compile(curve, backend, &circuit)
+
+	circuitDir := filepath.Join(backend.String(), curve.String(), "cubic")
+	os.MkdirAll(circuitDir, 0700)
 
 	{
-		f, _ := os.Create("bn254/cubic/cubic.r1cs")
-		r1cs.WriteTo(f)
+		f, _ := os.Create(filepath.Join(circuitDir, "cubic"+".ccs"))
+		ccs.WriteTo(f)
 		f.Close()
 	}
 
-	pk, vk, _ := groth16.Setup(r1cs)
+	pk, vk, _ := groth16.Setup(ccs)
 	{
-		f, _ := os.Create("bn254/cubic/cubic.pk")
+		f, _ := os.Create(filepath.Join(circuitDir, "cubic"+".pk"))
 		pk.WriteTo(f)
 		f.Close()
 	}
 	{
-		f, _ := os.Create("bn254/cubic/cubic.vk")
+		f, _ := os.Create(filepath.Join(circuitDir, "cubic"+".vk"))
 		vk.WriteTo(f)
 		f.Close()
 	}

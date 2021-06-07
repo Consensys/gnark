@@ -127,7 +127,7 @@ func TestProveSync(t *testing.T) {
 	_, err = proof.ReadFrom(bytes.NewReader(proveResult.Proof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].groth16.vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 	// 4. create invalid proof
@@ -220,7 +220,7 @@ func TestProveAsync(t *testing.T) {
 	_, err = proof.ReadFrom(bytes.NewReader(rproof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].groth16.vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 }
@@ -397,7 +397,7 @@ func TestVerifySync(t *testing.T) {
 	)
 	w.X.Assign(3)
 	w.Y.Assign(35)
-	proof, err := groth16.Prove(gnarkdServer.circuits["bn254/cubic"].r1cs, gnarkdServer.circuits["bn254/cubic"].pk, &w)
+	proof, err := groth16.Prove(gnarkdServer.circuits["bn254/cubic"].ccs, gnarkdServer.circuits["bn254/cubic"].groth16.pk, &w)
 	assert.NoError(err)
 	_, err = proof.WriteRawTo(&bProof)
 	assert.NoError(err)
