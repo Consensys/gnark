@@ -133,7 +133,7 @@ func (s *Server) ListProveJob(ctx context.Context, request *pb.ListProveJobReque
 // SubscribeToProveJob enables a client to get job status changes from the Server
 // at connection start, Server sends current job status
 // when job is done (ok or errored), Server closes connection
-func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
+func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.ZKSnark_SubscribeToProveJobServer) error {
 	// ensure jobID is valid
 	jobID, err := uuid.Parse(request.JobID)
 	if err != nil {

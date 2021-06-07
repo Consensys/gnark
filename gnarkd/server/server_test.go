@@ -63,7 +63,7 @@ func setupServer() {
 
 	// start witness listener
 	go gnarkdServer.StartWitnessListener(witnessListener)
-	pb.RegisterGroth16Server(s, gnarkdServer)
+	pb.RegisterZKSnarkServer(s, gnarkdServer)
 
 	go func() {
 		if err := s.Serve(grpcListener); err != nil {
@@ -102,7 +102,7 @@ func TestProveSync(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	c := pb.NewGroth16Client(conn)
+	c := pb.NewZKSnarkClient(conn)
 
 	// 1. serialize a valid witness
 	var (
@@ -159,7 +159,7 @@ func TestProveAsync(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	client := pb.NewGroth16Client(conn)
+	client := pb.NewZKSnarkClient(conn)
 
 	// 1. serialize a valid witness
 	var (
@@ -238,7 +238,7 @@ func TestJobTTL(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	client := pb.NewGroth16Client(conn)
+	client := pb.NewZKSnarkClient(conn)
 
 	// 1. serialize a valid witness
 	var (
@@ -311,7 +311,7 @@ func TestCancelAndListJob(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	client := pb.NewGroth16Client(conn)
+	client := pb.NewZKSnarkClient(conn)
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
@@ -387,7 +387,7 @@ func TestVerifySync(t *testing.T) {
 	assert.NoError(err)
 	defer conn.Close()
 
-	client := pb.NewGroth16Client(conn)
+	client := pb.NewZKSnarkClient(conn)
 
 	// 1. serialize a valid witness
 	var (

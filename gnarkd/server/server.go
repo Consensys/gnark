@@ -50,7 +50,7 @@ var (
 
 // Server implements Groth16Server
 type Server struct {
-	pb.UnimplementedGroth16Server
+	pb.UnimplementedZKSnarkServer
 	circuits   map[string]circuit // not thread safe as it is loaded once only
 	jobs       sync.Map           // key == uuid[string], value == proveJob
 	chJobQueue chan jobID

@@ -19,9 +19,11 @@ package gnarkd;
 option go_package = "github.com/consensys/gnark/gnarkd/pb";
 
 /*
- Provides services to compute and verify Groth16 proofs
+ Provides services to compute and verify ZKSnark proofs supported by gnark
+ The circuitID correspond to the directory ([cirduitDir/]provingSystem/curve/name) where the 
+ circuit and precomputed setup data are available
  */
-service Groth16 {
+service ZKSnark {
 	// Prove takes circuitID and witness as parameter
 	// this is a synchronous call and bypasses the job queue
 	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses, 

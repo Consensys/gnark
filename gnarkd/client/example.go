@@ -50,7 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	c := pb.NewGroth16Client(conn)
+	c := pb.NewZKSnarkClient(conn)
 
 	ctx := context.Background()
 

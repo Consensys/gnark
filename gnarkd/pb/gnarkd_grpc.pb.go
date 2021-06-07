@@ -14,10 +14,10 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// Groth16Client is the client API for Groth16 service.
+// ZKSnarkClient is the client API for ZKSnark service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type Groth16Client interface {
+type ZKSnarkClient interface {
 	// Prove takes circuitID and witness as parameter
 	// this is a synchronous call and bypasses the job queue
 	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
@@ -35,68 +35,68 @@ type Groth16Client interface {
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
-	SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (Groth16_SubscribeToProveJobClient, error)
+	SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (ZKSnark_SubscribeToProveJobClient, error)
 }
 
-type groth16Client struct {
+type zKSnarkClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGroth16Client(cc grpc.ClientConnInterface) Groth16Client {
-	return &groth16Client{cc}
+func NewZKSnarkClient(cc grpc.ClientConnInterface) ZKSnarkClient {
+	return &zKSnarkClient{cc}
 }
 
-func (c *groth16Client) Prove(ctx context.Context, in *ProveRequest, opts ...grpc.CallOption) (*ProveResult, error) {
+func (c *zKSnarkClient) Prove(ctx context.Context, in *ProveRequest, opts ...grpc.CallOption) (*ProveResult, error) {
 	out := new(ProveResult)
-	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/Prove", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gnarkd.ZKSnark/Prove", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *groth16Client) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResult, error) {
+func (c *zKSnarkClient) Verify(ctx context.Context, in *VerifyRequest, opts ...grpc.CallOption) (*VerifyResult, error) {
 	out := new(VerifyResult)
-	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/Verify", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gnarkd.ZKSnark/Verify", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *groth16Client) CreateProveJob(ctx context.Context, in *CreateProveJobRequest, opts ...grpc.CallOption) (*CreateProveJobResponse, error) {
+func (c *zKSnarkClient) CreateProveJob(ctx context.Context, in *CreateProveJobRequest, opts ...grpc.CallOption) (*CreateProveJobResponse, error) {
 	out := new(CreateProveJobResponse)
-	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/CreateProveJob", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gnarkd.ZKSnark/CreateProveJob", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *groth16Client) CancelProveJob(ctx context.Context, in *CancelProveJobRequest, opts ...grpc.CallOption) (*CancelProveJobResponse, error) {
+func (c *zKSnarkClient) CancelProveJob(ctx context.Context, in *CancelProveJobRequest, opts ...grpc.CallOption) (*CancelProveJobResponse, error) {
 	out := new(CancelProveJobResponse)
-	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/CancelProveJob", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gnarkd.ZKSnark/CancelProveJob", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *groth16Client) ListProveJob(ctx context.Context, in *ListProveJobRequest, opts ...grpc.CallOption) (*ListProveJobResponse, error) {
+func (c *zKSnarkClient) ListProveJob(ctx context.Context, in *ListProveJobRequest, opts ...grpc.CallOption) (*ListProveJobResponse, error) {
 	out := new(ListProveJobResponse)
-	err := c.cc.Invoke(ctx, "/gnarkd.Groth16/ListProveJob", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gnarkd.ZKSnark/ListProveJob", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *groth16Client) SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (Groth16_SubscribeToProveJobClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Groth16_ServiceDesc.Streams[0], "/gnarkd.Groth16/SubscribeToProveJob", opts...)
+func (c *zKSnarkClient) SubscribeToProveJob(ctx context.Context, in *SubscribeToProveJobRequest, opts ...grpc.CallOption) (ZKSnark_SubscribeToProveJobClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ZKSnark_ServiceDesc.Streams[0], "/gnarkd.ZKSnark/SubscribeToProveJob", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &groth16SubscribeToProveJobClient{stream}
+	x := &zKSnarkSubscribeToProveJobClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -106,16 +106,16 @@ func (c *groth16Client) SubscribeToProveJob(ctx context.Context, in *SubscribeTo
 	return x, nil
 }
 
-type Groth16_SubscribeToProveJobClient interface {
+type ZKSnark_SubscribeToProveJobClient interface {
 	Recv() (*ProveJobResult, error)
 	grpc.ClientStream
 }
 
-type groth16SubscribeToProveJobClient struct {
+type zKSnarkSubscribeToProveJobClient struct {
 	grpc.ClientStream
 }
 
-func (x *groth16SubscribeToProveJobClient) Recv() (*ProveJobResult, error) {
+func (x *zKSnarkSubscribeToProveJobClient) Recv() (*ProveJobResult, error) {
 	m := new(ProveJobResult)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -123,10 +123,10 @@ func (x *groth16SubscribeToProveJobClient) Recv() (*ProveJobResult, error) {
 	return m, nil
 }
 
-// Groth16Server is the server API for Groth16 service.
-// All implementations must embed UnimplementedGroth16Server
+// ZKSnarkServer is the server API for ZKSnark service.
+// All implementations must embed UnimplementedZKSnarkServer
 // for forward compatibility
-type Groth16Server interface {
+type ZKSnarkServer interface {
 	// Prove takes circuitID and witness as parameter
 	// this is a synchronous call and bypasses the job queue
 	// it is meant to be used for small circuits, for larger circuits (proving time) and witnesses,
@@ -144,188 +144,188 @@ type Groth16Server interface {
 	// SubscribeToProveJob enables a client to get job status changes from the server
 	// at connection start, server sends current job status
 	// when job is done (ok or errored), server closes connection
-	SubscribeToProveJob(*SubscribeToProveJobRequest, Groth16_SubscribeToProveJobServer) error
-	mustEmbedUnimplementedGroth16Server()
+	SubscribeToProveJob(*SubscribeToProveJobRequest, ZKSnark_SubscribeToProveJobServer) error
+	mustEmbedUnimplementedZKSnarkServer()
 }
 
-// UnimplementedGroth16Server must be embedded to have forward compatible implementations.
-type UnimplementedGroth16Server struct {
+// UnimplementedZKSnarkServer must be embedded to have forward compatible implementations.
+type UnimplementedZKSnarkServer struct {
 }
 
-func (UnimplementedGroth16Server) Prove(context.Context, *ProveRequest) (*ProveResult, error) {
+func (UnimplementedZKSnarkServer) Prove(context.Context, *ProveRequest) (*ProveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Prove not implemented")
 }
-func (UnimplementedGroth16Server) Verify(context.Context, *VerifyRequest) (*VerifyResult, error) {
+func (UnimplementedZKSnarkServer) Verify(context.Context, *VerifyRequest) (*VerifyResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Verify not implemented")
 }
-func (UnimplementedGroth16Server) CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error) {
+func (UnimplementedZKSnarkServer) CreateProveJob(context.Context, *CreateProveJobRequest) (*CreateProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateProveJob not implemented")
 }
-func (UnimplementedGroth16Server) CancelProveJob(context.Context, *CancelProveJobRequest) (*CancelProveJobResponse, error) {
+func (UnimplementedZKSnarkServer) CancelProveJob(context.Context, *CancelProveJobRequest) (*CancelProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelProveJob not implemented")
 }
-func (UnimplementedGroth16Server) ListProveJob(context.Context, *ListProveJobRequest) (*ListProveJobResponse, error) {
+func (UnimplementedZKSnarkServer) ListProveJob(context.Context, *ListProveJobRequest) (*ListProveJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProveJob not implemented")
 }
-func (UnimplementedGroth16Server) SubscribeToProveJob(*SubscribeToProveJobRequest, Groth16_SubscribeToProveJobServer) error {
+func (UnimplementedZKSnarkServer) SubscribeToProveJob(*SubscribeToProveJobRequest, ZKSnark_SubscribeToProveJobServer) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeToProveJob not implemented")
 }
-func (UnimplementedGroth16Server) mustEmbedUnimplementedGroth16Server() {}
+func (UnimplementedZKSnarkServer) mustEmbedUnimplementedZKSnarkServer() {}
 
-// UnsafeGroth16Server may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to Groth16Server will
+// UnsafeZKSnarkServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ZKSnarkServer will
 // result in compilation errors.
-type UnsafeGroth16Server interface {
-	mustEmbedUnimplementedGroth16Server()
+type UnsafeZKSnarkServer interface {
+	mustEmbedUnimplementedZKSnarkServer()
 }
 
-func RegisterGroth16Server(s grpc.ServiceRegistrar, srv Groth16Server) {
-	s.RegisterService(&Groth16_ServiceDesc, srv)
+func RegisterZKSnarkServer(s grpc.ServiceRegistrar, srv ZKSnarkServer) {
+	s.RegisterService(&ZKSnark_ServiceDesc, srv)
 }
 
-func _Groth16_Prove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ZKSnark_Prove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ProveRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(Groth16Server).Prove(ctx, in)
+		return srv.(ZKSnarkServer).Prove(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gnarkd.Groth16/Prove",
+		FullMethod: "/gnarkd.ZKSnark/Prove",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(Groth16Server).Prove(ctx, req.(*ProveRequest))
+		return srv.(ZKSnarkServer).Prove(ctx, req.(*ProveRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_Verify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ZKSnark_Verify_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(VerifyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(Groth16Server).Verify(ctx, in)
+		return srv.(ZKSnarkServer).Verify(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gnarkd.Groth16/Verify",
+		FullMethod: "/gnarkd.ZKSnark/Verify",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(Groth16Server).Verify(ctx, req.(*VerifyRequest))
+		return srv.(ZKSnarkServer).Verify(ctx, req.(*VerifyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_CreateProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ZKSnark_CreateProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateProveJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(Groth16Server).CreateProveJob(ctx, in)
+		return srv.(ZKSnarkServer).CreateProveJob(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gnarkd.Groth16/CreateProveJob",
+		FullMethod: "/gnarkd.ZKSnark/CreateProveJob",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(Groth16Server).CreateProveJob(ctx, req.(*CreateProveJobRequest))
+		return srv.(ZKSnarkServer).CreateProveJob(ctx, req.(*CreateProveJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_CancelProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ZKSnark_CancelProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CancelProveJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(Groth16Server).CancelProveJob(ctx, in)
+		return srv.(ZKSnarkServer).CancelProveJob(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gnarkd.Groth16/CancelProveJob",
+		FullMethod: "/gnarkd.ZKSnark/CancelProveJob",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(Groth16Server).CancelProveJob(ctx, req.(*CancelProveJobRequest))
+		return srv.(ZKSnarkServer).CancelProveJob(ctx, req.(*CancelProveJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_ListProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ZKSnark_ListProveJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProveJobRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(Groth16Server).ListProveJob(ctx, in)
+		return srv.(ZKSnarkServer).ListProveJob(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gnarkd.Groth16/ListProveJob",
+		FullMethod: "/gnarkd.ZKSnark/ListProveJob",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(Groth16Server).ListProveJob(ctx, req.(*ListProveJobRequest))
+		return srv.(ZKSnarkServer).ListProveJob(ctx, req.(*ListProveJobRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Groth16_SubscribeToProveJob_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _ZKSnark_SubscribeToProveJob_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(SubscribeToProveJobRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(Groth16Server).SubscribeToProveJob(m, &groth16SubscribeToProveJobServer{stream})
+	return srv.(ZKSnarkServer).SubscribeToProveJob(m, &zKSnarkSubscribeToProveJobServer{stream})
 }
 
-type Groth16_SubscribeToProveJobServer interface {
+type ZKSnark_SubscribeToProveJobServer interface {
 	Send(*ProveJobResult) error
 	grpc.ServerStream
 }
 
-type groth16SubscribeToProveJobServer struct {
+type zKSnarkSubscribeToProveJobServer struct {
 	grpc.ServerStream
 }
 
-func (x *groth16SubscribeToProveJobServer) Send(m *ProveJobResult) error {
+func (x *zKSnarkSubscribeToProveJobServer) Send(m *ProveJobResult) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-// Groth16_ServiceDesc is the grpc.ServiceDesc for Groth16 service.
+// ZKSnark_ServiceDesc is the grpc.ServiceDesc for ZKSnark service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Groth16_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "gnarkd.Groth16",
-	HandlerType: (*Groth16Server)(nil),
+var ZKSnark_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "gnarkd.ZKSnark",
+	HandlerType: (*ZKSnarkServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Prove",
-			Handler:    _Groth16_Prove_Handler,
+			Handler:    _ZKSnark_Prove_Handler,
 		},
 		{
 			MethodName: "Verify",
-			Handler:    _Groth16_Verify_Handler,
+			Handler:    _ZKSnark_Verify_Handler,
 		},
 		{
 			MethodName: "CreateProveJob",
-			Handler:    _Groth16_CreateProveJob_Handler,
+			Handler:    _ZKSnark_CreateProveJob_Handler,
 		},
 		{
 			MethodName: "CancelProveJob",
-			Handler:    _Groth16_CancelProveJob_Handler,
+			Handler:    _ZKSnark_CancelProveJob_Handler,
 		},
 		{
 			MethodName: "ListProveJob",
-			Handler:    _Groth16_ListProveJob_Handler,
+			Handler:    _ZKSnark_ListProveJob_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "SubscribeToProveJob",
-			Handler:       _Groth16_SubscribeToProveJob_Handler,
+			Handler:       _ZKSnark_SubscribeToProveJob_Handler,
 			ServerStreams: true,
 		},
 	},
