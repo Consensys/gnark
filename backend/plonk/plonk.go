@@ -20,13 +20,15 @@
 package plonk
 
 import (
-	"github.com/consensys/gnark-crypto/polynomial"
-	"github.com/consensys/gnark/frontend"
+	"io"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	mockcommitment_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial/mockcommitment"
 	mockcommitment_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial/mockcommitment"
 	mockcommitment_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial/mockcommitment"
 	mockcommitment_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/mockcommitment"
+	"github.com/consensys/gnark-crypto/polynomial"
+	"github.com/consensys/gnark/frontend"
 
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
@@ -50,7 +52,10 @@ import (
 // 	- polynomials corresponding to the permutations s1,s2,s3 (either raw or committed)
 // 	- the commitment scheme
 // 	- the fft domains
-type PublicData interface{}
+type PublicData interface {
+	io.WriterTo
+	io.ReaderFrom
+}
 
 // Proof content might vary according to the PLONK version which is chosen.
 //
@@ -242,4 +247,43 @@ func Verify(proof Proof, publicData PublicData, publicWitness frontend.Circuit) 
 	default:
 		panic("unrecognized proof type")
 	}
+}
+
+// NewCS instantiate a concrete curved-typed SparseR1CS and return a CompiledConstraintSystem interface
+// This method exists for (de)serialization purposes
+func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
+	var r1cs frontend.CompiledConstraintSystem
+	switch curveID {
+	case ecc.BN254:
+		r1cs = &backend_bn254.SparseR1CS{}
+	case ecc.BLS12_377:
+		r1cs = &backend_bls12377.SparseR1CS{}
+	case ecc.BLS12_381:
+		r1cs = &backend_bls12381.SparseR1CS{}
+	case ecc.BW6_761:
+		r1cs = &backend_bw6761.SparseR1CS{}
+	default:
+		panic("not implemented")
+	}
+	return r1cs
+}
+
+// NewPublicData instantiates a curve-typed PublicData and returns an interface
+// This function exists for serialization purposes
+func NewPublicData(curveID ecc.ID) PublicData {
+	var data PublicData
+	switch curveID {
+	case ecc.BN254:
+		data = &plonkbn254.PublicRaw{}
+	case ecc.BLS12_377:
+		data = &plonkbls12377.PublicRaw{}
+	case ecc.BLS12_381:
+		data = &plonkbls12381.PublicRaw{}
+	case ecc.BW6_761:
+		data = &plonkbw6761.PublicRaw{}
+	default:
+		panic("not implemented")
+	}
+
+	return data
 }
