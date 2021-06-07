@@ -23,6 +23,7 @@ import (
 )
 
 const bufSize = 1024 * 1024
+const groth16TestCircuitID = "groth16/bn254/cubic"
 
 var (
 	grpcListener    *bufconn.Listener
@@ -117,7 +118,7 @@ func TestProveSync(t *testing.T) {
 
 	// 2. call prove
 	proveResult, err := c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 		Witness:   bWitness.Bytes(),
 	})
 	assert.NoError(err, "grpc sync prove failed")
@@ -127,7 +128,7 @@ func TestProveSync(t *testing.T) {
 	_, err = proof.ReadFrom(bytes.NewReader(proveResult.Proof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].groth16.vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits[groth16TestCircuitID].groth16.vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 	// 4. create invalid proof
@@ -140,7 +141,7 @@ func TestProveSync(t *testing.T) {
 	assert.NoError(err)
 
 	_, err = c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 		Witness:   bWitness.Bytes(),
 	})
 	assert.Error(err, "grpc sync false prove failed")
@@ -174,7 +175,7 @@ func TestProveAsync(t *testing.T) {
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -220,7 +221,7 @@ func TestProveAsync(t *testing.T) {
 	_, err = proof.ReadFrom(bytes.NewReader(rproof))
 	assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits["bn254/cubic"].groth16.vk, &w)
+	err = groth16.Verify(proof, gnarkdServer.circuits[groth16TestCircuitID].groth16.vk, &w)
 	assert.NoError(err, "couldn't verify proof returned from grpc server")
 
 }
@@ -254,7 +255,7 @@ func TestJobTTL(t *testing.T) {
 	// 2. call prove
 	ttl := int64(1) // mark job as expired after 1 second
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 		TTL:       &ttl,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
@@ -315,7 +316,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -351,7 +352,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// send another job
 	r2, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: "bn254/cubic",
+		CircuitID: groth16TestCircuitID,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -397,7 +398,7 @@ func TestVerifySync(t *testing.T) {
 	)
 	w.X.Assign(3)
 	w.Y.Assign(35)
-	proof, err := groth16.Prove(gnarkdServer.circuits["bn254/cubic"].ccs, gnarkdServer.circuits["bn254/cubic"].groth16.pk, &w)
+	proof, err := groth16.Prove(gnarkdServer.circuits[groth16TestCircuitID].ccs, gnarkdServer.circuits[groth16TestCircuitID].groth16.pk, &w)
 	assert.NoError(err)
 	_, err = proof.WriteRawTo(&bProof)
 	assert.NoError(err)
@@ -407,7 +408,7 @@ func TestVerifySync(t *testing.T) {
 
 	// 2. call verify
 	vResult, err := client.Verify(ctx, &pb.VerifyRequest{
-		CircuitID:     "bn254/cubic",
+		CircuitID:     groth16TestCircuitID,
 		PublicWitness: bWitness.Bytes(),
 		Proof:         bProof.Bytes(),
 	})
