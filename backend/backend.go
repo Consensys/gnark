@@ -24,6 +24,12 @@ const (
 	PLONK
 )
 
+// Implemented return the list of proof systems implemented in gnark
+func Implemented() []ID {
+	return []ID{GROTH16, PLONK}
+}
+
+// String returns the string representation of a proof system
 func (id ID) String() string {
 	switch id {
 	case GROTH16:

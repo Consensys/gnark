@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
@@ -16,6 +17,7 @@ const (
 
 type circuit struct {
 	backendID         backend.ID
+	curveID           ecc.ID
 	ccs               frontend.CompiledConstraintSystem
 	fullWitnessSize   int
 	publicWitnessSize int

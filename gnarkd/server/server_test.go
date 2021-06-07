@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/examples/cubic"
@@ -23,7 +22,6 @@ import (
 )
 
 const bufSize = 1024 * 1024
-const groth16TestCircuitID = "groth16/bn254/cubic"
 
 var (
 	grpcListener    *bufconn.Listener
@@ -91,6 +89,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestProveSync(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -113,41 +112,50 @@ func TestProveSync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
-	assert.NoError(err)
+	for circuitID, circuit := range gnarkdServer.circuits {
+		t.Log("running test with", circuitID)
 
-	// 2. call prove
-	proveResult, err := c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: groth16TestCircuitID,
-		Witness:   bWitness.Bytes(),
-	})
-	assert.NoError(err, "grpc sync prove failed")
+		bWitness.Reset()
+		_, err = witness.WriteFullTo(&bWitness, circuit.curveID, &w)
+		assert.NoError(err)
 
-	// 3. ensure returned proof is valid.
-	proof := groth16.NewProof(ecc.BN254)
-	_, err = proof.ReadFrom(bytes.NewReader(proveResult.Proof))
-	assert.NoError(err, "deserializing grpc proof response failed")
+		// 2. call prove
+		proveResult, err := c.Prove(ctx, &pb.ProveRequest{
+			CircuitID: circuitID,
+			Witness:   bWitness.Bytes(),
+		})
+		assert.NoError(err, "grpc sync prove failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits[groth16TestCircuitID].groth16.vk, &w)
-	assert.NoError(err, "couldn't verify proof returned from grpc server")
+		// 3. ensure returned proof is valid.
+		// TODO @gbotrel handle PLONK
+		proof := groth16.NewProof(circuit.curveID)
+		_, err = proof.ReadFrom(bytes.NewReader(proveResult.Proof))
+		assert.NoError(err, "deserializing grpc proof response failed")
 
-	// 4. create invalid proof
-	var wBad cubic.Circuit
-	wBad.X.Assign(4)
-	wBad.Y.Assign(42)
-	bWitness.Reset()
+		err = groth16.Verify(proof, circuit.groth16.vk, &w)
+		assert.NoError(err, "couldn't verify proof returned from grpc server")
 
-	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &wBad)
-	assert.NoError(err)
+		// 4. create invalid proof
+		var wBad cubic.Circuit
+		wBad.X.Assign(4)
+		wBad.Y.Assign(42)
+		bWitness.Reset()
 
-	_, err = c.Prove(ctx, &pb.ProveRequest{
-		CircuitID: groth16TestCircuitID,
-		Witness:   bWitness.Bytes(),
-	})
-	assert.Error(err, "grpc sync false prove failed")
+		_, err = witness.WriteFullTo(&bWitness, circuit.curveID, &wBad)
+		assert.NoError(err)
+
+		_, err = c.Prove(ctx, &pb.ProveRequest{
+			CircuitID: circuitID,
+			Witness:   bWitness.Bytes(),
+		})
+		assert.Error(err, "grpc sync false prove failed")
+
+	}
+
 }
 
 func TestProveAsync(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -170,63 +178,68 @@ func TestProveAsync(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
-	assert.NoError(err)
+	for circuitID, circuit := range gnarkdServer.circuits {
+		t.Log("running test with", circuitID)
 
-	// 2. call prove
-	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: groth16TestCircuitID,
-	})
-	assert.NoError(err, "grpc sync create prove failed")
+		bWitness.Reset()
+		_, err = witness.WriteFullTo(&bWitness, circuit.curveID, &w)
+		assert.NoError(err)
 
-	// 3. subscribe to status changes
-	stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
-	assert.NoError(err, "couldn't subscribe to job")
+		// 2. call prove
+		r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
+			CircuitID: circuitID,
+		})
+		assert.NoError(err, "grpc sync create prove failed")
 
-	done := make(chan struct{})
-	var lastStatus pb.ProveJobResult_Status
-	var rproof []byte
-	go func() {
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				done <- struct{}{}
-				return
+		// 3. subscribe to status changes
+		stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
+		assert.NoError(err, "couldn't subscribe to job")
+
+		done := make(chan struct{})
+		var lastStatus pb.ProveJobResult_Status
+		var rproof []byte
+		go func() {
+			for {
+				resp, err := stream.Recv()
+				if err == io.EOF {
+					done <- struct{}{}
+					return
+				}
+				lastStatus = resp.Status
+				if lastStatus == pb.ProveJobResult_COMPLETED {
+					rproof = resp.Proof
+				}
 			}
-			lastStatus = resp.Status
-			if lastStatus == pb.ProveJobResult_COMPLETED {
-				rproof = resp.Proof
-			}
-		}
-	}()
+		}()
 
-	// 4. send wtness on the wire
-	wc, err := witnessListener.Dial()
-	assert.NoError(err, "dialing witness socket")
-	defer wc.Close()
-	jobID, err := uuid.Parse(r.JobID)
-	assert.NoError(err)
-	bjobID, err := jobID.MarshalBinary()
-	assert.NoError(err)
-	_, err = wc.Write(bjobID)
-	assert.NoError(err)
-	_, err = wc.Write(bWitness.Bytes())
-	assert.NoError(err)
+		// 4. send wtness on the wire
+		wc, err := witnessListener.Dial()
+		assert.NoError(err, "dialing witness socket")
+		defer wc.Close()
+		jobID, err := uuid.Parse(r.JobID)
+		assert.NoError(err)
+		bjobID, err := jobID.MarshalBinary()
+		assert.NoError(err)
+		_, err = wc.Write(bjobID)
+		assert.NoError(err)
+		_, err = wc.Write(bWitness.Bytes())
+		assert.NoError(err)
 
-	<-done
-	assert.Equal(lastStatus, pb.ProveJobResult_COMPLETED)
+		<-done
+		assert.Equal(lastStatus, pb.ProveJobResult_COMPLETED)
 
-	// 3. ensure returned proof is valid.
-	proof := groth16.NewProof(ecc.BN254)
-	_, err = proof.ReadFrom(bytes.NewReader(rproof))
-	assert.NoError(err, "deserializing grpc proof response failed")
+		// 3. ensure returned proof is valid.
+		proof := groth16.NewProof(circuit.curveID)
+		_, err = proof.ReadFrom(bytes.NewReader(rproof))
+		assert.NoError(err, "deserializing grpc proof response failed")
 
-	err = groth16.Verify(proof, gnarkdServer.circuits[groth16TestCircuitID].groth16.vk, &w)
-	assert.NoError(err, "couldn't verify proof returned from grpc server")
-
+		err = groth16.Verify(proof, circuit.groth16.vk, &w)
+		assert.NoError(err, "couldn't verify proof returned from grpc server")
+	}
 }
 
 func TestJobTTL(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -249,57 +262,63 @@ func TestJobTTL(t *testing.T) {
 	w.X.Assign(3)
 	w.Y.Assign(35)
 
-	_, err = witness.WriteFullTo(&bWitness, ecc.BN254, &w)
-	assert.NoError(err)
+	for circuitID, circuit := range gnarkdServer.circuits {
+		t.Log("running test with", circuitID)
+		bWitness.Reset()
+		_, err = witness.WriteFullTo(&bWitness, circuit.curveID, &w)
+		assert.NoError(err)
 
-	// 2. call prove
-	ttl := int64(1) // mark job as expired after 1 second
-	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: groth16TestCircuitID,
-		TTL:       &ttl,
-	})
-	assert.NoError(err, "grpc sync create prove failed")
+		// 2. call prove
+		ttl := int64(1) // mark job as expired after 1 second
+		r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
+			CircuitID: circuitID,
+			TTL:       &ttl,
+		})
+		assert.NoError(err, "grpc sync create prove failed")
 
-	// 3. subscribe to status changes
-	stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
-	assert.NoError(err, "couldn't subscribe to job")
+		// 3. subscribe to status changes
+		stream, err := client.SubscribeToProveJob(ctx, &pb.SubscribeToProveJobRequest{JobID: r.JobID})
+		assert.NoError(err, "couldn't subscribe to job")
 
-	done := make(chan struct{}, 1)
-	var lastStatus pb.ProveJobResult_Status
-	var errMsg string
-	go func() {
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				done <- struct{}{}
-				return
+		done := make(chan struct{}, 1)
+		var lastStatus pb.ProveJobResult_Status
+		var errMsg string
+		go func() {
+			for {
+				resp, err := stream.Recv()
+				if err == io.EOF {
+					done <- struct{}{}
+					return
+				}
+				lastStatus = resp.Status
+				if lastStatus == pb.ProveJobResult_ERRORED {
+					errMsg = (*resp.Err)
+				}
 			}
-			lastStatus = resp.Status
-			if lastStatus == pb.ProveJobResult_ERRORED {
-				errMsg = (*resp.Err)
-			}
-		}
-	}()
+		}()
 
-	// 4. send wtness on the wire
-	<-time.After(1030 * time.Millisecond) // wait for TTL to expire
-	wc, err := witnessListener.Dial()
-	assert.NoError(err, "dialing witness socket")
-	defer wc.Close()
-	jobID, err := uuid.Parse(r.JobID)
-	assert.NoError(err)
-	bjobID, err := jobID.MarshalBinary()
-	assert.NoError(err)
-	_, err = wc.Write(bjobID)
-	assert.NoError(err)
-	_, err = wc.Write(bWitness.Bytes())
-	assert.NoError(err)
-	<-done
-	assert.Equal(lastStatus, pb.ProveJobResult_ERRORED)
-	assert.Equal(errMsg, errJobExpired.Error())
+		// 4. send wtness on the wire
+		<-time.After(1030 * time.Millisecond) // wait for TTL to expire
+		wc, err := witnessListener.Dial()
+		assert.NoError(err, "dialing witness socket")
+		defer wc.Close()
+		jobID, err := uuid.Parse(r.JobID)
+		assert.NoError(err)
+		bjobID, err := jobID.MarshalBinary()
+		assert.NoError(err)
+		_, err = wc.Write(bjobID)
+		assert.NoError(err)
+		_, err = wc.Write(bWitness.Bytes())
+		assert.NoError(err)
+		<-done
+		assert.Equal(lastStatus, pb.ProveJobResult_ERRORED)
+		assert.Equal(errMsg, errJobExpired.Error())
+	}
 }
 
 func TestCancelAndListJob(t *testing.T) {
+	const circuitID = "groth16/bn254/cubic"
+	t.Parallel()
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -316,7 +335,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// 2. call prove
 	r, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: groth16TestCircuitID,
+		CircuitID: circuitID,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -352,7 +371,7 @@ func TestCancelAndListJob(t *testing.T) {
 
 	// send another job
 	r2, err := client.CreateProveJob(ctx, &pb.CreateProveJobRequest{
-		CircuitID: groth16TestCircuitID,
+		CircuitID: circuitID,
 	})
 	assert.NoError(err, "grpc sync create prove failed")
 
@@ -376,6 +395,7 @@ func TestCancelAndListJob(t *testing.T) {
 }
 
 func TestVerifySync(t *testing.T) {
+	t.Parallel()
 	assert := require.New(t)
 
 	// create grpc client connection
@@ -398,20 +418,25 @@ func TestVerifySync(t *testing.T) {
 	)
 	w.X.Assign(3)
 	w.Y.Assign(35)
-	proof, err := groth16.Prove(gnarkdServer.circuits[groth16TestCircuitID].ccs, gnarkdServer.circuits[groth16TestCircuitID].groth16.pk, &w)
-	assert.NoError(err)
-	_, err = proof.WriteRawTo(&bProof)
-	assert.NoError(err)
+	for circuitID, circuit := range gnarkdServer.circuits {
+		t.Log("running test with", circuitID)
+		bWitness.Reset()
+		bProof.Reset()
+		proof, err := groth16.Prove(circuit.ccs, circuit.groth16.pk, &w)
+		assert.NoError(err)
+		_, err = proof.WriteRawTo(&bProof)
+		assert.NoError(err)
 
-	_, err = witness.WritePublicTo(&bWitness, ecc.BN254, &w)
-	assert.NoError(err)
+		_, err = witness.WritePublicTo(&bWitness, circuit.curveID, &w)
+		assert.NoError(err)
 
-	// 2. call verify
-	vResult, err := client.Verify(ctx, &pb.VerifyRequest{
-		CircuitID:     groth16TestCircuitID,
-		PublicWitness: bWitness.Bytes(),
-		Proof:         bProof.Bytes(),
-	})
-	assert.NoError(err, "grpc sync verify failed")
-	assert.True(vResult.Ok)
+		// 2. call verify
+		vResult, err := client.Verify(ctx, &pb.VerifyRequest{
+			CircuitID:     circuitID,
+			PublicWitness: bWitness.Bytes(),
+			Proof:         bProof.Bytes(),
+		})
+		assert.NoError(err, "grpc sync verify failed")
+		assert.True(vResult.Ok)
+	}
 }

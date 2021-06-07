@@ -287,11 +287,9 @@ func (s *Server) loadCircuits() error {
 		return err
 	}
 
-	backends := []backend.ID{backend.GROTH16, backend.PLONK}
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761}
-	for _, b := range backends {
+	for _, b := range backend.Implemented() {
 		backendDir := filepath.Join(s.circuitDir, b.String())
-		for _, curve := range curves {
+		for _, curve := range ecc.Implemented() {
 			curveDir := filepath.Join(backendDir, curve.String())
 
 			subDirectories, err := ioutil.ReadDir(curveDir)
@@ -331,8 +329,10 @@ func (s *Server) loadCircuit(backendID backend.ID, curveID ecc.ID, baseDir strin
 	}
 
 	// empty circuit with nil values
-	var circuit circuit
-	circuit.backendID = backendID
+	circuit := circuit{
+		backendID: backendID,
+		curveID:   curveID,
+	}
 
 	for _, f := range files {
 		if f.IsDir() {
