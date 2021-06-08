@@ -28,19 +28,17 @@ type Point struct {
 	X, Y frontend.Variable
 }
 
-// MustBeOnCurve checks if a point is on the twisted Edwards curve
-// ax^2 + y^2 = 1 + d*x^2*y^2
+// MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
+// -x^2 + y^2 = 1 + d*x^2*y^2.
 func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 	one := big.NewInt(1)
 
-	l1 := cs.Mul(p.X, &curve.A)
-	axx := cs.Mul(l1, p.X)
+	xx := cs.Mul(p.X, p.X)
 	yy := cs.Mul(p.Y, p.Y)
-	lhs := cs.Add(axx, yy)
+	lhs := cs.Sub(yy, xx)
 
-	l1 = cs.Mul(p.X, &curve.D)
-	dxx := cs.Mul(l1, p.X)
+	dxx := cs.Mul(xx, &curve.D)
 	dxxyy := cs.Mul(dxx, yy)
 	rhs := cs.Add(dxxyy, one)
 
@@ -59,8 +57,8 @@ func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point /*basex*/
 	n1 := cs.Add(n11, n12)
 
 	n21 := cs.Mul(p1.Y, y)
-	n22 := cs.Mul(p1.X, x, curve.A)
-	n2 := cs.Sub(n21, n22)
+	n22 := cs.Mul(p1.X, x)
+	n2 := cs.Add(n21, n22) // y**2-a*x**2, here we use a=-1
 
 	d11 := cs.Mul(curve.D, x, y, p1.X, p1.Y)
 	d1 := cs.Add(1, d11)
@@ -83,8 +81,8 @@ func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve E
 	n1 := cs.Add(n11, n12)
 
 	n21 := cs.Mul(p1.Y, p2.Y)
-	n22 := cs.Mul(p1.X, p2.X, curve.A)
-	n2 := cs.Sub(n21, n22)
+	n22 := cs.Mul(p1.X, p2.X)
+	n2 := cs.Add(n21, n22) // y**2-a*x**2, here we use a=-1
 
 	d11 := cs.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
 	d1 := cs.Add(1, d11)

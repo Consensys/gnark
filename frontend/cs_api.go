@@ -419,14 +419,17 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
 
 	var res logEntry
+	var sbb strings.Builder
+	sbb.Grow(len(v.linExp) * len(" + (xx + xxxxxxxxxxxx"))
 
 	for i := 0; i < len(v.linExp); i++ {
 		if i > 0 {
-			res.format += " + "
+			sbb.WriteString(" + ")
 		}
 		c := cs.coeffs[v.linExp[i].CoeffID()]
-		res.format += fmt.Sprintf("(%%s * %s)", c.String())
+		sbb.WriteString(fmt.Sprintf("(%%s * %s)", c.String()))
 	}
+	res.format = sbb.String()
 	res.toResolve = v.linExp.Clone()
 	return res
 }
@@ -446,15 +449,17 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	r := cs.Constant(1)  // no constraint is recorded
 	o := cs.Constant(i2) // no constraint is recorded
 
-	debugInfo.format += "["
+	var sbb strings.Builder
+	sbb.WriteString("[")
 	lhs := cs.buildLogEntryFromVariable(l)
-	debugInfo.format += lhs.format
+	sbb.WriteString(lhs.format)
 	debugInfo.toResolve = lhs.toResolve
-	debugInfo.format += " != "
+	sbb.WriteString(" != ")
 	rhs := cs.buildLogEntryFromVariable(o)
-	debugInfo.format += rhs.format
+	sbb.WriteString(rhs.format)
 	debugInfo.toResolve = append(debugInfo.toResolve, rhs.toResolve...)
-	debugInfo.format += "]"
+	sbb.WriteString("]")
+	debugInfo.format = sbb.String()
 
 	cs.addAssertion(newR1C(l, r, o), debugInfo)
 }
@@ -479,13 +484,17 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	// }
 	// stack := getCallStack()
 	debugInfo := logEntry{
-		format:    "error AssertIsBoolean",
+		// format:    "error AssertIsBoolean",
 		toResolve: nil,
 	}
+	var sbb strings.Builder
+	sbb.WriteString("error AssertIsBoolean")
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
-		debugInfo.format += "\n" + stack[i]
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
 	}
+	debugInfo.format = sbb.String()
 
 	cs.addAssertion(newR1C(v, _v, o), debugInfo)
 }
@@ -515,16 +524,21 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 	// prepare debug info to be displayed in case the constraint is not solved
 	dbgInfoW := cs.buildLogEntryFromVariable(w)
 	dbgInfoBound := cs.buildLogEntryFromVariable(bound)
+	var sbb strings.Builder
 	var debugInfo logEntry
-	debugInfo.format = dbgInfoW.format + " <= " + dbgInfoBound.format
+	sbb.WriteString(dbgInfoW.format)
+	sbb.WriteString(" <= ")
+	sbb.WriteString(dbgInfoBound.format)
 	debugInfo.toResolve = make([]compiled.Term, len(dbgInfoW.toResolve)+len(dbgInfoBound.toResolve))
 	copy(debugInfo.toResolve[:], dbgInfoW.toResolve)
 	copy(debugInfo.toResolve[len(dbgInfoW.toResolve):], dbgInfoBound.toResolve)
 
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
-		debugInfo.format += "\n" + stack[i]
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
 	}
+	debugInfo.format = sbb.String()
 
 	const nbBits = 256
 
@@ -559,14 +573,20 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 
 	// prepare debug info to be displayed in case the constraint is not solved
 	dbgInfoW := cs.buildLogEntryFromVariable(v)
+	var sbb strings.Builder
 	var debugInfo logEntry
-	debugInfo.format = dbgInfoW.format + " <= " + bound.String()
+	sbb.WriteString(dbgInfoW.format)
+	sbb.WriteString(" <= ")
+	sbb.WriteString(bound.String())
+
 	debugInfo.toResolve = dbgInfoW.toResolve
 
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
-		debugInfo.format += "\n" + stack[i]
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
 	}
+	debugInfo.format = sbb.String()
 
 	// TODO store those constant elsewhere (for the moment they don't depend on the base curve, but that might change)
 	const nbBits = 256

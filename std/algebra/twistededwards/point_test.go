@@ -17,9 +17,11 @@ limitations under the License.
 package twistededwards
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
@@ -30,6 +32,7 @@ type mustBeOnCurve struct {
 }
 
 func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -42,8 +45,11 @@ func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 }
 
 func TestIsOnCurve(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
+
 	var circuit, witness mustBeOnCurve
+
 	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +69,7 @@ func TestIsOnCurve(t *testing.T) {
 }
 
 type add struct {
-	P Point
+	P, E Point
 }
 
 func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
@@ -75,14 +81,16 @@ func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 	}
 
 	res := circuit.P.AddFixedPoint(cs, &circuit.P, params.BaseX, params.BaseY, params)
+	cs.Println(res.X)
+	cs.Println(res.Y)
 
-	cs.AssertIsEqual(res.X, "4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	cs.AssertIsEqual(res.Y, "18072205942244039714668938595243139985382136665954711533267729308917439031819")
+	cs.AssertIsEqual(res.X, circuit.E.X)
+	cs.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
 
-func TestAdd(t *testing.T) {
+func TestAddFixedPoint(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
 
@@ -93,8 +101,24 @@ func TestAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	witness.P.X.Assign("15132049151119024294202596478829150741889300374007672163496852915064138587014")
-	witness.P.Y.Assign("11523897191511824241384532572407048303306774918928882376450136656947192273193")
+	// generate a random point, and compute expected_point = base + random_point
+	params, err := NewEdCurve(ecc.BN254)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base, point, expected twistededwards.PointAffine
+	base.X.SetBigInt(&params.BaseX)
+	base.Y.SetBigInt(&params.BaseY)
+	point.Set(&base)
+	r := big.NewInt(5)
+	point.ScalarMul(&point, r)
+	expected.Add(&base, &point)
+
+	// populate witness
+	witness.P.X.Assign(point.X.String())
+	witness.P.Y.Assign(point.Y.String())
+	witness.E.X.Assign(expected.X.String())
+	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(r1cs, &witness)
@@ -102,10 +126,11 @@ func TestAdd(t *testing.T) {
 }
 
 type addGeneric struct {
-	P1, P2 Point
+	P1, P2, E Point
 }
 
 func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -114,8 +139,8 @@ func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 
 	res := circuit.P1.AddGeneric(cs, &circuit.P1, &circuit.P2, params)
 
-	cs.AssertIsEqual(res.X, "4966531224162673480738068143298314346828081427171102366578720605707900725483")
-	cs.AssertIsEqual(res.Y, "18072205942244039714668938595243139985382136665954711533267729308917439031819")
+	cs.AssertIsEqual(res.X, circuit.E.X)
+	cs.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
@@ -130,11 +155,28 @@ func TestAddGeneric(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	witness.P1.X.Assign("15132049151119024294202596478829150741889300374007672163496852915064138587014")
-	witness.P1.Y.Assign("11523897191511824241384532572407048303306774918928882376450136656947192273193")
+	// generate random points, and compute expected_point = point1 + point2s
+	params, err := NewEdCurve(ecc.BN254)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var point1, point2, expected twistededwards.PointAffine
+	point1.X.SetBigInt(&params.BaseX)
+	point1.Y.SetBigInt(&params.BaseY)
+	point2.Set(&point1)
+	r1 := big.NewInt(5)
+	r2 := big.NewInt(12)
+	point1.ScalarMul(&point1, r1)
+	point2.ScalarMul(&point2, r2)
+	expected.Add(&point1, &point2)
 
-	witness.P2.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	witness.P2.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	// populate witness
+	witness.P1.X.Assign(point1.X.String())
+	witness.P1.Y.Assign(point1.Y.String())
+	witness.P2.X.Assign(point2.X.String())
+	witness.P2.Y.Assign(point2.Y.String())
+	witness.E.X.Assign(expected.X.String())
+	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(r1cs, &witness)
@@ -142,10 +184,11 @@ func TestAddGeneric(t *testing.T) {
 }
 
 type double struct {
-	P Point
+	P, E Point
 }
 
 func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
 	if err != nil {
@@ -154,21 +197,38 @@ func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 
 	res := circuit.P.Double(cs, &circuit.P, params)
 
-	cs.AssertIsEqual(res.X, "10031262171927540148667355526369034398030886437092045105752248699557385197826")
-	cs.AssertIsEqual(res.Y, "633281375905621697187330766174974863687049529291089048651929454608812697683")
+	cs.AssertIsEqual(res.X, circuit.E.X)
+	cs.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestDouble(t *testing.T) {
+
 	assert := groth16.NewAssert(t)
+
 	var circuit, witness double
+
 	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	witness.P.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	witness.P.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
+
+	// generate witness data
+	params, err := NewEdCurve(ecc.BN254)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base, expected twistededwards.PointAffine
+	base.X.SetBigInt(&params.BaseX)
+	base.Y.SetBigInt(&params.BaseY)
+	expected.Double(&base)
+
+	// populate witness
+	witness.P.X.Assign(base.X.String())
+	witness.P.Y.Assign(base.Y.String())
+	witness.E.X.Assign(expected.X.String())
+	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(r1cs, &witness)
@@ -176,7 +236,8 @@ func TestDouble(t *testing.T) {
 }
 
 type scalarMul struct {
-	P Point
+	P, E Point
+	S    frontend.Variable
 }
 
 func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
@@ -186,16 +247,16 @@ func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) 
 	if err != nil {
 		return err
 	}
-	scalar := cs.Constant("28242048")
 
-	resNonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, scalar, params)
-	resFixed := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, scalar, params)
+	resNonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, circuit.S, params)
+	resFixed := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, circuit.S, params)
 
-	cs.AssertIsEqual(resFixed.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	cs.AssertIsEqual(resFixed.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
+	cs.AssertIsEqual(resFixed.X, circuit.E.X)
+	cs.AssertIsEqual(resFixed.Y, circuit.E.Y)
 
-	cs.AssertIsEqual(resNonFixed.X, "10190477835300927557649934238820360529458681672073866116232821892325659279502")
-	cs.AssertIsEqual(resNonFixed.Y, "7969140283216448215269095418467361784159407896899334866715345504515077887397")
+	cs.AssertIsEqual(resNonFixed.X, circuit.E.X)
+	cs.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
+
 	return nil
 }
 
@@ -208,8 +269,24 @@ func TestScalarMul(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// generate witness data
+	params, err := NewEdCurve(ecc.BN254)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base, expected twistededwards.PointAffine
+	base.X.SetBigInt(&params.BaseX)
+	base.Y.SetBigInt(&params.BaseY)
+	r := big.NewInt(230928302)
+	expected.ScalarMul(&base, r)
+
+	// populate witness
 	witness.P.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
 	witness.P.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	witness.E.X.Assign(expected.X.String())
+	witness.E.Y.Assign(expected.Y.String())
+	witness.S.Assign(r)
 
 	// creates r1cs
 	assert.SolvingSucceeded(r1cs, &witness)

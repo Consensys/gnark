@@ -208,69 +208,6 @@ func (e *E12) MulBy034(cs *frontend.ConstraintSystem, c0, c3, c4 *E2, ext Extens
 	return e
 }
 
-// MulByVW multiplies an e12 elmt by an elmt of the form a*VW (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByVW(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
-
-	tmp := E2{}
-	tmp.MulByIm(cs, e2, ext)
-
-	res := E12{}
-
-	res.C0.B0.Mul(cs, &e1.C1.B1, &tmp, ext)
-	res.C0.B1.Mul(cs, &e1.C1.B2, &tmp, ext)
-	res.C0.B2.Mul(cs, &e1.C1.B0, e2, ext)
-	res.C1.B0.Mul(cs, &e1.C0.B2, &tmp, ext)
-	res.C1.B1.Mul(cs, &e1.C0.B0, e2, ext)
-	res.C1.B2.Mul(cs, &e1.C0.B1, e2, ext)
-
-	e.C0 = res.C0
-	e.C1 = res.C1
-
-	return e
-}
-
-// MulByV multiplies an e12 elmt by an elmt of the form a*V (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByV(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
-
-	tmp := E2{}
-	tmp.MulByIm(cs, e2, ext)
-
-	res := E12{}
-
-	res.C0.B0.Mul(cs, &e1.C0.B2, &tmp, ext)
-	res.C0.B1.Mul(cs, &e1.C0.B0, e2, ext)
-	res.C0.B2.Mul(cs, &e1.C0.B1, e2, ext)
-	res.C1.B0.Mul(cs, &e1.C1.B2, &tmp, ext)
-	res.C1.B1.Mul(cs, &e1.C1.B0, e2, ext)
-	res.C1.B2.Mul(cs, &e1.C1.B1, e2, ext)
-
-	e.C0 = res.C0
-	e.C1 = res.C1
-
-	return e
-}
-
-// MulByV2W multiplies an e12 elmt by an elmt of the form a*V**2W (Fp6=Fp2(V), Fp12 = Fp6(W))
-func (e *E12) MulByV2W(cs *frontend.ConstraintSystem, e1 *E12, e2 *E2, ext Extension) *E12 {
-
-	tmp := E2{}
-	tmp.MulByIm(cs, e2, ext)
-
-	res := E12{}
-
-	res.C0.B0.Mul(cs, &e1.C1.B0, &tmp, ext)
-	res.C0.B1.Mul(cs, &e1.C1.B1, &tmp, ext)
-	res.C0.B2.Mul(cs, &e1.C1.B2, &tmp, ext)
-	res.C1.B0.Mul(cs, &e1.C0.B1, &tmp, ext)
-	res.C1.B1.Mul(cs, &e1.C0.B2, &tmp, ext)
-	res.C1.B2.Mul(cs, &e1.C0.B0, e2, ext)
-
-	e.C0 = res.C0
-	e.C1 = res.C1
-
-	return e
-}
-
 // Frobenius applies frob to an fp12 elmt
 func (e *E12) Frobenius(cs *frontend.ConstraintSystem, e1 *E12, ext Extension) *E12 {
 

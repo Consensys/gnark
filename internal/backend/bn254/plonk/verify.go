@@ -36,9 +36,18 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn254witnes
 
 	// create a transcript manager to apply Fiat Shamir and get the challenges
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
-	fs.Bind("gamma", proof.CommitmentsLROZH[0].Bytes())
-	fs.Bind("gamma", proof.CommitmentsLROZH[1].Bytes())
-	fs.Bind("gamma", proof.CommitmentsLROZH[2].Bytes())
+	err := fs.Bind("gamma", proof.CommitmentsLROZH[0].Marshal())
+	if err != nil {
+		return err
+	}
+	err = fs.Bind("gamma", proof.CommitmentsLROZH[1].Marshal())
+	if err != nil {
+		return err
+	}
+	err = fs.Bind("gamma", proof.CommitmentsLROZH[2].Marshal())
+	if err != nil {
+		return err
+	}
 	bgamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return err
@@ -46,7 +55,10 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn254witnes
 	var gamma fr.Element
 	gamma.SetBytes(bgamma)
 
-	fs.Bind("alpha", proof.CommitmentsLROZH[3].Bytes())
+	err = fs.Bind("alpha", proof.CommitmentsLROZH[3].Marshal())
+	if err != nil {
+		return err
+	}
 	balpha, err := fs.ComputeChallenge("alpha")
 	if err != nil {
 		return err
@@ -54,9 +66,18 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn254witnes
 	var alpha fr.Element
 	alpha.SetBytes(balpha)
 
-	fs.Bind("zeta", proof.CommitmentsLROZH[4].Bytes())
-	fs.Bind("zeta", proof.CommitmentsLROZH[5].Bytes())
-	fs.Bind("zeta", proof.CommitmentsLROZH[6].Bytes())
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[4].Marshal())
+	if err != nil {
+		return err
+	}
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[5].Marshal())
+	if err != nil {
+		return err
+	}
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[6].Marshal())
+	if err != nil {
+		return err
+	}
 	bzeta, err := fs.ComputeChallenge("zeta")
 	if err != nil {
 		return err
@@ -65,27 +86,22 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn254witnes
 	zeta.SetBytes(bzeta)
 
 	// checks the opening proofs
-	err = publicData.CommitmentScheme.BatchVerifySinglePoint(&zeta, proof.LROZH, proof.CommitmentsLROZH, proof.BatchOpenings)
+	err = publicData.CommitmentScheme.BatchVerifySinglePoint(proof.CommitmentsLROZH[:], proof.BatchOpenings)
 	if err != nil {
 		return err
 	}
-	err = publicData.CommitmentScheme.Verify(&zeta, proof.CommitmentsLROZH[3], proof.OpeningZShift)
+	err = publicData.CommitmentScheme.Verify(proof.CommitmentsLROZH[3], proof.OpeningZShift)
 	if err != nil {
 		return err
 	}
 
 	// evaluation of ql, qr, qm, qo, qk at zeta
 	var ql, qr, qm, qo, qk fr.Element
-	_ql := publicData.Ql.Eval(&zeta)
-	_qr := publicData.Qr.Eval(&zeta)
-	_qm := publicData.Qm.Eval(&zeta)
-	_qo := publicData.Qo.Eval(&zeta)
-	_qk := publicData.Qk.Eval(&zeta)
-	ql.Set(_ql.(*fr.Element))
-	qr.Set(_qr.(*fr.Element))
-	qm.Set(_qm.(*fr.Element))
-	qo.Set(_qo.(*fr.Element))
-	qk.Set(_qk.(*fr.Element))
+	ql.SetInterface(publicData.Ql.Eval(&zeta))
+	qr.SetInterface(publicData.Qr.Eval(&zeta))
+	qm.SetInterface(publicData.Qm.Eval(&zeta))
+	qo.SetInterface(publicData.Qo.Eval(&zeta))
+	qk.SetInterface(publicData.Qk.Eval(&zeta))
 
 	// evaluation of Z=X**m-1 at zeta
 	var zetaPowerM, zzeta, one fr.Element
@@ -145,13 +161,9 @@ func VerifyRaw(proof *ProofRaw, publicData *PublicRaw, publicWitness bn254witnes
 	var constraintOrdering, sZeta, ssZeta fr.Element
 	var s, f, g [3]fr.Element
 
-	s1 := publicData.CS1.Eval(&zeta)
-	s2 := publicData.CS2.Eval(&zeta)
-	s3 := publicData.CS3.Eval(&zeta)
-
-	s[0].Set(s1.(*fr.Element))
-	s[1].Set(s2.(*fr.Element))
-	s[2].Set(s3.(*fr.Element))
+	s[0].SetInterface(publicData.CS1.Eval(&zeta))
+	s[1].SetInterface(publicData.CS2.Eval(&zeta))
+	s[2].SetInterface(publicData.CS3.Eval(&zeta))
 
 	g[0].Add(&lroz[0], &s[0]).Add(&g[0], &gamma) // l+s1+gamma
 	g[1].Add(&lroz[1], &s[1]).Add(&g[1], &gamma) // r+s2+gamma
