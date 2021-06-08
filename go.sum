@@ -6,10 +6,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572 h1:+R8G1+Ftumd0DaveLgMIjrFPcAS4G8MsVXWXiyZL5BY=
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
-github.com/consensys/gnark-crypto v0.4.1-0.20210518165244-bafe2b3250bd h1:alnW18BGy69t+sO/62CtP2tuu7sWI4KmOHyn2ldLv58=
-github.com/consensys/gnark-crypto v0.4.1-0.20210518165244-bafe2b3250bd/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
-github.com/consensys/gnark-crypto v0.4.1-0.20210525173051-223ad20f699b h1:i2AcGfgHDbsR9l9wu35ISL/bbHGIpybc3HRVfX3CLQE=
-github.com/consensys/gnark-crypto v0.4.1-0.20210525173051-223ad20f699b/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210608195447-78cc8bdb3077 h1:9dbjfPxb29oN4CPmTl8vIRYpjyatqQ1t0J0uYNhbJ2Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210608195447-78cc8bdb3077/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

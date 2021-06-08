@@ -27,11 +27,13 @@ import (
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
@@ -39,6 +41,7 @@ import (
 
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	groth16_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
+	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	groth16_bn254 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	groth16_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 )
@@ -104,6 +107,12 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 			return err
 		}
 		return groth16_bw6761.Verify(_proof, vk.(*groth16_bw6761.VerifyingKey), w)
+	case *groth16_bls24315.Proof:
+		w := witness_bls24315.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return groth16_bls24315.Verify(_proof, vk.(*groth16_bls24315.VerifyingKey), w)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -139,6 +148,12 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 			return err
 		}
 		return groth16_bw6761.Verify(proof.(*groth16_bw6761.Proof), _vk, w)
+	case *groth16_bls24315.VerifyingKey:
+		w := witness_bls24315.Witness{}
+		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+			return err
+		}
+		return groth16_bls24315.Verify(proof.(*groth16_bls24315.Proof), _vk, w)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -180,6 +195,12 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 			return nil, err
 		}
 		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, _force)
+	case *backend_bls24315.R1CS:
+		w := witness_bls24315.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return nil, err
+		}
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -222,6 +243,12 @@ func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness
 			return nil, err
 		}
 		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, _force)
+	case *backend_bls24315.R1CS:
+		w := witness_bls24315.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -266,6 +293,13 @@ func Setup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, er
 			return nil, nil, err
 		}
 		return &pk, &vk, nil
+	case *backend_bls24315.R1CS:
+		var pk groth16_bls24315.ProvingKey
+		var vk groth16_bls24315.VerifyingKey
+		if err := groth16_bls24315.Setup(_r1cs, &pk, &vk); err != nil {
+			return nil, nil, err
+		}
+		return &pk, &vk, nil
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -299,6 +333,12 @@ func DummySetup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, error) {
 			return nil, err
 		}
 		return &pk, nil
+	case *backend_bls24315.R1CS:
+		var pk groth16_bls24315.ProvingKey
+		if err := groth16_bls24315.DummySetup(_r1cs, &pk); err != nil {
+			return nil, err
+		}
+		return &pk, nil
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -317,6 +357,8 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 		pk = &groth16_bls12381.ProvingKey{}
 	case ecc.BW6_761:
 		pk = &groth16_bw6761.ProvingKey{}
+	case ecc.BLS24_315:
+		pk = &groth16_bls24315.ProvingKey{}
 	default:
 		panic("not implemented")
 	}
@@ -336,6 +378,8 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 		vk = &groth16_bls12381.VerifyingKey{}
 	case ecc.BW6_761:
 		vk = &groth16_bw6761.VerifyingKey{}
+	case ecc.BLS24_315:
+		vk = &groth16_bls24315.VerifyingKey{}
 	default:
 		panic("not implemented")
 	}
@@ -356,6 +400,8 @@ func NewProof(curveID ecc.ID) Proof {
 		proof = &groth16_bls12381.Proof{}
 	case ecc.BW6_761:
 		proof = &groth16_bw6761.Proof{}
+	case ecc.BLS24_315:
+		proof = &groth16_bls24315.Proof{}
 	default:
 		panic("not implemented")
 	}
@@ -376,6 +422,8 @@ func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 		r1cs = &backend_bls12381.R1CS{}
 	case ecc.BW6_761:
 		r1cs = &backend_bw6761.R1CS{}
+	case ecc.BLS24_315:
+		r1cs = &backend_bls24315.R1CS{}
 	default:
 		panic("not implemented")
 	}
