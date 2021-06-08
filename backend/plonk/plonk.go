@@ -224,7 +224,10 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, 
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		proof := plonkbls24315.ProveRaw(_sparseR1cs, _publicData, w)
+		proof, err := plonkbls24315.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
 		return proof, nil
 
 	default:
