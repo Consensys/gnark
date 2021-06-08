@@ -421,7 +421,7 @@ func computeH(publicData *PublicRaw, constraintsInd, constraintOrdering, startsA
 
 // ProveRaw from the public data
 // TODO add a parameter to force the resolution of the system even if a constraint does not hold
-func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315witness.Witness) *ProofRaw {
+func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315witness.Witness) (*ProofRaw, error) {
 
 	// create a transcript manager to apply Fiat Shamir
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
@@ -453,13 +453,35 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315wi
 	fft.BitReverse(partialL)
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	proof.CommitmentsLROZH[0] = publicData.CommitmentScheme.Commit(cl)
-	proof.CommitmentsLROZH[1] = publicData.CommitmentScheme.Commit(cr)
-	proof.CommitmentsLROZH[2] = publicData.CommitmentScheme.Commit(co)
-	fs.Bind("gamma", proof.CommitmentsLROZH[0].Bytes())
-	fs.Bind("gamma", proof.CommitmentsLROZH[1].Bytes())
-	fs.Bind("gamma", proof.CommitmentsLROZH[2].Bytes())
-	bgamma, _ := fs.ComputeChallenge("gamma")
+	var err error
+	proof.CommitmentsLROZH[0], err = publicData.CommitmentScheme.Commit(&cl)
+	if err != nil {
+		return proof, err
+	}
+	proof.CommitmentsLROZH[1], err = publicData.CommitmentScheme.Commit(&cr)
+	if err != nil {
+		return proof, err
+	}
+	proof.CommitmentsLROZH[2], err = publicData.CommitmentScheme.Commit(&co)
+	if err != nil {
+		return proof, err
+	}
+	err = fs.Bind("gamma", proof.CommitmentsLROZH[0].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	err = fs.Bind("gamma", proof.CommitmentsLROZH[1].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	err = fs.Bind("gamma", proof.CommitmentsLROZH[2].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	bgamma, err := fs.ComputeChallenge("gamma")
+	if err != nil {
+		return proof, err
+	}
 	var gamma fr.Element
 	gamma.SetBytes(bgamma)
 
@@ -499,60 +521,88 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315wi
 	startsAtOne := evalStartsAtOne(publicData, evalZ)
 
 	// commit to Z
-	proof.CommitmentsLROZH[3] = publicData.CommitmentScheme.Commit(z)
+	proof.CommitmentsLROZH[3], err = publicData.CommitmentScheme.Commit(&z)
+	if err != nil {
+		return proof, err
+	}
 
 	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
-	fs.Bind("alpha", proof.CommitmentsLROZH[3].Bytes())
-	balpha, _ := fs.ComputeChallenge("alpha")
+	err = fs.Bind("alpha", proof.CommitmentsLROZH[3].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	balpha, err := fs.ComputeChallenge("alpha")
+	if err != nil {
+		return proof, err
+	}
 	var alpha fr.Element
 	alpha.SetBytes(balpha)
 
 	// compute h in canonical form
 	h1, h2, h3 := computeH(publicData, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
-	// commit to h (3 commitments h1 + x*h2 + x**2*h3)
-	proof.CommitmentsLROZH[4] = publicData.CommitmentScheme.Commit(h1)
-	proof.CommitmentsLROZH[5] = publicData.CommitmentScheme.Commit(h2)
-	proof.CommitmentsLROZH[6] = publicData.CommitmentScheme.Commit(h3)
+	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
+	proof.CommitmentsLROZH[4], err = publicData.CommitmentScheme.Commit(&h1)
+	if err != nil {
+		return proof, err
+	}
+	proof.CommitmentsLROZH[5], err = publicData.CommitmentScheme.Commit(&h2)
+	if err != nil {
+		return proof, err
+	}
+	proof.CommitmentsLROZH[6], err = publicData.CommitmentScheme.Commit(&h3)
+	if err != nil {
+		return proof, err
+	}
 
 	// derive zeta, the point of evaluation
-	fs.Bind("zeta", proof.CommitmentsLROZH[4].Bytes())
-	fs.Bind("zeta", proof.CommitmentsLROZH[5].Bytes())
-	fs.Bind("zeta", proof.CommitmentsLROZH[6].Bytes())
-	bzeta, _ := fs.ComputeChallenge("zeta")
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[4].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[5].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	err = fs.Bind("zeta", proof.CommitmentsLROZH[6].Marshal())
+	if err != nil {
+		return proof, err
+	}
+	bzeta, err := fs.ComputeChallenge("zeta")
+	if err != nil {
+		return proof, err
+	}
 	var zeta fr.Element
 	zeta.SetBytes(bzeta)
 
 	// compute evaluations of l, r, o, z at zeta
-	tmp := partialL.Eval(&zeta)
-	proof.LROZH[0].Set(tmp.(*fr.Element))
-	tmp = cr.Eval(&zeta)
-	proof.LROZH[1].Set(tmp.(*fr.Element))
-	tmp = co.Eval(&zeta)
-	proof.LROZH[2].Set(tmp.(*fr.Element))
-	tmp = z.Eval(&zeta)
-	proof.LROZH[3].Set(tmp.(*fr.Element))
+	proof.LROZH[0].SetInterface(partialL.Eval(&zeta).(fr.Element))
+	proof.LROZH[1].SetInterface(cr.Eval(&zeta).(fr.Element))
+	proof.LROZH[2].SetInterface(co.Eval(&zeta).(fr.Element))
+	proof.LROZH[3].SetInterface(z.Eval(&zeta).(fr.Element))
 
 	// compute evaluations of h1, h2, h3 at zeta (so h(zeta)=h1(zeta)+zeta^m*h2(zeta)+zeta^2m*h3(zeta))
-	tmp = h1.Eval(&zeta)
-	proof.LROZH[4].Set(tmp.(*fr.Element))
-	tmp = h2.Eval(&zeta)
-	proof.LROZH[5].Set(tmp.(*fr.Element))
-	tmp = h3.Eval(&zeta)
-	proof.LROZH[6].Set(tmp.(*fr.Element))
+	proof.LROZH[4].SetInterface(h1.Eval(&zeta))
+	proof.LROZH[5].SetInterface(h2.Eval(&zeta))
+	proof.LROZH[6].SetInterface(h3.Eval(&zeta))
 
 	// compute evaluation of z at z*zeta
 	var zzeta fr.Element
 	zzeta.Mul(&zeta, &publicData.DomainNum.Generator)
-	tmp = z.Eval(&zzeta)
-	proof.ZShift.Set(tmp.(*fr.Element))
+	proof.ZShift.SetInterface(z.Eval(&zzeta))
 
-	// compute batch opening proof for l, r, o, h, z at zeta
-	polynomialsToOpenAtZeta := []bls24315.Polynomial{cl, cr, co, z, h1, h2, h3}
-	proof.BatchOpenings = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, polynomialsToOpenAtZeta)
+	// compute batfch opening proof for l, r, o, h, z at zeta
+	polynomialsToOpenAtZeta := []polynomial.Polynomial{&cl, &cr, &co, &z, &h1, &h2, &h3}
+	proof.BatchOpenings, err = publicData.CommitmentScheme.BatchOpenSinglePoint(&zeta, proof.CommitmentsLROZH[:], polynomialsToOpenAtZeta)
+	if err != nil {
+		return proof, err
+	}
 
 	// compute opening proof for z at z*zeta
-	proof.OpeningZShift = publicData.CommitmentScheme.Open(&zzeta, z)
+	proof.OpeningZShift, err = publicData.CommitmentScheme.Open(&zzeta, &z)
+	if err != nil {
+		return proof, err
+	}
 
-	return proof
+	return proof, nil
 }
