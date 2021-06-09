@@ -23,9 +23,6 @@ func main() {
 	witness.Y.Assign(35)
 
 	for _, b := range backend.Implemented() {
-		if b == backend.PLONK {
-			continue // TODO @gbotrel not ready yet.
-		}
 		for _, curve := range ecc.Implemented() {
 			circuitID := filepath.Join(b.String(), curve.String(), "cubic")
 			os.MkdirAll(circuitID, 0700)
@@ -47,24 +44,7 @@ func main() {
 				writeGnarkObject(vk, filepath.Join(circuitID, "cubic"+".vk"))
 			} else if b == backend.PLONK {
 				log.Println("plonk setup", circuitID)
-				// TODO @gbotrel @thomas --> problem here, Setup should be split into witness dependent / independent part.
-				// TODO looks ugly
-				// sparseR1CS := ccs.(*cs.SparseR1CS)
-				// nbConstraints := len(sparseR1CS.Constraints)
-				// nbVariables := sparseR1CS.NbInternalVariables + sparseR1CS.NbPublicVariables + sparseR1CS.NbSecretVariables
-				// var s, size int
-				// if nbConstraints > nbVariables {
-				// 	s = nbConstraints
-				// } else {
-				// 	s = nbVariables
-				// }
-				// size = 1
-				// for ; size < s; size *= 2 {
-				// }
-				// var alpha fr.Element
-				// alpha.SetRandom()
-				// kate := kzg.NewScheme(size, alpha)
-
+				// TODO WIP note that we don't pass KZG here, as it's only needed in Prove & Verify
 				publicData, err := plonk.Setup(ccs, nil, &witness)
 				if err != nil {
 					log.Fatal(err)
