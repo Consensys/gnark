@@ -17,15 +17,104 @@
 package plonk
 
 import (
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+
 	"io"
 )
 
 // WriteTo ...
 func (p *PublicRaw) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
+
+	n, err = p.DomainNum.WriteTo(w)
+	if err != nil {
+		return
+	}
+
+	n2, err := p.DomainH.WriteTo(w)
+	if err != nil {
+		return
+	}
+	n += n2
+
+	enc := curve.NewEncoder(w)
+
+	// note: p.Ql is of type Polynomial, which is handled by default binary.Write(...) op and doesn't
+	// encode the size (nor does it convert from Montgomery to Regular form)
+
+	toEncode := []interface{}{
+		([]fr.Element)(p.Ql),
+		([]fr.Element)(p.Qr),
+		([]fr.Element)(p.Qm),
+		([]fr.Element)(p.Qo),
+		([]fr.Element)(p.Qk),
+		p.Shifter[:],
+		([]fr.Element)(p.LS1),
+		([]fr.Element)(p.LS2),
+		([]fr.Element)(p.LS3),
+		([]fr.Element)(p.CS1),
+		([]fr.Element)(p.CS2),
+		([]fr.Element)(p.CS3),
+		uint32(len(p.Permutation)),
+		p.Permutation,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
+		}
+	}
+
+	return n + enc.BytesWritten(), nil
 }
 
 // ReadFrom ...
 func (p *PublicRaw) ReadFrom(r io.Reader) (int64, error) {
-	panic("not implemented")
+
+	n, err := p.DomainNum.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+
+	n2, err := p.DomainH.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	n += n2
+
+	dec := curve.NewDecoder(r)
+	var lenPermutations uint32
+	pShifter := make([]fr.Element, 2)
+	toDecode := []interface{}{
+		(*[]fr.Element)(&p.Ql),
+		(*[]fr.Element)(&p.Qr),
+		(*[]fr.Element)(&p.Qm),
+		(*[]fr.Element)(&p.Qo),
+		(*[]fr.Element)(&p.Qk),
+		&pShifter,
+		(*[]fr.Element)(&p.LS1),
+		(*[]fr.Element)(&p.LS2),
+		(*[]fr.Element)(&p.LS3),
+		(*[]fr.Element)(&p.CS1),
+		(*[]fr.Element)(&p.CS2),
+		(*[]fr.Element)(&p.CS3),
+		&lenPermutations,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
+		}
+	}
+
+	p.Permutation = make([]int64, lenPermutations)
+	if err := dec.Decode(&p.Permutation); err != nil {
+		return n + dec.BytesRead(), err
+	}
+
+	p.Shifter[0] = pShifter[0]
+	p.Shifter[1] = pShifter[1]
+
+	return n + dec.BytesRead(), nil
 }

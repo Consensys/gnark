@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572
-	github.com/consensys/gnark-crypto v0.4.1-0.20210608195447-78cc8bdb3077
+	github.com/consensys/gnark-crypto v0.4.1-0.20210609004241-9c700025967d
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.2.0

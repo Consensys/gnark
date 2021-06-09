@@ -154,11 +154,11 @@ func evalConstraints(publicData *PublicRaw, evalL, evalR, evalO []fr.Element) []
 	evalQm := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalQo := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalQk := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(publicData.Ql, evalQl, publicData.DomainNum)
-	evaluateCosets(publicData.Qr, evalQr, publicData.DomainNum)
-	evaluateCosets(publicData.Qm, evalQm, publicData.DomainNum)
-	evaluateCosets(publicData.Qo, evalQo, publicData.DomainNum)
-	evaluateCosets(publicData.Qk, evalQk, publicData.DomainNum)
+	evaluateCosets(publicData.Ql, evalQl, &publicData.DomainNum)
+	evaluateCosets(publicData.Qr, evalQr, &publicData.DomainNum)
+	evaluateCosets(publicData.Qm, evalQm, &publicData.DomainNum)
+	evaluateCosets(publicData.Qo, evalQo, &publicData.DomainNum)
+	evaluateCosets(publicData.Qk, evalQk, &publicData.DomainNum)
 
 	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
 	// of (Z/8mZ)/(Z/mZ)
@@ -240,9 +240,9 @@ func evalConstraintOrdering(publicData *PublicRaw, evalZ, evalZu, evalL, evalR, 
 	evalS1 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalS2 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalS3 := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(publicData.CS1, evalS1, publicData.DomainNum)
-	evaluateCosets(publicData.CS2, evalS2, publicData.DomainNum)
-	evaluateCosets(publicData.CS3, evalS3, publicData.DomainNum)
+	evaluateCosets(publicData.CS1, evalS1, &publicData.DomainNum)
+	evaluateCosets(publicData.CS2, evalS2, &publicData.DomainNum)
+	evaluateCosets(publicData.CS3, evalS3, &publicData.DomainNum)
 
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalID, evaluID, evaluuID := evalIDCosets(publicData)
@@ -290,7 +290,7 @@ func evalStartsAtOne(publicData *PublicRaw, evalZ bls24315.Polynomial) bls24315.
 
 	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(lOneLagrange, res, publicData.DomainNum)
+	evaluateCosets(lOneLagrange, res, &publicData.DomainNum)
 
 	// // evaluates L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var buf, one fr.Element
@@ -495,9 +495,9 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315wi
 	evalL := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalR := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalO := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(cl, evalL, publicData.DomainNum)
-	evaluateCosets(cr, evalR, publicData.DomainNum)
-	evaluateCosets(co, evalO, publicData.DomainNum)
+	evaluateCosets(cl, evalL, &publicData.DomainNum)
+	evaluateCosets(cr, evalR, &publicData.DomainNum)
+	evaluateCosets(co, evalO, &publicData.DomainNum)
 
 	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
 	constraintsInd := evalConstraints(publicData, evalL, evalR, evalO)
@@ -511,8 +511,8 @@ func ProveRaw(spr *cs.SparseR1CS, publicData *PublicRaw, fullWitness bls24_315wi
 	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalZ := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
 	evalZu := make([]fr.Element, 4*publicData.DomainNum.Cardinality)
-	evaluateCosets(z, evalZ, publicData.DomainNum)
-	evaluateCosets(zu, evalZu, publicData.DomainNum)
+	evaluateCosets(z, evalZ, &publicData.DomainNum)
+	evaluateCosets(zu, evalZu, &publicData.DomainNum)
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	constraintsOrdering := evalConstraintOrdering(publicData, evalZ, evalZu, evalL, evalR, evalO, gamma)

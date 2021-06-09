@@ -33,15 +33,14 @@ import (
 // which consists of the evaluations of the LDE of qr,ql,qm,qo,k. The compact
 // version of public data consists of commitments of qr,ql,qm,qo,k.
 type PublicRaw struct {
-
 	// Commitment scheme that is used for an instantiation of PLONK
 	CommitmentScheme polynomial.CommitmentScheme
 
+	// Domains used for the FFTs
+	DomainNum, DomainH fft.Domain
+
 	// qr,ql,qm,qo,k (in canonical basis)
 	Ql, Qr, Qm, Qo, Qk bls12381.Polynomial
-
-	// Domains used for the FFTs
-	DomainNum, DomainH *fft.Domain
 
 	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
 	// extended domain = s || shifter[0].s || shifter[1].s
@@ -52,7 +51,7 @@ type PublicRaw struct {
 	CS1, CS2, CS3 bls12381.Polynomial
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
-	Permutation []int
+	Permutation []int64
 }
 
 // SetupRaw from a sparseR1CS
@@ -70,8 +69,8 @@ func SetupRaw(spr *cs.SparseR1CS, polynomialCommitment polynomial.CommitmentSche
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	res.DomainNum = fft.NewDomain(sizeSystem, 3, false)
-	res.DomainH = fft.NewDomain(4*sizeSystem, 1, false)
+	res.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
+	res.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
 	// shifters
 	res.Shifter[0].Set(&res.DomainNum.FinerGenerator)
@@ -154,7 +153,7 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 	// position -> variable_ID
 	lro := make([]int, 3*sizeSolution)
 
-	publicData.Permutation = make([]int, 3*sizeSolution)
+	publicData.Permutation = make([]int64, 3*sizeSolution)
 	for i := 0; i < spr.NbPublicVariables; i++ { // IDs of LRO associated to placeholders (only L needs to be taken care of)
 
 		lro[i] = i
@@ -198,7 +197,7 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
 
 	// map ID -> last position the ID was seen
-	cycle := make([]int, nbVariables)
+	cycle := make([]int64, nbVariables)
 	for i := 0; i < len(cycle); i++ {
 		cycle[i] = -1
 	}
@@ -207,7 +206,7 @@ func buildPermutation(spr *cs.SparseR1CS, publicData *PublicRaw) {
 		if cycle[lro[i]] != -1 {
 			publicData.Permutation[i] = cycle[lro[i]]
 		}
-		cycle[lro[i]] = i
+		cycle[lro[i]] = int64(i)
 	}
 
 	// complete the Permutation by filling the first IDs encountered
