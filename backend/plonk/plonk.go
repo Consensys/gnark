@@ -303,6 +303,8 @@ func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 		r1cs = &backend_bls12381.SparseR1CS{}
 	case ecc.BW6_761:
 		r1cs = &backend_bw6761.SparseR1CS{}
+	case ecc.BLS24_315:
+		r1cs = &backend_bls24315.SparseR1CS{}
 	default:
 		panic("not implemented")
 	}
@@ -322,6 +324,8 @@ func NewPublicData(curveID ecc.ID) PublicData {
 		data = &plonkbls12381.PublicRaw{}
 	case ecc.BW6_761:
 		data = &plonkbw6761.PublicRaw{}
+	case ecc.BLS24_315:
+		data = &plonkbls24315.PublicRaw{}
 	default:
 		panic("not implemented")
 	}
