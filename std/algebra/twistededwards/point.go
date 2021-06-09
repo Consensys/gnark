@@ -17,6 +17,7 @@ limitations under the License.
 package twistededwards
 
 import (
+	"errors"
 	bls12377fr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -26,6 +27,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
+
+var errInvalidCurveType = errors.New("curve is not supported / implemented yet")
 
 // Point point on a twisted Edwards curve in a Snark cs
 type Point struct {
@@ -195,7 +198,7 @@ func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) *Po
 		r = cs.Constant(bw6761fr.Modulus())
 		break
 	default:
-		break
+		panic(errInvalidCurveType)
 	}
 
 	xNeg = cs.Sub(r, p1.X)
