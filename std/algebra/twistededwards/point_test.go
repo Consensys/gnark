@@ -292,3 +292,39 @@ func TestScalarMul(t *testing.T) {
 	assert.SolvingSucceeded(r1cs, &witness)
 
 }
+
+type neg struct {
+	P, E Point
+}
+
+func (circuit *neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	// get edwards curve params
+	params, err := NewEdCurve(curveID)
+	if err != nil {
+		return err
+	}
+
+	circuit.P.Neg(cs, &circuit.P, params)
+	cs.AssertIsEqual(circuit.P.X, circuit.E.X)
+	cs.AssertIsEqual(circuit.P.Y, circuit.E.Y)
+
+	return nil
+}
+
+func TestNeg(t *testing.T) {
+	assert := groth16.NewAssert(t)
+
+	var circuit, witness neg
+	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	witness.P.X.Assign("18665017035212691858633069371680241319151220291994734298154473778738521354016")
+	witness.P.Y.Assign("20917917045750626054948665463006839273229976593100354296487302600652803766757")
+	witness.E.X.Assign("3223225836626583363613336373577033769397144108421300045543730407837287141601")
+	witness.E.Y.Assign("20917917045750626054948665463006839273229976593100354296487302600652803766757")
+
+	assert.SolvingSucceeded(r1cs, &witness)
+
+}
