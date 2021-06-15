@@ -25,7 +25,6 @@ import (
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -51,10 +50,6 @@ type ProvingKey struct {
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
 
-	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
-	// extended domain = s || shifter[0].s || shifter[1].s
-	Shifter [2]fr.Element
-
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
 	LS1, LS2, LS3 bn254.Polynomial
 	CS1, CS2, CS3 bn254.Polynomial
@@ -69,6 +64,15 @@ type ProvingKey struct {
 // * Commitments of qr, qm, qo, qk prepended with as many zeroes as there are public inputs
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
+
+	// Size circuit
+	Size      uint64
+	SizeInv   fr.Element
+	Generator fr.Element
+
+	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
+	// extended domain = s || shifter[0].s || shifter[1].s
+	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
 	CommitmentScheme polynomial.CommitmentScheme
@@ -107,21 +111,6 @@ type PublicRaw struct {
 	Permutation []int
 }
 
-func getCoeff(spr *cs.SparseR1CS, t compiled.Term) *fr.Element {
-	var res fr.Element
-	coeffValue, coeffID, _, _ := t.Unpack()
-	if coeffValue == -1 {
-		res.SetOne().Neg(&res)
-		return &res
-	} else if coeffValue == 0 || coeffValue == 1 || coeffValue == 2 {
-		res.SetUint64(uint64(coeffValue))
-		return &res
-	} else {
-		res.Set(&spr.Coefficients[coeffID])
-		return &res
-	}
-}
-
 // Setup sets proving and verifying keys
 func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommitment polynomial.CommitmentScheme) error {
 
@@ -134,11 +123,14 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 	pk.DomainH = fft.NewDomain(4*sizeSystem, 1, false)
 
 	// shifters
-	pk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
-	pk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
+	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
+	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
 	// commitment scheme
 	vk.CommitmentScheme = polynomialCommitment
+	vk.Size = pk.DomainNum.Cardinality
+	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
+	vk.Generator.Set(&pk.DomainNum.Generator)
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
@@ -159,22 +151,22 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 	offset := spr.NbPublicVariables
 	for i := 0; i < nbConstraints; i++ { // constraints
 
-		pk.Ql[offset+i].Set(getCoeff(spr, spr.Constraints[i].L))
-		pk.Qr[offset+i].Set(getCoeff(spr, spr.Constraints[i].R))
-		pk.Qm[offset+i].Set(getCoeff(spr, spr.Constraints[i].M[0])).
-			Mul(&pk.Qm[offset+i], getCoeff(spr, spr.Constraints[i].M[1]))
-		pk.Qo[offset+i].Set(getCoeff(spr, spr.Constraints[i].O))
+		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		pk.Qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		pk.Qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&pk.Qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
 		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 	offset += nbConstraints
 	for i := 0; i < nbAssertions; i++ { // assertions
 
-		pk.Ql[offset+i].Set(getCoeff(spr, spr.Assertions[i].L))
-		pk.Qr[offset+i].Set(getCoeff(spr, spr.Assertions[i].R))
-		pk.Qm[offset+i].Set(getCoeff(spr, spr.Assertions[i].M[0])).
-			Mul(&pk.Qm[offset+i], getCoeff(spr, spr.Assertions[i].M[1]))
-		pk.Qo[offset+i].Set(getCoeff(spr, spr.Assertions[i].O))
+		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
+		pk.Qr[offset+i].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
+		pk.Qm[offset+i].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
+			Mul(&pk.Qm[offset+i], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
+		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
 		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
 	}

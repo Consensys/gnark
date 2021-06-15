@@ -15,7 +15,6 @@
 package plonk
 
 import (
-	"fmt"
 	"math/big"
 
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
@@ -43,7 +42,7 @@ type ProofBis struct {
 	// Commitments to h1, h2, h3 such that h = h1 + Xh2 + X**2h3 is the quotient polynomial
 	H [3]polynomial.Digest
 
-	// Batch opening proof of h1 + Xh2 + X**2h3,r, l, r, o, z, s1, s2
+	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
 	BatchedProof polynomial.BatchOpeningProofSinglePoint
 
 	// Opening proof of Z at zeta*mu
@@ -107,8 +106,8 @@ func ComputeZBis(l, r, o bn254.Polynomial, pk *ProvingKey, gamma fr.Element) bn2
 	var g [3]fr.Element
 	var u [3]fr.Element
 	u[0].SetOne()
-	u[1].Set(&pk.Shifter[0])
-	u[2].Set(&pk.Shifter[1])
+	u[1].Set(&pk.Vk.Shifter[0])
+	u[2].Set(&pk.Vk.Shifter[1])
 
 	z[0].SetOne()
 
@@ -209,15 +208,15 @@ func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid bn254.Polynomial) {
 		id[4*i+2].Mul(&id[4*i+2], &u[2]) // coset u**5.<1,z,..,z**n-1>
 		id[4*i+3].Mul(&id[4*i+3], &u[3]) // coset u**7.<1,z,..,z**n-1>
 
-		uid[4*i].Mul(&id[4*i], &pk.Shifter[0])     // shifter[0]*ID
-		uid[4*i+1].Mul(&id[4*i+1], &pk.Shifter[0]) // shifter[0]*ID
-		uid[4*i+2].Mul(&id[4*i+2], &pk.Shifter[0]) // shifter[0]*ID
-		uid[4*i+3].Mul(&id[4*i+3], &pk.Shifter[0]) // shifter[0]*ID
+		uid[4*i].Mul(&id[4*i], &pk.Vk.Shifter[0])     // shifter[0]*ID
+		uid[4*i+1].Mul(&id[4*i+1], &pk.Vk.Shifter[0]) // shifter[0]*ID
+		uid[4*i+2].Mul(&id[4*i+2], &pk.Vk.Shifter[0]) // shifter[0]*ID
+		uid[4*i+3].Mul(&id[4*i+3], &pk.Vk.Shifter[0]) // shifter[0]*ID
 
-		uuid[4*i].Mul(&id[4*i], &pk.Shifter[1])     // shifter[1]*ID
-		uuid[4*i+1].Mul(&id[4*i+1], &pk.Shifter[1]) // shifter[1]*ID
-		uuid[4*i+2].Mul(&id[4*i+2], &pk.Shifter[1]) // shifter[1]*ID
-		uuid[4*i+3].Mul(&id[4*i+3], &pk.Shifter[1]) // shifter[1]*ID
+		uuid[4*i].Mul(&id[4*i], &pk.Vk.Shifter[1])     // shifter[1]*ID
+		uuid[4*i+1].Mul(&id[4*i+1], &pk.Vk.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+2].Mul(&id[4*i+2], &pk.Vk.Shifter[1]) // shifter[1]*ID
+		uuid[4*i+3].Mul(&id[4*i+3], &pk.Vk.Shifter[1]) // shifter[1]*ID
 
 	}
 	return
@@ -418,7 +417,7 @@ func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne
 // * a, b, c are the evaluation of l, r, o at zeta
 // * z is the permutation polynomial, zu is Z(uX), the shifted version of Z
 // * pk is the proving key: the linearized polynomial is a linear combination of ql, qr, qm, qo, qk.
-func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta fr.Element, z, zu bn254.Polynomial, pk *ProvingKey) bn254.Polynomial {
+func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z bn254.Polynomial, pk *ProvingKey) bn254.Polynomial {
 
 	// first part: individual constraints
 	var rl fr.Element
@@ -440,40 +439,27 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta fr.Element, z, zu b
 
 	_linearizedPolynomial.Add(_linearizedPolynomial, &pk.CQk) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
 
-	// CORRECT CHECKPOINT
-
-	//-----
-	// check := _linearizedPolynomial.(*bn254.Polynomial)
-	// fmt.Printf("a(zeta): %s\n", l.String())
-	// fmt.Printf("b(zeta): %s\n", r.String())
-	// fmt.Printf("c(zeta): %s\n", o.String())
-	// fmt.Printf("linPol: ")
-	// for i := 0; i < len(*check); i++ {
-	// 	fmt.Printf("%s*x**%d+", (*check)[i].String(), i)
-	// }
-	// fmt.Println("")
-	//-----
-
-	// second part: Z(uX)(a+s1+gamma)*(b+s2+gamma)*s3-Z(X)(a+X+gamma)*(b+uX+gamma)*(c+u**2*X+gamma)
+	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	var s1, s2, t fr.Element
 	s1.SetInterface(pk.CS1.Eval(zeta)).Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
 	t.SetInterface(pk.CS2.Eval(zeta)).Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
-	s1.Mul(&s1, &t)                                                  // (a+s1+gamma)*(b+s2+gamma)
-	t.SetInterface(pk.CS3.Eval(zeta))                                // s3
-	s1.Mul(&s1, &t)                                                  // (a+s1+gamma)*(b+s2+gamma)*s3
+	s1.Mul(&s1, &t).                                                 // (a+s1+gamma)*(b+s2+gamma)
+										Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
 
-	s2.Add(&l, &zeta).Add(&s2, &gamma)                       // (a+z+gamma)
-	t.Mul(&pk.Shifter[0], &zeta).Add(&t, &r).Add(&t, &gamma) // (b+uz+gamma)
-	s2.Mul(&s2, &t)                                          // (a+z+gamma)*(b+uz+gamma)
-	t.Mul(&pk.Shifter[1], &zeta).Add(&t, &o).Add(&t, &gamma) // (o+u**2z+gamma)
-	s2.Mul(&s2, &t)                                          // (a+X+gamma)*(b+uX+gamma)*(c+u**2*X+gamma)
-	s2.Neg(&s2)                                              // -(a+X+gamma)*(b+uX+gamma)*(c+u**2*X+gamma)
+	s2.Add(&l, &zeta).Add(&s2, &gamma)                          // (a+z+gamma)
+	t.Mul(&pk.Vk.Shifter[0], &zeta).Add(&t, &r).Add(&t, &gamma) // (b+uz+gamma)
+	s2.Mul(&s2, &t)                                             // (a+z+gamma)*(b+uz+gamma)
+	t.Mul(&pk.Vk.Shifter[1], &zeta).Add(&t, &o).Add(&t, &gamma) // (o+u**2z+gamma)
+	s2.Mul(&s2, &t)                                             // (a+z+gamma)*(b+uz+gamma)*(c+u**2*z+gamma)
+	s2.Neg(&s2)                                                 // -(a+z+gamma)*(b+uz+gamma)*(c+u**2*z+gamma)
 
-	p1 := zu.Clone()
-	p1.ScaleInPlace(s1) // Z(uX)*(a+s1+gamma)*(b+s2+gamma)*s3
+	p1 := pk.CS3.Clone()
+	p1.ScaleInPlace(s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
 	p2 := z.Clone()
-	p2.ScaleInPlace(s2)                // -Z(X)(a+X+gamma)*(b+uX+gamma)*(c+u**2*X+gamma)
-	p1.Add(p1, p2).ScaleInPlace(alpha) // alpha*( Z(uX)(a+s1+gamma)*(b+s2+gamma)*s3-Z(X)(a+X+gamma)*(b+uX+gamma)*(c+u**2*X+gamma) )
+	p2.ScaleInPlace(s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
+	p1.Add(p1, p2)
+	p1.ScaleInPlace(alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
+
 	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
 
 	// third part L1(zeta)*alpha**2**Z
@@ -487,9 +473,9 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta fr.Element, z, zu b
 	den.Sub(&zeta, &one).
 		Mul(&den, &frNbElmt).
 		Inverse(&den)
-	lagrange.Mul(&lagrange, &den) // L_0 = 1/m*(X**n-1)/(X-1)
-	lagrange.Mul(&lagrange, &alpha).
-		Mul(&lagrange, &alpha) // alpha**2*L_0
+	lagrange.Mul(&lagrange, &den). // L_0 = 1/m*(zeta**n-1)/(zeta-1)
+					Mul(&lagrange, &alpha).
+					Mul(&lagrange, &alpha) // alpha**2*L_0
 	p1 = z.Clone()
 	p1.ScaleInPlace(lagrange)
 
@@ -497,6 +483,7 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta fr.Element, z, zu b
 	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
 
 	linearizedPolynomial := _linearizedPolynomial.(*bn254.Polynomial)
+
 	return *linearizedPolynomial
 }
 
@@ -510,7 +497,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	proofBis := &ProofBis{}
 
 	// compute the solution
-	solution, _ := spr.Solve(fullWitness)
+	solution, err := spr.Solve(fullWitness)
+	if err != nil {
+		return proofBis, err
+	}
 
 	// query l, r, o in Lagrange basis
 	ll, lr, lo := ComputeLROBis(spr, pk, solution)
@@ -532,7 +522,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	fft.BitReverse(co)
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	var err error
 	proofBis.LRO[0], _ = pk.Vk.CommitmentScheme.Commit(&cl)
 	proofBis.LRO[1], _ = pk.Vk.CommitmentScheme.Commit(&cr)
 	proofBis.LRO[2], _ = pk.Vk.CommitmentScheme.Commit(&co)
@@ -641,9 +630,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	if err != nil {
 		return proofBis, err
 	}
-	var m fr.Element
-	m.SetBytes(proofBis.H[2].Marshal())
-	fmt.Printf("m prover: %s\n", m.String())
 	err = fs.Bind("zeta", proofBis.H[2].Marshal())
 	if err != nil {
 		return proofBis, err
@@ -655,9 +641,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	var zeta fr.Element
 	zeta.SetBytes(bzeta)
 
-	fmt.Printf("gamma prover: %s\n", gamma.String())
-	fmt.Printf("alpha prover: %s\n", alpha.String())
-	fmt.Printf("zeta prover: %s\n", zeta.String())
+	// open Z at zeta*z
+	var zetaShifted fr.Element
+	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
+	proofBis.ZShiftedOpening, _ = pk.Vk.CommitmentScheme.Open(
+		zetaShifted,
+		&z,
+	)
+	var zuzeta fr.Element
+	zuzeta.SetInterface(proofBis.ZShiftedOpening.GetClaimedValue())
 
 	// compute evaluations of l, r, o, z at zeta
 	var lzeta, rzeta, ozeta fr.Element
@@ -673,30 +665,34 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 		alpha,
 		gamma,
 		zeta,
+		zuzeta,
 		z,
-		zu,
 		pk,
 	)
+
+	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
+	var bZetaPowerm big.Int
+	sizeBigInt := big.NewInt(sizeCommon)
+	var zetaPowerm fr.Element
+	zetaPowerm.Exp(zeta, sizeBigInt)
+	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
+	foldedHDigest := proofBis.H[2].Clone()
+	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm)
+	foldedHDigest.Add(foldedHDigest, proofBis.H[1])     // zeta**m*Comm(h3)
+	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
+	foldedHDigest.Add(foldedHDigest, proofBis.H[0])     // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
+
+	// foldedH = h1 + zeta*h2 + zeta**2*h3
+	foldedH := h3.Clone()
+	foldedH.ScaleInPlace(bZetaPowerm) // zeta**m*h3
+	foldedH.Add(foldedH, &h2)         // zeta**m*h3+h2
+	foldedH.ScaleInPlace(bZetaPowerm) // zeta**2m*h3+h2*zeta**m
+	foldedH.Add(foldedH, &h1)         // zeta**2m*h3+zeta**m*h2 + h1
+	// foldedH correct
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
 	linearizedPolynomialDigest, _ := pk.Vk.CommitmentScheme.Commit(&linearizedPolynomial)
-
-	// foldedHDigest = Comm(h1) + zeta*Comm(h2) + zeta**2*Comm(h3)
-	var bZeta big.Int
-	zeta.ToBigIntRegular(&bZeta)
-	foldedHDigest := proofBis.H[2].Clone()
-	foldedHDigest.ScalarMul(foldedHDigest, bZeta)
-	foldedHDigest.Add(foldedHDigest, proofBis.H[1]) // zeta*Comm(h3)
-	foldedHDigest.ScalarMul(foldedHDigest, bZeta)   // zeta**2*Comm(h3) + zeta*Comm(h2)
-	foldedHDigest.Add(foldedHDigest, proofBis.H[0]) // zeta**2*Comm(h3) + zeta*Comm(h2) + Comm(h1)
-
-	// foldedH = h1 + zeta*h2 + zeta**2*h3
-	foldedH := h3.Clone()
-	foldedH.ScaleInPlace(zeta) // zeta*h3
-	foldedH.Add(foldedH, &h2)  // zeta*h3+h2
-	foldedH.ScaleInPlace(zeta) // zeta**2*h3+h2*zeta
-	foldedH.Add(foldedH, &h1)  // zeta**2*h3+zeta*h2 + h1
 
 	// Batch open the first list of polynomials
 	proofBis.BatchedProof, _ = pk.Vk.CommitmentScheme.BatchOpenSinglePoint(
@@ -719,12 +715,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 			&pk.CS1,
 			&pk.CS2,
 		},
-	)
-
-	// open Z at zeta*z
-	proofBis.ZShiftedOpening, _ = pk.Vk.CommitmentScheme.Open(
-		zeta,
-		&zu,
 	)
 
 	return proofBis, nil
