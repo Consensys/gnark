@@ -3,9 +3,12 @@ package server
 import (
 	"bytes"
 	context "context"
+	"io"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/gnarkd/pb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -27,16 +30,33 @@ func (s *Server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.Prove
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
-	// call groth16.Prove with witness
-	proof, err := groth16.ReadAndProve(circuit.ccs, circuit.groth16.pk, bytes.NewReader(request.Witness))
-	if err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.Internal, err.Error())
+	var buf bytes.Buffer
+	var pw io.WriterTo
+
+	switch circuit.backendID {
+	case backend.GROTH16:
+		// call groth16.Prove with witness
+		proof, err := groth16.ReadAndProve(circuit.ccs, circuit.groth16.pk, bytes.NewReader(request.Witness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+		pw = proof
+
+	case backend.PLONK:
+		// call plonk.Prove with witness
+		proof, err := plonk.ReadAndProve(circuit.ccs, circuit.plonk.publicData, bytes.NewReader(request.Witness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+		pw = proof
+	default:
+		panic("backend not implemented")
 	}
 
 	// serialize proof
-	var buf bytes.Buffer
-	_, err = proof.WriteTo(&buf)
+	_, err := pw.WriteTo(&buf)
 	if err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.Internal, err.Error())

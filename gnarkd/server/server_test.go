@@ -414,19 +414,22 @@ func TestVerifySync(t *testing.T) {
 	var (
 		w        cubic.Circuit
 		bWitness bytes.Buffer
-		bProof   bytes.Buffer
 	)
 	w.X.Assign(3)
 	w.Y.Assign(35)
 	for circuitID, circuit := range gnarkdServer.circuits {
 		t.Log("running test with", circuitID)
 		bWitness.Reset()
-		bProof.Reset()
-		proof, err := groth16.Prove(circuit.ccs, circuit.groth16.pk, &w)
-		assert.NoError(err)
-		_, err = proof.WriteRawTo(&bProof)
+
+		_, err = witness.WriteFullTo(&bWitness, circuit.curveID, &w)
 		assert.NoError(err)
 
+		proof, err := client.Prove(ctx, &pb.ProveRequest{
+			CircuitID: circuitID,
+			Witness:   bWitness.Bytes(),
+		})
+		assert.NoError(err)
+		bWitness.Reset()
 		_, err = witness.WritePublicTo(&bWitness, circuit.curveID, &w)
 		assert.NoError(err)
 
@@ -434,7 +437,7 @@ func TestVerifySync(t *testing.T) {
 		vResult, err := client.Verify(ctx, &pb.VerifyRequest{
 			CircuitID:     circuitID,
 			PublicWitness: bWitness.Bytes(),
-			Proof:         bProof.Bytes(),
+			Proof:         proof.Proof,
 		})
 		assert.NoError(err, "grpc sync verify failed")
 		assert.True(vResult.Ok)

@@ -24,9 +24,43 @@ import (
 	"io"
 )
 
-// WriteTo ...
-func (p *PublicRaw) WriteTo(w io.Writer) (n int64, err error) {
+// WriteTo writes binary encoding of ProofRaw to w
+func (proof *ProofRaw) WriteTo(w io.Writer) (int64, error) {
+	enc := curve.NewEncoder(w)
 
+	if err := enc.Encode(proof.LROZH[:]); err != nil {
+		return enc.BytesWritten(), err
+	}
+	if err := enc.Encode(proof.ZShift); err != nil {
+		return enc.BytesWritten(), err
+	}
+
+	var n int64
+	for i := 0; i < len(proof.CommitmentsLROZH); i++ {
+		n2, err := w.Write(proof.CommitmentsLROZH[i].Marshal())
+		n += int64(n2)
+		if err != nil {
+			return enc.BytesWritten() + n, err
+		}
+	}
+
+	n2, err := w.Write(proof.BatchOpenings.Marshal())
+	n += int64(n2)
+	if err != nil {
+		return enc.BytesWritten() + n, err
+	}
+
+	n2, err = w.Write(proof.OpeningZShift.Marshal())
+	n += int64(n2)
+	if err != nil {
+		return enc.BytesWritten() + n, err
+	}
+
+	return n + enc.BytesWritten(), nil
+}
+
+// WriteTo writes binary encoding of PublicRaw to w
+func (p *PublicRaw) WriteTo(w io.Writer) (n int64, err error) {
 	n, err = p.DomainNum.WriteTo(w)
 	if err != nil {
 		return
@@ -69,9 +103,8 @@ func (p *PublicRaw) WriteTo(w io.Writer) (n int64, err error) {
 	return n + enc.BytesWritten(), nil
 }
 
-// ReadFrom ...
+// ReadFrom  reads from binary representation in r into PublicRaw
 func (p *PublicRaw) ReadFrom(r io.Reader) (int64, error) {
-
 	n, err := p.DomainNum.ReadFrom(r)
 	if err != nil {
 		return n, err

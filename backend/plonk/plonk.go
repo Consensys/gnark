@@ -67,9 +67,9 @@ type PublicData interface {
 type Proof interface{}
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment polynomial.CommitmentScheme, publicWitness frontend.Circuit) (PublicData, error) {
+func Setup(ccs frontend.CompiledConstraintSystem, polynomialCommitment polynomial.CommitmentScheme, publicWitness frontend.Circuit) (PublicData, error) {
 
-	switch _sparseR1cs := sparseR1cs.(type) {
+	switch _sparseR1cs := ccs.(type) {
 	case *backend_bn254.SparseR1CS:
 		w := bn254witness.Witness{}
 		if err := w.FromPublicAssignment(publicWitness); err != nil {
@@ -117,9 +117,9 @@ func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment po
 }
 
 // SetupDummyCommitment is used for testing purposes, it sets up public data with dummy polynomial commitment scheme.
-func SetupDummyCommitment(sparseR1cs frontend.CompiledConstraintSystem, publicWitness frontend.Circuit) (PublicData, error) {
+func SetupDummyCommitment(ccs frontend.CompiledConstraintSystem, publicWitness frontend.Circuit) (PublicData, error) {
 
-	switch _sparseR1cs := sparseR1cs.(type) {
+	switch _sparseR1cs := ccs.(type) {
 	case *backend_bn254.SparseR1CS:
 		w := bn254witness.Witness{}
 		if err := w.FromPublicAssignment(publicWitness); err != nil {
@@ -172,9 +172,9 @@ func SetupDummyCommitment(sparseR1cs frontend.CompiledConstraintSystem, publicWi
 }
 
 // Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
-func Prove(sparseR1cs frontend.CompiledConstraintSystem, publicData PublicData, fullWitness frontend.Circuit) (Proof, error) {
+func Prove(ccs frontend.CompiledConstraintSystem, publicData PublicData, fullWitness frontend.Circuit) (Proof, error) {
 
-	switch _sparseR1cs := sparseR1cs.(type) {
+	switch _sparseR1cs := ccs.(type) {
 	case *backend_bn254.SparseR1CS:
 		_publicData := publicData.(*plonkbn254.PublicRaw)
 		w := bn254witness.Witness{}
@@ -331,4 +331,76 @@ func NewPublicData(curveID ecc.ID) PublicData {
 	}
 
 	return data
+}
+
+// ReadAndProve generates PLONK proof from a circuit, associated preprocessed public data, and the witness
+func ReadAndProve(ccs frontend.CompiledConstraintSystem, publicData PublicData, witness io.Reader) (Proof, error) {
+
+	_, nbSecret, nbPublic := ccs.GetNbVariables()
+	expectedSize := (nbSecret + nbPublic)
+
+	switch _sparseR1cs := ccs.(type) {
+	case *backend_bn254.SparseR1CS:
+		_publicData := publicData.(*plonkbn254.PublicRaw)
+		w := bn254witness.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbn254.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
+	case *backend_bls12381.SparseR1CS:
+		_publicData := publicData.(*plonkbls12381.PublicRaw)
+		w := bls12381witness.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbls12381.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
+	case *backend_bls12377.SparseR1CS:
+		_publicData := publicData.(*plonkbls12377.PublicRaw)
+		w := bls12377witness.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbls12377.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
+	case *backend_bw6761.SparseR1CS:
+		_publicData := publicData.(*plonkbw6761.PublicRaw)
+		w := bw6761witness.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbw6761.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
+	case *backend_bls24315.SparseR1CS:
+		_publicData := publicData.(*plonkbls24315.PublicRaw)
+		w := bls24315witness.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbls24315.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
+	default:
+		panic("unrecognized R1CS curve type")
+	}
 }
