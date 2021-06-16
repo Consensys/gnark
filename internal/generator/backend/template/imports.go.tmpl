@@ -21,3 +21,11 @@
 {{ define "import_groth16" }}
 	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/groth16"
 {{end}}
+
+{{ define "import_polynomial" }}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial"
+{{end}}
+
+{{ define "import_kzg" }}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial/kzg"
+{{end}}

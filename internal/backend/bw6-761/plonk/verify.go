@@ -22,8 +22,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
+
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark-crypto/polynomial"
 
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 )
@@ -161,9 +162,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	zetaPowerM.ToBigIntRegular(&zetaPowerMBigInt)
 	foldedH := proof.H[2].Clone()
 	foldedH.ScalarMul(foldedH, zetaPowerMBigInt)
-	foldedH.Add(foldedH, proof.H[1])
+	foldedH.Add(foldedH, &proof.H[1])
 	foldedH.ScalarMul(foldedH, zetaPowerMBigInt)
-	foldedH.Add(foldedH, proof.H[0])
+	foldedH.Add(foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial
 	// first part: individual constraints
@@ -221,22 +222,22 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 
 	// verify the opening proofs
 	err = vk.CommitmentScheme.BatchVerifySinglePoint(
-		[]polynomial.Digest{
-			foldedH,
-			linearizedPolynomialDigest,
+		[]kzg.Digest{
+			*foldedH,
+			*linearizedPolynomialDigest,
 			proof.LRO[0],
 			proof.LRO[1],
 			proof.LRO[2],
 			vk.S[0],
 			vk.S[1],
 		},
-		proof.BatchedProof,
+		&proof.BatchedProof,
 	)
 	if err != nil {
 		return err
 	}
 
-	err = vk.CommitmentScheme.Verify(proof.Z, proof.ZShiftedOpening)
+	err = vk.CommitmentScheme.Verify(&proof.Z, &proof.ZShiftedOpening)
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 	assert.SolvingSucceeded(sparseR1cs, witness)
 
 	// generates public data
-	pk, vk, err := SetupDummyCommitment(sparseR1cs)
+	pk, vk, err := Setup(sparseR1cs, nil) // TODO @gbotrel kzg
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -62,7 +62,7 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	pk, vk, err := SetupDummyCommitment(sparseR1cs)
+	pk, vk, err := Setup(sparseR1cs, nil) // TODO @gbotrel kzg
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof

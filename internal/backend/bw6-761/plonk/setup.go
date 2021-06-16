@@ -17,8 +17,9 @@
 package plonk
 
 import (
-	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
-	"github.com/consensys/gnark-crypto/polynomial"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
+
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
@@ -41,18 +42,18 @@ type ProvingKey struct {
 	Vk VerifyingKey
 
 	// qr,ql,qm,qo (in canonical basis).
-	Ql, Qr, Qm, Qo bw6761.Polynomial
+	Ql, Qr, Qm, Qo polynomial.Polynomial
 
 	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
 	// Storing LQk in Lagrange basis saves a fft...
-	CQk, LQk bw6761.Polynomial
+	CQk, LQk polynomial.Polynomial
 
 	// Domains used for the FFTs
 	DomainNum, DomainH *fft.Domain
 
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
-	LS1, LS2, LS3 bw6761.Polynomial
-	CS1, CS2, CS3 bw6761.Polynomial
+	LS1, LS2, LS3 polynomial.Polynomial
+	CS1, CS2, CS3 polynomial.Polynomial
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int
@@ -75,18 +76,18 @@ type VerifyingKey struct {
 	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	CommitmentScheme polynomial.CommitmentScheme
+	CommitmentScheme *kzg.Scheme
 
 	// S commitments to S1, S2, S3
-	S [3]polynomial.Digest
+	S [3]kzg.Digest
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk polynomial.Digest
+	Ql, Qr, Qm, Qo, Qk kzg.Digest
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommitment polynomial.CommitmentScheme) error {
+func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommitment *kzg.Scheme) error {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -164,35 +165,35 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
-	vk.Ql, err = vk.CommitmentScheme.Commit(&pk.Ql)
+	vk.Ql, err = vk.CommitmentScheme.Commit(pk.Ql)
 	if err != nil {
 		return err
 	}
-	vk.Qr, err = vk.CommitmentScheme.Commit(&pk.Qr)
+	vk.Qr, err = vk.CommitmentScheme.Commit(pk.Qr)
 	if err != nil {
 		return err
 	}
-	vk.Qm, err = vk.CommitmentScheme.Commit(&pk.Qm)
+	vk.Qm, err = vk.CommitmentScheme.Commit(pk.Qm)
 	if err != nil {
 		return err
 	}
-	vk.Qo, err = vk.CommitmentScheme.Commit(&pk.Qo)
+	vk.Qo, err = vk.CommitmentScheme.Commit(pk.Qo)
 	if err != nil {
 		return err
 	}
-	vk.Qk, err = vk.CommitmentScheme.Commit(&pk.CQk)
+	vk.Qk, err = vk.CommitmentScheme.Commit(pk.CQk)
 	if err != nil {
 		return err
 	}
-	vk.S[0], err = vk.CommitmentScheme.Commit(&pk.CS1)
+	vk.S[0], err = vk.CommitmentScheme.Commit(pk.CS1)
 	if err != nil {
 		return err
 	}
-	vk.S[1], err = vk.CommitmentScheme.Commit(&pk.CS2)
+	vk.S[1], err = vk.CommitmentScheme.Commit(pk.CS2)
 	if err != nil {
 		return err
 	}
-	vk.S[2], err = vk.CommitmentScheme.Commit(&pk.CS3)
+	vk.S[2], err = vk.CommitmentScheme.Commit(pk.CS3)
 	if err != nil {
 		return err
 	}
@@ -318,9 +319,9 @@ func Compute(pk *ProvingKey) {
 	}
 
 	// Lagrange form of S1, S2, S3
-	pk.LS1 = make(bw6761.Polynomial, nbElmt)
-	pk.LS2 = make(bw6761.Polynomial, nbElmt)
-	pk.LS3 = make(bw6761.Polynomial, nbElmt)
+	pk.LS1 = make(polynomial.Polynomial, nbElmt)
+	pk.LS2 = make(polynomial.Polynomial, nbElmt)
+	pk.LS3 = make(polynomial.Polynomial, nbElmt)
 	for i := 0; i < nbElmt; i++ {
 		pk.LS1[i].Set(&sID[pk.Permutation[i]])
 		pk.LS2[i].Set(&sID[pk.Permutation[nbElmt+i]])
@@ -328,9 +329,9 @@ func Compute(pk *ProvingKey) {
 	}
 
 	// Canonical form of S1, S2, S3
-	pk.CS1 = make(bw6761.Polynomial, nbElmt)
-	pk.CS2 = make(bw6761.Polynomial, nbElmt)
-	pk.CS3 = make(bw6761.Polynomial, nbElmt)
+	pk.CS1 = make(polynomial.Polynomial, nbElmt)
+	pk.CS2 = make(polynomial.Polynomial, nbElmt)
+	pk.CS3 = make(polynomial.Polynomial, nbElmt)
 	copy(pk.CS1, pk.LS1)
 	copy(pk.CS2, pk.LS2)
 	copy(pk.CS3, pk.LS3)

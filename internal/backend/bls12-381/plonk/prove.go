@@ -19,10 +19,11 @@ package plonk
 import (
 	"math/big"
 
-	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
-	"github.com/consensys/gnark-crypto/polynomial"
-
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 
@@ -36,28 +37,28 @@ import (
 type Proof struct {
 
 	// Commitments to the solution vectors
-	LRO [3]polynomial.Digest
+	LRO [3]kzg.Digest
 
 	// Commitment to Z, the permutation polynomial
-	Z polynomial.Digest
+	Z kzg.Digest
 
 	// Commitments to h1, h2, h3 such that h = h1 + Xh2 + X**2h3 is the quotient polynomial
-	H [3]polynomial.Digest
+	H [3]kzg.Digest
 
 	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
-	BatchedProof polynomial.BatchOpeningProofSinglePoint
+	BatchedProof kzg.BatchProofsSinglePoint
 
 	// Opening proof of Z at zeta*mu
-	ZShiftedOpening polynomial.OpeningProof
+	ZShiftedOpening kzg.Proof
 }
 
 // ComputeLROBis extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (bls12381.Polynomial, bls12381.Polynomial, bls12381.Polynomial) {
+func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
 
 	s := int(pk.DomainNum.Cardinality)
 
-	var l, r, o bls12381.Polynomial
+	var l, r, o polynomial.Polynomial
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
@@ -99,9 +100,9 @@ func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (b
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func ComputeZBis(l, r, o bls12381.Polynomial, pk *ProvingKey, gamma fr.Element) bls12381.Polynomial {
+func ComputeZBis(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
 
-	z := make(bls12381.Polynomial, pk.DomainNum.Cardinality)
+	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 	nbElmts := int(pk.DomainNum.Cardinality)
 
 	var f [3]fr.Element
@@ -177,7 +178,7 @@ func evalConstraintsBis(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []
 }
 
 // evalIDCosetsBis id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
-func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid bls12381.Polynomial) {
+func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 
 	// evaluation of id, uid, u**id on the cosets
 	id = make([]fr.Element, 4*pk.DomainNum.Cardinality)
@@ -229,7 +230,7 @@ func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid bls12381.Polynomial) {
 //
 // z: permutation accumulator polynomial in canonical form
 // l, r, o: solution, in canonical form
-func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, evalO bls12381.Polynomial, gamma fr.Element) bls12381.Polynomial {
+func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
@@ -243,7 +244,7 @@ func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, eval
 	evalID, evaluID, evaluuID := evalIDCosetsBis(pk)
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
-	res := make(bls12381.Polynomial, 4*pk.DomainNum.Cardinality)
+	res := make(polynomial.Polynomial, 4*pk.DomainNum.Cardinality)
 
 	var f [3]fr.Element
 	var g [3]fr.Element
@@ -275,7 +276,7 @@ func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, eval
 // of (Z/8mZ)/(Z/mZ).
 //
 // evalZ is the evaluation of z (=permutation constraint polynomial) on odd cosets of (Z/8mZ)/(Z/mZ)
-func evalStartsAtOneBis(pk *ProvingKey, evalZ bls12381.Polynomial) bls12381.Polynomial {
+func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.Polynomial {
 
 	// computes L1 (canonical form)
 	lOneLagrange := make([]fr.Element, pk.DomainNum.Cardinality)
@@ -338,9 +339,9 @@ func evaluateCosetsBis(poly, res []fr.Element, domain *fft.Domain) {
 }
 
 // shitZBis turns z to z(uX) (both in Lagrange basis)
-func shitZBis(z bls12381.Polynomial) bls12381.Polynomial {
+func shitZBis(z polynomial.Polynomial) polynomial.Polynomial {
 
-	res := make(bls12381.Polynomial, len(z))
+	res := make(polynomial.Polynomial, len(z))
 	copy(res, z)
 
 	var buf fr.Element
@@ -360,9 +361,9 @@ func shitZBis(z bls12381.Polynomial) bls12381.Polynomial {
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne bls12381.Polynomial, alpha fr.Element) (bls12381.Polynomial, bls12381.Polynomial, bls12381.Polynomial) {
+func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne polynomial.Polynomial, alpha fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
 
-	h := make(bls12381.Polynomial, pk.DomainH.Cardinality)
+	h := make(polynomial.Polynomial, pk.DomainH.Cardinality)
 
 	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var bExpo big.Int
@@ -403,9 +404,9 @@ func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne
 	pk.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make(bls12381.Polynomial, pk.DomainNum.Cardinality)
-	h2 := make(bls12381.Polynomial, pk.DomainNum.Cardinality)
-	h3 := make(bls12381.Polynomial, pk.DomainNum.Cardinality)
+	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
+	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
+	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 	copy(h1, h[:pk.DomainNum.Cardinality])
 	copy(h2, h[pk.DomainNum.Cardinality:2*pk.DomainNum.Cardinality])
 	copy(h3, h[2*pk.DomainNum.Cardinality:3*pk.DomainNum.Cardinality])
@@ -419,33 +420,33 @@ func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne
 // * a, b, c are the evaluation of l, r, o at zeta
 // * z is the permutation polynomial, zu is Z(uX), the shifted version of Z
 // * pk is the proving key: the linearized polynomial is a linear combination of ql, qr, qm, qo, qk.
-func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z bls12381.Polynomial, pk *ProvingKey) bls12381.Polynomial {
+func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z polynomial.Polynomial, pk *ProvingKey) polynomial.Polynomial {
 
 	// first part: individual constraints
 	var rl fr.Element
 	rl.Mul(&r, &l)
 	_linearizedPolynomial := pk.Qm.Clone()
-	_linearizedPolynomial.ScaleInPlace(rl) // linPol = lr*Qm
+	_linearizedPolynomial.ScaleInPlace(&rl) // linPol = lr*Qm
 
 	tmp := pk.Ql.Clone()
-	tmp.ScaleInPlace(l)
+	tmp.ScaleInPlace(&l)
 	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql
 
 	tmp = pk.Qr.Clone()
-	tmp.ScaleInPlace(r)
+	tmp.ScaleInPlace(&r)
 	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql + r*Qr
 
 	tmp = pk.Qo.Clone()
-	tmp.ScaleInPlace(o)
+	tmp.ScaleInPlace(&o)
 	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo
 
-	_linearizedPolynomial.Add(_linearizedPolynomial, &pk.CQk) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
+	_linearizedPolynomial.Add(_linearizedPolynomial, pk.CQk) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
 
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	var s1, s2, t fr.Element
-	s1.SetInterface(pk.CS1.Eval(zeta)).Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
-	t.SetInterface(pk.CS2.Eval(zeta)).Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
-	s1.Mul(&s1, &t).                                                 // (a+s1+gamma)*(b+s2+gamma)
+	s1.SetInterface(pk.CS1.Eval(&zeta)).Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
+	t.SetInterface(pk.CS2.Eval(&zeta)).Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
+	s1.Mul(&s1, &t).                                                  // (a+s1+gamma)*(b+s2+gamma)
 										Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
 
 	s2.Add(&l, &zeta).Add(&s2, &gamma)                          // (a+z+gamma)
@@ -456,11 +457,11 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z b
 	s2.Neg(&s2)                                                 // -(a+z+gamma)*(b+uz+gamma)*(c+u**2*z+gamma)
 
 	p1 := pk.CS3.Clone()
-	p1.ScaleInPlace(s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
+	p1.ScaleInPlace(&s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
 	p2 := z.Clone()
-	p2.ScaleInPlace(s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
+	p2.ScaleInPlace(&s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	p1.Add(p1, p2)
-	p1.ScaleInPlace(alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
+	p1.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
 
 	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
 
@@ -479,14 +480,12 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z b
 					Mul(&lagrange, &alpha).
 					Mul(&lagrange, &alpha) // alpha**2*L_0
 	p1 = z.Clone()
-	p1.ScaleInPlace(lagrange)
+	p1.ScaleInPlace(&lagrange)
 
 	// finish the computation
 	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
 
-	linearizedPolynomial := _linearizedPolynomial.(*bls12381.Polynomial)
-
-	return *linearizedPolynomial
+	return _linearizedPolynomial
 }
 
 // Prove from the public data
@@ -510,9 +509,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	// save ll, lr, lo, and make a copy of them in canonical basis.
 	// We commit them and derive gamma from them.
 	sizeCommon := int64(pk.DomainNum.Cardinality)
-	cl := make(bls12381.Polynomial, sizeCommon)
-	cr := make(bls12381.Polynomial, sizeCommon)
-	co := make(bls12381.Polynomial, sizeCommon)
+	cl := make(polynomial.Polynomial, sizeCommon)
+	cr := make(polynomial.Polynomial, sizeCommon)
+	co := make(polynomial.Polynomial, sizeCommon)
 	copy(cl, ll)
 	copy(cr, lr)
 	copy(co, lo)
@@ -524,9 +523,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	fft.BitReverse(co)
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	proofBis.LRO[0], _ = pk.Vk.CommitmentScheme.Commit(&cl)
-	proofBis.LRO[1], _ = pk.Vk.CommitmentScheme.Commit(&cr)
-	proofBis.LRO[2], _ = pk.Vk.CommitmentScheme.Commit(&co)
+	proofBis.LRO[0], _ = pk.Vk.CommitmentScheme.Commit(cl)
+	proofBis.LRO[1], _ = pk.Vk.CommitmentScheme.Commit(cr)
+	proofBis.LRO[2], _ = pk.Vk.CommitmentScheme.Commit(co)
 	err = fs.Bind("gamma", proofBis.LRO[0].Marshal())
 	if err != nil {
 		return proofBis, err
@@ -561,7 +560,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	evaluateCosetsBis(co, evalO, pk.DomainNum)
 
 	// compute qk in canonical basis, completed with the public inputs
-	qkFullC := make(bls12381.Polynomial, sizeCommon)
+	qkFullC := make(polynomial.Polynomial, sizeCommon)
 	copy(qkFullC, fullWitness[:spr.NbPublicVariables])
 	copy(qkFullC[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
 	pk.DomainNum.FFTInverse(qkFullC, fft.DIF, 0)
@@ -589,7 +588,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	startsAtOne := evalStartsAtOneBis(pk, evalZ)
 
 	// commit to Z
-	proofBis.Z, err = pk.Vk.CommitmentScheme.Commit(&z)
+	proofBis.Z, err = pk.Vk.CommitmentScheme.Commit(z)
 	if err != nil {
 		return proofBis, err
 	}
@@ -610,15 +609,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
-	proofBis.H[0], err = pk.Vk.CommitmentScheme.Commit(&h1)
+	proofBis.H[0], err = pk.Vk.CommitmentScheme.Commit(h1)
 	if err != nil {
 		return proofBis, err
 	}
-	proofBis.H[1], err = pk.Vk.CommitmentScheme.Commit(&h2)
+	proofBis.H[1], err = pk.Vk.CommitmentScheme.Commit(h2)
 	if err != nil {
 		return proofBis, err
 	}
-	proofBis.H[2], err = pk.Vk.CommitmentScheme.Commit(&h3)
+	proofBis.H[2], err = pk.Vk.CommitmentScheme.Commit(h3)
 	if err != nil {
 		return proofBis, err
 	}
@@ -647,8 +646,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proofBis.ZShiftedOpening, _ = pk.Vk.CommitmentScheme.Open(
-		zetaShifted,
-		&z,
+		&zetaShifted,
+		z,
 	)
 	var zuzeta fr.Element
 	zuzeta.SetInterface(proofBis.ZShiftedOpening.GetClaimedValue())
@@ -680,27 +679,29 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
 	foldedHDigest := proofBis.H[2].Clone()
 	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm)
-	foldedHDigest.Add(foldedHDigest, proofBis.H[1])     // zeta**m*Comm(h3)
+	foldedHDigest.Add(foldedHDigest, &proofBis.H[1])    // zeta**m*Comm(h3)
 	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
-	foldedHDigest.Add(foldedHDigest, proofBis.H[0])     // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
+	foldedHDigest.Add(foldedHDigest, &proofBis.H[0])    // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + zeta*h2 + zeta**2*h3
 	foldedH := h3.Clone()
-	foldedH.ScaleInPlace(bZetaPowerm) // zeta**m*h3
-	foldedH.Add(foldedH, &h2)         // zeta**m*h3+h2
-	foldedH.ScaleInPlace(bZetaPowerm) // zeta**2m*h3+h2*zeta**m
-	foldedH.Add(foldedH, &h1)         // zeta**2m*h3+zeta**m*h2 + h1
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**m*h3
+	foldedH.Add(foldedH, h2)          // zeta**m*h3+h2
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2m*h3+h2*zeta**m
+	foldedH.Add(foldedH, h1)          // zeta**2m*h3+zeta**m*h2 + h1
 	// foldedH correct
+
+	// TODO @gbotrel @thomas check errors.
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, _ := pk.Vk.CommitmentScheme.Commit(&linearizedPolynomial)
+	linearizedPolynomialDigest, _ := pk.Vk.CommitmentScheme.Commit(linearizedPolynomial)
 
 	// Batch open the first list of polynomials
 	proofBis.BatchedProof, _ = pk.Vk.CommitmentScheme.BatchOpenSinglePoint(
-		zeta,
-		[]polynomial.Digest{
-			foldedHDigest,
+		&zeta,
+		[]kzg.Digest{
+			*foldedHDigest,
 			linearizedPolynomialDigest,
 			proofBis.LRO[0],
 			proofBis.LRO[1],
@@ -710,12 +711,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 		},
 		[]polynomial.Polynomial{
 			foldedH,
-			&linearizedPolynomial,
-			&cl,
-			&cr,
-			&co,
-			&pk.CS1,
-			&pk.CS2,
+			linearizedPolynomial,
+			cl,
+			cr,
+			co,
+			pk.CS1,
+			pk.CS2,
 		},
 	)
 
