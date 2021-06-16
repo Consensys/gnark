@@ -285,7 +285,7 @@ func (s *Server) loadCircuits() error {
 		return err
 	}
 
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761}
+	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761, ecc.BLS24_315}
 	for _, curve := range curves {
 		curveDir := filepath.Join(s.circuitDir, curve.String())
 

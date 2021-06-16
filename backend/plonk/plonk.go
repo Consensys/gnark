@@ -24,16 +24,19 @@ import (
 
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
 	plonkbls12377 "github.com/consensys/gnark/internal/backend/bls12-377/plonk"
 	plonkbls12381 "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
+	plonkbls24315 "github.com/consensys/gnark/internal/backend/bls24-315/plonk"
 	plonkbn254 "github.com/consensys/gnark/internal/backend/bn254/plonk"
 	plonkbw6761 "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
 
 	bls12377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	bls12381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	bls24315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	bw6761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
@@ -101,6 +104,15 @@ func Setup(sparseR1cs frontend.CompiledConstraintSystem, polynomialCommitment in
 		}
 		return pk, vk, nil
 
+	case *backend_bls24315.SparseR1CS:
+		w := bls24315witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return nil, err
+		}
+		polynomialCommitment := &mockcommitment_bls24315.Scheme{}
+		publicData := plonkbls24315.SetupRaw(_sparseR1cs, polynomialCommitment, w)
+		return publicData, nil
+
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -155,6 +167,18 @@ func Prove(sparseR1cs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitn
 		}
 		return proof, nil
 
+	case *backend_bls24315.SparseR1CS:
+		_publicData := publicData.(*plonkbls24315.PublicRaw)
+		w := bls24315witness.Witness{}
+		if err := w.FromFullAssignment(fullWitness); err != nil {
+			return nil, err
+		}
+		proof, err := plonkbls24315.ProveRaw(_sparseR1cs, _publicData, w)
+		if err != nil {
+			return proof, err
+		}
+		return proof, nil
+
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -192,6 +216,14 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 			return err
 		}
 		return plonkbw6761.Verify(_proof, vk.(*plonkbw6761.VerifyingKey), w)
+
+	case *plonkbls24315.ProofRaw:
+		_publicData := publicData.(*plonkbls24315.PublicRaw)
+		w := bls24315witness.Witness{}
+		if err := w.FromPublicAssignment(publicWitness); err != nil {
+			return err
+		}
+		return plonkbls24315.VerifyRaw(_proof, _publicData, w)
 
 	default:
 		panic("unrecognized proof type")
