@@ -1,11 +1,11 @@
 import (
-	{{ template "import_curve" . }}
+	{{/* {{ template "import_curve" . }}
 	{{ template "import_fr" . }}
-	"io"
+	"io" */}}
 )
 
 
-// WriteTo writes binary encoding of ProofRaw to w 
+{{/* // WriteTo writes binary encoding of ProofRaw to w 
 func (proof *ProofRaw) WriteTo(w io.Writer) (int64, error) {
 	enc := curve.NewEncoder(w)
 
@@ -154,4 +154,4 @@ func (p *PublicRaw) ReadFrom(r io.Reader) (int64, error) {
 	p.Shifter[1] = pShifter[1]
 
 	return n + dec.BytesRead(), nil
-}
+} */}}

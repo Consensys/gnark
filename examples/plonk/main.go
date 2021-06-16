@@ -16,11 +16,11 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
@@ -97,9 +97,7 @@ func main() {
 	size = 1
 	for ; size < s; size *= 2 {
 	}
-	var alpha fr.Element
-	alpha.SetRandom()
-	kate := kzg.NewScheme(size, alpha)
+	kate := kzg.NewSRS(size, new(big.Int).SetInt64(42))
 
 	// Correct data: the proof passes
 	{
@@ -116,20 +114,20 @@ func main() {
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		publicData, err := plonk.Setup(r1cs, kate, &publicWitness)
+		pk, vk, err := plonk.Setup(r1cs, kate)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, publicData, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		err = plonk.Verify(proof, publicData, &publicWitness)
+		err = plonk.Verify(proof, vk, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -151,20 +149,20 @@ func main() {
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		publicData, err := plonk.Setup(r1cs, kate, &publicWitness)
+		pk, vk, err := plonk.Setup(r1cs, kate)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, publicData, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		err = plonk.Verify(proof, publicData, &publicWitness)
+		err = plonk.Verify(proof, vk, &publicWitness)
 		if err == nil {
 			fmt.Printf("Error: wrong proof is accepted")
 			os.Exit(-1)

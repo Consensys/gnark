@@ -343,13 +343,14 @@ func (s *Server) loadCircuit(backendID backend.ID, curveID ecc.ID, baseDir strin
 			if backendID != circuit.backendID {
 				return fmt.Errorf("%s contains %s files but backend id is %s", baseDir, pkExt, backendID.String())
 			}
-			if circuit.plonk.publicData != nil {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
-			}
-			circuit.plonk.publicData = plonk.NewPublicData(curveID)
-			if err := loadGnarkObject(circuit.plonk.publicData, filepath.Join(baseDir, f.Name())); err != nil {
-				return err
-			}
+			panic("not implemented")
+			// if circuit.plonk.publicData != nil {
+			// 	return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+			// }
+			// circuit.plonk.publicData = plonk.NewPublicData(curveID)
+			// if err := loadGnarkObject(circuit.plonk.publicData, filepath.Join(baseDir, f.Name())); err != nil {
+			// 	return err
+			// }
 		case pkExt:
 			if backendID != circuit.backendID {
 				return fmt.Errorf("%s contains %s files but backend id is %s", baseDir, pkExt, backendID.String())
@@ -400,9 +401,10 @@ func (s *Server) loadCircuit(backendID backend.ID, curveID ecc.ID, baseDir strin
 			return fmt.Errorf("%s contains no %s files", baseDir, vkExt)
 		}
 	} else {
-		if circuit.plonk.publicData == nil {
-			return fmt.Errorf("%s contains no %s files", baseDir, pdataExt)
-		}
+		panic("not implemented")
+		// if circuit.plonk.publicData == nil {
+		// 	return fmt.Errorf("%s contains no %s files", baseDir, pdataExt)
+		// }
 	}
 
 	_, nbSecretVariables, nbPublicVariables := circuit.ccs.GetNbVariables()

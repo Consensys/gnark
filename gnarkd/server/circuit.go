@@ -30,6 +30,7 @@ type circuit struct {
 
 	// plonk precompute
 	plonk struct {
-		publicData plonk.PublicData
+		pk plonk.ProvingKey
+		vk plonk.VerifyingKey
 	}
 }

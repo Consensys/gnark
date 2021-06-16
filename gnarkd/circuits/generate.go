@@ -9,7 +9,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/examples/cubic"
 	"github.com/consensys/gnark/frontend"
 )
@@ -45,11 +44,12 @@ func main() {
 			} else if b == backend.PLONK {
 				log.Println("plonk setup", circuitID)
 				// TODO WIP note that we don't pass KZG here, as it's only needed in Prove & Verify
-				publicData, err := plonk.Setup(ccs, nil, &witness)
-				if err != nil {
-					log.Fatal(err)
-				}
-				writeGnarkObject(publicData, filepath.Join(circuitID, "cubic"+".data"))
+				panic("not implemented")
+				// publicData, err := plonk.Setup(ccs, nil, &witness)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+				// writeGnarkObject(publicData, filepath.Join(circuitID, "cubic"+".data"))
 			}
 
 		}

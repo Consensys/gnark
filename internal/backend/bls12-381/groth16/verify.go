@@ -21,10 +21,9 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
-	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-
 	"errors"
 	"fmt"
+	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	"io"
 )
 

@@ -15,21 +15,30 @@
 package plonk
 
 import (
+	"math/big"
 	"testing"
 
-	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
-	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
-	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
-	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
-	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark/frontend"
+
+	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
+	cs_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	cs_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	cs_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
+	cs_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-	"github.com/stretchr/testify/require"
+
+	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
+	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
+	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 )
 
 // Assert is a helper to test circuits
@@ -42,85 +51,118 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t)}
 }
 
-func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// checks if the system is solvable
-	assert.SolvingSucceeded(sparseR1cs, witness)
+	assert.SolvingSucceeded(ccs, witness)
 
 	// generates public data
-	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	pk, vk, err := Setup(ccs, newKZGSrs(ccs))
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, err := Prove(sparseR1cs, publicData, witness)
+	proof, err := Prove(ccs, pk, witness)
 	assert.NoError(err, "Proving with good witness should not output an error")
 
 	// verifies the proof
-	err = Verify(proof, publicData, witness)
+	err = Verify(proof, vk, witness)
 	assert.NoError(err, "Verifying correct proof with correct witness should not output an error")
 
 }
 
-func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+func (assert *Assert) ProverFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	pk, _, err := Setup(ccs, newKZGSrs(ccs))
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, _ := Prove(sparseR1cs, publicData, witness)
-
-	// verifies the proof
-	err = Verify(proof, publicData, witness)
-	assert.Error(err, "Veryfing wrong proof should output an error")
-
+	_, err = Prove(ccs, pk, witness)
+	assert.Error(err, "generating an incorrect proof should output an error")
 }
 
 // SolvingSucceeded Verifies that the sparse constraint system is solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingSucceeded(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.NoError(IsSolved(sparseR1cs, witness))
+func (assert *Assert) SolvingSucceeded(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.NoError(IsSolved(ccs, witness))
 }
 
 // SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.Error(IsSolved(sparseR1cs, witness))
+func (assert *Assert) SolvingFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
+	assert.Error(IsSolved(ccs, witness))
 }
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
-func IsSolved(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
-	switch _sparseR1cs := sparseR1cs.(type) {
-	case *backend_bn254.SparseR1CS:
+func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) error {
+	switch tccs := ccs.(type) {
+	case *cs_bn254.SparseR1CS:
 		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _sparseR1cs.IsSolved(w)
-	case *backend_bls12381.SparseR1CS:
+		return tccs.IsSolved(w)
+	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _sparseR1cs.IsSolved(w)
-	case *backend_bls12377.SparseR1CS:
+		return tccs.IsSolved(w)
+	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _sparseR1cs.IsSolved(w)
-	case *backend_bw6761.SparseR1CS:
+		return tccs.IsSolved(w)
+	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _sparseR1cs.IsSolved(w)
-	case *backend_bls24315.SparseR1CS:
+		return tccs.IsSolved(w)
+	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _sparseR1cs.IsSolved(w)
+		return tccs.IsSolved(w)
 	default:
-		panic("WIP")
+		panic("unknown constraint system type")
+	}
+}
+
+func nextPowerOfTwo(_n int) int {
+	n := uint64(_n)
+	p := uint64(1)
+	if (n & (n - 1)) == 0 {
+		return _n
+	}
+	for p < n {
+		p <<= 1
+	}
+	return int(p)
+}
+
+func newKZGSrs(ccs frontend.CompiledConstraintSystem) interface{} {
+	fakeRandomness := new(big.Int).SetInt64(42)
+
+	// no randomness in the test SRS
+	switch tccs := ccs.(type) {
+	case *cs_bn254.SparseR1CS:
+		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
+		return kzg_bn254.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+	case *cs_bls12381.SparseR1CS:
+		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
+		return kzg_bls12381.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+	case *cs_bls12377.SparseR1CS:
+		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
+		return kzg_bls12377.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+	case *cs_bw6761.SparseR1CS:
+		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
+		return kzg_bw6761.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+	case *cs_bls24315.SparseR1CS:
+		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
+		return kzg_bls24315.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+	default:
+		panic("unknown constraint system type")
 	}
 }
