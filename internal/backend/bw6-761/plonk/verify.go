@@ -160,33 +160,34 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	// compute the folded commitment to H: Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
 	var zetaPowerMBigInt big.Int
 	zetaPowerM.ToBigIntRegular(&zetaPowerMBigInt)
-	foldedH := proof.H[2].Clone()
-	foldedH.ScalarMul(foldedH, zetaPowerMBigInt)
-	foldedH.Add(foldedH, &proof.H[1])
-	foldedH.ScalarMul(foldedH, zetaPowerMBigInt)
-	foldedH.Add(foldedH, &proof.H[0])
+	foldedH := proof.H[2]
+	foldedH.ScalarMultiplication(&foldedH, &zetaPowerMBigInt)
+	foldedH.Add(&foldedH, &proof.H[1])
+	foldedH.ScalarMultiplication(&foldedH, &zetaPowerMBigInt)
+	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial
 	// first part: individual constraints
+	// TODO clean that part, lots of copy / use of Affine coordinates
 	var lb, rb, ob, rlb big.Int
 	var rl fr.Element
 	l.ToBigIntRegular(&lb)
 	r.ToBigIntRegular(&rb)
 	o.ToBigIntRegular(&ob)
 	rl.Mul(&l, &r).ToBigIntRegular(&rlb)
-	linearizedPolynomialDigest := vk.Ql.Clone()
-	linearizedPolynomialDigest.ScalarMul(linearizedPolynomialDigest, lb) //l*ql
-	tmp := vk.Qr.Clone()
-	tmp.ScalarMul(tmp, rb)
-	linearizedPolynomialDigest.Add(linearizedPolynomialDigest, tmp) // l*ql+r*qr
-	tmp = vk.Qm.Clone()
-	tmp.ScalarMul(tmp, rlb)
-	linearizedPolynomialDigest.Add(linearizedPolynomialDigest, tmp) // l*ql+r*qr+rl*qm
-	tmp = vk.Qo.Clone()
-	tmp.ScalarMul(tmp, ob)
-	linearizedPolynomialDigest.Add(linearizedPolynomialDigest, tmp) // l*ql+r*qr+rl*qm+o*qo
-	tmp = vk.Qk.Clone()
-	linearizedPolynomialDigest.Add(linearizedPolynomialDigest, tmp) // l*ql+r*qr+rl*qm+o*qo+qk
+	linearizedPolynomialDigest := vk.Ql
+	linearizedPolynomialDigest.ScalarMultiplication(&linearizedPolynomialDigest, &lb) //l*ql
+	tmp := vk.Qr
+	tmp.ScalarMultiplication(&tmp, &rb)
+	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr
+	tmp = vk.Qm
+	tmp.ScalarMultiplication(&tmp, &rlb)
+	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm
+	tmp = vk.Qo
+	tmp.ScalarMultiplication(&tmp, &ob)
+	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm+o*qo
+	tmp = vk.Qk
+	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm+o*qo+qk
 
 	// second part: alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
 	var t fr.Element
@@ -204,27 +205,27 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	var _s1b, _s2b big.Int
 	_s1.ToBigIntRegular(&_s1b)
 	_s2.ToBigIntRegular(&_s2b)
-	s3Commit := vk.S[2].Clone()
-	s3Commit.ScalarMul(s3Commit, _s1b)
-	secondPart := proof.Z.Clone()
-	secondPart.ScalarMul(secondPart, _s2b)
-	secondPart.Sub(s3Commit, secondPart)
+	s3Commit := vk.S[2]
+	s3Commit.ScalarMultiplication(&s3Commit, &_s1b)
+	secondPart := proof.Z
+	secondPart.ScalarMultiplication(&secondPart, &_s2b)
+	secondPart.Sub(&s3Commit, &secondPart)
 
 	// third part: alpha**2*L1(zeta)*Z
 	var alphaSquareLagrangeB big.Int
 	alphaSquareLagrange.ToBigIntRegular(&alphaSquareLagrangeB)
-	thirdPart := proof.Z.Clone()
-	thirdPart.ScalarMul(thirdPart, alphaSquareLagrangeB)
+	thirdPart := proof.Z
+	thirdPart.ScalarMultiplication(&thirdPart, &alphaSquareLagrangeB)
 
 	// finish the computation
-	linearizedPolynomialDigest.Add(linearizedPolynomialDigest, secondPart).
-		Add(linearizedPolynomialDigest, thirdPart)
+	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &secondPart).
+		Add(&linearizedPolynomialDigest, &thirdPart)
 
 	// verify the opening proofs
-	err = vk.CommitmentScheme.BatchVerifySinglePoint(
+	err = vk.KZG.BatchVerifySinglePoint(
 		[]kzg.Digest{
-			*foldedH,
-			*linearizedPolynomialDigest,
+			foldedH,
+			linearizedPolynomialDigest,
 			proof.LRO[0],
 			proof.LRO[1],
 			proof.LRO[2],
@@ -237,7 +238,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 		return err
 	}
 
-	err = vk.CommitmentScheme.Verify(&proof.Z, &proof.ZShiftedOpening)
+	err = vk.KZG.Verify(&proof.Z, &proof.ZShiftedOpening)
 	if err != nil {
 		return err
 	}

@@ -37,9 +37,8 @@ import (
 // * sigma_1, sigma_2, sigma_3 in both basis
 // * the copy constraint permutation
 type ProvingKey struct {
-
-	// Vk data related to the verifying key, which is needed in the prover.
-	Vk VerifyingKey
+	// Verifying Key is embedded into the proving key (needed by Prove)
+	Vk *VerifyingKey
 
 	// qr,ql,qm,qo (in canonical basis).
 	Ql, Qr, Qm, Qo polynomial.Polynomial
@@ -76,7 +75,7 @@ type VerifyingKey struct {
 	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	CommitmentScheme *kzg.Scheme
+	KZG *kzg.Scheme
 
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
@@ -87,7 +86,7 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommitment *kzg.Scheme) error {
+func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, _ *kzg.Scheme) error {
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -102,7 +101,10 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
 	// commitment scheme
-	vk.CommitmentScheme = polynomialCommitment
+	// TODO for now, KZG is nil, we do setup at each time
+	var alpha fr.Element
+	alpha.SetUint64(42) // TODO
+	vk.KZG = kzg.NewScheme(int(pk.DomainNum.Cardinality), alpha)
 	vk.Size = pk.DomainNum.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.DomainNum.Generator)
@@ -158,54 +160,54 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 	fft.BitReverse(pk.CQk)
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
-	buildPermutatio(spr, pk)
+	buildPermutation(spr, pk)
 
 	// set s1, s2, s3
 	Compute(pk)
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
-	vk.Ql, err = vk.CommitmentScheme.Commit(pk.Ql)
+	vk.Ql, err = vk.KZG.Commit(pk.Ql)
 	if err != nil {
 		return err
 	}
-	vk.Qr, err = vk.CommitmentScheme.Commit(pk.Qr)
+	vk.Qr, err = vk.KZG.Commit(pk.Qr)
 	if err != nil {
 		return err
 	}
-	vk.Qm, err = vk.CommitmentScheme.Commit(pk.Qm)
+	vk.Qm, err = vk.KZG.Commit(pk.Qm)
 	if err != nil {
 		return err
 	}
-	vk.Qo, err = vk.CommitmentScheme.Commit(pk.Qo)
+	vk.Qo, err = vk.KZG.Commit(pk.Qo)
 	if err != nil {
 		return err
 	}
-	vk.Qk, err = vk.CommitmentScheme.Commit(pk.CQk)
+	vk.Qk, err = vk.KZG.Commit(pk.CQk)
 	if err != nil {
 		return err
 	}
-	vk.S[0], err = vk.CommitmentScheme.Commit(pk.CS1)
+	vk.S[0], err = vk.KZG.Commit(pk.CS1)
 	if err != nil {
 		return err
 	}
-	vk.S[1], err = vk.CommitmentScheme.Commit(pk.CS2)
+	vk.S[1], err = vk.KZG.Commit(pk.CS2)
 	if err != nil {
 		return err
 	}
-	vk.S[2], err = vk.CommitmentScheme.Commit(pk.CS3)
+	vk.S[2], err = vk.KZG.Commit(pk.CS3)
 	if err != nil {
 		return err
 	}
 
 	// The verifying key shares data with the proving key
-	pk.Vk = *vk
+	pk.Vk = vk
 
 	return nil
 
 }
 
-// buildPermutatio builds the Permutation associated with a circuit.
+// buildPermutation builds the Permutation associated with a circuit.
 //
 // The permutation s is composed of cycles of maximum length such that
 //
@@ -217,7 +219,7 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, polynomialCommi
 // The permutation is encoded as a slice s of size 3*size(l), where the
 // i-th entry of l||r||o is sent to the s[i]-th entry, so it acts on a tab
 // like this: for i in tab: tab[i] = tab[permutation[i]]
-func buildPermutatio(spr *cs.SparseR1CS, pk *ProvingKey) {
+func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	sizeSolution := int(pk.DomainNum.Cardinality)
 

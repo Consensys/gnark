@@ -523,9 +523,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	fft.BitReverse(co)
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	proofBis.LRO[0], _ = pk.Vk.CommitmentScheme.Commit(cl)
-	proofBis.LRO[1], _ = pk.Vk.CommitmentScheme.Commit(cr)
-	proofBis.LRO[2], _ = pk.Vk.CommitmentScheme.Commit(co)
+	proofBis.LRO[0], _ = pk.Vk.KZG.Commit(cl)
+	proofBis.LRO[1], _ = pk.Vk.KZG.Commit(cr)
+	proofBis.LRO[2], _ = pk.Vk.KZG.Commit(co)
 	err = fs.Bind("gamma", proofBis.LRO[0].Marshal())
 	if err != nil {
 		return proofBis, err
@@ -588,7 +588,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	startsAtOne := evalStartsAtOneBis(pk, evalZ)
 
 	// commit to Z
-	proofBis.Z, err = pk.Vk.CommitmentScheme.Commit(z)
+	proofBis.Z, err = pk.Vk.KZG.Commit(z)
 	if err != nil {
 		return proofBis, err
 	}
@@ -609,15 +609,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
-	proofBis.H[0], err = pk.Vk.CommitmentScheme.Commit(h1)
+	proofBis.H[0], err = pk.Vk.KZG.Commit(h1)
 	if err != nil {
 		return proofBis, err
 	}
-	proofBis.H[1], err = pk.Vk.CommitmentScheme.Commit(h2)
+	proofBis.H[1], err = pk.Vk.KZG.Commit(h2)
 	if err != nil {
 		return proofBis, err
 	}
-	proofBis.H[2], err = pk.Vk.CommitmentScheme.Commit(h3)
+	proofBis.H[2], err = pk.Vk.KZG.Commit(h3)
 	if err != nil {
 		return proofBis, err
 	}
@@ -645,7 +645,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	// open Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
-	proofBis.ZShiftedOpening, _ = pk.Vk.CommitmentScheme.Open(
+	proofBis.ZShiftedOpening, _ = pk.Vk.KZG.Open(
 		&zetaShifted,
 		z,
 	)
@@ -677,11 +677,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, sizeBigInt)
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
-	foldedHDigest := proofBis.H[2].Clone()
-	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm)
-	foldedHDigest.Add(foldedHDigest, &proofBis.H[1])    // zeta**m*Comm(h3)
-	foldedHDigest.ScalarMul(foldedHDigest, bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
-	foldedHDigest.Add(foldedHDigest, &proofBis.H[0])    // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
+	foldedHDigest := proofBis.H[2]
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
+	foldedHDigest.Add(&foldedHDigest, &proofBis.H[1])                // zeta**m*Comm(h3)
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
+	foldedHDigest.Add(&foldedHDigest, &proofBis.H[0])                // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + zeta*h2 + zeta**2*h3
 	foldedH := h3.Clone()
@@ -695,13 +695,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, _ := pk.Vk.CommitmentScheme.Commit(linearizedPolynomial)
+	linearizedPolynomialDigest, _ := pk.Vk.KZG.Commit(linearizedPolynomial)
 
 	// Batch open the first list of polynomials
-	proofBis.BatchedProof, _ = pk.Vk.CommitmentScheme.BatchOpenSinglePoint(
+	proofBis.BatchedProof, _ = pk.Vk.KZG.BatchOpenSinglePoint(
 		&zeta,
 		[]kzg.Digest{
-			*foldedHDigest,
+			foldedHDigest,
 			linearizedPolynomialDigest,
 			proofBis.LRO[0],
 			proofBis.LRO[1],

@@ -64,16 +64,12 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	pk, vk, err := Setup(sparseR1cs, nil) // TODO @gbotrel kzg
+	pk, _, err := Setup(sparseR1cs, nil) // TODO @gbotrel kzg
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, _ := Prove(sparseR1cs, pk, witness)
-
-	// verifies the proof
-	err = Verify(proof, vk, witness)
-	assert.Error(err, "Veryfing wrong proof should output an error")
-
+	_, err = Prove(sparseR1cs, pk, witness)
+	assert.Error(err, "generating an incorrect proof should output an error")
 }
 
 // SolvingSucceeded Verifies that the sparse constraint system is solved with the given witness, without executing plonk workflow
