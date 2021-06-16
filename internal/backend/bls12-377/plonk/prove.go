@@ -23,7 +23,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 
@@ -208,8 +208,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		&zetaShifted,
 		z,
 	)
-	var zuzeta fr.Element
-	zuzeta.SetInterface(proof.ZShiftedOpening.GetClaimedValue())
+
+	zuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute evaluations of l, r, o, z at zeta
 	var lzeta, rzeta, ozeta fr.Element

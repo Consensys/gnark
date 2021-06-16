@@ -22,7 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
@@ -118,17 +118,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	}
 
 	// linearizedpolynomial + pi(zeta) + (Z(u*zeta))*(a+s1+gamma)*(b+s2+gamma)*(c+gamma)*alpha - alpha**2*L1(zeta)
-	claimedValues := proof.BatchedProof.GetClaimedValues()
-	claimedZu := proof.ZShiftedOpening.GetClaimedValue()
-	var linearizedPolynomialZeta, zu, l, r, o, s1, s2, _s1, _s2, _o, alphaSquareLagrange fr.Element
-	linearizedPolynomialZeta.SetBytes(claimedValues[1])
+	var _s1, _s2, _o, alphaSquareLagrange fr.Element
 
-	zu.SetBytes(claimedZu)
-	l.SetBytes(claimedValues[2])
-	r.SetBytes(claimedValues[3])
-	o.SetBytes(claimedValues[4])
-	s1.SetBytes(claimedValues[5])
-	s2.SetBytes(claimedValues[6])
+	zu := proof.ZShiftedOpening.ClaimedValue
+
+	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
+	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
+	l := proof.BatchedProof.ClaimedValues[2]
+	r := proof.BatchedProof.ClaimedValues[3]
+	o := proof.BatchedProof.ClaimedValues[4]
+	s1 := proof.BatchedProof.ClaimedValues[5]
+	s2 := proof.BatchedProof.ClaimedValues[6]
 
 	_s1.Add(&l, &s1).Add(&_s1, &gamma) // (a+s1+gamma)
 	_s2.Add(&r, &s2).Add(&_s2, &gamma) // (b+s2+gamma)
@@ -151,8 +151,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	linearizedPolynomialZeta.Div(&linearizedPolynomialZeta, &zetaPowerMMinusOne)
 
 	// check that H(zeta) is as claimed
-	var claimedQuotient fr.Element
-	claimedQuotient.SetBytes(claimedValues[0])
 	if !claimedQuotient.Equal(&linearizedPolynomialZeta) {
 		return errWrongClaimedQuotient
 	}

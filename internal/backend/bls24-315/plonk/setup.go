@@ -19,8 +19,8 @@ package plonk
 import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial/kzg"
 	"github.com/consensys/gnark/internal/backend/bls24-315/cs"
 )
 

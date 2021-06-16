@@ -20,7 +20,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"

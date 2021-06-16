@@ -186,8 +186,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 		&zetaShifted,
 		z,
 	)
-	var zuzeta fr.Element
-	zuzeta.SetInterface(proof.ZShiftedOpening.GetClaimedValue())
+	
+	zuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute evaluations of l, r, o, z at zeta
 	var lzeta, rzeta, ozeta fr.Element
