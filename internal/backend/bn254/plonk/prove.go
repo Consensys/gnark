@@ -52,9 +52,240 @@ type Proof struct {
 	ZShiftedOpening kzg.Proof
 }
 
-// ComputeLROBis extracts the solution l, r, o, and returns it in lagrange form.
+// Prove from the public data
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness) (*Proof, error) {
+
+	// create a transcript manager to apply Fiat Shamir
+	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+
+	// result
+	proof := &Proof{}
+
+	// compute the solution
+	solution, err := spr.Solve(fullWitness)
+	if err != nil {
+		return nil, err
+	}
+
+	// query l, r, o in Lagrange basis
+	ll, lr, lo := computeLROBis(spr, pk, solution)
+
+	// save ll, lr, lo, and make a copy of them in canonical basis.
+	// We commit them and derive gamma from them.
+	sizeCommon := int64(pk.DomainNum.Cardinality)
+	cl := make(polynomial.Polynomial, sizeCommon)
+	cr := make(polynomial.Polynomial, sizeCommon)
+	co := make(polynomial.Polynomial, sizeCommon)
+	copy(cl, ll)
+	copy(cr, lr)
+	copy(co, lo)
+	pk.DomainNum.FFTInverse(cl, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(cr, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(co, fft.DIF, 0)
+	fft.BitReverse(cl)
+	fft.BitReverse(cr)
+	fft.BitReverse(co)
+
+	// derive gamma from the Comm(l), Comm(r), Comm(o)
+	if proof.LRO[0], err = pk.Vk.KZG.Commit(cl); err != nil {
+		return nil, err
+	}
+	if proof.LRO[1], err = pk.Vk.KZG.Commit(cr); err != nil {
+		return nil, err
+	}
+	if proof.LRO[2], err = pk.Vk.KZG.Commit(co); err != nil {
+		return nil, err
+	}
+	if err = fs.Bind("gamma", proof.LRO[0].Marshal()); err != nil {
+		return nil, err
+	}
+	if err = fs.Bind("gamma", proof.LRO[1].Marshal()); err != nil {
+		return nil, err
+	}
+	if err = fs.Bind("gamma", proof.LRO[2].Marshal()); err != nil {
+		return nil, err
+	}
+	bgamma, err := fs.ComputeChallenge("gamma")
+	if err != nil {
+		return nil, err
+	}
+	var gamma fr.Element
+	gamma.SetBytes(bgamma)
+
+	// compute Z, the permutation accumulator polynomial, in Lagrange basis
+	z := computeZBis(ll, lr, lo, pk, gamma)
+
+	// compute Z(uX), in Lagrange basis
+	zu := shitZBis(z)
+
+	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
+	evalL := make([]fr.Element, 4*pk.DomainNum.Cardinality)
+	evalR := make([]fr.Element, 4*pk.DomainNum.Cardinality)
+	evalO := make([]fr.Element, 4*pk.DomainNum.Cardinality)
+	evaluateCosetsBis(cl, evalL, pk.DomainNum)
+	evaluateCosetsBis(cr, evalR, pk.DomainNum)
+	evaluateCosetsBis(co, evalO, pk.DomainNum)
+
+	// compute qk in canonical basis, completed with the public inputs
+	qkFullC := make(polynomial.Polynomial, sizeCommon)
+	copy(qkFullC, fullWitness[:spr.NbPublicVariables])
+	copy(qkFullC[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
+	pk.DomainNum.FFTInverse(qkFullC, fft.DIF, 0)
+	fft.BitReverse(qkFullC)
+
+	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
+	constraintsInd := evalConstraintsBis(pk, evalL, evalR, evalO, qkFullC)
+
+	// put back z, zu in canonical basis
+	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(zu, fft.DIF, 0)
+	fft.BitReverse(z)
+	fft.BitReverse(zu)
+
+	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
+	evalZ := make([]fr.Element, 4*pk.DomainNum.Cardinality)
+	evalZu := make([]fr.Element, 4*pk.DomainNum.Cardinality)
+	evaluateCosetsBis(z, evalZ, pk.DomainNum)
+	evaluateCosetsBis(zu, evalZu, pk.DomainNum)
+
+	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
+	constraintsOrdering := evalConstraintOrderingBis(pk, evalZ, evalZu, evalL, evalR, evalO, gamma)
+
+	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
+	startsAtOne := evalStartsAtOneBis(pk, evalZ)
+
+	// commit to Z
+	if proof.Z, err = pk.Vk.KZG.Commit(z); err != nil {
+		return nil, err
+	}
+
+	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
+	if err = fs.Bind("alpha", proof.Z.Marshal()); err != nil {
+		return nil, err
+	}
+	balpha, err := fs.ComputeChallenge("alpha")
+	if err != nil {
+		return nil, err
+	}
+	var alpha fr.Element
+	alpha.SetBytes(balpha)
+
+	// compute h in canonical form
+	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
+
+	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
+	if proof.H[0], err = pk.Vk.KZG.Commit(h1); err != nil {
+		return nil, err
+	}
+	if proof.H[1], err = pk.Vk.KZG.Commit(h2); err != nil {
+		return nil, err
+	}
+	if proof.H[2], err = pk.Vk.KZG.Commit(h3); err != nil {
+		return nil, err
+	}
+
+	// derive zeta, the point of evaluation
+	if err = fs.Bind("zeta", proof.H[0].Marshal()); err != nil {
+		return nil, err
+	}
+	if err = fs.Bind("zeta", proof.H[1].Marshal()); err != nil {
+		return nil, err
+	}
+	if err = fs.Bind("zeta", proof.H[2].Marshal()); err != nil {
+		return nil, err
+	}
+	bzeta, err := fs.ComputeChallenge("zeta")
+	if err != nil {
+		return nil, err
+	}
+	var zeta fr.Element
+	zeta.SetBytes(bzeta)
+
+	// open Z at zeta*z
+	var zetaShifted fr.Element
+	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
+	proof.ZShiftedOpening, _ = pk.Vk.KZG.Open(
+		&zetaShifted,
+		z,
+	)
+	var zuzeta fr.Element
+	zuzeta.SetInterface(proof.ZShiftedOpening.GetClaimedValue())
+
+	// compute evaluations of l, r, o, z at zeta
+	var lzeta, rzeta, ozeta fr.Element
+	lzeta.SetInterface(cl.Eval(&zeta))
+	rzeta.SetInterface(cr.Eval(&zeta))
+	ozeta.SetInterface(co.Eval(&zeta))
+
+	// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
+	linearizedPolynomial := computeLinearizedPolynomial(
+		lzeta,
+		rzeta,
+		ozeta,
+		alpha,
+		gamma,
+		zeta,
+		zuzeta,
+		z,
+		pk,
+	)
+
+	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
+	var bZetaPowerm big.Int
+	sizeBigInt := big.NewInt(sizeCommon)
+	var zetaPowerm fr.Element
+	zetaPowerm.Exp(zeta, sizeBigInt)
+	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
+	foldedHDigest := proof.H[2]
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // zeta**m*Comm(h3)
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
+
+	// foldedH = h1 + zeta*h2 + zeta**2*h3
+	foldedH := h3.Clone()
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**m*h3
+	foldedH.Add(foldedH, h2)          // zeta**m*h3+h2
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2m*h3+h2*zeta**m
+	foldedH.Add(foldedH, h1)          // zeta**2m*h3+zeta**m*h2 + h1
+	// foldedH correct
+
+	// TODO @gbotrel @thomas check errors.
+
+	// TODO this commitment is only necessary to derive the challenge, we should
+	// be able to avoid doing it and get the challenge in another way
+	linearizedPolynomialDigest, _ := pk.Vk.KZG.Commit(linearizedPolynomial)
+
+	// Batch open the first list of polynomials
+	proof.BatchedProof, _ = pk.Vk.KZG.BatchOpenSinglePoint(
+		&zeta,
+		[]kzg.Digest{
+			foldedHDigest,
+			linearizedPolynomialDigest,
+			proof.LRO[0],
+			proof.LRO[1],
+			proof.LRO[2],
+			pk.Vk.S[0],
+			pk.Vk.S[1],
+		},
+		[]polynomial.Polynomial{
+			foldedH,
+			linearizedPolynomial,
+			cl,
+			cr,
+			co,
+			pk.CS1,
+			pk.CS2,
+		},
+	)
+
+	return proof, nil
+
+}
+
+// computeLROBis extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
+func computeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
 
 	s := int(pk.DomainNum.Cardinality)
 
@@ -91,7 +322,7 @@ func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (p
 
 }
 
-// ComputeZBis computes Z (in Lagrange basis), where:
+// computeZBis computes Z (in Lagrange basis), where:
 //
 // * Z of degree n (domainNum.Cardinality)
 // * Z(1)=1
@@ -100,7 +331,7 @@ func ComputeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (p
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func ComputeZBis(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
+func computeZBis(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
 
 	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 	nbElmts := int(pk.DomainNum.Cardinality)
@@ -486,240 +717,4 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
 
 	return _linearizedPolynomial
-}
-
-// Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness) (*Proof, error) {
-
-	// create a transcript manager to apply Fiat Shamir
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
-
-	// result
-	proofBis := &Proof{}
-
-	// compute the solution
-	solution, err := spr.Solve(fullWitness)
-	if err != nil {
-		return proofBis, err
-	}
-
-	// query l, r, o in Lagrange basis
-	ll, lr, lo := ComputeLROBis(spr, pk, solution)
-
-	// save ll, lr, lo, and make a copy of them in canonical basis.
-	// We commit them and derive gamma from them.
-	sizeCommon := int64(pk.DomainNum.Cardinality)
-	cl := make(polynomial.Polynomial, sizeCommon)
-	cr := make(polynomial.Polynomial, sizeCommon)
-	co := make(polynomial.Polynomial, sizeCommon)
-	copy(cl, ll)
-	copy(cr, lr)
-	copy(co, lo)
-	pk.DomainNum.FFTInverse(cl, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(cr, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(co, fft.DIF, 0)
-	fft.BitReverse(cl)
-	fft.BitReverse(cr)
-	fft.BitReverse(co)
-
-	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	proofBis.LRO[0], _ = pk.Vk.KZG.Commit(cl)
-	proofBis.LRO[1], _ = pk.Vk.KZG.Commit(cr)
-	proofBis.LRO[2], _ = pk.Vk.KZG.Commit(co)
-	err = fs.Bind("gamma", proofBis.LRO[0].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	err = fs.Bind("gamma", proofBis.LRO[1].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	err = fs.Bind("gamma", proofBis.LRO[2].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	bgamma, err := fs.ComputeChallenge("gamma")
-	if err != nil {
-		return proofBis, err
-	}
-	var gamma fr.Element
-	gamma.SetBytes(bgamma)
-
-	// compute Z, the permutation accumulator polynomial, in Lagrange basis
-	z := ComputeZBis(ll, lr, lo, pk, gamma)
-
-	// compute Z(uX), in Lagrange basis
-	zu := shitZBis(z)
-
-	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
-	evalL := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evalR := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evalO := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(cl, evalL, pk.DomainNum)
-	evaluateCosetsBis(cr, evalR, pk.DomainNum)
-	evaluateCosetsBis(co, evalO, pk.DomainNum)
-
-	// compute qk in canonical basis, completed with the public inputs
-	qkFullC := make(polynomial.Polynomial, sizeCommon)
-	copy(qkFullC, fullWitness[:spr.NbPublicVariables])
-	copy(qkFullC[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
-	pk.DomainNum.FFTInverse(qkFullC, fft.DIF, 0)
-	fft.BitReverse(qkFullC)
-
-	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsInd := evalConstraintsBis(pk, evalL, evalR, evalO, qkFullC)
-
-	// put back z, zu in canonical basis
-	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(zu, fft.DIF, 0)
-	fft.BitReverse(z)
-	fft.BitReverse(zu)
-
-	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalZ := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evalZu := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(z, evalZ, pk.DomainNum)
-	evaluateCosetsBis(zu, evalZu, pk.DomainNum)
-
-	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsOrdering := evalConstraintOrderingBis(pk, evalZ, evalZu, evalL, evalR, evalO, gamma)
-
-	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
-	startsAtOne := evalStartsAtOneBis(pk, evalZ)
-
-	// commit to Z
-	proofBis.Z, err = pk.Vk.KZG.Commit(z)
-	if err != nil {
-		return proofBis, err
-	}
-
-	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
-	err = fs.Bind("alpha", proofBis.Z.Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	balpha, err := fs.ComputeChallenge("alpha")
-	if err != nil {
-		return proofBis, err
-	}
-	var alpha fr.Element
-	alpha.SetBytes(balpha)
-
-	// compute h in canonical form
-	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
-
-	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
-	proofBis.H[0], err = pk.Vk.KZG.Commit(h1)
-	if err != nil {
-		return proofBis, err
-	}
-	proofBis.H[1], err = pk.Vk.KZG.Commit(h2)
-	if err != nil {
-		return proofBis, err
-	}
-	proofBis.H[2], err = pk.Vk.KZG.Commit(h3)
-	if err != nil {
-		return proofBis, err
-	}
-
-	// derive zeta, the point of evaluation
-	err = fs.Bind("zeta", proofBis.H[0].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	err = fs.Bind("zeta", proofBis.H[1].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	err = fs.Bind("zeta", proofBis.H[2].Marshal())
-	if err != nil {
-		return proofBis, err
-	}
-	bzeta, err := fs.ComputeChallenge("zeta")
-	if err != nil {
-		return proofBis, err
-	}
-	var zeta fr.Element
-	zeta.SetBytes(bzeta)
-
-	// open Z at zeta*z
-	var zetaShifted fr.Element
-	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
-	proofBis.ZShiftedOpening, _ = pk.Vk.KZG.Open(
-		&zetaShifted,
-		z,
-	)
-	var zuzeta fr.Element
-	zuzeta.SetInterface(proofBis.ZShiftedOpening.GetClaimedValue())
-
-	// compute evaluations of l, r, o, z at zeta
-	var lzeta, rzeta, ozeta fr.Element
-	lzeta.SetInterface(cl.Eval(&zeta))
-	rzeta.SetInterface(cr.Eval(&zeta))
-	ozeta.SetInterface(co.Eval(&zeta))
-
-	// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
-	linearizedPolynomial := computeLinearizedPolynomial(
-		lzeta,
-		rzeta,
-		ozeta,
-		alpha,
-		gamma,
-		zeta,
-		zuzeta,
-		z,
-		pk,
-	)
-
-	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
-	var bZetaPowerm big.Int
-	sizeBigInt := big.NewInt(sizeCommon)
-	var zetaPowerm fr.Element
-	zetaPowerm.Exp(zeta, sizeBigInt)
-	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
-	foldedHDigest := proofBis.H[2]
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
-	foldedHDigest.Add(&foldedHDigest, &proofBis.H[1])                // zeta**m*Comm(h3)
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
-	foldedHDigest.Add(&foldedHDigest, &proofBis.H[0])                // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
-
-	// foldedH = h1 + zeta*h2 + zeta**2*h3
-	foldedH := h3.Clone()
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**m*h3
-	foldedH.Add(foldedH, h2)          // zeta**m*h3+h2
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2m*h3+h2*zeta**m
-	foldedH.Add(foldedH, h1)          // zeta**2m*h3+zeta**m*h2 + h1
-	// foldedH correct
-
-	// TODO @gbotrel @thomas check errors.
-
-	// TODO this commitment is only necessary to derive the challenge, we should
-	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, _ := pk.Vk.KZG.Commit(linearizedPolynomial)
-
-	// Batch open the first list of polynomials
-	proofBis.BatchedProof, _ = pk.Vk.KZG.BatchOpenSinglePoint(
-		&zeta,
-		[]kzg.Digest{
-			foldedHDigest,
-			linearizedPolynomialDigest,
-			proofBis.LRO[0],
-			proofBis.LRO[1],
-			proofBis.LRO[2],
-			pk.Vk.S[0],
-			pk.Vk.S[1],
-		},
-		[]polynomial.Polynomial{
-			foldedH,
-			linearizedPolynomial,
-			cl,
-			cr,
-			co,
-			pk.CS1,
-			pk.CS2,
-		},
-	)
-
-	return proofBis, nil
-
 }

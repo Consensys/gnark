@@ -143,7 +143,7 @@ func Setup(spr *cs.SparseR1CS, _ *kzg.Scheme) (*ProvingKey, *VerifyingKey, error
 	buildPermutation(spr, &pk)
 
 	// set s1, s2, s3
-	Compute(&pk)
+	computeLDE(&pk)
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
@@ -265,7 +265,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 }
 
-// Compute computes the LDE (Lagrange basis) of the permutations
+// computeLDE computes the LDE (Lagrange basis) of the permutations
 // s1, s2, s3.
 //
 // ex: z gen of Z/mZ, u gen of Z/8mZ, then
@@ -276,7 +276,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // s11  s12 ..   s1n	   s21 s22 	 ..		s2n		     s31 	s32 	..		s3n		 v
 // \---------------/       \--------------------/        \------------------------/
 // 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
-func Compute(pk *ProvingKey) {
+func computeLDE(pk *ProvingKey) {
 
 	nbElmt := int(pk.DomainNum.Cardinality)
 
