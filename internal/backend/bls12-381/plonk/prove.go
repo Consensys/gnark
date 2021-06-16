@@ -31,7 +31,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 type Proof struct {

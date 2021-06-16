@@ -25,10 +25,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 
-	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"runtime"

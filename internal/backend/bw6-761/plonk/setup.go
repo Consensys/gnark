@@ -17,14 +17,10 @@
 package plonk
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
-
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
-
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
-
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
 	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 
@@ -86,7 +82,9 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, _ *kzg.Scheme) error {
+func Setup(spr *cs.SparseR1CS, _ *kzg.Scheme) (*ProvingKey, *VerifyingKey, error) {
+	var pk ProvingKey
+	var vk VerifyingKey
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -160,50 +158,42 @@ func Setup(spr *cs.SparseR1CS, pk *ProvingKey, vk *VerifyingKey, _ *kzg.Scheme) 
 	fft.BitReverse(pk.CQk)
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
-	buildPermutation(spr, pk)
+	buildPermutation(spr, &pk)
 
 	// set s1, s2, s3
-	Compute(pk)
+	Compute(&pk)
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
-	vk.Ql, err = vk.KZG.Commit(pk.Ql)
-	if err != nil {
-		return err
+	if vk.Ql, err = vk.KZG.Commit(pk.Ql); err != nil {
+		return nil, nil, err
 	}
-	vk.Qr, err = vk.KZG.Commit(pk.Qr)
-	if err != nil {
-		return err
+	if vk.Qr, err = vk.KZG.Commit(pk.Qr); err != nil {
+		return nil, nil, err
 	}
-	vk.Qm, err = vk.KZG.Commit(pk.Qm)
-	if err != nil {
-		return err
+	if vk.Qm, err = vk.KZG.Commit(pk.Qm); err != nil {
+		return nil, nil, err
 	}
-	vk.Qo, err = vk.KZG.Commit(pk.Qo)
-	if err != nil {
-		return err
+	if vk.Qo, err = vk.KZG.Commit(pk.Qo); err != nil {
+		return nil, nil, err
 	}
-	vk.Qk, err = vk.KZG.Commit(pk.CQk)
-	if err != nil {
-		return err
+	if vk.Qk, err = vk.KZG.Commit(pk.CQk); err != nil {
+		return nil, nil, err
 	}
-	vk.S[0], err = vk.KZG.Commit(pk.CS1)
-	if err != nil {
-		return err
+	if vk.S[0], err = vk.KZG.Commit(pk.CS1); err != nil {
+		return nil, nil, err
 	}
-	vk.S[1], err = vk.KZG.Commit(pk.CS2)
-	if err != nil {
-		return err
+	if vk.S[1], err = vk.KZG.Commit(pk.CS2); err != nil {
+		return nil, nil, err
 	}
-	vk.S[2], err = vk.KZG.Commit(pk.CS3)
-	if err != nil {
-		return err
+	if vk.S[2], err = vk.KZG.Commit(pk.CS3); err != nil {
+		return nil, nil, err
 	}
 
 	// The verifying key shares data with the proving key
-	pk.Vk = vk
+	pk.Vk = &vk
 
-	return nil
+	return &pk, &vk, nil
 
 }
 

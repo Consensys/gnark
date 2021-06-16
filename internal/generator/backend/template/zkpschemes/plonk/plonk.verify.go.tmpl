@@ -4,9 +4,9 @@ import (
 
 	{{ template "import_fr" . }}
 	{{ template "import_kzg" . }}
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-
 	{{ template "import_witness" . }}
+
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var (

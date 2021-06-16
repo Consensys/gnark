@@ -1,31 +1,31 @@
-{{ define "import_fr" }}
+{{- define "import_fr" }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"	
-{{end}}
+{{- end }}
 
-{{ define "import_curve" }}
+{{- define "import_curve" }}
 	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"	
-{{end}}
+{{- end }}
 
-{{ define "import_backend_cs" }}
+{{- define "import_backend_cs" }}
 	"github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/cs"
-{{end}}
+{{- end }}
 
-{{ define "import_fft" }}
+{{- define "import_fft" }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fft"
-{{end}}
+{{- end }}
 
-{{ define "import_witness" }}
+{{- define "import_witness" }}
 	{{toLower .CurveID}}witness "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/witness"
-{{end}}
+{{- end }}
 
-{{ define "import_groth16" }}
+{{- define "import_groth16" }}
 	{{toLower .CurveID}}groth16 "github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/groth16"
-{{end}}
+{{- end }}
 
-{{ define "import_polynomial" }}
+{{- define "import_polynomial" }}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial"
-{{end}}
+{{- end }}
 
-{{ define "import_kzg" }}
+{{- define "import_kzg" }}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial/kzg"
-{{end}}
+{{- end }}

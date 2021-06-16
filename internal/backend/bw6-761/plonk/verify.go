@@ -24,9 +24,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial/kzg"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var (

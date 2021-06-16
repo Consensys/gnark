@@ -8,7 +8,7 @@ import (
 	{{ template "import_witness" . }}
 	{{ template "import_backend_cs" . }}
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 type Proof struct {
