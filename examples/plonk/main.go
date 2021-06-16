@@ -116,20 +116,20 @@ func main() {
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		publicData, err := plonk.Setup(r1cs, kate, &publicWitness)
+		pk, vk, err := plonk.Setup(r1cs, kate)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, publicData, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		err = plonk.Verify(proof, publicData, &publicWitness)
+		err = plonk.Verify(proof, vk, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -151,20 +151,20 @@ func main() {
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		publicData, err := plonk.Setup(r1cs, kate, &publicWitness)
+		pk, vk, err := plonk.Setup(r1cs, kate)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, publicData, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		err = plonk.Verify(proof, publicData, &publicWitness)
+		err = plonk.Verify(proof, vk, &publicWitness)
 		if err == nil {
 			fmt.Printf("Error: wrong proof is accepted")
 			os.Exit(-1)

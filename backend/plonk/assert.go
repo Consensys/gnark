@@ -46,15 +46,15 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 	assert.SolvingSucceeded(sparseR1cs, witness)
 
 	// generates public data
-	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	pk, vk, err := SetupDummyCommitment(sparseR1cs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, err := Prove(sparseR1cs, publicData, witness)
+	proof, err := Prove(sparseR1cs, pk, witness)
 	assert.NoError(err, "Proving with good witness should not output an error")
 
 	// verifies the proof
-	err = Verify(proof, publicData, witness)
+	err = Verify(proof, vk, witness)
 	assert.NoError(err, "Verifying correct proof with correct witness should not output an error")
 
 }
@@ -62,14 +62,14 @@ func (assert *Assert) ProverSucceeded(sparseR1cs frontend.CompiledConstraintSyst
 func (assert *Assert) ProverFailed(sparseR1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	publicData, err := SetupDummyCommitment(sparseR1cs, witness)
+	pk, vk, err := SetupDummyCommitment(sparseR1cs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
-	proof, _ := Prove(sparseR1cs, publicData, witness)
+	proof, _ := Prove(sparseR1cs, pk, witness)
 
 	// verifies the proof
-	err = Verify(proof, publicData, witness)
+	err = Verify(proof, vk, witness)
 	assert.Error(err, "Veryfing wrong proof should output an error")
 
 }
