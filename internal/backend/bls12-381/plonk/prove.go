@@ -122,9 +122,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	evalL := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalR := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalO := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(cl, evalL, pk.DomainNum)
-	evaluateCosetsBis(cr, evalR, pk.DomainNum)
-	evaluateCosetsBis(co, evalO, pk.DomainNum)
+	evaluateCosetsBis(cl, evalL, &pk.DomainNum)
+	evaluateCosetsBis(cr, evalR, &pk.DomainNum)
+	evaluateCosetsBis(co, evalO, &pk.DomainNum)
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkFullC := make(polynomial.Polynomial, sizeCommon)
@@ -145,8 +145,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalZ := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalZu := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(z, evalZ, pk.DomainNum)
-	evaluateCosetsBis(zu, evalZu, pk.DomainNum)
+	evaluateCosetsBis(z, evalZ, &pk.DomainNum)
+	evaluateCosetsBis(zu, evalZu, &pk.DomainNum)
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	constraintsOrdering := evalConstraintOrderingBis(pk, evalZ, evalZu, evalL, evalR, evalO, gamma)
@@ -381,11 +381,11 @@ func evalConstraintsBis(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []
 	evalQm := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalQo := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalQk := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(pk.Ql, evalQl, pk.DomainNum)
-	evaluateCosetsBis(pk.Qr, evalQr, pk.DomainNum)
-	evaluateCosetsBis(pk.Qm, evalQm, pk.DomainNum)
-	evaluateCosetsBis(pk.Qo, evalQo, pk.DomainNum)
-	evaluateCosetsBis(qk, evalQk, pk.DomainNum)
+	evaluateCosetsBis(pk.Ql, evalQl, &pk.DomainNum)
+	evaluateCosetsBis(pk.Qr, evalQr, &pk.DomainNum)
+	evaluateCosetsBis(pk.Qm, evalQm, &pk.DomainNum)
+	evaluateCosetsBis(pk.Qo, evalQo, &pk.DomainNum)
+	evaluateCosetsBis(qk, evalQk, &pk.DomainNum)
 
 	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
 	// of (Z/8mZ)/(Z/mZ)
@@ -467,9 +467,9 @@ func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, eval
 	evalS1 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalS2 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalS3 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(pk.CS1, evalS1, pk.DomainNum)
-	evaluateCosetsBis(pk.CS2, evalS2, pk.DomainNum)
-	evaluateCosetsBis(pk.CS3, evalS3, pk.DomainNum)
+	evaluateCosetsBis(pk.CS1, evalS1, &pk.DomainNum)
+	evaluateCosetsBis(pk.CS2, evalS2, &pk.DomainNum)
+	evaluateCosetsBis(pk.CS3, evalS3, &pk.DomainNum)
 
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalID, evaluID, evaluuID := evalIDCosetsBis(pk)
@@ -517,7 +517,7 @@ func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.
 
 	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(lOneLagrange, res, pk.DomainNum)
+	evaluateCosetsBis(lOneLagrange, res, &pk.DomainNum)
 
 	// // evaluates L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var buf, one fr.Element

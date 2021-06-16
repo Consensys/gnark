@@ -26,7 +26,7 @@ type ProvingKey struct {
 	CQk, LQk polynomial.Polynomial
 
 	// Domains used for the FFTs
-	DomainNum, DomainH *fft.Domain
+	DomainNum, DomainH fft.Domain
 
 	// s1, s2, s3 (L=Lagrange basis, C=canonical basis)
 	LS1, LS2, LS3 polynomial.Polynomial
@@ -53,7 +53,7 @@ type VerifyingKey struct {
 	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	KZG *kzg.Scheme
+	KZG kzg.Scheme
 
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
@@ -64,7 +64,7 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, _ *kzg.Scheme) (*ProvingKey, *VerifyingKey, error)  {
+func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, error)  {
 	var pk ProvingKey
 	var vk VerifyingKey
 
@@ -73,18 +73,20 @@ func Setup(spr *cs.SparseR1CS, _ *kzg.Scheme) (*ProvingKey, *VerifyingKey, error
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainNum = fft.NewDomain(sizeSystem, 3, false)
-	pk.DomainH = fft.NewDomain(4*sizeSystem, 1, false)
+	pk.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
+	pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
 	// shifters
 	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
 	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
 	// commitment scheme
-	// TODO for now, KZG is nil, we do setup at each time 
-	var alpha fr.Element 
-	alpha.SetUint64(42) // TODO 
-	vk.KZG = kzg.NewScheme(int(pk.DomainNum.Cardinality), alpha)
+	vk.KZG = kzg.Scheme{
+		Domain: &pk.DomainNum,
+		SRS: kzgSRS,
+	} 
+	// TODO ensure size of domain is consistant with size SRS
+
 	vk.Size = pk.DomainNum.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.DomainNum.Generator)

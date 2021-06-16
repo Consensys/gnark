@@ -16,10 +16,10 @@ package main
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
@@ -97,9 +97,7 @@ func main() {
 	size = 1
 	for ; size < s; size *= 2 {
 	}
-	var alpha fr.Element
-	alpha.SetRandom()
-	kate := kzg.NewScheme(size, alpha)
+	kate := kzg.NewSRS(size, new(big.Int).SetInt64(42))
 
 	// Correct data: the proof passes
 	{
