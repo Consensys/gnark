@@ -17,6 +17,7 @@
 package plonk
 
 import (
+	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
@@ -103,7 +104,9 @@ func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, err
 		Domain: &pk.DomainNum,
 		SRS:    kzgSRS,
 	}
-	// TODO ensure size of domain is consistant with size SRS
+	if len(vk.KZG.SRS.G1) < int(pk.DomainNum.Cardinality) {
+		return nil, nil, errors.New("kzg srs is too small")
+	}
 
 	vk.Size = pk.DomainNum.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
