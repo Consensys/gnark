@@ -55,6 +55,7 @@ func TestMimcAll(t *testing.T) {
 		ecc.BLS12_381: hash.MIMC_BLS12_381,
 		ecc.BLS12_377: hash.MIMC_BLS12_377,
 		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BLS24_315: hash.MIMC_BLS24_315,
 	}
 
 	for curve, hashFunc := range curves {
