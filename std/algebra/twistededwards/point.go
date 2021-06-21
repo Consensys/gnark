@@ -17,14 +17,11 @@ limitations under the License.
 package twistededwards
 
 import (
-	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
-
-var errInvalidCurveType = errors.New("curve is not supported / implemented yet")
 
 // Point point on a twisted Edwards curve in a Snark cs
 type Point struct {
