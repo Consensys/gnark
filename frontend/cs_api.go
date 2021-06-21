@@ -73,6 +73,25 @@ func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 	return res
 }
 
+// Neg returns -i
+func (cs *ConstraintSystem) Neg(i interface{}) Variable {
+
+	var res Variable
+
+	switch t := i.(type) {
+	case Variable:
+		res.linExp = cs.negateLinExp(t.linExp)
+	default:
+		n := FromInterface(t)
+		n.Neg(&n)
+		if n.Cmp(bOne) == 0 {
+			return cs.getOneVariable()
+		}
+		res = cs.Constant(n)
+	}
+	return res
+}
+
 // Sub returns res = i1 - i2
 func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 

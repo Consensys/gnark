@@ -18,10 +18,6 @@ package twistededwards
 
 import (
 	"errors"
-	bls12377fr "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	bw6761fr "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -180,31 +176,8 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 }
 
 // Neg computes the negative of a point in SNARK coordinates
-func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) *Point {
-
-	var r, xNeg frontend.Variable
-
-	switch curve.ID {
-	case ecc.BN254:
-		r = cs.Constant(bn254fr.Modulus())
-		break
-	case ecc.BLS12_381:
-		r = cs.Constant(bls12381fr.Modulus())
-		break
-	case ecc.BLS12_377:
-		r = cs.Constant(bls12377fr.Modulus())
-		break
-	case ecc.BW6_761:
-		r = cs.Constant(bw6761fr.Modulus())
-		break
-	default:
-		panic(errInvalidCurveType)
-	}
-
-	xNeg = cs.Sub(r, p1.X)
-
-	p.X = xNeg
+func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point) *Point {
+	p.X = cs.Neg(p1.X)
 	p.Y = p1.Y
-
 	return p
 }
