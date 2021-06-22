@@ -19,8 +19,114 @@ package plonk
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 
+	"errors"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"io"
 )
+
+// WriteTo writes binary encoding of ProvingKey to w
+func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
+	// encode the verifying key
+	n, err = pk.Vk.WriteTo(w)
+	if err != nil {
+		return
+	}
+
+	// fft domains
+	n2, err := pk.DomainNum.WriteTo(w)
+	if err != nil {
+		return
+	}
+	n += n2
+
+	n2, err = pk.DomainH.WriteTo(w)
+	if err != nil {
+		return
+	}
+	n += n2
+
+	// sanity check len(Permutation) == 3*int(pk.DomainNum.Cardinality)
+	if len(pk.Permutation) != (3 * int(pk.DomainNum.Cardinality)) {
+		return n, errors.New("invalid permutation size, expected 3*domain cardinality")
+	}
+
+	enc := curve.NewEncoder(w)
+	// note: type Polynomial, which is handled by default binary.Write(...) op and doesn't
+	// encode the size (nor does it convert from Montgomery to Regular form)
+	// so we explicitly transmit []fr.Element
+	toEncode := []interface{}{
+		([]fr.Element)(pk.Ql),
+		([]fr.Element)(pk.Qr),
+		([]fr.Element)(pk.Qm),
+		([]fr.Element)(pk.Qo),
+		([]fr.Element)(pk.CQk),
+		([]fr.Element)(pk.LQk),
+		([]fr.Element)(pk.LS1),
+		([]fr.Element)(pk.LS2),
+		([]fr.Element)(pk.LS3),
+		([]fr.Element)(pk.CS1),
+		([]fr.Element)(pk.CS2),
+		([]fr.Element)(pk.CS3),
+		pk.Permutation,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return n + enc.BytesWritten(), err
+		}
+	}
+
+	return n + enc.BytesWritten(), nil
+}
+
+// ReadFrom reads from binary representation in r into ProvingKey
+func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
+	pk.Vk = &VerifyingKey{}
+	n, err := pk.Vk.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+
+	n2, err := pk.DomainNum.ReadFrom(r)
+	n += n2
+	if err != nil {
+		return n, err
+	}
+
+	n2, err = pk.DomainH.ReadFrom(r)
+	n += n2
+	if err != nil {
+		return n, err
+	}
+
+	pk.Permutation = make([]int64, 3*pk.DomainNum.Cardinality)
+
+	dec := curve.NewDecoder(r)
+	toDecode := []interface{}{
+		(*[]fr.Element)(&pk.Ql),
+		(*[]fr.Element)(&pk.Qr),
+		(*[]fr.Element)(&pk.Qm),
+		(*[]fr.Element)(&pk.Qo),
+		(*[]fr.Element)(&pk.CQk),
+		(*[]fr.Element)(&pk.LQk),
+		(*[]fr.Element)(&pk.LS1),
+		(*[]fr.Element)(&pk.LS2),
+		(*[]fr.Element)(&pk.LS3),
+		(*[]fr.Element)(&pk.CS1),
+		(*[]fr.Element)(&pk.CS2),
+		(*[]fr.Element)(&pk.CS3),
+		&pk.Permutation,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return n + dec.BytesRead(), err
+		}
+	}
+
+	return n + dec.BytesRead(), nil
+
+}
 
 // WriteTo writes binary encoding of VerifyingKey to w
 func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
