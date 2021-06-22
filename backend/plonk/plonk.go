@@ -20,6 +20,8 @@
 package plonk
 
 import (
+	"io"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 
@@ -64,6 +66,8 @@ type ProvingKey interface {
 //
 // it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 type VerifyingKey interface {
+	io.WriterTo
+	io.ReaderFrom
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.

@@ -1,11 +1,11 @@
 import (
-	{{/* {{ template "import_curve" . }}
-	{{ template "import_fr" . }}
-	"io" */}}
+ 	{{ template "import_curve" . }}
+	{{/* {{ template "import_fr" . }} */}}
+	"io" 
 )
 
 
-{{/* // WriteTo writes binary encoding of ProofRaw to w 
+ {{/* // WriteTo writes binary encoding of ProofRaw to w 
 func (proof *ProofRaw) WriteTo(w io.Writer) (int64, error) {
 	enc := curve.NewEncoder(w)
 
@@ -56,102 +56,63 @@ func (proof *ProofRaw) ReadFrom(r io.Reader) (int64, error) {
 
 	
 
-}
+} */}}
 
 
-// WriteTo writes binary encoding of PublicRaw to w
-func (p *PublicRaw) WriteTo(w io.Writer) (n int64, err error) {
-	n, err = p.DomainNum.WriteTo(w)
-	if err != nil {
-		return
-	}
-
-	n2, err := p.DomainH.WriteTo(w)
-	if err != nil {
-		return
-	}
-	n+=n2
-
-
+// WriteTo writes binary encoding of VerifyingKey to w
+func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 	enc := curve.NewEncoder(w)
 
-	// note: p.Ql is of type Polynomial, which is handled by default binary.Write(...) op and doesn't
-	// encode the size (nor does it convert from Montgomery to Regular form)
-
-	toEncode := []interface{}{
-		([]fr.Element)(p.Ql),
-		([]fr.Element)(p.Qr),
-		([]fr.Element)(p.Qm),
-		([]fr.Element)(p.Qo),
-		([]fr.Element)(p.Qk),
-		p.Shifter[:],
-		([]fr.Element)(p.LS1),
-		([]fr.Element)(p.LS2),
-		([]fr.Element)(p.LS3),
-		([]fr.Element)(p.CS1),
-		([]fr.Element)(p.CS2),
-		([]fr.Element)(p.CS3),
-		uint32(len(p.Permutation)),
-		p.Permutation, 
+	toEncode := []interface{} {
+		vk.Size, 
+		vk.SizeInv,
+		vk.Generator,
+		vk.Shifter[0],
+		vk.Shifter[1],
+		vk.S[0],
+		vk.S[1],
+		vk.S[2],
+		vk.Ql,
+		vk.Qr,
+		vk.Qm,
+		vk.Qo,
+		vk.Qk,
 	}
 
 	for _, v := range toEncode {
 		if err := enc.Encode(v); err != nil {
-			return n + enc.BytesWritten(), err
+			return enc.BytesWritten(), err
 		}
 	}
 
 	
-	return n + enc.BytesWritten(), nil
+	return enc.BytesWritten(), nil
 }
 
-// ReadFrom  reads from binary representation in r into PublicRaw
-func (p *PublicRaw) ReadFrom(r io.Reader) (int64, error) {
-	n, err := p.DomainNum.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-
-	n2, err := p.DomainH.ReadFrom(r)
-	if err != nil {
-		return n, err
-	}
-	n += n2
-
-
+// ReadFrom reads from binary representation in r into VerifyingKey
+func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
-	var lenPermutations uint32
-	pShifter  := make([]fr.Element, 2)
 	toDecode := []interface{}{
-		(*[]fr.Element)(&p.Ql),
-		(*[]fr.Element)(&p.Qr),
-		(*[]fr.Element)(&p.Qm),
-		(*[]fr.Element)(&p.Qo),
-		(*[]fr.Element)(&p.Qk),
-		&pShifter,
-		(*[]fr.Element)(&p.LS1),
-		(*[]fr.Element)(&p.LS2),
-		(*[]fr.Element)(&p.LS3),
-		(*[]fr.Element)(&p.CS1),
-		(*[]fr.Element)(&p.CS2),
-		(*[]fr.Element)(&p.CS3),
-		&lenPermutations,
+		&vk.Size, 
+		&vk.SizeInv,
+		&vk.Generator,
+		&vk.Shifter[0],
+		&vk.Shifter[1],
+		&vk.S[0],
+		&vk.S[1],
+		&vk.S[2],
+		&vk.Ql,
+		&vk.Qr,
+		&vk.Qm,
+		&vk.Qo,
+		&vk.Qk,
 	}
-
 
 	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			return n + dec.BytesRead(), err
+			return dec.BytesRead(), err
 		}
 	}
 
-	p.Permutation = make([]int64, lenPermutations)
-	if err := dec.Decode(&p.Permutation); err != nil {
-		return n + dec.BytesRead(), err
-	}
-
-	p.Shifter[0] = pShifter[0]
-	p.Shifter[1] = pShifter[1]
-
-	return n + dec.BytesRead(), nil
-} */}}
+	return dec.BytesRead(), nil
+} 
