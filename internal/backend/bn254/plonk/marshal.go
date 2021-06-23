@@ -24,6 +24,62 @@ import (
 	"io"
 )
 
+// WriteTo writes binary encoding of Proof to w
+func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
+	enc := curve.NewEncoder(w)
+
+	toEncode := []interface{}{
+		&proof.LRO[0],
+		&proof.LRO[1],
+		&proof.LRO[2],
+		&proof.Z,
+		&proof.H[0],
+		&proof.H[1],
+		&proof.H[2],
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	n, err := proof.BatchedProof.WriteTo(w)
+	if err != nil {
+		return n + enc.BytesWritten(), err
+	}
+	n2, err := proof.ZShiftedOpening.WriteTo(w)
+
+	return n + n2 + enc.BytesWritten(), err
+}
+
+// ReadFrom reads binary representation of Proof from r
+func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
+	dec := curve.NewDecoder(r)
+	toDecode := []interface{}{
+		&proof.LRO[0],
+		&proof.LRO[1],
+		&proof.LRO[2],
+		&proof.Z,
+		&proof.H[0],
+		&proof.H[1],
+		&proof.H[2],
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	n, err := proof.BatchedProof.ReadFrom(r)
+	if err != nil {
+		return n + dec.BytesRead(), err
+	}
+	n2, err := proof.ZShiftedOpening.ReadFrom(r)
+	return n + n2 + dec.BytesRead(), err
+}
+
 // WriteTo writes binary encoding of ProvingKey to w
 func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the verifying key
@@ -134,18 +190,18 @@ func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 
 	toEncode := []interface{}{
 		vk.Size,
-		vk.SizeInv,
-		vk.Generator,
-		vk.Shifter[0],
-		vk.Shifter[1],
-		vk.S[0],
-		vk.S[1],
-		vk.S[2],
-		vk.Ql,
-		vk.Qr,
-		vk.Qm,
-		vk.Qo,
-		vk.Qk,
+		&vk.SizeInv,
+		&vk.Generator,
+		&vk.Shifter[0],
+		&vk.Shifter[1],
+		&vk.S[0],
+		&vk.S[1],
+		&vk.S[2],
+		&vk.Ql,
+		&vk.Qr,
+		&vk.Qm,
+		&vk.Qo,
+		&vk.Qk,
 	}
 
 	for _, v := range toEncode {

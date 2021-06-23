@@ -46,10 +46,10 @@ type Proof struct {
 	H [3]kzg.Digest
 
 	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
-	BatchedProof kzg.BatchProofsSinglePoint
+	BatchedProof kzg.BatchOpeningProof
 
 	// Opening proof of Z at zeta*mu
-	ZShiftedOpening kzg.Proof
+	ZShiftedOpening kzg.OpeningProof
 }
 
 // Prove from the public data
