@@ -25,10 +25,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
-
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"runtime"

@@ -18,7 +18,6 @@ package groth16
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
-
 	"io"
 )
 

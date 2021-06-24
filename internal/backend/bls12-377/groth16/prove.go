@@ -25,10 +25,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 
-	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
-
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"runtime"
