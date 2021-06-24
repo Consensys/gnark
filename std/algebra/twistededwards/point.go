@@ -171,3 +171,10 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 
 	return p
 }
+
+// Neg computes the negative of a point in SNARK coordinates
+func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point) *Point {
+	p.X = cs.Neg(p1.X)
+	p.Y = p1.Y
+	return p
+}
