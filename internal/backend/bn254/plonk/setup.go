@@ -64,9 +64,10 @@ type ProvingKey struct {
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
 	// Size circuit
-	Size      uint64
-	SizeInv   fr.Element
-	Generator fr.Element
+	Size              uint64
+	SizeInv           fr.Element
+	Generator         fr.Element
+	NbPublicVariables uint64
 
 	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
 	// extended domain = s || shifter[0].s || shifter[1].s
@@ -102,6 +103,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.Size = pk.DomainNum.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.DomainNum.Generator)
+	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
 	// shifters
 	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
@@ -382,4 +384,14 @@ func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 	}
 
 	return nil
+}
+
+// SizePublicWitness returns the expected public witness size (number of field elements)
+func (vk *VerifyingKey) SizePublicWitness() int {
+	return int(vk.NbPublicVariables)
+}
+
+// VerifyingKey returns pk.Vk
+func (pk *ProvingKey) VerifyingKey() interface{} {
+	return pk.Vk
 }

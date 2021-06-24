@@ -43,6 +43,7 @@ func TestProvingKeySerialization(t *testing.T) {
 	vk.Qm = g1gen
 	vk.Qo = g1gen
 	vk.Qk = g1gen
+	vk.NbPublicVariables = 8000
 
 	// random pk
 	var pk ProvingKey

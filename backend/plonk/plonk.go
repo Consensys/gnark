@@ -66,6 +66,7 @@ type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
 	InitKZG(srs kzg.SRS) error
+	VerifyingKey() interface{}
 }
 
 // VerifyingKey represents a plonk VerifyingKey
@@ -75,6 +76,7 @@ type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
 	InitKZG(srs kzg.SRS) error
+	SizePublicWitness() int // number of elements expected in the public witness
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
@@ -229,6 +231,28 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	return pk
 }
 
+// NewProof instantiates a curve-typed ProvingKey and returns an interface
+// This function exists for serialization purposes
+func NewProof(curveID ecc.ID) Proof {
+	var proof Proof
+	switch curveID {
+	case ecc.BN254:
+		proof = &plonk_bn254.Proof{}
+	case ecc.BLS12_377:
+		proof = &plonk_bls12377.Proof{}
+	case ecc.BLS12_381:
+		proof = &plonk_bls12381.Proof{}
+	case ecc.BW6_761:
+		proof = &plonk_bw6761.Proof{}
+	case ecc.BLS24_315:
+		proof = &plonk_bls24315.Proof{}
+	default:
+		panic("not implemented")
+	}
+
+	return proof
+}
+
 // NewVerifyingKey instantiates a curve-typed VerifyingKey and returns an interface
 // This function exists for serialization purposes
 func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
@@ -251,72 +275,123 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	return vk
 }
 
-// ReadAndProve generates PLONK proof from a circuit, associated preprocessed public data, and the witness
+// ReadAndProve generates PLONK proof from a circuit, associated proving key, and the full witness
 func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader) (Proof, error) {
 
 	_, nbSecret, nbPublic := ccs.GetNbVariables()
 	expectedSize := (nbSecret + nbPublic)
 
-	switch _sparseR1cs := ccs.(type) {
+	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		_publicData := pk.(*plonk_bn254.ProvingKey)
+		_pk := pk.(*plonk_bn254.ProvingKey)
 		w := witness_bn254.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bn254.Prove(_sparseR1cs, _publicData, w)
+		proof, err := plonk_bn254.Prove(tccs, _pk, w)
 		if err != nil {
 			return proof, err
 		}
 		return proof, nil
 
 	case *cs_bls12381.SparseR1CS:
-		_publicData := pk.(*plonk_bls12381.ProvingKey)
+		_pk := pk.(*plonk_bls12381.ProvingKey)
 		w := witness_bls12381.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12381.Prove(_sparseR1cs, _publicData, w)
+		proof, err := plonk_bls12381.Prove(tccs, _pk, w)
 		if err != nil {
 			return proof, err
 		}
 		return proof, nil
 
 	case *cs_bls12377.SparseR1CS:
-		_publicData := pk.(*plonk_bls12377.ProvingKey)
+		_pk := pk.(*plonk_bls12377.ProvingKey)
 		w := witness_bls12377.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12377.Prove(_sparseR1cs, _publicData, w)
+		proof, err := plonk_bls12377.Prove(tccs, _pk, w)
 		if err != nil {
 			return proof, err
 		}
 		return proof, nil
 
 	case *cs_bw6761.SparseR1CS:
-		_publicData := pk.(*plonk_bw6761.ProvingKey)
+		_pk := pk.(*plonk_bw6761.ProvingKey)
 		w := witness_bw6761.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bw6761.Prove(_sparseR1cs, _publicData, w)
+		proof, err := plonk_bw6761.Prove(tccs, _pk, w)
 		if err != nil {
 			return proof, err
 		}
 		return proof, nil
 
 	case *cs_bls24315.SparseR1CS:
-		_publicData := pk.(*plonk_bls24315.ProvingKey)
+		_pk := pk.(*plonk_bls24315.ProvingKey)
 		w := witness_bls24315.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls24315.Prove(_sparseR1cs, _publicData, w)
+		proof, err := plonk_bls24315.Prove(tccs, _pk, w)
 		if err != nil {
 			return proof, err
 		}
 		return proof, nil
+
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+// ReadAndVerify verifies a PLONK proof from a circuit, associated proving key, and the full witness
+func ReadAndVerify(proof Proof, vk VerifyingKey, witness io.Reader) error {
+
+	expectedSize := vk.SizePublicWitness()
+
+	switch _proof := proof.(type) {
+	case *plonk_bn254.Proof:
+		_vk := vk.(*plonk_bn254.VerifyingKey)
+		w := witness_bn254.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return err
+		}
+		return plonk_bn254.Verify(_proof, _vk, w)
+
+	case *plonk_bls12381.Proof:
+		_vk := vk.(*plonk_bls12381.VerifyingKey)
+		w := witness_bls12381.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return err
+		}
+		return plonk_bls12381.Verify(_proof, _vk, w)
+
+	case *plonk_bls12377.Proof:
+		_vk := vk.(*plonk_bls12377.VerifyingKey)
+		w := witness_bls12377.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return err
+		}
+		return plonk_bls12377.Verify(_proof, _vk, w)
+
+	case *plonk_bw6761.Proof:
+		_vk := vk.(*plonk_bw6761.VerifyingKey)
+		w := witness_bw6761.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return err
+		}
+		return plonk_bw6761.Verify(_proof, _vk, w)
+
+	case *plonk_bls24315.Proof:
+		_vk := vk.(*plonk_bls24315.VerifyingKey)
+		w := witness_bls24315.Witness{}
+		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
+			return err
+		}
+		return plonk_bls24315.Verify(_proof, _vk, w)
 
 	default:
 		panic("unrecognized R1CS curve type")

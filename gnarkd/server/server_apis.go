@@ -250,16 +250,30 @@ func (s *Server) Verify(ctx context.Context, request *pb.VerifyRequest) (*pb.Ver
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
-	// call groth16.Verify with witness
-	proof := groth16.NewProof(circuit.ccs.CurveID())
-	if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
-	}
-	err := groth16.ReadAndVerify(proof, circuit.groth16.vk, bytes.NewReader(request.PublicWitness))
-	if err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	if circuit.backendID == backend.GROTH16 {
+		// call groth16.Verify with witness
+		proof := groth16.NewProof(circuit.ccs.CurveID())
+		if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+		err := groth16.ReadAndVerify(proof, circuit.groth16.vk, bytes.NewReader(request.PublicWitness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+	} else if circuit.backendID == backend.PLONK {
+		// call plonk.Verify with witness
+		proof := plonk.NewProof(circuit.ccs.CurveID())
+		if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+		err := plonk.ReadAndVerify(proof, circuit.plonk.pk.VerifyingKey().(plonk.VerifyingKey), bytes.NewReader(request.PublicWitness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
 	}
 
 	// return proof
