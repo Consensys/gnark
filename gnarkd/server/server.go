@@ -427,8 +427,13 @@ func (s *Server) loadCircuit(backendID backend.ID, curveID ecc.ID, baseDir strin
 	}
 
 	_, nbSecretVariables, nbPublicVariables := circuit.ccs.GetNbVariables()
-	circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.ccs.FrSize()
-	circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.ccs.FrSize()
+	if circuit.backendID == backend.GROTH16 {
+		circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.ccs.FrSize()
+		circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.ccs.FrSize()
+	} else if circuit.backendID == backend.PLONK {
+		circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables)*circuit.ccs.FrSize()
+		circuit.publicWitnessSize = 4 + int(nbPublicVariables)*circuit.ccs.FrSize()
+	}
 
 	s.circuits[circuitID] = circuit
 

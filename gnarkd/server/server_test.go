@@ -239,12 +239,22 @@ func TestProveAsync(t *testing.T) {
 		assert.Equal(lastStatus, pb.ProveJobResult_COMPLETED)
 
 		// 3. ensure returned proof is valid.
-		proof := groth16.NewProof(circuit.curveID)
-		_, err = proof.ReadFrom(bytes.NewReader(rproof))
-		assert.NoError(err, "deserializing grpc proof response failed")
+		if circuit.backendID == backend.GROTH16 {
+			proof := groth16.NewProof(circuit.curveID)
+			_, err = proof.ReadFrom(bytes.NewReader(rproof))
+			assert.NoError(err, "deserializing grpc proof response failed")
 
-		err = groth16.Verify(proof, circuit.groth16.vk, &w)
-		assert.NoError(err, "couldn't verify proof returned from grpc server")
+			err = groth16.Verify(proof, circuit.groth16.vk, &w)
+			assert.NoError(err, "couldn't verify proof returned from grpc server")
+		} else if circuit.backendID == backend.PLONK {
+			proof := plonk.NewProof(circuit.curveID)
+			_, err = proof.ReadFrom(bytes.NewReader(rproof))
+			assert.NoError(err, "deserializing grpc proof response failed")
+
+			err = plonk.Verify(proof, circuit.plonk.pk.VerifyingKey().(plonk.VerifyingKey), &w)
+			assert.NoError(err, "couldn't verify proof returned from grpc server")
+		}
+
 	}
 }
 
