@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
@@ -11,7 +12,7 @@ import (
 const (
 	pkExt      = ".pk"
 	vkExt      = ".vk"
-	pdataExt   = ".data"
+	kzgExt     = ".kzg"
 	circuitExt = ".ccs"
 )
 
@@ -30,7 +31,7 @@ type circuit struct {
 
 	// plonk precompute
 	plonk struct {
-		pk plonk.ProvingKey
-		vk plonk.VerifyingKey
+		pk     plonk.ProvingKey
+		kzgSRS kzg.SRS
 	}
 }

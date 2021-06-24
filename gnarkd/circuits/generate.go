@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
@@ -32,6 +33,7 @@ func main() {
 	var circuit cubic.Circuit
 
 	var kCache kzgCache
+	kCache.m = make(map[ecc.ID][]kzgInstance)
 
 	for _, b := range backend.Implemented() {
 		for _, curve := range ecc.Implemented() {
@@ -91,7 +93,7 @@ type kzgCache struct {
 
 type kzgInstance struct {
 	size int
-	kzg  interface{}
+	kzg  kzg.SRS
 }
 
 func nextPowerOfTwo(_n int) int {
@@ -106,7 +108,7 @@ func nextPowerOfTwo(_n int) int {
 	return int(p)
 }
 
-func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) interface{} {
+func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) kzg.SRS {
 	size := getKZGSize(ccs)
 	instances, ok := k.m[ccs.CurveID()]
 	if ok {
@@ -121,7 +123,7 @@ func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) interface{} {
 	// we need to do a new KZG
 	fakeRandomness := new(big.Int).SetInt64(42)
 
-	var toReturn interface{}
+	var toReturn kzg.SRS
 	switch ccs.CurveID() {
 	case ecc.BN254:
 		toReturn = kzg_bn254.NewSRS(size, fakeRandomness)

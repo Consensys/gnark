@@ -39,6 +39,7 @@ import (
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	"github.com/consensys/gnark-crypto/kzg"
 )
 
 // Assert is a helper to test circuits
@@ -142,7 +143,7 @@ func nextPowerOfTwo(_n int) int {
 	return int(p)
 }
 
-func newKZGSrs(ccs frontend.CompiledConstraintSystem) interface{} {
+func newKZGSrs(ccs frontend.CompiledConstraintSystem) kzg.SRS {
 	fakeRandomness := new(big.Int).SetInt64(42)
 
 	// no randomness in the test SRS

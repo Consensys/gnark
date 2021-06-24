@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/gnarkd/pb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -44,13 +45,12 @@ func (s *Server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.Prove
 
 	case backend.PLONK:
 		// call plonk.Prove with witness
-		panic("not implemtened")
-		// proof, err := plonk.ReadAndProve(circuit.ccs, circuit.plonk.publicData, bytes.NewReader(request.Witness))
-		// if err != nil {
-		// 	s.log.Error(err)
-		// 	return nil, status.Errorf(codes.Internal, err.Error())
-		// }
-		// pw = proof
+		proof, err := plonk.ReadAndProve(circuit.ccs, circuit.plonk.pk, bytes.NewReader(request.Witness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+		pw = proof
 	default:
 		panic("backend not implemented")
 	}

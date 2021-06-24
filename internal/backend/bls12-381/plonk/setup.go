@@ -23,6 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
+
+	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -82,9 +84,12 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 	var pk ProvingKey
 	var vk VerifyingKey
+
+	// The verifying key shares data with the proving key
+	pk.Vk = &vk
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -94,22 +99,17 @@ func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, err
 	pk.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
 	pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
+	vk.Size = pk.DomainNum.Cardinality
+	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
+	vk.Generator.Set(&pk.DomainNum.Generator)
+
 	// shifters
 	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
 	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
-	// commitment scheme
-	vk.KZG = kzg.Scheme{
-		Domain: &pk.DomainNum,
-		SRS:    kzgSRS,
+	if err := pk.InitKZG(srs); err != nil {
+		return nil, nil, err
 	}
-	if len(vk.KZG.SRS.G1) < int(pk.DomainNum.Cardinality) {
-		return nil, nil, errors.New("kzg srs is too small")
-	}
-
-	vk.Size = pk.DomainNum.Cardinality
-	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.DomainNum.Generator)
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
@@ -193,9 +193,6 @@ func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, err
 	if vk.S[2], err = vk.KZG.Commit(pk.CS3); err != nil {
 		return nil, nil, err
 	}
-
-	// The verifying key shares data with the proving key
-	pk.Vk = &vk
 
 	return &pk, &vk, nil
 
@@ -338,4 +335,51 @@ func computeLDE(pk *ProvingKey) {
 	fft.BitReverse(pk.CS2)
 	fft.BitReverse(pk.CS3)
 
+}
+
+// InitKZG inits pk.Vk.KZG using pk.DomainNum cardinality and provided SRS
+//
+// This should be used after deserializing a ProvingKey
+// as pk.Vk.KZG is NOT serialized
+func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
+	// TODO check pk.Vk ? and domain init?
+	_srs := srs.(*kzg.SRS)
+
+	if len(_srs.G1) < int(pk.DomainNum.Cardinality) {
+		return errors.New("kzg srs is too small")
+	}
+
+	// commitment scheme
+	pk.Vk.KZG = kzg.Scheme{
+		Domain: &pk.DomainNum,
+		SRS:    _srs,
+	}
+
+	return nil
+}
+
+// InitKZG inits vk.KZG using provided SRS
+//
+// This should be used after deserializing a VerifyingKey
+// as vk.KZG is NOT serialized
+//
+// Note that this instantiate a new FFT domain using vk.Size
+func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
+	// TODO @thomas do we need cosets here ?
+	// this code path happens when someone deserializes ONLY the verifying key (not the PK)
+	// and we need a FFT domain to init KZG
+	domain := fft.NewDomain(vk.Size, 3, false)
+	_srs := srs.(*kzg.SRS)
+
+	if len(_srs.G1) < int(domain.Cardinality) {
+		return errors.New("kzg srs is too small")
+	}
+
+	// commitment scheme
+	vk.KZG = kzg.Scheme{
+		Domain: domain,
+		SRS:    _srs,
+	}
+
+	return nil
 }
