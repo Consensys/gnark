@@ -24,6 +24,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+
 	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -33,60 +35,45 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
+func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
+	var buf [curve.SizeOfG1AffineUncompressed]byte
+	var r fr.Element
+
+	for _, p := range points {
+		buf = p.RawBytes()
+		if err := fs.Bind(challenge, buf[:]); err != nil {
+			return r, err
+		}
+	}
+
+	b, err := fs.ComputeChallenge(challenge)
+	if err != nil {
+		return r, err
+	}
+	r.SetBytes(b)
+	return r, nil
+}
+
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witness) error {
 
-	// derive gamma from Comm(l), Comm(r), Comm(o)
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
-	err := fs.Bind("gamma", proof.LRO[0].Marshal())
+	// derive gamma from Comm(l), Comm(r), Comm(o)
+	gamma, err := deriveRandomess(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
 		return err
 	}
-	err = fs.Bind("gamma", proof.LRO[1].Marshal())
-	if err != nil {
-		return err
-	}
-	err = fs.Bind("gamma", proof.LRO[2].Marshal())
-	if err != nil {
-		return err
-	}
-	bgamma, err := fs.ComputeChallenge("gamma")
-	if err != nil {
-		return err
-	}
-	var gamma fr.Element
-	gamma.SetBytes(bgamma)
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
-	err = fs.Bind("alpha", proof.Z.Marshal())
+	alpha, err := deriveRandomess(&fs, "alpha", &proof.Z)
 	if err != nil {
 		return err
 	}
-	balpha, err := fs.ComputeChallenge("alpha")
-	if err != nil {
-		return err
-	}
-	var alpha fr.Element
-	alpha.SetBytes(balpha)
 
 	// derive zeta, the point of evaluation
-	err = fs.Bind("zeta", proof.H[0].Marshal())
+	zeta, err := deriveRandomess(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
 	if err != nil {
 		return err
 	}
-	err = fs.Bind("zeta", proof.H[1].Marshal())
-	if err != nil {
-		return err
-	}
-	err = fs.Bind("zeta", proof.H[2].Marshal())
-	if err != nil {
-		return err
-	}
-	bzeta, err := fs.ComputeChallenge("zeta")
-	if err != nil {
-		return err
-	}
-	var zeta fr.Element
-	zeta.SetBytes(bzeta)
 
 	// evaluation of Z=X**m-1 at zeta
 	var zetaPowerM, zzeta, one fr.Element
