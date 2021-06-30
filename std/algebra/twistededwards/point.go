@@ -96,8 +96,23 @@ func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve E
 }
 
 // Double doubles a points in SNARK coordinates
+// IMPORTANT: it assumes the twisted Edwards is reduced (a=-1)
 func (p *Point) Double(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) *Point {
-	p.AddGeneric(cs, p1, p1, curve)
+
+	u := cs.Mul(p1.X, p1.Y)
+	v := cs.Mul(p1.X, p1.X)
+	w := cs.Mul(p1.Y, p1.Y)
+	z := cs.Mul(v, w) // x**2*y**2
+
+	n1 := cs.Mul(2, u)
+	n2 := cs.Add(v, w)
+	d := cs.Mul(z, curve.D)
+	d1 := cs.Add(1, d)
+	d2 := cs.Sub(1, d)
+
+	p.X = cs.Div(n1, d1)
+	p.Y = cs.Div(n2, d2)
+
 	return p
 }
 
@@ -169,5 +184,12 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 	p.X = res.X
 	p.Y = res.Y
 
+	return p
+}
+
+// Neg computes the negative of a point in SNARK coordinates
+func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point) *Point {
+	p.X = cs.Neg(p1.X)
+	p.Y = p1.Y
 	return p
 }
