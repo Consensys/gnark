@@ -58,7 +58,9 @@ func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, wit
 	assert.SolvingSucceeded(ccs, witness)
 
 	// generates public data
-	pk, vk, err := Setup(ccs, newKZGSrs(ccs))
+	srs, err := newKZGSrs(ccs)
+	assert.NoError(err, "building (test) kzg srs failed")
+	pk, vk, err := Setup(ccs, srs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -74,7 +76,9 @@ func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, wit
 func (assert *Assert) ProverFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	pk, _, err := Setup(ccs, newKZGSrs(ccs))
+	srs, err := newKZGSrs(ccs)
+	assert.NoError(err, "building (test) kzg srs failed")
+	pk, _, err := Setup(ccs, srs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -143,7 +147,7 @@ func nextPowerOfTwo(_n int) int {
 	return int(p)
 }
 
-func newKZGSrs(ccs frontend.CompiledConstraintSystem) kzg.SRS {
+func newKZGSrs(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 	fakeRandomness := new(big.Int).SetInt64(42)
 
 	// no randomness in the test SRS

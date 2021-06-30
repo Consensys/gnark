@@ -124,19 +124,23 @@ func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) kzg.SRS {
 	fakeRandomness := new(big.Int).SetInt64(42)
 
 	var toReturn kzg.SRS
+	var err error
 	switch ccs.CurveID() {
 	case ecc.BN254:
-		toReturn = kzg_bn254.NewSRS(size, fakeRandomness)
+		toReturn, err = kzg_bn254.NewSRS(size, fakeRandomness)
 	case ecc.BLS12_381:
-		toReturn = kzg_bls12381.NewSRS(size, fakeRandomness)
+		toReturn, err = kzg_bls12381.NewSRS(size, fakeRandomness)
 	case ecc.BLS12_377:
-		toReturn = kzg_bls12377.NewSRS(size, fakeRandomness)
+		toReturn, err = kzg_bls12377.NewSRS(size, fakeRandomness)
 	case ecc.BW6_761:
-		toReturn = kzg_bw6761.NewSRS(size, fakeRandomness)
+		toReturn, err = kzg_bw6761.NewSRS(size, fakeRandomness)
 	case ecc.BLS24_315:
-		toReturn = kzg_bls24315.NewSRS(size, fakeRandomness)
+		toReturn, err = kzg_bls24315.NewSRS(size, fakeRandomness)
 	default:
 		panic("unknown constraint system type")
+	}
+	if err != nil {
+		panic(err)
 	}
 	instances = append(instances, kzgInstance{size: size, kzg: toReturn})
 	k.m[ccs.CurveID()] = instances

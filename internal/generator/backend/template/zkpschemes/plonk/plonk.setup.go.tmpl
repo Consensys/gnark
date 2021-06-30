@@ -56,7 +56,7 @@ type VerifyingKey struct {
 	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	KZG kzg.Scheme
+	KZGSRS *kzg.SRS
 
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
@@ -91,12 +91,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
 	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
-
 	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
 	}
-
-
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
@@ -156,28 +153,28 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
-	if vk.Ql, err = vk.KZG.Commit(pk.Ql); err != nil {
+	if vk.Ql, err = kzg.Commit(pk.Ql, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qr, err = vk.KZG.Commit(pk.Qr); err != nil {
+	if vk.Qr, err = kzg.Commit(pk.Qr, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qm, err = vk.KZG.Commit(pk.Qm); err != nil {
+	if vk.Qm, err = kzg.Commit(pk.Qm, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qo, err = vk.KZG.Commit(pk.Qo); err != nil {
+	if vk.Qo, err = kzg.Commit(pk.Qo, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qk, err = vk.KZG.Commit(pk.CQk); err != nil {
+	if vk.Qk, err = kzg.Commit(pk.CQk, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[0], err = vk.KZG.Commit(pk.CS1); err != nil {
+	if vk.S[0], err = kzg.Commit(pk.CS1, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[1], err = vk.KZG.Commit(pk.CS2); err != nil {
+	if vk.S[1], err = kzg.Commit(pk.CS2, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[2], err = vk.KZG.Commit(pk.CS3); err != nil {
+	if vk.S[2], err = kzg.Commit(pk.CS3, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
 
@@ -330,20 +327,7 @@ func computeLDE(pk *ProvingKey) {
 // This should be used after deserializing a ProvingKey
 // as pk.Vk.KZG is NOT serialized
 func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
-	// TODO check pk.Vk ? and domain init? 
-	_srs := srs.(*kzg.SRS)
-
-	if len(_srs.G1) < int(pk.DomainNum.Cardinality) {
-		return errors.New("kzg srs is too small")
-	}
-
-	// commitment scheme
-	pk.Vk.KZG = kzg.Scheme{
-		Domain: &pk.DomainNum,
-		SRS: _srs,
-	} 
-
-	return nil
+	return pk.Vk.InitKZG(srs)
 }
 
 
@@ -354,21 +338,12 @@ func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
 //
 // Note that this instantiate a new FFT domain using vk.Size
 func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
-	// TODO @thomas do we need cosets here ? 
-	// this code path happens when someone deserializes ONLY the verifying key (not the PK)
-	// and we need a FFT domain to init KZG
-	domain := fft.NewDomain(vk.Size, 3, false) 
 	_srs := srs.(*kzg.SRS)
 
-	if len(_srs.G1) < int(domain.Cardinality) {
+	if len(_srs.G1) < int(vk.Size) {
 		return errors.New("kzg srs is too small")
 	}
-
-	// commitment scheme
-	vk.KZG = kzg.Scheme{
-		Domain: domain,
-		SRS: _srs,
-	} 
+	vk.KZGSRS = _srs
 
 	return nil
 }
