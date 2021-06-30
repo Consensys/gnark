@@ -81,8 +81,6 @@ func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 	}
 
 	res := circuit.P.AddFixedPoint(cs, &circuit.P, params.BaseX, params.BaseY, params)
-	cs.Println(res.X)
-	cs.Println(res.Y)
 
 	cs.AssertIsEqual(res.X, circuit.E.X)
 	cs.AssertIsEqual(res.Y, circuit.E.Y)
@@ -301,8 +299,6 @@ func (circuit *neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 
 	circuit.P.Neg(cs, &circuit.P)
 	cs.AssertIsEqual(circuit.P.X, circuit.E.X)
-	// cs.Println(circuit.P.X)
-	// cs.Println(circuit.E.X)
 	cs.AssertIsEqual(circuit.P.Y, circuit.E.Y)
 
 	return nil
