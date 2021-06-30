@@ -35,25 +35,6 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
-	var buf [curve.SizeOfG1AffineUncompressed]byte
-	var r fr.Element
-
-	for _, p := range points {
-		buf = p.RawBytes()
-		if err := fs.Bind(challenge, buf[:]); err != nil {
-			return r, err
-		}
-	}
-
-	b, err := fs.ComputeChallenge(challenge)
-	if err != nil {
-		return r, err
-	}
-	r.SetBytes(b)
-	return r, nil
-}
-
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witness) error {
 
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
@@ -225,4 +206,23 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witne
 	}
 
 	return kzg.Verify(&proof.Z, &proof.ZShiftedOpening, vk.KZGSRS)
+}
+
+func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
+	var buf [curve.SizeOfG1AffineUncompressed]byte
+	var r fr.Element
+
+	for _, p := range points {
+		buf = p.RawBytes()
+		if err := fs.Bind(challenge, buf[:]); err != nil {
+			return r, err
+		}
+	}
+
+	b, err := fs.ComputeChallenge(challenge)
+	if err != nil {
+		return r, err
+	}
+	r.SetBytes(b)
+	return r, nil
 }
