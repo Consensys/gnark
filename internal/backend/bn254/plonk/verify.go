@@ -57,18 +57,18 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	}
 
 	// evaluation of Z=X**m-1 at zeta
-	var zetaPowerM, zzeta, one fr.Element
+	var zetaPowerM, zzeta fr.Element
 	var bExpo big.Int
-	one.SetOne()
+	one := fr.One()
 	bExpo.SetUint64(vk.Size)
 	zetaPowerM.Exp(zeta, &bExpo)
 	zzeta.Sub(&zetaPowerM, &one)
 
 	// ccompute PI = Sum_i<n L_i*w_i
 	// TODO use batch inversion
-	var pi, den, acc, lagrange, lagrangeOne, xiLi fr.Element
-	lagrange.Set(&zzeta) // zeta**m-1
-	acc.SetOne()
+	var pi, den, lagrangeOne, xiLi fr.Element
+	lagrange := zzeta // zeta**m-1
+	acc := fr.One()
 	den.Sub(&zeta, &acc)
 	lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // 1/n*(zeta**n-1)/(zeta-1)
 	lagrangeOne.Set(&lagrange)                                // save it for later
