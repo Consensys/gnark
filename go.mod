@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572
-	github.com/consensys/gnark-crypto v0.0.0
+	github.com/consensys/gnark-crypto v0.4.1-0.20210630161642-1bfa1bfa95a0
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.2.0
@@ -23,5 +23,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
-
-replace github.com/consensys/gnark-crypto => ../gnark-crypto
