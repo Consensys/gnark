@@ -229,22 +229,22 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 
 	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
 	var bZetaPowerm big.Int
-	sizeBigInt := big.NewInt(sizeCommon)
+	sizeBigInt := big.NewInt(sizeCommon + 1) // plus one because of the masking (h of degree 3n+2)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, sizeBigInt)
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
 	foldedHDigest := proof.H[2]
 	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // zeta**m*Comm(h3)
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2m*Comm(h3) + zeta**m*Comm(h2)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2m*Comm(h3) + zeta**m*Comm(h2) + Comm(h1)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // zeta**(m+1)*Comm(h3)
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + zeta*h2 + zeta**2*h3
 	foldedH := h3.Clone()
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**m*h3
-	foldedH.Add(foldedH, h2)          // zeta**m*h3+h2
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2m*h3+h2*zeta**m
-	foldedH.Add(foldedH, h1)          // zeta**2m*h3+zeta**m*h2 + h1
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**(m+1)*h3
+	foldedH.Add(foldedH, h2)          // zeta**(m+1)*h3+h2
+	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
+	foldedH.Add(foldedH, h1)          // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
 
 	// TODO @gbotrel @thomas check errors.
 
@@ -607,12 +607,12 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 	pk.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+3)
-	copy(h1, h[:pk.DomainNum.Cardinality])
-	copy(h2, h[pk.DomainNum.Cardinality:2*pk.DomainNum.Cardinality])
-	copy(h3, h[2*pk.DomainNum.Cardinality:])
+	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
+	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
+	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
+	copy(h1, h[:pk.DomainNum.Cardinality+1])
+	copy(h2, h[pk.DomainNum.Cardinality+1:2*(pk.DomainNum.Cardinality+1)])
+	copy(h3, h[2*(pk.DomainNum.Cardinality+1):])
 
 	return h1, h2, h3
 
