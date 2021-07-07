@@ -97,7 +97,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
+	pk.DomainNum = *fft.NewDomain(sizeSystem, 0, false)
 	pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
 	vk.Size = pk.DomainNum.Cardinality
