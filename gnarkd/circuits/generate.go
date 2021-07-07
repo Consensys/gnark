@@ -150,15 +150,15 @@ func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) kzg.SRS {
 func getKZGSize(ccs frontend.CompiledConstraintSystem) int {
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
 	case *cs_bls12381.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
 	case *cs_bls12377.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
 	case *cs_bw6761.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
 	case *cs_bls24315.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
 	default:
 		panic("unknown constraint system type")
 	}
