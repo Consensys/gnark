@@ -11,6 +11,7 @@ type checkAssertEqualCircuit struct {
 }
 
 func (circuit *checkAssertEqualCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	cs.Mul(circuit.X, circuit.X) // dummy constraint to ensure the number of constraints+assertions is >= 8
 	cs.AssertIsEqual(circuit.X, circuit.Y)
 	c1 := cs.Add(circuit.X, circuit.Y)
 	cs.AssertIsEqual(c1, 6)

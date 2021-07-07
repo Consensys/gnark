@@ -137,22 +137,23 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
 	fft.BitReverse(z)
 
-	// TODO blind z
+	// blind z
+	bz := blindPoly(z, pk.DomainNum.Cardinality, 2)
 
-	// commit to Z
-	if proof.Z, err = kzg.Commit(z, pk.Vk.KZGSRS); err != nil {
+	// commit to the blinded version of z
+	if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 
 	// evaluate Z on the odd cosets
-	evalZ := evaluateOddCosetsHDomain(z, &pk.DomainH)
+	evalBlindedZ := evaluateOddCosetsHDomain(bz, &pk.DomainH)
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	// evalL, evalO, evalR are the evaluations of the blinded versions of l, r, o.
-	constraintsOrdering := evalConstraintOrdering(pk, evalZ, evalBlindedL, evalBlindedR, evalBlindedO, gamma)
+	constraintsOrdering := evalConstraintOrdering(pk, evalBlindedZ, evalBlindedL, evalBlindedR, evalBlindedO, gamma)
 
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
-	startsAtOne := evalStartsAtOne(pk, evalZ)
+	startsAtOne := evalStartsAtOne(pk, evalBlindedZ)
 
 	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
 	if err = fs.Bind("alpha", proof.Z.Marshal()); err != nil {
@@ -196,17 +197,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	var zeta fr.Element
 	zeta.SetBytes(bzeta)
 
-	// open Z at zeta*z
+	// open blinded Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, _ = kzg.Open(
-		z,
+		bz,
 		&zetaShifted,
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)
 
-	zuzeta := proof.ZShiftedOpening.ClaimedValue
+	// blinded z evaluated at u*zeta
+	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
 	var blzeta, brzeta, bozeta fr.Element
@@ -222,14 +224,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 		alpha,
 		gamma,
 		zeta,
-		zuzeta,
-		z,
+		bzuzeta,
+		bz,
 		pk,
 	)
 
 	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
 	var bZetaPowerm big.Int
-	sizeBigInt := big.NewInt(sizeCommon + 1) // plus one because of the masking (h of degree 3n+2)
+	sizeBigInt := big.NewInt(sizeCommon + 2) // +2 because of the masking (h of degree 3(n+2)-1)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, sizeBigInt)
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
@@ -461,8 +463,8 @@ func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 // evalConstraintOrdering computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
 // cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
 //
-// * evalZ evaluation of the permutation accumulator polynomial on odd cosets
-// * evalL, evalR, evalO evaluation of the solution vectors on odd cosets
+// * evalZ evaluation of the blinded permutation accumulator polynomial on odd cosets
+// * evalL, evalR, evalO evaluation of the blinded solution vectors on odd cosets
 // * gamma randomization
 func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
 
@@ -607,12 +609,13 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 	pk.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
-	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
-	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+1)
-	copy(h1, h[:pk.DomainNum.Cardinality+1])
-	copy(h2, h[pk.DomainNum.Cardinality+1:2*(pk.DomainNum.Cardinality+1)])
-	copy(h3, h[2*(pk.DomainNum.Cardinality+1):])
+	// degree of hi is n+2 because of the blinding
+	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
+	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
+	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
+	copy(h1, h[:pk.DomainNum.Cardinality+2])
+	copy(h2, h[pk.DomainNum.Cardinality+2:2*(pk.DomainNum.Cardinality+2)])
+	copy(h3, h[2*(pk.DomainNum.Cardinality+2):])
 
 	return h1, h2, h3
 

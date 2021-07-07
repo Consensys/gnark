@@ -51,7 +51,7 @@ func (cs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
 
 // GetNbConstraints returns the number of constraints
 func (cs *SparseR1CS) GetNbConstraints() int {
-	return len(cs.Constraints)
+	return len(cs.Constraints) + len(cs.Assertions)
 }
 
 // GetNbWires returns the number of wires (internal)

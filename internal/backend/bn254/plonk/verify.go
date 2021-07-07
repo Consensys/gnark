@@ -16,7 +16,6 @@ package plonk
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -154,16 +153,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	}
 
 	// compute the folded commitment to H: Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
-	mPlusOne := big.NewInt(int64(vk.Size) + 1)
-	fmt.Printf("mPlusOne: %s\n", mPlusOne.String())
-	var zetaMPlusOne fr.Element
-	zetaMPlusOne.Exp(zeta, mPlusOne)
-	var zetaMPlusOneBigInt big.Int
-	zetaMPlusOne.ToBigIntRegular(&zetaMPlusOneBigInt)
+	mPlusTwo := big.NewInt(int64(vk.Size) + 2)
+	var zetaMPlusTwo fr.Element
+	zetaMPlusTwo.Exp(zeta, mPlusTwo)
+	var zetaMPlusTwoBigInt big.Int
+	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
-	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusOneBigInt)
+	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])
-	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusOneBigInt)
+	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial
