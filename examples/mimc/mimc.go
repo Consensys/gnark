@@ -37,7 +37,7 @@ func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) er
 
 	// specify constraints
 	// mimc(preImage) == hash
-	cs.AssertIsEqual(circuit.Hash, mimc.Hash(cs, circuit.PreImage))
+	cs.AssertIsEqual(circuit.Hash, mimc.Sum(cs, circuit.PreImage))
 
 	return nil
 }

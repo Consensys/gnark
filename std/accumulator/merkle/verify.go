@@ -54,7 +54,7 @@ import (
 // Without domain separation.
 func leafSum(cs *frontend.ConstraintSystem, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
-	res := h.Hash(cs, data)
+	res := h.Sum(cs, data)
 
 	return res
 }
@@ -63,7 +63,7 @@ func leafSum(cs *frontend.ConstraintSystem, h mimc.MiMC, data frontend.Variable)
 // Without domain separation.
 func nodeSum(cs *frontend.ConstraintSystem, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
-	res := h.Hash(cs, a, b)
+	res := h.Sum(cs, a, b)
 
 	return res
 }

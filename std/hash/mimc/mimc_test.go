@@ -37,7 +37,7 @@ func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem
 	if err != nil {
 		return err
 	}
-	result := mimc.Hash(cs, circuit.Data)
+	result := mimc.Sum(cs, circuit.Data)
 	cs.AssertIsEqual(result, circuit.ExpectedResult)
 	return nil
 }

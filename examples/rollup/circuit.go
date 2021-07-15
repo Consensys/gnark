@@ -161,7 +161,7 @@ func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) er
 func verifyTransferSignature(cs *frontend.ConstraintSystem, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
-	htransfer := hFunc.Hash(cs, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
+	htransfer := hFunc.Sum(cs, t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 
 	err := eddsa.Verify(cs, t.Signature, htransfer, t.SenderPubKey)
 	if err != nil {

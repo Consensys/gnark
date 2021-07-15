@@ -57,7 +57,7 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	if err != nil {
 		return err
 	}
-	hramConstant := hash.Hash(cs, data...)
+	hramConstant := hash.Sum(cs, data...)
 
 	// lhs = cofactor*SB
 	cofactorConstant := cs.Constant(pubKey.Curve.Cofactor)
