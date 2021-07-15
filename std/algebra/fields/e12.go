@@ -149,6 +149,54 @@ func (e *E12) Mul(cs *frontend.ConstraintSystem, e1, e2 *E12, ext Extension) *E1
 	return e
 }
 
+// Square squares an element in Fp12
+func (z *E12) Square(cs *frontend.ConstraintSystem, x *E12, ext Extension) *E12 {
+
+	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
+	var c0, c2, c3 E6
+	c0.Sub(cs, &x.C0, &x.C1)
+	c3.Mul(cs, &x.C1, ext.wSquare, ext)
+	c3.Neg(cs, &c3).Add(cs, &x.C0, &c3)
+	c2.Mul(cs, &x.C0, &x.C1, ext)
+	c0.Mul(cs, &c0, &c3, ext).Add(cs, &c0, &c2)
+	z.C1.Add(cs, &c2, &c2)
+	c2.Mul(cs, &c2, ext.wSquare, ext)
+	z.C0.Add(cs, &c0, &c2)
+
+	return z
+}
+
+// CyclotomicSquare squares a Fp12 elt in the cyclotomic group
+func (z *E12) CyclotomicSquare(cs *frontend.ConstraintSystem, x *E12, ext Extension) *E12 {
+
+	// https://eprint.iacr.org/2009/565.pdf, 3.2
+	var t [9]E2
+
+	t[0].Square(cs, &x.C1.B1, ext)
+	t[1].Square(cs, &x.C0.B0, ext)
+	t[6].Add(cs, &x.C1.B1, &x.C0.B0).Square(cs, &t[6], ext).Sub(cs, &t[6], &t[0]).Sub(cs, &t[6], &t[1]) // 2*x4*x0
+	t[2].Square(cs, &x.C0.B2, ext)
+	t[3].Square(cs, &x.C1.B0, ext)
+	t[7].Add(cs, &x.C0.B2, &x.C1.B0).Square(cs, &t[7], ext).Sub(cs, &t[7], &t[2]).Sub(cs, &t[7], &t[3]) // 2*x2*x3
+	t[4].Square(cs, &x.C1.B2, ext)
+	t[5].Square(cs, &x.C0.B1, ext)
+	t[8].Add(cs, &x.C1.B2, &x.C0.B1).Square(cs, &t[8], ext).Sub(cs, &t[8], &t[4]).Sub(cs, &t[8], &t[5]).Mul(cs, &t[8], ext.vCube, ext) // 2*x5*x1*u
+
+	t[0].Mul(cs, &t[0], ext.vCube, ext).Add(cs, &t[0], &t[1]) // x4^2*u + x0^2
+	t[2].Mul(cs, &t[2], ext.vCube, ext).Add(cs, &t[2], &t[3]) // x2^2*u + x3^2
+	t[4].Mul(cs, &t[4], ext.vCube, ext).Add(cs, &t[4], &t[5]) // x5^2*u + x1^2
+
+	z.C0.B0.Sub(cs, &t[0], &x.C0.B0).Add(cs, &z.C0.B0, &z.C0.B0).Add(cs, &z.C0.B0, &t[0])
+	z.C0.B1.Sub(cs, &t[2], &x.C0.B1).Add(cs, &z.C0.B1, &z.C0.B1).Add(cs, &z.C0.B1, &t[2])
+	z.C0.B2.Sub(cs, &t[4], &x.C0.B2).Add(cs, &z.C0.B2, &z.C0.B2).Add(cs, &z.C0.B2, &t[4])
+
+	z.C1.B0.Add(cs, &t[8], &x.C1.B0).Add(cs, &z.C1.B0, &z.C1.B0).Add(cs, &z.C1.B0, &t[8])
+	z.C1.B1.Add(cs, &t[6], &x.C1.B1).Add(cs, &z.C1.B1, &z.C1.B1).Add(cs, &z.C1.B1, &t[6])
+	z.C1.B2.Add(cs, &t[7], &x.C1.B2).Add(cs, &z.C1.B2, &z.C1.B2).Add(cs, &z.C1.B2, &t[7])
+
+	return z
+}
+
 // Conjugate applies Frob**6 (conjugation over Fp6)
 func (e *E12) Conjugate(cs *frontend.ConstraintSystem, e1 *E12) *E12 {
 	zero := NewFp6Zero(cs)
@@ -336,7 +384,7 @@ func (e *E12) FinalExponentiation(cs *frontend.ConstraintSystem, e1 *E12, genT u
 	// Daiki Hayashida and Kenichiro Hayasaka
 	// and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	t[0].Mul(cs, &result, &result, ext) // TODO use cyclo square
+	t[0].CyclotomicSquare(cs, &result, ext)
 	t[1].FixedExponentiation(cs, &result, genT, ext)
 	t[2].Conjugate(cs, &result)
 	t[1].Mul(cs, &t[1], &t[2], ext)
