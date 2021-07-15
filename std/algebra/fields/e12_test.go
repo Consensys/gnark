@@ -136,6 +136,84 @@ func TestMulFp12(t *testing.T) {
 	assert.SolvingSucceeded(r1cs, &witness)
 }
 
+type fp12Square struct {
+	A E12
+	B E12 `gnark:",public"`
+}
+
+func (circuit *fp12Square) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	ext := GetBLS377ExtensionFp12(cs)
+	s := circuit.A.Square(cs, &circuit.A, ext)
+	s.MustBeEqual(cs, *s)
+	return nil
+}
+
+func TestSquareFp12(t *testing.T) {
+
+	var circuit, witness fp12Square
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// witness values
+	var a, b bls12377.E12
+	a.SetRandom()
+	b.Square(&a)
+
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// cs values
+	assert := groth16.NewAssert(t)
+	assert.SolvingSucceeded(r1cs, &witness)
+
+}
+
+type fp12CycloSquare struct {
+	A E12
+	B E12 `gnark:",public"`
+}
+
+func (circuit *fp12CycloSquare) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	ext := GetBLS377ExtensionFp12(cs)
+	var u, v E12
+	u.Square(cs, &circuit.A, ext)
+	v.CyclotomicSquare(cs, &circuit.A, ext)
+	u.MustBeEqual(cs, v)
+	u.MustBeEqual(cs, circuit.B)
+	return nil
+}
+
+func TestFp12CyclotomicSquare(t *testing.T) {
+
+	var circuit, witness fp12CycloSquare
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// witness values
+	var a, b bls12377.E12
+	a.SetRandom()
+
+	// put a in the cyclotomic subgroup (we assume the group is Fp12, field of definition of bls277)
+	var tmp bls12377.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	b.CyclotomicSquare(&a)
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// cs values
+	assert := groth16.NewAssert(t)
+	assert.SolvingSucceeded(r1cs, &witness)
+
+}
+
 type fp12Conjugate struct {
 	A E12
 	C E12 `gnark:",public"`
