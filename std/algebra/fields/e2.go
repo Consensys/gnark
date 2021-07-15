@@ -77,6 +77,24 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 	return e
 }
 
+// Square e2 elt
+func (z *E2) Square(cs *frontend.ConstraintSystem, x *E2, ext Extension) *E2 {
+	//algo 22 https://eprint.iacr.org/2010/354.pdf
+	c0 := cs.Add(x.A0, x.A1)
+	buSquare := frontend.FromInterface(ext.uSquare)
+	c2 := cs.Mul(x.A1, buSquare)
+	c2 = cs.Add(c2, x.A0)
+
+	c0 = cs.Mul(c0, c2) // (x1+x2)*(x1+(u**2)x2)
+	c2 = cs.Mul(x.A0, x.A1)
+	c2 = cs.Add(c2, c2)
+	z.A1 = c2
+	c2 = cs.Add(c2, c2)
+	z.A0 = cs.Add(c0, c2)
+
+	return z
+}
+
 // MulByFp multiplies an fp2 elmt by an fp elmt
 func (e *E2) MulByFp(cs *frontend.ConstraintSystem, e1 *E2, c interface{}) *E2 {
 	e.A0 = cs.Mul(e1.A0, c)
