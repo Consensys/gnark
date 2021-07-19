@@ -8,6 +8,10 @@ github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572 h1:+R8G1+Ftumd0
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/gnark-crypto v0.4.1-0.20210630161642-1bfa1bfa95a0 h1:YG9ogkwJD9K0IQz9Yiw3HF7wNdspgJPiB1/aCzJbF+4=
 github.com/consensys/gnark-crypto v0.4.1-0.20210630161642-1bfa1bfa95a0/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210719180415-967b960d7ea4 h1:ODGs/ZuyO6wFwS8rmGLB4b2YK3ZpZ1PNaHw027NosVk=
+github.com/consensys/gnark-crypto v0.4.1-0.20210719180415-967b960d7ea4/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
+github.com/consensys/gnark-crypto v0.4.1-0.20210719181821-b0262ff514b9 h1:CfVScPAIJQ86ymGK/xpDJZGhf026rFdCKoVQICuRT+s=
+github.com/consensys/gnark-crypto v0.4.1-0.20210719181821-b0262ff514b9/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

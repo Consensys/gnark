@@ -115,7 +115,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 
 	chBs1Done := make(chan struct{}, 1)
 	computeBS1 := func() {
-		bs1.MultiExp(pk.G1.B, wireValues, cpuSemaphore)
+		bs1.MultiExp(pk.G1.B, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 		chBs1Done <- struct{}{}
@@ -123,7 +123,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 
 	chArDone := make(chan struct{}, 1)
 	computeAR1 := func() {
-		ar.MultiExp(pk.G1.A, wireValues, cpuSemaphore)
+		ar.MultiExp(pk.G1.A, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -138,10 +138,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan struct{}, 1)
 		go func() {
-			krs2.MultiExp(pk.G1.Z, h, cpuSemaphore)
+			krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 			chKrs2Done <- struct{}{}
 		}()
-		krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], cpuSemaphore)
+		krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 		krs.AddMixed(&deltas[2])
 		n := 3
 		for n != 0 {
@@ -175,21 +175,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 			chDone2 := make(chan struct{}, 1)
 			var bs1, bs2 curve.G2Jac
 			go func() {
-				bs1.MultiExp(pk.G2.B[:bsSplit], wireValues[:bsSplit], cpuSemaphore)
+				bs1.MultiExp(pk.G2.B[:bsSplit], wireValues[:bsSplit], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 				chDone1 <- struct{}{}
 			}()
 			go func() {
-				bs2.MultiExp(pk.G2.B[bsSplit:bsSplit*2], wireValues[bsSplit:bsSplit*2], cpuSemaphore)
+				bs2.MultiExp(pk.G2.B[bsSplit:bsSplit*2], wireValues[bsSplit:bsSplit*2], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 				chDone2 <- struct{}{}
 			}()
-			Bs.MultiExp(pk.G2.B[bsSplit*2:], wireValues[bsSplit*2:], cpuSemaphore)
+			Bs.MultiExp(pk.G2.B[bsSplit*2:], wireValues[bsSplit*2:], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 
 			<-chDone1
 			Bs.AddAssign(&bs1)
 			<-chDone2
 			Bs.AddAssign(&bs2)
 		} else {
-			Bs.MultiExp(pk.G2.B, wireValues, cpuSemaphore)
+			Bs.MultiExp(pk.G2.B, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
 		}
 
 		deltaS.FromAffine(&pk.G2.Delta)

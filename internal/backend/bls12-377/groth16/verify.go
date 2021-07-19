@@ -17,7 +17,7 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
@@ -57,11 +57,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witne
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	__publicWitness := make([]fr.Element, len(publicWitness))
-	for i := 0; i < len(publicWitness); i++ {
-		__publicWitness[i] = publicWitness[i].ToRegular()
-	}
-	kSum.MultiExp(vk.G1.K[1:], __publicWitness)
+	kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true})
 	kSum.AddMixed(&vk.G1.K[0])
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
