@@ -28,6 +28,7 @@ import (
 
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
@@ -133,27 +134,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial
+	// linearizedPolynomialDigest =
+	// 		l*ql+r*qr+rl*qm+o*qo+qk +
+	// 		alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) ) +
+	// 		alpha**2*L1(zeta)*Z
 	// first part: individual constraints
-	// TODO clean that part, lots of copy / use of Affine coordinates
-	var lb, rb, ob, rlb big.Int
 	var rl fr.Element
-	l.ToBigIntRegular(&lb)
-	r.ToBigIntRegular(&rb)
-	o.ToBigIntRegular(&ob)
-	rl.Mul(&l, &r).ToBigIntRegular(&rlb)
-	linearizedPolynomialDigest := vk.Ql
-	linearizedPolynomialDigest.ScalarMultiplication(&linearizedPolynomialDigest, &lb) //l*ql
-	tmp := vk.Qr
-	tmp.ScalarMultiplication(&tmp, &rb)
-	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr
-	tmp = vk.Qm
-	tmp.ScalarMultiplication(&tmp, &rlb)
-	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm
-	tmp = vk.Qo
-	tmp.ScalarMultiplication(&tmp, &ob)
-	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm+o*qo
-	tmp = vk.Qk
-	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &tmp) // l*ql+r*qr+rl*qm+o*qo+qk
+	rl.Mul(&l, &r)
+
+	var linearizedPolynomialDigest curve.G1Affine
 
 	// second part: alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
 	var t fr.Element
@@ -168,24 +157,22 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	t.Mul(&zeta, &vk.Shifter[1]).Add(&t, &o).Add(&t, &gamma)
 	_s2.Mul(&t, &_s2).
 		Mul(&_s2, &alpha) // alpha*(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	var _s1b, _s2b big.Int
-	_s1.ToBigIntRegular(&_s1b)
-	_s2.ToBigIntRegular(&_s2b)
-	s3Commit := vk.S[2]
-	s3Commit.ScalarMultiplication(&s3Commit, &_s1b)
-	secondPart := proof.Z
-	secondPart.ScalarMultiplication(&secondPart, &_s2b)
-	secondPart.Sub(&s3Commit, &secondPart)
+	_s2.Sub(&alphaSquareLagrange, &_s2)
+	// note since third part =  alpha**2*L1(zeta)*Z
+	// we add alphaSquareLagrange to _s2
+
+	points := []curve.G1Affine{
+		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
+		vk.S[2], proof.Z, // second part
+	}
+
+	scalars := []fr.Element{
+		l, r, rl, o, one, // first part
+		_s1, _s2, // second part
+	}
+	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
 
 	// third part: alpha**2*L1(zeta)*Z
-	var alphaSquareLagrangeB big.Int
-	alphaSquareLagrange.ToBigIntRegular(&alphaSquareLagrangeB)
-	thirdPart := proof.Z
-	thirdPart.ScalarMultiplication(&thirdPart, &alphaSquareLagrangeB)
-
-	// finish the computation
-	linearizedPolynomialDigest.Add(&linearizedPolynomialDigest, &secondPart).
-		Add(&linearizedPolynomialDigest, &thirdPart)
 
 	// verify the opening proofs
 	err = kzg.BatchVerifySinglePoint(
