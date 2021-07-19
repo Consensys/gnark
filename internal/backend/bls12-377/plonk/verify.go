@@ -163,19 +163,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witne
 
 	points := []curve.G1Affine{
 		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
-		vk.S[2], proof.Z, // second part
+		vk.S[2], proof.Z, // second & third part
 	}
 
 	scalars := []fr.Element{
 		l, r, rl, o, one, // first part
-		_s1, _s2, // second part
+		_s1, _s2, // second & third part
 	}
 	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
 
-	// third part: alpha**2*L1(zeta)*Z
-
 	// verify the opening proofs
-	err = kzg.BatchVerifySinglePoint(
+	if err := kzg.BatchVerifySinglePoint(
 		[]kzg.Digest{
 			foldedH,
 			linearizedPolynomialDigest,
@@ -187,8 +185,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witne
 		},
 		&proof.BatchedProof,
 		vk.KZGSRS,
-	)
-	if err != nil {
+	); err != nil {
 		return err
 	}
 
