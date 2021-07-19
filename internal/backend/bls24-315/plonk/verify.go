@@ -220,7 +220,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		Add(&linearizedPolynomialDigest, &thirdPart)
 
 	// verify the opening proofs
-	err = vk.KZG.BatchVerifySinglePoint(
+	err = kzg.BatchVerifySinglePoint(
 		[]kzg.Digest{
 			foldedH,
 			linearizedPolynomialDigest,
@@ -231,15 +231,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 			vk.S[1],
 		},
 		&proof.BatchedProof,
+		vk.KZGSRS,
 	)
 	if err != nil {
 		return err
 	}
 
-	err = vk.KZG.Verify(&proof.Z, &proof.ZShiftedOpening)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return kzg.Verify(&proof.Z, &proof.ZShiftedOpening, vk.KZGSRS)
 }

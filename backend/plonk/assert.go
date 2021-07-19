@@ -39,6 +39,7 @@ import (
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	"github.com/consensys/gnark-crypto/kzg"
 )
 
 // Assert is a helper to test circuits
@@ -57,7 +58,9 @@ func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, wit
 	assert.SolvingSucceeded(ccs, witness)
 
 	// generates public data
-	pk, vk, err := Setup(ccs, newKZGSrs(ccs))
+	srs, err := newKZGSrs(ccs)
+	assert.NoError(err, "building (test) kzg srs failed")
+	pk, vk, err := Setup(ccs, srs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -73,7 +76,9 @@ func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, wit
 func (assert *Assert) ProverFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
 
 	// generates public data
-	pk, _, err := Setup(ccs, newKZGSrs(ccs))
+	srs, err := newKZGSrs(ccs)
+	assert.NoError(err, "building (test) kzg srs failed")
+	pk, _, err := Setup(ccs, srs)
 	assert.NoError(err, "Generating public data should not have failed")
 
 	// generates the proof
@@ -142,7 +147,7 @@ func nextPowerOfTwo(_n int) int {
 	return int(p)
 }
 
-func newKZGSrs(ccs frontend.CompiledConstraintSystem) interface{} {
+func newKZGSrs(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 	fakeRandomness := new(big.Int).SetInt64(42)
 
 	// no randomness in the test SRS

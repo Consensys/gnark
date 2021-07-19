@@ -84,6 +84,8 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	err = decoder.Decode(r1cs)
 	return int64(decoder.NumBytesRead()), err
 }
+
+
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
 func (r1cs *R1CS) IsSolved(witness []fr.Element) error {

@@ -39,6 +39,9 @@ gnark
 playground
 examples/benchmark/benchmark
 
+# gnarkd example circuits
+gnarkd/circuits/**
+
 .vscode
 
 # compiled sage -> python code

@@ -32,8 +32,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/kzg"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/gnarkd/pb"
 )
 
@@ -50,7 +53,7 @@ var (
 
 // Server implements Groth16Server
 type Server struct {
-	pb.UnimplementedGroth16Server
+	pb.UnimplementedZKSnarkServer
 	circuits   map[string]circuit // not thread safe as it is loaded once only
 	jobs       sync.Map           // key == uuid[string], value == proveJob
 	chJobQueue chan jobID
@@ -150,7 +153,14 @@ func (s *Server) startWorker(ctx context.Context) {
 			}
 
 			// run prove
-			proof, err := groth16.ReadAndProve(circuit.r1cs, circuit.pk, bytes.NewReader(job.witness))
+			var proof io.WriterTo
+			var err error
+			if circuit.backendID == backend.GROTH16 {
+				proof, err = groth16.ReadAndProve(circuit.ccs, circuit.groth16.pk, bytes.NewReader(job.witness))
+			} else if circuit.backendID == backend.PLONK {
+				proof, err = plonk.ReadAndProve(circuit.ccs, circuit.plonk.pk, bytes.NewReader(job.witness))
+			}
+
 			job.witness = nil // set witness to nil
 			if err != nil {
 				s.log.Errorw("proving job failed", "jobID", jobID.String(), "circuitID", job.circuitID, "err", err)
@@ -272,8 +282,8 @@ func (s *Server) receiveWitness(c net.Conn) {
 	success()
 }
 
-// loadCircuits walk through s.circuitDir and caches proving keys, verifying keys, and R1CS
-// path must be circuits/curveXX/circuitName/ and contains exactly one of each .pk, .vk and .R1CS
+// loadCircuits walk through s.circuitDir and caches proving keys, verifying keys, and CCS
+// path must be circuits/provingScheme/curveID/circuitName/ and contains circuit .ccs file and precomputed data (pk, vk or .data files)
 // TODO @gbotrel caching strategy, v1 caches everything.
 func (s *Server) loadCircuits() error {
 	s.circuits = make(map[string]circuit)
@@ -285,23 +295,26 @@ func (s *Server) loadCircuits() error {
 		return err
 	}
 
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BLS12_377, ecc.BW6_761, ecc.BLS24_315}
-	for _, curve := range curves {
-		curveDir := filepath.Join(s.circuitDir, curve.String())
+	for _, b := range backend.Implemented() {
+		backendDir := filepath.Join(s.circuitDir, b.String())
+		for _, curve := range ecc.Implemented() {
+			curveDir := filepath.Join(backendDir, curve.String())
 
-		subDirectories, err := ioutil.ReadDir(curveDir)
-		if err != nil {
-			continue
-		}
-
-		for _, f := range subDirectories {
-			if !f.IsDir() {
+			subDirectories, err := ioutil.ReadDir(curveDir)
+			if err != nil {
 				continue
 			}
 
-			if err := s.loadCircuit(curve, filepath.Join(curveDir, f.Name())); err != nil {
-				return err
+			for _, f := range subDirectories {
+				if !f.IsDir() {
+					continue
+				}
+
+				if err := s.loadCircuit(b, curve, filepath.Join(curveDir, f.Name())); err != nil {
+					return err
+				}
 			}
+
 		}
 
 	}
@@ -313,8 +326,8 @@ func (s *Server) loadCircuits() error {
 	return nil
 }
 
-func (s *Server) loadCircuit(curveID ecc.ID, baseDir string) error {
-	circuitID := fmt.Sprintf("%s/%s", curveID.String(), filepath.Base(baseDir))
+func (s *Server) loadCircuit(backendID backend.ID, curveID ecc.ID, baseDir string) error {
+	circuitID := fmt.Sprintf("%s/%s/%s", backendID.String(), curveID.String(), filepath.Base(baseDir))
 	s.log.Debugw("looking for circuit in", "dir", circuitID)
 
 	// list files in dir
@@ -324,54 +337,103 @@ func (s *Server) loadCircuit(curveID ecc.ID, baseDir string) error {
 	}
 
 	// empty circuit with nil values
-	var circuit circuit
+	circuit := circuit{
+		backendID: backendID,
+		curveID:   curveID,
+	}
 
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
-		switch filepath.Ext(f.Name()) {
-		case pkExt:
-			if circuit.pk != nil {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+		if backendID == backend.GROTH16 {
+			switch filepath.Ext(f.Name()) {
+			case pkExt:
+				if circuit.groth16.pk != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.groth16.pk = groth16.NewProvingKey(curveID)
+				if err := loadGnarkObject(circuit.groth16.pk, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
+			case vkExt:
+				if circuit.groth16.vk != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.groth16.vk = groth16.NewVerifyingKey(curveID)
+				if err := loadGnarkObject(circuit.groth16.vk, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
+			case circuitExt:
+				if circuit.ccs != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.ccs = groth16.NewCS(curveID)
+				if err := loadGnarkObject(circuit.ccs, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
 			}
-			circuit.pk = groth16.NewProvingKey(curveID)
-			if err := loadGnarkObject(circuit.pk, filepath.Join(baseDir, f.Name())); err != nil {
-				return err
-			}
-		case vkExt:
-			if circuit.vk != nil {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
-			}
-			circuit.vk = groth16.NewVerifyingKey(curveID)
-			if err := loadGnarkObject(circuit.vk, filepath.Join(baseDir, f.Name())); err != nil {
-				return err
-			}
-		case r1csExt:
-			if circuit.r1cs != nil {
-				return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
-			}
-			circuit.r1cs = groth16.NewCS(curveID)
-			if err := loadGnarkObject(circuit.r1cs, filepath.Join(baseDir, f.Name())); err != nil {
-				return err
+		} else if backendID == backend.PLONK {
+			switch filepath.Ext(f.Name()) {
+			case pkExt:
+				if circuit.plonk.pk != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.plonk.pk = plonk.NewProvingKey(curveID)
+				if err := loadGnarkObject(circuit.plonk.pk, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
+			case circuitExt:
+				if circuit.ccs != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.ccs = plonk.NewCS(curveID)
+				if err := loadGnarkObject(circuit.ccs, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
+			case kzgExt:
+				if circuit.plonk.kzgSRS != nil {
+					return fmt.Errorf("%s contains multiple %s files", baseDir, pkExt)
+				}
+				circuit.plonk.kzgSRS = kzg.NewSRS(curveID)
+				if err := loadGnarkObject(circuit.plonk.kzgSRS, filepath.Join(baseDir, f.Name())); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
 	// ensure our circuit is full.
-	if circuit.pk == nil {
-		return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
+	if circuit.ccs == nil {
+		return fmt.Errorf("%s contains no %s files", baseDir, circuitExt)
 	}
-	if circuit.vk == nil {
-		return fmt.Errorf("%s contains no %s files", baseDir, vkExt)
-	}
-	if circuit.r1cs == nil {
-		return fmt.Errorf("%s contains no %s files", baseDir, r1csExt)
+	if backendID == backend.GROTH16 {
+		if circuit.groth16.pk == nil {
+			return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
+		}
+		if circuit.groth16.vk == nil {
+			return fmt.Errorf("%s contains no %s files", baseDir, vkExt)
+		}
+	} else if backendID == backend.PLONK {
+		if circuit.plonk.pk == nil {
+			return fmt.Errorf("%s contains no %s files", baseDir, pkExt)
+		}
+		if circuit.plonk.kzgSRS == nil {
+			return fmt.Errorf("%s contains no %s files", baseDir, kzgExt)
+		}
+		if err := circuit.plonk.pk.InitKZG(circuit.plonk.kzgSRS); err != nil {
+			return fmt.Errorf("calling pk.InitKZG using %s %s", baseDir, kzgExt)
+		}
 	}
 
-	_, nbSecretVariables, nbPublicVariables := circuit.r1cs.GetNbVariables()
-	circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.r1cs.FrSize()
-	circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.r1cs.FrSize()
+	_, nbSecretVariables, nbPublicVariables := circuit.ccs.GetNbVariables()
+	if circuit.backendID == backend.GROTH16 {
+		circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables-1)*circuit.ccs.FrSize()
+		circuit.publicWitnessSize = 4 + int(nbPublicVariables-1)*circuit.ccs.FrSize()
+	} else if circuit.backendID == backend.PLONK {
+		circuit.fullWitnessSize = 4 + int(nbPublicVariables+nbSecretVariables)*circuit.ccs.FrSize()
+		circuit.publicWitnessSize = 4 + int(nbPublicVariables)*circuit.ccs.FrSize()
+	}
 
 	s.circuits[circuitID] = circuit
 

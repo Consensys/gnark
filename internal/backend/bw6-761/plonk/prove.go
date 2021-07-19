@@ -46,10 +46,10 @@ type Proof struct {
 	H [3]kzg.Digest
 
 	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
-	BatchedProof kzg.BatchProofsSinglePoint
+	BatchedProof kzg.BatchOpeningProof
 
 	// Opening proof of Z at zeta*mu
-	ZShiftedOpening kzg.Proof
+	ZShiftedOpening kzg.OpeningProof
 }
 
 // Prove from the public data
@@ -87,13 +87,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	fft.BitReverse(co)
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
-	if proof.LRO[0], err = pk.Vk.KZG.Commit(cl); err != nil {
+	if proof.LRO[0], err = kzg.Commit(cl, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
-	if proof.LRO[1], err = pk.Vk.KZG.Commit(cr); err != nil {
+	if proof.LRO[1], err = kzg.Commit(cr, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
-	if proof.LRO[2], err = pk.Vk.KZG.Commit(co); err != nil {
+	if proof.LRO[2], err = kzg.Commit(co, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 	if err = fs.Bind("gamma", proof.LRO[0].Marshal()); err != nil {
@@ -155,7 +155,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	startsAtOne := evalStartsAtOneBis(pk, evalZ)
 
 	// commit to Z
-	if proof.Z, err = pk.Vk.KZG.Commit(z); err != nil {
+	if proof.Z, err = kzg.Commit(z, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 
@@ -174,13 +174,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
-	if proof.H[0], err = pk.Vk.KZG.Commit(h1); err != nil {
+	if proof.H[0], err = kzg.Commit(h1, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
-	if proof.H[1], err = pk.Vk.KZG.Commit(h2); err != nil {
+	if proof.H[1], err = kzg.Commit(h2, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
-	if proof.H[2], err = pk.Vk.KZG.Commit(h3); err != nil {
+	if proof.H[2], err = kzg.Commit(h3, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 
@@ -204,9 +204,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	// open Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
-	proof.ZShiftedOpening, _ = pk.Vk.KZG.Open(
-		&zetaShifted,
+	proof.ZShiftedOpening, _ = kzg.Open(
 		z,
+		&zetaShifted,
+		&pk.DomainNum,
+		pk.Vk.KZGSRS,
 	)
 
 	zuzeta := proof.ZShiftedOpening.ClaimedValue
@@ -254,20 +256,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, _ := pk.Vk.KZG.Commit(linearizedPolynomial)
+	linearizedPolynomialDigest, _ := kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
 
 	// Batch open the first list of polynomials
-	proof.BatchedProof, _ = pk.Vk.KZG.BatchOpenSinglePoint(
-		&zeta,
-		[]kzg.Digest{
-			foldedHDigest,
-			linearizedPolynomialDigest,
-			proof.LRO[0],
-			proof.LRO[1],
-			proof.LRO[2],
-			pk.Vk.S[0],
-			pk.Vk.S[1],
-		},
+	proof.BatchedProof, _ = kzg.BatchOpenSinglePoint(
 		[]polynomial.Polynomial{
 			foldedH,
 			linearizedPolynomial,
@@ -277,6 +269,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 			pk.CS1,
 			pk.CS2,
 		},
+		[]kzg.Digest{
+			foldedHDigest,
+			linearizedPolynomialDigest,
+			proof.LRO[0],
+			proof.LRO[1],
+			proof.LRO[2],
+			pk.Vk.S[0],
+			pk.Vk.S[1],
+		},
+		&zeta,
+		&pk.DomainNum,
+		pk.Vk.KZGSRS,
 	)
 
 	return proof, nil

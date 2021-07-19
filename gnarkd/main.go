@@ -105,7 +105,7 @@ func main() {
 		log.Fatalw("failed to setup TLS", "err", err)
 	}
 	s := grpc.NewServer(grpc.Creds(creds))
-	pb.RegisterGroth16Server(s, gnarkdServer)
+	pb.RegisterZKSnarkServer(s, gnarkdServer)
 
 	go func() {
 		defer signal.Stop(chDone)

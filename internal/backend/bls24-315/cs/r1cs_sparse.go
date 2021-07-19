@@ -18,11 +18,13 @@ package cs
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/fxamacker/cbor/v2"
+	"io"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
-
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 )
@@ -60,6 +62,27 @@ func (cs *SparseR1CS) GetNbCoefficients() int {
 // CurveID returns curve ID as defined in gnark-crypto (ecc.BLS24-315)
 func (cs *SparseR1CS) CurveID() ecc.ID {
 	return ecc.BLS24_315
+}
+
+// WriteTo encodes SparseR1CS into provided io.Writer using cbor
+func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
+	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
+	encoder := cbor.NewEncoder(&_w)
+
+	// encode our object
+	err := encoder.Encode(cs)
+	return _w.N, err
+}
+
+// ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
+func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
+	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	if err != nil {
+		return 0, err
+	}
+	decoder := dm.NewDecoder(r)
+	err = decoder.Decode(cs)
+	return int64(decoder.NumBytesRead()), err
 }
 
 // find unsolved variable

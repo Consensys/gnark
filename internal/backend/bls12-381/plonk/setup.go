@@ -23,6 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/polynomial"
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
+
+	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -52,7 +54,7 @@ type ProvingKey struct {
 	CS1, CS2, CS3 polynomial.Polynomial
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
-	Permutation []int
+	Permutation []int64
 }
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -61,18 +63,18 @@ type ProvingKey struct {
 // * Commitments of qr, qm, qo, qk prepended with as many zeroes as there are public inputs
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
-
 	// Size circuit
-	Size      uint64
-	SizeInv   fr.Element
-	Generator fr.Element
+	Size              uint64
+	SizeInv           fr.Element
+	Generator         fr.Element
+	NbPublicVariables uint64
 
 	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
 	// extended domain = s || shifter[0].s || shifter[1].s
 	Shifter [2]fr.Element
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	KZG kzg.Scheme
+	KZGSRS *kzg.SRS
 
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
@@ -83,9 +85,12 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 	var pk ProvingKey
 	var vk VerifyingKey
+
+	// The verifying key shares data with the proving key
+	pk.Vk = &vk
 
 	nbConstraints := len(spr.Constraints)
 	nbAssertions := len(spr.Assertions)
@@ -95,22 +100,18 @@ func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, err
 	pk.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
 	pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
+	vk.Size = pk.DomainNum.Cardinality
+	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
+	vk.Generator.Set(&pk.DomainNum.Generator)
+	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
+
 	// shifters
 	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
 	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
 
-	// commitment scheme
-	vk.KZG = kzg.Scheme{
-		Domain: &pk.DomainNum,
-		SRS:    kzgSRS,
+	if err := pk.InitKZG(srs); err != nil {
+		return nil, nil, err
 	}
-	if len(vk.KZG.SRS.G1) < int(pk.DomainNum.Cardinality) {
-		return nil, nil, errors.New("kzg srs is too small")
-	}
-
-	vk.Size = pk.DomainNum.Cardinality
-	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.DomainNum.Generator)
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
@@ -170,33 +171,30 @@ func Setup(spr *cs.SparseR1CS, kzgSRS *kzg.SRS) (*ProvingKey, *VerifyingKey, err
 
 	// Commit to the polynomials to set up the verifying key
 	var err error
-	if vk.Ql, err = vk.KZG.Commit(pk.Ql); err != nil {
+	if vk.Ql, err = kzg.Commit(pk.Ql, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qr, err = vk.KZG.Commit(pk.Qr); err != nil {
+	if vk.Qr, err = kzg.Commit(pk.Qr, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qm, err = vk.KZG.Commit(pk.Qm); err != nil {
+	if vk.Qm, err = kzg.Commit(pk.Qm, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qo, err = vk.KZG.Commit(pk.Qo); err != nil {
+	if vk.Qo, err = kzg.Commit(pk.Qo, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.Qk, err = vk.KZG.Commit(pk.CQk); err != nil {
+	if vk.Qk, err = kzg.Commit(pk.CQk, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[0], err = vk.KZG.Commit(pk.CS1); err != nil {
+	if vk.S[0], err = kzg.Commit(pk.CS1, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[1], err = vk.KZG.Commit(pk.CS2); err != nil {
+	if vk.S[1], err = kzg.Commit(pk.CS2, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-	if vk.S[2], err = vk.KZG.Commit(pk.CS3); err != nil {
+	if vk.S[2], err = kzg.Commit(pk.CS3, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
-
-	// The verifying key shares data with the proving key
-	pk.Vk = &vk
 
 	return &pk, &vk, nil
 
@@ -221,7 +219,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 	// position -> variable_ID
 	lro := make([]int, 3*sizeSolution)
 
-	pk.Permutation = make([]int, 3*sizeSolution)
+	pk.Permutation = make([]int64, 3*sizeSolution)
 	for i := 0; i < spr.NbPublicVariables; i++ { // IDs of LRO associated to placeholders (only L needs to be taken care of)
 
 		lro[i] = i
@@ -265,7 +263,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
 
 	// map ID -> last position the ID was seen
-	cycle := make([]int, nbVariables)
+	cycle := make([]int64, nbVariables)
 	for i := 0; i < len(cycle); i++ {
 		cycle[i] = -1
 	}
@@ -274,7 +272,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 		if cycle[lro[i]] != -1 {
 			pk.Permutation[i] = cycle[lro[i]]
 		}
-		cycle[lro[i]] = i
+		cycle[lro[i]] = int64(i)
 	}
 
 	// complete the Permutation by filling the first IDs encountered
@@ -339,4 +337,39 @@ func computeLDE(pk *ProvingKey) {
 	fft.BitReverse(pk.CS2)
 	fft.BitReverse(pk.CS3)
 
+}
+
+// InitKZG inits pk.Vk.KZG using pk.DomainNum cardinality and provided SRS
+//
+// This should be used after deserializing a ProvingKey
+// as pk.Vk.KZG is NOT serialized
+func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
+	return pk.Vk.InitKZG(srs)
+}
+
+// InitKZG inits vk.KZG using provided SRS
+//
+// This should be used after deserializing a VerifyingKey
+// as vk.KZG is NOT serialized
+//
+// Note that this instantiate a new FFT domain using vk.Size
+func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
+	_srs := srs.(*kzg.SRS)
+
+	if len(_srs.G1) < int(vk.Size) {
+		return errors.New("kzg srs is too small")
+	}
+	vk.KZGSRS = _srs
+
+	return nil
+}
+
+// SizePublicWitness returns the expected public witness size (number of field elements)
+func (vk *VerifyingKey) SizePublicWitness() int {
+	return int(vk.NbPublicVariables)
+}
+
+// VerifyingKey returns pk.Vk
+func (pk *ProvingKey) VerifyingKey() interface{} {
+	return pk.Vk
 }

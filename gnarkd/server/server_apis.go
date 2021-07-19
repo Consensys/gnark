@@ -3,9 +3,12 @@ package server
 import (
 	"bytes"
 	context "context"
+	"io"
 	"time"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/gnarkd/pb"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -27,16 +30,33 @@ func (s *Server) Prove(ctx context.Context, request *pb.ProveRequest) (*pb.Prove
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
-	// call groth16.Prove with witness
-	proof, err := groth16.ReadAndProve(circuit.r1cs, circuit.pk, bytes.NewReader(request.Witness))
-	if err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.Internal, err.Error())
+	var buf bytes.Buffer
+	var pw io.WriterTo
+
+	switch circuit.backendID {
+	case backend.GROTH16:
+		// call groth16.Prove with witness
+		proof, err := groth16.ReadAndProve(circuit.ccs, circuit.groth16.pk, bytes.NewReader(request.Witness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+		pw = proof
+
+	case backend.PLONK:
+		// call plonk.Prove with witness
+		proof, err := plonk.ReadAndProve(circuit.ccs, circuit.plonk.pk, bytes.NewReader(request.Witness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+		pw = proof
+	default:
+		panic("backend not implemented")
 	}
 
 	// serialize proof
-	var buf bytes.Buffer
-	_, err = proof.WriteTo(&buf)
+	_, err := pw.WriteTo(&buf)
 	if err != nil {
 		s.log.Error(err)
 		return nil, status.Errorf(codes.Internal, err.Error())
@@ -133,7 +153,7 @@ func (s *Server) ListProveJob(ctx context.Context, request *pb.ListProveJobReque
 // SubscribeToProveJob enables a client to get job status changes from the Server
 // at connection start, Server sends current job status
 // when job is done (ok or errored), Server closes connection
-func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.Groth16_SubscribeToProveJobServer) error {
+func (s *Server) SubscribeToProveJob(request *pb.SubscribeToProveJobRequest, stream pb.ZKSnark_SubscribeToProveJobServer) error {
 	// ensure jobID is valid
 	jobID, err := uuid.Parse(request.JobID)
 	if err != nil {
@@ -230,16 +250,30 @@ func (s *Server) Verify(ctx context.Context, request *pb.VerifyRequest) (*pb.Ver
 		return nil, status.Errorf(codes.NotFound, "unknown circuit %s", request.CircuitID)
 	}
 
-	// call groth16.Verify with witness
-	proof := groth16.NewProof(circuit.r1cs.CurveID())
-	if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
-	}
-	err := groth16.ReadAndVerify(proof, circuit.vk, bytes.NewReader(request.PublicWitness))
-	if err != nil {
-		s.log.Error(err)
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	if circuit.backendID == backend.GROTH16 {
+		// call groth16.Verify with witness
+		proof := groth16.NewProof(circuit.ccs.CurveID())
+		if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+		err := groth16.ReadAndVerify(proof, circuit.groth16.vk, bytes.NewReader(request.PublicWitness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+	} else if circuit.backendID == backend.PLONK {
+		// call plonk.Verify with witness
+		proof := plonk.NewProof(circuit.ccs.CurveID())
+		if _, err := proof.ReadFrom(bytes.NewReader(request.Proof)); err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+		err := plonk.ReadAndVerify(proof, circuit.plonk.pk.VerifyingKey().(plonk.VerifyingKey), bytes.NewReader(request.PublicWitness))
+		if err != nil {
+			s.log.Error(err)
+			return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		}
 	}
 
 	// return proof
