@@ -350,6 +350,7 @@ func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) p
 
 	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 	nbElmts := int(pk.DomainNum.Cardinality)
+	gInv := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 
 	var f [3]fr.Element
 	var g [3]fr.Element
@@ -359,6 +360,7 @@ func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) p
 	u[2].Set(&pk.Vk.Shifter[1])
 
 	z[0].SetOne()
+	gInv[0].SetOne()
 
 	for i := 0; i < nbElmts-1; i++ {
 
@@ -373,11 +375,20 @@ func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) p
 		f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]) // (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
 		g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
-		z[i+1].Mul(&z[i], &f[0]).Div(&z[i+1], &g[0])
+		gInv[i+1] = g[0]
+		z[i+1].Mul(&z[i], &f[0]) //.Div(&z[i+1], &g[0]) --> use montgomery batch inversion in a second loop
 
 		u[0].Mul(&u[0], &pk.DomainNum.Generator) // z**i -> z**i+1
 		u[1].Mul(&u[1], &pk.DomainNum.Generator) // u*z**i -> u*z**i+1
 		u[2].Mul(&u[2], &pk.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
+	}
+
+	//.Div(&z[i+1], &g[0])
+	gInv = fr.BatchInvert(gInv)
+	acc := fr.One()
+	for i := 1; i < nbElmts; i++ {
+		acc.Mul(&acc, &gInv[i])
+		z[i].Mul(&z[i], &acc)
 	}
 
 	return z
@@ -435,9 +446,9 @@ func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 	id[3].SetOne()
 	for i := 1; i < c; i++ {
 		id[4*i].Mul(&id[4*(i-1)], &pk.DomainNum.Generator)
-		id[4*i+1].Set(&id[4*i])
-		id[4*i+2].Set(&id[4*i])
-		id[4*i+3].Set(&id[4*i])
+		id[4*i+1] = id[4*i]
+		id[4*i+2] = id[4*i]
+		id[4*i+3] = id[4*i]
 	}
 	// at this stage, id = [1,1,1,1,|z,z,z,z|,...,|z**n-1,z**n-1,z**n-1,z**n-1]
 
@@ -574,10 +585,10 @@ func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
 	domain.FFT(evaluations[3], fft.DIT, 7)
 
 	for i := uint64(0); i < domain.Cardinality; i++ {
-		res[4*i].Set(&evaluations[0][i])
-		res[4*i+1].Set(&evaluations[1][i])
-		res[4*i+2].Set(&evaluations[2][i])
-		res[4*i+3].Set(&evaluations[3][i])
+		res[4*i] = evaluations[0][i]
+		res[4*i+1] = evaluations[1][i]
+		res[4*i+2] = evaluations[2][i]
+		res[4*i+3] = evaluations[3][i]
 	}
 }
 
@@ -587,12 +598,11 @@ func shitZ(z polynomial.Polynomial) polynomial.Polynomial {
 	res := make(polynomial.Polynomial, len(z))
 	copy(res, z)
 
-	var buf fr.Element
-	buf.Set(&res[0])
+	buf := res[0]
 	for i := 0; i < len(res)-1; i++ {
-		res[i].Set(&res[i+1])
+		res[i] = res[i+1]
 	}
-	res[len(res)-1].Set(&buf)
+	res[len(res)-1] = buf
 
 	return res
 }
