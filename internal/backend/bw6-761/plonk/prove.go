@@ -552,18 +552,15 @@ func evaluateCosetsBis(poly, res []fr.Element, domain *fft.Domain) {
 
 	// evaluations[i] must contain poly in the canonical basis
 	copy(evaluations[0], poly)
-	copy(evaluations[1], poly)
-	copy(evaluations[2], poly)
-	copy(evaluations[3], poly)
-
-	domain.FFT(evaluations[0], fft.DIF, 1)
-	domain.FFT(evaluations[1], fft.DIF, 3)
-	domain.FFT(evaluations[2], fft.DIF, 5)
-	domain.FFT(evaluations[3], fft.DIF, 7)
 	fft.BitReverse(evaluations[0])
-	fft.BitReverse(evaluations[1])
-	fft.BitReverse(evaluations[2])
-	fft.BitReverse(evaluations[3])
+	copy(evaluations[1], evaluations[0])
+	copy(evaluations[2], evaluations[0])
+	copy(evaluations[3], evaluations[0])
+
+	domain.FFT(evaluations[0], fft.DIT, 1)
+	domain.FFT(evaluations[1], fft.DIT, 3)
+	domain.FFT(evaluations[2], fft.DIT, 5)
+	domain.FFT(evaluations[3], fft.DIT, 7)
 
 	for i := uint64(0); i < domain.Cardinality; i++ {
 		res[4*i].Set(&evaluations[0][i])
@@ -639,12 +636,9 @@ func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne
 	pk.DomainH.FFTInverse(h, fft.DIF, 1)
 	fft.BitReverse(h)
 
-	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	copy(h1, h[:pk.DomainNum.Cardinality])
-	copy(h2, h[pk.DomainNum.Cardinality:2*pk.DomainNum.Cardinality])
-	copy(h3, h[2*pk.DomainNum.Cardinality:3*pk.DomainNum.Cardinality])
+	h1 := h[:pk.DomainNum.Cardinality]
+	h2 := h[pk.DomainNum.Cardinality : 2*pk.DomainNum.Cardinality]
+	h3 := h[2*pk.DomainNum.Cardinality : 3*pk.DomainNum.Cardinality]
 
 	return h1, h2, h3
 
