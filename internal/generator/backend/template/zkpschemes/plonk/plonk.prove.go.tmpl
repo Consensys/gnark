@@ -1,5 +1,6 @@
 import (
 	"math/big"
+	"sync"
 
 	{{ template "import_fr" . }}
 	{{ template "import_polynomial" . }}
@@ -46,7 +47,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	}
 
 	// query l, r, o in Lagrange basis
-	ll, lr, lo := computeLROBis(spr, pk, solution)
+	ll, lr, lo := computeLRO(spr, pk, solution)
 
 	// save ll, lr, lo, and make a copy of them in canonical basis.
 	// We commit them and derive gamma from them.
@@ -60,9 +61,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	pk.DomainNum.FFTInverse(cl, fft.DIF, 0)
 	pk.DomainNum.FFTInverse(cr, fft.DIF, 0)
 	pk.DomainNum.FFTInverse(co, fft.DIF, 0)
-	fft.BitReverse(cl)
-	fft.BitReverse(cr)
-	fft.BitReverse(co)
+	{
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			fft.BitReverse(cl)
+			wg.Done()
+		}()
+		go func() {
+			fft.BitReverse(cr)
+			wg.Done()
+		}()
+		fft.BitReverse(co)
+		wg.Wait()
+	}
 
 	// derive gamma from the Comm(l), Comm(r), Comm(o)
 	if proof.LRO[0], err = kzg.Commit(cl, pk.Vk.KZGSRS); err != nil {
@@ -91,18 +103,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	gamma.SetBytes(bgamma)
 
 	// compute Z, the permutation accumulator polynomial, in Lagrange basis
-	z := computeZBis(ll, lr, lo, pk, gamma)
+	z := computeZ(ll, lr, lo, pk, gamma)
 
 	// compute Z(uX), in Lagrange basis
-	zu := shitZBis(z)
+	zu := shitZ(z)
 
 	// compute the evaluations of l, r, o on odd cosets of (Z/8mZ)/(Z/mZ)
 	evalL := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalR := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalO := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(cl, evalL, &pk.DomainNum)
-	evaluateCosetsBis(cr, evalR, &pk.DomainNum)
-	evaluateCosetsBis(co, evalO, &pk.DomainNum)
+	evaluateCosets(cl, evalL, &pk.DomainNum)
+	evaluateCosets(cr, evalR, &pk.DomainNum)
+	evaluateCosets(co, evalO, &pk.DomainNum)
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkFullC := make(polynomial.Polynomial, sizeCommon)
@@ -112,7 +124,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	fft.BitReverse(qkFullC)
 
 	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsInd := evalConstraintsBis(pk, evalL, evalR, evalO, qkFullC)
+	constraintsInd := evalConstraints(pk, evalL, evalR, evalO, qkFullC)
 
 	// put back z, zu in canonical basis
 	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
@@ -123,14 +135,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	// evaluate z, zu on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalZ := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalZu := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(z, evalZ, &pk.DomainNum)
-	evaluateCosetsBis(zu, evalZu, &pk.DomainNum)
+	evaluateCosets(z, evalZ, &pk.DomainNum)
+	evaluateCosets(zu, evalZu, &pk.DomainNum)
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	constraintsOrdering := evalConstraintOrderingBis(pk, evalZ, evalZu, evalL, evalR, evalO, gamma)
+	constraintsOrdering := evalConstraintOrdering(pk, evalZ, evalZu, evalL, evalR, evalO, gamma)
 
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
-	startsAtOne := evalStartsAtOneBis(pk, evalZ)
+	startsAtOne := evalStartsAtOne(pk, evalZ)
 
 	// commit to Z
 	if proof.Z, err = kzg.Commit(z, pk.Vk.KZGSRS); err != nil {
@@ -149,7 +161,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	alpha.SetBytes(balpha)
 
 	// compute h in canonical form
-	h1, h2, h3 := computeHBis(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
+	h1, h2, h3 := computeH(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
 	if proof.H[0], err = kzg.Commit(h1, pk.Vk.KZGSRS); err != nil {
@@ -265,9 +277,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 }
 
 
-// computeLROBis extracts the solution l, r, o, and returns it in lagrange form.
+// computeLRO extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func computeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
+func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
 
 	s := int(pk.DomainNum.Cardinality)
 
@@ -304,7 +316,7 @@ func computeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (p
 
 }
 
-// computeZBis computes Z (in Lagrange basis), where:
+// computeZ computes Z (in Lagrange basis), where:
 //
 // * Z of degree n (domainNum.Cardinality)
 // * Z(1)=1
@@ -313,7 +325,7 @@ func computeLROBis(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (p
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func computeZBis(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
+func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
 
 	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 	nbElmts := int(pk.DomainNum.Cardinality)
@@ -351,9 +363,9 @@ func computeZBis(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element
 
 }
 
-// evalConstraintsBis computes the evaluation of lL+qrR+qqmL.R+qoO+k on
+// evalConstraints computes the evaluation of lL+qrR+qqmL.R+qoO+k on
 // the odd cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
-func evalConstraintsBis(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.Element {
+func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.Element {
 
 	res := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 
@@ -363,11 +375,11 @@ func evalConstraintsBis(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []
 	evalQm := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalQo := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalQk := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(pk.Ql, evalQl, &pk.DomainNum)
-	evaluateCosetsBis(pk.Qr, evalQr, &pk.DomainNum)
-	evaluateCosetsBis(pk.Qm, evalQm, &pk.DomainNum)
-	evaluateCosetsBis(pk.Qo, evalQo, &pk.DomainNum)
-	evaluateCosetsBis(qk, evalQk, &pk.DomainNum)
+	evaluateCosets(pk.Ql, evalQl, &pk.DomainNum)
+	evaluateCosets(pk.Qr, evalQr, &pk.DomainNum)
+	evaluateCosets(pk.Qm, evalQm, &pk.DomainNum)
+	evaluateCosets(pk.Qo, evalQo, &pk.DomainNum)
+	evaluateCosets(qk, evalQk, &pk.DomainNum)
 
 	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
 	// of (Z/8mZ)/(Z/mZ)
@@ -390,8 +402,8 @@ func evalConstraintsBis(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []
 	return res
 }
 
-// evalIDCosetsBis id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
-func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
+// evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
+func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 
 	// evaluation of id, uid, u**id on the cosets
 	id = make([]fr.Element, 4*pk.DomainNum.Cardinality)
@@ -438,23 +450,23 @@ func evalIDCosetsBis(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 	return
 }
 
-// evalConstraintOrderingBis computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
+// evalConstraintOrdering computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
 // cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
 //
 // z: permutation accumulator polynomial in canonical form
 // l, r, o: solution, in canonical form
-func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
+func evalConstraintOrdering(pk *ProvingKey, evalZ, evalZu, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalS2 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
 	evalS3 := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(pk.CS1, evalS1, &pk.DomainNum)
-	evaluateCosetsBis(pk.CS2, evalS2, &pk.DomainNum)
-	evaluateCosetsBis(pk.CS3, evalS3, &pk.DomainNum)
+	evaluateCosets(pk.CS1, evalS1, &pk.DomainNum)
+	evaluateCosets(pk.CS2, evalS2, &pk.DomainNum)
+	evaluateCosets(pk.CS3, evalS3, &pk.DomainNum)
 
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalID, evaluID, evaluuID := evalIDCosetsBis(pk)
+	evalID, evaluID, evaluuID := evalIDCosets(pk)
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make(polynomial.Polynomial, 4*pk.DomainNum.Cardinality)
@@ -485,11 +497,11 @@ func evalConstraintOrderingBis(pk *ProvingKey, evalZ, evalZu, evalL, evalR, eval
 	return res
 }
 
-// evalStartsAtOneBis computes the evaluation of L1*(z-1) on the odd cosets
+// evalStartsAtOne computes the evaluation of L1*(z-1) on the odd cosets
 // of (Z/8mZ)/(Z/mZ).
 //
 // evalZ is the evaluation of z (=permutation constraint polynomial) on odd cosets of (Z/8mZ)/(Z/mZ)
-func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.Polynomial {
+func evalStartsAtOne(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.Polynomial {
 
 	// computes L1 (canonical form)
 	lOneLagrange := make([]fr.Element, pk.DomainNum.Cardinality)
@@ -499,7 +511,7 @@ func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.
 
 	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make([]fr.Element, 4*pk.DomainNum.Cardinality)
-	evaluateCosetsBis(lOneLagrange, res, &pk.DomainNum)
+	evaluateCosets(lOneLagrange, res, &pk.DomainNum)
 
 	// // evaluates L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var buf, one fr.Element
@@ -512,14 +524,14 @@ func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.
 	return res
 }
 
-// evaluateCosetsBis evaluates poly (canonical form) of degree m=domainNum.Cardinality on
+// evaluateCosets evaluates poly (canonical form) of degree m=domainNum.Cardinality on
 // the 4 odd cosets of (Z/8mZ)/(Z/mZ), so it dodges Z/mZ (+Z/2kmZ), which contains the
 // vanishing set of Z.
 //
 // Puts the result in res (of size 4*domain.Cardinality).
 //
 // Both sizes of poly and res are powers of 2, len(res) = 4*len(poly).
-func evaluateCosetsBis(poly, res []fr.Element, domain *fft.Domain) {
+func evaluateCosets(poly, res []fr.Element, domain *fft.Domain) {
 
 	// build a copy of poly padded with 0 so it has the length of the closest power of 2 of poly
 	evaluations := make([][]fr.Element, 4)
@@ -552,8 +564,8 @@ func evaluateCosetsBis(poly, res []fr.Element, domain *fft.Domain) {
 	}
 }
 
-// shitZBis turns z to z(uX) (both in Lagrange basis)
-func shitZBis(z polynomial.Polynomial) polynomial.Polynomial {
+// shitZ turns z to z(uX) (both in Lagrange basis)
+func shitZ(z polynomial.Polynomial) polynomial.Polynomial {
 
 	res := make(polynomial.Polynomial, len(z))
 	copy(res, z)
@@ -568,14 +580,14 @@ func shitZBis(z polynomial.Polynomial) polynomial.Polynomial {
 	return res
 }
 
-// computeHBis computes h in canonical form, split as h1+X^mh2+X^2mh3 such that
+// computeH computes h in canonical form, split as h1+X^mh2+X^2mh3 such that
 //
 // qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1*(z-1)= h.Z
 // \------------------/         \------------------------/             \-----/
 //    constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
-func computeHBis(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne polynomial.Polynomial, alpha fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
+func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne polynomial.Polynomial, alpha fr.Element) (polynomial.Polynomial, polynomial.Polynomial, polynomial.Polynomial) {
 
 	h := make(polynomial.Polynomial, pk.DomainH.Cardinality)
 
