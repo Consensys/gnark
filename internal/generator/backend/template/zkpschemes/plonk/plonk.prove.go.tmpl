@@ -192,10 +192,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{toLower .CurveID}}w
 	zuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute evaluations of l, r, o, z at zeta
-	var lzeta, rzeta, ozeta fr.Element
-	lzeta.SetInterface(cl.Eval(&zeta))
-	rzeta.SetInterface(cr.Eval(&zeta))
-	ozeta.SetInterface(co.Eval(&zeta))
+	lzeta := cl.Eval(&zeta)
+	rzeta := cr.Eval(&zeta)
+	ozeta := co.Eval(&zeta)
 
 	// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
 	linearizedPolynomial := computeLinearizedPolynomial(
@@ -495,8 +494,8 @@ func evalStartsAtOneBis(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.
 	// computes L1 (canonical form)
 	lOneLagrange := make([]fr.Element, pk.DomainNum.Cardinality)
 	lOneLagrange[0].SetOne()
-	pk.DomainNum.FFTInverse(lOneLagrange, fft.DIF, 0)
-	fft.BitReverse(lOneLagrange)
+	pk.DomainNum.FFTInverse(lOneLagrange, fft.DIT, 0)
+	// TODO @thomas check that DIT witout bitReverse works as intened (DIF + bitReverse)
 
 	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make([]fr.Element, 4*pk.DomainNum.Cardinality)
