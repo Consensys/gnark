@@ -38,6 +38,7 @@ var (
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) error {
 
+	// derive gamma from Comm(l), Comm(r), Comm(o)
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	gamma, err := deriveRandomess(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -125,12 +126,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	}
 
 	// compute the folded commitment to H: Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
-	var zetaPowerMBigInt big.Int
-	zetaPowerM.ToBigIntRegular(&zetaPowerMBigInt)
+	mPlusTwo := big.NewInt(int64(vk.Size) + 2)
+	var zetaMPlusTwo fr.Element
+	zetaMPlusTwo.Exp(zeta, mPlusTwo)
+	var zetaMPlusTwoBigInt big.Int
+	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
-	foldedH.ScalarMultiplication(&foldedH, &zetaPowerMBigInt)
+	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])
-	foldedH.ScalarMultiplication(&foldedH, &zetaPowerMBigInt)
+	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial

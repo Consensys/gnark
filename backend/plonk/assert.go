@@ -154,19 +154,19 @@ func newKZGSrs(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
 		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bn254.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+		return kzg_bn254.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12381.SparseR1CS:
 		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls12381.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+		return kzg_bls12381.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12377.SparseR1CS:
 		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls12377.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+		return kzg_bls12377.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bw6761.SparseR1CS:
 		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bw6761.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+		return kzg_bw6761.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls24315.SparseR1CS:
 		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls24315.NewSRS(nextPowerOfTwo(size), fakeRandomness)
+		return kzg_bls24315.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
 	default:
 		panic("unknown constraint system type")
 	}

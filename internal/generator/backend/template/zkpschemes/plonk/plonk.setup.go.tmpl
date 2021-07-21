@@ -46,10 +46,10 @@ type ProvingKey struct {
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
 	// Size circuit
-	Size      			uint64
-	SizeInv   			fr.Element
-	Generator 			fr.Element
-	NbPublicVariables 	uint64
+	Size              uint64
+	SizeInv           fr.Element
+	Generator         fr.Element
+	NbPublicVariables uint64
 
 	// shifters for extending the permutation set: from s=<1,z,..,z**n-1>,
 	// extended domain = s || shifter[0].s || shifter[1].s
@@ -67,10 +67,10 @@ type VerifyingKey struct {
 }
 
 // Setup sets proving and verifying keys
-func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)  {
+func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 	var pk ProvingKey
 	var vk VerifyingKey
-	
+
 	// The verifying key shares data with the proving key
 	pk.Vk = &vk
 
@@ -79,7 +79,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainNum = *fft.NewDomain(sizeSystem, 3, false)
+	pk.DomainNum = *fft.NewDomain(sizeSystem, 0, false)
 	pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
 
 	vk.Size = pk.DomainNum.Cardinality
@@ -321,18 +321,16 @@ func computeLDE(pk *ProvingKey) {
 
 }
 
-
 // InitKZG inits pk.Vk.KZG using pk.DomainNum cardinality and provided SRS
-// 
+//
 // This should be used after deserializing a ProvingKey
 // as pk.Vk.KZG is NOT serialized
 func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
 	return pk.Vk.InitKZG(srs)
 }
 
-
 // InitKZG inits vk.KZG using provided SRS
-// 
+//
 // This should be used after deserializing a VerifyingKey
 // as vk.KZG is NOT serialized
 //
@@ -352,7 +350,6 @@ func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 func (vk *VerifyingKey) SizePublicWitness() int {
 	return int(vk.NbPublicVariables)
 }
-
 
 // VerifyingKey returns pk.Vk
 func (pk *ProvingKey) VerifyingKey() interface{} {

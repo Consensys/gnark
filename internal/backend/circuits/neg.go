@@ -11,9 +11,11 @@ type negCircuit struct {
 }
 
 func (circuit *negCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	a := cs.Neg(circuit.X)
-	b := cs.Add(a, circuit.X)
-	cs.AssertIsEqual(b, circuit.Z)
+	cs.Mul(circuit.X, circuit.X) // dummy constraint to ensure the number of constraints+assertions is >= 8
+	a := cs.Mul(circuit.X, circuit.X)
+	b := cs.Neg(circuit.X)
+	c := cs.Add(a, b)
+	cs.AssertIsEqual(c, circuit.Z)
 	return nil
 }
 
@@ -22,12 +24,12 @@ func init() {
 	var circuit, good, bad, public negCircuit
 
 	good.X.Assign(6)
-	good.Z.Assign(0)
+	good.Z.Assign(30)
 
-	bad.X.Assign(4)
-	bad.Z.Assign(1)
+	bad.X.Assign(7)
+	bad.Z.Assign(30)
 
-	public.Z.Assign(0)
+	public.Z.Assign(30)
 
 	addEntry("neg", &circuit, &good, &bad, &public)
 }
