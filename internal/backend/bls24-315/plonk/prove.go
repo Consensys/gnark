@@ -33,6 +33,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/bls24-315/cs"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 type Proof struct {
@@ -652,26 +653,25 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 // * z is the permutation polynomial, zu is Z(uX), the shifted version of Z
 // * pk is the proving key: the linearized polynomial is a linear combination of ql, qr, qm, qo, qk.
 func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z polynomial.Polynomial, pk *ProvingKey) polynomial.Polynomial {
-
+	linPol := make(polynomial.Polynomial, pk.DomainNum.Cardinality+3)
 	// first part: individual constraints
 	var rl fr.Element
 	rl.Mul(&r, &l)
-	_linearizedPolynomial := pk.Qm.Clone()
-	_linearizedPolynomial.ScaleInPlace(&rl) // linPol = lr*Qm
 
-	tmp := pk.Ql.Clone()
-	tmp.ScaleInPlace(&l)
-	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql
+	utils.Parallelize(len(pk.Qm), func(start, end int) {
+		var t0 fr.Element
+		for i := start; i < end; i++ {
+			linPol[i].Mul(&pk.Qm[i], &rl) // linPol = lr*Qm
+			t0.Mul(&pk.Ql[i], &l)
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql
 
-	tmp = pk.Qr.Clone()
-	tmp.ScaleInPlace(&r)
-	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql + r*Qr
+			t0.Mul(&pk.Qr[i], &r)
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr
 
-	tmp = pk.Qo.Clone()
-	tmp.ScaleInPlace(&o)
-	_linearizedPolynomial.Add(_linearizedPolynomial, tmp) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo
-
-	_linearizedPolynomial.Add(_linearizedPolynomial, pk.CQk) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
+			t0.Mul(&pk.Qo[i], &o).Add(&t0, &pk.CQk[i])
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
+		}
+	})
 
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	var s1, s2, t fr.Element
@@ -691,10 +691,10 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 	p1.ScaleInPlace(&s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
 	p2 := z.Clone()
 	p2.ScaleInPlace(&s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	p1.Add(p1, p2)
-	p1.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
+	p2.Add(p2, p1)
+	p2.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
 
-	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
+	linPol.Add(linPol, p2)
 
 	// third part L1(zeta)*alpha**2**Z
 	var lagrange, one, den, frNbElmt fr.Element
@@ -710,11 +710,12 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 	lagrange.Mul(&lagrange, &den). // L_0 = 1/m*(zeta**n-1)/(zeta-1)
 					Mul(&lagrange, &alpha).
 					Mul(&lagrange, &alpha) // alpha**2*L_0
-	p1 = z.Clone()
-	p1.ScaleInPlace(&lagrange)
+
+	p3 := z.Clone()
+	p3.ScaleInPlace(&lagrange)
 
 	// finish the computation
-	_linearizedPolynomial.Add(_linearizedPolynomial, p1)
+	linPol.Add(linPol, p3)
 
-	return _linearizedPolynomial
+	return linPol
 }
