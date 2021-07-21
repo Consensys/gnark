@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"math/big"
+	"math/bits"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -484,14 +485,17 @@ func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 	acc.SetOne()
 
 	for i := 0; i < int(pk.DomainH.Cardinality); i++ {
-
 		id[i].Mul(&acc, &pk.DomainH.FinerGenerator)
-		uid[i].Mul(&id[i], &pk.Vk.Shifter[0])
-		uuid[i].Mul(&id[i], &pk.Vk.Shifter[1])
-
 		acc.Mul(&acc, &pk.DomainH.Generator)
 	}
 
+	fft.BitReverse(id)
+	utils.Parallelize(len(uid), func(start, end int) {
+		for i := start; i < end; i++ {
+			uid[i].Mul(&id[i], &pk.Vk.Shifter[0])
+			uuid[i].Mul(&id[i], &pk.Vk.Shifter[1])
+		}
+	})
 	return id, uid, uuid
 
 }
@@ -576,24 +580,39 @@ func evalStartsAtOne(pk *ProvingKey, evalZ polynomial.Polynomial) polynomial.Pol
 // on the odd coset of (Z/2nZ)/(Z/nZ).
 //
 // Puts the result in res of size n.
+// Warning: result is in bit reversed order, we do a bit reverse operation only once in computeH
 func evaluateOddCosetsHDomain(poly []fr.Element, domainH *fft.Domain) []fr.Element {
 	res := make([]fr.Element, domainH.Cardinality)
 	copy(res, poly)
 	domainH.FFT(res, fft.DIF, 1)
-	fft.BitReverse(res)
+	// fft.BitReverse(res)
 	return res
 }
 
 // shiftEval left shifts z by shift
+// note that z is bitReversed but we want to shift without bit reverse
 func shiftEval(z polynomial.Polynomial, shift int) polynomial.Polynomial {
-	res := make(polynomial.Polynomial, len(z))
-	size := len(res)
-	for i := 0; i < size-shift; i++ {
-		res[i].Set(&z[i+shift])
+	s := len(z)
+
+	// put z in normal bit order
+	// TODO @gbotrel @thomas probably a way here to avoid this copy / bit reverse
+	zCopy := make(polynomial.Polynomial, s)
+	copy(zCopy, z)
+	fft.BitReverse(zCopy)
+
+	res := make(polynomial.Polynomial, s)
+
+	nn := uint64(64 - bits.TrailingZeros64(uint64(s)))
+
+	for i := 0; i < s-shift; i++ {
+		irev := bits.Reverse64(uint64(i)) >> nn
+		res[irev] = zCopy[i+shift]
 	}
-	for i := size - shift; i < size; i++ {
-		res[i].Set(&z[i-size+shift])
+	for i := s - shift; i < s; i++ {
+		irev := bits.Reverse64(uint64(i)) >> nn
+		res[irev] = zCopy[i-s+shift]
 	}
+
 	return res
 }
 
@@ -627,25 +646,24 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 
 	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1(X)(Z(X)-1)
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
-	for i := 0; i < int(pk.DomainH.Cardinality); i++ {
+	nn := uint64(64 - bits.TrailingZeros64(pk.DomainH.Cardinality))
+
+	for i := uint64(0); i < pk.DomainH.Cardinality; i++ {
 		h[i].Mul(&startsAtOne[i], &alpha).
 			Add(&h[i], &constraintOrdering[i]).
 			Mul(&h[i], &alpha).
 			Add(&h[i], &constraintsInd[i])
-	}
 
-	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
-	// on the odd cosets of (Z/8mZ)/(Z/mZ)
-	for i := 0; i < int(pk.DomainNum.Cardinality); i++ {
-		h[4*i].Mul(&h[4*i], &u[0])
-		h[4*i+1].Mul(&h[4*i+1], &u[1])
-		h[4*i+2].Mul(&h[4*i+2], &u[2])
-		h[4*i+3].Mul(&h[4*i+3], &u[3])
+		// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
+		// on the odd cosets of (Z/8mZ)/(Z/mZ)
+		// note that h is still bit reversed here
+		irev := bits.Reverse64(i) >> nn
+		h[i].Mul(&h[i], &u[irev%4])
 	}
 
 	// put h in canonical form
-	pk.DomainH.FFTInverse(h, fft.DIF, 1)
-	fft.BitReverse(h)
+	// using fft.DIT put h revert bit reverse
+	pk.DomainH.FFTInverse(h, fft.DIT, 1)
 
 	// degree of hi is n+2 because of the blinding
 	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
