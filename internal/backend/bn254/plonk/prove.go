@@ -475,11 +475,9 @@ func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.
 }
 
 // evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
-func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
+func evalIDCosets(pk *ProvingKey) (id polynomial.Polynomial) {
 
 	id = make([]fr.Element, pk.DomainH.Cardinality)
-	uid = make([]fr.Element, pk.DomainH.Cardinality)
-	uuid = make([]fr.Element, pk.DomainH.Cardinality)
 
 	var acc fr.Element
 	acc.SetOne()
@@ -490,13 +488,8 @@ func evalIDCosets(pk *ProvingKey) (id, uid, uuid polynomial.Polynomial) {
 	}
 
 	fft.BitReverse(id)
-	utils.Parallelize(len(uid), func(start, end int) {
-		for i := start; i < end; i++ {
-			uid[i].Mul(&id[i], &pk.Vk.Shifter[0])
-			uuid[i].Mul(&id[i], &pk.Vk.Shifter[1])
-		}
-	})
-	return id, uid, uuid
+
+	return id
 
 }
 
@@ -517,19 +510,22 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	evalS3 := evaluateOddCosetsHDomain(pk.CS3, &pk.DomainH)
 
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalID, evaluID, evaluuID := evalIDCosets(pk)
+	evalID := evalIDCosets(pk)
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
-	res := make(polynomial.Polynomial, pk.DomainH.Cardinality)
+	res := evalZu //make(polynomial.Polynomial, pk.DomainH.Cardinality)
 
 	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
 		var f [3]fr.Element
 		var g [3]fr.Element
+
 		for i := start; i < end; i++ {
 
-			f[0].Add(&evalL[i], &evalID[i]).Add(&f[0], &gamma)   //l_i+z**i+gamma
-			f[1].Add(&evalR[i], &evaluID[i]).Add(&f[1], &gamma)  //r_i+u*z**i+gamma
-			f[2].Add(&evalO[i], &evaluuID[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
+			f[0].Add(&evalL[i], &evalID[i]).Add(&f[0], &gamma) //l_i+z**i+gamma
+			f[1].Mul(&evalID[i], &pk.Vk.Shifter[0])
+			f[2].Mul(&evalID[i], &pk.Vk.Shifter[1])
+			f[1].Add(&f[1], &evalR[i]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
+			f[2].Add(&f[2], &evalO[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
 			g[0].Add(&evalL[i], &evalS1[i]).Add(&g[0], &gamma) //l_i+s1+gamma
 			g[1].Add(&evalR[i], &evalS2[i]).Add(&g[1], &gamma) //r_i+s2+gamma
