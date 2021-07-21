@@ -666,12 +666,9 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 	pk.DomainH.FFTInverse(h, fft.DIT, 1)
 
 	// degree of hi is n+2 because of the blinding
-	h1 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
-	h2 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
-	h3 := make(polynomial.Polynomial, pk.DomainNum.Cardinality+2)
-	copy(h1, h[:pk.DomainNum.Cardinality+2])
-	copy(h2, h[pk.DomainNum.Cardinality+2:2*(pk.DomainNum.Cardinality+2)])
-	copy(h3, h[2*(pk.DomainNum.Cardinality+2):])
+	h1 := h[:pk.DomainNum.Cardinality+2]
+	h2 := h[pk.DomainNum.Cardinality+2 : 2*(pk.DomainNum.Cardinality+2)]
+	h3 := h[2*(pk.DomainNum.Cardinality+2) : 3*(pk.DomainNum.Cardinality+2)]
 
 	return h1, h2, h3
 
