@@ -91,7 +91,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 	}
 
 	good.Y.Assign(expectedY)
-	srs, err := kzg.NewSRS(1<<16, new(big.Int).SetUint64(42))
+	srs, err := kzg.NewSRS(nextPowerOfTwo(nbConstraints)+3, new(big.Int).SetUint64(42))
 	if err != nil {
 		panic(err)
 	}
@@ -134,11 +134,12 @@ func BenchmarkProver(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	b.Run("prover", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, _ = bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness)
+	for i := 0; i < b.N; i++ {
+		_, err = bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness)
+		if err != nil {
+			b.Fatal(err)
 		}
-	})
+	}
 }
 
 func BenchmarkVerifier(b *testing.B) {
@@ -165,11 +166,9 @@ func BenchmarkVerifier(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	b.Run("verifier", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_ = bls12_381plonk.Verify(proof, vk, publicWitness)
-		}
-	})
+	for i := 0; i < b.N; i++ {
+		_ = bls12_381plonk.Verify(proof, vk, publicWitness)
+	}
 }
 
 func BenchmarkSerialization(b *testing.B) {
@@ -240,4 +239,16 @@ func BenchmarkSerialization(b *testing.B) {
 		_, _ = proof.WriteTo(&buf)
 	}
 
+}
+
+func nextPowerOfTwo(_n int) int {
+	n := uint64(_n)
+	p := uint64(1)
+	if (n & (n - 1)) == 0 {
+		return _n
+	}
+	for p < n {
+		p <<= 1
+	}
+	return int(p)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"math/big"
 	"os"
 	"runtime"
 	"strconv"
@@ -12,9 +13,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	"github.com/pkg/profile"
 )
 
 func main() {
@@ -23,7 +27,7 @@ func main() {
 		os.Exit(-1)
 	}
 	ns := strings.Split(os.Args[1], ",")
-	curveIDs := []ecc.ID{ecc.BN254, ecc.BLS12_381}
+	curveIDs := []ecc.ID{ecc.BN254}
 
 	// write to stdout
 	w := csv.NewWriter(os.Stdout)
@@ -38,14 +42,17 @@ func main() {
 				panic(err)
 			}
 			// generate dummy circuit and witness
-			pk, r1cs := generateCircuit(n, curveID)
+			pk, ccs := generateCircuit(n, curveID)
 			witness := generateSolution(n, curveID)
 
 			// measure proving time
 			start := time.Now()
-			// p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-			_, _ = groth16.Prove(r1cs, pk, &witness)
-			// p.Stop()
+			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
+			_, err = plonk.Prove(ccs, pk, &witness)
+			p.Stop()
+			if err != nil {
+				panic(err)
+			}
 
 			took := time.Since(start)
 
@@ -56,12 +63,12 @@ func main() {
 			bData := benchData{
 				Curve:          curveID.String(),
 				NbCores:        runtime.NumCPU(),
-				NbCoefficients: r1cs.GetNbCoefficients(),
-				NbConstraints:  r1cs.GetNbConstraints(),
+				NbCoefficients: ccs.GetNbCoefficients(),
+				NbConstraints:  ccs.GetNbConstraints(),
 				NbWires:        0, // TODO @gbotrel fixme
 				RunTime:        took.Milliseconds(),
 				MaxRAM:         (m.Sys / 1024 / 1024),
-				Throughput:     int(float64(r1cs.GetNbConstraints()) / took.Seconds()),
+				Throughput:     int(float64(ccs.GetNbConstraints()) / took.Seconds()),
 			}
 			bData.ThroughputPerCore = bData.Throughput / bData.NbCores
 
@@ -89,18 +96,35 @@ func (circuit *benchCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSyste
 	return nil
 }
 
-func generateCircuit(nbConstraints int, curveID ecc.ID) (groth16.ProvingKey, frontend.CompiledConstraintSystem) {
+func generateCircuit(nbConstraints int, curveID ecc.ID) (plonk.ProvingKey, frontend.CompiledConstraintSystem) {
 	var circuit benchCircuit
 	circuit.n = nbConstraints
 
-	r1cs, err := frontend.Compile(curveID, backend.GROTH16, &circuit)
+	ccs, err := frontend.Compile(curveID, backend.PLONK, &circuit)
+	if err != nil {
+		panic(err)
+	}
+	sparseR1CS := ccs.(*cs.SparseR1CS)
+	nbConstraints_ := len(sparseR1CS.Constraints)
+	nbVariables := sparseR1CS.NbInternalVariables + sparseR1CS.NbPublicVariables + sparseR1CS.NbSecretVariables
+	var s int
+	if nbConstraints_ > nbVariables {
+		s = nbConstraints
+	} else {
+		s = nbVariables
+	}
+
+	srs, err := kzg.NewSRS(nextPowerOfTwo(s)+3, new(big.Int).SetInt64(42))
+	if err != nil {
+		panic(err)
+	}
+	// dummy setup will not compute a verifying key and just sets random value in the proving key
+	pk, _, err := plonk.Setup(ccs, srs)
 	if err != nil {
 		panic(err)
 	}
 
-	// dummy setup will not compute a verifying key and just sets random value in the proving key
-	pk, _ := groth16.DummySetup(r1cs)
-	return pk, r1cs
+	return pk, ccs
 }
 
 func generateSolution(nbConstraints int, curveID ecc.ID) (witness benchCircuit) {
@@ -160,4 +184,16 @@ func (bData benchData) values() []string {
 		strconv.Itoa(bData.Throughput),
 		strconv.Itoa(bData.ThroughputPerCore),
 	}
+}
+
+func nextPowerOfTwo(_n int) int {
+	n := uint64(_n)
+	p := uint64(1)
+	if (n & (n - 1)) == 0 {
+		return _n
+	}
+	for p < n {
+		p <<= 1
+	}
+	return int(p)
 }
