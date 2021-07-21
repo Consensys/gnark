@@ -121,7 +121,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
 	// --> uses the blinded version of l, r, o
-	constraintsInd := evalConstraints(pk, evalBlindedL, evalBlindedR, evalBlindedO, qkFullC)
+	var constraintsInd []fr.Element
+	chEvalConstraints := make(chan struct{}, 1)
+	go func() {
+		constraintsInd = evalConstraints(pk, evalBlindedL, evalBlindedR, evalBlindedO, qkFullC)
+		close(chEvalConstraints)
+	}()
 
 	// compute Z, the permutation accumulator polynomial, in canonical basis
 	// ll, lr, lo are NOT blinded
@@ -159,6 +164,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	alpha.SetBytes(balpha)
 
 	// compute h in canonical form
+	<-chEvalConstraints
 	h1, h2, h3 := computeH(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
@@ -411,8 +417,6 @@ func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) p
 // * qk is the completed version of qk, in canonical version
 func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.Element {
 
-	res := make([]fr.Element, pk.DomainH.Cardinality)
-
 	evalQl := evaluateOddCosetsHDomain(pk.Ql, &pk.DomainH)
 	evalQr := evaluateOddCosetsHDomain(pk.Qr, &pk.DomainH)
 	evalQm := evaluateOddCosetsHDomain(pk.Qm, &pk.DomainH)
@@ -421,23 +425,23 @@ func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.
 
 	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
 	// of (Z/8mZ)/(Z/mZ)
-	var acc, buf fr.Element
-	for i := uint64(0); i < pk.DomainH.Cardinality; i++ {
+	utils.Parallelize(len(evalQk), func(start, end int) {
+		var t0, t1 fr.Element
+		for i := start; i < end; i++ {
+			t1.Mul(&evalQm[i], &evalR[i]) // qm.r 
+			t1.Add(&t1, &evalQl[i]) // qm.r + ql
+			t1.Mul(&t1, &evalL[i]) //  qm.l.r + ql.l
 
-		acc.Mul(&evalQl[i], &evalL[i]) // ql.l
+			t0.Mul(&evalQr[i], &evalR[i])
+			t0.Add(&t0, &t1) // qm.l.r + ql.l + qr.r
 
-		buf.Mul(&evalQr[i], &evalR[i])
-		acc.Add(&acc, &buf) // ql.l + qr.r
+			t1.Mul(&evalQo[i], &evalO[i])
+			t0.Add(&t0, &t1)          // ql.l + qr.r + qm.l.r + qo.o
+			evalQk[i].Add(&t0, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
+		}
+	})
 
-		buf.Mul(&evalQm[i], &evalL[i]).Mul(&buf, &evalR[i])
-		acc.Add(&acc, &buf) // ql.l + qr.r + qm.l.r
-
-		buf.Mul(&evalQo[i], &evalO[i])
-		acc.Add(&acc, &buf)          // ql.l + qr.r + qm.l.r + qo.o
-		res[i].Add(&acc, &evalQk[i]) // ql.l + qr.r + qm.l.r + qo.o + k
-	}
-
-	return res
+	return evalQk
 }
 
 // evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
@@ -485,28 +489,30 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := make(polynomial.Polynomial, pk.DomainH.Cardinality)
 
-	var f [3]fr.Element
-	var g [3]fr.Element
-	for i := 0; i < 4*int(pk.DomainNum.Cardinality); i++ {
+	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
+		var f [3]fr.Element
+		var g [3]fr.Element
+		for i := start; i < end; i++ {
 
-		f[0].Add(&evalL[i], &evalID[i]).Add(&f[0], &gamma)   //l_i+z**i+gamma
-		f[1].Add(&evalR[i], &evaluID[i]).Add(&f[1], &gamma)  //r_i+u*z**i+gamma
-		f[2].Add(&evalO[i], &evaluuID[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
+			f[0].Add(&evalL[i], &evalID[i]).Add(&f[0], &gamma)   //l_i+z**i+gamma
+			f[1].Add(&evalR[i], &evaluID[i]).Add(&f[1], &gamma)  //r_i+u*z**i+gamma
+			f[2].Add(&evalO[i], &evaluuID[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
-		g[0].Add(&evalL[i], &evalS1[i]).Add(&g[0], &gamma) //l_i+s1+gamma
-		g[1].Add(&evalR[i], &evalS2[i]).Add(&g[1], &gamma) //r_i+s2+gamma
-		g[2].Add(&evalO[i], &evalS3[i]).Add(&g[2], &gamma) //o_i+s3+gamma
+			g[0].Add(&evalL[i], &evalS1[i]).Add(&g[0], &gamma) //l_i+s1+gamma
+			g[1].Add(&evalR[i], &evalS2[i]).Add(&g[1], &gamma) //r_i+s2+gamma
+			g[2].Add(&evalO[i], &evalS3[i]).Add(&g[2], &gamma) //o_i+s3+gamma
 
-		f[0].Mul(&f[0], &f[1]).
-			Mul(&f[0], &f[2]).
-			Mul(&f[0], &evalZ[i]) // z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)
+			f[0].Mul(&f[0], &f[1]).
+				Mul(&f[0], &f[2]).
+				Mul(&f[0], &evalZ[i]) // z_i*(l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2*z**i+gamma)
 
-		g[0].Mul(&g[0], &g[1]).
-			Mul(&g[0], &g[2]).
-			Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+			g[0].Mul(&g[0], &g[1]).
+				Mul(&g[0], &g[2]).
+				Mul(&g[0], &evalZu[i]) // u*z_i*(l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
-		res[i].Sub(&g[0], &f[0])
-	}
+			res[i].Sub(&g[0], &f[0])
+		}
+	})
 
 	return res
 }
@@ -649,8 +655,6 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
 		}
 	})
-
-
 
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	var s1, s2, t fr.Element
