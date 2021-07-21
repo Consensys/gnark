@@ -147,7 +147,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
 	// evalL, evalO, evalR are the evaluations of the blinded versions of l, r, o.
-	constraintsOrdering := evalConstraintOrdering(pk, evalBlindedZ, evalBlindedL, evalBlindedR, evalBlindedO, gamma)
+	var constraintsOrdering polynomial.Polynomial
+	chEvalConstraintsOrdering := make(chan struct{}, 1)
+	go func() {
+		constraintsOrdering = evalConstraintOrdering(pk, evalBlindedZ, evalBlindedL, evalBlindedR, evalBlindedO, gamma)
+		close(chEvalConstraintsOrdering)
+	}()
 
 	// compute L1*(z-1) on the odd cosets of (Z/8mZ)/(Z/mZ)
 	startsAtOne := evalStartsAtOne(pk, evalBlindedZ)
@@ -165,6 +170,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	// compute h in canonical form
 	<-chEvalConstraints
+	<-chEvalConstraintsOrdering
 	h1, h2, h3 := computeH(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
