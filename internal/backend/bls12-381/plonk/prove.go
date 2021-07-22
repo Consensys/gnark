@@ -649,18 +649,20 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
 	nn := uint64(64 - bits.TrailingZeros64(pk.DomainH.Cardinality))
 
-	for i := uint64(0); i < pk.DomainH.Cardinality; i++ {
-		h[i].Mul(&startsAtOne[i], &alpha).
-			Add(&h[i], &constraintOrdering[i]).
-			Mul(&h[i], &alpha).
-			Add(&h[i], &constraintsInd[i])
+	utils.Parallelize(int(pk.DomainH.Cardinality), func(start, end int) {
+		for i := uint64(start); i < uint64(end); i++ {
+			h[i].Mul(&startsAtOne[i], &alpha).
+				Add(&h[i], &constraintOrdering[i]).
+				Mul(&h[i], &alpha).
+				Add(&h[i], &constraintsInd[i])
 
-		// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
-		// on the odd cosets of (Z/8mZ)/(Z/mZ)
-		// note that h is still bit reversed here
-		irev := bits.Reverse64(i) >> nn
-		h[i].Mul(&h[i], &u[irev%4])
-	}
+			// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
+			// on the odd cosets of (Z/8mZ)/(Z/mZ)
+			// note that h is still bit reversed here
+			irev := bits.Reverse64(i) >> nn
+			h[i].Mul(&h[i], &u[irev%4])
+		}
+	})
 
 	// put h in canonical form
 	// using fft.DIT put h revert bit reverse
