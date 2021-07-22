@@ -679,26 +679,6 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 // * z is the permutation polynomial, zu is Z(uX), the shifted version of Z
 // * pk is the proving key: the linearized polynomial is a linear combination of ql, qr, qm, qo, qk.
 func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z polynomial.Polynomial, pk *ProvingKey) polynomial.Polynomial {
-	linPol := make(polynomial.Polynomial, pk.DomainNum.Cardinality + 3)
-	// first part: individual constraints
-	var rl fr.Element
-	rl.Mul(&r, &l)
-
-	utils.Parallelize(len(pk.Qm), func(start, end int) {
-		var t0 fr.Element 
-		for i := start; i < end; i++ {
-			linPol[i].Mul(&pk.Qm[i], &rl) // linPol = lr*Qm
-			t0.Mul(&pk.Ql[i], &l)
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql
-
-			t0.Mul(&pk.Qr[i], &r)
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr
-
-			t0.Mul(&pk.Qo[i], &o).Add(&t0, &pk.CQk[i])
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
-		}
-	})
-
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	var s1, s2, t fr.Element
 	s1.SetInterface(pk.CS1.Eval(&zeta)).Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
@@ -716,14 +696,15 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 
 	p1 := pk.CS3.Clone()
 	p1.ScaleInPlace(&s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
-	p2 := z.Clone()
-	p2.ScaleInPlace(&s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	p2.Add(p2, p1)
-	p2.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
-
-	linPol.Add(linPol, p2)
+	linPol := z.Clone()
+	linPol.ScaleInPlace(&s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
+	linPol.Add(linPol, p1)
+	linPol.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
 
 
+	// first part: individual constraints
+	var rl fr.Element
+	rl.Mul(&r, &l)
 
 	// third part L1(zeta)*alpha**2**Z
 	var lagrange, one, den, frNbElmt fr.Element
@@ -740,11 +721,31 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 					Mul(&lagrange, &alpha).
 					Mul(&lagrange, &alpha) // alpha**2*L_0
 
-	p3 := z.Clone()
-	p3.ScaleInPlace(&lagrange)
+	utils.Parallelize(len(pk.Qm), func(start, end int) {
+		var t0, t1 fr.Element 
+		for i := start; i < end; i++ {
+			t1.Mul(&pk.Qm[i], &rl) // linPol = lr*Qm
+			t0.Mul(&pk.Ql[i], &l)
+			t0.Add(&t0, &t1)
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql
 
-	// finish the computation
-	linPol.Add(linPol, p3)
+			t0.Mul(&pk.Qr[i], &r)
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr
+
+			t0.Mul(&pk.Qo[i], &o).Add(&t0, &pk.CQk[i])
+			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
+		}
+	})
+
+	// TODO merge 2 loops
+
+	utils.Parallelize(len(linPol), func(start, end int) {
+		var t0 fr.Element 
+		for i := start; i < end; i++ {
+			t0.Mul(&z[i], &lagrange)
+			linPol[i].Add(&linPol[i], &t0) // finish the computation
+		}
+	})
 
 	return linPol
 }
