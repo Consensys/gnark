@@ -74,10 +74,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	ll, lr, lo := computeLRO(spr, pk, solution)
 
 	// save ll, lr, lo, and make a copy of them in canonical basis.
-	sizeCommon := int64(pk.DomainNum.Cardinality)
-	cl := make(polynomial.Polynomial, sizeCommon)
-	cr := make(polynomial.Polynomial, sizeCommon)
-	co := make(polynomial.Polynomial, sizeCommon)
+	sizeDomainNum := int64(pk.DomainNum.Cardinality)
+	// allocate more capacity to reuse for blinded polynomials
+	cl := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
+	cr := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
+	co := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
 	copy(cl, ll)
 	copy(cr, lr)
 	copy(co, lo)
@@ -103,6 +104,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	bcl := blindPoly(cl, pk.DomainNum.Cardinality, 1)
 	bcr := blindPoly(cr, pk.DomainNum.Cardinality, 1)
 	bco := blindPoly(co, pk.DomainNum.Cardinality, 1)
+
+	// note that bcl, bcr, bco re-use memory of cl, cr and co respectively
 
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
 	if proof.LRO[0], err = kzg.Commit(bcl, pk.Vk.KZGSRS); err != nil {
@@ -131,7 +134,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	gamma.SetBytes(bgamma)
 
 	// compute qk in canonical basis, completed with the public inputs
-	qkFullC := make(polynomial.Polynomial, sizeCommon)
+	qkFullC := make(polynomial.Polynomial, sizeDomainNum)
 	copy(qkFullC, fullWitness[:spr.NbPublicVariables])
 	copy(qkFullC[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
 	pk.DomainNum.FFTInverse(qkFullC, fft.DIF, 0)
@@ -160,6 +163,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 
 	// blind z
 	bz := blindPoly(z, pk.DomainNum.Cardinality, 2)
+	// note that bz shares same memory space as z (not used from now on)
 
 	// commit to the blinded version of z
 	if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS); err != nil {
@@ -259,7 +263,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 
 	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
 	var bZetaPowerm big.Int
-	sizeBigInt := big.NewInt(sizeCommon + 2) // +2 because of the masking (h of degree 3(n+2)-1)
+	sizeBigInt := big.NewInt(sizeDomainNum + 2) // +2 because of the masking (h of degree 3(n+2)-1)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, sizeBigInt)
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
@@ -316,17 +320,17 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 // * cp polynomial in canonical form
 // * rou root of unity, meaning the blinding factor is multiple of X**rou-1
 // * bo blinding order,  it's the degree of Q, where the blinding is Q(X)*(X**degree-1)
+//
+// WARNING:
+// pre condition degree(cp) <= rou + bo
+// pre condition cap(cp) >= int(totalDegree + 1)
 func blindPoly(cp polynomial.Polynomial, rou, bo uint64) polynomial.Polynomial {
 
 	// degree of the blinded polynomial is max(rou+order, cp.Degree)
 	totalDegree := rou + bo
-	if cp.Degree() > totalDegree {
-		totalDegree = cp.Degree()
-	}
 
-	// copy the polynomial to blind
-	res := make(polynomial.Polynomial, totalDegree+1)
-	copy(res, cp)
+	// re-use cp
+	res := cp[:totalDegree+1]
 
 	// random polynomial
 	blindingPoly := make(polynomial.Polynomial, bo+1)
@@ -393,7 +397,8 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 //	* l, r, o are the solution in Lagrange basis
 func computeZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
 
-	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
+	// note that z has more capacity has its memory is reused for blinded z later on
+	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality, pk.DomainNum.Cardinality+3)
 	nbElmts := int(pk.DomainNum.Cardinality)
 	gInv := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 
