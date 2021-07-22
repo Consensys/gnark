@@ -100,7 +100,7 @@ func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Ele
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution []fr.Element) {
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsInv []fr.Element) {
 
 	switch c.Solver {
 	case compiled.SingleOutput:
@@ -118,6 +118,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 			v2 = cs.computeTerm(c.O, solution)
 			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
+			// TODO find a way to do lazy div (/ batch inversion)
 			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 			wireInstantiated[c.L.VariableID()] = true
 
@@ -133,6 +134,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 			v2 = cs.computeTerm(c.O, solution)
 			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
+			// TODO find a way to do lazy div (/ batch inversion)
 			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 			wireInstantiated[c.L.VariableID()] = true
 
@@ -143,7 +145,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 			_m := cs.computeTerm(c.M[1], solution)
 			m.Mul(&m, &_m)
 			m.Add(&m, &l).Add(&m, &r).Add(&m, &cs.Coefficients[c.K])
-			m.Div(&m, &cs.Coefficients[c.O.CoeffID()])
+			m.Mul(&m, &coefficientsInv[c.O.CoeffID()])
 
 			solution[c.O.VariableID()].Neg(&m)
 			wireInstantiated[c.O.VariableID()] = true
@@ -227,9 +229,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err er
 	// defer log printing once all wireValues are computed
 	defer cs.printLogs(solution, wireInstantiated)
 
+	coefficientsInv := fr.BatchInvert(cs.Coefficients)
+
 	// loop through the constraints to solve the variables
 	for i := 0; i < len(cs.Constraints); i++ {
-		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution)
+		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsInv)
 		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)

@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"github.com/pkg/profile"
 )
 
@@ -42,13 +43,18 @@ func main() {
 				panic(err)
 			}
 			// generate dummy circuit and witness
-			pk, ccs := generateCircuit(n, curveID)
+			_, ccs := generateCircuit(n, curveID)
 			witness := generateSolution(n, curveID)
-
+			ww := witness_bn254.Witness{}
+			if err := ww.FromFullAssignment(&witness); err != nil {
+				panic(err)
+			}
+			scs := ccs.(*cs.SparseR1CS)
 			// measure proving time
 			start := time.Now()
-			p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-			_, err = plonk.Prove(ccs, pk, &witness)
+			p := profile.Start(profile.CPUProfile, profile.ProfilePath("."), profile.NoShutdownHook)
+			scs.Solve(ww)
+			// _, err = plonk.Prove(ccs, pk, &witness)
 			p.Stop()
 			if err != nil {
 				panic(err)
