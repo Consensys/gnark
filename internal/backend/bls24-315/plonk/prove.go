@@ -283,10 +283,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	var blzeta, brzeta, bozeta fr.Element
-	blzeta.SetInterface(bcl.Eval(&zeta))
-	brzeta.SetInterface(bcr.Eval(&zeta))
-	bozeta.SetInterface(bco.Eval(&zeta))
+	blzeta := bcl.Eval(&zeta)
+	brzeta := bcr.Eval(&zeta)
+	bozeta := bco.Eval(&zeta)
 
 	// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
 	linearizedPolynomial := computeLinearizedPolynomial(
@@ -314,11 +313,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + zeta*h2 + zeta**2*h3
-	foldedH := h3.Clone()
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**(m+1)*h3
-	foldedH.Add(foldedH, h2)          // zeta**(m+1)*h3+h2
-	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
-	foldedH.Add(foldedH, h1)          // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
+	foldedH := h3
+	utils.Parallelize(len(foldedH), func(start, end int) {
+		for i := start; i < end; i++ {
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**(m+1)*h3
+			foldedH[i].Add(&foldedH[i], &h2[i])      // zeta**(m+1)*h3
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
+			foldedH[i].Add(&foldedH[i], &h1[i])      // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
+		}
+	})
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
