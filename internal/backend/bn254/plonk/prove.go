@@ -534,15 +534,15 @@ func evalIDCosets(pk *ProvingKey) (id polynomial.Polynomial) {
 	var acc fr.Element
 	acc.SetOne()
 
+	nn := uint64(64 - bits.TrailingZeros64(pk.DomainH.Cardinality))
+
 	for i := 0; i < int(pk.DomainH.Cardinality); i++ {
-		id[i].Mul(&acc, &pk.DomainH.FinerGenerator)
+		irev := bits.Reverse64(uint64(i)) >> nn
+		id[irev].Mul(&acc, &pk.DomainH.FinerGenerator)
 		acc.Mul(&acc, &pk.DomainH.Generator)
 	}
 
-	fft.BitReverse(id)
-
 	return id
-
 }
 
 // evalConstraintOrdering computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
