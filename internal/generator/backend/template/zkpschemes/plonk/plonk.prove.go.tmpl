@@ -560,7 +560,6 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := evalZu //make(polynomial.Polynomial, pk.DomainH.Cardinality)
-
 	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
 		var f [3]fr.Element
 		var g [3]fr.Element
@@ -725,12 +724,19 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, startsAtOne po
 // * z is the permutation polynomial, zu is Z(uX), the shifted version of Z
 // * pk is the proving key: the linearized polynomial is a linear combination of ql, qr, qm, qo, qk.
 func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z polynomial.Polynomial, pk *ProvingKey) polynomial.Polynomial {
+
+	// first part: individual constraints
+	var rl fr.Element
+	rl.Mul(&r, &l)
+
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	var s1, s2, t fr.Element
-	s1.SetInterface(pk.CS1.Eval(&zeta)).Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
-	t.SetInterface(pk.CS2.Eval(&zeta)).Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
-	s1.Mul(&s1, &t).                                                  // (a+s1+gamma)*(b+s2+gamma)
-										Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
+	var s2 fr.Element
+	s1 := pk.CS1.Eval(&zeta)
+	t := pk.CS2.Eval(&zeta)
+	s1.Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
+	t.Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
+	s1.Mul(&s1, &t).                 // (a+s1+gamma)*(b+s2+gamma)
+					Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
 
 	s2.Add(&l, &zeta).Add(&s2, &gamma)                          // (a+z+gamma)
 	t.Mul(&pk.Vk.Shifter[0], &zeta).Add(&t, &r).Add(&t, &gamma) // (b+uz+gamma)
@@ -739,18 +745,6 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 	s2.Mul(&s2, &t)                                             // (a+z+gamma)*(b+uz+gamma)*(c+u**2*z+gamma)
 	s2.Neg(&s2)                                                 // -(a+z+gamma)*(b+uz+gamma)*(c+u**2*z+gamma)
 
-
-	p1 := pk.CS3.Clone()
-	p1.ScaleInPlace(&s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
-	linPol := z.Clone()
-	linPol.ScaleInPlace(&s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	linPol.Add(linPol, p1)
-	linPol.ScaleInPlace(&alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
-
-
-	// first part: individual constraints
-	var rl fr.Element
-	rl.Mul(&r, &l)
 
 	// third part L1(zeta)*alpha**2**Z
 	var lagrange, one, den, frNbElmt fr.Element
@@ -767,31 +761,40 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 					Mul(&lagrange, &alpha).
 					Mul(&lagrange, &alpha) // alpha**2*L_0
 
-	utils.Parallelize(len(pk.Qm), func(start, end int) {
-		var t0, t1 fr.Element 
-		for i := start; i < end; i++ {
-			t1.Mul(&pk.Qm[i], &rl) // linPol = lr*Qm
-			t0.Mul(&pk.Ql[i], &l)
-			t0.Add(&t0, &t1)
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql
 
-			t0.Mul(&pk.Qr[i], &r)
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr
 
-			t0.Mul(&pk.Qo[i], &o).Add(&t0, &pk.CQk[i])
-			linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
-		}
-	})
-
-	// TODO merge 2 loops
+	linPol := z.Clone()
 
 	utils.Parallelize(len(linPol), func(start, end int) {
-		var t0 fr.Element 
-		for i := start; i < end; i++ {
+		var t0, t1 fr.Element
+		for i := start; i < end ; i++ {
+			linPol[i].Mul(&linPol[i], &s2) // -Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
+			if i < len(pk.CS3) {
+				t0.Mul(&pk.CS3[i], &s1) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)*s3(X)
+				linPol[i].Add(&linPol[i], &t0)
+			}
+			
+			linPol[i].Mul(&linPol[i], &alpha) // alpha*( Z(uzeta)*(a+s1+gamma)*(b+s2+gamma)s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
+
+			if i < len(pk.Qm) {
+				t1.Mul(&pk.Qm[i], &rl) // linPol = lr*Qm
+				t0.Mul(&pk.Ql[i], &l)
+				t0.Add(&t0, &t1)
+				linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql
+
+				t0.Mul(&pk.Qr[i], &r)
+				linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr
+
+				t0.Mul(&pk.Qo[i], &o).Add(&t0, &pk.CQk[i])
+				linPol[i].Add(&linPol[i], &t0) // linPol = lr*Qm + l*Ql + r*Qr + o*Qo + Qk
+			}
+
 			t0.Mul(&z[i], &lagrange)
 			linPol[i].Add(&linPol[i], &t0) // finish the computation
 		}
 	})
+
+
 
 	return linPol
 }
