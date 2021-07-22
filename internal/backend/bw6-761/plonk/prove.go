@@ -157,6 +157,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	var gamma fr.Element
 	gamma.SetBytes(bgamma)
 
+	chZ := make(chan struct{}, 1)
+	var z polynomial.Polynomial
+	// TODO @gbotrel need to check on a many-core machine how this behaves -->
+	// we are firing more go routines than CPU for the FFTs, trace looks better
+	go func() {
+		// compute Z, the permutation accumulator polynomial, in canonical basis
+		// ll, lr, lo are NOT blinded
+		z = computeZ(ll, lr, lo, pk, gamma)
+		pk.DomainNum.FFTInverse(z, fft.DIF, 0)
+		fft.BitReverse(z)
+		close(chZ)
+	}()
+
 	// compute qk in canonical basis, completed with the public inputs
 	qkFullC := make(polynomial.Polynomial, sizeDomainNum)
 	copy(qkFullC, fullWitness[:spr.NbPublicVariables])
@@ -179,13 +192,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 		close(chEvalConstraints)
 	}()
 
-	// compute Z, the permutation accumulator polynomial, in canonical basis
-	// ll, lr, lo are NOT blinded
-	z := computeZ(ll, lr, lo, pk, gamma)
-	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
-	fft.BitReverse(z)
-
 	// blind z
+	<-chZ
 	bz := blindPoly(z, pk.DomainNum.Cardinality, 2)
 	// note that bz shares same memory space as z
 	z = nil
