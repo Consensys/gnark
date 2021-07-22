@@ -19,6 +19,7 @@ package plonk
 import (
 	"math/big"
 	"math/bits"
+	"runtime"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -106,19 +108,41 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	bco := blindPoly(co, pk.DomainNum.Cardinality, 1)
 
 	// note that bcl, bcr, bco re-use memory of cl, cr and co respectively
+	cl = nil
+	cr = nil
+	co = nil
+
+	// using this ensures that our multiExps running in parallel won't use more than
+	// provided CPUs
+	cpuSemaphore := ecc.NewCPUSemaphore(runtime.NumCPU())
 
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if proof.LRO[0], err = kzg.Commit(bcl, pk.Vk.KZGSRS); err != nil {
+	var err0, err1 error
+	chCommit0 := make(chan struct{}, 1)
+	chCommit1 := make(chan struct{}, 1)
+	go func() {
+		proof.LRO[0], err0 = kzg.Commit(bcl, pk.Vk.KZGSRS, cpuSemaphore)
+		close(chCommit0)
+	}()
+	go func() {
+		proof.LRO[1], err1 = kzg.Commit(bcr, pk.Vk.KZGSRS, cpuSemaphore)
+		close(chCommit1)
+	}()
+	if proof.LRO[2], err = kzg.Commit(bco, pk.Vk.KZGSRS, cpuSemaphore); err != nil {
 		return nil, err
 	}
-	if proof.LRO[1], err = kzg.Commit(bcr, pk.Vk.KZGSRS); err != nil {
-		return nil, err
+	<-chCommit0
+	if err0 != nil {
+		return nil, err0
 	}
-	if proof.LRO[2], err = kzg.Commit(bco, pk.Vk.KZGSRS); err != nil {
-		return nil, err
-	}
+
 	if err = fs.Bind("gamma", proof.LRO[0].Marshal()); err != nil {
 		return nil, err
+	}
+
+	<-chCommit1
+	if err1 != nil {
+		return nil, err1
 	}
 	if err = fs.Bind("gamma", proof.LRO[1].Marshal()); err != nil {
 		return nil, err
@@ -163,7 +187,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 
 	// blind z
 	bz := blindPoly(z, pk.DomainNum.Cardinality, 2)
-	// note that bz shares same memory space as z (not used from now on)
+	// note that bz shares same memory space as z
+	z = nil
 
 	// commit to the blinded version of z
 	if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS); err != nil {
@@ -202,19 +227,31 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	h1, h2, h3 := computeH(pk, constraintsInd, constraintsOrdering, startsAtOne, alpha)
 
 	// commit to h (3 commitments h1 + x**n*h2 + x**2n*h3)
-	if proof.H[0], err = kzg.Commit(h1, pk.Vk.KZGSRS); err != nil {
-		return nil, err
-	}
-	if proof.H[1], err = kzg.Commit(h2, pk.Vk.KZGSRS); err != nil {
-		return nil, err
-	}
-	if proof.H[2], err = kzg.Commit(h3, pk.Vk.KZGSRS); err != nil {
+	chH0 := make(chan struct{}, 1)
+	chH1 := make(chan struct{}, 1)
+	go func() {
+		proof.H[0], err0 = kzg.Commit(h1, pk.Vk.KZGSRS, cpuSemaphore)
+		close(chH0)
+	}()
+	go func() {
+		proof.H[1], err1 = kzg.Commit(h2, pk.Vk.KZGSRS, cpuSemaphore)
+		close(chH1)
+	}()
+	if proof.H[2], err = kzg.Commit(h3, pk.Vk.KZGSRS, cpuSemaphore); err != nil {
 		return nil, err
 	}
 
 	// derive zeta, the point of evaluation
+	<-chH0
+	if err0 != nil {
+		return nil, err0
+	}
 	if err = fs.Bind("zeta", proof.H[0].Marshal()); err != nil {
 		return nil, err
+	}
+	<-chH1
+	if err1 != nil {
+		return nil, err1
 	}
 	if err = fs.Bind("zeta", proof.H[1].Marshal()); err != nil {
 		return nil, err
@@ -232,12 +269,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	// open blinded Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
-	proof.ZShiftedOpening, _ = kzg.Open(
+	proof.ZShiftedOpening, err = kzg.Open(
 		bz,
 		&zetaShifted,
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	// blinded z evaluated at u*zeta
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
@@ -280,14 +320,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	foldedH.ScaleInPlace(&zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
 	foldedH.Add(foldedH, h1)          // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
 
-	// TODO @gbotrel @thomas check errors.
-
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, _ := kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
+	linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
+	if err != nil {
+		return nil, err
+	}
 
 	// Batch open the first list of polynomials
-	proof.BatchedProof, _ = kzg.BatchOpenSinglePoint(
+	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
 		[]polynomial.Polynomial{
 			foldedH,
 			linearizedPolynomial,
@@ -310,6 +351,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return proof, nil
 
