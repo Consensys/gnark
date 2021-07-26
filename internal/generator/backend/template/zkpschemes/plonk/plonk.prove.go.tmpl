@@ -645,23 +645,13 @@ func evaluateOddCosetsHDomain(poly []fr.Element, domainH *fft.Domain) []fr.Eleme
 func shiftEval(z polynomial.Polynomial, shift int) polynomial.Polynomial {
 	s := len(z)
 
-	// put z in normal bit order
-	// TODO @gbotrel @thomas probably a way here to avoid this copy / bit reverse
-	zCopy := make(polynomial.Polynomial, s)
-	copy(zCopy, z) 
-	fft.BitReverse(zCopy)
-
 	res := make(polynomial.Polynomial, s)
 
 	nn := uint64(64 - bits.TrailingZeros64(uint64(s)))
-	
-	for i := 0; i < s-shift; i++ {
+	for i := 0; i < len(res); i++ {
 		irev := bits.Reverse64(uint64(i)) >> nn
-		res[irev] = zCopy[i+shift]
-	}
-	for i := s - shift; i < s; i++ {
-		irev := bits.Reverse64(uint64(i)) >> nn
-		res[irev] = zCopy[i-s+shift]
+		jrev := bits.Reverse64(uint64((i+shift)%s)) >> nn
+		res[irev] = z[jrev]
 	}
 
 	return res
