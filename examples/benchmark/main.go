@@ -107,14 +107,14 @@ func generateCircuit(nbConstraints int, curveID ecc.ID) (plonk.ProvingKey, front
 	sparseR1CS := ccs.(*cs.SparseR1CS)
 	nbConstraints_ := len(sparseR1CS.Constraints)
 	nbVariables := sparseR1CS.NbInternalVariables + sparseR1CS.NbPublicVariables + sparseR1CS.NbSecretVariables
-	var s int
+	var s uint64
 	if nbConstraints_ > nbVariables {
-		s = nbConstraints
+		s = uint64(nbConstraints)
 	} else {
-		s = nbVariables
+		s = uint64(nbVariables)
 	}
 
-	srs, err := kzg.NewSRS(nextPowerOfTwo(s)+3, new(big.Int).SetInt64(42))
+	srs, err := kzg.NewSRS(ecc.NextPowerOfTwo(s)+3, new(big.Int).SetInt64(42))
 	if err != nil {
 		panic(err)
 	}
@@ -184,16 +184,4 @@ func (bData benchData) values() []string {
 		strconv.Itoa(bData.Throughput),
 		strconv.Itoa(bData.ThroughputPerCore),
 	}
-}
-
-func nextPowerOfTwo(_n int) int {
-	n := uint64(_n)
-	p := uint64(1)
-	if (n & (n - 1)) == 0 {
-		return _n
-	}
-	for p < n {
-		p <<= 1
-	}
-	return int(p)
 }

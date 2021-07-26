@@ -88,13 +88,13 @@ func main() {
 	_r1cs := r1cs.(*cs.SparseR1CS)
 	nbConstraints := len(_r1cs.Constraints)
 	nbVariables := _r1cs.NbInternalVariables + _r1cs.NbPublicVariables + _r1cs.NbSecretVariables
-	var s int
+	var s uint64
 	if nbConstraints > nbVariables {
-		s = nbConstraints
+		s = uint64(nbConstraints)
 	} else {
-		s = nbVariables
+		s = uint64(nbVariables)
 	}
-	srs, err := kzg.NewSRS(nextPowerOfTwo(s), new(big.Int).SetInt64(42))
+	srs, err := kzg.NewSRS(ecc.NextPowerOfTwo(s)+3, new(big.Int).SetInt64(42))
 	if err != nil {
 		panic(err)
 	}
@@ -169,16 +169,4 @@ func main() {
 		}
 	}
 
-}
-
-func nextPowerOfTwo(_n int) int {
-	n := uint64(_n)
-	p := uint64(1)
-	if (n & (n - 1)) == 0 {
-		return _n
-	}
-	for p < n {
-		p <<= 1
-	}
-	return int(p)
 }

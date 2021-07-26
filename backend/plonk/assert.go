@@ -34,6 +34,7 @@ import (
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
@@ -135,38 +136,26 @@ func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) e
 	}
 }
 
-func nextPowerOfTwo(_n int) int {
-	n := uint64(_n)
-	p := uint64(1)
-	if (n & (n - 1)) == 0 {
-		return _n
-	}
-	for p < n {
-		p <<= 1
-	}
-	return int(p)
-}
-
 func newKZGSrs(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 	fakeRandomness := new(big.Int).SetInt64(42)
 
 	// no randomness in the test SRS
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bn254.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
+		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return kzg_bn254.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12381.SparseR1CS:
-		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls12381.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
+		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return kzg_bls12381.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12377.SparseR1CS:
-		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls12377.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
+		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return kzg_bls12377.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bw6761.SparseR1CS:
-		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bw6761.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
+		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return kzg_bw6761.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls24315.SparseR1CS:
-		size := len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables
-		return kzg_bls24315.NewSRS(nextPowerOfTwo(size)+3, fakeRandomness)
+		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		return kzg_bls24315.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	default:
 		panic("unknown constraint system type")
 	}

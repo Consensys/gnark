@@ -92,20 +92,8 @@ type kzgCache struct {
 }
 
 type kzgInstance struct {
-	size int
+	size uint64
 	kzg  kzg.SRS
-}
-
-func nextPowerOfTwo(_n int) int {
-	n := uint64(_n)
-	p := uint64(1)
-	if (n & (n - 1)) == 0 {
-		return _n
-	}
-	for p < n {
-		p <<= 1
-	}
-	return int(p)
 }
 
 func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) kzg.SRS {
@@ -147,19 +135,21 @@ func (k *kzgCache) getSRS(ccs frontend.CompiledConstraintSystem) kzg.SRS {
 	return toReturn
 }
 
-func getKZGSize(ccs frontend.CompiledConstraintSystem) int {
+func getKZGSize(ccs frontend.CompiledConstraintSystem) uint64 {
+	var s uint64
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
 	case *cs_bls12381.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
 	case *cs_bls12377.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
 	case *cs_bw6761.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
 	case *cs_bls24315.SparseR1CS:
-		return nextPowerOfTwo(len(tccs.Constraints)+len(tccs.Assertions)+tccs.NbPublicVariables) + 3
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
 	default:
 		panic("unknown constraint system type")
 	}
+	return ecc.NextPowerOfTwo(s)
 }
