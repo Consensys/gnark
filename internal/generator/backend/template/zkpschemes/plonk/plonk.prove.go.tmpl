@@ -558,21 +558,25 @@ func evalIDCosets(pk *ProvingKey) (id polynomial.Polynomial) {
 func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
 
 	// evaluation of Z(Xu) on the odd cosets of (Z/8mZ)/(Z/mZ)
-	var evalZu polynomial.Polynomial
-	chDone := make(chan struct{}, 1)
+	var evalZu, evalID polynomial.Polynomial
+	chDone := make(chan struct{}, 2)
 	go func() {
 		evalZu = shiftEval(evalZ, 4)
-		close(chDone)
+		chDone <- struct{}{}
 	}()
+	go func() {
+		// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
+		evalID = evalIDCosets(pk)
+		chDone <- struct{}{}
+	}()
+
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := evaluateOddCosetsHDomain(pk.CS1, &pk.DomainH)
 	evalS2 := evaluateOddCosetsHDomain(pk.CS2, &pk.DomainH)
 	evalS3 := evaluateOddCosetsHDomain(pk.CS3, &pk.DomainH)
 
-	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalID := evalIDCosets(pk)
-
+	<-chDone
 	<-chDone
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := evalZu //make(polynomial.Polynomial, pk.DomainH.Cardinality)
