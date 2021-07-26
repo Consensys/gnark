@@ -562,7 +562,12 @@ func evalIDCosets(pk *ProvingKey) (id polynomial.Polynomial) {
 func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomial.Polynomial, gamma fr.Element) polynomial.Polynomial {
 
 	// evaluation of Z(Xu) on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalZu := shiftEval(evalZ, 4)
+	var evalZu polynomial.Polynomial
+	chDone := make(chan struct{}, 1)
+	go func() {
+		evalZu = shiftEval(evalZ, 4)
+		close(chDone)
+	}()
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalS1 := evaluateOddCosetsHDomain(pk.CS1, &pk.DomainH)
@@ -572,6 +577,7 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	// evalutation of ID, u*ID, u**2*ID on the odd cosets of (Z/8mZ)/(Z/mZ)
 	evalID := evalIDCosets(pk)
 
+	<-chDone
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := evalZu //make(polynomial.Polynomial, pk.DomainH.Cardinality)
 	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
