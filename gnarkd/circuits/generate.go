@@ -139,17 +139,17 @@ func getKZGSize(ccs frontend.CompiledConstraintSystem) uint64 {
 	var s uint64
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
 	case *cs_bls12381.SparseR1CS:
-		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
 	case *cs_bls12377.SparseR1CS:
-		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
 	case *cs_bw6761.SparseR1CS:
-		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
 	case *cs_bls24315.SparseR1CS:
-		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables + 3)
+		s = uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
 	default:
 		panic("unknown constraint system type")
 	}
-	return ecc.NextPowerOfTwo(s)
+	return ecc.NextPowerOfTwo(s) + 3
 }
