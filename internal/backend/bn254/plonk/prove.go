@@ -742,13 +742,18 @@ func computeLinearizedPolynomial(l, r, o, alpha, gamma, zeta, zu fr.Element, z p
 	rl.Mul(&r, &l)
 
 	// second part: Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	var s2 fr.Element
-	s1 := pk.CS1.Eval(&zeta)
+	var s1, s2 fr.Element
+	chS1 := make(chan struct{}, 1)
+	go func() {
+		s1 = pk.CS1.Eval(&zeta)
+		s1.Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
+		close(chS1)
+	}()
 	t := pk.CS2.Eval(&zeta)
-	s1.Add(&s1, &l).Add(&s1, &gamma) // (a+s1+gamma)
-	t.Add(&t, &r).Add(&t, &gamma)    // (b+s2+gamma)
-	s1.Mul(&s1, &t).                 // (a+s1+gamma)*(b+s2+gamma)
-						Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
+	t.Add(&t, &r).Add(&t, &gamma) // (b+s2+gamma)
+	<-chS1
+	s1.Mul(&s1, &t). // (a+s1+gamma)*(b+s2+gamma)
+				Mul(&s1, &zu) // (a+s1+gamma)*(b+s2+gamma)*Z(uzeta)
 
 	s2.Add(&l, &zeta).Add(&s2, &gamma)                          // (a+z+gamma)
 	t.Mul(&pk.Vk.Shifter[0], &zeta).Add(&t, &r).Add(&t, &gamma) // (b+uz+gamma)
