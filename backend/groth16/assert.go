@@ -104,16 +104,9 @@ func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, wi
 		assert.NoError(err, "verifying proof with good witness should not output an error")
 	}
 
-	// serialization
-	assert.serializationSucceeded(proof, NewProof(r1cs.CurveID()))
-	assert.serializationSucceeded(pk, NewProvingKey(r1cs.CurveID()))
-	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
-	assert.serializationRawSucceeded(proof, NewProof(r1cs.CurveID()))
-	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.CurveID()))
-	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
 }
 
-func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
+func (assert *Assert) SerializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
 	var buf bytes.Buffer
 	written, err := from.WriteTo(&buf)
 	assert.NoError(err, "serializing to buffer failed")
@@ -124,7 +117,7 @@ func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom)
 	assert.EqualValues(written, read, "number of bytes read and written don't match")
 }
 
-func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.ReaderFrom) {
+func (assert *Assert) SerializationRawSucceeded(from gnarkio.WriterRawTo, to io.ReaderFrom) {
 	var buf bytes.Buffer
 	written, err := from.WriteRawTo(&buf)
 	assert.NoError(err, "serializing raw to buffer failed")
