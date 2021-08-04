@@ -19,6 +19,7 @@ package witness
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 
@@ -96,14 +97,18 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 
 		val := frontend.GetAssignedValue(v)
 		if val == nil {
-			return errors.New("variable " + name + " not assigned")
+			return fmt.Errorf("when parsing variable %s: missing assignment", name)
 		}
 
 		if visibility == compiled.Secret {
-			(*witness)[i].SetInterface(val)
+			if _, err := (*witness)[i].SetInterface(val); err != nil {
+				return fmt.Errorf("when parsing variable %s: %v", name, err)
+			}
 			i++
 		} else if visibility == compiled.Public {
-			(*witness)[j].SetInterface(val)
+			if _, err := (*witness)[j].SetInterface(val); err != nil {
+				return fmt.Errorf("when parsing variable %s: %v", name, err)
+			}
 			j++
 		}
 		return nil
@@ -128,9 +133,11 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 			v := tInput.Interface().(frontend.Variable)
 			val := frontend.GetAssignedValue(v)
 			if val == nil {
-				return errors.New("variable " + name + " not assigned")
+				return fmt.Errorf("when parsing variable %s: missing assignment", name)
 			}
-			(*witness)[j].SetInterface(val)
+			if _, err := (*witness)[j].SetInterface(val); err != nil {
+				return fmt.Errorf("when parsing variable %s: %v", name, err)
+			}
 			j++
 		}
 		return nil
