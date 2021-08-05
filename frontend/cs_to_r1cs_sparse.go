@@ -470,464 +470,498 @@ func r1cToPlonkConstraintSingleOutput(pcs *compiled.SparseR1CS, cs *ConstraintSy
 		lro = 0
 	}
 
-	// // the unsolved wire is in r1c.L
-	if lro == 0 {
+	var cK, c big.Int
+	var toSolve compiled.Term
 
-		// pop the unsolved wire from the linearexpression
-		l, toSolve := popInternalVariable(l, idCS)
-		l, constantl := popConstantTerm(l, cs, pcs)
-		r, constantr := popConstantTerm(r, cs, pcs)
-		o, constanto := popConstantTerm(o, cs, pcs)
+	l, cL := popConstantTerm(l, cs, pcs)
+	r, cR := popConstantTerm(r, cs, pcs)
+	o, cO := popConstantTerm(o, cs, pcs)
 
-		if len(o) == 0 {
-			if len(l) == 0 {
-				if len(r) == 0 { // (toSolve + constantl)*constantr = constanto
-
-					var constk, c big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					c.Mul(&c, &pcs.Coeffs[constantr])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-
-					recordConstraint(pcs, compiled.SparseR1C{L: res, K: kID})
-
-				} else { // (toSolve + constantl)*(r + constantr) = constanto
-
-					var constk, c big.Int
-
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					id := coeffID(pcs, &c)
-					res.SetCoeffID(id)
-
-					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-					constlrt := multiply(pcs, rt, constantl)
-					constrres := multiply(pcs, res, constantr)
-
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: constrres,
-						R: constlrt,
-						M: [2]compiled.Term{res, rt},
-						K: kID,
-					})
-
-				}
-			} else {
-				if len(r) == 0 { // (toSolve + l + constantl)*constantr = constanto
-
-					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-					lt = multiply(pcs, lt, constantr)
-
-					var constk, c big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					c.Mul(&c, &pcs.Coeffs[constantr])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: res,
-						R: lt,
-						K: kID,
-					})
-
-				} else { // (toSolve + l + constantl)*(r + constantr) = constanto
-					// => toSolve*r + toSolve*constantr + [ l*r + l*constantr +constantl*r+constantl*constantr-constanto ]=0
-
-					u := newInternalVariable(pcs)
-					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-					constrlt := multiply(pcs, lt, constantr)
-					constlrt := multiply(pcs, rt, constantl)
-
-					var constk big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: constrlt,
-						R: constlrt,
-						M: [2]compiled.Term{lt, rt},
-						O: u,
-						K: kID,
-					})
-
-					var c big.Int
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-					constrres := multiply(pcs, res, constantr)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						R: constrres,
-						M: [2]compiled.Term{res, rt},
-						O: negate(pcs, u),
-					})
-				}
-			}
-		} else {
-			if len(l) == 0 {
-				if len(r) == 0 { // (toSolve + constantl)*constantr = o + constanto
-
-					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-					var constk, c big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					c.Mul(&c, &pcs.Coeffs[constantr])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-
-					recordConstraint(pcs, compiled.SparseR1C{L: res, O: negate(pcs, ot), K: kID})
-
-				} else { // (toSolve + constantl)*(r + constantr) = o + constanto
-					// toSolve*r + toSolve*constantr+constantl*r+constantl*constantr-constanto-o=0
-
-					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-					var constk, c big.Int
-
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					id := coeffID(pcs, &c)
-					res.SetCoeffID(id)
-
-					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-					constlrt := multiply(pcs, rt, constantl)
-					constrres := multiply(pcs, res, constantr)
-
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: constrres,
-						R: constlrt,
-						M: [2]compiled.Term{res, rt},
-						O: negate(pcs, ot),
-						K: kID,
-					})
-
-				}
-			} else {
-				if len(r) == 0 { // (toSolve + l + constantl)*constantr = o + constanto
-					// toSolve*constantr + l*constantr + constantl*constantr-constanto-o=0
-
-					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-					lt = multiply(pcs, lt, constantr)
-
-					var constk, c big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					c.Mul(&c, &pcs.Coeffs[constantr])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: res,
-						R: lt,
-						O: negate(pcs, ot),
-						K: kID,
-					})
-
-				} else { // (toSolve + l + constantl)*(r + constantr) = o + constanto
-
-					// => toSolve*r + toSolve*constantr + [ [l*r + l*constantr +constantl*r+constantl*constantr-constanto]- o ]=0
-
-					// [l*r + l*constantr +constantl*r+constantl*constantr-constanto] + u = 0
-					u := newInternalVariable(pcs)
-					lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-					rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-					constrlt := multiply(pcs, lt, constantr)
-					constlrt := multiply(pcs, rt, constantl)
-
-					var constk big.Int
-					constk.Set(&pcs.Coeffs[constantl])
-					constk.Mul(&constk, &pcs.Coeffs[constantr])
-					constk.Sub(&constk, &pcs.Coeffs[constanto])
-					kID := coeffID(pcs, &constk)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: constrlt,
-						R: constlrt,
-						M: [2]compiled.Term{lt, rt},
-						O: u,
-						K: kID,
-					})
-
-					// u+o+v = 0 (v = -u - o = [l*r + l*constantr +constantl*r+constantl*constantr-constanto] -  o)
-					v := newInternalVariable(pcs)
-					ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-					recordConstraint(pcs, compiled.SparseR1C{
-						L: u,
-						R: ot,
-						O: v,
-					})
-
-					// toSolve*r + toSolve*constantr + v = 0
-					var c big.Int
-					c.Set(&cs.coeffs[toSolve.CoeffID()])
-					id := coeffID(pcs, &c)
-					res := newInternalVariable(pcs)
-					csPcsMapping[idCS] = res.VariableID()
-					res.SetCoeffID(id)
-					constrres := multiply(pcs, res, constantr)
-
-					recordConstraint(pcs, compiled.SparseR1C{
-						R: constrres,
-						M: [2]compiled.Term{res, rt},
-						O: v,
-					})
-				}
-			}
-		}
-		solvedVariables[idCS] = true
-		return
+	// pop the unsolved wire from the linearexpression
+	if lro == 0 { // unsolved is in L
+		l, toSolve = popInternalVariable(l, idCS)
+	} else { // unsolved is in O
+		o, toSolve = popInternalVariable(o, idCS)
 	}
 
-	// the unsolved wire is in r1c.O
-	l, constantl := popConstantTerm(l, cs, pcs)
-	r, constantr := popConstantTerm(r, cs, pcs)
-	o, toSolve := popInternalVariable(o, idCS)
-	o, constanto := popConstantTerm(o, cs, pcs)
+	// cL*cR = toSolve + cO
+	f1 := func() {
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
 
-	if len(o) == 0 {
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
 
-		if len(l) == 0 {
-
-			if len(r) == 0 { // constantl*constantr = toSolve + constanto
-
-				var constk, c big.Int
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				kID := coeffID(pcs, &constk)
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{K: kID, O: res})
-
-			} else { // constantl*(r + constantr) = toSolve + constanto
-				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-
-				var constk, c big.Int
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				kID := coeffID(pcs, &constk)
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{R: constlrt, K: kID, O: res})
-
-			}
-
-		} else {
-			if len(r) == 0 { // (l + constantl)*constantr = toSolve + constanto
-
-				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-
-				var constk big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				kID := coeffID(pcs, &constk)
-
-				var c big.Int
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{L: constrlt, O: res, K: kID})
-
-			} else { // (l + constantl)*(r + constantr) = toSolve + constanto
-
-				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-
-				var constk big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				kID := coeffID(pcs, &constk)
-
-				var c big.Int
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{
-					L: constrlt,
-					R: constlrt,
-					M: [2]compiled.Term{lt, rt},
-					K: kID,
-					O: res,
-				})
-			}
-		}
-
-	} else {
-		if len(l) == 0 {
-			if len(r) == 0 { // constantl*constantr = toSolve + o + constanto
-
-				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-				var constk, c big.Int
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				constk.Neg(&constk)
-				kID := coeffID(pcs, &constk)
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{L: ot, K: kID, O: res})
-
-			} else { // constantl*(r + constantr) = toSolve + o + constanto
-				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-				var constk, c big.Int
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				constk.Neg(&constk)
-				kID := coeffID(pcs, &constk)
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
-
-			}
-		} else {
-			if len(r) == 0 { // (l + constantl)*constantr = toSolve + o + constanto
-
-				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-				var constk, c big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				constk.Neg(&constk)
-				kID := coeffID(pcs, &constk)
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				c.Neg(&c)
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-
-				recordConstraint(pcs, compiled.SparseR1C{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
-
-			} else { // (l + constantl)*(r + constantr) = toSolve + o + constanto
-				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
-				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
-				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
-
-				var constk, c big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
-				constk.Neg(&constk)
-				kID := coeffID(pcs, &constk)
-
-				u := newInternalVariable(pcs)
-				recordConstraint(pcs, compiled.SparseR1C{
-					L: constrlt,
-					R: constlrt,
-					M: [2]compiled.Term{lt, rt},
-					K: kID,
-					O: u,
-				})
-
-				c.Set(&cs.coeffs[toSolve.CoeffID()])
-				id := coeffID(pcs, &c)
-				res := newInternalVariable(pcs)
-				res.SetCoeffID(id)
-				csPcsMapping[idCS] = res.VariableID()
-				recordConstraint(pcs, compiled.SparseR1C{
-					L: u,
-					R: ot,
-					O: res,
-				})
-			}
-		}
+		recordConstraint(pcs, compiled.SparseR1C{K: kID, O: res})
 	}
+
+	// cL*(r + cR) = toSolve + cO
+	f2 := func() {
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+
+		constlrt := multiply(pcs, rt, cL)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{R: constlrt, K: kID, O: res})
+	}
+
+	// (l + cL)*cR = toSolve + cO
+	f3 := func() {
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+
+		constrlt := multiply(pcs, lt, cR)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{L: constrlt, O: res, K: kID})
+	}
+
+	// (l + cL)*(r + cR) = toSolve + cO
+	f4 := func() {
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+
+		constrlt := multiply(pcs, lt, cR)
+		constlrt := multiply(pcs, rt, cL)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrlt,
+			R: constlrt,
+			M: [2]compiled.Term{lt, rt},
+			K: kID,
+			O: res,
+		})
+	}
+
+	// cL*cR = toSolve + o + cO
+	f5 := func() {
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		cK.Neg(&cK)
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{L: ot, K: kID, O: res})
+	}
+
+	// cL*(r + cR) = toSolve + o + cO
+	f6 := func() {
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		constlrt := multiply(pcs, rt, cL)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		cK.Neg(&cK)
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), R: constlrt, K: kID, O: res})
+	}
+
+	// (l + cL)*cR = toSolve + o + cO
+	f7 := func() {
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		constrlt := multiply(pcs, lt, cR)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		cK.Neg(&cK)
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Neg(&c)
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+
+		recordConstraint(pcs, compiled.SparseR1C{R: negate(pcs, ot), L: constrlt, K: kID, O: res})
+	}
+
+	// (l + cL)*(r + cR) = toSolve + o + cO
+	f8 := func() {
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		constrlt := multiply(pcs, lt, cR)
+		constlrt := multiply(pcs, rt, cL)
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		cK.Neg(&cK)
+		kID := coeffID(pcs, &cK)
+
+		u := newInternalVariable(pcs)
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrlt,
+			R: constlrt,
+			M: [2]compiled.Term{lt, rt},
+			K: kID,
+			O: u,
+		})
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		res.SetCoeffID(id)
+		csPcsMapping[idCS] = res.VariableID()
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: u,
+			R: ot,
+			O: res,
+		})
+	}
+
+	// (toSolve + cL)*cR = cO
+	f9 := func() {
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Mul(&c, &pcs.Coeffs[cR])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+
+		recordConstraint(pcs, compiled.SparseR1C{L: res, K: kID})
+	}
+
+	// (toSolve + cL)*(r + cR) = cO
+	f10 := func() {
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		id := coeffID(pcs, &c)
+		res.SetCoeffID(id)
+
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		constlrt := multiply(pcs, rt, cL)
+		constrres := multiply(pcs, res, cR)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrres,
+			R: constlrt,
+			M: [2]compiled.Term{res, rt},
+			K: kID,
+		})
+	}
+
+	// (toSolve + l + cL)*cR = cO
+	f11 := func() {
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		lt = multiply(pcs, lt, cR)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Mul(&c, &pcs.Coeffs[cR])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: res,
+			R: lt,
+			K: kID,
+		})
+	}
+
+	// (toSolve + l + cL)*(r + cR) = cO
+	// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
+	f12 := func() {
+		u := newInternalVariable(pcs)
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		constrlt := multiply(pcs, lt, cR)
+		constlrt := multiply(pcs, rt, cL)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrlt,
+			R: constlrt,
+			M: [2]compiled.Term{lt, rt},
+			O: u,
+			K: kID,
+		})
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+		constrres := multiply(pcs, res, cR)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			R: constrres,
+			M: [2]compiled.Term{res, rt},
+			O: negate(pcs, u),
+		})
+	}
+
+	// (toSolve + cL)*cR = o + cO
+	f13 := func() {
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Mul(&c, &pcs.Coeffs[cR])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+
+		recordConstraint(pcs, compiled.SparseR1C{L: res, O: negate(pcs, ot), K: kID})
+	}
+
+	// (toSolve + cL)*(r + cR) = o + cO
+	// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
+	f14 := func() {
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		id := coeffID(pcs, &c)
+		res.SetCoeffID(id)
+
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		constlrt := multiply(pcs, rt, cL)
+		constrres := multiply(pcs, res, cR)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrres,
+			R: constlrt,
+			M: [2]compiled.Term{res, rt},
+			O: negate(pcs, ot),
+			K: kID,
+		})
+	}
+
+	// (toSolve + l + cL)*cR = o + cO
+	// toSolve*cR + l*cR + cL*cR-cO-o=0
+	f15 := func() {
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		lt = multiply(pcs, lt, cR)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		c.Mul(&c, &pcs.Coeffs[cR])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: res,
+			R: lt,
+			O: negate(pcs, ot),
+			K: kID,
+		})
+	}
+
+	// (toSolve + l + cL)*(r + cR) = o + cO
+	// => toSolve*r + toSolve*cR + [ [l*r + l*cR +cL*r+cL*cR-cO]- o ]=0
+	f16 := func() {
+		// [l*r + l*cR +cL*r+cL*cR-cO] + u = 0
+		u := newInternalVariable(pcs)
+		lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
+		rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
+		constrlt := multiply(pcs, lt, cR)
+		constlrt := multiply(pcs, rt, cL)
+
+		cK.Set(&pcs.Coeffs[cL])
+		cK.Mul(&cK, &pcs.Coeffs[cR])
+		cK.Sub(&cK, &pcs.Coeffs[cO])
+		kID := coeffID(pcs, &cK)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: constrlt,
+			R: constlrt,
+			M: [2]compiled.Term{lt, rt},
+			O: u,
+			K: kID,
+		})
+
+		// u+o+v = 0 (v = -u - o = [l*r + l*cR +cL*r+cL*cR-cO] -  o)
+		v := newInternalVariable(pcs)
+		ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
+		recordConstraint(pcs, compiled.SparseR1C{
+			L: u,
+			R: ot,
+			O: v,
+		})
+
+		// toSolve*r + toSolve*cR + v = 0
+		c.Set(&cs.coeffs[toSolve.CoeffID()])
+		id := coeffID(pcs, &c)
+		res := newInternalVariable(pcs)
+		csPcsMapping[idCS] = res.VariableID()
+		res.SetCoeffID(id)
+		constrres := multiply(pcs, res, cR)
+
+		recordConstraint(pcs, compiled.SparseR1C{
+			R: constrres,
+			M: [2]compiled.Term{res, rt},
+			O: v,
+		})
+	}
+
+	// we have 16 different cases
+	var s uint8
+	if lro != 0 {
+		s |= 0b1000
+	}
+	if len(o) != 0 {
+		s |= 0b0100
+	}
+	if len(l) != 0 {
+		s |= 0b0010
+	}
+	if len(r) != 0 {
+		s |= 0b0001
+	}
+	switch s {
+	case 0b0000:
+		// (toSolve + cL)*cR = cO
+		f9()
+	case 0b0001:
+		// (toSolve + cL)*(r + cR) = cO
+		f10()
+	case 0b0010:
+		// (toSolve + l + cL)*cR = cO
+		f11()
+	case 0b0011:
+		// (toSolve + l + cL)*(r + cR) = cO
+		// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
+		f12()
+	case 0b0100:
+		// (toSolve + cL)*cR = o + cO
+		f13()
+	case 0b0101:
+		// (toSolve + cL)*(r + cR) = o + cO
+		// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
+		f14()
+	case 0b0110:
+		// (toSolve + l + cL)*cR = o + cO
+		// toSolve*cR + l*cR + cL*cR-cO-o=0
+		f15()
+	case 0b0111:
+		// (toSolve + l + cL)*(r + cR) = o + cO
+		// => toSolve*r + toSolve*cR + [ [l*r + l*cR +cL*r+cL*cR-cO]- o ]=0
+		f16()
+	case 0b1000:
+		// cL*cR = toSolve + cO
+		f1()
+	case 0b1001:
+		// cL*(r + cR) = toSolve + cO
+		f2()
+	case 0b1010:
+		// (l + cL)*cR = toSolve + cO
+		f3()
+	case 0b1011:
+		// (l + cL)*(r + cR) = toSolve + cO
+		f4()
+	case 0b1100:
+		// cL*cR = toSolve + o + cO
+		f5()
+	case 0b1101:
+		// cL*(r + cR) = toSolve + o + cO
+		f6()
+	case 0b1110:
+		// (l + cL)*cR = toSolve + o + cO
+		f7()
+	case 0b1111:
+		// (l + cL)*(r + cR) = toSolve + o + cO
+		f8()
+	}
+
 	solvedVariables[idCS] = true
 }
 
@@ -941,15 +975,15 @@ func r1cToPlonkConstraintBinary(pcs *compiled.SparseR1CS, cs *ConstraintSystem, 
 
 	// reduce r1c.O (in case it's a linear combination)
 	var ot compiled.Term
-	o, constanto := popConstantTerm(r1c.O, cs, pcs)
+	o, cO := popConstantTerm(r1c.O, cs, pcs)
 	if len(o) == 0 { // o is a constant term
 		ot = newInternalVariable(pcs)
-		recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), K: constanto})
+		recordConstraint(pcs, compiled.SparseR1C{L: negate(pcs, ot), K: cO})
 	} else {
 		ot = split(pcs, 0, cs.coeffs, o, csPcsMapping)
-		if constanto != 0 {
+		if cO != 0 {
 			_ot := newInternalVariable(pcs)
-			recordConstraint(pcs, compiled.SparseR1C{L: ot, O: negate(pcs, _ot), K: constanto}) // _ot+ot+K = 0
+			recordConstraint(pcs, compiled.SparseR1C{L: ot, O: negate(pcs, _ot), K: cO}) // _ot+ot+K = 0
 			ot = _ot
 		}
 	}
@@ -997,7 +1031,7 @@ func r1cToPlonkConstraintBinary(pcs *compiled.SparseR1CS, cs *ConstraintSystem, 
 // splitR1C splits a r1c assertion (meaning that
 // it's a r1c constraint that is not used to solve a variable,
 // like a boolean constraint).
-// (l + constantl)*(r + constantr) = o + constanto
+// (l + cL)*(r + cR) = o + cO
 func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, csPcsMapping map[idCS]idPCS) {
 
 	l := make(compiled.LinearExpression, len(r1c.L))
@@ -1007,33 +1041,33 @@ func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, 
 	copy(r, r1c.R)
 	copy(o, r1c.O)
 
-	l, constantl := popConstantTerm(l, cs, pcs)
-	r, constantr := popConstantTerm(r, cs, pcs)
-	o, constanto := popConstantTerm(o, cs, pcs)
+	l, cL := popConstantTerm(l, cs, pcs)
+	r, cR := popConstantTerm(r, cs, pcs)
+	o, cO := popConstantTerm(o, cs, pcs)
 
 	if len(o) == 0 {
 
 		if len(l) == 0 {
 
-			if len(r) == 0 { // constantl*constantr = constanto (should never happen...)
+			if len(r) == 0 { // cL*cR = cO (should never happen...)
 
 				var constk big.Int
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{K: kID})
 
-			} else { // constantl*(r + constantr) = constanto
+			} else { // cL*(r + cR) = cO
 
 				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 
 				var constk big.Int
-				cosntlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				cosntlrt := multiply(pcs, rt, cL)
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{R: cosntlrt, K: kID})
@@ -1041,29 +1075,29 @@ func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, 
 
 		} else {
 
-			if len(r) == 0 { // (l + constantl)*constantr = constanto
+			if len(r) == 0 { // (l + cL)*cR = cO
 				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 
 				var constk big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constrlt := multiply(pcs, lt, cR)
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{L: constrlt, K: kID})
 
-			} else { // (l + constantl)*(r + constantr) = constanto
+			} else { // (l + cL)*(r + cR) = cO
 
 				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 
 				var constk big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constrlt := multiply(pcs, lt, cR)
+				constlrt := multiply(pcs, rt, cL)
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{
@@ -1078,28 +1112,28 @@ func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, 
 	} else {
 		if len(l) == 0 {
 
-			if len(r) == 0 { // constantl*constantr = o + constanto
+			if len(r) == 0 { // cL*cR = o + cO
 
 				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
 				var constk big.Int
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{K: kID, O: negate(pcs, ot)})
 
-			} else { // constantl * (r + constantr) = o + constanto
+			} else { // cL * (r + cR) = o + cO
 
 				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
 				var constk big.Int
-				constlrt := multiply(pcs, rt, constantl)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constlrt := multiply(pcs, rt, cL)
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{
@@ -1110,16 +1144,16 @@ func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, 
 			}
 
 		} else {
-			if len(r) == 0 { // (l + constantl) * constantr = o + constanto
+			if len(r) == 0 { // (l + cL) * cR = o + cO
 
 				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
 				var constk big.Int
-				constrlt := multiply(pcs, lt, constantr)
-				constk.Set(&pcs.Coeffs[constantl])
-				constk.Mul(&constk, &pcs.Coeffs[constantr])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constrlt := multiply(pcs, lt, cR)
+				constk.Set(&pcs.Coeffs[cL])
+				constk.Mul(&constk, &pcs.Coeffs[cR])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordAssertion(pcs, compiled.SparseR1C{
@@ -1128,18 +1162,18 @@ func splitR1C(pcs *compiled.SparseR1CS, cs *ConstraintSystem, r1c compiled.R1C, 
 					O: negate(pcs, ot),
 				})
 
-			} else { // (l + constantl)*(r + constantr) = o + constanto
+			} else { // (l + cL)*(r + cR) = o + cO
 				lt := split(pcs, 0, cs.coeffs, l, csPcsMapping)
 				rt := split(pcs, 0, cs.coeffs, r, csPcsMapping)
 				ot := split(pcs, 0, cs.coeffs, o, csPcsMapping)
 
 				var constk big.Int
 
-				constlrt := multiply(pcs, rt, constantl)
-				constrlt := multiply(pcs, lt, constantr)
-				constk.Set(&pcs.Coeffs[constantr])
-				constk.Mul(&constk, &pcs.Coeffs[constantl])
-				constk.Sub(&constk, &pcs.Coeffs[constanto])
+				constlrt := multiply(pcs, rt, cL)
+				constrlt := multiply(pcs, lt, cR)
+				constk.Set(&pcs.Coeffs[cR])
+				constk.Mul(&constk, &pcs.Coeffs[cL])
+				constk.Sub(&constk, &pcs.Coeffs[cO])
 				kID := coeffID(pcs, &constk)
 
 				recordConstraint(pcs, compiled.SparseR1C{
