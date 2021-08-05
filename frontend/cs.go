@@ -87,13 +87,26 @@ type CompiledConstraintSystem interface {
 // we may want to add build tags to tune that
 const initialCapacity = 0 // 1e6
 
+// ids of the coefficients with simple values in any cs.coeffs slice.
+const (
+	coeffIdZero     = 0
+	coeffIdOne      = 1
+	coeffIdTwo      = 2
+	coeffIdMinusOne = 3
+)
+
 func newConstraintSystem() ConstraintSystem {
 	cs := ConstraintSystem{
-		coeffs:      make([]big.Int, 0),
+		coeffs:      make([]big.Int, 4),
 		coeffsIDs:   make(map[string]int),
 		constraints: make([]compiled.R1C, 0, initialCapacity),
 		assertions:  make([]compiled.R1C, 0),
 	}
+
+	cs.coeffs[coeffIdZero].SetInt64(0)
+	cs.coeffs[coeffIdOne].SetInt64(1)
+	cs.coeffs[coeffIdTwo].SetInt64(2)
+	cs.coeffs[coeffIdMinusOne].SetInt64(-1)
 
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
@@ -116,10 +129,8 @@ type logEntry struct {
 }
 
 var (
-	bMinusOne = new(big.Int).SetInt64(-1)
-	bZero     = new(big.Int)
-	bOne      = new(big.Int).SetInt64(1)
-	bTwo      = new(big.Int).SetInt64(2)
+	bOne = new(big.Int).SetInt64(1)
+	bTwo = new(big.Int).SetInt64(2)
 )
 
 // debug info in case a variable is not set
@@ -137,18 +148,21 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
 func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
+	cID := cs.coeffID(coeff)
+	term := compiled.Pack(v.id, cID, v.visibility)
 
-	term := compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
-
-	if coeff.Cmp(bZero) == 0 {
-		term.SetCoeffValue(0)
-	} else if coeff.Cmp(bOne) == 0 {
-		term.SetCoeffValue(1)
-	} else if coeff.Cmp(bTwo) == 0 {
-		term.SetCoeffValue(2)
-	} else if coeff.Cmp(bMinusOne) == 0 {
+	// set special value if fast path
+	switch cID {
+	case coeffIdMinusOne:
 		term.SetCoeffValue(-1)
+	case coeffIdZero:
+		term.SetCoeffValue(0)
+	case coeffIdOne:
+		term.SetCoeffValue(1)
+	case coeffIdTwo:
+		term.SetCoeffValue(2)
 	}
+
 	return term
 }
 
@@ -265,7 +279,6 @@ func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logEntry) {
-
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
 }
@@ -273,6 +286,21 @@ func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logE
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
+
+	// if the coeff is a int64, and has value -1, 0, 1 or 2, we have a fast path.
+	if b.IsInt64() {
+		v := b.Int64()
+		switch v {
+		case -1:
+			return coeffIdMinusOne
+		case 0:
+			return coeffIdZero
+		case 1:
+			return coeffIdOne
+		case 2:
+			return coeffIdTwo
+		}
+	}
 
 	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
 	key := b.Text(16)
