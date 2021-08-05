@@ -46,13 +46,14 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 
 	res.Logs = make([]compiled.LogEntry, len(cs.logs))
 
-	// this slice is append only, so starting at 1 ensure that the zero ID is reserved to store 0
-	res.Coeffs = make([]big.Int, 1)
+	// reserve first 3 coeffs for special values (0, 1 and -1)
+	res.Coeffs = make([]big.Int, 3)
+	res.Coeffs[0].SetInt64(0)
+	res.Coeffs[1].SetInt64(1)
+	res.Coeffs[2].SetInt64(-1)
 
-	// reserve the zeroth entry to store 0
+	// coeffs ids
 	res.CoeffsIDs = make(map[string]int)
-	zero := big.NewInt(0)
-	coeffID(&res, zero)
 
 	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
 	varPcsToVarCs := make(map[idCS]idPCS)
@@ -194,6 +195,18 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of Coeffs and returns the corresponding entry
 func coeffID(pcs *compiled.SparseR1CS, b *big.Int) int {
+	// if the coeff is a int64, and has value -1, 0 or 1, we have a fast path.
+	if b.IsInt64() {
+		v := b.Int64()
+		switch v {
+		case 0:
+			return 0
+		case 1:
+			return 1
+		case -1:
+			return 2
+		}
+	}
 
 	// if the coeff is already stored, fetch its ID from the cs.CoeffsIDs map
 	key := b.Text(16)
