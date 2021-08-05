@@ -300,22 +300,28 @@ func (scs *sparseR1CS) getCorrespondingTerm(t compiled.Term) compiled.Term {
 	return t
 }
 
-// newInternalVariable creates a new term =1*new_variable and
+// newTerm creates a new term =1*new_variable and
 // records it in the ccs.
-func (scs *sparseR1CS) newInternalVariable(coeff *big.Int) compiled.Term {
+// if idCS is set, updates the mapping of the new variable with the cs one
+func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
 	cID := scs.coeffID(coeff)
 	vID := scs.ccs.NbInternalVariables
 	res := compiled.Pack(vID, cID, compiled.Internal)
 	scs.ccs.NbInternalVariables++
+
+	if len(idCS) > 0 {
+		scs.mCStoCCS[idCS[0]] = vID
+	}
+
 	return res
 }
 
-// recordConstraint records a plonk constraint in the ccs
+// addConstraint records a plonk constraint in the ccs
 // The function ensures that all variables ID are set, even
 // if the corresponding coefficients are 0.
 // A plonk constraint will always look like this:
 // L+R+L.R+O+K = 0
-func (scs *sparseR1CS) recordConstraint(c compiled.SparseR1C) {
+func (scs *sparseR1CS) addConstraint(c compiled.SparseR1C) {
 	if c.L == 0 {
 		c.L.SetVariableID(c.M[0].VariableID())
 	}
@@ -386,8 +392,8 @@ func (scs *sparseR1CS) split(acc compiled.Term, le compiled.LinearExpression) co
 
 	// recursive case
 	r := scs.getCorrespondingTerm(le[0])
-	o := scs.newInternalVariable(bOne)
-	scs.recordConstraint(compiled.SparseR1C{L: acc, R: r, O: o})
+	o := scs.newTerm(bOne)
+	scs.addConstraint(compiled.SparseR1C{L: acc, R: r, O: o})
 	o = scs.negate(o)
 	return scs.split(o, le[1:])
 
@@ -418,7 +424,10 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		lro = 0
 	}
 
-	var cK, c big.Int
+	var (
+		cK big.Int // constant K
+		cS big.Int // constant S (associated with toSolve)
+	)
 	var toSolve compiled.Term
 
 	l, cL := scs.popConstantTerm(l)
@@ -432,55 +441,49 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		o, toSolve = popInternalVariable(o, idCS)
 	}
 
+	// set cS to toSolve coeff
+	cS.Set(&scs.coeffs[toSolve.CoeffID()])
+
 	// cL*cR = toSolve + cO
 	f1 := func() {
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{K: kID, O: res})
+		scs.addConstraint(compiled.SparseR1C{
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+		})
 	}
 
 	// cL*(r + cR) = toSolve + cO
 	f2 := func() {
 		rt := scs.split(0, r)
 
-		constlrt := scs.multiply(rt, &cL)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{R: constlrt, K: kID, O: res})
+		scs.addConstraint(compiled.SparseR1C{
+			R: cRT,
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+		},
+		)
 	}
 
 	// (l + cL)*cR = toSolve + cO
 	f3 := func() {
 		lt := scs.split(0, l)
 
-		constrlt := scs.multiply(lt, &cR)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRLT := scs.multiply(lt, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{L: constrlt, O: res, K: kID})
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRLT,
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+			K: scs.coeffID(&cK),
+		})
 	}
 
 	// (l + cL)*(r + cR) = toSolve + cO
@@ -488,24 +491,17 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		lt := scs.split(0, l)
 		rt := scs.split(0, r)
 
-		constrlt := scs.multiply(lt, &cR)
-		constlrt := scs.multiply(rt, &cL)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRLT := scs.multiply(lt, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrlt,
-			R: constlrt,
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRLT,
+			R: cRT,
 			M: [2]compiled.Term{lt, rt},
-			K: kID,
-			O: res,
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
 		})
 	}
 
@@ -513,18 +509,15 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 	f5 := func() {
 		ot := scs.split(0, o)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
 		cK.Neg(&cK)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{L: ot, K: kID, O: res})
+		scs.addConstraint(compiled.SparseR1C{
+			L: ot,
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+		})
 	}
 
 	// cL*(r + cR) = toSolve + o + cO
@@ -532,19 +525,17 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		rt := scs.split(0, r)
 		ot := scs.split(0, o)
 
-		constlrt := scs.multiply(rt, &cL)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
 		cK.Neg(&cK)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{L: scs.negate(ot), R: constlrt, K: kID, O: res})
+		scs.addConstraint(compiled.SparseR1C{
+			L: scs.negate(ot),
+			R: cRT,
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+		})
 	}
 
 	// (l + cL)*cR = toSolve + o + cO
@@ -552,19 +543,17 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		lt := scs.split(0, l)
 		ot := scs.split(0, o)
 
-		constrlt := scs.multiply(lt, &cR)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRLT := scs.multiply(lt, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
 		cK.Neg(&cK)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Neg(&c)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-
-		scs.recordConstraint(compiled.SparseR1C{R: scs.negate(ot), L: constrlt, K: kID, O: res})
+		scs.addConstraint(compiled.SparseR1C{
+			R: scs.negate(ot),
+			L: cRLT,
+			K: scs.coeffID(&cK),
+			O: scs.newTerm(cS.Neg(&cS), idCS),
+		})
 	}
 
 	// (l + cL)*(r + cR) = toSolve + o + cO
@@ -573,68 +562,57 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		rt := scs.split(0, r)
 		ot := scs.split(0, o)
 
-		constrlt := scs.multiply(lt, &cR)
-		constlrt := scs.multiply(rt, &cL)
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cRLT := scs.multiply(lt, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
 		cK.Neg(&cK)
-		kID := scs.coeffID(&cK)
 
-		u := scs.newInternalVariable(bOne)
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrlt,
-			R: constlrt,
+		u := scs.newTerm(bOne)
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRLT,
+			R: cRT,
 			M: [2]compiled.Term{lt, rt},
-			K: kID,
+			K: scs.coeffID(&cK),
 			O: u,
 		})
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-		scs.recordConstraint(compiled.SparseR1C{
+		scs.addConstraint(compiled.SparseR1C{
 			L: u,
 			R: ot,
-			O: res,
+			O: scs.newTerm(&cS, idCS),
 		})
 	}
 
 	// (toSolve + cL)*cR = cO
 	f9 := func() {
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Mul(&c, &cR)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		cS.Mul(&cS, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{L: res, K: kID})
+		scs.addConstraint(compiled.SparseR1C{
+			L: scs.newTerm(&cS, idCS),
+			K: scs.coeffID(&cK),
+		})
 	}
 
 	// (toSolve + cL)*(r + cR) = cO
 	f10 := func() {
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		res := scs.newTerm(&cS, idCS)
 
 		rt := scs.split(0, r)
-		constlrt := scs.multiply(rt, &cL)
-		constrres := scs.multiply(res, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cRes := scs.multiply(res, &cR)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrres,
-			R: constlrt,
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRes,
+			R: cRT,
 			M: [2]compiled.Term{res, rt},
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 	}
 
@@ -643,52 +621,43 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		lt := scs.split(0, l)
 		lt = scs.multiply(lt, &cR)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Mul(&c, &cR)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		cS.Mul(&cS, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: res,
+		scs.addConstraint(compiled.SparseR1C{
+			L: scs.newTerm(&cS, idCS),
 			R: lt,
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 	}
 
 	// (toSolve + l + cL)*(r + cR) = cO
 	// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
 	f12 := func() {
-		u := scs.newInternalVariable(bOne)
+		u := scs.newTerm(bOne)
 		lt := scs.split(0, l)
 		rt := scs.split(0, r)
-		constrlt := scs.multiply(lt, &cR)
-		constlrt := scs.multiply(rt, &cL)
+		cRLT := scs.multiply(lt, &cR)
+		cRT := scs.multiply(rt, &cL)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrlt,
-			R: constlrt,
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRLT,
+			R: cRT,
 			M: [2]compiled.Term{lt, rt},
 			O: u,
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-		constrres := scs.multiply(res, &cR)
+		res := scs.newTerm(&cS, idCS)
+		cRes := scs.multiply(res, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			R: constrres,
+		scs.addConstraint(compiled.SparseR1C{
+			R: cRes,
 			M: [2]compiled.Term{res, rt},
 			O: scs.negate(u),
 		})
@@ -698,42 +667,37 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 	f13 := func() {
 		ot := scs.split(0, o)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Mul(&c, &cR)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		cS.Mul(&cS, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{L: res, O: scs.negate(ot), K: kID})
+		scs.addConstraint(compiled.SparseR1C{
+			L: scs.newTerm(&cS, idCS),
+			O: scs.negate(ot),
+			K: scs.coeffID(&cK),
+		})
 	}
 
 	// (toSolve + cL)*(r + cR) = o + cO
 	// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 	f14 := func() {
 		ot := scs.split(0, o)
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		res := scs.newTerm(&cS, idCS)
 
 		rt := scs.split(0, r)
-		constlrt := scs.multiply(rt, &cL)
-		constrres := scs.multiply(res, &cR)
+		cRT := scs.multiply(rt, &cL)
+		cRes := scs.multiply(res, &cR)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrres,
-			R: constlrt,
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRes,
+			R: cRT,
 			M: [2]compiled.Term{res, rt},
 			O: scs.negate(ot),
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 	}
 
@@ -745,21 +709,16 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		lt := scs.split(0, l)
 		lt = scs.multiply(lt, &cR)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		c.Mul(&c, &cR)
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
+		cS.Mul(&cS, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: res,
+		scs.addConstraint(compiled.SparseR1C{
+			L: scs.newTerm(&cS, idCS),
 			R: lt,
 			O: scs.negate(ot),
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 	}
 
@@ -767,42 +726,38 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 	// => toSolve*r + toSolve*cR + [ [l*r + l*cR +cL*r+cL*cR-cO]- o ]=0
 	f16 := func() {
 		// [l*r + l*cR +cL*r+cL*cR-cO] + u = 0
-		u := scs.newInternalVariable(bOne)
+		u := scs.newTerm(bOne)
 		lt := scs.split(0, l)
 		rt := scs.split(0, r)
-		constrlt := scs.multiply(lt, &cR)
-		constlrt := scs.multiply(rt, &cL)
+		cRLT := scs.multiply(lt, &cR)
+		cRT := scs.multiply(rt, &cL)
 
-		cK.Set(&cL)
-		cK.Mul(&cK, &cR)
+		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
-		kID := scs.coeffID(&cK)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			L: constrlt,
-			R: constlrt,
+		scs.addConstraint(compiled.SparseR1C{
+			L: cRLT,
+			R: cRT,
 			M: [2]compiled.Term{lt, rt},
 			O: u,
-			K: kID,
+			K: scs.coeffID(&cK),
 		})
 
 		// u+o+v = 0 (v = -u - o = [l*r + l*cR +cL*r+cL*cR-cO] -  o)
-		v := scs.newInternalVariable(bOne)
+		v := scs.newTerm(bOne)
 		ot := scs.split(0, o)
-		scs.recordConstraint(compiled.SparseR1C{
+		scs.addConstraint(compiled.SparseR1C{
 			L: u,
 			R: ot,
 			O: v,
 		})
 
 		// toSolve*r + toSolve*cR + v = 0
-		c.Set(&scs.coeffs[toSolve.CoeffID()])
-		res := scs.newInternalVariable(&c)
-		scs.mCStoCCS[idCS] = res.VariableID()
-		constrres := scs.multiply(res, &cR)
+		res := scs.newTerm(&cS, idCS)
+		cRes := scs.multiply(res, &cR)
 
-		scs.recordConstraint(compiled.SparseR1C{
-			R: constrres,
+		scs.addConstraint(compiled.SparseR1C{
+			R: cRes,
 			M: [2]compiled.Term{res, rt},
 			O: v,
 		})
@@ -893,13 +848,13 @@ func (scs *sparseR1CS) r1cToPlonkConstraintBinary(r1c compiled.R1C) {
 	o, cO := scs.popConstantTerm(r1c.O)
 	cOID := scs.coeffID(&cO)
 	if len(o) == 0 { // o is a constant term
-		ot = scs.newInternalVariable(bOne)
-		scs.recordConstraint(compiled.SparseR1C{L: scs.negate(ot), K: cOID})
+		ot = scs.newTerm(bOne)
+		scs.addConstraint(compiled.SparseR1C{L: scs.negate(ot), K: cOID})
 	} else {
 		ot = scs.split(0, o)
 		if cOID != 0 {
-			_ot := scs.newInternalVariable(bOne)
-			scs.recordConstraint(compiled.SparseR1C{L: ot, O: scs.negate(_ot), K: cOID}) // _ot+ot+K = 0
+			_ot := scs.newTerm(bOne)
+			scs.addConstraint(compiled.SparseR1C{L: ot, O: scs.negate(_ot), K: cOID}) // _ot+ot+K = 0
 			ot = _ot
 		}
 	}
@@ -916,8 +871,8 @@ func (scs *sparseR1CS) r1cToPlonkConstraintBinary(r1c compiled.R1C) {
 
 	for i := 0; i < nbBits; i++ {
 
-		accRi[i] = scs.newInternalVariable(bOne)
-		accQi[i+1] = scs.newInternalVariable(bOne)
+		accRi[i] = scs.newTerm(bOne)
+		accQi[i+1] = scs.newTerm(bOne)
 
 		// find the variable corresponding to the i-th bit (it's not ordered since getLinExpCopy is not deterministic)
 		// so we can update scs.varPcsToVarCs
@@ -934,7 +889,7 @@ func (scs *sparseR1CS) r1cToPlonkConstraintBinary(r1c compiled.R1C) {
 		acc.Mul(acc, two)
 
 		// 2*q[i+1] + ri - q[i] = 0
-		scs.recordConstraint(compiled.SparseR1C{
+		scs.addConstraint(compiled.SparseR1C{
 			L:      scs.multiply(accQi[i+1], two),
 			R:      accRi[i],
 			O:      scs.negate(accQi[i]),
@@ -966,26 +921,24 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 			if len(r) == 0 { // cL*cR = cO (should never happen...)
 
-				var constk big.Int
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{K: kID})
+				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK)})
 
 			} else { // cL*(r + cR) = cO
 
 				rt := scs.split(0, r)
 
-				var constk big.Int
+				var cK big.Int
 				cosntlrt := scs.multiply(rt, &cL)
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{R: cosntlrt, K: kID})
+				scs.recordAssertion(compiled.SparseR1C{R: cosntlrt, K: scs.coeffID(&cK)})
 			}
 
 		} else {
@@ -993,33 +946,31 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 			if len(r) == 0 { // (l + cL)*cR = cO
 				lt := scs.split(0, l)
 
-				var constk big.Int
-				constrlt := scs.multiply(lt, &cR)
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cRLT := scs.multiply(lt, &cR)
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{L: constrlt, K: kID})
+				scs.recordAssertion(compiled.SparseR1C{L: cRLT, K: scs.coeffID(&cK)})
 
 			} else { // (l + cL)*(r + cR) = cO
 
 				lt := scs.split(0, l)
 				rt := scs.split(0, r)
 
-				var constk big.Int
-				constrlt := scs.multiply(lt, &cR)
-				constlrt := scs.multiply(rt, &cL)
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cRLT := scs.multiply(lt, &cR)
+				cRT := scs.multiply(rt, &cL)
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
-					L: constrlt,
-					R: constlrt,
+					L: cRLT,
+					R: cRT,
 					M: [2]compiled.Term{lt, rt},
-					K: kID,
+					K: scs.coeffID(&cK),
 				})
 			}
 		}
@@ -1031,29 +982,27 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 				ot := scs.split(0, o)
 
-				var constk big.Int
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{K: kID, O: scs.negate(ot)})
+				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK), O: scs.negate(ot)})
 
 			} else { // cL * (r + cR) = o + cO
 
 				rt := scs.split(0, r)
 				ot := scs.split(0, o)
 
-				var constk big.Int
-				constlrt := scs.multiply(rt, &cL)
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cRT := scs.multiply(rt, &cL)
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
-					R: constlrt,
-					K: kID,
+					R: cRT,
+					K: scs.coeffID(&cK),
 					O: scs.negate(ot),
 				})
 			}
@@ -1064,16 +1013,15 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				lt := scs.split(0, l)
 				ot := scs.split(0, o)
 
-				var constk big.Int
-				constrlt := scs.multiply(lt, &cR)
-				constk.Set(&cL)
-				constk.Mul(&constk, &cR)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				var cK big.Int
+				cRLT := scs.multiply(lt, &cR)
+				cK.Set(&cL)
+				cK.Mul(&cK, &cR)
+				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
-					L: constrlt,
-					K: kID,
+					L: cRLT,
+					K: scs.coeffID(&cK),
 					O: scs.negate(ot),
 				})
 
@@ -1082,20 +1030,19 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				rt := scs.split(0, r)
 				ot := scs.split(0, o)
 
-				var constk big.Int
+				var cK big.Int
 
-				constlrt := scs.multiply(rt, &cL)
-				constrlt := scs.multiply(lt, &cR)
-				constk.Set(&cR)
-				constk.Mul(&constk, &cL)
-				constk.Sub(&constk, &cO)
-				kID := scs.coeffID(&constk)
+				cRT := scs.multiply(rt, &cL)
+				cRLT := scs.multiply(lt, &cR)
+				cK.Set(&cR)
+				cK.Mul(&cK, &cL)
+				cK.Sub(&cK, &cO)
 
-				scs.recordConstraint(compiled.SparseR1C{
-					L: constrlt,
-					R: constlrt,
+				scs.addConstraint(compiled.SparseR1C{
+					L: cRLT,
+					R: cRT,
 					M: [2]compiled.Term{lt, rt},
-					K: kID,
+					K: scs.coeffID(&cK),
 					O: scs.negate(ot),
 				})
 			}
