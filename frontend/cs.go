@@ -83,10 +83,6 @@ type CompiledConstraintSystem interface {
 	FrSize() int
 }
 
-// this has quite some impact on frontend performance, especially on large circuits size
-// we may want to add build tags to tune that
-const initialCapacity = 0 // 1e6
-
 // ids of the coefficients with simple values in any cs.coeffs slice.
 const (
 	coeffIdZero     = 0
@@ -95,11 +91,17 @@ const (
 	coeffIdMinusOne = 3
 )
 
-func newConstraintSystem() ConstraintSystem {
+// initialCapacity has quite some impact on frontend performance, especially on large circuits size
+// we may want to add build tags to tune that
+func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
+	capacity := 0
+	if len(initialCapacity) > 0 {
+		capacity = initialCapacity[0]
+	}
 	cs := ConstraintSystem{
 		coeffs:      make([]big.Int, 4),
 		coeffsIDs:   make(map[string]int),
-		constraints: make([]compiled.R1C, 0, initialCapacity),
+		constraints: make([]compiled.R1C, 0, capacity),
 		assertions:  make([]compiled.R1C, 0),
 	}
 
@@ -114,7 +116,7 @@ func newConstraintSystem() ConstraintSystem {
 	cs.secret.variables = make([]Variable, 0)
 	cs.secret.booleans = make(map[int]struct{})
 
-	cs.internal.variables = make([]Variable, 0, initialCapacity)
+	cs.internal.variables = make([]Variable, 0, capacity)
 	cs.internal.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
