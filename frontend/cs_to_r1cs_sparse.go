@@ -19,6 +19,7 @@ package frontend
 import (
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -43,7 +44,7 @@ type sparseR1CS struct {
 	ccs compiled.SparseR1CS
 
 	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
-	mCStoCCS        map[idCS]idPCS
+	mCStoCCS        []int
 	solvedVariables []bool
 }
 
@@ -58,7 +59,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			Assertions:        make([]compiled.SparseR1C, 0, len(cs.assertions)),
 			Logs:              make([]compiled.LogEntry, len(cs.logs)),
 		},
-		mCStoCCS:        make(map[idCS]idPCS, len(cs.internal.variables)),
+		mCStoCCS:        make([]int, len(cs.internal.variables)),
 		solvedVariables: make([]bool, len(cs.internal.variables)),
 	}
 
@@ -268,26 +269,22 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 // If there is no constant term, the id is 0 (the 0-th entry is reserved for this purpose).
 func (scs *sparseR1CS) popConstantTerm(l compiled.LinearExpression) (compiled.LinearExpression, big.Int) {
 
-	idOneWire := 0
-	resConstantID := 0 // the zero index contains the zero coef, it is reserved
+	const idOneWire = 0
 
-	lCopy := make(compiled.LinearExpression, len(l))
-	copy(lCopy, l)
+	// TODO @thomas can "1 public" appear only once?
 	for i := 0; i < len(l); i++ {
-		t := lCopy[i]
-		id := t.VariableID()
-		vis := t.VariableVisibility()
-		if vis == compiled.Public && id == idOneWire {
-			resConstantID = t.CoeffID()
-			lCopy = append(lCopy[:i], lCopy[i+1:]...)
-			break
+		if l[i].VariableID() == idOneWire && l[i].VariableVisibility() == compiled.Public {
+			lCopy := make(compiled.LinearExpression, len(l)-1)
+			copy(lCopy, l[:i])
+			copy(lCopy[i:], l[i+1:])
+			return lCopy, scs.coeffs[l[i].CoeffID()]
 		}
 	}
 
-	return lCopy, scs.coeffs[resConstantID]
+	return l, big.Int{}
 }
 
-// change t's ID to scs.varPcsToVarCs[t.ID] to get the corresponding variable in the ccs,
+// change t's ID to scs.mCStoCCS[t.ID] to get the corresponding variable in the ccs,
 func (scs *sparseR1CS) getCorrespondingTerm(t compiled.Term) compiled.Term {
 
 	// if the variable is internal, we need the variable
@@ -352,19 +349,43 @@ func (scs *sparseR1CS) negate(t compiled.Term) compiled.Term {
 	if t == 0 {
 		return t
 	}
-	var coeff big.Int
-	coeff.Set(&scs.coeffs[t.CoeffID()])
-	coeff.Neg(&coeff)
-	t.SetCoeffID(scs.coeffID(&coeff))
+	coeff := bigIntPool.Get().(*big.Int)
+	defer bigIntPool.Put(coeff)
+
+	coeff.Neg(&scs.coeffs[t.CoeffID()])
+	t.SetCoeffID(scs.coeffID(coeff))
 	return t
 }
 
 // multiplies t by the provided coefficient
 func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
-	var coeff big.Int
-	coeff.Set(&scs.coeffs[t.CoeffID()])
-	coeff.Mul(&coeff, c)
-	t.SetCoeffID(scs.coeffID(&coeff))
+	// fast path
+	if c.IsInt64() {
+		v := c.Int64()
+		switch v {
+		case 0:
+			t.SetCoeffID(coeffIdZero)
+			return t
+		case 1:
+			return t
+		case -1:
+
+			switch t.CoeffID() {
+			case coeffIdZero:
+				return t
+			case coeffIdOne:
+				t.SetCoeffID(coeffIdMinusOne)
+				return t
+			case coeffIdMinusOne:
+				t.SetCoeffID(coeffIdOne)
+				return t
+			}
+		}
+	}
+	coeff := bigIntPool.Get().(*big.Int)
+	coeff.Mul(&scs.coeffs[t.CoeffID()], c)
+	t.SetCoeffID(scs.coeffID(coeff))
+	bigIntPool.Put(coeff)
 	return t
 }
 
@@ -686,15 +707,13 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		res := scs.newTerm(&cS, idCS)
 
 		rt := scs.split(0, r)
-		cRT := scs.multiply(rt, &cL)
-		cRes := scs.multiply(res, &cR)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
 
 		scs.addConstraint(compiled.SparseR1C{
-			L: cRes,
-			R: cRT,
+			L: scs.multiply(res, &cR),
+			R: scs.multiply(rt, &cL),
 			M: [2]compiled.Term{res, rt},
 			O: scs.negate(ot),
 			K: scs.coeffID(&cK),
@@ -707,7 +726,6 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 		ot := scs.split(0, o)
 
 		lt := scs.split(0, l)
-		lt = scs.multiply(lt, &cR)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -716,7 +734,7 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 
 		scs.addConstraint(compiled.SparseR1C{
 			L: scs.newTerm(&cS, idCS),
-			R: lt,
+			R: scs.multiply(lt, &cR),
 			O: scs.negate(ot),
 			K: scs.coeffID(&cK),
 		})
@@ -904,16 +922,15 @@ func (scs *sparseR1CS) r1cToPlonkConstraintBinary(r1c compiled.R1C) {
 // (l + cL)*(r + cR) = o + cO
 func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
-	l := make(compiled.LinearExpression, len(r1c.L))
-	r := make(compiled.LinearExpression, len(r1c.R))
-	o := make(compiled.LinearExpression, len(r1c.O))
-	copy(l, r1c.L)
-	copy(r, r1c.R)
-	copy(o, r1c.O)
+	l := r1c.L
+	r := r1c.R
+	o := r1c.O
 
 	l, cL := scs.popConstantTerm(l)
 	r, cR := scs.popConstantTerm(r)
 	o, cO := scs.popConstantTerm(o)
+
+	var cK big.Int
 
 	if len(o) == 0 {
 
@@ -921,9 +938,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 			if len(r) == 0 { // cL*cR = cO (should never happen...)
 
-				var cK big.Int
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK)})
@@ -932,10 +947,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 				rt := scs.split(0, r)
 
-				var cK big.Int
 				cosntlrt := scs.multiply(rt, &cL)
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{R: cosntlrt, K: scs.coeffID(&cK)})
@@ -946,10 +959,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 			if len(r) == 0 { // (l + cL)*cR = cO
 				lt := scs.split(0, l)
 
-				var cK big.Int
 				cRLT := scs.multiply(lt, &cR)
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{L: cRLT, K: scs.coeffID(&cK)})
@@ -959,11 +970,9 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				lt := scs.split(0, l)
 				rt := scs.split(0, r)
 
-				var cK big.Int
 				cRLT := scs.multiply(lt, &cR)
 				cRT := scs.multiply(rt, &cL)
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
@@ -982,9 +991,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 				ot := scs.split(0, o)
 
-				var cK big.Int
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK), O: scs.negate(ot)})
@@ -994,10 +1001,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				rt := scs.split(0, r)
 				ot := scs.split(0, o)
 
-				var cK big.Int
 				cRT := scs.multiply(rt, &cL)
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
@@ -1013,10 +1018,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				lt := scs.split(0, l)
 				ot := scs.split(0, o)
 
-				var cK big.Int
 				cRLT := scs.multiply(lt, &cR)
-				cK.Set(&cL)
-				cK.Mul(&cK, &cR)
+				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
 				scs.recordAssertion(compiled.SparseR1C{
@@ -1030,12 +1033,9 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				rt := scs.split(0, r)
 				ot := scs.split(0, o)
 
-				var cK big.Int
-
 				cRT := scs.multiply(rt, &cL)
 				cRLT := scs.multiply(lt, &cR)
-				cK.Set(&cR)
-				cK.Mul(&cK, &cL)
+				cK.Mul(&cR, &cL)
 				cK.Sub(&cK, &cO)
 
 				scs.addConstraint(compiled.SparseR1C{
@@ -1048,4 +1048,10 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 			}
 		}
 	}
+}
+
+var bigIntPool = sync.Pool{
+	New: func() interface{} {
+		return new(big.Int)
+	},
 }
