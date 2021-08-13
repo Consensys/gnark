@@ -176,24 +176,33 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	}
 	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
 
-	// verify the opening proofs
-	if err := kzg.BatchVerifySinglePoint(
-		[]kzg.Digest{
-			foldedH,
-			linearizedPolynomialDigest,
-			proof.LRO[0],
-			proof.LRO[1],
-			proof.LRO[2],
-			vk.S[0],
-			vk.S[1],
-		},
+	// Fold the first proof
+	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
+		foldedH,
+		linearizedPolynomialDigest,
+		proof.LRO[0],
+		proof.LRO[1],
+		proof.LRO[2],
+		vk.S[0],
+		vk.S[1],
+	},
 		&proof.BatchedProof,
-		vk.KZGSRS,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
-	return kzg.Verify(&proof.Z, &proof.ZShiftedOpening, vk.KZGSRS)
+	// Batch verify
+	return kzg.BatchVerifyMultiPoints([]kzg.Digest{
+		foldedDigest,
+		proof.Z,
+	},
+		[]kzg.OpeningProof{
+			foldedProof,
+			proof.ZShiftedOpening,
+		},
+		vk.KZGSRS,
+	)
 }
 
 func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
