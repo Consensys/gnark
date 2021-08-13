@@ -24,6 +24,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/polynomial"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
@@ -274,6 +276,23 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	var zeta fr.Element
 	zeta.SetBytes(bzeta)
 
+	// compute evaluations of (blinded version of) l, r, o, z at zeta
+	var blzeta, brzeta, bozeta fr.Element
+	var wgZetaEvals sync.WaitGroup
+	wgZetaEvals.Add(3)
+	go func() {
+		blzeta = bcl.Eval(&zeta)
+		wgZetaEvals.Done()
+	}()
+	go func() {
+		brzeta = bcr.Eval(&zeta)
+		wgZetaEvals.Done()
+	}()
+	go func() {
+		bozeta = bco.Eval(&zeta)
+		wgZetaEvals.Done()
+	}()
+
 	// open blinded Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
@@ -290,23 +309,33 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	// blinded z evaluated at u*zeta
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
-	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	blzeta := bcl.Eval(&zeta)
-	brzeta := bcr.Eval(&zeta)
-	bozeta := bco.Eval(&zeta)
-
-	// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
-	linearizedPolynomial := computeLinearizedPolynomial(
-		blzeta,
-		brzeta,
-		bozeta,
-		alpha,
-		gamma,
-		zeta,
-		bzuzeta,
-		bz,
-		pk,
+	var (
+		linearizedPolynomial       polynomial.Polynomial
+		linearizedPolynomialDigest curve.G1Affine
+		errLPoly                   error
 	)
+	chLpoly := make(chan struct{}, 1)
+
+	go func() {
+		// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
+		wgZetaEvals.Wait()
+		linearizedPolynomial = computeLinearizedPolynomial(
+			blzeta,
+			brzeta,
+			bozeta,
+			alpha,
+			gamma,
+			zeta,
+			bzuzeta,
+			bz,
+			pk,
+		)
+
+		// TODO this commitment is only necessary to derive the challenge, we should
+		// be able to avoid doing it and get the challenge in another way
+		linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
+		close(chLpoly)
+	}()
 
 	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
 	var bZetaPowerm big.Int
@@ -331,11 +360,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		}
 	})
 
-	// TODO this commitment is only necessary to derive the challenge, we should
-	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
-	if err != nil {
-		return nil, err
+	<-chLpoly
+	if errLPoly != nil {
+		return nil, errLPoly
 	}
 
 	// Batch open the first list of polynomials

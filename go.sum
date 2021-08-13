@@ -6,6 +6,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572 h1:+R8G1+Ftumd0DaveLgMIjrFPcAS4G8MsVXWXiyZL5BY=
 github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
+github.com/consensys/bavard v0.1.8-0.20210806153619-fcffe4ffd871 h1:gfdz2r/E4uQhD8jDUv2SaWQClfzFuZioHGAzPw7oZng=
+github.com/consensys/bavard v0.1.8-0.20210806153619-fcffe4ffd871/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
 github.com/consensys/gnark-crypto v0.4.1-0.20210726181124-6a0b99c3c020 h1:vzmi95D7MN6OpGtTzNUSj+y+u8jo5+VGnKWUX5PApk0=
 github.com/consensys/gnark-crypto v0.4.1-0.20210726181124-6a0b99c3c020/go.mod h1:815PAHg3wvysy0SyIqanF8gZ0Y1wjk/hrDHD/iT88+Q=
 github.com/consensys/gnark-crypto v0.4.1-0.20210727142540-bc4b1c7132dc h1:uUaIwCf5XEXGxSxvvCbhEo+ygm5mfXZ67sUBQUMQkq8=
@@ -20,6 +22,10 @@ github.com/consensys/gnark-crypto v0.4.1-0.20210804184454-44a1756da7ce h1:qvQvoL
 github.com/consensys/gnark-crypto v0.4.1-0.20210804184454-44a1756da7ce/go.mod h1:1XphlI46D/u4/TuSy7q5j1231x3XtwPr7jIIGOOZ080=
 github.com/consensys/gnark-crypto v0.4.1-0.20210810152820-89f1497f0bc5 h1:q0XUjf9k06ZP17dEHQSx8+kFX2ThmzyF+DU4cf5dDLY=
 github.com/consensys/gnark-crypto v0.4.1-0.20210810152820-89f1497f0bc5/go.mod h1:1XphlI46D/u4/TuSy7q5j1231x3XtwPr7jIIGOOZ080=
+github.com/consensys/gnark-crypto v0.4.1-0.20210813143038-f901b4ab0fae h1:wr5XdUvWYw0VkLljurBLz2biuVQhvPuGjGSP/lWLOVc=
+github.com/consensys/gnark-crypto v0.4.1-0.20210813143038-f901b4ab0fae/go.mod h1:5u+nS08qZhHtugNg17dAnCGqbnRCJ6XSdPj0LyFvAOM=
+github.com/consensys/gnark-crypto v0.4.1-0.20210813154320-264aa1ac15da h1:nwYVta92/nI8sIT6tL18z2WjbHrUa+ETPg2o7wWTyak=
+github.com/consensys/gnark-crypto v0.4.1-0.20210813154320-264aa1ac15da/go.mod h1:5u+nS08qZhHtugNg17dAnCGqbnRCJ6XSdPj0LyFvAOM=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

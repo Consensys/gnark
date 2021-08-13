@@ -3,8 +3,8 @@ module github.com/consensys/gnark
 go 1.16
 
 require (
-	github.com/consensys/bavard v0.1.8-0.20210406032232-f3452dc9b572
-	github.com/consensys/gnark-crypto v0.4.1-0.20210810152820-89f1497f0bc5
+	github.com/consensys/bavard v0.1.8-0.20210806153619-fcffe4ffd871
+	github.com/consensys/gnark-crypto v0.4.1-0.20210813154320-264aa1ac15da
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.2.0
