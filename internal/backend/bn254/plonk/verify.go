@@ -41,19 +41,19 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
 	// derive gamma from Comm(l), Comm(r), Comm(o)
-	gamma, err := deriveRandomess(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
 		return err
 	}
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
-	alpha, err := deriveRandomess(&fs, "alpha", &proof.Z)
+	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
 	if err != nil {
 		return err
 	}
 
 	// derive zeta, the point of evaluation
-	zeta, err := deriveRandomess(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
+	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	return kzg.Verify(&proof.Z, &proof.ZShiftedOpening, vk.KZGSRS)
 }
 
-func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
+func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
 	var buf [curve.SizeOfG1AffineUncompressed]byte
 	var r fr.Element
 
