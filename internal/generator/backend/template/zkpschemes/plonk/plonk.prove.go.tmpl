@@ -1,4 +1,5 @@
 import (
+	"crypto/sha256"
 	"math/big"
 	"math/bits"
 	"sync"
@@ -37,8 +38,11 @@ type Proof struct {
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }}witness.Witness) (*Proof, error) {
 
+	// pick a hash function that will be used to derive the challenges
+	hFunc := sha256.New()
+
 	// create a transcript manager to apply Fiat Shamir
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
 
 	// result
 	proof := &Proof{}
@@ -55,9 +59,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	// save ll, lr, lo, and make a copy of them in canonical basis.
 	sizeDomainNum := int64(pk.DomainNum.Cardinality)
 	// allocate more capacity to reuse for blinded polynomials
-	cl := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum + 2)
-	cr := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum + 2)
-	co := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum + 2)
+	cl := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
+	cr := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
+	co := make(polynomial.Polynomial, sizeDomainNum, sizeDomainNum+2)
 	copy(cl, ll)
 	copy(cr, lr)
 	copy(co, lo)
@@ -136,7 +140,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	chZ := make(chan struct{}, 1)
 	var z polynomial.Polynomial
-	// TODO @gbotrel need to check on a many-core machine how this behaves --> 
+	// TODO @gbotrel need to check on a many-core machine how this behaves -->
 	// we are firing more go routines than CPU for the FFTs, trace looks better
 	go func() {
 		// compute Z, the permutation accumulator polynomial, in canonical basis
@@ -146,7 +150,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 		fft.BitReverse(z)
 		close(chZ)
 	}()
-
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkFullC := make(polynomial.Polynomial, sizeDomainNum)
@@ -170,12 +173,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 		close(chEvalConstraints)
 	}()
 
-
 	// blind z
 	<-chZ
 	bz := blindPoly(z, pk.DomainNum.Cardinality, 2)
-	// note that bz shares same memory space as z 
-	z = nil 
+	// note that bz shares same memory space as z
+	z = nil
 
 	// commit to the blinded version of z
 	if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS); err != nil {
@@ -263,7 +265,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	// blinded z evaluated at u*zeta
@@ -300,22 +302,21 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + zeta*h2 + zeta**2*h3
-	foldedH := h3 
+	foldedH := h3
 	utils.Parallelize(len(foldedH), func(start, end int) {
-		for i:=start; i < end; i++ {
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) 	// zeta**(m+1)*h3
-			foldedH[i].Add(&foldedH[i], &h2[i]) 		// zeta**(m+1)*h3
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) 	// zeta**2(m+1)*h3+h2*zeta**(m+1)
-			foldedH[i].Add(&foldedH[i], &h1[i]) 		// zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
+		for i := start; i < end; i++ {
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**(m+1)*h3
+			foldedH[i].Add(&foldedH[i], &h2[i])      // zeta**(m+1)*h3
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
+			foldedH[i].Add(&foldedH[i], &h1[i])      // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
 		}
 	})
-
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
 	linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
 	if err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	// Batch open the first list of polynomials
@@ -339,11 +340,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 			pk.Vk.S[1],
 		},
 		&zeta,
+		hFunc,
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {
-		return nil, err 
+		return nil, err
 	}
 
 	return proof, nil

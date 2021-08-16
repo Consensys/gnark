@@ -1,4 +1,5 @@
 import (
+	"crypto/sha256"
 	"errors"
 	"math/big"
 
@@ -17,12 +18,16 @@ var (
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}witness.Witness) error {
 
-	// derive gamma from Comm(l), Comm(r), Comm(o)
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	// pick a hash function to derive the challenge (the same as in the prover)
+	hFunc := sha256.New()
+
+	// transcript to derive the challenge
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
+
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	gamma, err := deriveRandomess(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
-		return err 
+		return err
 	}
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
@@ -34,7 +39,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}
 	// derive zeta, the point of evaluation
 	zeta, err := deriveRandomess(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
 	if err != nil {
-		return err 
+		return err
 	}
 
 	// evaluation of Z=X**m-1 at zeta
@@ -117,7 +122,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}
 	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial
-	// linearizedPolynomialDigest = 
+	// linearizedPolynomialDigest =
 	// 		l*ql+r*qr+rl*qm+o*qo+qk +
 	// 		alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) ) +
 	// 		alpha**2*L1(zeta)*Z
@@ -141,20 +146,19 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}
 	_s2.Mul(&t, &_s2).
 		Mul(&_s2, &alpha) // alpha*(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
 	_s2.Sub(&alphaSquareLagrange, &_s2)
-	// note since third part =  alpha**2*L1(zeta)*Z 
-	// we add alphaSquareLagrange to _s2 
+	// note since third part =  alpha**2*L1(zeta)*Z
+	// we add alphaSquareLagrange to _s2
 
 	points := []curve.G1Affine{
 		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
 		vk.S[2], proof.Z, // second & third part
 	}
-	
-	
-	scalars := []fr.Element {
+
+	scalars := []fr.Element{
 		l, r, rl, o, one, // first part
 		_s1, _s2, // second & third part
 	}
-	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont:true})
+	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
 
 	// Fold the first proof
 	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
@@ -167,6 +171,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}
 		vk.S[1],
 	},
 		&proof.BatchedProof,
+		hFunc,
 	)
 	if err != nil {
 		return err
@@ -184,9 +189,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}
 		vk.KZGSRS,
 	)
 }
-
-
-
 
 func deriveRandomess(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
 	var buf [curve.SizeOfG1AffineUncompressed]byte

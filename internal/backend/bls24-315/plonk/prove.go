@@ -17,6 +17,7 @@
 package plonk
 
 import (
+	"crypto/sha256"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -60,8 +61,11 @@ type Proof struct {
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witness) (*Proof, error) {
 
+	// pick a hash function that will be used to derive the challenges
+	hFunc := sha256.New()
+
 	// create a transcript manager to apply Fiat Shamir
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
 
 	// result
 	proof := &Proof{}
@@ -359,6 +363,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 			pk.Vk.S[1],
 		},
 		&zeta,
+		hFunc,
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)

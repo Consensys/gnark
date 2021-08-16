@@ -17,6 +17,7 @@
 package plonk
 
 import (
+	"crypto/sha256"
 	"errors"
 	"math/big"
 
@@ -38,8 +39,12 @@ var (
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witness) error {
 
-	// derive gamma from Comm(l), Comm(r), Comm(o)
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	// pick a hash function to derive the challenge (the same as in the prover)
+	hFunc := sha256.New()
+
+	// transcript to derive the challenge
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
+
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	gamma, err := deriveRandomess(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
@@ -187,6 +192,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		vk.S[1],
 	},
 		&proof.BatchedProof,
+		hFunc,
 	)
 	if err != nil {
 		return err
