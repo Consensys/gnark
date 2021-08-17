@@ -20,5 +20,13 @@ package hash
 import "github.com/consensys/gnark/frontend"
 
 type Hash interface {
-	Sum(cs *frontend.ConstraintSystem, data ...frontend.Variable) frontend.Variable
+
+	// Sum computes the hash of the internal state of the hash function.
+	Sum() frontend.Variable
+
+	// Write populate the internal state of the hash function with data.
+	Write(data ...frontend.Variable)
+
+	// Reset empty the internal state and put the intermediate state to zero.
+	Reset()
 }

@@ -1,4 +1,5 @@
 import (
+	"crypto/sha256"
 	"math/big"
 	"math/bits"
 	"sync"
@@ -37,8 +38,11 @@ type Proof struct {
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }}witness.Witness) (*Proof, error) {
 
+	// Pick a hash function
+	hFunc := sha256.New()
+
 	// create a transcript manager to apply Fiat Shamir
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
 
 	// result
 	proof := &Proof{}
@@ -339,6 +343,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 			pk.Vk.S[1],
 		},
 		&zeta,
+		hFunc,
 		&pk.DomainH,
 		pk.Vk.KZGSRS,
 	)
