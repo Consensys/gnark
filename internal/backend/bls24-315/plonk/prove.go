@@ -636,6 +636,7 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
 		var f [3]fr.Element
 		var g [3]fr.Element
+		var eID fr.Element
 
 		for i := start; i < end; i++ {
 
@@ -645,11 +646,13 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 			// compute the corresponding shift position
 			// permute it again
 			irev := bits.Reverse64(uint64(i)) >> nn
+			eID = evalID[irev]
+
 			shiftedZ := bits.Reverse64(uint64((irev+4)%s)) >> nn
 
-			f[0].Add(&evalID[irev], &evalL[i]).Add(&f[0], &gamma) //l_i+z**i+gamma
-			f[1].Mul(&evalID[irev], &pk.Vk.Shifter[0])
-			f[2].Mul(&evalID[irev], &pk.Vk.Shifter[1])
+			f[0].Add(&eID, &evalL[i]).Add(&f[0], &gamma) //l_i+z**i+gamma
+			f[1].Mul(&eID, &pk.Vk.Shifter[0])
+			f[2].Mul(&eID, &pk.Vk.Shifter[1])
 			f[1].Add(&f[1], &evalR[i]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
 			f[2].Add(&f[2], &evalO[i]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
