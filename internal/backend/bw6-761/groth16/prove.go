@@ -109,13 +109,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 	proof := &Proof{}
 	var bs1, ar curve.G1Jac
 
-	// using this ensures that our multiExps running in parallel won't use more than
-	// provided CPUs
-	cpuSemaphore := ecc.NewCPUSemaphore(runtime.NumCPU())
+	n := runtime.NumCPU()
 
 	chBs1Done := make(chan struct{}, 1)
 	computeBS1 := func() {
-		bs1.MultiExp(pk.G1.B, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
+		bs1.MultiExp(pk.G1.B, wireValues, ecc.MultiExpConfig{NbTasks: n / 2})
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 		chBs1Done <- struct{}{}
@@ -123,7 +121,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 
 	chArDone := make(chan struct{}, 1)
 	computeAR1 := func() {
-		ar.MultiExp(pk.G1.A, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
+		ar.MultiExp(pk.G1.A, wireValues, ecc.MultiExpConfig{NbTasks: n / 2})
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -138,10 +136,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan struct{}, 1)
 		go func() {
-			krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
+			krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- struct{}{}
 		}()
-		krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
+		krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2})
 		krs.AddMixed(&deltas[2])
 		n := 3
 		for n != 0 {
@@ -166,31 +164,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 		// Bs2 (1 multi exp G2 - size = len(wires))
 		var Bs, deltaS curve.G2Jac
 
-		// splitting Bs2 in 3 ensures all our go routines in the prover have similar running time
-		// and is good for parallelism. However, on a machine with limited CPUs, this may not be
-		// a good idea, as the MultiExp scales slightly better than linearly
-		bsSplit := len(pk.G2.B) / 3
-		if bsSplit > 10 {
-			chDone1 := make(chan struct{}, 1)
-			chDone2 := make(chan struct{}, 1)
-			var bs1, bs2 curve.G2Jac
-			go func() {
-				bs1.MultiExp(pk.G2.B[:bsSplit], wireValues[:bsSplit], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
-				chDone1 <- struct{}{}
-			}()
-			go func() {
-				bs2.MultiExp(pk.G2.B[bsSplit:bsSplit*2], wireValues[bsSplit:bsSplit*2], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
-				chDone2 <- struct{}{}
-			}()
-			Bs.MultiExp(pk.G2.B[bsSplit*2:], wireValues[bsSplit*2:], ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
-
-			<-chDone1
-			Bs.AddAssign(&bs1)
-			<-chDone2
-			Bs.AddAssign(&bs2)
-		} else {
-			Bs.MultiExp(pk.G2.B, wireValues, ecc.MultiExpConfig{CPUSemaphore: cpuSemaphore})
+		nbTasks := n
+		if nbTasks <= 16 {
+			// if we don't have a lot of CPUs, this may artificially split the MSM
+			nbTasks *= 2
 		}
+		Bs.MultiExp(pk.G2.B, wireValues, ecc.MultiExpConfig{NbTasks: nbTasks})
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)

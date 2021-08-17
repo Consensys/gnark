@@ -36,7 +36,6 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -311,22 +310,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 
 // fills proof.LRO with kzg commits of bcl, bcr and bco
 func commitToLRO(bcl, bcr, bco polynomial.Polynomial, proof *Proof, srs *kzg.SRS) error {
-	// using this semaphore ensures that our multiExps running in parallel won't use more than
-	// provided CPUs
-	cpuSemaphore := ecc.NewCPUSemaphore(runtime.NumCPU())
-
+	n := runtime.NumCPU() / 2
 	var err0, err1, err2 error
 	chCommit0 := make(chan struct{}, 1)
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
-		proof.LRO[0], err0 = kzg.Commit(bcl, srs, cpuSemaphore)
+		proof.LRO[0], err0 = kzg.Commit(bcl, srs, n)
 		close(chCommit0)
 	}()
 	go func() {
-		proof.LRO[1], err1 = kzg.Commit(bcr, srs, cpuSemaphore)
+		proof.LRO[1], err1 = kzg.Commit(bcr, srs, n)
 		close(chCommit1)
 	}()
-	if proof.LRO[2], err2 = kzg.Commit(bco, srs, cpuSemaphore); err2 != nil {
+	if proof.LRO[2], err2 = kzg.Commit(bco, srs, n); err2 != nil {
 		return err2
 	}
 	<-chCommit0
@@ -340,22 +336,19 @@ func commitToLRO(bcl, bcr, bco polynomial.Polynomial, proof *Proof, srs *kzg.SRS
 }
 
 func commitToH(h1, h2, h3 polynomial.Polynomial, proof *Proof, srs *kzg.SRS) error {
-	// using this semaphore ensures that our multiExps running in parallel won't use more than
-	// provided CPUs
-	cpuSemaphore := ecc.NewCPUSemaphore(runtime.NumCPU())
-
+	n := runtime.NumCPU() / 2
 	var err0, err1, err2 error
 	chCommit0 := make(chan struct{}, 1)
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
-		proof.H[0], err0 = kzg.Commit(h1, srs, cpuSemaphore)
+		proof.H[0], err0 = kzg.Commit(h1, srs, n)
 		close(chCommit0)
 	}()
 	go func() {
-		proof.H[1], err1 = kzg.Commit(h2, srs, cpuSemaphore)
+		proof.H[1], err1 = kzg.Commit(h2, srs, n)
 		close(chCommit1)
 	}()
-	if proof.H[2], err2 = kzg.Commit(h3, srs, cpuSemaphore); err2 != nil {
+	if proof.H[2], err2 = kzg.Commit(h3, srs, n); err2 != nil {
 		return err2
 	}
 	<-chCommit0
