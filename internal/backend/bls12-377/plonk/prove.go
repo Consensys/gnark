@@ -112,37 +112,68 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		close(chZ)
 	}()
 
-	// compute qk in canonical basis, completed with the public inputs
-	qk := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
-	copy(qk, fullWitness[:spr.NbPublicVariables])
-	copy(qk[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
-	pk.DomainNum.FFTInverse(qk, fft.DIF, 0)
-
 	// evaluation of the blinded versions of l, r, o and bz
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalBL := evaluateHDomain(bcl, &pk.DomainH)
-	evalBR := evaluateHDomain(bcr, &pk.DomainH)
-	evalBO := evaluateHDomain(bco, &pk.DomainH)
+	var evalBL, evalBR, evalBO, evalBZ polynomial.Polynomial
+	chEvalBL := make(chan struct{}, 2)
+	chEvalBR := make(chan struct{}, 2)
+	chEvalBO := make(chan struct{}, 2)
+	go func() {
+		evalBL = evaluateHDomain(bcl, &pk.DomainH)
+		chEvalBL <- struct{}{}
+		chEvalBL <- struct{}{}
+	}()
+	go func() {
+		evalBR = evaluateHDomain(bcr, &pk.DomainH)
+		chEvalBR <- struct{}{}
+		chEvalBR <- struct{}{}
+	}()
+	go func() {
+		evalBO = evaluateHDomain(bco, &pk.DomainH)
+		chEvalBO <- struct{}{}
+		chEvalBO <- struct{}{}
+	}()
 
-	if err := <-chZ; err != nil {
+	var constraintsInd, constraintsOrdering polynomial.Polynomial
+	chConstraintInd := make(chan struct{}, 1)
+	go func() {
+		// compute qk in canonical basis, completed with the public inputs
+		qk := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
+		copy(qk, fullWitness[:spr.NbPublicVariables])
+		copy(qk[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
+		pk.DomainNum.FFTInverse(qk, fft.DIF, 0)
+		fft.BitReverse(qk)
+
+		// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
+		// --> uses the blinded version of l, r, o
+		<-chEvalBL
+		<-chEvalBR
+		<-chEvalBO
+		constraintsInd = evalConstraints(pk, evalBL, evalBR, evalBO, qk)
+		close(chConstraintInd)
+	}()
+
+	chConstraintOrdering := make(chan error, 1)
+	go func() {
+		if err := <-chZ; err != nil {
+			chConstraintOrdering <- err
+			return
+		}
+		evalBZ = evaluateHDomain(bz, &pk.DomainH)
+		// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
+		// evalL, evalO, evalR are the evaluations of the blinded versions of l, r, o.
+		<-chEvalBL
+		<-chEvalBR
+		<-chEvalBO
+		constraintsOrdering = evalConstraintOrdering(pk, evalBZ, evalBL, evalBR, evalBO, gamma)
+		chConstraintOrdering <- nil
+		close(chConstraintOrdering)
+	}()
+
+	if err := <-chConstraintOrdering; err != nil {
 		return nil, err
 	}
-	evalBZ := evaluateHDomain(bz, &pk.DomainH)
-
-	chQk := make(chan struct{}, 1)
-	go func() {
-		fft.BitReverse(qk)
-		close(chQk)
-	}()
-	// compute zu*g1*g2*g3-z*f1*f2*f3 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	// evalL, evalO, evalR are the evaluations of the blinded versions of l, r, o.
-	constraintsOrdering := evalConstraintOrdering(pk, evalBZ, evalBL, evalBR, evalBO, gamma)
-
-	// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
-	// --> uses the blinded version of l, r, o
-	<-chQk
-	constraintsInd := evalConstraints(pk, evalBL, evalBR, evalBO, qk)
-
+	<-chConstraintInd
 	// compute h in canonical form
 	h1, h2, h3 := computeH(pk, constraintsInd, constraintsOrdering, evalBZ, alpha)
 
@@ -343,25 +374,25 @@ func computeBlindedLRO(ll, lr, lo polynomial.Polynomial, domain *fft.Domain) (bc
 	cl := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
 	cr := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
 	co := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
-	copy(cl, ll)
-	copy(cr, lr)
-	copy(co, lo)
-	domain.FFTInverse(cl, fft.DIF, 0)
-	domain.FFTInverse(cr, fft.DIF, 0)
-	domain.FFTInverse(co, fft.DIF, 0)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
+		copy(cl, ll)
+		domain.FFTInverse(cl, fft.DIF, 0)
 		fft.BitReverse(cl)
 		bcl = blindPoly(cl, domain.Cardinality, 1)
 		wg.Done()
 	}()
 	go func() {
+		copy(cr, lr)
+		domain.FFTInverse(cr, fft.DIF, 0)
 		fft.BitReverse(cr)
 		bcr = blindPoly(cr, domain.Cardinality, 1)
 		wg.Done()
 	}()
+	copy(co, lo)
+	domain.FFTInverse(co, fft.DIF, 0)
 	fft.BitReverse(co)
 	bco = blindPoly(co, domain.Cardinality, 1)
 	wg.Wait()
@@ -411,29 +442,30 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 	l = make([]fr.Element, s)
 	r = make([]fr.Element, s)
 	o = make([]fr.Element, s)
+	s0 := solution[0]
 
 	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
-		l[i].Set(&solution[i])
-		r[i].Set(&solution[0])
-		o[i].Set(&solution[0])
+		l[i] = solution[i]
+		r[i] = s0
+		o[i] = s0
 	}
 	offset := spr.NbPublicVariables
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
-		l[offset+i].Set(&solution[spr.Constraints[i].L.VariableID()])
-		r[offset+i].Set(&solution[spr.Constraints[i].R.VariableID()])
-		o[offset+i].Set(&solution[spr.Constraints[i].O.VariableID()])
+		l[offset+i] = solution[spr.Constraints[i].L.VariableID()]
+		r[offset+i] = solution[spr.Constraints[i].R.VariableID()]
+		o[offset+i] = solution[spr.Constraints[i].O.VariableID()]
 	}
 	offset += len(spr.Constraints)
 	for i := 0; i < len(spr.Assertions); i++ { // assertions
-		l[offset+i].Set(&solution[spr.Assertions[i].L.VariableID()])
-		r[offset+i].Set(&solution[spr.Assertions[i].R.VariableID()])
-		o[offset+i].Set(&solution[spr.Assertions[i].O.VariableID()])
+		l[offset+i] = solution[spr.Assertions[i].L.VariableID()]
+		r[offset+i] = solution[spr.Assertions[i].R.VariableID()]
+		o[offset+i] = solution[spr.Assertions[i].O.VariableID()]
 	}
 	offset += len(spr.Assertions)
 	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
-		l[offset+i].Set(&solution[0])
-		r[offset+i].Set(&solution[0])
-		o[offset+i].Set(&solution[0])
+		l[offset+i] = s0
+		r[offset+i] = s0
+		o[offset+i] = s0
 	}
 
 	return l, r, o
@@ -510,13 +542,28 @@ func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Ele
 // * evalL, evalR, evalO are the evaluation of the blinded solution vectors on odd cosets
 // * qk is the completed version of qk, in canonical version
 func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.Element {
+	var evalQl, evalQr, evalQm, evalQo, evalQk polynomial.Polynomial
+	var wg sync.WaitGroup
+	wg.Add(4)
 
-	evalQl := evaluateHDomain(pk.Ql, &pk.DomainH)
-	evalQr := evaluateHDomain(pk.Qr, &pk.DomainH)
-	evalQm := evaluateHDomain(pk.Qm, &pk.DomainH)
-	evalQo := evaluateHDomain(pk.Qo, &pk.DomainH)
-	evalQk := evaluateHDomain(qk, &pk.DomainH)
-
+	go func() {
+		evalQl = evaluateHDomain(pk.Ql, &pk.DomainH)
+		wg.Done()
+	}()
+	go func() {
+		evalQr = evaluateHDomain(pk.Qr, &pk.DomainH)
+		wg.Done()
+	}()
+	go func() {
+		evalQm = evaluateHDomain(pk.Qm, &pk.DomainH)
+		wg.Done()
+	}()
+	go func() {
+		evalQo = evaluateHDomain(pk.Qo, &pk.DomainH)
+		wg.Done()
+	}()
+	evalQk = evaluateHDomain(qk, &pk.DomainH)
+	wg.Wait()
 	// computes the evaluation of qrR+qlL+qmL.R+qoO+k on the odd cosets
 	// of (Z/8mZ)/(Z/mZ)
 	utils.Parallelize(len(evalQk), func(start, end int) {
@@ -567,9 +614,19 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	evalID := evalIDCosets(pk)
 
 	// evaluation of z, zu, s1, s2, s3, on the odd cosets of (Z/8mZ)/(Z/mZ)
-	evalS1 := evaluateHDomain(pk.CS1, &pk.DomainH)
-	evalS2 := evaluateHDomain(pk.CS2, &pk.DomainH)
-	evalS3 := evaluateHDomain(pk.CS3, &pk.DomainH)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var evalS1, evalS2, evalS3 polynomial.Polynomial
+	go func() {
+		evalS1 = evaluateHDomain(pk.CS1, &pk.DomainH)
+		wg.Done()
+	}()
+	go func() {
+		evalS2 = evaluateHDomain(pk.CS2, &pk.DomainH)
+		wg.Done()
+	}()
+	evalS3 = evaluateHDomain(pk.CS3, &pk.DomainH)
+	wg.Wait()
 
 	// computes Z(uX)g1g2g3l-Z(X)f1f2f3l on the odd cosets of (Z/8mZ)/(Z/mZ)
 	res := evalS1 // re use allocated memory for evalS1
