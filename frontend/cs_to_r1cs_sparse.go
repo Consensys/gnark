@@ -78,7 +78,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		// the terms which are not set are equal to zero. We just
 		// need to skip them.
 		if *t != 0 {
-			_, _, cID, cVisibility := t.Unpack()
+			_, cID, cVisibility := t.Unpack()
 			switch cVisibility {
 			case compiled.Public:
 				t.SetVariableID(cID - 1) // -1 because the ONE_WIRE's is not counted
@@ -162,7 +162,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			ToResolve: make([]int, len(cs.logs[i].toResolve)),
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
+			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Public:
 				entry.ToResolve[j] += cID - 1 //+ res.NbInternalVariables + res.NbSecretVariables // -1 because the ONE_WIRE's is not counted
@@ -364,20 +364,20 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 		v := c.Int64()
 		switch v {
 		case 0:
-			t.SetCoeffID(coeffIdZero)
+			t.SetCoeffID(compiled.CoeffIdZero)
 			return t
 		case 1:
 			return t
 		case -1:
 
 			switch t.CoeffID() {
-			case coeffIdZero:
+			case compiled.CoeffIdZero:
 				return t
-			case coeffIdOne:
-				t.SetCoeffID(coeffIdMinusOne)
+			case compiled.CoeffIdOne:
+				t.SetCoeffID(compiled.CoeffIdMinusOne)
 				return t
-			case coeffIdMinusOne:
-				t.SetCoeffID(coeffIdOne)
+			case compiled.CoeffIdMinusOne:
+				t.SetCoeffID(compiled.CoeffIdOne)
 				return t
 			}
 		}

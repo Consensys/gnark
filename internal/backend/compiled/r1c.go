@@ -36,8 +36,8 @@ func (l LinearExpression) Swap(i, j int) {
 
 // Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
 func (l LinearExpression) Less(i, j int) bool {
-	_, _, iID, _ := l[i].Unpack()
-	_, _, jID, _ := l[j].Unpack()
+	_, iID, _ := l[i].Unpack()
+	_, jID, _ := l[j].Unpack()
 	return iID < jID
 }
 

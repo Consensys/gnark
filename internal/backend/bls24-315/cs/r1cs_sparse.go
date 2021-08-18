@@ -110,7 +110,8 @@ func findUnsolvedVariable(c compiled.SparseR1C, wireInstantiated []bool) int {
 // computeTerm computes coef*variable
 func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Element {
 	var res fr.Element
-	res.Mul(&cs.Coefficients[t.CoeffID()], &solution[t.VariableID()])
+	cID, vID, _ := t.Unpack()
+	res.Mul(&cs.Coefficients[cID], &solution[vID])
 	return res
 }
 
@@ -198,22 +199,20 @@ func (cs *SparseR1CS) IsSolved(witness []fr.Element) error {
 
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Element) error {
-	var res, a, b, zero fr.Element
-	res = cs.computeTerm(c.L, solution)
-	a = cs.computeTerm(c.R, solution)
-	res.Add(&res, &a)
-	a = cs.computeTerm(c.M[0], solution)
-	b = cs.computeTerm(c.M[1], solution)
-	a.Mul(&a, &b)
-	res.Add(&res, &a)
-	a = cs.computeTerm(c.O, solution)
-	res.Add(&res, &a)
-	a = cs.Coefficients[c.K]
-	res.Add(&res, &a)
-	if !res.Equal(&zero) {
-		return fmt.Errorf("%w", ErrUnsatisfiedConstraint)
+	l := cs.computeTerm(c.L, solution)
+	r := cs.computeTerm(c.R, solution)
+	m0 := cs.computeTerm(c.M[0], solution)
+	m1 := cs.computeTerm(c.M[1], solution)
+	o := cs.computeTerm(c.O, solution)
+
+	// l + r + (m0 * m1) + o + c.K == 0
+	var t fr.Element
+	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
+	if !t.IsZero() {
+		return ErrUnsatisfiedConstraint
 	}
 	return nil
+
 }
 
 // Solve sets all the wires.
