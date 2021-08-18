@@ -405,13 +405,13 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
-// GetCurveID returns the curveID
-func (pk *ProvingKey) GetCurveID() ecc.ID {
+// CurveID returns the curveID
+func (pk *ProvingKey) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// GetCurveID returns the curveID
-func (vk *VerifyingKey) GetCurveID() ecc.ID {
+// CurveID returns the curveID
+func (vk *VerifyingKey) CurveID() ecc.ID {
 	return curve.ID
 }
 
