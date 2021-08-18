@@ -65,6 +65,13 @@ type Proof interface {
 // it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 type ProvingKey interface {
 	groth16Object
+
+	// NbG1 returns the number of G1 elements in the ProvingKey
+	NbG1() int
+
+	// NbG2 returns the number of G2 elements in the ProvingKey
+	NbG2() int
+
 	IsDifferent(interface{}) bool
 }
 
@@ -75,9 +82,21 @@ type ProvingKey interface {
 // ExportSolidity is implemented for BN254 and will return an error with other curves
 type VerifyingKey interface {
 	groth16Object
-	NbPublicWitness() int // number of elements expected in the public witness
-	IsDifferent(interface{}) bool
+
+	// NbPublicWitness returns number of elements expected in the public witness
+	NbPublicWitness() int
+
+	// NbG1 returns the number of G1 elements in the VerifyingKey
+	NbG1() int
+
+	// NbG2 returns the number of G2 elements in the VerifyingKey
+	NbG2() int
+
+	// ExportSolidity writes a solidity Verifier contract from the VerifyingKey
+	// this will return an error if not supported on the CurveID()
 	ExportSolidity(w io.Writer) error
+
+	IsDifferent(interface{}) bool
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given witness
