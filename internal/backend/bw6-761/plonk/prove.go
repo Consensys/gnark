@@ -678,8 +678,15 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 // Warning: result is in bit reversed order, we do a bit reverse operation only once in computeH
 func evaluateHDomain(poly []fr.Element, domainH *fft.Domain) []fr.Element {
 	res := make([]fr.Element, domainH.Cardinality)
-	copy(res, poly)
-	domainH.FFT(res, fft.DIF, 1)
+
+	// we copy poly in res and scale by coset here
+	// to avoid FFT scaling on domainH.Cardinality (res is very sparse)
+	utils.Parallelize(len(poly), func(start, end int) {
+		for i := start; i < end; i++ {
+			res[i].Mul(&poly[i], &domainH.CosetTable[0][i])
+		}
+	}, runtime.NumCPU()/2)
+	domainH.FFT(res, fft.DIF, 0)
 	return res
 }
 
@@ -714,12 +721,15 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 
 	// computes L1 (canonical form)
 	startsAtOne := make(polynomial.Polynomial, pk.DomainH.Cardinality)
-	for i := uint64(0); i < pk.DomainNum.Cardinality; i++ {
-		startsAtOne[i] = pk.DomainNum.CardinalityInv
-	}
+	utils.Parallelize(int(pk.DomainNum.Cardinality), func(start, end int) {
+		for i := start; i < end; i++ {
+			startsAtOne[i].Mul(&pk.DomainNum.CardinalityInv, &pk.DomainH.CosetTable[0][i])
+		}
+	})
 
 	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	pk.DomainH.FFT(startsAtOne, fft.DIF, 1)
+	// / ! \ note that we scaled by the coset in the previous loop, hence we pass 0 as coset here.
+	pk.DomainH.FFT(startsAtOne, fft.DIF, 0)
 
 	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1(X)(Z(X)-1)
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
