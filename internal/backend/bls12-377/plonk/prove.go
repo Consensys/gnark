@@ -99,7 +99,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		bz = computeBlindedZ(ll, lr, lo, pk, gamma)
 
 		// commit to the blinded version of z
-		if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS); err != nil {
+		// note that we explicitly double the number of tasks for the multi exp in kzg.Commit
+		// this may add additional arithmetic operations, but with smaller tasks
+		// we ensure that this commitment is well parallelized, without having a "unbalanced task" making
+		// the rest of the code wait too long.
+		if proof.Z, err = kzg.Commit(bz, pk.Vk.KZGSRS, runtime.NumCPU()*2); err != nil {
 			chZ <- err
 			close(chZ)
 			return
