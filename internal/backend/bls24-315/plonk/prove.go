@@ -485,43 +485,42 @@ func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Ele
 	nbElmts := int(pk.DomainNum.Cardinality)
 	gInv := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 
-	var f [3]fr.Element
-	var g [3]fr.Element
-	var u [3]fr.Element
-	u[0].SetOne()
-	u[1].Set(&pk.Vk.Shifter[0])
-	u[2].Set(&pk.Vk.Shifter[1])
-
 	z[0].SetOne()
 	gInv[0].SetOne()
 
-	for i := 0; i < nbElmts-1; i++ {
+	utils.Parallelize(nbElmts-1, func(start, end int) {
+		var f [3]fr.Element
+		var g [3]fr.Element
+		var u [3]fr.Element
+		u[0].Exp(pk.DomainNum.Generator, new(big.Int).SetInt64(int64(start)))
+		u[1].Mul(&u[0], &pk.Vk.Shifter[0])
+		u[2].Mul(&u[0], &pk.Vk.Shifter[1])
 
-		f[0].Add(&l[i], &u[0]).Add(&f[0], &gamma) //l_i+z**i+gamma
-		f[1].Add(&r[i], &u[1]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
-		f[2].Add(&o[i], &u[2]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
+		for i := start; i < end; i++ {
+			f[0].Add(&l[i], &u[0]).Add(&f[0], &gamma) //l_i+z**i+gamma
+			f[1].Add(&r[i], &u[1]).Add(&f[1], &gamma) //r_i+u*z**i+gamma
+			f[2].Add(&o[i], &u[2]).Add(&f[2], &gamma) //o_i+u**2*z**i+gamma
 
-		g[0].Add(&l[i], &pk.LS1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
-		g[1].Add(&r[i], &pk.LS2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
-		g[2].Add(&o[i], &pk.LS3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
+			g[0].Add(&l[i], &pk.LS1[i]).Add(&g[0], &gamma) //l_i+z**i+gamma
+			g[1].Add(&r[i], &pk.LS2[i]).Add(&g[1], &gamma) //r_i+u*z**i+gamma
+			g[2].Add(&o[i], &pk.LS3[i]).Add(&g[2], &gamma) //o_i+u**2*z**i+gamma
 
-		f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]) // (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
-		g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+			f[0].Mul(&f[0], &f[1]).Mul(&f[0], &f[2]) // (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+			g[0].Mul(&g[0], &g[1]).Mul(&g[0], &g[2]) //  (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 
-		gInv[i+1] = g[0]
-		z[i+1].Mul(&z[i], &f[0]) //.Div(&z[i+1], &g[0]) --> use montgomery batch inversion in a second loop
+			gInv[i+1] = g[0]
+			z[i+1] = f[0]
 
-		u[0].Mul(&u[0], &pk.DomainNum.Generator) // z**i -> z**i+1
-		u[1].Mul(&u[1], &pk.DomainNum.Generator) // u*z**i -> u*z**i+1
-		u[2].Mul(&u[2], &pk.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
-	}
+			u[0].Mul(&u[0], &pk.DomainNum.Generator) // z**i -> z**i+1
+			u[1].Mul(&u[1], &pk.DomainNum.Generator) // u*z**i -> u*z**i+1
+			u[2].Mul(&u[2], &pk.DomainNum.Generator) // u**2*z**i -> u**2*z**i+1
+		}
+	})
 
-	//.Div(&z[i+1], &g[0])
 	gInv = fr.BatchInvert(gInv)
-	acc := fr.One()
 	for i := 1; i < nbElmts; i++ {
-		acc.Mul(&acc, &gInv[i])
-		z[i].Mul(&z[i], &acc)
+		z[i].Mul(&z[i], &z[i-1]).
+			Mul(&z[i], &gInv[i])
 	}
 
 	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
