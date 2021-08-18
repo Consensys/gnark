@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math/big"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -15,8 +17,6 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
-	cs_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
-	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"github.com/pkg/profile"
 )
 
@@ -31,57 +31,47 @@ func main() {
 	}
 
 	// write to stdout
+	w := csv.NewWriter(os.Stdout)
+	if err := w.Write(benchData{}.headers()); err != nil {
+		panic(err)
+	}
 	const curveID = ecc.BN254
 	// generate dummy circuit and witness
-	// _, ccs, _ := generateCircuit(n, curveID)
-	var circuit benchCircuit
-	circuit.n = n
-
-	ccs, err := frontend.Compile(curveID, backend.PLONK, &circuit)
-	if err != nil {
-		panic(err)
-	}
+	pk, ccs, _ := generateCircuit(n, curveID)
 
 	witness := generateSolution(n, curveID)
-	ww := witness_bn254.Witness{}
-	if err := ww.FromFullAssignment(&witness); err != nil {
-		panic(err)
-	}
-
-	cccs := ccs.(*cs_bn254.SparseR1CS)
 
 	// measure proving time
 	start := time.Now()
-	p := profile.Start(profile.CPUProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-	_, err = cccs.Solve(ww)
-	// _, err = plonk.Prove(ccs, pk, &witness)
+	p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
+	_, err = plonk.Prove(ccs, pk, &witness)
 	p.Stop()
 	if err != nil {
 		panic(err)
 	}
 
 	took := time.Since(start)
-	fmt.Println("took", took.Milliseconds())
-	// // check memory usage, max ram requested from OS
-	// var m runtime.MemStats
-	// runtime.ReadMemStats(&m)
 
-	// bData := benchData{
-	// 	Curve:          curveID.String(),
-	// 	NbCores:        runtime.NumCPU(),
-	// 	NbCoefficients: ccs.GetNbCoefficients(),
-	// 	NbConstraints:  ccs.GetNbConstraints(),
-	// 	NbWires:        0, // TODO @gbotrel fixme
-	// 	RunTime:        took.Milliseconds(),
-	// 	MaxRAM:         (m.Sys / 1024 / 1024),
-	// 	Throughput:     int(float64(ccs.GetNbConstraints()) / took.Seconds()),
-	// }
-	// bData.ThroughputPerCore = bData.Throughput / bData.NbCores
+	// check memory usage, max ram requested from OS
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
 
-	// if err := w.Write(bData.values()); err != nil {
-	// 	panic(err)
-	// }
-	// w.Flush()
+	bData := benchData{
+		Curve:          curveID.String(),
+		NbCores:        runtime.NumCPU(),
+		NbCoefficients: ccs.GetNbCoefficients(),
+		NbConstraints:  ccs.GetNbConstraints(),
+		NbWires:        0, // TODO @gbotrel fixme
+		RunTime:        took.Milliseconds(),
+		MaxRAM:         (m.Sys / 1024 / 1024),
+		Throughput:     int(float64(ccs.GetNbConstraints()) / took.Seconds()),
+	}
+	bData.ThroughputPerCore = bData.Throughput / bData.NbCores
+
+	if err := w.Write(bData.values()); err != nil {
+		panic(err)
+	}
+	w.Flush()
 
 }
 
