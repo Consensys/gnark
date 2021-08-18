@@ -37,6 +37,12 @@ func main() {
 
 	for _, b := range backend.Implemented() {
 		for _, curve := range ecc.Implemented() {
+
+			// TODO remove this after the branch feat/bw633 is merged
+			if curve == ecc.BW6_633 {
+				continue
+			}
+
 			circuitID := filepath.Join(b.String(), curve.String(), "cubic")
 			os.MkdirAll(circuitID, 0700)
 
