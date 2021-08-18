@@ -109,10 +109,25 @@ func findUnsolvedVariable(c compiled.SparseR1C, wireInstantiated []bool) int {
 
 // computeTerm computes coef*variable
 func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Element {
-	var res fr.Element
 	cID, vID, _ := t.Unpack()
-	res.Mul(&cs.Coefficients[cID], &solution[vID])
-	return res
+	switch cID {
+	case compiled.CoeffIdZero:
+		return fr.Element{}
+	case compiled.CoeffIdOne:
+		return solution[vID]
+	case compiled.CoeffIdTwo:
+		var res fr.Element
+		res.Double(&solution[vID])
+		return res
+	case compiled.CoeffIdMinusOne:
+		var res fr.Element
+		res.Neg(&solution[vID])
+		return res
+	default:
+		var res fr.Element
+		res.Mul(&cs.Coefficients[cID], &solution[vID])
+		return res
+	}
 }
 
 // solveConstraint solves c with the help of the slices wireInstantiated
