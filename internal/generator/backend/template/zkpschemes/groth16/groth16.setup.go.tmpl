@@ -415,8 +415,8 @@ func (vk *VerifyingKey) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// SizePublicWitness returns the number of elements in the expected public witness
-func (vk *VerifyingKey) SizePublicWitness() int {
+// NbPublicWitness returns the number of elements in the expected public witness
+func (vk *VerifyingKey) NbPublicWitness() int {
 	return (len(vk.G1.K) - 1)
 }
 

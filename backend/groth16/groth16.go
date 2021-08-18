@@ -75,7 +75,7 @@ type ProvingKey interface {
 // ExportSolidity is implemented for BN254 and will return an error with other curves
 type VerifyingKey interface {
 	groth16Object
-	SizePublicWitness() int // number of elements expected in the public witness
+	NbPublicWitness() int // number of elements expected in the public witness
 	IsDifferent(interface{}) bool
 	ExportSolidity(w io.Writer) error
 }
@@ -127,31 +127,31 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 	switch _vk := vk.(type) {
 	case *groth16_bls12377.VerifyingKey:
 		w := witness_bls12377.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bls12377.Verify(proof.(*groth16_bls12377.Proof), _vk, w)
 	case *groth16_bls12381.VerifyingKey:
 		w := witness_bls12381.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bls12381.Verify(proof.(*groth16_bls12381.Proof), _vk, w)
 	case *groth16_bn254.VerifyingKey:
 		w := witness_bn254.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bn254.Verify(proof.(*groth16_bn254.Proof), _vk, w)
 	case *groth16_bw6761.VerifyingKey:
 		w := witness_bw6761.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bw6761.Verify(proof.(*groth16_bw6761.Proof), _vk, w)
 	case *groth16_bls24315.VerifyingKey:
 		w := witness_bls24315.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.SizePublicWitness()); err != nil {
+		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
 			return err
 		}
 		return groth16_bls24315.Verify(proof.(*groth16_bls24315.Proof), _vk, w)

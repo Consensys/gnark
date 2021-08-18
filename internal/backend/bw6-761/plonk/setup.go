@@ -365,8 +365,8 @@ func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 	return nil
 }
 
-// SizePublicWitness returns the expected public witness size (number of field elements)
-func (vk *VerifyingKey) SizePublicWitness() int {
+// NbPublicWitness returns the expected public witness size (number of field elements)
+func (vk *VerifyingKey) NbPublicWitness() int {
 	return int(vk.NbPublicVariables)
 }
 
