@@ -7,14 +7,12 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381fr "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	bn254fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
-	kzgg "github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
@@ -23,12 +21,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("usage is ./benchmark setup/run [nbConstraints]")
+	if len(os.Args) != 2 {
+		fmt.Println("usage is ./benchmark [nbConstraints]")
 		os.Exit(-1)
 	}
-	ts := strings.TrimSpace(os.Args[1])
-	n, err := strconv.Atoi(os.Args[2])
+	n, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
@@ -39,101 +36,42 @@ func main() {
 		panic(err)
 	}
 	const curveID = ecc.BN254
-	switch ts {
-	case "setup":
-		// generate dummy circuit and witness
-		pk, ccs, srs := generateCircuit(n, curveID)
-		fpk, err := os.Create("b.pk")
-		if err != nil {
-			panic(err)
-		}
-		if _, err := pk.WriteTo(fpk); err != nil {
-			panic(err)
-		}
-		fccs, err := os.Create("b.ccs")
-		if err != nil {
-			panic(err)
-		}
-		if _, err := ccs.WriteTo(fccs); err != nil {
-			panic(err)
-		}
+	// generate dummy circuit and witness
+	pk, ccs, _ := generateCircuit(n, curveID)
 
-		fsrs, err := os.Create("b.srs")
-		if err != nil {
-			panic(err)
-		}
-		if _, err := srs.WriteTo(fsrs); err != nil {
-			panic(err)
-		}
+	witness := generateSolution(n, curveID)
 
-	case "run":
-		fpk, err := os.Open("b.pk")
-		if err != nil {
-			panic(err)
-		}
-		pk := plonk.NewProvingKey(curveID)
-		if _, err := pk.ReadFrom(fpk); err != nil {
-			panic(err)
-		}
-
-		fsrs, err := os.Open("b.srs")
-		if err != nil {
-			panic(err)
-		}
-		srs := kzgg.NewSRS(curveID)
-		if _, err := srs.ReadFrom(fsrs); err != nil {
-			panic(err)
-		}
-		if err := pk.InitKZG(srs); err != nil {
-			panic(err)
-		}
-
-		fccs, err := os.Open("b.ccs")
-		if err != nil {
-			panic(err)
-		}
-		ccs := plonk.NewCS(curveID)
-		if _, err := ccs.ReadFrom(fccs); err != nil {
-			panic(err)
-		}
-
-		witness := generateSolution(n, curveID)
-
-		// measure proving time
-		start := time.Now()
-		p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
-		_, err = plonk.Prove(ccs, pk, &witness)
-		p.Stop()
-		if err != nil {
-			panic(err)
-		}
-
-		took := time.Since(start)
-
-		// check memory usage, max ram requested from OS
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-
-		bData := benchData{
-			Curve:          curveID.String(),
-			NbCores:        runtime.NumCPU(),
-			NbCoefficients: ccs.GetNbCoefficients(),
-			NbConstraints:  ccs.GetNbConstraints(),
-			NbWires:        0, // TODO @gbotrel fixme
-			RunTime:        took.Milliseconds(),
-			MaxRAM:         (m.Sys / 1024 / 1024),
-			Throughput:     int(float64(ccs.GetNbConstraints()) / took.Seconds()),
-		}
-		bData.ThroughputPerCore = bData.Throughput / bData.NbCores
-
-		if err := w.Write(bData.values()); err != nil {
-			panic(err)
-		}
-		w.Flush()
-	default:
-		fmt.Println("usage is ./benchmark setup/run [nbConstraints]")
-		os.Exit(-1)
+	// measure proving time
+	start := time.Now()
+	p := profile.Start(profile.TraceProfile, profile.ProfilePath("."), profile.NoShutdownHook)
+	_, err = plonk.Prove(ccs, pk, &witness)
+	p.Stop()
+	if err != nil {
+		panic(err)
 	}
+
+	took := time.Since(start)
+
+	// check memory usage, max ram requested from OS
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	bData := benchData{
+		Curve:          curveID.String(),
+		NbCores:        runtime.NumCPU(),
+		NbCoefficients: ccs.GetNbCoefficients(),
+		NbConstraints:  ccs.GetNbConstraints(),
+		NbWires:        0, // TODO @gbotrel fixme
+		RunTime:        took.Milliseconds(),
+		MaxRAM:         (m.Sys / 1024 / 1024),
+		Throughput:     int(float64(ccs.GetNbConstraints()) / took.Seconds()),
+	}
+	bData.ThroughputPerCore = bData.Throughput / bData.NbCores
+
+	if err := w.Write(bData.values()); err != nil {
+		panic(err)
+	}
+	w.Flush()
 
 }
 

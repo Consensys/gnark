@@ -37,7 +37,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// we just need to offset our ids, such that wires = [ public wires  | secret wires | internal wires ]
 	offsetIDs := func(exp compiled.LinearExpression) error {
 		for j := 0; j < len(exp); j++ {
-			_, _, cID, cVisibility := exp[j].Unpack()
+			_, cID, cVisibility := exp[j].Unpack()
 			switch cVisibility {
 			case compiled.Internal:
 				exp[j].SetVariableID(cID + len(cs.public.variables) + len(cs.secret.variables))
@@ -74,7 +74,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Format: cs.logs[i].format,
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
+			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Internal:
 				cID += len(cs.public.variables) + len(cs.secret.variables)
@@ -97,7 +97,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Format: cs.debugInfo[i].format,
 		}
 		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
-			_, _, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
+			_, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Internal:
 				cID += len(cs.public.variables) + len(cs.secret.variables)

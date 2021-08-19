@@ -70,7 +70,7 @@ func main() {
 	defer logger.Sync() // flushes buffer, if any
 
 	// catch sigterm and sigint.
-	chDone := make(chan os.Signal)
+	chDone := make(chan os.Signal, 2)
 	signal.Notify(chDone, syscall.SIGTERM, syscall.SIGINT)
 
 	// Parse flags
