@@ -468,6 +468,7 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	r := cs.Constant(1)  // no constraint is recorded
 	o := cs.Constant(i2) // no constraint is recorded
 
+	// build log
 	var sbb strings.Builder
 	sbb.WriteString("[")
 	lhs := cs.buildLogEntryFromVariable(l)
@@ -478,6 +479,14 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	sbb.WriteString(rhs.format)
 	debugInfo.toResolve = append(debugInfo.toResolve, rhs.toResolve...)
 	sbb.WriteString("]")
+
+	// get call stack
+	sbb.WriteString("error AssertIsEqual")
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
+	}
 	debugInfo.format = sbb.String()
 
 	cs.addAssertion(newR1C(l, r, o), debugInfo)
@@ -497,13 +506,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	v.isBoolean = true
 
 	// prepare debug info to be displayed in case the constraint is not solved
-	// debugInfo := logEntry{
-	// 	format:    fmt.Sprintf("%%s == (0 or 1)"),
-	// 	toResolve: []compiled.Term{compiled.Pack(v.id, 0, v.visibility)},
-	// }
-	// stack := getCallStack()
 	debugInfo := logEntry{
-		// format:    "error AssertIsBoolean",
 		toResolve: nil,
 	}
 	var sbb strings.Builder
