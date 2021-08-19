@@ -76,7 +76,7 @@ type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
 	InitKZG(srs kzg.SRS) error
-	SizePublicWitness() int // number of elements expected in the public witness
+	NbPublicWitness() int // number of elements expected in the public witness
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
@@ -350,7 +350,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 // ReadAndVerify verifies a PLONK proof from a circuit, associated proving key, and the full witness
 func ReadAndVerify(proof Proof, vk VerifyingKey, witness io.Reader) error {
 
-	expectedSize := vk.SizePublicWitness()
+	expectedSize := vk.NbPublicWitness()
 
 	switch _proof := proof.(type) {
 	case *plonk_bn254.Proof:

@@ -46,8 +46,8 @@ func (proof *Proof) isValid() bool {
 	return proof.Ar.IsInSubGroup() && proof.Krs.IsInSubGroup() && proof.Bs.IsInSubGroup()
 }
 
-// GetCurveID returns the curveID
-func (proof *Proof) GetCurveID() ecc.ID {
+// CurveID returns the curveID
+func (proof *Proof) CurveID() ecc.ID {
 	return curve.ID
 }
 

@@ -426,19 +426,39 @@ func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
-// GetCurveID returns the curveID
-func (pk *ProvingKey) GetCurveID() ecc.ID {
+// CurveID returns the curveID
+func (pk *ProvingKey) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// GetCurveID returns the curveID
-func (vk *VerifyingKey) GetCurveID() ecc.ID {
+// CurveID returns the curveID
+func (vk *VerifyingKey) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// SizePublicWitness returns the number of elements in the expected public witness
-func (vk *VerifyingKey) SizePublicWitness() int {
+// NbPublicWitness returns the number of elements in the expected public witness
+func (vk *VerifyingKey) NbPublicWitness() int {
 	return (len(vk.G1.K) - 1)
+}
+
+// NbG1 returns the number of G1 elements in the VerifyingKey
+func (vk *VerifyingKey) NbG1() int {
+	return 3 + len(vk.G1.K)
+}
+
+// NbG2 returns the number of G2 elements in the VerifyingKey
+func (vk *VerifyingKey) NbG2() int {
+	return 3
+}
+
+// NbG1 returns the number of G1 elements in the ProvingKey
+func (pk *ProvingKey) NbG1() int {
+	return 3 + len(pk.G1.A) + len(pk.G1.B) + len(pk.G1.Z) + len(pk.G1.K)
+}
+
+// NbG2 returns the number of G2 elements in the ProvingKey
+func (pk *ProvingKey) NbG2() int {
+	return 2 + len(pk.G2.B)
 }
 
 // bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
