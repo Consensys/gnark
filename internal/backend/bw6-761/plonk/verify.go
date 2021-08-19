@@ -17,6 +17,7 @@
 package plonk
 
 import (
+	"crypto/sha256"
 	"errors"
 	"math/big"
 
@@ -38,8 +39,12 @@ var (
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness) error {
 
-	// derive gamma from Comm(l), Comm(r), Comm(o)
-	fs := fiatshamir.NewTranscript(fiatshamir.SHA256, "gamma", "alpha", "zeta")
+	// pick a hash function to derive the challenge (the same as in the prover)
+	hFunc := sha256.New()
+
+	// transcript to derive the challenge
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
+
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
@@ -176,27 +181,38 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	}
 	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
 
-	// verify the opening proofs
-	if err := kzg.BatchVerifySinglePoint(
-		[]kzg.Digest{
-			foldedH,
-			linearizedPolynomialDigest,
-			proof.LRO[0],
-			proof.LRO[1],
-			proof.LRO[2],
-			vk.S[0],
-			vk.S[1],
-		},
+	// Fold the first proof
+	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
+		foldedH,
+		linearizedPolynomialDigest,
+		proof.LRO[0],
+		proof.LRO[1],
+		proof.LRO[2],
+		vk.S[0],
+		vk.S[1],
+	},
 		&proof.BatchedProof,
-		vk.KZGSRS,
-	); err != nil {
+		hFunc,
+	)
+	if err != nil {
 		return err
 	}
 
-	return kzg.Verify(&proof.Z, &proof.ZShiftedOpening, vk.KZGSRS)
+	// Batch verify
+	return kzg.BatchVerifyMultiPoints([]kzg.Digest{
+		foldedDigest,
+		proof.Z,
+	},
+		[]kzg.OpeningProof{
+			foldedProof,
+			proof.ZShiftedOpening,
+		},
+		vk.KZGSRS,
+	)
 }
 
 func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {
+
 	var buf [curve.SizeOfG1AffineUncompressed]byte
 	var r fr.Element
 

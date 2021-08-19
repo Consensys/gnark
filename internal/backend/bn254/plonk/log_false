@@ -1,0 +1,19 @@
+0
+0
+1
+1
+1
+1
+1
+0
+1
+1
+2
+1
+0
+1
+1
+1
+1
+PASS
+ok  	github.com/consensys/gnark/internal/backend/bn254/plonk	1.337s
