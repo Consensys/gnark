@@ -53,11 +53,13 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 		msg,
 	}
 
-	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID)
+	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID, cs)
 	if err != nil {
 		return err
 	}
-	hramConstant := hash.Hash(cs, data...)
+	hash.Write(data...)
+	//hramConstant := hash.Sum(data...)
+	hramConstant := hash.Sum()
 
 	// lhs = cofactor*SB
 	cofactorConstant := cs.Constant(pubKey.Curve.Cofactor)

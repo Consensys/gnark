@@ -30,7 +30,7 @@ import (
 )
 
 var encryptFuncs map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[ecc.ID]func(string) MiMC
+var newMimc map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC
 
 func init() {
 	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
@@ -40,7 +40,7 @@ func init() {
 	encryptFuncs[ecc.BW6_761] = encryptBW761
 	encryptFuncs[ecc.BLS24_315] = encryptBLS315
 
-	newMimc = make(map[ecc.ID]func(string) MiMC)
+	newMimc = make(map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC)
 	newMimc[ecc.BN254] = newMimcBN254
 	newMimc[ecc.BLS12_381] = newMimcBLS381
 	newMimc[ecc.BLS12_377] = newMimcBLS377
@@ -51,7 +51,7 @@ func init() {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string) MiMC {
+func newMimcBLS377(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bls12377.NewParams(seed)
 	for _, v := range params {
@@ -60,10 +60,12 @@ func newMimcBLS377(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_377
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBLS381(seed string) MiMC {
+func newMimcBLS381(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bls12381.NewParams(seed)
 	for _, v := range params {
@@ -72,10 +74,12 @@ func newMimcBLS381(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_381
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBN254(seed string) MiMC {
+func newMimcBN254(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bn254.NewParams(seed)
 	for _, v := range params {
@@ -84,10 +88,12 @@ func newMimcBN254(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BN254
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBW761(seed string) MiMC {
+func newMimcBW761(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bw6761.NewParams(seed)
 	for _, v := range params {
@@ -96,10 +102,12 @@ func newMimcBW761(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BW6_761
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBLS315(seed string) MiMC {
+func newMimcBLS315(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bls24315.NewParams(seed)
 	for _, v := range params {
@@ -108,6 +116,8 @@ func newMimcBLS315(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS24_315
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
