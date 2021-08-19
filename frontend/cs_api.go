@@ -66,7 +66,7 @@ func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 	res := make(compiled.LinearExpression, len(l))
 	var coeff, coeffCopy big.Int
 	for i, t := range l {
-		_, coeffID, variableID, constraintVis := t.Unpack()
+		coeffID, variableID, constraintVis := t.Unpack()
 		coeff = cs.coeffs[coeffID]
 		coeffCopy.Neg(&coeff)
 		res[i] = cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy)
@@ -128,7 +128,7 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 	lambda := FromInterface(i)
 	for _, t := range v.linExp {
 		var coeffCopy big.Int
-		_, coeffID, variableID, constraintVis := t.Unpack()
+		coeffID, variableID, constraintVis := t.Unpack()
 		coeff := cs.coeffs[coeffID]
 		coeffCopy.Mul(&coeff, &lambda)
 		linExp = append(linExp, cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy))

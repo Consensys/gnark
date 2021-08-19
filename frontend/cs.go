@@ -83,14 +83,6 @@ type CompiledConstraintSystem interface {
 	FrSize() int
 }
 
-// ids of the coefficients with simple values in any cs.coeffs slice.
-const (
-	coeffIdZero     = 0
-	coeffIdOne      = 1
-	coeffIdTwo      = 2
-	coeffIdMinusOne = 3
-)
-
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
@@ -105,10 +97,10 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 		assertions:  make([]compiled.R1C, 0),
 	}
 
-	cs.coeffs[coeffIdZero].SetInt64(0)
-	cs.coeffs[coeffIdOne].SetInt64(1)
-	cs.coeffs[coeffIdTwo].SetInt64(2)
-	cs.coeffs[coeffIdMinusOne].SetInt64(-1)
+	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)
+	cs.coeffs[compiled.CoeffIdOne].SetInt64(1)
+	cs.coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	cs.coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
@@ -150,22 +142,7 @@ func (cs *ConstraintSystem) getOneVariable() Variable {
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
 func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
-	cID := cs.coeffID(coeff)
-	term := compiled.Pack(v.id, cID, v.visibility)
-
-	// set special value if fast path
-	switch cID {
-	case coeffIdMinusOne:
-		term.SetCoeffValue(-1)
-	case coeffIdZero:
-		term.SetCoeffValue(0)
-	case coeffIdOne:
-		term.SetCoeffValue(1)
-	case coeffIdTwo:
-		term.SetCoeffValue(2)
-	}
-
-	return term
+	return compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
 }
 
 // newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
@@ -209,7 +186,7 @@ func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visi
 	// the variables are collected and the coefficients are accumulated
 	for _, t := range linExp {
 
-		_, coeffID, variableID, vis := t.Unpack()
+		coeffID, variableID, vis := t.Unpack()
 
 		if vis == visibility {
 			tmp := Wire{vis, variableID, nil}
@@ -294,13 +271,13 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 		v := b.Int64()
 		switch v {
 		case -1:
-			return coeffIdMinusOne
+			return compiled.CoeffIdMinusOne
 		case 0:
-			return coeffIdZero
+			return compiled.CoeffIdZero
 		case 1:
-			return coeffIdOne
+			return compiled.CoeffIdOne
 		case 2:
-			return coeffIdTwo
+			return compiled.CoeffIdTwo
 		}
 	}
 

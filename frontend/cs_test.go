@@ -22,8 +22,8 @@ func TestQuickSort(t *testing.T) {
 	sort.Sort(toSort)
 
 	for i := 0; i < 10; i++ {
-		_, _, cur, _ := toSort[i].Unpack()
-		_, _, next, _ := toSort[i+1].Unpack()
+		_, cur, _ := toSort[i].Unpack()
+		_, next, _ := toSort[i+1].Unpack()
 		if cur >= next {
 			t.Fatal("err sorting linear expression")
 		}
