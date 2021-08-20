@@ -121,7 +121,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
 		chBs1Done <- nil
-		close(chBs1Done)
 	}
 
 	chArDone := make(chan error, 1)
@@ -135,7 +134,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
 		chArDone <- nil
-		close(chArDone)
 	}
 
 	chKrsDone := make(chan error, 1)
@@ -148,11 +146,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 		go func() {
 			_, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- err
-			close(chKrs2Done)
 		}()
 		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
-			close(chKrsDone)
 			return
 		}
 		krs.AddMixed(&deltas[2])
@@ -162,14 +158,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 			case err := <-chKrs2Done:
 				if err != nil {
 					chKrsDone <- err
-					close(chKrsDone)
 					return
 				}
 				krs.AddAssign(&krs2)
 			case err := <-chArDone:
 				if err != nil {
 					chKrsDone <- err
-					close(chKrsDone)
 					return
 				}
 				p1.ScalarMultiplication(&ar, &s)
@@ -177,7 +171,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 			case err := <-chBs1Done:
 				if err != nil {
 					chKrsDone <- err
-					close(chKrsDone)
 					return
 				}
 				p1.ScalarMultiplication(&bs1, &r)
@@ -188,7 +181,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls24_315witness.Witness, forc
 
 		proof.Krs.FromJacobian(&krs)
 		chKrsDone <- nil
-		close(chKrsDone)
 	}
 
 	computeBS2 := func() error {
