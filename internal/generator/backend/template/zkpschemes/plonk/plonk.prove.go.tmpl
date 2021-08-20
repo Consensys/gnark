@@ -57,7 +57,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	// save ll, lr, lo, and make a copy of them in canonical basis.
 	// note that we allocate more capacity to reuse for blinded polynomials
-	bcl, bcr, bco := computeBlindedLRO(ll, lr, lo, &pk.DomainNum)
+	bcl, bcr, bco, err  := computeBlindedLRO(ll, lr, lo, &pk.DomainNum)
+	if err != nil {
+		return nil, err
+	}
 
 	// compute kzg commitments of bcl, bcr and bco
 	if err := commitToLRO(bcl, bcr, bco, proof, pk.Vk.KZGSRS); err != nil {
@@ -76,7 +79,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	chZ := make(chan error, 1)
 	var alpha fr.Element 
 	go func() {
-		bz = computeBlindedZ(ll, lr, lo, pk, gamma)
+		var err error 
+		bz, err = computeBlindedZ(ll, lr, lo, pk, gamma)
+		if err != nil {
+			chZ <- err 
+			close(chZ)
+			return 
+		}
 
 		// commit to the blinded version of z
 		// note that we explicitly double the number of tasks for the multi exp in kzg.Commit
@@ -350,34 +359,40 @@ func commitToH(h1, h2, h3 polynomial.Polynomial, proof *Proof, srs *kzg.SRS) err
 
 
 // computeBlindedLRO l, r, o in canonical basis with blinding
-func computeBlindedLRO(ll,lr,lo polynomial.Polynomial, domain *fft.Domain) (bcl, bcr, bco polynomial.Polynomial) {
+func computeBlindedLRO(ll,lr,lo polynomial.Polynomial, domain *fft.Domain) (bcl, bcr, bco polynomial.Polynomial, err error) {
 	// note that bcl, bcr and bco reuses cl, cr and co memory
 	cl := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality + 2)
 	cr := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality + 2)
 	co := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality + 2)
 	
-	var wg sync.WaitGroup
-	wg.Add(2)
+	chDone := make(chan error, 2)
 	go func() {
+		var err error 
 		copy(cl, ll)
 		domain.FFTInverse(cl, fft.DIF, 0)
 		fft.BitReverse(cl)
-		bcl = blindPoly(cl, domain.Cardinality, 1)
-		wg.Done()
+		bcl, err = blindPoly(cl, domain.Cardinality, 1)
+		chDone <- err 
 	}()
 	go func() {
+		var err error
 		copy(cr, lr)
 		domain.FFTInverse(cr, fft.DIF, 0)
 		fft.BitReverse(cr)
-		bcr = blindPoly(cr, domain.Cardinality, 1)
-		wg.Done()
+		bcr, err = blindPoly(cr, domain.Cardinality, 1)
+		chDone <- err 
 	}()
 	copy(co, lo)
 	domain.FFTInverse(co, fft.DIF, 0)
 	fft.BitReverse(co)
-	bco = blindPoly(co, domain.Cardinality, 1)
-	wg.Wait()
-
+	if bco, err = blindPoly(co, domain.Cardinality, 1); err != nil {
+		return 
+	}
+	err = <-chDone 
+	if err != nil {
+		return
+	}
+	err = <-chDone 
 	return 
 }
 
@@ -390,7 +405,7 @@ func computeBlindedLRO(ll,lr,lo polynomial.Polynomial, domain *fft.Domain) (bcl,
 // WARNING: 
 // pre condition degree(cp) <= rou + bo
 // pre condition cap(cp) >= int(totalDegree + 1)
-func blindPoly(cp polynomial.Polynomial, rou, bo uint64) polynomial.Polynomial {
+func blindPoly(cp polynomial.Polynomial, rou, bo uint64) (polynomial.Polynomial, error) {
 
 	// degree of the blinded polynomial is max(rou+order, cp.Degree)
 	totalDegree := rou + bo
@@ -401,7 +416,9 @@ func blindPoly(cp polynomial.Polynomial, rou, bo uint64) polynomial.Polynomial {
 	// random polynomial
 	blindingPoly := make(polynomial.Polynomial, bo+1)
 	for i := uint64(0); i < bo+1; i++ {
-		blindingPoly[i].SetRandom()
+		if _, err := blindingPoly[i].SetRandom(); err != nil {
+			return nil, err 
+		}
 	}
 
 	// blinding
@@ -410,7 +427,7 @@ func blindPoly(cp polynomial.Polynomial, rou, bo uint64) polynomial.Polynomial {
 		res[rou+i].Add(&res[rou+i], &blindingPoly[i])
 	}
 
-	return res
+	return res, nil 
 }
 
 // computeLRO extracts the solution l, r, o, and returns it in lagrange form.
@@ -462,7 +479,7 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 //								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
 //
 //	* l, r, o are the solution in Lagrange basis
-func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) polynomial.Polynomial {
+func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Element) (polynomial.Polynomial, error) {
 
 	// note that z has more capacity has its memory is reused for blinded z later on
 	z := make(polynomial.Polynomial, pk.DomainNum.Cardinality, pk.DomainNum.Cardinality + 3)
@@ -513,9 +530,7 @@ func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Ele
 	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
 	fft.BitReverse(z)
 
-	z = blindPoly(z, pk.DomainNum.Cardinality, 2)
-
-	return z
+	return blindPoly(z, pk.DomainNum.Cardinality, 2)
 
 }
 

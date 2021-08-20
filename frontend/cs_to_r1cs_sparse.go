@@ -149,10 +149,14 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// offset the IDs of all constraints so that the variables are
 	// numbered like this: [publicVariables| secretVariables | internalVariables ]
 	for i := 0; i < len(res.ccs.Constraints); i++ {
-		offsetIDs(&res.ccs.Constraints[i])
+		if err := offsetIDs(&res.ccs.Constraints[i]); err != nil {
+			return nil, err
+		}
 	}
 	for i := 0; i < len(res.ccs.Assertions); i++ {
-		offsetIDs(&res.ccs.Assertions[i])
+		if err := offsetIDs(&res.ccs.Assertions[i]); err != nil {
+			return nil, err
+		}
 	}
 
 	// offset IDs in the logs

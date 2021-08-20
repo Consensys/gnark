@@ -179,7 +179,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		l, r, rl, o, one, // first part
 		_s1, _s2, // second & third part
 	}
-	linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true})
+	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+		return err
+	}
 
 	// Fold the first proof
 	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{

@@ -57,7 +57,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true})
+	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+		return err
+	}
 	kSum.AddMixed(&vk.G1.K[0])
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
@@ -68,8 +70,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 	}
 
 	// wait for (eKrsδ, eArBs)
-	err = <-chDone
-	if err != nil {
+	if err := <-chDone; err != nil {
 		return err
 	}
 

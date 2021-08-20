@@ -182,7 +182,9 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 	for i := 0; i < len(r1cs.Logs); i++ {
 		logLine := r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated)
 		if r1cs.loggerOut != nil {
-			io.WriteString(r1cs.loggerOut, logLine)
+			if _, err := io.WriteString(r1cs.loggerOut, logLine); err != nil {
+				fmt.Println("error", err.Error())
+			}
 		}
 	}
 }
