@@ -146,11 +146,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan error, 1)
 		go func() {
-			if _, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
-				chKrs2Done <- err
-				close(chKrs2Done)
-				return
-			}
+			_, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
+			chKrs2Done <- err
+			close(chKrs2Done)
 		}()
 		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
