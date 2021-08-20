@@ -1,6 +1,6 @@
 # `gnark` zk-SNARK library
 [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/consensys/gnark)](https://goreportcard.com/badge/github.com/consensys/gnark)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ConsenSys/gnark)](https://goreportcard.com/badge/github.com/ConsenSys/gnark)
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 [![Documentation Status](https://readthedocs.org/projects/pegasys-gnark/badge/)][`gnark` User Documentation]
 

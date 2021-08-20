@@ -27,7 +27,8 @@
 - create cbor decoder with MaxArrayElements set to max value
 - fix [#96](https://github.com/consensys/gnark/issues/96)
 - r1cs compilation is deterministic, fixes [#90](https://github.com/consensys/gnark/issues/90)
-
+- plonk circuit compiled with no constraints [#112](https://github.com/consensys/gnark/issues/112)
+  
 ### Perf
 - **frontend:** compile takes optional expected constraint number to reserve memory and speed up compile time
 - **plonk:** prover uses available CPUs, memory allocation clean up
