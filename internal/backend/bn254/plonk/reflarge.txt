@@ -1,8 +1,0 @@
-goos: darwin
-goarch: amd64
-pkg: github.com/consensys/gnark/internal/backend/bn254/plonk
-cpu: Intel(R) Core(TM) i7-6920HQ CPU @ 2.90GHz
-BenchmarkProver/prover-8         	       1	16063379691 ns/op	3101458992 B/op	    2175 allocs/op
-BenchmarkProver/prover-8         	       1	15905786343 ns/op	3101427512 B/op	    2087 allocs/op
-PASS
-ok  	github.com/consensys/gnark/internal/backend/bn254/plonk	44.116s
