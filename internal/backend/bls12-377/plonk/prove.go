@@ -131,23 +131,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 	// evaluation of the blinded versions of l, r, o and bz
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
 	var evalBL, evalBR, evalBO, evalBZ polynomial.Polynomial
-	chEvalBL := make(chan struct{}, 2)
-	chEvalBR := make(chan struct{}, 2)
-	chEvalBO := make(chan struct{}, 2)
+	chEvalBL := make(chan struct{}, 1)
+	chEvalBR := make(chan struct{}, 1)
+	chEvalBO := make(chan struct{}, 1)
 	go func() {
 		evalBL = evaluateHDomain(bcl, &pk.DomainH)
-		chEvalBL <- struct{}{}
-		chEvalBL <- struct{}{}
+		close(chEvalBL)
 	}()
 	go func() {
 		evalBR = evaluateHDomain(bcr, &pk.DomainH)
-		chEvalBR <- struct{}{}
-		chEvalBR <- struct{}{}
+		close(chEvalBR)
 	}()
 	go func() {
 		evalBO = evaluateHDomain(bco, &pk.DomainH)
-		chEvalBO <- struct{}{}
-		chEvalBO <- struct{}{}
+		close(chEvalBO)
 	}()
 
 	var constraintsInd, constraintsOrdering polynomial.Polynomial
