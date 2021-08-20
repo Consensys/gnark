@@ -13,6 +13,7 @@ src="banner_gnark.png">
 
 * [`gnark` User Documentation]
 * [`gnark` Issues]
+* [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
 
 ## Issues
 
