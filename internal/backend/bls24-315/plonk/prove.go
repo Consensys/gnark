@@ -381,12 +381,14 @@ func commitToH(h1, h2, h3 polynomial.Polynomial, proof *Proof, srs *kzg.SRS) err
 
 // computeBlindedLRO l, r, o in canonical basis with blinding
 func computeBlindedLRO(ll, lr, lo polynomial.Polynomial, domain *fft.Domain) (bcl, bcr, bco polynomial.Polynomial, err error) {
+
 	// note that bcl, bcr and bco reuses cl, cr and co memory
 	cl := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
 	cr := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
 	co := make(polynomial.Polynomial, domain.Cardinality, domain.Cardinality+2)
 
 	chDone := make(chan error, 2)
+
 	go func() {
 		var err error
 		copy(cl, ll)
@@ -415,6 +417,7 @@ func computeBlindedLRO(ll, lr, lo polynomial.Polynomial, domain *fft.Domain) (bc
 	}
 	err = <-chDone
 	return
+
 }
 
 // blindPoly blinds a polynomial by adding a Q(X)*(X**degree-1), where deg Q = order.
@@ -649,14 +652,17 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 	s := uint64(len(evalZ))
 	nn := uint64(64 - bits.TrailingZeros64(uint64(s)))
 
-	utils.Parallelize(4*int(pk.DomainNum.Cardinality), func(start, end int) {
+	// needed to shift evalZ
+	toShift := pk.DomainH.Cardinality / pk.DomainNum.Cardinality
+
+	utils.Parallelize(int(pk.DomainH.Cardinality), func(start, end int) {
 		var f [3]fr.Element
 		var g [3]fr.Element
 		var eID fr.Element
 
 		for i := start; i < end; i++ {
 
-			// here we want to left shift evalZ by 4
+			// here we want to left shift evalZ by domainH/domainNum
 			// however, evalZ is permuted
 			// we take the non permuted index
 			// compute the corresponding shift position
@@ -664,7 +670,8 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 			irev := bits.Reverse64(uint64(i)) >> nn
 			eID = evalID[irev]
 
-			shiftedZ := bits.Reverse64(uint64((irev+4)%s)) >> nn
+			shiftedZ := bits.Reverse64(uint64((irev+toShift)%s)) >> nn
+			//shiftedZ := bits.Reverse64(uint64((irev+4)%s)) >> nn
 
 			f[0].Add(&eID, &evalL[i]).Add(&f[0], &gamma) //l_i+z**i+gamma
 			f[1].Mul(&eID, &pk.Vk.Shifter[0])
@@ -697,6 +704,7 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 // Puts the result in res of size n.
 // Warning: result is in bit reversed order, we do a bit reverse operation only once in computeH
 func evaluateHDomain(poly []fr.Element, domainH *fft.Domain) []fr.Element {
+
 	res := make([]fr.Element, domainH.Cardinality)
 
 	// we copy poly in res and scale by coset here
@@ -721,10 +729,11 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 
 	h := make(polynomial.Polynomial, pk.DomainH.Cardinality)
 
-	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ)
+	// evaluate Z = X**m-1 on the odd cosets of (Z/8mZ)/(Z/mZ), stored in u
 	var bExpo big.Int
 	bExpo.SetUint64(pk.DomainNum.Cardinality)
-	var u [4]fr.Element
+
+	var u [8]fr.Element // 4 first entries are always used, the last 4 are for the case domainH/domainNum=8
 	var uu fr.Element
 	var one fr.Element
 	one.SetOne()
@@ -733,10 +742,24 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 	u[1].Mul(&u[0], &uu)
 	u[2].Mul(&u[1], &uu)
 	u[3].Mul(&u[2], &uu)
-	u[0].Exp(u[0], &bExpo).Sub(&u[0], &one) //.Inverse(&u[0]) // (X**m-1)**-1 at u
-	u[1].Exp(u[1], &bExpo).Sub(&u[1], &one) //.Inverse(&u[1]) // (X**m-1)**-1 at u**3
-	u[2].Exp(u[2], &bExpo).Sub(&u[2], &one) //.Inverse(&u[2]) // (X**m-1)**-1 at u**5
-	u[3].Exp(u[3], &bExpo).Sub(&u[3], &one) //.Inverse(&u[3]) // (X**m-1)**-1 at u**7
+	toShift := pk.DomainH.Cardinality / pk.DomainNum.Cardinality
+	if toShift == 8 {
+		u[4].Mul(&u[3], &uu)
+		u[5].Mul(&u[4], &uu)
+		u[6].Mul(&u[5], &uu)
+		u[7].Mul(&u[6], &uu)
+	}
+	u[0].Exp(u[0], &bExpo).Sub(&u[0], &one) // (X**m-1)**-1 at u
+	u[1].Exp(u[1], &bExpo).Sub(&u[1], &one) // (X**m-1)**-1 at u**3
+	u[2].Exp(u[2], &bExpo).Sub(&u[2], &one) // (X**m-1)**-1 at u**5
+	u[3].Exp(u[3], &bExpo).Sub(&u[3], &one) // (X**m-1)**-1 at u**7
+	if toShift == 8 {
+		u[4].Exp(u[4], &bExpo).Sub(&u[4], &one) // (X**m-1)**-1 at u
+		u[5].Exp(u[5], &bExpo).Sub(&u[5], &one) // (X**m-1)**-1 at u**3
+		u[6].Exp(u[6], &bExpo).Sub(&u[6], &one) // (X**m-1)**-1 at u**5
+		u[7].Exp(u[7], &bExpo).Sub(&u[7], &one) // (X**m-1)**-1 at u**7
+	}
+
 	_u := fr.BatchInvert(u[:])
 
 	// computes L1 (canonical form)
@@ -768,13 +791,19 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 			// on the odd cosets of (Z/8mZ)/(Z/mZ)
 			// note that h is still bit reversed here
 			irev := bits.Reverse64(i) >> nn
-			h[i].Mul(&h[i], &_u[irev%4])
+			// h[i].Mul(&h[i], &_u[irev%4])
+			h[i].Mul(&h[i], &_u[irev%toShift])
 		}
 	})
 
-	// put h in canonical form
+	// put h in canonical form. h is of degree 3*(n+1)+2.
 	// using fft.DIT put h revert bit reverse
 	pk.DomainH.FFTInverse(h, fft.DIT, 1)
+	// fmt.Println("h:")
+	// for i := 0; i < len(h); i++ {
+	// 	fmt.Printf("%s\n", h[i].String())
+	// }
+	// fmt.Println("")
 
 	// degree of hi is n+2 because of the blinding
 	h1 := h[:pk.DomainNum.Cardinality+2]

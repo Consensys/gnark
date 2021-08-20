@@ -11,7 +11,6 @@ type negCircuit struct {
 }
 
 func (circuit *negCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	cs.Mul(circuit.X, circuit.X) // dummy constraint to ensure the number of constraints+assertions is >= 8
 	a := cs.Mul(circuit.X, circuit.X)
 	b := cs.Neg(circuit.X)
 	c := cs.Add(a, b)

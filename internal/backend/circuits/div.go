@@ -13,7 +13,6 @@ type divCircuit struct {
 }
 
 func (circuit *divCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	cs.Mul(circuit.X, circuit.X) // dummy constraint to ensure the number of constraints+assertions is >= 8
 	m := cs.Mul(circuit.X, circuit.X)
 	d := cs.Div(m, circuit.Y)
 	cs.AssertIsEqual(d, circuit.Z)
