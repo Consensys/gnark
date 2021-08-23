@@ -353,7 +353,6 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
 	// record the constraint Σ (2**i * b[i]) == a
 	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a, compiled.BinaryDec))
-
 	return b
 
 }

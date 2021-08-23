@@ -126,7 +126,6 @@ func newMimcBLS315(seed string, cs *frontend.ConstraintSystem) MiMC {
 
 // encryptBn256 of a mimc run expressed as r1cs
 func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
-
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {

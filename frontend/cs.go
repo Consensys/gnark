@@ -173,76 +173,30 @@ func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.Li
 	return res
 }
 
-// reduces redundancy in a linear expression
-func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visibility compiled.Visibility) compiled.LinearExpression {
-
-	if len(linExp) == 0 {
-		return compiled.LinearExpression{}
+// reduces redundancy in linear expression
+// It factorizes variable that appears multiple times with != coeff Ids
+// To ensure the determinism in the compile process, variables are stored as public||secret||internal||unset
+// for each visibility, the variables are sorted from lowest ID to highest ID
+func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+	// ensure our linear expression is sorted, by visibility and by variable ID
+	if !sort.IsSorted(l) { // may not help
+		sort.Sort(l)
 	}
 
-	coeffRecord := make(map[int]big.Int) // id variable -> coeff
-	varRecord := make(map[int]Wire)      // id variable -> Wire
-
-	// the variables are collected and the coefficients are accumulated
-	for _, t := range linExp {
-
-		coeffID, variableID, vis := t.Unpack()
-
-		if vis == visibility {
-			tmp := Wire{vis, variableID, nil}
-
-			if _, ok := varRecord[variableID]; !ok {
-				varRecord[variableID] = tmp
-				var coef, coefCopy big.Int
-				coef = cs.coeffs[coeffID]
-				coefCopy.Set(&coef)
-				coeffRecord[variableID] = coefCopy
-			} else {
-				ccoef := coeffRecord[variableID]
-				ccoef.Add(&ccoef, &cs.coeffs[coeffID])
-				coeffRecord[variableID] = ccoef
-			}
+	var c big.Int
+	for i := 1; i < len(l); i++ {
+		pcID, pvID, pVis := l[i-1].Unpack()
+		ccID, cvID, cVis := l[i].Unpack()
+		if pVis == cVis && pvID == cvID {
+			// we have redundancy
+			c.Add(&cs.coeffs[pcID], &cs.coeffs[ccID])
+			l[i-1].SetCoeffID(cs.coeffID(&c))
+			l = append(l[:i], l[i+1:]...)
+			i--
 		}
 	}
 
-	// creation of the reduced linear expression
-	var res compiled.LinearExpression
-	for k := range coeffRecord {
-		bCoeff := coeffRecord[k]
-		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
-	}
-
-	sort.Sort(res)
-
-	return res
-}
-
-// reduces redundancy in linear expression
-// The reduces linear expression stores the variables as public||secret||internal||unset
-// for each visibility, the variables are sorted from lowest ID to highest ID
-func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
-
-	reducePublic := cs.partialReduce(l, compiled.Public)
-	reduceSecret := cs.partialReduce(l, compiled.Secret)
-	reduceInternal := cs.partialReduce(l, compiled.Internal)
-	reduceUnset := cs.partialReduce(l, compiled.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
-
-	res := make(compiled.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
-
-	accSize := 0
-
-	copy(res[:], reducePublic)
-	accSize += len(reducePublic)
-
-	copy(res[accSize:], reduceSecret)
-	accSize += len(reduceSecret)
-
-	copy(res[accSize:], reduceInternal)
-	accSize += len(reduceInternal)
-
-	copy(res[accSize:], reduceUnset)
-
-	return res
+	return l
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logEntry) {

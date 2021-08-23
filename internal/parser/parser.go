@@ -123,7 +123,7 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 
 	case reflect.Slice, reflect.Array:
 		if tValue.Len() == 0 {
-			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")
+			fmt.Printf("%s: ignoring unitizalized slice (or empty array)\n", baseName)
 			return nil
 		}
 		for j := 0; j < tValue.Len(); j++ {

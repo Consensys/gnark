@@ -36,9 +36,12 @@ func (l LinearExpression) Swap(i, j int) {
 
 // Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
 func (l LinearExpression) Less(i, j int) bool {
-	_, iID, _ := l[i].Unpack()
-	_, jID, _ := l[j].Unpack()
-	return iID < jID
+	_, iID, iVis := l[i].Unpack()
+	_, jID, jVis := l[j].Unpack()
+	if iVis == jVis {
+		return iID < jID
+	}
+	return iVis > jVis
 }
 
 // R1C used to compute the wires

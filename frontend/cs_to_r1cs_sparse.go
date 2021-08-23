@@ -78,14 +78,14 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		// the terms which are not set are equal to zero. We just
 		// need to skip them.
 		if *t != 0 {
-			_, cID, cVisibility := t.Unpack()
-			switch cVisibility {
+			_, vID, visibility := t.Unpack()
+			switch visibility {
 			case compiled.Public:
-				t.SetVariableID(cID - 1) // -1 because the ONE_WIRE's is not counted
+				t.SetVariableID(vID - 1) // -1 because the ONE_WIRE's is not counted
 			case compiled.Secret:
-				t.SetVariableID(cID + res.ccs.NbPublicVariables)
+				t.SetVariableID(vID + res.ccs.NbPublicVariables)
 			case compiled.Internal:
-				t.SetVariableID(cID + res.ccs.NbPublicVariables + res.ccs.NbSecretVariables)
+				t.SetVariableID(vID + res.ccs.NbPublicVariables + res.ccs.NbSecretVariables)
 			case compiled.Unset:
 				//return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
 				return fmt.Errorf("%w", ErrInputNotSet)
