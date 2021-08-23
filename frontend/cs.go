@@ -127,13 +127,13 @@ var (
 )
 
 // debug info in case a variable is not set
-func debugInfoUnsetVariable(term compiled.Term) logEntry {
-	entry := logEntry{}
-	stack := getCallStack()
-	entry.format = stack[len(stack)-1]
-	entry.toResolve = append(entry.toResolve, term)
-	return entry
-}
+// func debugInfoUnsetVariable(term compiled.Term) logEntry {
+// 	entry := logEntry{}
+// 	stack := getCallStack()
+// 	entry.format = stack[len(stack)-1]
+// 	entry.toResolve = append(entry.toResolve, term)
+// 	return entry
+// }
 
 func (cs *ConstraintSystem) one() Variable {
 	return cs.public.variables[0]
