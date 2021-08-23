@@ -39,6 +39,7 @@ import (
 func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
 	var res Variable
+	res.linExp = make(compiled.LinearExpression, 0, 2+len(in))
 
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
@@ -85,7 +86,7 @@ func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 	default:
 		n := FromInterface(t)
 		n.Neg(&n)
-		if n.Cmp(bOne) == 0 {
+		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
 		res = cs.Constant(n)
@@ -97,6 +98,7 @@ func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	var res Variable
+	res.linExp = make(compiled.LinearExpression, 0, 2)
 
 	switch t := i1.(type) {
 	case Variable:
@@ -434,10 +436,13 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 		return t
 	default:
 		n := FromInterface(t)
-		if n.Cmp(bOne) == 0 {
+		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
-		return cs.mulConstant(n, cs.one())
+		// cs.mulConstant(n, cs.one())
+		return Variable{Wire{}, compiled.LinearExpression{
+			cs.makeTerm(Wire{compiled.Public, 0, nil}, &n),
+		}}
 	}
 }
 

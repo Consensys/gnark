@@ -124,7 +124,6 @@ type logEntry struct {
 
 var (
 	bOne = new(big.Int).SetInt64(1)
-	bTwo = new(big.Int).SetInt64(2)
 )
 
 // debug info in case a variable is not set
