@@ -86,7 +86,7 @@ func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 		n := FromInterface(t)
 		n.Neg(&n)
 		if n.Cmp(bOne) == 0 {
-			return cs.getOneVariable()
+			return cs.one()
 		}
 		res = cs.Constant(n)
 	}
@@ -125,13 +125,26 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 	var linExp compiled.LinearExpression
+	var newCoeff big.Int
+
 	lambda := FromInterface(i)
+
 	for _, t := range v.linExp {
-		var coeffCopy big.Int
-		coeffID, variableID, constraintVis := t.Unpack()
-		coeff := cs.coeffs[coeffID]
-		coeffCopy.Mul(&coeff, &lambda)
-		linExp = append(linExp, cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy))
+		cID, vID, visibility := t.Unpack()
+		switch cID {
+		case compiled.CoeffIdMinusOne:
+			newCoeff.Neg(&lambda)
+		case compiled.CoeffIdZero:
+			newCoeff.SetUint64(0)
+		case compiled.CoeffIdOne:
+			newCoeff.Set(&lambda)
+		case compiled.CoeffIdTwo:
+			newCoeff.Add(&lambda, &lambda)
+		default:
+			coeff := cs.coeffs[cID]
+			newCoeff.Mul(&coeff, &lambda)
+		}
+		linExp = append(linExp, cs.makeTerm(Wire{visibility, vID, nil}, &newCoeff))
 	}
 	return Variable{Wire{}, linExp}
 }
@@ -188,7 +201,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
-	cs.constraints = append(cs.constraints, newR1C(v, res, cs.getOneVariable()))
+	cs.constraints = append(cs.constraints, newR1C(v, res, cs.one()))
 
 	return res
 }
@@ -315,61 +328,57 @@ func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 //
 // The result in in little endian (first bit= lsb)
 func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
-
+	// ensure a is set
 	a.assertIsSet()
 
-	// allocate the resulting variables
-	res := make([]Variable, nbBits)
+	// allocate the resulting variables and bit-constraint them
+	b := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		res[i] = cs.newInternalVariable()
-		cs.AssertIsBoolean(res[i])
+		b[i] = cs.newInternalVariable()
+		cs.AssertIsBoolean(b[i])
 	}
 
-	var coeff big.Int
-	coeff.Set(bTwo)
+	// here what we do is we add a single constraint where
+	// Σ (2**i * b[i]) == a
+	var c big.Int
+	c.Set(bOne)
 
-	var v, _v Variable
-	v = cs.Mul(res[0], 1) // no constraint is recorded
+	var Σbi Variable
+	Σbi.linExp = make(compiled.LinearExpression, nbBits)
 
-	// add the constraint
-	for i := 1; i < nbBits; i++ {
-		_v = cs.Mul(coeff, res[i]) // no constraint is recorded
-		v = cs.Add(v, _v)          // no constraint is recorded
-		coeff.Mul(&coeff, bTwo)
+	for i := 0; i < nbBits; i++ {
+		Σbi.linExp[i] = cs.makeTerm(Wire{compiled.Internal, b[i].id, nil}, &c)
+		c.Lsh(&c, 1)
 	}
 
-	one := cs.getOneVariable()
+	// record the constraint Σ (2**i * b[i]) == a
+	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a, compiled.BinaryDec))
 
-	cs.constraints = append(cs.constraints, newR1C(v, one, a, compiled.BinaryDec))
-
-	return res
+	return b
 
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
 func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
-
+	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
 		b[i].assertIsSet()
 	}
 
+	// res = Σ (2**i * b[i])
+
 	var res, v Variable
 	res = cs.Constant(0) // no constraint is recorded
 
-	var coeff big.Int
+	var c big.Int
+	c.Set(bOne)
 
 	L := make(compiled.LinearExpression, len(b))
 	for i := 0; i < len(L); i++ {
-		if i == 0 {
-			coeff.Set(bOne)
-		} else if i == 1 {
-			coeff.Set(bTwo)
-		} else {
-			coeff.Mul(&coeff, bTwo)
-		}
-		v = cs.Mul(coeff, b[i])  // no constraint is recorded
+		v = cs.Mul(c, b[i])      // no constraint is recorded
 		res = cs.Add(v, res)     // no constraint is recorded
 		cs.AssertIsBoolean(b[i]) // ensures the b[i]'s are boolean
+		c.Lsh(&c, 1)
 	}
 
 	return res
@@ -427,9 +436,9 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 	default:
 		n := FromInterface(t)
 		if n.Cmp(bOne) == 0 {
-			return cs.getOneVariable()
+			return cs.one()
 		}
-		return cs.mulConstant(n, cs.getOneVariable())
+		return cs.mulConstant(n, cs.one())
 	}
 }
 
@@ -603,7 +612,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
 		p[i] = cs.Select(binbound[i], p1, p[i+1])
 		t := cs.Select(binbound[i], zero, p[i+1])
 
-		l := cs.getOneVariable()
+		l := cs.one()
 		l = cs.Sub(l, t)       // no constraint is recorded
 		l = cs.Sub(l, binw[i]) // no constraint is recorded
 
@@ -658,7 +667,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
 			if b == 0 {
 				p[(i+1)*wordSize-1-j] = p[(i+1)*wordSize-j]
 
-				l := cs.getOneVariable()
+				l := cs.one()
 				l = cs.Sub(l, p[(i+1)*wordSize-j])       // no constraint is recorded
 				l = cs.Sub(l, vBits[(i+1)*wordSize-1-j]) // no constraint is recorded
 

@@ -136,7 +136,7 @@ func debugInfoUnsetVariable(term compiled.Term) logEntry {
 	return entry
 }
 
-func (cs *ConstraintSystem) getOneVariable() Variable {
+func (cs *ConstraintSystem) one() Variable {
 	return cs.public.variables[0]
 }
 
@@ -290,7 +290,7 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 func (cs *ConstraintSystem) allocate(v Variable) Variable {
 	if v.visibility == compiled.Unset && len(v.linExp) > 0 {
 		iv := cs.newInternalVariable()
-		one := cs.getOneVariable()
+		one := cs.one()
 		cs.constraints = append(cs.constraints, newR1C(v, one, iv))
 		return iv
 	}
@@ -300,34 +300,34 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	resVar := Wire{
+	w := Wire{
 		id:         len(cs.internal.variables),
 		visibility: compiled.Internal,
 	}
-	res := cs.buildVarFromWire(resVar)
-	cs.internal.variables = append(cs.internal.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.internal.variables = append(cs.internal.variables, v)
+	return v
 }
 
 // newPublicVariable creates a new public input
 func (cs *ConstraintSystem) newPublicVariable() Variable {
 
 	idx := len(cs.public.variables)
-	resVar := Wire{compiled.Public, idx, nil}
+	w := Wire{compiled.Public, idx, nil}
 
-	res := cs.buildVarFromWire(resVar)
-	cs.public.variables = append(cs.public.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.public.variables = append(cs.public.variables, v)
+	return v
 }
 
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
-	resVar := Wire{compiled.Secret, idx, nil}
+	w := Wire{compiled.Secret, idx, nil}
 
-	res := cs.buildVarFromWire(resVar)
-	cs.secret.variables = append(cs.secret.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.secret.variables = append(cs.secret.variables, v)
+	return v
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
