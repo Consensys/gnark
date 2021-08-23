@@ -1,9 +1,11 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -76,6 +78,7 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 
 				visibility := compiled.Secret
 				name := field.Name
+
 				if tag != "" {
 					// gnark tag is set
 					var opts tagOptions
@@ -83,14 +86,16 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 					if !isValidTag(name) {
 						name = field.Name
 					}
-
-					if opts.Contains(string(optSecret)) {
+					opts = tagOptions(strings.TrimSpace(string(opts)))
+					if opts == "" || opts.Contains(string(optSecret)) {
 						visibility = compiled.Secret
 					} else if opts.Contains(string(optPublic)) {
 						visibility = compiled.Public
 					} else if opts.Contains(string(optEmbed)) {
 						name = ""
 						visibility = compiled.Unset
+					} else {
+						return errors.New("invalid gnark struct tag option. must be \"public\", \"secret\",\"embed\" or \"-\"")
 					}
 				}
 				if parentVisibility != compiled.Unset {
@@ -118,7 +123,7 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 
 	case reflect.Slice, reflect.Array:
 		if tValue.Len() == 0 {
-			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")
+			fmt.Printf("%s: ignoring unitizalized slice (or empty array)\n", baseName)
 			return nil
 		}
 		for j := 0; j < tValue.Len(); j++ {

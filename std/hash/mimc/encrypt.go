@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/mimc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/mimc"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/mimc"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 
@@ -29,7 +30,7 @@ import (
 )
 
 var encryptFuncs map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[ecc.ID]func(string) MiMC
+var newMimc map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC
 
 func init() {
 	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
@@ -37,18 +38,20 @@ func init() {
 	encryptFuncs[ecc.BLS12_381] = encryptBLS381
 	encryptFuncs[ecc.BLS12_377] = encryptBLS377
 	encryptFuncs[ecc.BW6_761] = encryptBW761
+	encryptFuncs[ecc.BLS24_315] = encryptBLS315
 
-	newMimc = make(map[ecc.ID]func(string) MiMC)
+	newMimc = make(map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC)
 	newMimc[ecc.BN254] = newMimcBN254
 	newMimc[ecc.BLS12_381] = newMimcBLS381
 	newMimc[ecc.BLS12_377] = newMimcBLS377
 	newMimc[ecc.BW6_761] = newMimcBW761
+	newMimc[ecc.BLS24_315] = newMimcBLS315
 }
 
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string) MiMC {
+func newMimcBLS377(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bls12377.NewParams(seed)
 	for _, v := range params {
@@ -57,10 +60,12 @@ func newMimcBLS377(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_377
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBLS381(seed string) MiMC {
+func newMimcBLS381(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bls12381.NewParams(seed)
 	for _, v := range params {
@@ -69,10 +74,12 @@ func newMimcBLS381(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_381
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBN254(seed string) MiMC {
+func newMimcBN254(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bn254.NewParams(seed)
 	for _, v := range params {
@@ -81,10 +88,12 @@ func newMimcBN254(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BN254
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
-func newMimcBW761(seed string) MiMC {
+func newMimcBW761(seed string, cs *frontend.ConstraintSystem) MiMC {
 	res := MiMC{}
 	params := bw6761.NewParams(seed)
 	for _, v := range params {
@@ -93,6 +102,22 @@ func newMimcBW761(seed string) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BW6_761
+	res.h = cs.Constant(0)
+	res.cs = cs
+	return res
+}
+
+func newMimcBLS315(seed string, cs *frontend.ConstraintSystem) MiMC {
+	res := MiMC{}
+	params := bls24315.NewParams(seed)
+	for _, v := range params {
+		var cpy big.Int
+		v.ToBigIntRegular(&cpy)
+		res.params = append(res.params, cpy)
+	}
+	res.id = ecc.BLS24_315
+	res.h = cs.Constant(0)
+	res.cs = cs
 	return res
 }
 
@@ -101,7 +126,6 @@ func newMimcBW761(seed string) MiMC {
 
 // encryptBn256 of a mimc run expressed as r1cs
 func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
-
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
@@ -156,6 +180,21 @@ func encryptBLS377(cs *frontend.ConstraintSystem, h MiMC, message frontend.Varia
 		tmp := cs.Add(res, h.params[i], key)
 		// res = (res+key+c)**-1
 		res = cs.Inverse(tmp)
+	}
+	res = cs.Add(res, key)
+	return res
+
+}
+
+// encryptBLS315 of a mimc run expressed as r1cs
+func encryptBLS315(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+	res := message
+	for i := 0; i < len(h.params); i++ {
+		tmp := cs.Add(res, h.params[i], key)
+		// res = (res+k+c)^5
+		res = cs.Mul(tmp, tmp) // square
+		res = cs.Mul(res, res) // square
+		res = cs.Mul(res, tmp) // mul
 	}
 	res = cs.Add(res, key)
 	return res

@@ -1,11 +1,34 @@
 package frontend
 
 import (
-	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
+
+func TestQuickSort(t *testing.T) {
+
+	toSort := make(compiled.LinearExpression, 12)
+	rand := 3
+	for i := 0; i < 12; i++ {
+		toSort[i].SetVariableVisibility(compiled.Secret)
+		toSort[i].SetVariableID(rand)
+		rand += 3
+		rand = rand % 13
+	}
+
+	sort.Sort(toSort)
+
+	for i := 0; i < 10; i++ {
+		_, cur, _ := toSort[i].Unpack()
+		_, next, _ := toSort[i+1].Unpack()
+		if cur >= next {
+			t.Fatal("err sorting linear expression")
+		}
+	}
+
+}
 
 func TestReduce(t *testing.T) {
 
@@ -28,10 +51,6 @@ func TestReduce(t *testing.T) {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
-	// check coefficients
-	for _, t := range toTest.linExp {
-		fmt.Println(cs.coeffs[t.CoeffID()])
-	}
 }
 
 func TestPopVariable(t *testing.T) {

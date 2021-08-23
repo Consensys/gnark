@@ -56,25 +56,27 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 	// (each pubkey consist of 2 chunks of 256bits)
 	frNonce.SetUint64(t.nonce)
 	b := frNonce.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.amount.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.senderPubKey.A.X.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.senderPubKey.A.Y.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.receiverPubKey.A.X.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.receiverPubKey.A.Y.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	msg := h.Sum([]byte{})
 	//msg.SetBytes(bmsg)
 
 	sigBin, err := priv.Sign(msg, hFunc)
-	var sig eddsa.Signature
-	sig.SetBytes(sigBin)
 	if err != nil {
-		return sig, err
+		return eddsa.Signature{}, err
+	}
+	var sig eddsa.Signature
+	if _, err := sig.SetBytes(sigBin); err != nil {
+		return eddsa.Signature{}, err
 	}
 	t.signature = sig
 	return sig, nil
@@ -93,17 +95,17 @@ func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 	// (each pubkey consist of 2 chunks of 256bits)
 	frNonce.SetUint64(t.nonce)
 	b := frNonce.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.amount.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.senderPubKey.A.X.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.senderPubKey.A.Y.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.receiverPubKey.A.X.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	b = t.receiverPubKey.A.Y.Bytes()
-	h.Write(b[:])
+	_, _ = h.Write(b[:])
 	msg := h.Sum([]byte{})
 	//msg.SetBytes(bmsg)
 

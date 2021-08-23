@@ -34,15 +34,19 @@ func main() {
 		CurveID:  "BN254",
 		Package:  "bn254",
 	}
-
 	bw6_761 := templateData{
 		RootPath: "../../../internal/backend/bw6-761/",
 		Curve:    "BW6-761",
 		CurveID:  "BW6_761",
 		Package:  "bw6761",
 	}
-
-	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761}
+	bls24_315 := templateData{
+		RootPath: "../../../internal/backend/bls24-315/",
+		Curve:    "BLS24-315",
+		CurveID:  "BLS24_315",
+		Package:  "bls24315",
+	}
+	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761, bls24_315}
 
 	const importCurve = "../imports.go.tmpl"
 
@@ -114,6 +118,8 @@ func main() {
 				{File: filepath.Join(plonkDir, "verify.go"), Templates: []string{"plonk/plonk.verify.go.tmpl", importCurve}},
 				{File: filepath.Join(plonkDir, "prove.go"), Templates: []string{"plonk/plonk.prove.go.tmpl", importCurve}},
 				{File: filepath.Join(plonkDir, "setup.go"), Templates: []string{"plonk/plonk.setup.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "marshal.go"), Templates: []string{"plonk/plonk.marshal.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "marshal_test.go"), Templates: []string{"plonk/tests/marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "plonk", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)

@@ -17,14 +17,13 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
-
 	"errors"
 	"fmt"
+	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"io"
 
 	"text/template"
@@ -60,11 +59,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	__publicWitness := make([]fr.Element, len(publicWitness))
-	for i := 0; i < len(publicWitness); i++ {
-		__publicWitness[i] = publicWitness[i].ToRegular()
+	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+		return err
 	}
-	kSum.MultiExp(vk.G1.K[1:], __publicWitness)
 	kSum.AddMixed(&vk.G1.K[0])
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
@@ -75,8 +72,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	}
 
 	// wait for (eKrsδ, eArBs)
-	err = <-chDone
-	if err != nil {
+	if err := <-chDone; err != nil {
 		return err
 	}
 

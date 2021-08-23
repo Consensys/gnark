@@ -68,7 +68,7 @@ func NewOperator(nbAccounts int) Operator {
 	res.HashState = make([]byte, hFunc.Size()*nbAccounts)
 	for i := 0; i < nbAccounts; i++ {
 		hFunc.Reset()
-		hFunc.Write(res.State[i*SizeAccount : i*SizeAccount+SizeAccount])
+		_, _ = hFunc.Write(res.State[i*SizeAccount : i*SizeAccount+SizeAccount])
 		s := hFunc.Sum([]byte{})
 		copy(res.HashState[i*hFunc.Size():(i+1)*hFunc.Size()], s)
 	}
@@ -222,13 +222,13 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	// update the state of the operator
 	copy(o.State[int(posSender)*SizeAccount:], senderAccount.Serialize())
 	o.h.Reset()
-	o.h.Write(senderAccount.Serialize())
+	_, _ = o.h.Write(senderAccount.Serialize())
 	bufSender := o.h.Sum([]byte{})
 	copy(o.HashState[int(posSender)*o.h.Size():(int(posSender)+1)*o.h.Size()], bufSender)
 
 	copy(o.State[int(posReceiver)*SizeAccount:], receiverAccount.Serialize())
 	o.h.Reset()
-	o.h.Write(receiverAccount.Serialize())
+	_, _ = o.h.Write(receiverAccount.Serialize())
 	bufReceiver := o.h.Sum([]byte{})
 	copy(o.HashState[int(posReceiver)*o.h.Size():(int(posReceiver)+1)*o.h.Size()], bufReceiver)
 

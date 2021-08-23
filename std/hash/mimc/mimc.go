@@ -27,31 +27,46 @@ import (
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
 type MiMC struct {
-	params []big.Int
-	id     ecc.ID
+	params []big.Int                  // slice containing constants for the encryption rounds
+	id     ecc.ID                     // id needed to know which encryption function to use
+	h      frontend.Variable          // current vector in the Miyaguchi–Preneel scheme
+	data   []frontend.Variable        // state storage. data is updated when Write() is called. Sum sums the data.
+	cs     *frontend.ConstraintSystem // underlying constraint system
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID) (MiMC, error) {
+func NewMiMC(seed string, id ecc.ID, cs *frontend.ConstraintSystem) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
-		return constructor(seed), nil
+		return constructor(seed, cs), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
 }
 
+// Write adds more data to the running hash.
+func (h *MiMC) Write(data ...frontend.Variable) {
+	h.data = append(h.data, data...)
+}
+
+// Reset resets the Hash to its initial state.
+func (h *MiMC) Reset() {
+	h.data = nil
+	h.h = h.cs.Constant(0)
+}
+
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
-// The XOR operation is replaced by field addition
-func (h MiMC) Hash(cs *frontend.ConstraintSystem, data ...frontend.Variable) frontend.Variable {
+// The XOR operation is replaced by field addition.
+// See github.com/consensys/gnark-crypto for reference implementation.
+func (h *MiMC) Sum() frontend.Variable {
 
-	var digest frontend.Variable
-	digest = cs.Constant(0)
-
-	for _, stream := range data {
-		digest = encryptFuncs[h.id](cs, h, stream, digest)
-		digest = cs.Add(digest, stream)
+	//h.Write(data...)
+	for _, stream := range h.data {
+		h.h = encryptFuncs[h.id](h.cs, *h, stream, h.h)
+		h.h = h.cs.Add(h.h, stream)
 	}
 
-	return digest
+	h.data = nil // flush the data already hashed
+
+	return h.h
 
 }

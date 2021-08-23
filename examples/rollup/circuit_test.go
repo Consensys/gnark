@@ -36,7 +36,7 @@ func (t *circuitSignature) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID)
+	hFunc, err := mimc.NewMiMC("seed", curveID, cs)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (t *circuitInclusionProof) Define(curveID ecc.ID, cs *frontend.ConstraintSy
 	if err := t.postInit(curveID, cs); err != nil {
 		return err
 	}
-	hashFunc, err := mimc.NewMiMC("seed", curveID)
+	hashFunc, err := mimc.NewMiMC("seed", curveID, cs)
 	if err != nil {
 		return err
 	}

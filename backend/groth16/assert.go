@@ -25,6 +25,8 @@ import (
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
@@ -102,16 +104,9 @@ func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, wi
 		assert.NoError(err, "verifying proof with good witness should not output an error")
 	}
 
-	// serialization
-	assert.serializationSucceeded(proof, NewProof(r1cs.CurveID()))
-	assert.serializationSucceeded(pk, NewProvingKey(r1cs.CurveID()))
-	assert.serializationSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
-	assert.serializationRawSucceeded(proof, NewProof(r1cs.CurveID()))
-	assert.serializationRawSucceeded(pk, NewProvingKey(r1cs.CurveID()))
-	assert.serializationRawSucceeded(vk, NewVerifyingKey(r1cs.CurveID()))
 }
 
-func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
+func (assert *Assert) SerializationSucceeded(from io.WriterTo, to io.ReaderFrom) {
 	var buf bytes.Buffer
 	written, err := from.WriteTo(&buf)
 	assert.NoError(err, "serializing to buffer failed")
@@ -122,7 +117,7 @@ func (assert *Assert) serializationSucceeded(from io.WriterTo, to io.ReaderFrom)
 	assert.EqualValues(written, read, "number of bytes read and written don't match")
 }
 
-func (assert *Assert) serializationRawSucceeded(from gnarkio.WriterRawTo, to io.ReaderFrom) {
+func (assert *Assert) SerializationRawSucceeded(from gnarkio.WriterRawTo, to io.ReaderFrom) {
 	var buf bytes.Buffer
 	written, err := from.WriteRawTo(&buf)
 	assert.NoError(err, "serializing raw to buffer failed")
@@ -167,6 +162,12 @@ func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit) 
 		return _r1cs.IsSolved(w)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return _r1cs.IsSolved(w)
+	case *backend_bls24315.R1CS:
+		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}

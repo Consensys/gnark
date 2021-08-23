@@ -25,9 +25,8 @@ import (
 
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 
-	bn254groth16 "github.com/consensys/gnark/internal/backend/bn254/groth16"
-
 	"bytes"
+	bn254groth16 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	"github.com/fxamacker/cbor/v2"
 	"testing"
 

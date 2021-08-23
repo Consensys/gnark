@@ -1,0 +1,104 @@
+on:
+  push:
+    branches:
+      - 'master'
+      - 'develop'
+  pull_request:
+    branches:
+      - 'master'
+      - 'develop'
+name: CI
+jobs:
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - name: install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17.x
+    - name: checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+          ~/Library/Caches/go-build
+          %LocalAppData%\go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    - name: install deps
+      run: go get golang.org/x/tools/cmd/goimports && go get github.com/klauspost/asmfmt/cmd/asmfmt
+    - name: gofmt
+      run: if [[ -n $(gofmt -l .) ]]; then echo "please run gofmt"; exit 1; fi
+    - name: go vet
+      run: go vet ./...
+    - name: staticcheck
+      run: |
+        go get -u honnef.co/go/tools/cmd/staticcheck
+        staticcheck ./...
+    - name: gosec
+      run: |
+        go get -u github.com/securego/gosec/cmd/gosec
+        gosec -exclude G204 ./...
+    - name: generated files should not be modified
+      run: |
+        go generate ./...
+        git update-index --assume-unchanged go.mod
+        git update-index --assume-unchanged go.sum
+        if [[ -n $(git status --porcelain) ]]; then echo "git repo is dirty after runing go generate -- please don't modify generated files"; echo $(git diff);echo $(git status --porcelain); exit 1; fi
+  
+  test:
+    strategy:
+      matrix:
+        go-version: [1.16.x, 1.17.x]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    needs:
+      - staticcheck
+    steps:
+    - name: install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+    - name: checkout code
+      uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+          ~/Library/Caches/go-build
+          %LocalAppData%\go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    - name: install deps
+      run: go get golang.org/x/tools/cmd/goimports && go get github.com/klauspost/asmfmt/cmd/asmfmt
+    - name: Test
+      run: |
+        go test -v -timeout=10m -short ./...
+        go test -v -timeout=10m -race -short ./...
+        go test -v -timeout=10m -tags=noadx -short ./internal/backend/bn254/...
+    # - name: Test (32bits)
+    #   if: matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     GOARCH=386 go test -v -short ./internal/backend/bn254/...
+  
+  slack-workflow-status:
+    if: always()
+    name: post workflow status to slack
+    needs:
+      - staticcheck
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build notification
+        uses: Gamesight/slack-workflow-status@master
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          slack_webhook_url: ${{secrets.SLACK_WEBHOOK_URL}}
+          channel: '#team-gnark-build'

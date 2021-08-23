@@ -25,9 +25,8 @@ import (
 
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 
-	bls12_381groth16 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
-
 	"bytes"
+	bls12_381groth16 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
 	"github.com/fxamacker/cbor/v2"
 	"testing"
 

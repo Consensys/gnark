@@ -90,9 +90,12 @@ func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
-	decoder := cbor.NewDecoder(r)
-
-	err := decoder.Decode(r1cs)
+	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	if err != nil {
+		return 0, err
+	}
+	decoder := dm.NewDecoder(r)
+	err = decoder.Decode(r1cs)
 	return int64(decoder.NumBytesRead()), err
 }
 
@@ -192,46 +195,48 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 	for i := 0; i < len(r1cs.Logs); i++ {
 		logLine := r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated)
 		if r1cs.loggerOut != nil {
-			io.WriteString(r1cs.loggerOut, logLine)
+			if _, err := io.WriteString(r1cs.loggerOut, logLine); err != nil {
+				fmt.Println("error", err.Error())
+			}
 		}
 	}
 }
 
 // AddTerm returns res += (value * term.Coefficient)
 func (r1cs *R1CS) AddTerm(res *fr.Element, t compiled.Term, value fr.Element) *fr.Element {
-	coeffValue := t.CoeffValue()
-	switch coeffValue {
-	case 1:
+	cID := t.CoeffID()
+	switch cID {
+	case compiled.CoeffIdOne:
 		return res.Add(res, &value)
-	case -1:
+	case compiled.CoeffIdMinusOne:
 		return res.Sub(res, &value)
-	case 0:
+	case compiled.CoeffIdZero:
 		return res
-	case 2:
+	case compiled.CoeffIdTwo:
 		var buffer fr.Element
 		buffer.Double(&value)
 		return res.Add(res, &buffer)
 	default:
 		var buffer fr.Element
-		buffer.Mul(&r1cs.Coefficients[t.CoeffID()], &value)
+		buffer.Mul(&r1cs.Coefficients[cID], &value)
 		return res.Add(res, &buffer)
 	}
 }
 
 // mulWireByCoeff returns into.Mul(into, term.Coefficient)
 func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
-	coeffValue := t.CoeffValue()
-	switch coeffValue {
-	case 1:
+	cID := t.CoeffID()
+	switch cID {
+	case compiled.CoeffIdOne:
 		return res
-	case -1:
+	case compiled.CoeffIdMinusOne:
 		return res.Neg(res)
-	case 0:
+	case compiled.CoeffIdZero:
 		return res.SetZero()
-	case 2:
+	case compiled.CoeffIdTwo:
 		return res.Double(res)
 	default:
-		return res.Mul(res, &r1cs.Coefficients[t.CoeffID()])
+		return res.Mul(res, &r1cs.Coefficients[cID])
 	}
 }
 

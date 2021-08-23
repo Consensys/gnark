@@ -53,11 +53,13 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 		msg,
 	}
 
-	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID)
+	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID, cs)
 	if err != nil {
 		return err
 	}
-	hramConstant := hash.Hash(cs, data...)
+	hash.Write(data...)
+	//hramConstant := hash.Sum(data...)
+	hramConstant := hash.Sum()
 
 	// lhs = cofactor*SB
 	cofactorConstant := cs.Constant(pubKey.Curve.Cofactor)
@@ -73,6 +75,8 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 		basis = cs.Constant("340282366920938463463374607431768211456")
 	case ecc.BW6_761:
 		basis = cs.Constant("6277101735386680763835789423207666416102355444464034512896") // 2**192
+	case ecc.BLS24_315:
+		basis = cs.Constant("340282366920938463463374607431768211456")
 	default:
 		panic("curve is not supported")
 	}

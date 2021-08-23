@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime/debug"
 	"testing"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -22,6 +23,7 @@ func TestStructTags(t *testing.T) {
 			return nil
 		}
 		if err := parser.Visit(input, "", compiled.Unset, collectHandler, reflect.TypeOf(Variable{})); err != nil {
+			t.Log(string(debug.Stack()))
 			t.Fatal(err)
 		}
 

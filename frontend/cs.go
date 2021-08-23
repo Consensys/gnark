@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -82,17 +83,24 @@ type CompiledConstraintSystem interface {
 	FrSize() int
 }
 
-// this has quite some impact on frontend performance, especially on large circuits size
+// initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-const initialCapacity = 1e6
-
-func newConstraintSystem() ConstraintSystem {
+func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
+	capacity := 0
+	if len(initialCapacity) > 0 {
+		capacity = initialCapacity[0]
+	}
 	cs := ConstraintSystem{
-		coeffs:      make([]big.Int, 0),
+		coeffs:      make([]big.Int, 4),
 		coeffsIDs:   make(map[string]int),
-		constraints: make([]compiled.R1C, 0, initialCapacity),
+		constraints: make([]compiled.R1C, 0, capacity),
 		assertions:  make([]compiled.R1C, 0),
 	}
+
+	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)
+	cs.coeffs[compiled.CoeffIdOne].SetInt64(1)
+	cs.coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	cs.coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
@@ -100,7 +108,7 @@ func newConstraintSystem() ConstraintSystem {
 	cs.secret.variables = make([]Variable, 0)
 	cs.secret.booleans = make(map[int]struct{})
 
-	cs.internal.variables = make([]Variable, 0, initialCapacity)
+	cs.internal.variables = make([]Variable, 0, capacity)
 	cs.internal.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
@@ -115,40 +123,25 @@ type logEntry struct {
 }
 
 var (
-	bMinusOne = new(big.Int).SetInt64(-1)
-	bZero     = new(big.Int)
-	bOne      = new(big.Int).SetInt64(1)
-	bTwo      = new(big.Int).SetInt64(2)
+	bOne = new(big.Int).SetInt64(1)
 )
 
 // debug info in case a variable is not set
-func debugInfoUnsetVariable(term compiled.Term) logEntry {
-	entry := logEntry{}
-	stack := getCallStack()
-	entry.format = stack[len(stack)-1]
-	entry.toResolve = append(entry.toResolve, term)
-	return entry
-}
+// func debugInfoUnsetVariable(term compiled.Term) logEntry {
+// 	entry := logEntry{}
+// 	stack := getCallStack()
+// 	entry.format = stack[len(stack)-1]
+// 	entry.toResolve = append(entry.toResolve, term)
+// 	return entry
+// }
 
-func (cs *ConstraintSystem) getOneVariable() Variable {
+func (cs *ConstraintSystem) one() Variable {
 	return cs.public.variables[0]
 }
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
 func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
-
-	term := compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
-
-	if coeff.Cmp(bZero) == 0 {
-		term.SetCoeffValue(0)
-	} else if coeff.Cmp(bOne) == 0 {
-		term.SetCoeffValue(1)
-	} else if coeff.Cmp(bTwo) == 0 {
-		term.SetCoeffValue(2)
-	} else if coeff.Cmp(bMinusOne) == 0 {
-		term.SetCoeffValue(-1)
-	}
-	return term
+	return compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
 }
 
 // newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
@@ -179,82 +172,33 @@ func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.Li
 	return res
 }
 
-// reduces redundancy in a linear expression
-// Non deterministic function
-func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visibility compiled.Visibility) compiled.LinearExpression {
-
-	if len(linExp) == 0 {
-		return compiled.LinearExpression{}
+// reduces redundancy in linear expression
+// It factorizes variable that appears multiple times with != coeff Ids
+// To ensure the determinism in the compile process, variables are stored as public||secret||internal||unset
+// for each visibility, the variables are sorted from lowest ID to highest ID
+func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+	// ensure our linear expression is sorted, by visibility and by variable ID
+	if !sort.IsSorted(l) { // may not help
+		sort.Sort(l)
 	}
 
-	coeffRecord := make(map[int]big.Int) // id variable -> coeff
-	varRecord := make(map[int]Wire)      // id variable -> Wire
-
-	// the variables are collected and the coefficients are accumulated
-	for _, t := range linExp {
-
-		_, coeffID, variableID, vis := t.Unpack()
-
-		if vis == visibility {
-			tmp := Wire{vis, variableID, nil}
-
-			if _, ok := varRecord[variableID]; !ok {
-				varRecord[variableID] = tmp
-				var coef, coefCopy big.Int
-				coef = cs.coeffs[coeffID]
-				coefCopy.Set(&coef)
-				coeffRecord[variableID] = coefCopy
-			} else {
-				ccoef := coeffRecord[variableID]
-				ccoef.Add(&ccoef, &cs.coeffs[coeffID])
-				coeffRecord[variableID] = ccoef
-			}
+	var c big.Int
+	for i := 1; i < len(l); i++ {
+		pcID, pvID, pVis := l[i-1].Unpack()
+		ccID, cvID, cVis := l[i].Unpack()
+		if pVis == cVis && pvID == cvID {
+			// we have redundancy
+			c.Add(&cs.coeffs[pcID], &cs.coeffs[ccID])
+			l[i-1].SetCoeffID(cs.coeffID(&c))
+			l = append(l[:i], l[i+1:]...)
+			i--
 		}
 	}
 
-	// creation of the reduced linear expression
-	var res compiled.LinearExpression
-	for k := range coeffRecord {
-		bCoeff := coeffRecord[k]
-		res = append(res, cs.makeTerm(varRecord[k], &bCoeff))
-	}
-
-	return res
-}
-
-// complete allocate linExp if linExp is empty. If a variable
-// is created like 'var a Variable', it will be unset but Compile(..)
-// will not understand it since a.linExp is empty
-func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
-	if len(v.linExp) == 0 {
-		tmp := Wire{compiled.Unset, v.id, v.val}
-		tmpVar := cs.buildVarFromWire(tmp)
-		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
-		v.linExp = tmpVar.linExp // .Clone()
-	}
-}
-
-// reduces redundancy in linear expression
-// Non deterministic function
-func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
-	reducePublic := cs.partialReduce(l, compiled.Public)
-	reduceSecret := cs.partialReduce(l, compiled.Secret)
-	reduceInternal := cs.partialReduce(l, compiled.Internal)
-	reduceUnset := cs.partialReduce(l, compiled.Unset) // we collect also the unset variables so it stays consistant (useful for debugging)
-	res := make(compiled.LinearExpression, len(reducePublic)+len(reduceSecret)+len(reduceInternal)+len(reduceUnset))
-	accSize := 0
-	copy(res[:], reducePublic)
-	accSize += len(reducePublic)
-	copy(res[accSize:], reduceSecret)
-	accSize += len(reduceSecret)
-	copy(res[accSize:], reduceInternal)
-	accSize += len(reduceInternal)
-	copy(res[accSize:], reduceUnset)
-	return res
+	return l
 }
 
 func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logEntry) {
-
 	cs.assertions = append(cs.assertions, constraint)
 	cs.debugInfo = append(cs.debugInfo, debugInfo)
 }
@@ -262,6 +206,21 @@ func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logE
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
+
+	// if the coeff is a int64, and has value -1, 0, 1 or 2, we have a fast path.
+	if b.IsInt64() {
+		v := b.Int64()
+		switch v {
+		case -1:
+			return compiled.CoeffIdMinusOne
+		case 0:
+			return compiled.CoeffIdZero
+		case 1:
+			return compiled.CoeffIdOne
+		case 2:
+			return compiled.CoeffIdTwo
+		}
+	}
 
 	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
 	key := b.Text(16)
@@ -284,7 +243,7 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 func (cs *ConstraintSystem) allocate(v Variable) Variable {
 	if v.visibility == compiled.Unset && len(v.linExp) > 0 {
 		iv := cs.newInternalVariable()
-		one := cs.getOneVariable()
+		one := cs.one()
 		cs.constraints = append(cs.constraints, newR1C(v, one, iv))
 		return iv
 	}
@@ -294,34 +253,34 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	resVar := Wire{
+	w := Wire{
 		id:         len(cs.internal.variables),
 		visibility: compiled.Internal,
 	}
-	res := cs.buildVarFromWire(resVar)
-	cs.internal.variables = append(cs.internal.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.internal.variables = append(cs.internal.variables, v)
+	return v
 }
 
 // newPublicVariable creates a new public input
 func (cs *ConstraintSystem) newPublicVariable() Variable {
 
 	idx := len(cs.public.variables)
-	resVar := Wire{compiled.Public, idx, nil}
+	w := Wire{compiled.Public, idx, nil}
 
-	res := cs.buildVarFromWire(resVar)
-	cs.public.variables = append(cs.public.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.public.variables = append(cs.public.variables, v)
+	return v
 }
 
 // newSecretVariable creates a new secret input
 func (cs *ConstraintSystem) newSecretVariable() Variable {
 	idx := len(cs.secret.variables)
-	resVar := Wire{compiled.Secret, idx, nil}
+	w := Wire{compiled.Secret, idx, nil}
 
-	res := cs.buildVarFromWire(resVar)
-	cs.secret.variables = append(cs.secret.variables, res)
-	return res
+	v := cs.buildVarFromWire(w)
+	cs.secret.variables = append(cs.secret.variables, v)
+	return v
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
@@ -401,5 +360,5 @@ func getCallStack() []string {
 }
 
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
+	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne))}
 }

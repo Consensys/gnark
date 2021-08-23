@@ -16,7 +16,6 @@ package compiled
 
 import (
 	"io"
-	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 )
@@ -24,7 +23,7 @@ import (
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
 
-	// Variables [ publicVariables|  secretVariables | internalVariables ]
+	// Variables [publicVariables| secretVariables | internalVariables ]
 	NbInternalVariables int
 	NbPublicVariables   int
 	NbSecretVariables   int
@@ -35,10 +34,6 @@ type SparseR1CS struct {
 
 	// Logs (e.g. variables that have been printed using cs.Println)
 	Logs []LogEntry
-
-	// Coefficients in the constraints
-	Coeffs    []big.Int      // list of unique coefficients.
-	CoeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 }
 
 // GetNbVariables return number of internal, secret and public variables
@@ -51,7 +46,7 @@ func (cs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
 
 // GetNbConstraints returns the number of constraints
 func (cs *SparseR1CS) GetNbConstraints() int {
-	return len(cs.Constraints)
+	return len(cs.Constraints) + len(cs.Assertions)
 }
 
 // GetNbWires returns the number of wires (internal)
@@ -66,8 +61,7 @@ func (cs *SparseR1CS) FrSize() int {
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (cs *SparseR1CS) GetNbCoefficients() int {
-	res := len(cs.Coeffs)
-	return res
+	panic("not implemented")
 }
 
 // CurveID returns ecc.UNKNOWN as this is a untyped R1CS using big.Int
