@@ -3,6 +3,7 @@ package frontend
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -58,10 +59,15 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (ConstraintSystem, error) {
-
+func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs ConstraintSystem, err error) {
+	// recover from panics to print user-friendlier messages
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
 	// instantiate our constraint system
-	cs := newConstraintSystem(initialCapacity...)
+	cs = newConstraintSystem(initialCapacity...)
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
@@ -76,10 +82,12 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (Constrain
 				return errors.New("circuit has some assigned values, can't compile")
 			}
 			switch visibility {
-			case compiled.Unset, compiled.Secret:
+			case compiled.Secret:
 				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
 			case compiled.Public:
 				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
+			case compiled.Unset:
+				return errors.New("can't set val " + name + " visibility is unset")
 			}
 
 			return nil
@@ -97,6 +105,6 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (Constrain
 		return cs, err
 	}
 
-	return cs, nil
+	return
 
 }

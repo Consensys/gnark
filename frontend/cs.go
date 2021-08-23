@@ -217,18 +217,6 @@ func (cs *ConstraintSystem) partialReduce(linExp compiled.LinearExpression, visi
 	return res
 }
 
-// completeDanglingVariable allocates linExp if linExp is empty. If a variable
-// is created like 'var a Variable', it will be unset but Compile(..)
-// will not understand it since a.linExp is empty
-func (cs *ConstraintSystem) completeDanglingVariable(v *Variable) {
-	if len(v.linExp) == 0 {
-		tmp := Wire{compiled.Unset, v.id, v.val}
-		tmpVar := cs.buildVarFromWire(tmp)
-		cs.unsetVariables = append(cs.unsetVariables, debugInfoUnsetVariable(tmpVar.linExp[0]))
-		v.linExp = tmpVar.linExp // .Clone()
-	}
-}
-
 // reduces redundancy in linear expression
 // The reduces linear expression stores the variables as public||secret||internal||unset
 // for each visibility, the variables are sorted from lowest ID to highest ID
@@ -419,5 +407,5 @@ func getCallStack() []string {
 }
 
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne)), false}
+	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne))}
 }

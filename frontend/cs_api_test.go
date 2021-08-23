@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"errors"
 	"math/big"
 	"testing"
 
@@ -363,7 +362,7 @@ func rfSelect() runfunc {
 	return res
 }
 
-var nsSelect = deltaState{1, 2, 3, 3, 4}
+var nsSelect = deltaState{1, 2, 3, 3, 1}
 
 // copy of variable
 func rfConstant() runfunc {
@@ -495,7 +494,7 @@ func rfIsBoolean() runfunc {
 	return res
 }
 
-var nsIsBoolean = deltaState{1, 1, 0, 0, 4}
+var nsIsBoolean = deltaState{1, 1, 0, 0, 2}
 
 var nsMustBeLessOrEqVar = deltaState{1, 1, 1281, 771, 768}
 
@@ -532,7 +531,7 @@ func TestAPI(t *testing.T) {
 		buildProtoCommands("Constant", rfConstant(), nextStateFunc(nsConstant)),
 		buildProtoCommands("IsEqual", rfIsEqual(), nextStateFunc(nsIsEqual)),
 		buildProtoCommands("FromBinary", rfFromBinary(), nextStateFunc(nsFromBinary)),
-		buildProtoCommands("IsBoolean", rfIsBoolean(), nextStateFunc(nsIsBoolean)), // TODO fix isBoolean to record if it was already boolean constrained
+		buildProtoCommands("IsBoolean", rfIsBoolean(), nextStateFunc(nsIsBoolean)),
 		// buildProtoCommands("Must be less or eq var", rfMustBeLessOrEqVar(), nextStateFunc(nsMustBeLessOrEqVar)), // TODO restore once isBoolean is fixed
 		// buildProtoCommands("Must be less or eq const", rfMustBeLessOrEqConst(), nextStateFunc(nsMustBeLessOrEqConst)), // TODO idem
 	}
@@ -693,7 +692,11 @@ func (c *isLessOrEq) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 }
 
 func TestUnsetVariables(t *testing.T) {
-
+	// TODO unset variables with markBoolean will panic.
+	// doing
+	// var a Variable
+	// cs.AssertIsBoolean(a)
+	// will panic.
 	mapFuncs := map[string]Circuit{
 		"add":          &addCircuit{},
 		"sub":          &subCircuit{},
@@ -716,7 +719,7 @@ func TestUnsetVariables(t *testing.T) {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
 
-			if !errors.Is(err, ErrInputNotSet) {
+			if err.Error() != ErrInputNotSet.Error() {
 				_t.Fatal("expected input not set error, got " + err.Error())
 			}
 		})

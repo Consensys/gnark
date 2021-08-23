@@ -31,8 +31,18 @@ type Wire struct {
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
 type Variable struct {
 	Wire
-	linExp    compiled.LinearExpression
-	isBoolean bool // TODO it doesn't work, we need a pointer for that
+	linExp compiled.LinearExpression
+}
+
+// assertIsSet panics if the variable is unset
+// this may happen if inside a Define we have
+// var a Variable
+// cs.Mul(a, 1)
+// since a was not in the circuit struct it is not a secret variable
+func (v *Variable) assertIsSet() {
+	if len(v.linExp) == 0 {
+		panic(ErrInputNotSet)
+	}
 }
 
 // GetAssignedValue returns the assigned value (or nil) to the variable

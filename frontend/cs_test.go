@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -52,10 +51,6 @@ func TestReduce(t *testing.T) {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
-	// check coefficients
-	for _, t := range toTest.linExp {
-		fmt.Println(cs.coeffs[t.CoeffID()])
-	}
 }
 
 func TestPopVariable(t *testing.T) {
