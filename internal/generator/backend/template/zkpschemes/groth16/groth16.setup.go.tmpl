@@ -111,7 +111,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		t0.Mul(&B[i], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i]).
-			Div(&t1, &toxicWaste.gamma)
+			Mul(&t1, &toxicWaste.gammaInv)
 		vkK[i] = t1.ToRegular()
 	}
 
@@ -120,7 +120,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i+nbPublicWires]).
-			Div(&t1, &toxicWaste.delta)
+			Mul(&t1, &toxicWaste.deltaInv)
 		pkK[i] = t1.ToRegular()
 	}
 
@@ -139,7 +139,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	zdt.Exp(toxicWaste.t, new(big.Int).SetUint64(domain.Cardinality)).
 		Sub(&zdt, &one).
-		Div(&zdt, &toxicWaste.delta) // sets Zdt to Zdt/delta
+		Mul(&zdt, &toxicWaste.deltaInv) // sets Zdt to Zdt/delta
 
 	for i := 0; i < int(domain.Cardinality); i++ {
 		Z[i] = zdt.ToRegular()
@@ -223,7 +223,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	return nil
 }
 
-func setupABC(r1cs *cs.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
+func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
@@ -231,45 +231,50 @@ func setupABC(r1cs *cs.R1CS, g *fft.Domain, toxicWaste toxicWaste) (A []fr.Eleme
 	B = make([]fr.Element, nbWires)
 	C = make([]fr.Element, nbWires)
 
-	var one fr.Element
-	one.SetOne()
+	one := fr.One()
+
+
+	// first we compute [t-w^i] and its inverse
+	var w fr.Element
+	w.Set(&domain.Generator)
+	wi := fr.One()
+	t := make([]fr.Element, len(r1cs.Constraints) +1 )
+	for i:=0; i < len(t);i++ {
+		t[i].Sub(&toxicWaste.t, &wi)
+		wi.Mul(&wi, &w) // TODO is this not already pre computed in fft.Domain ? 
+	}
+	tInv := fr.BatchInvert(t)
 
 	// evaluation of the i-th lagrange polynomial at t
-	var ithLagrangePolt fr.Element
+	var L fr.Element
 
-	// L0 = 1/n*(t^n-1)/(t-1), Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
-	var w, wi, tmp fr.Element
-	w.Set(&g.Generator)
-	wi.SetOne()
+	// L = 1/n*(t^n-1)/(t-1), Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 
-	// Setting L0
-	ithLagrangePolt.Set(&toxicWaste.t)
-	ithLagrangePolt.Exp(ithLagrangePolt, new(big.Int).SetUint64(uint64(g.Cardinality))).
-		Sub(&ithLagrangePolt, &one)
-	tmp.Set(&toxicWaste.t).Sub(&tmp, &one)
-	ithLagrangePolt.Div(&ithLagrangePolt, &tmp).
-		Mul(&ithLagrangePolt, &g.CardinalityInv)
+	// Setting L
+	L.Exp(toxicWaste.t, new(big.Int).SetUint64(uint64(domain.Cardinality))).
+		Sub(&L, &one)
+	L.Mul(&L, &tInv[0]).
+		Mul(&L, &domain.CardinalityInv)
+
+
 
 	// Constraints
-	for _, c := range r1cs.Constraints {
+	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			r1cs.AddTerm(&A[t.VariableID()], t, ithLagrangePolt)
+			r1cs.AddTerm(&A[t.VariableID()], t, L)
 		}
 		for _, t := range c.R {
-			r1cs.AddTerm(&B[t.VariableID()], t, ithLagrangePolt)
+			r1cs.AddTerm(&B[t.VariableID()], t, L)
 		}
 		for _, t := range c.O {
-			r1cs.AddTerm(&C[t.VariableID()], t, ithLagrangePolt)
+			r1cs.AddTerm(&C[t.VariableID()], t, L)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
-		ithLagrangePolt.Mul(&ithLagrangePolt, &w)
-		tmp.Sub(&toxicWaste.t, &wi)
-		ithLagrangePolt.Mul(&ithLagrangePolt, &tmp)
-		wi.Mul(&wi, &w)
-		tmp.Sub(&toxicWaste.t, &wi)
-		ithLagrangePolt.Div(&ithLagrangePolt, &tmp)
+		L.Mul(&L, &w)
+		L.Mul(&L, &t[i])
+		L.Mul(&L, &tInv[i+1])
 	}
 	return
 
@@ -280,6 +285,7 @@ type toxicWaste struct {
 
 	// Montgomery form of params
 	t, alpha, beta, gamma, delta fr.Element
+	gammaInv, deltaInv fr.Element 
 
 	// Non Montgomery form of params
 	alphaReg, betaReg, gammaReg, deltaReg fr.Element
@@ -289,21 +295,34 @@ func sampleToxicWaste() (toxicWaste, error) {
 
 	res := toxicWaste{}
 
-	if _, err := res.t.SetRandom(); err != nil {
-		return res, err
+	for res.t.IsZero() {
+		if _, err := res.t.SetRandom(); err != nil {
+			return res, err
+		}
 	}
-	if _, err := res.alpha.SetRandom(); err != nil {
-		return res, err
+	for res.alpha.IsZero() {
+		if _, err := res.alpha.SetRandom(); err != nil {
+			return res, err
+		}
 	}
-	if _, err := res.beta.SetRandom(); err != nil {
-		return res, err
+	for res.beta.IsZero() {
+		if _, err := res.beta.SetRandom(); err != nil {
+			return res, err
+		}
 	}
-	if _, err := res.gamma.SetRandom(); err != nil {
-		return res, err
+	for res.gamma.IsZero() {
+		if _, err := res.gamma.SetRandom(); err != nil {
+			return res, err
+		}
 	}
-	if _, err := res.delta.SetRandom(); err != nil {
-		return res, err
+	for res.delta.IsZero() {
+		if _, err := res.delta.SetRandom(); err != nil {
+			return res, err
+		}
 	}
+
+	res.gammaInv.Inverse(&res.gamma)
+	res.deltaInv.Inverse(&res.delta)
 
 	res.alphaReg = res.alpha.ToRegular()
 	res.betaReg = res.beta.ToRegular()
