@@ -31,12 +31,11 @@ type PublicKey struct {
 
 // Signature stores a signature  (to be used in gnark circuit)
 // An EdDSA signature is a tuple (R,S) where R is a point on the twisted Edwards curve
-// and S a scalar. S can be greater than r, the size of the zk snark field, and must
-// not be reduced modulo r. Therefore it is split in S1 and S2, such that if r is n-bits long,
-// S = 2^(n/2)*S1 + S2. In other words, S is written S1S2 in basis 2^(n/2).
+// and S a scalar. Since the base field of the twisted Edwards is Fr, the number of points
+// N on the Edwards is < r+1+2sqrt(r). The subgroup l used in eddsa is <1/2N, so the reduction
+// mod l ensures S < r, therefore there is no risk of overflow.
 type Signature struct {
 	R twistededwards.Point
-	//S1, S2 frontend.Variable
 	S frontend.Variable
 }
 
