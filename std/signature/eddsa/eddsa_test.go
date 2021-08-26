@@ -17,7 +17,6 @@ limitations under the License.
 package eddsa
 
 import (
-	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -198,8 +197,6 @@ func TestEddsa(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		fmt.Printf("ID: %s, c = %d\n", id.String(), r1cs.GetNbConstraints())
 
 		// verification with the correct Message
 		{
