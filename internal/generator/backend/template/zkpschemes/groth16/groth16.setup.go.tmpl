@@ -390,12 +390,16 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints), 1, true)
 
+	// count number of infinity points we would have had we a normal setup
+	// in pk.G1.A, pk.G1.B, and pk.G2.B
+	nbZeroesA, nbZeroesB := dummyInfinityCount(r1cs)
+
 	// initialize proving key
-	pk.G1.A = make([]curve.G1Affine, nbWires)
-	pk.G1.B = make([]curve.G1Affine, nbWires)
+	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
+	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
 	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicVariables)
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
-	pk.G2.B = make([]curve.G2Affine, nbWires)
+	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -413,9 +417,13 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r2Aff curve.G2Affine
 	r2Jac.ScalarMultiplication(&g2, &b)
 	r2Aff.FromJacobian(&r2Jac)
-	for i := 0; i < int(nbWires); i++ {
+	for i:=0; i < len(pk.G1.A); i++ {
 		pk.G1.A[i] = r1Aff
+	}
+	for i:=0; i < len(pk.G1.B); i++ {
 		pk.G1.B[i] = r1Aff
+	}
+	for i:=0; i < len(pk.G2.B); i++ {
 		pk.G2.B[i] = r2Aff
 	}
 	for i := 0; i < len(pk.G1.Z); i++ {
@@ -433,6 +441,34 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.Domain = *domain
 
 	return nil
+}
+
+// dummyInfinityCount helps us simulate the number of infinity points we have with the given R1CS
+// in A and B as it directly impacts prover performance
+func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
+
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+
+	A := make([]bool, nbWires)
+	B := make([]bool, nbWires)
+	for _, c := range r1cs.Constraints {
+		for _, t := range c.L {
+			A[t.VariableID()] = true 
+		}
+		for _, t := range c.R {
+			B[t.VariableID()] = true 
+		}
+	}
+	for i:=0; i < nbWires;i++ {
+		if !A[i] {
+			nbZeroesA++
+		}
+		if !B[i] {
+			nbZeroesB++
+		}
+	}
+	return
+
 }
 
 // IsDifferent returns true if provided vk is different than self
