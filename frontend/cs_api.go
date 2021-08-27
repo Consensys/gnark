@@ -224,7 +224,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 			cs.constraints = append(cs.constraints, newR1C(t2, res, t1))
 		default:
 			tmp := cs.Constant(t2)
-			cs.constraints = append(cs.constraints, newR1C(tmp, res, t1))
+			cs.constraints = append(cs.constraints, newR1C(res, tmp, t1))
 		}
 	default:
 		switch t2 := i2.(type) {
@@ -235,7 +235,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 		default:
 			tmp1 := cs.Constant(t1)
 			tmp2 := cs.Constant(t2)
-			cs.constraints = append(cs.constraints, newR1C(tmp2, res, tmp1))
+			cs.constraints = append(cs.constraints, newR1C(res, tmp2, tmp1))
 		}
 	}
 
@@ -402,7 +402,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 		v := cs.Sub(t1, i2)  // no constraint is recorded
 		w := cs.Sub(res, i2) // no constraint is recorded
 		//cs.Println("u-v: ", v)
-		cs.constraints = append(cs.constraints, newR1C(b, v, w))
+		cs.constraints = append(cs.constraints, newR1C(v, b, w))
 		return res
 	default:
 		switch t2 := i2.(type) {
@@ -411,7 +411,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 			res = cs.newInternalVariable()
 			v := cs.Sub(t1, t2)  // no constraint is recorded
 			w := cs.Sub(res, t2) // no constraint is recorded
-			cs.constraints = append(cs.constraints, newR1C(b, v, w))
+			cs.constraints = append(cs.constraints, newR1C(v, b, w))
 			return res
 		default:
 			// in this case, no constraint is recorded
@@ -531,7 +531,7 @@ func (cs *ConstraintSystem) markBoolean(v Variable) bool {
 	return true
 }
 
-// AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
+// AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
 func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 
 	v.assertIsSet()
@@ -539,6 +539,8 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	if !cs.markBoolean(v) {
 		return // variable is already constrained
 	}
+
+	// ensure v * (1 - v) == 0
 
 	_v := cs.Sub(1, v)  // no variable is recorded in the cs
 	o := cs.Constant(0) // no variable is recorded in the cs

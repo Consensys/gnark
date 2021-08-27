@@ -23,6 +23,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"math/big"
@@ -48,6 +49,10 @@ type ProvingKey struct {
 		Beta, Delta curve.G2Affine
 		B           []curve.G2Affine
 	}
+
+	// if InfinityA[i] == true, the point G1.A[i] == infinity
+	InfinityA []bool
+	InfinityB []bool
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -241,6 +246,22 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// set domain
 	pk.Domain = *domain
 
+	// mark points at infinity
+	pk.InfinityA = make([]bool, len(A))
+	pk.InfinityB = make([]bool, len(B))
+	nbZeroesA, nbZeroesB := 0, 0
+	for i := 0; i < len(A); i++ {
+		if A[i].IsZero() {
+			pk.InfinityA[i] = true
+			nbZeroesA++
+		}
+		if B[i].IsZero() {
+			pk.InfinityB[i] = true
+			nbZeroesB++
+		}
+	}
+	fmt.Printf("nbWires: %d, zeroes(A): %d, zeroes(B): %d\n", len(A), nbZeroesA, nbZeroesB)
+
 	return nil
 }
 
@@ -270,13 +291,18 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 
 	// L = 1/n*(t^n-1)/(t-1), Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 
-	// Setting L
+	// Setting L0
 	L.Exp(toxicWaste.t, new(big.Int).SetUint64(uint64(domain.Cardinality))).
 		Sub(&L, &one)
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
-	// Constraints
+	// each constraint is in the form
+	// L * R == O
+	// L, R and O being linear expressions
+	// for each term appearing in the linear expression,
+	// we compute term.Coefficient * L, and cumulate it in
+	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
