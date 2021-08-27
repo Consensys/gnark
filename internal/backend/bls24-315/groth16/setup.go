@@ -420,6 +420,8 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// set infinity markers
 	pk.InfinityA = make([]bool, nbWires)
 	pk.InfinityB = make([]bool, nbWires)
+	pk.NbInfinityA = nbZeroesA
+	pk.NbInfinityB = nbZeroesB
 	for i := 0; i < nbZeroesA; i++ {
 		pk.InfinityA[i] = true
 	}
