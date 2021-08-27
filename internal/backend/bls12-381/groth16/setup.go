@@ -175,36 +175,29 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// mark points at infinity and filter them
 	pk.InfinityA = make([]bool, len(A))
 	pk.InfinityB = make([]bool, len(B))
-	for i := 0; i < len(A); i++ {
-		if A[i].IsZero() {
+
+	n := 0
+	for i, e := range A {
+		if e.IsZero() {
 			pk.InfinityA[i] = true
-			pk.NbInfinityA++
+			continue
 		}
-		if B[i].IsZero() {
+		A[n] = A[i]
+		n++
+	}
+	A = A[:n]
+	pk.NbInfinityA = nbWires - n
+	n = 0
+	for i, e := range B {
+		if e.IsZero() {
 			pk.InfinityB[i] = true
-			pk.NbInfinityB++
-		}
-	}
-	// can be done in place, not sure it will help much though.
-	_A := make([]fr.Element, len(A)-pk.NbInfinityA)
-	_B := make([]fr.Element, len(B)-pk.NbInfinityB)
-
-	for i, j := 0, 0; j < len(_A); i++ {
-		if pk.InfinityA[i] {
 			continue
 		}
-		_A[j] = A[i]
-		j++
+		B[n] = B[i]
+		n++
 	}
-
-	for i, j := 0, 0; j < len(_B); i++ {
-		if pk.InfinityB[i] {
-			continue
-		}
-		_B[j] = B[i]
-		j++
-	}
-	A, B = _A, _B
+	B = B[:n]
+	pk.NbInfinityB = nbWires - n
 
 	fmt.Printf("nbWires: %d, zeroes(A): %d, zeroes(B): %d\n", len(A), pk.NbInfinityA, pk.NbInfinityB)
 
