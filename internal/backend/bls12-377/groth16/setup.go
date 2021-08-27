@@ -417,6 +417,16 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
+	// set infinity markers
+	pk.InfinityA = make([]bool, nbWires)
+	pk.InfinityB = make([]bool, nbWires)
+	for i := 0; i < nbZeroesA; i++ {
+		pk.InfinityA[i] = true
+	}
+	for i := 0; i < nbZeroesB; i++ {
+		pk.InfinityB[i] = true
+	}
+
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
 	if err != nil {
