@@ -51,8 +51,8 @@ type ProvingKey struct {
 	}
 
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
-	InfinityA []bool
-	InfinityB []bool
+	InfinityA, InfinityB     []bool
+	NbInfinityA, NbInfinityB int
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -172,6 +172,42 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
+	// mark points at infinity and filter them
+	pk.InfinityA = make([]bool, len(A))
+	pk.InfinityB = make([]bool, len(B))
+	for i := 0; i < len(A); i++ {
+		if A[i].IsZero() {
+			pk.InfinityA[i] = true
+			pk.NbInfinityA++
+		}
+		if B[i].IsZero() {
+			pk.InfinityB[i] = true
+			pk.NbInfinityB++
+		}
+	}
+	// can be done in place, not sure it will help much though.
+	_A := make([]fr.Element, len(A)-pk.NbInfinityA)
+	_B := make([]fr.Element, len(B)-pk.NbInfinityB)
+
+	for i, j := 0, 0; j < len(_A); i++ {
+		if pk.InfinityA[i] {
+			continue
+		}
+		_A[j] = A[i]
+		j++
+	}
+
+	for i, j := 0, 0; j < len(_B); i++ {
+		if pk.InfinityB[i] {
+			continue
+		}
+		_B[j] = B[i]
+		j++
+	}
+	A, B = _A, _B
+
+	fmt.Printf("nbWires: %d, zeroes(A): %d, zeroes(B): %d\n", len(A), pk.NbInfinityA, pk.NbInfinityB)
+
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
@@ -189,11 +225,11 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.Delta = g1PointsAff[2]
 
 	offset := 3
-	pk.G1.A = g1PointsAff[offset : offset+nbWires]
-	offset += nbWires
+	pk.G1.A = g1PointsAff[offset : offset+len(A)]
+	offset += len(A)
 
-	pk.G1.B = g1PointsAff[offset : offset+nbWires]
-	offset += nbWires
+	pk.G1.B = g1PointsAff[offset : offset+len(B)]
+	offset += len(B)
 
 	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
@@ -218,15 +254,15 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
-	pk.G2.B = g2PointsAff[:nbWires]
+	pk.G2.B = g2PointsAff[:len(B)]
 
 	// sets pk: [β]2, [δ]2
-	pk.G2.Beta = g2PointsAff[nbWires+0]
-	pk.G2.Delta = g2PointsAff[nbWires+1]
+	pk.G2.Beta = g2PointsAff[len(B)+0]
+	pk.G2.Delta = g2PointsAff[len(B)+1]
 
 	// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
-	vk.G2.Delta = g2PointsAff[nbWires+1]
-	vk.G2.Gamma = g2PointsAff[nbWires+2]
+	vk.G2.Delta = g2PointsAff[len(B)+1]
+	vk.G2.Gamma = g2PointsAff[len(B)+2]
 	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
@@ -245,22 +281,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	// set domain
 	pk.Domain = *domain
-
-	// mark points at infinity
-	pk.InfinityA = make([]bool, len(A))
-	pk.InfinityB = make([]bool, len(B))
-	nbZeroesA, nbZeroesB := 0, 0
-	for i := 0; i < len(A); i++ {
-		if A[i].IsZero() {
-			pk.InfinityA[i] = true
-			nbZeroesA++
-		}
-		if B[i].IsZero() {
-			pk.InfinityB[i] = true
-			nbZeroesB++
-		}
-	}
-	fmt.Printf("nbWires: %d, zeroes(A): %d, zeroes(B): %d\n", len(A), nbZeroesA, nbZeroesB)
 
 	return nil
 }

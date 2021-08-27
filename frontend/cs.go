@@ -151,6 +151,7 @@ func newR1C(l, r, o Variable, s ...compiled.SolvingMethod) compiled.R1C {
 	if len(s) > 0 {
 		solver = s[0]
 	}
+
 	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone(), Solver: solver}
 }
 

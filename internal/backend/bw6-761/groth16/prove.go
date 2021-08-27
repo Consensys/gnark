@@ -86,6 +86,25 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 		chHDone <- struct{}{}
 	}()
 
+	// we need to copy and filter the wireValues for each multi exp
+	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
+	wireValuesA := make([]fr.Element, len(wireValues)-pk.NbInfinityA)
+	wireValuesB := make([]fr.Element, len(wireValues)-pk.NbInfinityB)
+	for i, j := 0, 0; j < len(wireValuesA); i++ {
+		if pk.InfinityA[i] {
+			continue
+		}
+		wireValuesA[j] = wireValues[i]
+		j++
+	}
+	for i, j := 0, 0; j < len(wireValuesB); i++ {
+		if pk.InfinityB[i] {
+			continue
+		}
+		wireValuesB[j] = wireValues[i]
+		j++
+	}
+
 	// sample random r and s
 	var r, s big.Int
 	var _r, _s, _kr fr.Element
@@ -113,7 +132,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 
 	chBs1Done := make(chan error, 1)
 	computeBS1 := func() {
-		if _, err := bs1.MultiExp(pk.G1.B, wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chBs1Done <- err
 			close(chBs1Done)
 			return
@@ -125,7 +144,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 
 	chArDone := make(chan error, 1)
 	computeAR1 := func() {
-		if _, err := ar.MultiExp(pk.G1.A, wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chArDone <- err
 			close(chArDone)
 			return
@@ -192,7 +211,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, force 
 			// if we don't have a lot of CPUs, this may artificially split the MSM
 			nbTasks *= 2
 		}
-		if _, err := Bs.MultiExp(pk.G2.B, wireValues, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
+		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
 			return err
 		}
 
