@@ -61,17 +61,17 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	//hramConstant := hash.Sum(data...)
 	hramConstant := hash.Sum()
 
-	// lhs = cofactor*SB
+	// lhs = [S]G
 	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
-
-	// rhs = [S]G
 	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
+	lhs.MustBeOnCurve(cs, pubKey.Curve)
 
-	// lhs = R+[H(R,A,M)]*A
+	// rhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstant, pubKey.Curve).
 		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve)
+	rhs.MustBeOnCurve(cs, pubKey.Curve)
 
 	// lhs-rhs
 	rhs.Neg(cs, &rhs).AddGeneric(cs, &lhs, &rhs, pubKey.Curve)
