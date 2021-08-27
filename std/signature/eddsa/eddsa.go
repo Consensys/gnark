@@ -32,7 +32,8 @@ type PublicKey struct {
 // Signature stores a signature  (to be used in gnark circuit)
 // An EdDSA signature is a tuple (R,S) where R is a point on the twisted Edwards curve
 // and S a scalar. Since the base field of the twisted Edwards is Fr, the number of points
-// N on the Edwards is < r+1+2sqrt(r). The subgroup l used in eddsa is <1/2N, so the reduction
+// N on the Edwards is < r+1+2sqrt(r)+2 (since the curve has 2 points of multiplicity 2).
+// The subgroup l used in eddsa is <1/2N, so the reduction
 // mod l ensures S < r, therefore there is no risk of overflow.
 type Signature struct {
 	R twistededwards.Point
@@ -64,24 +65,18 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
 
-	// [cofactor*(2^basis*S1 +  S2)]G
+	// rhs = [S]G
 	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
 
-	switch cofactor {
-	case 4:
-		lhs.Double(cs, &lhs, pubKey.Curve).
-			Double(cs, &lhs, pubKey.Curve)
-	case 8:
-		lhs.Double(cs, &lhs, pubKey.Curve).
-			Double(cs, &lhs, pubKey.Curve).Double(cs, &lhs, pubKey.Curve)
-	}
-
-	lhs.MustBeOnCurve(cs, pubKey.Curve)
-
-	//rhs = cofactor*(R+H(R,A,M)*A)
+	// lhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstant, pubKey.Curve).
 		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve)
+
+	// lhs-rhs
+	rhs.Neg(cs, &rhs).AddGeneric(cs, &lhs, &rhs, pubKey.Curve)
+
+	// [cofactor](lhs-rhs)
 	switch cofactor {
 	case 4:
 		rhs.Double(cs, &rhs, pubKey.Curve).
@@ -91,10 +86,9 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 			Double(cs, &rhs, pubKey.Curve).Double(cs, &rhs, pubKey.Curve)
 	}
 
-	rhs.MustBeOnCurve(cs, pubKey.Curve)
-
-	cs.AssertIsEqual(lhs.X, rhs.X)
-	cs.AssertIsEqual(lhs.Y, rhs.Y)
+	//rhs.MustBeOnCurve(cs, pubKey.Curve)
+	cs.AssertIsEqual(rhs.X, 0)
+	cs.AssertIsEqual(rhs.Y, 1)
 
 	return nil
 }
