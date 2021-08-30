@@ -46,7 +46,8 @@ type eddsaCircuit struct {
 	Message   frontend.Variable `gnark:",public"`
 }
 
-func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte, []byte) {
+//func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
+func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
@@ -58,35 +59,30 @@ func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte, []byte) {
 	case ecc.BN254:
 		pointbn254.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		s1 := buf[32:48] // r is 256 bits, so s = 2^128*s1 + s2
-		s2 := buf[48:]
-		return a[:], b[:], s1, s2
+		s := buf[32:]
+		return a[:], b[:], s
 	case ecc.BLS12_381:
 		pointbls12381.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		s1 := buf[32:48]
-		s2 := buf[48:]
-		return a[:], b[:], s1, s2
+		s := buf[32:]
+		return a[:], b[:], s
 	case ecc.BLS12_377:
 		pointbls12377.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		s1 := buf[32:48]
-		s2 := buf[48:]
-		return a[:], b[:], s1, s2
+		s := buf[32:]
+		return a[:], b[:], s
 	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48]) // r is 384 bits, so s = 2^192*s1 + s2
+		pointbw6761.SetBytes(buf[:48])
 		a, b := parsePoint(id, buf)
-		s1 := buf[48:72]
-		s2 := buf[72:]
-		return a[:], b[:], s1, s2
+		s := buf[48:]
+		return a[:], b[:], s
 	case ecc.BLS24_315:
 		pointbls24315.SetBytes(buf[:32])
 		a, b := parsePoint(id, buf)
-		s1 := buf[32:48]
-		s2 := buf[48:]
-		return a[:], b[:], s1, s2
+		s := buf[32:]
+		return a[:], b[:], s
 	default:
-		return buf, buf, buf, buf
+		return buf, buf, buf
 	}
 }
 
@@ -214,11 +210,13 @@ func TestEddsa(t *testing.T) {
 			witness.PublicKey.A.X.Assign(pubkeyAx)
 			witness.PublicKey.A.Y.Assign(pubkeyAy)
 
-			sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
+			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
+			sigRx, sigRy, sigS := parseSignature(id, signature)
 			witness.Signature.R.X.Assign(sigRx)
 			witness.Signature.R.Y.Assign(sigRy)
-			witness.Signature.S1.Assign(sigS1)
-			witness.Signature.S2.Assign(sigS2)
+			// witness.Signature.S1.Assign(sigS1)
+			// witness.Signature.S2.Assign(sigS2)
+			witness.Signature.S.Assign(sigS)
 
 			assert.SolvingSucceeded(r1cs, &witness)
 		}
@@ -232,11 +230,11 @@ func TestEddsa(t *testing.T) {
 			witness.PublicKey.A.X.Assign(pubkeyAx)
 			witness.PublicKey.A.Y.Assign(pubkeyAy)
 
-			sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
+			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
+			sigRx, sigRy, sigS := parseSignature(id, signature)
 			witness.Signature.R.X.Assign(sigRx)
 			witness.Signature.R.Y.Assign(sigRy)
-			witness.Signature.S1.Assign(sigS1)
-			witness.Signature.S2.Assign(sigS2)
+			witness.Signature.S.Assign(sigS)
 
 			assert.SolvingFailed(r1cs, &witness)
 		}
