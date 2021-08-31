@@ -23,7 +23,6 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"math/big"
@@ -198,8 +197,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	B = B[:n]
 	pk.NbInfinityB = nbWires - n
-
-	fmt.Printf("nbWires: %d, zeroes(A): %d, zeroes(B): %d\n", len(A), pk.NbInfinityA, pk.NbInfinityB)
 
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
