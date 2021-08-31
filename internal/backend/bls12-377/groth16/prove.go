@@ -64,8 +64,18 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
-	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil && !force {
-		return nil, err
+	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil {
+		if !force {
+			return nil, err
+		} else {
+			// we need to fill wireValues with random values else multi exps don't do much
+			var r fr.Element
+			r.SetRandom()
+			for i := r1cs.NbPublicVariables + r1cs.NbSecretVariables; i < len(wireValues); i++ {
+				wireValues[i] = r
+				r.Double(&r)
+			}
+		}
 	}
 
 	// set the wire values in regular form
