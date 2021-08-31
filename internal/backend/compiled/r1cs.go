@@ -29,7 +29,7 @@ type R1CS struct {
 	NbPublicVariables   int // includes ONE wire
 	NbSecretVariables   int
 	Logs                []LogEntry
-	DebugInfo           []LogEntry
+	DebugInfoAssertion  []LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints

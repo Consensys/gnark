@@ -167,7 +167,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 		// check that the constraint is satisfied
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			debugInfo := r1cs.DebugInfo[i-int(r1cs.NbCOConstraints)]
+			debugInfo := r1cs.DebugInfoAssertion[i-int(r1cs.NbCOConstraints)]
 			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
 			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}

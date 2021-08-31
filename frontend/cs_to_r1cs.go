@@ -27,7 +27,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		NbCOConstraints:     len(cs.constraints),
 		Constraints:         make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
 		Logs:                make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
+		DebugInfoAssertion:  make([]compiled.LogEntry, len(cs.debugInfoAssertion)),
 	}
 
 	// computational constraints (= gates)
@@ -91,13 +91,13 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		res.Logs[i] = entry
 	}
 
-	// offset ids in the debugInfo
-	for i := 0; i < len(cs.debugInfo); i++ {
+	// offset ids in the debugInfoAssertion
+	for i := 0; i < len(cs.debugInfoAssertion); i++ {
 		entry := compiled.LogEntry{
-			Format: cs.debugInfo[i].format,
+			Format: cs.debugInfoAssertion[i].format,
 		}
-		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
-			_, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
+		for j := 0; j < len(cs.debugInfoAssertion[i].toResolve); j++ {
+			_, cID, cVisibility := cs.debugInfoAssertion[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Internal:
 				cID += len(cs.public.variables) + len(cs.secret.variables)
@@ -111,7 +111,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			entry.ToResolve = append(entry.ToResolve, cID)
 		}
 
-		res.DebugInfo[i] = entry
+		res.DebugInfoAssertion[i] = entry
 	}
 
 	switch curveID {
