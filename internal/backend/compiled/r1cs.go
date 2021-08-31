@@ -24,12 +24,14 @@ import (
 // The coefficients from the rank-1 constraint it contains
 // are big.Int and not tied to a curve base field
 type R1CS struct {
+
 	// Wires
-	NbInternalVariables int
-	NbPublicVariables   int // includes ONE wire
-	NbSecretVariables   int
-	Logs                []LogEntry
-	DebugInfoAssertion  []LogEntry
+	NbInternalVariables  int
+	NbPublicVariables    int // includes ONE wire
+	NbSecretVariables    int
+	Logs                 []LogEntry
+	DebugInfoComputation []LogEntry
+	DebugInfoAssertion   []LogEntry
 
 	// Constraints
 	NbConstraints   int // total number of constraints
