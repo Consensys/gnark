@@ -175,8 +175,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	o.witnesses.Transfers[numTransfer].Amount.Assign(t.amount)
 	o.witnesses.Transfers[numTransfer].Signature.R.X.Assign(t.signature.R.X)
 	o.witnesses.Transfers[numTransfer].Signature.R.Y.Assign(t.signature.R.Y)
-	o.witnesses.Transfers[numTransfer].Signature.S1.Assign(t.signature.S[:16])
-	o.witnesses.Transfers[numTransfer].Signature.S2.Assign(t.signature.S[16:])
+	o.witnesses.Transfers[numTransfer].Signature.S.Assign(t.signature.S[:])
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
 	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)

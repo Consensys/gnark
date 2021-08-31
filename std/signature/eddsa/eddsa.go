@@ -18,7 +18,6 @@ limitations under the License.
 package eddsa
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -32,12 +31,13 @@ type PublicKey struct {
 
 // Signature stores a signature  (to be used in gnark circuit)
 // An EdDSA signature is a tuple (R,S) where R is a point on the twisted Edwards curve
-// and S a scalar. S can be greater than r, the size of the zk snark field, and must
-// not be reduced modulo r. Therefore it is split in S1 and S2, such that if r is n-bits long,
-// S = 2^(n/2)*S1 + S2. In other words, S is written S1S2 in basis 2^(n/2).
+// and S a scalar. Since the base field of the twisted Edwards is Fr, the number of points
+// N on the Edwards is < r+1+2sqrt(r)+2 (since the curve has 2 points of multiplicity 2).
+// The subgroup l used in eddsa is <1/2N, so the reduction
+// mod l ensures S < r, therefore there is no risk of overflow.
 type Signature struct {
-	R      twistededwards.Point
-	S1, S2 frontend.Variable
+	R twistededwards.Point
+	S frontend.Variable
 }
 
 // Verify verifies an eddsa signature
@@ -61,48 +61,34 @@ func Verify(cs *frontend.ConstraintSystem, sig Signature, msg frontend.Variable,
 	//hramConstant := hash.Sum(data...)
 	hramConstant := hash.Sum()
 
-	// lhs = cofactor*SB
-	cofactorConstant := cs.Constant(pubKey.Curve.Cofactor)
+	// lhs = [S]G
+	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
-
-	var basis frontend.Variable
-	switch pubKey.Curve.ID {
-	case ecc.BN254:
-		basis = cs.Constant("340282366920938463463374607431768211456") // 2**128
-	case ecc.BLS12_381:
-		basis = cs.Constant("340282366920938463463374607431768211456")
-	case ecc.BLS12_377:
-		basis = cs.Constant("340282366920938463463374607431768211456")
-	case ecc.BW6_761:
-		basis = cs.Constant("6277101735386680763835789423207666416102355444464034512896") // 2**192
-	case ecc.BLS24_315:
-		basis = cs.Constant("340282366920938463463374607431768211456")
-	default:
-		panic("curve is not supported")
-	}
-
-	// [cofactor*(2^basis*S1 +  S2)]G
-	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S1, pubKey.Curve).
-		ScalarMulNonFixedBase(cs, &lhs, basis, pubKey.Curve)
-
-	tmp := twistededwards.Point{}
-	tmp.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S2, pubKey.Curve)
-
-	lhs.AddGeneric(cs, &lhs, &tmp, pubKey.Curve)
-
-	lhs.ScalarMulNonFixedBase(cs, &lhs, cofactorConstant, pubKey.Curve)
-
+	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
 	lhs.MustBeOnCurve(cs, pubKey.Curve)
 
-	//rhs = cofactor*(R+H(R,A,M)*A)
+	// rhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstant, pubKey.Curve).
-		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve).
-		ScalarMulNonFixedBase(cs, &rhs, cofactorConstant, pubKey.Curve)
+		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve)
 	rhs.MustBeOnCurve(cs, pubKey.Curve)
 
-	cs.AssertIsEqual(lhs.X, rhs.X)
-	cs.AssertIsEqual(lhs.Y, rhs.Y)
+	// lhs-rhs
+	rhs.Neg(cs, &rhs).AddGeneric(cs, &lhs, &rhs, pubKey.Curve)
+
+	// [cofactor](lhs-rhs)
+	switch cofactor {
+	case 4:
+		rhs.Double(cs, &rhs, pubKey.Curve).
+			Double(cs, &rhs, pubKey.Curve)
+	case 8:
+		rhs.Double(cs, &rhs, pubKey.Curve).
+			Double(cs, &rhs, pubKey.Curve).Double(cs, &rhs, pubKey.Curve)
+	}
+
+	//rhs.MustBeOnCurve(cs, pubKey.Curve)
+	cs.AssertIsEqual(rhs.X, 0)
+	cs.AssertIsEqual(rhs.Y, 1)
 
 	return nil
 }
