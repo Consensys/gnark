@@ -158,7 +158,7 @@ func newR1C(l, r, o Variable, s ...compiled.SolvingMethod) compiled.R1C {
 	// the "r" linear expression is going to end up in the B matrix
 	// the less variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(l.linExp) > len(r.linExp) {
+	if solver == compiled.SingleOutput && len(l.linExp) > len(r.linExp) {
 		l, r = r, l
 	}
 
