@@ -70,7 +70,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, forc
 		} else {
 			// we need to fill wireValues with random values else multi exps don't do much
 			var r fr.Element
-			r.SetRandom()
+			_, _ = r.SetRandom()
 			for i := r1cs.NbPublicVariables + r1cs.NbSecretVariables; i < len(wireValues); i++ {
 				wireValues[i] = r
 				r.Double(&r)
