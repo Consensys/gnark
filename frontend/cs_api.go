@@ -209,7 +209,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 		toResolve: nil,
 	}
 	var sbb strings.Builder
-	sbb.WriteString("error Inverse (inversion by zero ?)")
+	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
 		sbb.WriteByte('\n')
@@ -264,7 +264,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 		toResolve: nil,
 	}
 	var sbb strings.Builder
-	sbb.WriteString("error Inverse (inversion by zero ?)")
+	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
 	stack := getCallStack()
 	for i := 0; i < len(stack); i++ {
 		sbb.WriteByte('\n')
