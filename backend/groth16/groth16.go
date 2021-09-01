@@ -181,8 +181,10 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 
 // Prove runs the groth16.Prove algorithm.
 //
-// If force flag is set, executes all the prover computations, even if the witness is invalid
-// (in which case it will produce an invalid proof)
+// if the force flag is set:
+// 	will executes all the prover computations, even if the witness is invalid
+//  will produce an invalid proof
+//	internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
 func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, force ...bool) (Proof, error) {
 
 	_force := false

@@ -48,6 +48,10 @@ type ProvingKey struct {
 		Beta, Delta curve.G2Affine
 		B           []curve.G2Affine
 	}
+
+	// if InfinityA[i] == true, the point G1.A[i] == infinity
+	InfinityA, InfinityB     []bool
+	NbInfinityA, NbInfinityB int
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -167,6 +171,33 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
+	// mark points at infinity and filter them
+	pk.InfinityA = make([]bool, len(A))
+	pk.InfinityB = make([]bool, len(B))
+
+	n := 0
+	for i, e := range A {
+		if e.IsZero() {
+			pk.InfinityA[i] = true
+			continue
+		}
+		A[n] = A[i]
+		n++
+	}
+	A = A[:n]
+	pk.NbInfinityA = nbWires - n
+	n = 0
+	for i, e := range B {
+		if e.IsZero() {
+			pk.InfinityB[i] = true
+			continue
+		}
+		B[n] = B[i]
+		n++
+	}
+	B = B[:n]
+	pk.NbInfinityB = nbWires - n
+
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
@@ -184,11 +215,11 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.Delta = g1PointsAff[2]
 
 	offset := 3
-	pk.G1.A = g1PointsAff[offset : offset+nbWires]
-	offset += nbWires
+	pk.G1.A = g1PointsAff[offset : offset+len(A)]
+	offset += len(A)
 
-	pk.G1.B = g1PointsAff[offset : offset+nbWires]
-	offset += nbWires
+	pk.G1.B = g1PointsAff[offset : offset+len(B)]
+	offset += len(B)
 
 	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
@@ -213,15 +244,15 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
-	pk.G2.B = g2PointsAff[:nbWires]
+	pk.G2.B = g2PointsAff[:len(B)]
 
 	// sets pk: [β]2, [δ]2
-	pk.G2.Beta = g2PointsAff[nbWires+0]
-	pk.G2.Delta = g2PointsAff[nbWires+1]
+	pk.G2.Beta = g2PointsAff[len(B)+0]
+	pk.G2.Delta = g2PointsAff[len(B)+1]
 
 	// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
-	vk.G2.Delta = g2PointsAff[nbWires+1]
-	vk.G2.Gamma = g2PointsAff[nbWires+2]
+	vk.G2.Delta = g2PointsAff[len(B)+1]
+	vk.G2.Gamma = g2PointsAff[len(B)+2]
 	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
@@ -270,13 +301,18 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 
 	// L = 1/n*(t^n-1)/(t-1), Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 
-	// Setting L
+	// Setting L0
 	L.Exp(toxicWaste.t, new(big.Int).SetUint64(uint64(domain.Cardinality))).
 		Sub(&L, &one)
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
-	// Constraints
+	// each constraint is in the form
+	// L * R == O
+	// L, R and O being linear expressions
+	// for each term appearing in the linear expression,
+	// we compute term.Coefficient * L, and cumulate it in
+	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
@@ -360,12 +396,28 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints), 1, true)
 
+	// count number of infinity points we would have had we a normal setup
+	// in pk.G1.A, pk.G1.B, and pk.G2.B
+	nbZeroesA, nbZeroesB := dummyInfinityCount(r1cs)
+
 	// initialize proving key
-	pk.G1.A = make([]curve.G1Affine, nbWires)
-	pk.G1.B = make([]curve.G1Affine, nbWires)
+	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
+	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
 	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicVariables)
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
-	pk.G2.B = make([]curve.G2Affine, nbWires)
+	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
+
+	// set infinity markers
+	pk.InfinityA = make([]bool, nbWires)
+	pk.InfinityB = make([]bool, nbWires)
+	pk.NbInfinityA = nbZeroesA
+	pk.NbInfinityB = nbZeroesB
+	for i := 0; i < nbZeroesA; i++ {
+		pk.InfinityA[i] = true
+	}
+	for i := 0; i < nbZeroesB; i++ {
+		pk.InfinityB[i] = true
+	}
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -383,9 +435,13 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r2Aff curve.G2Affine
 	r2Jac.ScalarMultiplication(&g2, &b)
 	r2Aff.FromJacobian(&r2Jac)
-	for i := 0; i < int(nbWires); i++ {
+	for i := 0; i < len(pk.G1.A); i++ {
 		pk.G1.A[i] = r1Aff
+	}
+	for i := 0; i < len(pk.G1.B); i++ {
 		pk.G1.B[i] = r1Aff
+	}
+	for i := 0; i < len(pk.G2.B); i++ {
 		pk.G2.B[i] = r2Aff
 	}
 	for i := 0; i < len(pk.G1.Z); i++ {
@@ -403,6 +459,34 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.Domain = *domain
 
 	return nil
+}
+
+// dummyInfinityCount helps us simulate the number of infinity points we have with the given R1CS
+// in A and B as it directly impacts prover performance
+func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
+
+	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+
+	A := make([]bool, nbWires)
+	B := make([]bool, nbWires)
+	for _, c := range r1cs.Constraints {
+		for _, t := range c.L {
+			A[t.VariableID()] = true
+		}
+		for _, t := range c.R {
+			B[t.VariableID()] = true
+		}
+	}
+	for i := 0; i < nbWires; i++ {
+		if !A[i] {
+			nbZeroesA++
+		}
+		if !B[i] {
+			nbZeroesB++
+		}
+	}
+	return
+
 }
 
 // IsDifferent returns true if provided vk is different than self
