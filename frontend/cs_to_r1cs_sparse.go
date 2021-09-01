@@ -269,13 +269,15 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 
 // pops the constant associated to the one_wire in the cs, which will become
 // a constant in a PLONK constraint.
-// returns the reduced linear expression and the ID of the coeff corresponding to the constant term (in cs.coeffs).
+//
+// Returns the reduced linear expression and the ID of the coeff corresponding to the constant term (in cs.coeffs).
 // If there is no constant term, the id is 0 (the 0-th entry is reserved for this purpose).
+//
+// ex: if l = <expr> + k1*ONE_WIRE the function returns <expr>, k1.
 func (scs *sparseR1CS) popConstantTerm(l compiled.LinearExpression) (compiled.LinearExpression, big.Int) {
 
 	const idOneWire = 0
 
-	// TODO @thomas can "1 public" appear only once?
 	for i := 0; i < len(l); i++ {
 		if l[i].VariableID() == idOneWire && l[i].VariableVisibility() == compiled.Public {
 			lCopy := make(compiled.LinearExpression, len(l)-1)

@@ -60,9 +60,10 @@ type ConstraintSystem struct {
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
 	// debug info
-	logs           []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
-	debugInfo      []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
-	unsetVariables []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
+	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
+	debugInfoComputation []logEntry // list of logs storing information about computations (e.g. division by 0).If an computation fails, it prints it in a friendly format
+	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
+	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
 }
 
@@ -200,7 +201,7 @@ func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 
 func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logEntry) {
 	cs.assertions = append(cs.assertions, constraint)
-	cs.debugInfo = append(cs.debugInfo, debugInfo)
+	cs.debugInfoAssertion = append(cs.debugInfoAssertion, debugInfo)
 }
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
