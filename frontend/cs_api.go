@@ -195,7 +195,6 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // Inverse returns res = inverse(v)
-// TODO the function should take an interface
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 
 	v.assertIsSet()
@@ -205,7 +204,28 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 
 	cs.constraints = append(cs.constraints, newR1C(v, res, cs.one()))
 
+	// prepare debug info to be displayed in case the constraint is not solved
+	debugInfo := logEntry{
+		toResolve: nil,
+	}
+	var sbb strings.Builder
+	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
+	}
+	debugInfo.format = sbb.String()
+
+	// add it to the logs record
+	cs.debugInfoComputation = append(cs.debugInfoComputation, debugInfo)
+
 	return res
+}
+
+// AssertIsDifferent constrain i1 and i2 to be different
+func (cs *ConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
+	cs.Inverse(cs.Sub(i1, i2))
 }
 
 // Div returns res = i1 / i2
@@ -238,6 +258,22 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 			cs.constraints = append(cs.constraints, newR1C(res, tmp2, tmp1))
 		}
 	}
+
+	// prepare debug info to be displayed in case the constraint is not solved
+	debugInfo := logEntry{
+		toResolve: nil,
+	}
+	var sbb strings.Builder
+	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
+	stack := getCallStack()
+	for i := 0; i < len(stack); i++ {
+		sbb.WriteByte('\n')
+		sbb.WriteString(stack[i])
+	}
+	debugInfo.format = sbb.String()
+
+	// add it to the logs record
+	cs.debugInfoComputation = append(cs.debugInfoComputation, debugInfo)
 
 	return res
 }

@@ -26,5 +26,7 @@ func init() {
 	bad.A.Assign(42)
 	bad.B.Assign(43)
 
+	public.A.Assign(42)
+
 	addEntry("noComputationCircuit", &circuit, &good, &bad, &public)
 }

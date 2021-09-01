@@ -20,14 +20,15 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 	// setting up the result
 	res := compiled.R1CS{
-		NbInternalVariables: len(cs.internal.variables),
-		NbPublicVariables:   len(cs.public.variables),
-		NbSecretVariables:   len(cs.secret.variables),
-		NbConstraints:       len(cs.constraints) + len(cs.assertions),
-		NbCOConstraints:     len(cs.constraints),
-		Constraints:         make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
-		Logs:                make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
+		NbInternalVariables:  len(cs.internal.variables),
+		NbPublicVariables:    len(cs.public.variables),
+		NbSecretVariables:    len(cs.secret.variables),
+		NbConstraints:        len(cs.constraints) + len(cs.assertions),
+		NbCOConstraints:      len(cs.constraints),
+		Constraints:          make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
+		Logs:                 make([]compiled.LogEntry, len(cs.logs)),
+		DebugInfoComputation: make([]compiled.LogEntry, len(cs.debugInfoComputation)),
+		DebugInfoAssertion:   make([]compiled.LogEntry, len(cs.debugInfoAssertion)),
 	}
 
 	// computational constraints (= gates)
@@ -68,7 +69,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		}
 	}
 
-	// we need to offset the ids in logs too
+	// we need to offset the ids in logs
 	for i := 0; i < len(cs.logs); i++ {
 		entry := compiled.LogEntry{
 			Format: cs.logs[i].format,
@@ -91,13 +92,13 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		res.Logs[i] = entry
 	}
 
-	// offset ids in the debugInfo
-	for i := 0; i < len(cs.debugInfo); i++ {
+	// offset ids in the debugInfoComputation
+	for i := 0; i < len(cs.debugInfoComputation); i++ {
 		entry := compiled.LogEntry{
-			Format: cs.debugInfo[i].format,
+			Format: cs.debugInfoComputation[i].format,
 		}
-		for j := 0; j < len(cs.debugInfo[i].toResolve); j++ {
-			_, cID, cVisibility := cs.debugInfo[i].toResolve[j].Unpack()
+		for j := 0; j < len(cs.debugInfoComputation[i].toResolve); j++ {
+			_, cID, cVisibility := cs.debugInfoComputation[i].toResolve[j].Unpack()
 			switch cVisibility {
 			case compiled.Internal:
 				cID += len(cs.public.variables) + len(cs.secret.variables)
@@ -111,7 +112,30 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			entry.ToResolve = append(entry.ToResolve, cID)
 		}
 
-		res.DebugInfo[i] = entry
+		res.DebugInfoComputation[i] = entry
+	}
+
+	// offset ids in the debugInfoAssertion
+	for i := 0; i < len(cs.debugInfoAssertion); i++ {
+		entry := compiled.LogEntry{
+			Format: cs.debugInfoAssertion[i].format,
+		}
+		for j := 0; j < len(cs.debugInfoAssertion[i].toResolve); j++ {
+			_, cID, cVisibility := cs.debugInfoAssertion[i].toResolve[j].Unpack()
+			switch cVisibility {
+			case compiled.Internal:
+				cID += len(cs.public.variables) + len(cs.secret.variables)
+			case compiled.Public:
+				// cID += len(cs.internal.variables) + len(cs.secret.variables)
+			case compiled.Secret:
+				cID += len(cs.public.variables)
+			case compiled.Unset:
+				panic("encountered unset visibility on a variable in debugInfo id offset routine")
+			}
+			entry.ToResolve = append(entry.ToResolve, cID)
+		}
+
+		res.DebugInfoAssertion[i] = entry
 	}
 
 	switch curveID {

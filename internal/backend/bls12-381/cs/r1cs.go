@@ -116,14 +116,18 @@ func (r1cs *R1CS) IsSolved(witness []fr.Element) error {
 // wireValues =  [publicWires | secretWires | internalWires ]
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) error {
+
 	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) { // - 1 for ONE_WIRE
 		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables-1, r1cs.NbSecretVariables)
 	}
+
 	nbWires := r1cs.NbPublicVariables + r1cs.NbSecretVariables + r1cs.NbInternalVariables
+
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != nbWires {
 		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
 	}
+
 	// keep track of wire that have a value
 	wireInstantiated := make([]bool, nbWires)
 	wireInstantiated[0] = true // ONE_WIRE
@@ -140,11 +144,15 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
+	// this variable is used to navigate in the debugInfoComputation slice.
+	// It is incremented by one each time a division happens for solving a constraint.
+	var debugInfoComputationOffset uint
+
 	// Loop through computational constraints (the one wwe need to solve and compute a wire in)
 	for i := 0; i < int(r1cs.NbCOConstraints); i++ {
 
 		// solve the constraint, this will compute the missing wire of the gate
-		r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
+		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues)
 
 		// at this stage we are guaranteed that a[i]*b[i]=c[i]
 		// if not, it means there is a bug in the solver
@@ -152,7 +160,10 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, "couldn't solve computational constraint. May happen: div by 0 or no inverse found")
+			//return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, "couldn't solve computational constraint. May happen: div by 0 or no inverse found")
+			debugInfo := r1cs.DebugInfoComputation[debugInfoComputationOffset]
+			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
+			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
 
@@ -167,7 +178,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element) 
 		// check that the constraint is satisfied
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			debugInfo := r1cs.DebugInfo[i-int(r1cs.NbCOConstraints)]
+			debugInfo := r1cs.DebugInfoAssertion[i-int(r1cs.NbCOConstraints)]
 			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
 			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
@@ -265,7 +276,14 @@ func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b,
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
 // be computed without ambiguity because the r1cs is correctly ordered)
-func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element) {
+//
+// It returns the 1 if the the position to solve is in the quadratic part (it
+// means that there is a division and serves to navigate in the log info for the
+// computational constraints), and 0 otherwise.
+func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element) uint {
+
+	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
+	var offset uint
 
 	switch r.Solver {
 
@@ -307,7 +325,7 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		// ensure we found the unset wire
 		if loc == 0 {
 			// this wire may have been instantiated as part of moExpression already
-			return
+			return 0
 		}
 
 		// we compute the wire value and instantiate it
@@ -319,12 +337,14 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				wireValues[cID].Div(&c, &b).
 					Sub(&wireValues[cID], &a)
 				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
+				offset = 1
 			}
 		case 2:
 			if !a.IsZero() {
 				wireValues[cID].Div(&c, &a).
 					Sub(&wireValues[cID], &b)
 				r1cs.mulWireByCoeff(&wireValues[cID], termToCompute)
+				offset = 1
 			}
 		case 3:
 			wireValues[cID].Mul(&a, &b).
@@ -393,4 +413,6 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 	default:
 		panic("unimplemented solving method")
 	}
+
+	return offset
 }
