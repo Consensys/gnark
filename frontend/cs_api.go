@@ -28,11 +28,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	frbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // Add returns res = i1+i2+...in
@@ -331,35 +326,49 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 
 // IsZero returns 1 if a is zero, 0 otherwise
 func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
+	a.assertIsSet()
 
-	var expo big.Int
-	switch id {
-	case ecc.BN254:
-		expo.Set(frbn254.Modulus())
-	case ecc.BLS12_381:
-		expo.Set(frbls12381.Modulus())
-	case ecc.BLS12_377:
-		expo.Set(frbls12377.Modulus())
-	case ecc.BW6_761:
-		expo.Set(frbw6761.Modulus())
-	case ecc.BLS24_315:
-		expo.Set(frbls24315.Modulus())
-	default:
-		panic("not implemented")
-	}
+	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// a * m = 0            // constrain m to be 0 if a != 0
+	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
+	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 
-	res := cs.Constant(1)
-	expoBytes := expo.Bytes()
-	nbBits := len(expoBytes) * 8
-	for i := nbBits - 1; i >= 1; i-- { // up to i-1 because we go up to q-1
-		res = cs.Mul(res, res)
-		if expo.Bit(i) == 1 {
-			res = cs.Mul(res, a)
-		}
-	}
-	res = cs.Mul(res, res) // final squaring
-	res = cs.Sub(1, res)
-	return res
+	m := cs.newInternalVariable()
+	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0), compiled.IsZero))
+
+	cs.AssertIsBoolean(m)
+	ma := cs.Add(m, a)
+	_ = cs.Inverse(ma)
+	return m
+
+	// var expo big.Int
+	// switch id {
+	// case ecc.BN254:
+	// 	expo.Set(frbn254.Modulus())
+	// case ecc.BLS12_381:
+	// 	expo.Set(frbls12381.Modulus())
+	// case ecc.BLS12_377:
+	// 	expo.Set(frbls12377.Modulus())
+	// case ecc.BW6_761:
+	// 	expo.Set(frbw6761.Modulus())
+	// case ecc.BLS24_315:
+	// 	expo.Set(frbls24315.Modulus())
+	// default:
+	// 	panic("not implemented")
+	// }
+
+	// res := cs.Constant(1)
+	// expoBytes := expo.Bytes()
+	// nbBits := len(expoBytes) * 8
+	// for i := nbBits - 1; i >= 1; i-- { // up to i-1 because we go up to q-1
+	// 	res = cs.Mul(res, res)
+	// 	if expo.Bit(i) == 1 {
+	// 		res = cs.Mul(res, a)
+	// 	}
+	// }
+	// res = cs.Mul(res, res) // final squaring
+	// res = cs.Sub(1, res)
+	// return res
 }
 
 // ToBinary unpacks a variable in binary, n is the number of bits of the variable

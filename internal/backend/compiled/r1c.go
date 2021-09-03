@@ -79,4 +79,5 @@ type SolvingMethod uint8
 const (
 	SingleOutput SolvingMethod = iota
 	BinaryDec
+	IsZero // TODO this is temporary, solver will be improved to be extensible at runtime, or with lambdas.
 )

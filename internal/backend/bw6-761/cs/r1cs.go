@@ -410,6 +410,44 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 			wireInstantiated[cID] = true
 		}
 
+	case compiled.IsZero:
+		// TODO this is temporary need to be able to extend the solver in a cleaner way
+		// IsZero is in the form a * m = 0
+		// m is computed as m = 1 - a^(q-1)
+
+		var a fr.Element
+
+		processTerm := func(t compiled.Term, val *fr.Element) {
+			cID := t.VariableID()
+			if wireInstantiated[cID] {
+				r1cs.AddTerm(val, t, wireValues[cID])
+			} else {
+				panic("L should be instantiated at this stage (IsZero constraint)")
+			}
+		}
+
+		for _, t := range r.L {
+			processTerm(t, &a)
+		}
+
+		if len(r.R) != 1 {
+			panic("expecting 1 term to solve only")
+		}
+
+		m := r.R[0]
+		vID := m.VariableID()
+
+		// q - 1
+		var eOne big.Int
+		eOne.SetUint64(1)
+		eOne.Sub(fr.Modulus(), &eOne)
+
+		one := fr.One()
+		wireValues[vID].Exp(a, &eOne)
+
+		wireValues[vID].Sub(&one, &wireValues[vID])
+		wireInstantiated[vID] = true
+
 	default:
 		panic("unimplemented solving method")
 	}
