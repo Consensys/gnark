@@ -11,8 +11,8 @@ type isZero struct {
 
 func (circuit *isZero) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
-	a := cs.IsZero(circuit.X, curveID)
-	b := cs.IsZero(circuit.Y, curveID)
+	a := cs.IsZero(circuit.X)
+	b := cs.IsZero(circuit.Y)
 	cs.AssertIsEqual(a, 1)
 	cs.AssertIsEqual(b, 0)
 

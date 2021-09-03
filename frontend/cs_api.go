@@ -26,8 +26,6 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
-
-	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // Add returns res = i1+i2+...in
@@ -325,7 +323,7 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
+func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 	a.assertIsSet()
 
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
@@ -341,34 +339,6 @@ func (cs *ConstraintSystem) IsZero(a Variable, id ecc.ID) Variable {
 	_ = cs.Inverse(ma)
 	return m
 
-	// var expo big.Int
-	// switch id {
-	// case ecc.BN254:
-	// 	expo.Set(frbn254.Modulus())
-	// case ecc.BLS12_381:
-	// 	expo.Set(frbls12381.Modulus())
-	// case ecc.BLS12_377:
-	// 	expo.Set(frbls12377.Modulus())
-	// case ecc.BW6_761:
-	// 	expo.Set(frbw6761.Modulus())
-	// case ecc.BLS24_315:
-	// 	expo.Set(frbls24315.Modulus())
-	// default:
-	// 	panic("not implemented")
-	// }
-
-	// res := cs.Constant(1)
-	// expoBytes := expo.Bytes()
-	// nbBits := len(expoBytes) * 8
-	// for i := nbBits - 1; i >= 1; i-- { // up to i-1 because we go up to q-1
-	// 	res = cs.Mul(res, res)
-	// 	if expo.Bit(i) == 1 {
-	// 		res = cs.Mul(res, a)
-	// 	}
-	// }
-	// res = cs.Mul(res, res) // final squaring
-	// res = cs.Sub(1, res)
-	// return res
 }
 
 // ToBinary unpacks a variable in binary, n is the number of bits of the variable
