@@ -22,5 +22,5 @@ func UUID(name string) ID {
 const (
 	_ ID = iota
 	IsZero
-	BinaryDec
+	IthBit
 )

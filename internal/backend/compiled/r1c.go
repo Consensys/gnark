@@ -88,7 +88,7 @@ const (
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs
 type Hint struct {
-	WireID int     // resulting wire ID to compute
-	ID     hint.ID // hint function id
-	Inputs []Term  // terms to inject in the hint function
+	WireID int                // resulting wire ID to compute
+	ID     hint.ID            // hint function id
+	Inputs []LinearExpression // terms to inject in the hint function
 }

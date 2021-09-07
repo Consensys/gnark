@@ -342,7 +342,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	// allocate the resulting variables and bit-constraint them
 	b := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.newInternalVariable()
+		b[i] = cs.NewHint(hint.IthBit, a, cs.Constant(i))
 		cs.AssertIsBoolean(b[i])
 	}
 
@@ -360,7 +360,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	}
 
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a, compiled.BinaryDec))
+	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a))
 	return b
 
 }

@@ -128,24 +128,23 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 // NewHint initialize a variable whose value will be evaluated in the Prover by the constraint
 // solver using the provided hint function
 // hint function is provided at proof creation time and must match the hintID
+// inputs must be either variables or convertible to big int
 // /!\ warning /!\
 // this doesn't add any constraint to the newly created wire
 // from the backend point of view, it's equivalent to a user-supplied witness
 // except, the solver is going to assign it a value, not the caller
-func (cs *ConstraintSystem) NewHint(hintID hint.ID, input Variable, inputs ...Variable) Variable {
+func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
-	hintInputs := make([]compiled.Term, 1+len(inputs))
+	hintInputs := make([]compiled.LinearExpression, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
-	input.assertIsSet()
-	hintInputs[0] = compiled.Pack(input.id, compiled.CoeffIdOne, input.visibility)
 	for i, in := range inputs {
-		in.assertIsSet()
-		hintInputs[i+1] = compiled.Pack(in.id, compiled.CoeffIdOne, in.visibility)
+		t := cs.Constant(in)
+		hintInputs[i] = t.linExp.Clone() // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system

@@ -147,7 +147,8 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	// init hint functions data structs
 	mHintsFunctions := make(map[hint.ID]hintFunction, len(hintFunctions)+2)
 	mHintsFunctions[hint.IsZero] = powModulusMinusOne
-	// TODO @gbotrel add default hint functions for isZero and binary decomposition
+	mHintsFunctions[hint.IthBit] = ithBit
+
 	for i := 0; i < len(hintFunctions); i++ {
 		if _, ok := mHintsFunctions[hintFunctions[i].ID]; ok {
 			return fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
@@ -337,17 +338,18 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				// compute hint value
 				hint := r1cs.Hints[hID]
 
-				// ensure all needed inputs are instantiated
+				// compute values for all inputs.
 				inputs := make([]fr.Element, len(hint.Inputs))
 				for i := 0; i < len(hint.Inputs); i++ {
-					// input is a term, we must compute the value
-					tID := hint.Inputs[i].VariableID()
-					if !wireInstantiated[tID] {
-						// TODO @gbotrel return error here
-						panic("input not instantiated for hint function")
+					// input is a linear expression, we must compute the value
+					for j := 0; j < len(hint.Inputs[i]); j++ {
+						viID := hint.Inputs[i][j].VariableID()
+						if !wireInstantiated[viID] {
+							// TODO @gbotrel return error here
+							panic("input not instantiated for hint function")
+						}
+						r1cs.AddTerm(&inputs[i], hint.Inputs[i][j], wireValues[viID])
 					}
-					inputs[i] = wireValues[tID]                     // set value
-					r1cs.mulWireByCoeff(&inputs[i], hint.Inputs[i]) // mul by coeff
 				}
 
 				f := mHintsFunctions[hint.ID]
@@ -407,62 +409,6 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 
 		wireInstantiated[vID] = true
 
-	// in the case the R1C is solved by directly computing the binary decomposition
-	// of the variable
-	case compiled.BinaryDec:
-
-		// the binary decomposition must be called on the non Mont form of the number
-		var n fr.Element
-		for _, t := range r.O {
-			r1cs.AddTerm(&n, t, wireValues[t.VariableID()])
-		}
-		var bigN big.Int
-		n.ToBigIntRegular(&bigN)
-
-		nbBits := len(r.L)
-
-		// cs.reduce() is non deterministic, so the variables are not sorted according to the bit position
-		// i->value of the ithbit
-		bitSlice := make([]uint, nbBits)
-
-		// binary decomposition of n
-		for i := 0; i < nbBits; i++ {
-			bitSlice[i] = bigN.Bit(i)
-		}
-
-		// log of c>0 where c is a power of 2
-		quickLog := func(bi big.Int) int {
-			var bCopy, zero, checker big.Int
-			bCopy.Set(&bi)
-			res := 0
-			for bCopy.Cmp(&zero) != 0 {
-				bCopy.Rsh(&bCopy, 1)
-				res++
-			}
-			res--
-			checker.SetInt64(1)
-			checker.Lsh(&checker, uint(res))
-			// bi is not a power of 2, meaning it has been reduced mod r,
-			// so the bit is 0. We return the index of last entry of BitSlice,
-			// which is 0
-			if checker.Cmp(&bi) != 0 {
-				return nbBits - 1
-			}
-			return res
-		}
-
-		// affecting the correct bit to the correct variable
-		for _, t := range r.L {
-			cID := t.VariableID()
-			coefID := t.CoeffID()
-			coef := r1cs.Coefficients[coefID]
-			var bcoef big.Int
-			coef.ToBigIntRegular(&bcoef)
-			ithBit := quickLog(bcoef)
-			wireValues[cID].SetUint64(uint64(bitSlice[ithBit]))
-			wireInstantiated[cID] = true
-		}
-
 	default:
 		panic("unimplemented solving method")
 	}
@@ -471,12 +417,31 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 }
 
 // default hint functions
+
 func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 1 {
+		panic("expected one input")
+	}
 	var eOne big.Int
 	eOne.SetUint64(1)
 	eOne.Sub(fr.Modulus(), &eOne)
 	v.Exp(inputs[0], &eOne)
 	one := fr.One()
 	v.Sub(&one, &v)
+	return v
+}
+
+func ithBit(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 2 {
+		panic("expected 2 inputs; inputs[0] == value, inputs[1] == bit position")
+	}
+	// TODO @gbotrel this is very inneficient; it adds ~256*2 multiplications to extract all bits of a value.
+	inputs[0].FromMont()
+	inputs[1].FromMont()
+	if !inputs[1].IsUint64() {
+		panic("expected bit position to fit on one word")
+	}
+	v.SetUint64(inputs[0].Bit(inputs[1][0]))
+
 	return v
 }
