@@ -90,5 +90,5 @@ const (
 type Hint struct {
 	WireID int     // resulting wire ID to compute
 	ID     hint.ID // hint function id
-	Inputs []int   // variable ID inputs to inject in hint function
+	Inputs []Term  // terms to inject in the hint function
 }

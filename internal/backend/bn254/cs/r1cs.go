@@ -34,6 +34,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
 
+type hintFunction func(r *big.Int, input []fr.Element) fr.Element
+
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 
@@ -143,13 +145,17 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	defer r1cs.printLogs(wireValues, wireInstantiated)
 
 	// init hint functions data structs
-	mHintsFunctions := make(map[hint.ID]interface{}, len(hintFunctions)+2)
+	mHintsFunctions := make(map[hint.ID]hintFunction, len(hintFunctions)+2)
 	// TODO @gbotrel add default hint functions for isZero and binary decomposition
 	for i := 0; i < len(hintFunctions); i++ {
 		if _, ok := mHintsFunctions[hintFunctions[i].ID]; ok {
 			return fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
 		}
-		mHintsFunctions[hintFunctions[i].ID] = hintFunctions[i].F
+		f, ok := hintFunctions[i].F.(hintFunction)
+		if !ok {
+			return fmt.Errorf("invalid hint function signature with id %d", uint32(hintFunctions[i].ID))
+		}
+		mHintsFunctions[hintFunctions[i].ID] = f
 	}
 
 	// init a map of correspondance between hint wire ID and hint data struct
@@ -299,7 +305,7 @@ func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b,
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]interface{}, mHints map[int]int) uint {
+func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, mHints map[int]int) uint {
 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
@@ -333,21 +339,19 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				// ensure all needed inputs are instantiated
 				inputs := make([]fr.Element, len(hint.Inputs))
 				for i := 0; i < len(hint.Inputs); i++ {
-					if !wireInstantiated[hint.Inputs[i]] {
+					// input is a term, we must compute the value
+					tID := hint.Inputs[i].VariableID()
+					if !wireInstantiated[tID] {
 						// TODO @gbotrel return error here
 						panic("input not instantiated for hint function")
 					}
-					inputs[i] = wireValues[hint.Inputs[i]] // set value
+					inputs[i] = wireValues[tID]                     // set value
+					r1cs.mulWireByCoeff(&inputs[i], hint.Inputs[i]) // mul by coeff
 				}
 
-				_f := mHintsFunctions[hint.ID]
-
-				// TODO make hint function return an error here.
-				f, ok := _f.(func(inputs []fr.Element) fr.Element)
-				if !ok {
-					panic("inccorect signature")
-				}
-				wireValues[vID] = f(inputs)
+				f := mHintsFunctions[hint.ID]
+				// TODO @gbotrel not very efficient to inject modulus (new(big.Int)) at each hint function
+				wireValues[vID] = f(fr.Modulus(), inputs)
 				return
 			}
 

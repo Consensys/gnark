@@ -62,7 +62,7 @@ type ConstraintSystem struct {
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
 	// Hints
-	hints []hintEntry // solver hints
+	hints []compiled.Hint // solver hints
 
 	// debug info
 	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
@@ -120,16 +120,9 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
 
-	cs.hints = make([]hintEntry, 0)
+	cs.hints = make([]compiled.Hint, 0)
 
 	return cs
-}
-
-// hintEntry represent a solver hintEntry
-type hintEntry struct {
-	vID    int             // variable id of the resulting hint wire
-	hID    hint.ID         // identifier for the hint function
-	inputs []compiled.Term // inputs to the hint funciton
 }
 
 // NewHint initialize a variable whose value will be evaluated in the Prover by the constraint
@@ -159,7 +152,7 @@ func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Var
 	}
 
 	// add the hint to the constraint system
-	cs.hints = append(cs.hints, hintEntry{r.id, hID, hintInputs})
+	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hID, Inputs: hintInputs})
 
 	return r
 }

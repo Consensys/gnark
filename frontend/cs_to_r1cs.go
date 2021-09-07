@@ -40,6 +40,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// in the logs, debug info, constraints and hints
 	// since we don't use pointers but Terms (uint64), we need to potentially offset
 	// the same wireID multiple times.
+	copy(res.Hints, cs.hints)
 
 	// offset variable ID depeneding on visibility
 	shiftVID := func(oldID int, visibility compiled.Visibility) (int, error) {
@@ -58,51 +59,42 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	}
 
 	// we just need to offset our ids, such that wires = [ public wires  | secret wires | internal wires ]
-	offsetConstraints := func(exp compiled.LinearExpression) error {
+	offsetIDs := func(l compiled.LinearExpression) error {
 		var err error
 		var newID int
-		for j := 0; j < len(exp); j++ {
-			_, vID, visibility := exp[j].Unpack()
+		for j := 0; j < len(l); j++ {
+			_, vID, visibility := l[j].Unpack()
 			newID, err = shiftVID(vID, visibility)
 			if err != nil {
 				return err
 			}
-			exp[j].SetVariableID(newID)
+			l[j].SetVariableID(newID)
 		}
 		return nil
 	}
 
 	for i := 0; i < len(res.Constraints); i++ {
-		if err := offsetConstraints(res.Constraints[i].L); err != nil {
+		if err := offsetIDs(res.Constraints[i].L); err != nil {
 			return nil, err
 		}
-		if err := offsetConstraints(res.Constraints[i].R); err != nil {
+		if err := offsetIDs(res.Constraints[i].R); err != nil {
 			return nil, err
 		}
-		if err := offsetConstraints(res.Constraints[i].O); err != nil {
+		if err := offsetIDs(res.Constraints[i].O); err != nil {
 			return nil, err
 		}
 	}
 
 	// we need to offset the ids in the hints
-	for i := 0; i < len(cs.hints); i++ {
-		newID, err := shiftVID(cs.hints[i].vID, compiled.Internal)
+	for i := 0; i < len(res.Hints); i++ {
+		newID, err := shiftVID(res.Hints[i].WireID, compiled.Internal)
 		if err != nil {
 			return nil, err
 		}
-		hint := compiled.Hint{
-			ID:     cs.hints[i].hID,
-			WireID: newID,
+		res.Hints[i].WireID = newID
+		if err := offsetIDs(res.Hints[i].Inputs); err != nil {
+			return nil, err
 		}
-		for j := 0; j < len(cs.hints[i].inputs); j++ {
-			_, vID, visibility := cs.hints[i].inputs[j].Unpack()
-			newID, err := shiftVID(vID, visibility)
-			if err != nil {
-				return nil, err
-			}
-			hint.Inputs = append(hint.Inputs, newID)
-		}
-		res.Hints[i] = hint
 	}
 
 	// we need to offset the ids in logs
