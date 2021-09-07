@@ -29,44 +29,80 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		Logs:                 make([]compiled.LogEntry, len(cs.logs)),
 		DebugInfoComputation: make([]compiled.LogEntry, len(cs.debugInfoComputation)),
 		DebugInfoAssertion:   make([]compiled.LogEntry, len(cs.debugInfoAssertion)),
+		Hints:                make([]compiled.Hint, len(cs.hints)),
 	}
 
 	// computational constraints (= gates)
 	copy(res.Constraints, cs.constraints)
 	copy(res.Constraints[len(cs.constraints):], cs.assertions)
 
+	// note: verbose, but we offset the IDs of the wires where they appear, that is,
+	// in the logs, debug info, constraints and hints
+	// since we don't use pointers but Terms (uint64), we need to potentially offset
+	// the same wireID multiple times.
+
+	// offset variable ID depeneding on visibility
+	shiftVID := func(oldID int, visibility compiled.Visibility) (int, error) {
+		switch visibility {
+		case compiled.Internal:
+			return oldID + len(cs.public.variables) + len(cs.secret.variables), nil
+		case compiled.Public:
+			return oldID, nil
+		case compiled.Secret:
+			return oldID + len(cs.public.variables), nil
+		case compiled.Unset:
+			return -1, fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
+		default:
+			panic("not implemented")
+		}
+	}
+
 	// we just need to offset our ids, such that wires = [ public wires  | secret wires | internal wires ]
-	offsetIDs := func(exp compiled.LinearExpression) error {
+	offsetConstraints := func(exp compiled.LinearExpression) error {
+		var err error
+		var newID int
 		for j := 0; j < len(exp); j++ {
-			_, cID, cVisibility := exp[j].Unpack()
-			switch cVisibility {
-			case compiled.Internal:
-				exp[j].SetVariableID(cID + len(cs.public.variables) + len(cs.secret.variables))
-			case compiled.Public:
-				// exp[j].SetVariableID(cID + len(cs.internal.variables) + len(cs.secret.variables))
-			case compiled.Secret:
-				exp[j].SetVariableID(cID + len(cs.public.variables))
-			case compiled.Unset:
-				return fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
+			_, vID, visibility := exp[j].Unpack()
+			newID, err = shiftVID(vID, visibility)
+			if err != nil {
+				return err
 			}
+			exp[j].SetVariableID(newID)
 		}
 		return nil
 	}
 
-	var err error
 	for i := 0; i < len(res.Constraints); i++ {
-		err = offsetIDs(res.Constraints[i].L)
-		if err != nil {
-			return &res, err
+		if err := offsetConstraints(res.Constraints[i].L); err != nil {
+			return nil, err
 		}
-		err = offsetIDs(res.Constraints[i].R)
-		if err != nil {
-			return &res, err
+		if err := offsetConstraints(res.Constraints[i].R); err != nil {
+			return nil, err
 		}
-		err = offsetIDs(res.Constraints[i].O)
-		if err != nil {
-			return &res, err
+		if err := offsetConstraints(res.Constraints[i].O); err != nil {
+			return nil, err
 		}
+	}
+
+	// we need to offset the ids in the hints
+	for i := 0; i < len(cs.hints); i++ {
+		newID, err := shiftVID(cs.hints[i].vID, compiled.Internal)
+		if err != nil {
+			return nil, err
+		}
+		hint := compiled.Hint{
+			ID:     cs.hints[i].hID,
+			WireID: newID,
+		}
+		for j := 0; j < len(cs.hints[i].inputs); j++ {
+			_, vID, visibility := cs.hints[i].inputs[j].Unpack()
+			newID, err := shiftVID(vID, visibility)
+			if err != nil {
+				return nil, err
+			}
+			hint.Inputs = append(hint.Inputs, newID)
+		}
+		res.Hints[i] = hint
 	}
 
 	// we need to offset the ids in logs
@@ -75,18 +111,12 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Format: cs.logs[i].format,
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Internal:
-				cID += len(cs.public.variables) + len(cs.secret.variables)
-			case compiled.Public:
-				// cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case compiled.Secret:
-				cID += len(cs.public.variables)
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in logs id offset routine")
+			_, vID, visibility := cs.logs[i].toResolve[j].Unpack()
+			newID, err := shiftVID(vID, visibility)
+			if err != nil {
+				return nil, err
 			}
-			entry.ToResolve = append(entry.ToResolve, cID)
+			entry.ToResolve = append(entry.ToResolve, newID)
 		}
 
 		res.Logs[i] = entry
@@ -98,18 +128,12 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Format: cs.debugInfoComputation[i].format,
 		}
 		for j := 0; j < len(cs.debugInfoComputation[i].toResolve); j++ {
-			_, cID, cVisibility := cs.debugInfoComputation[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Internal:
-				cID += len(cs.public.variables) + len(cs.secret.variables)
-			case compiled.Public:
-				// cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case compiled.Secret:
-				cID += len(cs.public.variables)
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in debugInfo id offset routine")
+			_, vID, visibility := cs.debugInfoComputation[i].toResolve[j].Unpack()
+			newID, err := shiftVID(vID, visibility)
+			if err != nil {
+				return nil, err
 			}
-			entry.ToResolve = append(entry.ToResolve, cID)
+			entry.ToResolve = append(entry.ToResolve, newID)
 		}
 
 		res.DebugInfoComputation[i] = entry
@@ -121,18 +145,12 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Format: cs.debugInfoAssertion[i].format,
 		}
 		for j := 0; j < len(cs.debugInfoAssertion[i].toResolve); j++ {
-			_, cID, cVisibility := cs.debugInfoAssertion[i].toResolve[j].Unpack()
-			switch cVisibility {
-			case compiled.Internal:
-				cID += len(cs.public.variables) + len(cs.secret.variables)
-			case compiled.Public:
-				// cID += len(cs.internal.variables) + len(cs.secret.variables)
-			case compiled.Secret:
-				cID += len(cs.public.variables)
-			case compiled.Unset:
-				panic("encountered unset visibility on a variable in debugInfo id offset routine")
+			_, vID, visibility := cs.debugInfoAssertion[i].toResolve[j].Unpack()
+			newID, err := shiftVID(vID, visibility)
+			if err != nil {
+				return nil, err
 			}
-			entry.ToResolve = append(entry.ToResolve, cID)
+			entry.ToResolve = append(entry.ToResolve, newID)
 		}
 
 		res.DebugInfoAssertion[i] = entry

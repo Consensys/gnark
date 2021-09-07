@@ -81,3 +81,12 @@ const (
 	BinaryDec
 	IsZero // TODO this is temporary, solver will be improved to be extensible at runtime, or with lambdas.
 )
+
+// Hint represents a solver hint
+// it enables the solver to compute a Wire with a function provided at solving time
+// using pre-defined inputs
+type Hint struct {
+	WireID int    // resulting wire ID to compute
+	ID     uint32 // hint function id
+	Inputs []int  // variable ID inputs to inject in hint function
+}

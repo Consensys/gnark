@@ -18,6 +18,8 @@ package frontend
 
 import (
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -60,12 +62,16 @@ type ConstraintSystem struct {
 	coeffs    []big.Int      // list of unique coefficients.
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
+	// Hints
+	hints []hint // solver hints
+
 	// debug info
 	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
 	debugInfoComputation []logEntry // list of logs storing information about computations (e.g. division by 0).If an computation fails, it prints it in a friendly format
 	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
 	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
+	hintHash hash.Hash32 // hash function used to compute uuid from hint string ID
 }
 
 // CompiledConstraintSystem ...
@@ -116,7 +122,111 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
 
+	cs.hintHash = fnv.New32a()
+	cs.hints = make([]hint, 0)
+
 	return cs
+}
+
+// hint represent a solver hint
+type hint struct {
+	vID    int             // variable id of the resulting hint wire
+	hID    uint32          // identifier for the hint function
+	inputs []compiled.Term // inputs to the hint funciton
+}
+
+// NewHint initialize a variable whose value will be evaluated in the Prover by the constraint
+// solver using the provided hint function
+// hint function is provided at proof creation time and must match the hintID
+// /!\ warning /!\
+// this doesn't add any constraint to the newly created wire
+// from the backend point of view, it's equivalent to a user-supplied witness
+// except, the solver is going to assign it a value, not the caller
+func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Variable) Variable {
+	// create resulting wire
+	r := cs.newInternalVariable()
+
+	// compute ID for the hint
+	cs.hintHash.Reset()
+	cs.hintHash.Write([]byte(hintID))
+	hID := cs.hintHash.Sum32()
+
+	// now we need to store the linear expressions of the expected input
+	// that will be resolved in the solver
+	hintInputs := make([]compiled.Term, 1+len(inputs))
+
+	// ensure inputs are set and pack them in a []uint64
+	input.assertIsSet()
+	hintInputs[0] = compiled.Pack(input.id, compiled.CoeffIdOne, input.visibility)
+	for i, in := range inputs {
+		in.assertIsSet()
+		hintInputs[i+1] = compiled.Pack(in.id, compiled.CoeffIdOne, in.visibility)
+	}
+
+	// add the hint to the constraint system
+	cs.hints = append(cs.hints, hint{r.id, hID, hintInputs})
+
+	return r
+}
+
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
+func (cs *ConstraintSystem) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	// for each argument, if it is a circuit structure and contains variable
+	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
+	// if it doesn't contain variable, call fmt.Sprint(arg) instead
+	entry := logEntry{}
+
+	// this is call recursively on the arguments using reflection on each argument
+	foundVariable := false
+
+	var handler logValueHandler = func(name string, tInput reflect.Value) {
+
+		v := tInput.Interface().(Variable)
+
+		// if the variable is only in linExp form, we allocate it
+		_v := cs.allocate(v)
+
+		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
+
+		if name == "" {
+			sbb.WriteString("%s")
+		} else {
+			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
+		}
+
+		foundVariable = true
+	}
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		foundVariable = false
+		parseLogValue(arg, "", handler)
+		if !foundVariable {
+			sbb.WriteString(fmt.Sprint(arg))
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	entry.format = sbb.String()
+
+	cs.logs = append(cs.logs, entry)
 }
 
 type logEntry struct {
@@ -420,64 +530,4 @@ func (cs *ConstraintSystem) markBoolean(v Variable) bool {
 		panic("not implemented")
 	}
 	return true
-}
-
-// Println enables circuit debugging and behaves almost like fmt.Println()
-//
-// the print will be done once the R1CS.Solve() method is executed
-//
-// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
-	var sbb strings.Builder
-
-	// prefix log line with file.go:line
-	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
-	}
-
-	// for each argument, if it is a circuit structure and contains variable
-	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
-	// if it doesn't contain variable, call fmt.Sprint(arg) instead
-	entry := logEntry{}
-
-	// this is call recursively on the arguments using reflection on each argument
-	foundVariable := false
-
-	var handler logValueHandler = func(name string, tInput reflect.Value) {
-
-		v := tInput.Interface().(Variable)
-
-		// if the variable is only in linExp form, we allocate it
-		_v := cs.allocate(v)
-
-		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
-
-		if name == "" {
-			sbb.WriteString("%s")
-		} else {
-			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
-		}
-
-		foundVariable = true
-	}
-
-	for i, arg := range a {
-		if i > 0 {
-			sbb.WriteByte(' ')
-		}
-		foundVariable = false
-		parseLogValue(arg, "", handler)
-		if !foundVariable {
-			sbb.WriteString(fmt.Sprint(arg))
-		}
-	}
-	sbb.WriteByte('\n')
-
-	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
-	entry.format = sbb.String()
-
-	cs.logs = append(cs.logs, entry)
 }

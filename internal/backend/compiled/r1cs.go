@@ -21,10 +21,7 @@ import (
 )
 
 // R1CS decsribes a set of R1CS constraint
-// The coefficients from the rank-1 constraint it contains
-// are big.Int and not tied to a curve base field
 type R1CS struct {
-
 	// Wires
 	NbInternalVariables  int
 	NbPublicVariables    int // includes ONE wire
@@ -37,6 +34,9 @@ type R1CS struct {
 	NbConstraints   int // total number of constraints
 	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
 	Constraints     []R1C
+
+	// Hints
+	Hints []Hint
 }
 
 // GetNbConstraints returns the number of constraints
