@@ -17,3 +17,10 @@ func UUID(name string) ID {
 	h.Write([]byte(name))
 	return ID(h.Sum32())
 }
+
+// Reserved UUID that are always injected by the solver
+const (
+	_ ID = iota
+	IsZero
+	BinaryDec
+)

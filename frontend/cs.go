@@ -132,12 +132,9 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 // this doesn't add any constraint to the newly created wire
 // from the backend point of view, it's equivalent to a user-supplied witness
 // except, the solver is going to assign it a value, not the caller
-func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Variable) Variable {
+func (cs *ConstraintSystem) NewHint(hintID hint.ID, input Variable, inputs ...Variable) Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
-
-	// compute ID for the hint
-	hID := hint.UUID(hintID)
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
@@ -152,7 +149,7 @@ func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Var
 	}
 
 	// add the hint to the constraint system
-	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hID, Inputs: hintInputs})
+	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hintID, Inputs: hintInputs})
 
 	return r
 }

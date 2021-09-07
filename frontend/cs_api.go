@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -319,10 +320,10 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
 	// a * m = 0            // constrain m to be 0 if a != 0
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
-	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 
-	m := cs.newInternalVariable()
-	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0), compiled.IsZero))
+	// m is computed by the solver such that m = 1 - a^(modulus - 1)
+	m := cs.NewHint(hint.IsZero, a)
+	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0)))
 
 	cs.AssertIsBoolean(m)
 	ma := cs.Add(m, a)

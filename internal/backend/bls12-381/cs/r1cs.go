@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 )
 
-type hintFunction func(r *big.Int, input []fr.Element) fr.Element
+type hintFunction func(input []fr.Element) fr.Element
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
 var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
@@ -146,6 +146,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 
 	// init hint functions data structs
 	mHintsFunctions := make(map[hint.ID]hintFunction, len(hintFunctions)+2)
+	mHintsFunctions[hint.IsZero] = powModulusMinusOne
 	// TODO @gbotrel add default hint functions for isZero and binary decomposition
 	for i := 0; i < len(hintFunctions); i++ {
 		if _, ok := mHintsFunctions[hintFunctions[i].ID]; ok {
@@ -350,8 +351,8 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				}
 
 				f := mHintsFunctions[hint.ID]
-				// TODO @gbotrel not very efficient to inject modulus (new(big.Int)) at each hint function
-				wireValues[vID] = f(fr.Modulus(), inputs)
+				wireValues[vID] = f(inputs)
+				wireInstantiated[vID] = true
 				return
 			}
 
@@ -462,47 +463,20 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 			wireInstantiated[cID] = true
 		}
 
-	case compiled.IsZero:
-		// TODO this is temporary need to be able to extend the solver in a cleaner way
-		// IsZero is in the form a * m = 0
-		// m is computed as m = 1 - a^(q-1)
-
-		var a fr.Element
-
-		processTerm := func(t compiled.Term, val *fr.Element) {
-			cID := t.VariableID()
-			if wireInstantiated[cID] {
-				r1cs.AddTerm(val, t, wireValues[cID])
-			} else {
-				panic("L should be instantiated at this stage (IsZero constraint)")
-			}
-		}
-
-		for _, t := range r.L {
-			processTerm(t, &a)
-		}
-
-		if len(r.R) != 1 {
-			panic("expecting 1 term to solve only")
-		}
-
-		m := r.R[0]
-		vID := m.VariableID()
-
-		// q - 1
-		var eOne big.Int
-		eOne.SetUint64(1)
-		eOne.Sub(fr.Modulus(), &eOne)
-
-		one := fr.One()
-		wireValues[vID].Exp(a, &eOne)
-
-		wireValues[vID].Sub(&one, &wireValues[vID])
-		wireInstantiated[vID] = true
-
 	default:
 		panic("unimplemented solving method")
 	}
 
 	return offset
+}
+
+// default hint functions
+func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
+	var eOne big.Int
+	eOne.SetUint64(1)
+	eOne.Sub(fr.Modulus(), &eOne)
+	v.Exp(inputs[0], &eOne)
+	one := fr.One()
+	v.Sub(&one, &v)
+	return v
 }
