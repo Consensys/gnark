@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"sort"
@@ -373,4 +374,110 @@ func getCallStack() []string {
 
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
 	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne))}
+}
+
+// creates a string formatted to display correctly a variable, from its linear expression representation
+// (i.e. the linear expression leading to it)
+func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
+
+	var res logEntry
+	var sbb strings.Builder
+	sbb.Grow(len(v.linExp) * len(" + (xx + xxxxxxxxxxxx"))
+
+	for i := 0; i < len(v.linExp); i++ {
+		if i > 0 {
+			sbb.WriteString(" + ")
+		}
+		c := cs.coeffs[v.linExp[i].CoeffID()]
+		sbb.WriteString(fmt.Sprintf("(%%s * %s)", c.String()))
+	}
+	res.format = sbb.String()
+	res.toResolve = v.linExp.Clone()
+	return res
+}
+
+// markBoolean marks the variable as boolean and return true
+// if a constraint was added, false if the variable was already
+// constrained as a boolean
+func (cs *ConstraintSystem) markBoolean(v Variable) bool {
+	switch v.visibility {
+	case compiled.Internal:
+		if _, ok := cs.internal.booleans[v.id]; ok {
+			return false
+		}
+		cs.internal.booleans[v.id] = struct{}{}
+	case compiled.Secret:
+		if _, ok := cs.secret.booleans[v.id]; ok {
+			return false
+		}
+		cs.secret.booleans[v.id] = struct{}{}
+	case compiled.Public:
+		if _, ok := cs.public.booleans[v.id]; ok {
+			return false
+		}
+		cs.public.booleans[v.id] = struct{}{}
+	default:
+		panic("not implemented")
+	}
+	return true
+}
+
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
+func (cs *ConstraintSystem) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	// for each argument, if it is a circuit structure and contains variable
+	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
+	// if it doesn't contain variable, call fmt.Sprint(arg) instead
+	entry := logEntry{}
+
+	// this is call recursively on the arguments using reflection on each argument
+	foundVariable := false
+
+	var handler logValueHandler = func(name string, tInput reflect.Value) {
+
+		v := tInput.Interface().(Variable)
+
+		// if the variable is only in linExp form, we allocate it
+		_v := cs.allocate(v)
+
+		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
+
+		if name == "" {
+			sbb.WriteString("%s")
+		} else {
+			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
+		}
+
+		foundVariable = true
+	}
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		foundVariable = false
+		parseLogValue(arg, "", handler)
+		if !foundVariable {
+			sbb.WriteString(fmt.Sprint(arg))
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	entry.format = sbb.String()
+
+	cs.logs = append(cs.logs, entry)
 }
