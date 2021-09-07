@@ -119,6 +119,38 @@ func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Ele
 func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element) {
 
 	switch c.Solver {
+	case compiled.IsZero:
+		// inital constraint is in the form a * m == 0
+		// it was transform in a plonk constraint like so:
+		// L = constantTerm(a) * m
+		// M[0] = m
+		// M[1] = a - constantTerm(a)
+
+		// we want to reconstruct a, and compute m = 1 - a^(q-1)
+		vID := c.L.VariableID()
+
+		// sanity checks 
+		lro := findUnsolvedVariable(c, wireInstantiated)
+		if lro != 0 || !wireInstantiated[c.M[1].VariableID()] || c.M[0].VariableID() != vID {
+			panic("sanity check for plonk.IsZero failed")
+		}
+
+		// reconstruct a
+		a := cs.Coefficients[c.L.CoeffID()]
+		a.Add(&a, &solution[c.M[1].VariableID()])
+
+		// compute a ^ (q-1)
+		// q - 1
+		var eOne big.Int 
+		eOne.SetUint64(1)
+		eOne.Sub(fr.Modulus(), &eOne)
+
+		one := fr.One()
+		solution[vID].Exp(a, &eOne)
+		// m = 1 - a ^ (q-1)
+		solution[vID].Sub(&one, &solution[vID])
+		wireInstantiated[vID] = true
+
 	case compiled.SingleOutput:
 
 		lro := findUnsolvedVariable(c, wireInstantiated)

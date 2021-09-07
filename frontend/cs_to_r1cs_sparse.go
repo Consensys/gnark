@@ -427,11 +427,73 @@ func (scs *sparseR1CS) split(acc compiled.Term, le compiled.LinearExpression) co
 }
 
 func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
-	if r1c.Solver == compiled.SingleOutput {
+	switch r1c.Solver {
+	case compiled.SingleOutput:
 		scs.r1cToPlonkConstraintSingleOutput(r1c)
-	} else {
+	case compiled.BinaryDec:
 		scs.r1cToPlonkConstraintBinary(r1c)
+	case compiled.IsZero:
+		scs.r1cToPlonkConstraintIsZero(r1c)
+	default:
+		panic("not implemented")
 	}
+
+}
+
+func (scs *sparseR1CS) r1cToPlonkConstraintIsZero(r1c compiled.R1C) {
+
+	// constraint is a * m == 0
+
+	// find if the variable to solve is in the left, right, or o linear expression
+	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
+
+	l := r1c.L
+	r := r1c.R
+	o := r1c.O
+
+	if lro != 1 {
+		panic("a * m = 0 --> unsolved should be in R")
+	}
+	l, r = r, l
+
+	var (
+		cS big.Int // constant S (associated with toSolve)
+	)
+	var toSolve compiled.Term
+
+	l, cL := scs.popConstantTerm(l)
+	if !(cL.IsUint64() && cL.Uint64() == 0) {
+		panic("cL should be 0 here")
+	}
+	r, cR := scs.popConstantTerm(r)
+	_, cO := scs.popConstantTerm(o)
+	if !(cO.IsUint64() && cO.Uint64() == 0) {
+		panic("cO should be 0 here")
+	}
+
+	_, toSolve = popInternalVariable(l, idCS)
+
+	// set cS to toSolve coeff
+	cS.Set(&scs.coeffs[toSolve.CoeffID()])
+
+	// toSolve*(r + cR) = 0
+	f10 := func() {
+		res := scs.newTerm(&cS, idCS)
+
+		rt := scs.split(0, r)
+		cRes := scs.multiply(res, &cR)
+
+		// L = constantTerm(R) * toSolve
+		// M[0] = toSolve
+		// M[1] = R - constantTerm(R)
+		scs.addConstraint(compiled.SparseR1C{
+			L:      cRes,
+			M:      [2]compiled.Term{res, rt},
+			Solver: compiled.IsZero,
+		})
+	}
+
+	f10()
 }
 
 // r1cToPlonkConstraintSingleOutput splits a r1c constraint
