@@ -24,6 +24,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
@@ -45,6 +46,8 @@ import (
 	groth16_bn254 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	groth16_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 )
+
+// TODO @gbotrel document hint functions here and in assert
 
 type groth16Object interface {
 	gnarkio.WriterRawTo
@@ -185,7 +188,7 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
-func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, force ...bool) (Proof, error) {
+func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, hintFunctions []hint.Function, force ...bool) (Proof, error) {
 
 	_force := false
 	if len(force) > 0 {
@@ -198,31 +201,31 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, _force)
+		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, hintFunctions, _force)
 	case *backend_bls12381.R1CS:
 		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, _force)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, hintFunctions, _force)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, _force)
+		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, hintFunctions, _force)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, _force)
+		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, hintFunctions, _force)
 	case *backend_bls24315.R1CS:
 		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return nil, err
 		}
-		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, _force)
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, hintFunctions, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -231,7 +234,7 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 // ReadAndProve behaves like Prove, , except witness is read from a io.Reader
 // witness must be encoded following the binary serialization protocol described in
 // gnark/backend/witness package
-func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, force ...bool) (Proof, error) {
+func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, hintFunctions []hint.Function, force ...bool) (Proof, error) {
 	_force := false
 	if len(force) > 0 {
 		_force = force[0]
@@ -246,31 +249,31 @@ func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, _force)
+		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, hintFunctions, _force)
 	case *backend_bls12381.R1CS:
 		w := witness_bls12381.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, _force)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, hintFunctions, _force)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, _force)
+		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, hintFunctions, _force)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, _force)
+		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, hintFunctions, _force)
 	case *backend_bls24315.R1CS:
 		w := witness_bls24315.Witness{}
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, _force)
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, hintFunctions, _force)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

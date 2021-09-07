@@ -18,8 +18,6 @@ package frontend
 
 import (
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -30,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -63,7 +62,7 @@ type ConstraintSystem struct {
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
 	// Hints
-	hints []hint // solver hints
+	hints []hintEntry // solver hints
 
 	// debug info
 	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
@@ -71,7 +70,6 @@ type ConstraintSystem struct {
 	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
 	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
-	hintHash hash.Hash32 // hash function used to compute uuid from hint string ID
 }
 
 // CompiledConstraintSystem ...
@@ -122,16 +120,15 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
 
-	cs.hintHash = fnv.New32a()
-	cs.hints = make([]hint, 0)
+	cs.hints = make([]hintEntry, 0)
 
 	return cs
 }
 
-// hint represent a solver hint
-type hint struct {
+// hintEntry represent a solver hintEntry
+type hintEntry struct {
 	vID    int             // variable id of the resulting hint wire
-	hID    uint32          // identifier for the hint function
+	hID    hint.ID         // identifier for the hint function
 	inputs []compiled.Term // inputs to the hint funciton
 }
 
@@ -147,9 +144,7 @@ func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Var
 	r := cs.newInternalVariable()
 
 	// compute ID for the hint
-	cs.hintHash.Reset()
-	cs.hintHash.Write([]byte(hintID))
-	hID := cs.hintHash.Sum32()
+	hID := hint.UUID(hintID)
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
@@ -164,7 +159,7 @@ func (cs *ConstraintSystem) NewHint(hintID string, input Variable, inputs ...Var
 	}
 
 	// add the hint to the constraint system
-	cs.hints = append(cs.hints, hint{r.id, hID, hintInputs})
+	cs.hints = append(cs.hints, hintEntry{r.id, hID, hintInputs})
 
 	return r
 }

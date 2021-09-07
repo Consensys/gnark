@@ -14,6 +14,8 @@
 
 package compiled
 
+import "github.com/consensys/gnark/backend/hint"
+
 // LinearExpression represent a linear expression of variables
 type LinearExpression []Term
 
@@ -86,7 +88,7 @@ const (
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs
 type Hint struct {
-	WireID int    // resulting wire ID to compute
-	ID     uint32 // hint function id
-	Inputs []int  // variable ID inputs to inject in hint function
+	WireID int     // resulting wire ID to compute
+	ID     hint.ID // hint function id
+	Inputs []int   // variable ID inputs to inject in hint function
 }

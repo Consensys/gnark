@@ -27,6 +27,7 @@ import (
 
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/hint"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"math/big"
@@ -54,7 +55,7 @@ func (proof *Proof) CurveID() ecc.ID {
 // Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
 // if force flag is set, Prove ignores R1CS solving error (ie invalid witness) and executes
 // the FFTs and MultiExponentiations to compute an (invalid) Proof object
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, force bool) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, hintFunctions []hint.Function, force bool) (*Proof, error) {
 	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
 		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}
@@ -64,7 +65,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, force bo
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
-	if err := r1cs.Solve(witness, a, b, c, wireValues); err != nil {
+	if err := r1cs.Solve(witness, a, b, c, wireValues, hintFunctions); err != nil {
 		if !force {
 			return nil, err
 		} else {
