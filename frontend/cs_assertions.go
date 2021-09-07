@@ -56,6 +56,13 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 
 	v.assertIsSet()
 
+	if v.visibility == compiled.Unset {
+		// we need to create a new wire here.
+		vv := cs.newInternalVariable()
+		vv.linExp = v.linExp
+		v = vv
+	}
+
 	if !cs.markBoolean(v) {
 		return // variable is already constrained
 	}

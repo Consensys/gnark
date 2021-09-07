@@ -752,7 +752,7 @@ func TestIsBool1(t *testing.T) {
 
 	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
-		t.Fatal("compilation failed")
+		t.Fatal("compilation failed", err)
 	}
 }
 
@@ -762,7 +762,7 @@ func TestIsBool2(t *testing.T) {
 
 	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
-		t.Fatal("compilation failed")
+		t.Fatal("compilation failed", err)
 	}
 }
 
@@ -772,7 +772,7 @@ func TestIsBool3(t *testing.T) {
 
 	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
 	if err != nil {
-		t.Fatal("compilation failed")
+		t.Fatal("compilation failed", err)
 	}
 }
 
