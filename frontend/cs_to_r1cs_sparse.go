@@ -426,78 +426,8 @@ func (scs *sparseR1CS) split(acc compiled.Term, le compiled.LinearExpression) co
 
 }
 
+// r1cToSparseR1C splits a r1c constraint
 func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
-	switch r1c.Solver {
-	case compiled.SingleOutput:
-		scs.r1cToPlonkConstraintSingleOutput(r1c)
-	case compiled.BinaryDec:
-		scs.r1cToPlonkConstraintBinary(r1c)
-	case compiled.IsZero:
-		scs.r1cToPlonkConstraintIsZero(r1c)
-	default:
-		panic("not implemented")
-	}
-
-}
-
-func (scs *sparseR1CS) r1cToPlonkConstraintIsZero(r1c compiled.R1C) {
-
-	// constraint is a * m == 0
-
-	// find if the variable to solve is in the left, right, or o linear expression
-	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
-
-	l := r1c.L
-	r := r1c.R
-	o := r1c.O
-
-	if lro != 1 {
-		panic("a * m = 0 --> unsolved should be in R")
-	}
-	l, r = r, l
-
-	var (
-		cS big.Int // constant S (associated with toSolve)
-	)
-	var toSolve compiled.Term
-
-	l, cL := scs.popConstantTerm(l)
-	if !(cL.IsUint64() && cL.Uint64() == 0) {
-		panic("cL should be 0 here")
-	}
-	r, cR := scs.popConstantTerm(r)
-	_, cO := scs.popConstantTerm(o)
-	if !(cO.IsUint64() && cO.Uint64() == 0) {
-		panic("cO should be 0 here")
-	}
-
-	_, toSolve = popInternalVariable(l, idCS)
-
-	// set cS to toSolve coeff
-	cS.Set(&scs.coeffs[toSolve.CoeffID()])
-
-	// toSolve*(r + cR) = 0
-	f10 := func() {
-		res := scs.newTerm(&cS, idCS)
-
-		rt := scs.split(0, r)
-		cRes := scs.multiply(res, &cR)
-
-		// L = constantTerm(R) * toSolve
-		// M[0] = toSolve
-		// M[1] = R - constantTerm(R)
-		scs.addConstraint(compiled.SparseR1C{
-			L:      cRes,
-			M:      [2]compiled.Term{res, rt},
-			Solver: compiled.IsZero,
-		})
-	}
-
-	f10()
-}
-
-// r1cToPlonkConstraintSingleOutput splits a r1c constraint
-func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
@@ -919,69 +849,6 @@ func (scs *sparseR1CS) r1cToPlonkConstraintSingleOutput(r1c compiled.R1C) {
 	}
 
 	scs.solvedVariables[idCS] = true
-}
-
-// r1cToPlonkConstraintBinary splits a r1c constraint corresponding
-// to a binary decomposition.
-func (scs *sparseR1CS) r1cToPlonkConstraintBinary(r1c compiled.R1C) {
-
-	// from cs_api, le binary decomposition is r1c.L
-	binDec := make(compiled.LinearExpression, len(r1c.L))
-	copy(binDec, r1c.L)
-
-	// reduce r1c.O (in case it's a linear combination)
-	var ot compiled.Term
-	o, cO := scs.popConstantTerm(r1c.O)
-	cOID := scs.coeffID(&cO)
-	if len(o) == 0 { // o is a constant term
-		ot = scs.newTerm(bOne)
-		scs.addConstraint(compiled.SparseR1C{L: scs.negate(ot), K: cOID})
-	} else {
-		ot = scs.split(0, o)
-		if cOID != 0 {
-			_ot := scs.newTerm(bOne)
-			scs.addConstraint(compiled.SparseR1C{L: ot, O: scs.negate(_ot), K: cOID}) // _ot+ot+K = 0
-			ot = _ot
-		}
-	}
-
-	// split the linear expression
-	nbBits := len(binDec)
-	two := big.NewInt(2)
-	acc := big.NewInt(1)
-
-	// accumulators for the quotients and remainders when dividing by 2
-	accRi := make([]compiled.Term, nbBits) // accRi[0] -> LSB
-	accQi := make([]compiled.Term, nbBits+1)
-	accQi[0] = ot
-
-	for i := 0; i < nbBits; i++ {
-
-		accRi[i] = scs.newTerm(bOne)
-		accQi[i+1] = scs.newTerm(bOne)
-
-		// find the variable corresponding to the i-th bit (it's not ordered since getLinExpCopy is not deterministic)
-		// so we can update scs.varPcsToVarCs
-		for k := 0; k < len(binDec); k++ {
-			t := binDec[k]
-			coef := scs.coeffs[t.CoeffID()]
-			if coef.Cmp(acc) == 0 {
-				scs.mCStoCCS[t.VariableID()] = accRi[i].VariableID()
-				scs.solvedVariables[t.VariableID()] = true
-				binDec = append(binDec[:k], binDec[k+1:]...)
-				break
-			}
-		}
-		acc.Mul(acc, two)
-
-		// 2*q[i+1] + ri - q[i] = 0
-		scs.addConstraint(compiled.SparseR1C{
-			L:      scs.multiply(accQi[i+1], two),
-			R:      accRi[i],
-			O:      scs.negate(accQi[i]),
-			Solver: compiled.BinaryDec,
-		})
-	}
 }
 
 // splitR1C splits a r1c assertion (meaning that

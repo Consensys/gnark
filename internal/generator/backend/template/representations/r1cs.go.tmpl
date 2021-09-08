@@ -298,108 +298,100 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
 
-	switch r.Solver {
+	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
+	// the content is the ID of the wire non instantiated
+	var loc uint8
 
-	// in this case we solve a R1C by isolating the uncomputed wire
-	case compiled.SingleOutput:
+	var a, b, c fr.Element
+	var termToCompute compiled.Term
 
-		// the index of the non zero entry shows if L, R or O has an uninstantiated wire
-		// the content is the ID of the wire non instantiated
-		var loc uint8
+	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) {
+		vID := t.VariableID()
 
-		var a, b, c fr.Element
-		var termToCompute compiled.Term
+		// wire is already computed, we just accumulate in val
+		if wireInstantiated[vID] {
+			r1cs.AddTerm(val, t, wireValues[vID])
+			return
+		}
 
-		processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) {
-			vID := t.VariableID()
+		// first we check if this is a hint wire
+		if hID, ok := mHints[vID];ok {
+			// compute hint value
+			hint := r1cs.Hints[hID]
 
-			// wire is already computed, we just accumulate in val
-			if wireInstantiated[vID] {
-				r1cs.AddTerm(val, t, wireValues[vID])
-				return
-			}
-
-			// first we check if this is a hint wire
-			if hID, ok := mHints[vID];ok {
-				// compute hint value
-				hint := r1cs.Hints[hID]
-
-				// compute values for all inputs. 
-				inputs := make([]fr.Element, len(hint.Inputs))
-				for i:=0;i<len(hint.Inputs);i++ {
-					// input is a linear expression, we must compute the value
-					for j:=0; j < len(hint.Inputs[i]); j++ {
-						viID := hint.Inputs[i][j].VariableID()
-						if !wireInstantiated[viID] {
-							// TODO @gbotrel return error here
-							panic("input not instantiated for hint function")
-						}
-						r1cs.AddTerm(&inputs[i], hint.Inputs[i][j], wireValues[viID])
+			// compute values for all inputs. 
+			inputs := make([]fr.Element, len(hint.Inputs))
+			for i:=0;i<len(hint.Inputs);i++ {
+				// input is a linear expression, we must compute the value
+				for j:=0; j < len(hint.Inputs[i]); j++ {
+					viID := hint.Inputs[i][j].VariableID()
+					if !wireInstantiated[viID] {
+						// TODO @gbotrel return error here
+						panic("input not instantiated for hint function")
 					}
+					r1cs.AddTerm(&inputs[i], hint.Inputs[i][j], wireValues[viID])
 				}
-
-				f := mHintsFunctions[hint.ID]
-				wireValues[vID] = f(inputs)
-				wireInstantiated[vID] = true
-				return 
 			}
 
-			if loc != 0 {
-				panic("found more than one wire to instantiate")
-			}
-			termToCompute = t
-			loc = locValue
+			f := mHintsFunctions[hint.ID]
+			wireValues[vID] = f(inputs)
+			wireInstantiated[vID] = true
+			return 
 		}
 
-		for _, t := range r.L {
-			processTerm(t, &a, 1)
+		if loc != 0 {
+			panic("found more than one wire to instantiate")
 		}
-
-		for _, t := range r.R {
-			processTerm(t, &b, 2)
-		}
-
-		for _, t := range r.O {
-			processTerm(t, &c, 3)
-		}
-
-		// ensure we found the unset wire
-		if loc == 0 {
-			// this wire may have been instantiated as part of moExpression already
-			return 0
-		}
-
-		// we compute the wire value and instantiate it
-		vID := termToCompute.VariableID()
-
-		switch loc {
-		case 1:
-			if !b.IsZero() {
-				wireValues[vID].Div(&c, &b).
-					Sub(&wireValues[vID], &a)
-				r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
-				offset = 1
-			}
-		case 2:
-			if !a.IsZero() {
-				wireValues[vID].Div(&c, &a).
-					Sub(&wireValues[vID], &b)
-				r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
-				offset = 1
-			}
-		case 3:
-			wireValues[vID].Mul(&a, &b).
-				Sub(&wireValues[vID], &c)
-			r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
-		}
-
-		wireInstantiated[vID] = true
-
-
-
-	default:
-		panic("unimplemented solving method")
+		termToCompute = t
+		loc = locValue
 	}
+
+	for _, t := range r.L {
+		processTerm(t, &a, 1)
+	}
+
+	for _, t := range r.R {
+		processTerm(t, &b, 2)
+	}
+
+	for _, t := range r.O {
+		processTerm(t, &c, 3)
+	}
+
+	// ensure we found the unset wire
+	if loc == 0 {
+		// this wire may have been instantiated as part of moExpression already
+		return 0
+	}
+
+	// we compute the wire value and instantiate it
+	vID := termToCompute.VariableID()
+
+	switch loc {
+	case 1:
+		if !b.IsZero() {
+			wireValues[vID].Div(&c, &b).
+				Sub(&wireValues[vID], &a)
+			r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+			offset = 1
+		}
+	case 2:
+		if !a.IsZero() {
+			wireValues[vID].Div(&c, &a).
+				Sub(&wireValues[vID], &b)
+			r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+			offset = 1
+		}
+	case 3:
+		wireValues[vID].Mul(&a, &b).
+			Sub(&wireValues[vID], &c)
+		r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+	}
+
+	wireInstantiated[vID] = true
+
+
+
 
 	return offset
 }

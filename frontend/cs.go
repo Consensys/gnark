@@ -250,23 +250,18 @@ func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
 
 // newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func newR1C(l, r, o Variable, s ...compiled.SolvingMethod) compiled.R1C {
-	solver := compiled.SingleOutput
-	if len(s) > 0 {
-		solver = s[0]
-	}
-
+func newR1C(l, r, o Variable) compiled.R1C {
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
 	// but the "l" linear expression is going to end up in the A matrix
 	// the "r" linear expression is going to end up in the B matrix
 	// the less variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if solver == compiled.SingleOutput && len(l.linExp) > len(r.linExp) {
+	if len(l.linExp) > len(r.linExp) {
 		l, r = r, l
 	}
 
-	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone(), Solver: solver}
+	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone()}
 }
 
 // NbConstraints enables circuit profiling and helps debugging

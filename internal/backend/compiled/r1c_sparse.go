@@ -21,5 +21,4 @@ type SparseR1C struct {
 	L, R, O Term
 	M       [2]Term
 	K       int // stores only the ID of the constant term that is used
-	Solver  SolvingMethod
 }

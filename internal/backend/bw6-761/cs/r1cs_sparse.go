@@ -136,107 +136,54 @@ func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Ele
 // is solved, solution and wireInstantiated are updated.
 func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element) {
 
-	switch c.Solver {
-	case compiled.IsZero:
-		// inital constraint is in the form a * m == 0
-		// it was transform in a plonk constraint like so:
-		// L = constantTerm(a) * m
-		// M[0] = m
-		// M[1] = a - constantTerm(a)
+	lro := findUnsolvedVariable(c, wireInstantiated)
+	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
 
-		// we want to reconstruct a, and compute m = 1 - a^(q-1)
-		vID := c.L.VariableID()
+		var u1, u2, u3, den, num, v1, v2 fr.Element
+		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
+		u1.Set(&cs.Coefficients[c.L.CoeffID()])
+		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		den.Mul(&u3, &solution[c.R.VariableID()]).Add(&den, &u1)
 
-		// sanity checks
-		lro := findUnsolvedVariable(c, wireInstantiated)
-		if lro != 0 || !wireInstantiated[c.M[1].VariableID()] || c.M[0].VariableID() != vID {
-			panic("sanity check for plonk.IsZero failed")
-		}
+		v1 = cs.computeTerm(c.R, solution)
+		v2 = cs.computeTerm(c.O, solution)
+		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
-		// reconstruct a
-		a := cs.Coefficients[c.L.CoeffID()]
-		a.Add(&a, &solution[c.M[1].VariableID()])
-
-		// compute a ^ (q-1)
-		// q - 1
-		var eOne big.Int
-		eOne.SetUint64(1)
-		eOne.Sub(fr.Modulus(), &eOne)
-
-		one := fr.One()
-		solution[vID].Exp(a, &eOne)
-		// m = 1 - a ^ (q-1)
-		solution[vID].Sub(&one, &solution[vID])
-		wireInstantiated[vID] = true
-
-	case compiled.SingleOutput:
-
-		lro := findUnsolvedVariable(c, wireInstantiated)
-		if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-
-			var u1, u2, u3, den, num, v1, v2 fr.Element
-			u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
-			u1.Set(&cs.Coefficients[c.L.CoeffID()])
-			u2.Set(&cs.Coefficients[c.R.CoeffID()])
-			den.Mul(&u3, &solution[c.R.VariableID()]).Add(&den, &u1)
-
-			v1 = cs.computeTerm(c.R, solution)
-			v2 = cs.computeTerm(c.O, solution)
-			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
-
-			// TODO find a way to do lazy div (/ batch inversion)
-			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
-			wireInstantiated[c.L.VariableID()] = true
-
-		} else if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
-
-			var u1, u2, u3, den, num, v1, v2 fr.Element
-			u3.Mul(&cs.Coefficients[c.M[0].VariableID()], &cs.Coefficients[c.M[1].VariableID()])
-			u1.Set(&cs.Coefficients[c.L.CoeffID()])
-			u2.Set(&cs.Coefficients[c.R.CoeffID()])
-			den.Mul(&u3, &solution[c.L.VariableID()]).Add(&den, &u2)
-
-			v1 = cs.computeTerm(c.L, solution)
-			v2 = cs.computeTerm(c.O, solution)
-			num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
-
-			// TODO find a way to do lazy div (/ batch inversion)
-			solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
-			wireInstantiated[c.L.VariableID()] = true
-
-		} else { // O we solve for O
-			var o fr.Element
-			cID, vID, _ := c.O.Unpack()
-
-			l := cs.computeTerm(c.L, solution)
-			r := cs.computeTerm(c.R, solution)
-			m0 := cs.computeTerm(c.M[0], solution)
-			m1 := cs.computeTerm(c.M[1], solution)
-
-			// o = - ((m0 * m1) + l + r + c.K) / c.O
-			o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
-			o.Mul(&o, &coefficientsNegInv[cID])
-
-			solution[vID] = o
-			wireInstantiated[vID] = true
-		}
-
-	case compiled.BinaryDec:
-		// 2*L + R + O = 0, computed as a = c/2, b = c%2
-		var bo, bl, br, two big.Int
-		o := cs.computeTerm(c.O, solution)
-		o.Neg(&o)
-		o.ToBigIntRegular(&bo)
-		two.SetInt64(2)
-		br.Mod(&bo, &two)
-		bl.Rsh(&bo, 1)
-		solution[c.L.VariableID()].SetBigInt(&bl)
-		solution[c.R.VariableID()].SetBigInt(&br)
+		// TODO find a way to do lazy div (/ batch inversion)
+		solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 		wireInstantiated[c.L.VariableID()] = true
-		wireInstantiated[c.R.VariableID()] = true
 
-	default:
-		panic("unimplemented solving method")
+	} else if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
+
+		var u1, u2, u3, den, num, v1, v2 fr.Element
+		u3.Mul(&cs.Coefficients[c.M[0].VariableID()], &cs.Coefficients[c.M[1].VariableID()])
+		u1.Set(&cs.Coefficients[c.L.CoeffID()])
+		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		den.Mul(&u3, &solution[c.L.VariableID()]).Add(&den, &u2)
+
+		v1 = cs.computeTerm(c.L, solution)
+		v2 = cs.computeTerm(c.O, solution)
+		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
+
+		// TODO find a way to do lazy div (/ batch inversion)
+		solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
+		wireInstantiated[c.L.VariableID()] = true
+
+	} else { // O we solve for O
+		var o fr.Element
+		cID, vID, _ := c.O.Unpack()
+
+		l := cs.computeTerm(c.L, solution)
+		r := cs.computeTerm(c.R, solution)
+		m0 := cs.computeTerm(c.M[0], solution)
+		m1 := cs.computeTerm(c.M[1], solution)
+
+		// o = - ((m0 * m1) + l + r + c.K) / c.O
+		o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
+		o.Mul(&o, &coefficientsNegInv[cID])
+
+		solution[vID] = o
+		wireInstantiated[vID] = true
 	}
 
 }

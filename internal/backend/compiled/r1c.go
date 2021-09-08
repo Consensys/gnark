@@ -48,10 +48,9 @@ func (l LinearExpression) Less(i, j int) bool {
 
 // R1C used to compute the wires
 type R1C struct {
-	L      LinearExpression
-	R      LinearExpression
-	O      LinearExpression
-	Solver SolvingMethod
+	L LinearExpression
+	R LinearExpression
+	O LinearExpression
 }
 
 // LogEntry is used as a shared data structure between the frontend and the backend
@@ -72,17 +71,6 @@ const (
 	Secret
 	Public
 	Virtual
-)
-
-// SolvingMethod is used by the R1CS solver
-// note: it is not in backend/r1cs to avoid an import cycle
-type SolvingMethod uint8
-
-// SingleOuput and BinaryDec are types of solving method for rank-1 constraints
-const (
-	SingleOutput SolvingMethod = iota
-	BinaryDec
-	IsZero // TODO this is temporary, solver will be improved to be extensible at runtime, or with lambdas.
 )
 
 // Hint represents a solver hint

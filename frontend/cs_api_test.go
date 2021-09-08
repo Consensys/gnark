@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
@@ -28,11 +27,10 @@ type deltaState = csState
 
 // contains information about a constraint system after a gnark function has been called
 type csResult struct {
-	cs                *ConstraintSystem      // constraint system after it has been modified using gnark API
-	publicVariables   []Variable             // public variables created after calling a run function
-	secretVariables   []Variable             // secret variables created aftrer calling a run funcion
-	internalVariables []Variable             // variables resulting of the function call (from cs.Add, cs.Mul, etc)
-	solver            compiled.SolvingMethod // according to the solving method, different features are checked
+	cs                *ConstraintSystem // constraint system after it has been modified using gnark API
+	publicVariables   []Variable        // public variables created after calling a run function
+	secretVariables   []Variable        // secret variables created aftrer calling a run funcion
+	internalVariables []Variable        // variables resulting of the function call (from cs.Add, cs.Mul, etc)
 }
 
 type runfunc func(systemUnderTest commands.SystemUnderTest) commands.Result
@@ -145,8 +143,7 @@ func rfAddSub() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -178,8 +175,7 @@ func rfMul() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -207,8 +203,7 @@ func rfInverse() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -249,8 +244,7 @@ func rfDiv() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -282,8 +276,7 @@ func rfXor() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -309,8 +302,7 @@ func rfToBinary() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.BinaryDec}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -354,8 +346,7 @@ func rfSelect() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -383,8 +374,7 @@ func rfConstant() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -419,8 +409,7 @@ func rfIsEqual() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -448,8 +437,7 @@ func rfFromBinary() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
@@ -486,8 +474,7 @@ func rfIsBoolean() runfunc {
 			systemUnderTest.(*ConstraintSystem),
 			pVariablesCreated,
 			sVariablesCreated,
-			iVariablesCreated,
-			compiled.SingleOutput}
+			iVariablesCreated}
 
 		return csRes
 	}
