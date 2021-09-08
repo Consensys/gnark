@@ -40,18 +40,9 @@ import (
 // these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
 type ConstraintSystem struct {
 	// Variables (aka wires)
-	public struct {
-		variables []Variable       // public inputs
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
-	secret struct {
-		variables []Variable       // secret inputs
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
-	internal struct {
-		variables []Variable       // internal variables
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
+	// virtual variables do not result in a new circuit wire
+	// they may only contain a linear expression
+	public, secret, internal, virtual variables
 
 	// Constraints
 	constraints []compiled.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
@@ -70,6 +61,20 @@ type ConstraintSystem struct {
 	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
 	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
+}
+
+type variables struct {
+	variables []Variable
+	booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
+}
+
+func (v *variables) new(cs *ConstraintSystem, visibility compiled.Visibility) Variable {
+	idx := len(v.variables)
+	w := Wire{visibility, idx, nil}
+	variable := cs.buildVarFromWire(w)
+
+	v.variables = append(v.variables, variable)
+	return variable
 }
 
 // CompiledConstraintSystem ...
@@ -116,6 +121,9 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 
 	cs.internal.variables = make([]Variable, 0, capacity)
 	cs.internal.booleans = make(map[int]struct{})
+
+	cs.virtual.variables = make([]Variable, 0)
+	cs.virtual.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
@@ -360,34 +368,24 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	w := Wire{
-		id:         len(cs.internal.variables),
-		visibility: compiled.Internal,
-	}
-	v := cs.buildVarFromWire(w)
-	cs.internal.variables = append(cs.internal.variables, v)
-	return v
+	return cs.internal.new(cs, compiled.Internal)
 }
 
-// newPublicVariable creates a new public input
+// newPublicVariable creates a new public variable
 func (cs *ConstraintSystem) newPublicVariable() Variable {
-
-	idx := len(cs.public.variables)
-	w := Wire{compiled.Public, idx, nil}
-
-	v := cs.buildVarFromWire(w)
-	cs.public.variables = append(cs.public.variables, v)
-	return v
+	return cs.public.new(cs, compiled.Public)
 }
 
-// newSecretVariable creates a new secret input
+// newSecretVariable creates a new secret variable
 func (cs *ConstraintSystem) newSecretVariable() Variable {
-	idx := len(cs.secret.variables)
-	w := Wire{compiled.Secret, idx, nil}
+	return cs.secret.new(cs, compiled.Secret)
+}
 
-	v := cs.buildVarFromWire(w)
-	cs.secret.variables = append(cs.secret.variables, v)
-	return v
+// newVirtualVariable creates a new virtual variable
+// this will not result in a new wire in the constraint system
+// and just represents a linear expression
+func (cs *ConstraintSystem) newVirtualVariable() Variable {
+	return cs.virtual.new(cs, compiled.Virtual)
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
@@ -510,6 +508,11 @@ func (cs *ConstraintSystem) markBoolean(v Variable) bool {
 			return false
 		}
 		cs.public.booleans[v.id] = struct{}{}
+	case compiled.Virtual:
+		if _, ok := cs.virtual.booleans[v.id]; ok {
+			return false
+		}
+		cs.virtual.booleans[v.id] = struct{}{}
 	default:
 		panic("not implemented")
 	}

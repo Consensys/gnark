@@ -53,6 +53,8 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			return oldID + len(cs.public.variables), nil
 		case compiled.Unset:
 			return -1, fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
+		// note; we should not have to shift compiled.Virtual variable, since they are not in the resulting
+		// compiled constraint system
 		default:
 			panic("not implemented")
 		}

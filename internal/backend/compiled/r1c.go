@@ -71,6 +71,7 @@ const (
 	Internal
 	Secret
 	Public
+	Virtual
 )
 
 // SolvingMethod is used by the R1CS solver

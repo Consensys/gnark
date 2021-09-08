@@ -58,7 +58,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 
 	if v.visibility == compiled.Unset {
 		// we need to create a new wire here.
-		vv := cs.newInternalVariable()
+		vv := cs.newVirtualVariable()
 		vv.linExp = v.linExp
 		v = vv
 	}
