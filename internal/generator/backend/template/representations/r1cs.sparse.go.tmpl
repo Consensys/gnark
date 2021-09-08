@@ -117,9 +117,55 @@ func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Ele
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element) {
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element,  mHintsFunctions map[hint.ID]hintFunction, mHints map[int]int) {
 
 	lro := findUnsolvedVariable(c, wireInstantiated)
+
+	// first, let's check we don't have a hint to solve this variable. 
+	sID := c.L.VariableID()
+	if lro == 1 {
+		sID = c.R.VariableID()
+	} else if lro == 2 {
+		sID = c.O.VariableID()
+	}
+
+	if hID, ok := mHints[sID]; ok {
+		// we should solve this variable with a hint function
+		
+		// compute hint value
+		hint := cs.Hints[hID]
+
+		// compute values for all inputs. 
+		inputs := make([]fr.Element, len(hint.Inputs))
+		for i:=0;i<len(hint.Inputs);i++ {
+			// input is a linear expression, we must compute the value
+			for j:=0; j < len(hint.Inputs[i]); j++ {
+				ciID , viID, visibility := hint.Inputs[i][j].Unpack()
+				if visibility == compiled.Virtual {
+					// we have a constant, just take the coefficient value
+					inputs[i].Add(&inputs[i], &cs.Coefficients[ciID])
+					continue
+				}
+				if !wireInstantiated[viID] {
+					// TODO @gbotrel return error here
+					panic("input not instantiated for hint function")
+				}
+				v := cs.computeTerm(hint.Inputs[i][j], solution)
+				inputs[i].Add(&inputs[i], &v)
+			}
+		}
+
+		// TODO @gbotrel check if hint function is in the map.
+		f, ok := mHintsFunctions[hint.ID]
+		if !ok {
+			panic("missing hint function")
+		}
+		solution[sID] = f(inputs)
+		wireInstantiated[sID] = true
+
+		return 
+	}
+
 	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
 
 		var u1, u2, u3, den, num, v1, v2 fr.Element
@@ -149,6 +195,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
 		// TODO find a way to do lazy div (/ batch inversion)
+		// TODO FIXME solve on R seems better here :-)
 		solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
 		wireInstantiated[c.L.VariableID()] = true
 
@@ -232,13 +279,38 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		coefficientsNegInv[i].Neg(&coefficientsNegInv[i])
 	}
 
+
+	// init hint functions data structs
+	mHintsFunctions := make(map[hint.ID]hintFunction, len(hintFunctions) + 2)
+	mHintsFunctions[hint.IsZero] = powModulusMinusOne
+	mHintsFunctions[hint.IthBit] = ithBit
+	
+	for i := 0; i < len(hintFunctions);i++ {
+		if _, ok := mHintsFunctions[hintFunctions[i].ID]; ok {
+			return nil, fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
+		}
+		f, ok := hintFunctions[i].F.(hintFunction)
+		if !ok {
+			return nil, fmt.Errorf("invalid hint function signature with id %d", uint32(hintFunctions[i].ID))
+		}
+		mHintsFunctions[hintFunctions[i].ID] = f
+	}
+
+	// init a map of correspondance between hint wire ID and hint data struct
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
+	// deterministic, hence avoid maps in there.
+	mHints := make(map[int]int)
+	for i:=0; i <len(cs.Hints);i++ {
+		mHints[cs.Hints[i].WireID] = i
+	}
+
 	// loop through the constraints to solve the variables
 	for i := 0; i < len(cs.Constraints); i++ {
-		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsNegInv)
+		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsNegInv,  mHintsFunctions, mHints)
 		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)
-			return solution, err
+			return nil, err
 		}
 	}
 
@@ -246,7 +318,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	for i := 0; i < len(cs.Assertions); i++ {
 		err = cs.checkConstraint(cs.Assertions[i], solution)
 		if err != nil {
-			return solution, err
+			return nil, err
 		}
 	}
 
@@ -273,3 +345,5 @@ func (cs *SparseR1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool
 		fmt.Print(logValue(cs.Logs[i], wireValues, wireInstantiated))
 	}
 }
+
+

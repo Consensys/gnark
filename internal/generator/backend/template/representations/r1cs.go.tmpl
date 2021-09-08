@@ -333,7 +333,10 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				}
 			}
 
-			f := mHintsFunctions[hint.ID]
+			f, ok := mHintsFunctions[hint.ID]
+			if !ok {
+				panic("missing hint function")
+			}
 			wireValues[vID] = f(inputs)
 			wireInstantiated[vID] = true
 			return 

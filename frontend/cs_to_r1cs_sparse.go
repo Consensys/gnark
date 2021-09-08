@@ -75,9 +75,12 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	}
 
 	// offset variable ID depeneding on visibility
-	shiftVID := func(oldID int, visibility compiled.Visibility) (int, error) {
+	shiftVID := func(oldID int, visibility compiled.Visibility, n bool) (int, error) {
 		switch visibility {
 		case compiled.Internal:
+			if n {
+				oldID = res.mCStoCCS[oldID]
+			}
 			return oldID + res.ccs.NbPublicVariables + res.ccs.NbSecretVariables, nil
 		case compiled.Public:
 			return oldID - 1, nil
@@ -92,7 +95,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 	}
 
-	offsetTermID := func(t *compiled.Term) error {
+	offsetTermID := func(t *compiled.Term, n bool) error {
 		if *t == 0 {
 			// in a PLONK constraint, not all terms are necessarily set,
 			// the terms which are not set are equal to zero. We just
@@ -100,20 +103,20 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			return nil
 		}
 		_, vID, visibility := t.Unpack()
-		newID, err := shiftVID(vID, visibility)
+		if vID == 0 && visibility == compiled.Public {
+			// this would not happen in a plonk constraint as the constant term has been popped out
+			// however it may happen in the logs or the hints that contains
+			// terms associated with the ONE wire
+			// workaround; we set the visibility to Virtual so that the solver recognized that as a constant
+			// if it needs to evaluate the linear expression
+			t.SetVariableVisibility(compiled.Virtual)
+			return nil
+		}
+		newID, err := shiftVID(vID, visibility, n)
 		if err != nil {
 			return err
 		}
 		t.SetVariableID(newID)
-		return nil
-	}
-
-	offsetLinearExpressionID := func(l compiled.LinearExpression) error {
-		for j := 0; j < len(l); j++ {
-			if err := offsetTermID(&l[j]); err != nil {
-				return err
-			}
-		}
 		return nil
 	}
 
@@ -145,19 +148,19 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 
 		// offset each term in the constraint
-		if err := offsetTermID(&r1c.L); err != nil {
+		if err := offsetTermID(&r1c.L, false); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.R); err != nil {
+		if err := offsetTermID(&r1c.R, false); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.O); err != nil {
+		if err := offsetTermID(&r1c.O, false); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.M[0]); err != nil {
+		if err := offsetTermID(&r1c.M[0], false); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.M[1]); err != nil {
+		if err := offsetTermID(&r1c.M[1], false); err != nil {
 			return err
 		}
 		return nil
@@ -184,7 +187,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			newID, err := shiftVID(cID, cVisibility)
+			newID, err := shiftVID(cID, cVisibility, true)
 			if err != nil {
 				panic(err)
 			}
@@ -193,9 +196,18 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		res.ccs.Logs[i] = entry
 	}
 
+	offsetLinearExpressionID := func(l compiled.LinearExpression) error {
+		for j := 0; j < len(l); j++ {
+			if err := offsetTermID(&l[j], true); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	// we need to offset the ids in the hints
 	for i := 0; i < len(res.ccs.Hints); i++ {
-		newID, err := shiftVID(res.ccs.Hints[i].WireID, compiled.Internal)
+		newID, err := shiftVID(res.ccs.Hints[i].WireID, compiled.Internal, true)
 		if err != nil {
 			return nil, err
 		}
