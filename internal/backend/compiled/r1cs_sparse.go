@@ -34,6 +34,9 @@ type SparseR1CS struct {
 
 	// Logs (e.g. variables that have been printed using cs.Println)
 	Logs []LogEntry
+
+	// Hints
+	Hints []Hint
 }
 
 // GetNbVariables return number of internal, secret and public variables

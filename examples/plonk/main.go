@@ -121,7 +121,7 @@ func main() {
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, pk, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness, nil)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -156,7 +156,7 @@ func main() {
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, pk, &witness)
+		proof, err := plonk.Prove(r1cs, pk, &witness, nil)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)

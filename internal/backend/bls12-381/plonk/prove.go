@@ -38,6 +38,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -59,7 +60,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witness) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witness, hintFunctions []hint.Function) (*Proof, error) {
 
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -71,7 +72,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	proof := &Proof{}
 
 	// compute the constraint system solution
-	solution, err := spr.Solve(fullWitness)
+	solution, err := spr.Solve(fullWitness, hintFunctions)
 	if err != nil {
 		return nil, err
 	}

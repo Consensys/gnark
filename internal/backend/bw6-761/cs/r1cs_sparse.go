@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -190,8 +191,8 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness []fr.Element) error {
-	_, err := cs.Solve(witness)
+func (cs *SparseR1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
+	_, err := cs.Solve(witness, hintFunctions)
 	return err
 }
 
@@ -217,7 +218,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Elemen
 // wireValues =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element) (solution []fr.Element, err error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (solution []fr.Element, err error) {
 
 	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
 	if len(witness) != expectedWitnessSize {
