@@ -14,6 +14,11 @@
 
 package compiled
 
+import (
+	"math/big"
+	"strings"
+)
+
 // SparseR1C used to compute the wires
 // L+R+M[0]M[1]+O+k=0
 // if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
@@ -21,4 +26,23 @@ type SparseR1C struct {
 	L, R, O Term
 	M       [2]Term
 	K       int // stores only the ID of the constant term that is used
+}
+
+func (r1c *SparseR1C) String(coeffs []big.Int) string {
+	var sbb strings.Builder
+	sbb.WriteString("L[")
+	r1c.L.string(&sbb, coeffs)
+	sbb.WriteString("] * R[")
+	r1c.R.string(&sbb, coeffs)
+	sbb.WriteString("] + M0[")
+	r1c.M[0].string(&sbb, coeffs)
+	sbb.WriteString("] + M1[")
+	r1c.M[1].string(&sbb, coeffs)
+	sbb.WriteString("] + O[")
+	r1c.O.string(&sbb, coeffs)
+	sbb.WriteString("] + K[")
+	sbb.WriteString(coeffs[r1c.K].String())
+	sbb.WriteString("]")
+
+	return sbb.String()
 }

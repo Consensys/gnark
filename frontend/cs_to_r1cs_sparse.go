@@ -65,6 +65,9 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// since we don't use pointers but Terms (uint64), we need to potentially offset
 	// the same wireID multiple times.
 	copy(res.ccs.Hints, cs.hints)
+	for i := 0; i < len(cs.hints); i++ {
+		// res.solvedVariables[cs.hints[i].WireID] = true
+	}
 
 	// convert the constraints invidually
 	for i := 0; i < len(cs.constraints); i++ {
@@ -166,6 +169,12 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		return nil
 	}
 
+	fmt.Println("\n\n")
+	for i := 0; i < len(res.ccs.Constraints); i++ {
+		fmt.Println(res.ccs.Constraints[i].String(res.coeffs))
+	}
+	fmt.Println("\n\n")
+
 	// offset the IDs of all constraints so that the variables are
 	// numbered like this: [publicVariables| secretVariables | internalVariables ]
 	for i := 0; i < len(res.ccs.Constraints); i++ {
@@ -198,6 +207,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 
 	offsetLinearExpressionID := func(l compiled.LinearExpression) error {
 		for j := 0; j < len(l); j++ {
+			fmt.Println("lj cid", l[j].CoeffID(), l[j].VariableVisibility())
 			if err := offsetTermID(&l[j], true); err != nil {
 				return err
 			}
@@ -211,6 +221,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		if err != nil {
 			return nil, err
 		}
+		fmt.Println("newID for hint with wireID", res.ccs.Hints[i].WireID, newID)
 		res.ccs.Hints[i].WireID = newID
 		for j := 0; j < len(res.ccs.Hints[i].Inputs); j++ {
 			if err := offsetLinearExpressionID(res.ccs.Hints[i].Inputs[j]); err != nil {
@@ -467,9 +478,13 @@ func (scs *sparseR1CS) split(acc compiled.Term, le compiled.LinearExpression) co
 
 // r1cToSparseR1C splits a r1c constraint
 func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
-
+	fmt.Println(r1c.String(scs.coeffs))
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
+	if lro == -1 {
+		panic("r1c with no variable to solve?")
+		return // no variable to solve here.
+	}
 
 	o := r1c.O
 	l := r1c.L
@@ -832,6 +847,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	if len(r) != 0 {
 		s |= 0b0001
 	}
+
+	// fmt.Printf("%d: %4b\n", idCS, s)
 	switch s {
 	case 0b0000:
 		// (toSolve + cL)*cR = cO

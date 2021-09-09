@@ -151,14 +151,14 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 		// we should solve this variable with a hint function
 
 		// compute hint value
-		hint := cs.Hints[hID]
+		h := cs.Hints[hID]
 
 		// compute values for all inputs.
-		inputs := make([]fr.Element, len(hint.Inputs))
-		for i := 0; i < len(hint.Inputs); i++ {
+		inputs := make([]fr.Element, len(h.Inputs))
+		for i := 0; i < len(h.Inputs); i++ {
 			// input is a linear expression, we must compute the value
-			for j := 0; j < len(hint.Inputs[i]); j++ {
-				ciID, viID, visibility := hint.Inputs[i][j].Unpack()
+			for j := 0; j < len(h.Inputs[i]); j++ {
+				ciID, viID, visibility := h.Inputs[i][j].Unpack()
 				if visibility == compiled.Virtual {
 					// we have a constant, just take the coefficient value
 					inputs[i].Add(&inputs[i], &cs.Coefficients[ciID])
@@ -166,15 +166,18 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 				}
 				if !wireInstantiated[viID] {
 					// TODO @gbotrel return error here
+					if hint.ID(h.ID) == hint.IthBit {
+						panic(fmt.Sprintf("%d, %d\n", i, j))
+					}
 					panic("input not instantiated for hint function")
 				}
-				v := cs.computeTerm(hint.Inputs[i][j], solution)
+				v := cs.computeTerm(h.Inputs[i][j], solution)
 				inputs[i].Add(&inputs[i], &v)
 			}
 		}
 
 		// TODO @gbotrel check if hint function is in the map.
-		f, ok := mHintsFunctions[hint.ID]
+		f, ok := mHintsFunctions[h.ID]
 		if !ok {
 			panic("missing hint function")
 		}

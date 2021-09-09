@@ -342,7 +342,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	// allocate the resulting variables and bit-constraint them
 	b := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, cs.Constant(i))
+		b[i] = cs.NewHint(hint.IthBit, a, i)
 		cs.AssertIsBoolean(b[i])
 	}
 

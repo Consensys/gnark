@@ -16,11 +16,9 @@ package main
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
@@ -47,12 +45,11 @@ type Circuit struct {
 func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// number of bits of exponent
-	const bitSize = 8
+	const bitSize = 3
 
 	// specify constraints
 	output := cs.Constant(1)
 	bits := cs.ToBinary(circuit.E, bitSize)
-	cs.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
 		// cs.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
@@ -86,15 +83,7 @@ func main() {
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
 	_r1cs := r1cs.(*cs.SparseR1CS)
-	nbConstraints := len(_r1cs.Constraints)
-	nbVariables := _r1cs.NbInternalVariables + _r1cs.NbPublicVariables + _r1cs.NbSecretVariables
-	var s uint64
-	if nbConstraints > nbVariables {
-		s = uint64(nbConstraints)
-	} else {
-		s = uint64(nbVariables)
-	}
-	srs, err := kzg.NewSRS(ecc.NextPowerOfTwo(s)+3, new(big.Int).SetInt64(42))
+	srs, err := plonk.NewSRS(_r1cs)
 	if err != nil {
 		panic(err)
 	}
@@ -105,11 +94,11 @@ func main() {
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
 		witness.X.Assign(2)
-		witness.E.Assign(12)
-		witness.Y.Assign(4096)
+		witness.E.Assign(3)
+		witness.Y.Assign(8)
 
 		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(4096)
+		publicWitness.Y.Assign(8)
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand

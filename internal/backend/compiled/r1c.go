@@ -14,7 +14,13 @@
 
 package compiled
 
-import "github.com/consensys/gnark/backend/hint"
+import (
+	"math/big"
+	"strconv"
+	"strings"
+
+	"github.com/consensys/gnark/backend/hint"
+)
 
 // LinearExpression represent a linear expression of variables
 type LinearExpression []Term
@@ -80,4 +86,49 @@ type Hint struct {
 	WireID int                // resulting wire ID to compute
 	ID     hint.ID            // hint function id
 	Inputs []LinearExpression // terms to inject in the hint function
+}
+
+func (r1c *R1C) String(coeffs []big.Int) string {
+	var sbb strings.Builder
+	sbb.WriteString("L[")
+	r1c.L.string(&sbb, coeffs)
+	sbb.WriteString("] * R[")
+	r1c.R.string(&sbb, coeffs)
+	sbb.WriteString("] = O[")
+	r1c.O.string(&sbb, coeffs)
+	sbb.WriteString("]")
+
+	return sbb.String()
+}
+
+func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
+	for i := 0; i < len(l); i++ {
+		l[i].string(sbb, coeffs)
+		if i+1 < len(l) {
+			sbb.WriteString(" + ")
+		}
+	}
+}
+
+func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
+	sbb.WriteRune('(')
+	switch t.VariableVisibility() {
+	case Internal:
+		sbb.WriteString("i")
+	case Public:
+		sbb.WriteString("p")
+	case Secret:
+		sbb.WriteString("s")
+	case Virtual:
+		sbb.WriteString("v")
+	case Unset:
+		sbb.WriteString("u")
+	default:
+		panic("not implemented")
+	}
+	sbb.WriteString(coeffs[t.CoeffID()].String())
+	sbb.WriteString("*")
+	sbb.WriteString(strconv.Itoa(t.VariableID()))
+	sbb.WriteRune(')')
+
 }
