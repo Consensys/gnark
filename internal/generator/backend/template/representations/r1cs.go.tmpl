@@ -438,12 +438,22 @@ func ithBit(inputs []fr.Element) (v fr.Element) {
 func (r1cs *R1CS) ToHTML(w io.Writer) error {
 	t, err := template.New("r1cs.html").Funcs(template.FuncMap{
 		"toHTML": toHTML,
+		"add": add,
+		"sub": sub,
 	}).Parse(compiled.R1CSTemplate)
 	if err != nil {
 		return err
 	}
 
 	return t.Execute(w, r1cs)
+}
+
+func add(a, b int) int {
+	return a+b
+}
+
+func sub(a, b int) int {
+	return a-b
 }
 
 func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int) string {

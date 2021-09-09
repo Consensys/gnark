@@ -374,6 +374,8 @@ func (cs *SparseR1CS) ToHTML(w io.Writer) error {
 	t, err := template.New("scs.html").Funcs(template.FuncMap{
 		"toHTML":      toHTMLTerm,
 		"toHTMLCoeff": toHTMLCoeff,
+		"add":         add,
+		"sub":         sub,
 	}).Parse(compiled.SparseR1CSTemplate)
 	if err != nil {
 		return err
