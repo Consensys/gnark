@@ -88,3 +88,7 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (n int64, err error) {
 func (cs *SparseR1CS) SetLoggerOutput(w io.Writer) {
 	panic("not implemented")
 }
+
+func (cs *SparseR1CS) ToHTML(w io.Writer) error {
+	panic("not implemtened")
+}

@@ -71,6 +71,13 @@ func main() {
 
 	var circuit Circuit
 
+	r1, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	err := r1.ToHTML(os.Stdout)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return
+
 	// building the circuit...
 	r1cs, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
 	if err_r1cs != nil {

@@ -92,6 +92,9 @@ type CompiledConstraintSystem interface {
 
 	CurveID() ecc.ID
 	FrSize() int
+
+	// ToHTML generates a human readable representation of the constraint system
+	ToHTML(w io.Writer) error
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -158,7 +161,6 @@ func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 	// add the hint to the constraint system
 	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hintID, Inputs: hintInputs})
 
-	fmt.Println("adding new hint with wire id", r.id)
 	return r
 }
 

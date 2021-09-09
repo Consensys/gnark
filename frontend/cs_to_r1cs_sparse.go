@@ -169,11 +169,9 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		return nil
 	}
 
-	fmt.Println("\n\n")
 	for i := 0; i < len(res.ccs.Constraints); i++ {
 		fmt.Println(res.ccs.Constraints[i].String(res.coeffs))
 	}
-	fmt.Println("\n\n")
 
 	// offset the IDs of all constraints so that the variables are
 	// numbered like this: [publicVariables| secretVariables | internalVariables ]

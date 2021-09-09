@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
@@ -44,6 +46,7 @@ type R1CS struct {
 	compiled.R1CS
 	Coefficients []fr.Element // R1C coefficients indexes point here
 	loggerOut    io.Writer
+	MHints       map[int]int // correspondance between hint wire ID and hint data struct
 }
 
 // NewR1CS returns a new R1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -52,9 +55,16 @@ func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 		r1cs,
 		make([]fr.Element, len(coefficients)),
 		os.Stdout,
+		make(map[int]int, len(r1cs.Hints)),
 	}
 	for i := 0; i < len(coefficients); i++ {
 		r.Coefficients[i].SetBigInt(&coefficients[i])
+	}
+
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
+	// deterministic, hence avoid maps in there.
+	for i := 0; i < len(r.Hints); i++ {
+		r.MHints[r.Hints[i].WireID] = i
 	}
 	return &r
 }
@@ -160,14 +170,6 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 		mHintsFunctions[hintFunctions[i].ID] = f
 	}
 
-	// init a map of correspondance between hint wire ID and hint data struct
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
-	// deterministic, hence avoid maps in there.
-	mHints := make(map[int]int)
-	for i := 0; i < len(r1cs.Hints); i++ {
-		mHints[r1cs.Hints[i].WireID] = i
-	}
-
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
@@ -179,7 +181,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	for i := 0; i < int(r1cs.NbCOConstraints); i++ {
 
 		// solve the constraint, this will compute the missing wire of the gate
-		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions, mHints)
+		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions)
 
 		// at this stage we are guaranteed that a[i]*b[i]=c[i]
 		// if not, it means there is a bug in the solver
@@ -307,7 +309,7 @@ func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b,
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, mHints map[int]int) uint {
+func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction) uint {
 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
@@ -329,7 +331,7 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		}
 
 		// first we check if this is a hint wire
-		if hID, ok := mHints[vID]; ok {
+		if hID, ok := r1cs.MHints[vID]; ok {
 			// compute hint value
 			hint := r1cs.Hints[hID]
 
@@ -438,4 +440,67 @@ func ithBit(inputs []fr.Element) (v fr.Element) {
 	v.SetUint64(inputs[0].Bit(inputs[1][0]))
 
 	return v
+}
+
+// ToHTML returns an HTML human-readable representation of the constraint system
+func (r1cs *R1CS) ToHTML(w io.Writer) error {
+	t, err := template.New("r1cs.html").Funcs(template.FuncMap{
+		"toHTML": toHTML,
+	}).Parse(compiled.R1CSTemplate)
+	if err != nil {
+		return err
+	}
+
+	return t.Execute(os.Stdout, r1cs)
+}
+
+func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int) string {
+	var sbb strings.Builder
+	for i := 0; i < len(l); i++ {
+		termToHTML(l[i], &sbb, coeffs, mHints)
+		if i+1 < len(l) {
+			sbb.WriteString(" + ")
+		}
+	}
+	return sbb.String()
+}
+
+func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHints map[int]int) {
+	c := coeffs[t.CoeffID()]
+
+	var minusOne fr.Element
+	one := fr.One()
+	minusOne.Sub(&minusOne, &one)
+
+	if c.Equal(&one) {
+		// do nothing, just print the variable
+	} else if c.Equal(&minusOne) {
+		// print neg sign
+		sbb.WriteString("<span class=\"coefficient\">-</span>")
+	} else {
+		sbb.WriteString("<span class=\"coefficient\">")
+		sbb.WriteString(c.String())
+		sbb.WriteString("</span>*")
+	}
+
+	class := ""
+	switch t.VariableVisibility() {
+	case compiled.Internal:
+		class = "internal"
+		if _, ok := mHints[t.VariableID()]; ok {
+			class = "hint"
+		}
+	case compiled.Public:
+		class = "public"
+	case compiled.Secret:
+		class = "secret"
+	case compiled.Virtual:
+		class = "virtual"
+	case compiled.Unset:
+		class = "unset"
+	default:
+		panic("not implemented")
+	}
+	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, t.VariableID()))
+
 }

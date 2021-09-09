@@ -15,10 +15,7 @@
 package compiled
 
 import (
-	"html/template"
 	"io"
-	"math/big"
-	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
 )
@@ -88,58 +85,6 @@ func (r1cs *R1CS) SetLoggerOutput(w io.Writer) {
 }
 
 // ToHTML returns an HTML human-readable representation of the constraint system
-func (r1cs *R1CS) ToHTML(w io.Writer, coeffs []big.Int) error {
-	t, err := template.New("r1cs.html").Parse(tmpl)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(os.Stdout, r1cs)
+func (r1cs *R1CS) ToHTML(w io.Writer) error {
+	panic("not implemented")
 }
-
-const tmpl = `
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
-    <title>R1CS</title>
-
-    <style>
-        .coeff {text-align:right;}
-    </style>
-  </head>
-  <body>
-    <h1>R1CS</h1>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
-
-<table class="table table-bordered">
-  <thead>
-    <tr>
-      <th scope="col">#</th>
-      <th scope="col" colspan="2">L</th>
-      <th scope="col" colspan="2">R</th>
-      <th scope="col" colspan="2">O</th>
-    </tr>
-  </thead>
-  <tbody>
-    {{- range $c := .Constraints}}
-    <tr>
-      <th scope="row">0</th>
-      <!---  L  -->
-      <td class="coeff table-light">coeff</td>
-      <td class="variable">variable</td>
-      <!---  R  -->
-      <td class="coeff table-light">coeff</td>
-      <td class="variable">variable</td>
-      <!---  O  -->
-      <td class="coeff table-light">coeff</td>
-      <td class="variable">variable</td>
-    </tr>
-    {{- end }}
-  </tbody>
-</table>
-  </body>
-</html>
-`
