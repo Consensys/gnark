@@ -71,8 +71,17 @@ func main() {
 
 	var circuit Circuit
 
+	fR1CS, _ := os.Create("r1cs.html")
+	fSparseR1CS, _ := os.Create("sparse_r1cs.html")
+
 	r1, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	err := r1.ToHTML(os.Stdout)
+	err := r1.ToHTML(fR1CS)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	r2, _ := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	err = r2.ToHTML(fSparseR1CS)
 	if err != nil {
 		fmt.Println(err)
 	}

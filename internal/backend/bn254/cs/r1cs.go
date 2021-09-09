@@ -451,7 +451,7 @@ func (r1cs *R1CS) ToHTML(w io.Writer) error {
 		return err
 	}
 
-	return t.Execute(os.Stdout, r1cs)
+	return t.Execute(w, r1cs)
 }
 
 func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int) string {

@@ -22,6 +22,8 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
+	"strings"
+	"text/template"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -36,6 +38,7 @@ type SparseR1CS struct {
 
 	// Coefficients in the constraints
 	Coefficients []fr.Element // list of unique coefficients.
+	MHints       map[int]int  // correspondance between hint wire ID and hint data struct
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -43,10 +46,18 @@ func NewSparseR1CS(r1cs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS
 	cs := SparseR1CS{
 		r1cs,
 		make([]fr.Element, len(coefficients)),
+		make(map[int]int, len(r1cs.Hints)),
 	}
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
 	}
+
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
+	// deterministic, hence avoid maps in there.
+	for i := 0; i < len(cs.Hints); i++ {
+		cs.MHints[cs.Hints[i].WireID] = i
+	}
+
 	return &cs
 }
 
@@ -135,7 +146,7 @@ func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Ele
 // and solution. Those are used to find which variable remains to be solved,
 // and the way of solving it (binary or single value). Once the variable(s)
 // is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element, mHintsFunctions map[hint.ID]hintFunction, mHints map[int]int) {
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element, mHintsFunctions map[hint.ID]hintFunction) {
 
 	lro := findUnsolvedVariable(c, wireInstantiated)
 
@@ -147,7 +158,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []b
 		sID = c.O.VariableID()
 	}
 
-	if hID, ok := mHints[sID]; ok {
+	if hID, ok := cs.MHints[sID]; ok {
 		// we should solve this variable with a hint function
 
 		// compute hint value
@@ -316,17 +327,9 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		mHintsFunctions[hintFunctions[i].ID] = f
 	}
 
-	// init a map of correspondance between hint wire ID and hint data struct
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
-	// deterministic, hence avoid maps in there.
-	mHints := make(map[int]int)
-	for i := 0; i < len(cs.Hints); i++ {
-		mHints[cs.Hints[i].WireID] = i
-	}
-
 	// loop through the constraints to solve the variables
 	for i := 0; i < len(cs.Constraints); i++ {
-		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsNegInv, mHintsFunctions, mHints)
+		cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsNegInv, mHintsFunctions)
 		err = cs.checkConstraint(cs.Constraints[i], solution)
 		if err != nil {
 			fmt.Printf("%d-th constraint\n", i)
@@ -364,4 +367,42 @@ func (cs *SparseR1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool
 	for i := 0; i < len(cs.Logs); i++ {
 		fmt.Print(logValue(cs.Logs[i], wireValues, wireInstantiated))
 	}
+}
+
+// ToHTML returns an HTML human-readable representation of the constraint system
+func (cs *SparseR1CS) ToHTML(w io.Writer) error {
+	t, err := template.New("scs.html").Funcs(template.FuncMap{
+		"toHTML":      toHTMLTerm,
+		"toHTMLCoeff": toHTMLCoeff,
+	}).Parse(compiled.SparseR1CSTemplate)
+	if err != nil {
+		return err
+	}
+
+	return t.Execute(w, cs)
+}
+
+func toHTMLTerm(t compiled.Term, coeffs []fr.Element, mHints map[int]int) string {
+	var sbb strings.Builder
+	termToHTML(t, &sbb, coeffs, mHints)
+	return sbb.String()
+}
+
+func toHTMLCoeff(cID int, coeffs []fr.Element) string {
+	var sbb strings.Builder
+	c := coeffs[cID]
+
+	var minusOne fr.Element
+	one := fr.One()
+	minusOne.Sub(&minusOne, &one)
+
+	if c.Equal(&minusOne) {
+		// print neg sign
+		sbb.WriteString("<span class=\"coefficient\">-1</span>")
+	} else {
+		sbb.WriteString("<span class=\"coefficient\">")
+		sbb.WriteString(c.String())
+		sbb.WriteString("</span>")
+	}
+	return sbb.String()
 }
