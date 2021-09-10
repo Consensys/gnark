@@ -28,12 +28,10 @@ type R1CS struct {
 	NbSecretVariables    int
 	Logs                 []LogEntry
 	DebugInfoComputation []LogEntry
-	DebugInfoAssertion   []LogEntry
 
 	// Constraints
-	NbConstraints   int // total number of constraints
-	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []R1C
+	NbConstraints int // total number of constraints
+	Constraints   []R1C
 
 	// Hints
 	Hints []Hint

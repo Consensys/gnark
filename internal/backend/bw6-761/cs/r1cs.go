@@ -191,37 +191,23 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	// It is incremented by one each time a division happens for solving a constraint.
 	var debugInfoComputationOffset uint
 
-	// Loop through computational constraints (the one wwe need to solve and compute a wire in)
-	for i := 0; i < int(r1cs.NbCOConstraints); i++ {
-
+	// for each constraint
+	// we are guaranteed that each R1C contains at most one unsolved wire
+	// first we solve the unsolved wire (if any)
+	// then we check that the constraint is valid
+	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
+	for i := 0; i < len(r1cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
 		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions)
 
-		// at this stage we are guaranteed that a[i]*b[i]=c[i]
-		// if not, it means there is a bug in the solver
+		// compute values for the R1C (ie value * coeff)
 		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
 
+		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
 			//return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, "couldn't solve computational constraint. May happen: div by 0 or no inverse found")
 			debugInfo := r1cs.DebugInfoComputation[debugInfoComputationOffset]
-			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
-			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
-		}
-	}
-
-	// Loop through the assertions -- here all wireValues should be instantiated
-	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-	for i := int(r1cs.NbCOConstraints); i < len(r1cs.Constraints); i++ {
-
-		// A this stage we are not guaranteed that a[i+sizecg]*b[i+sizecg]=c[i+sizecg] because we only query the values (computed
-		// at the previous step)
-		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
-
-		// check that the constraint is satisfied
-		check.Mul(&a[i], &b[i])
-		if !check.Equal(&c[i]) {
-			debugInfo := r1cs.DebugInfoAssertion[i-int(r1cs.NbCOConstraints)]
 			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
 			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}

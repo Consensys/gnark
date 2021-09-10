@@ -24,11 +24,9 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		NbPublicVariables:    len(cs.public.variables),
 		NbSecretVariables:    len(cs.secret.variables),
 		NbConstraints:        len(cs.constraints) + len(cs.assertions),
-		NbCOConstraints:      len(cs.constraints),
 		Constraints:          make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
 		Logs:                 make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfoComputation: make([]compiled.LogEntry, len(cs.debugInfoComputation)),
-		DebugInfoAssertion:   make([]compiled.LogEntry, len(cs.debugInfoAssertion)),
+		DebugInfoComputation: make([]compiled.LogEntry, len(cs.debugInfoComputation)+len(cs.debugInfoAssertion)),
 		Hints:                make([]compiled.Hint, len(cs.hints)),
 	}
 
@@ -135,8 +133,6 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 		res.DebugInfoComputation[i] = entry
 	}
-
-	// offset ids in the debugInfoAssertion
 	for i := 0; i < len(cs.debugInfoAssertion); i++ {
 		entry := compiled.LogEntry{
 			Format: cs.debugInfoAssertion[i].format,
@@ -150,7 +146,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			entry.ToResolve = append(entry.ToResolve, newID)
 		}
 
-		res.DebugInfoAssertion[i] = entry
+		res.DebugInfoComputation[i+len(cs.debugInfoComputation)] = entry
 	}
 
 	switch curveID {
