@@ -46,10 +46,9 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 
 // Solve sets all the wires and returns the a, b, c vectors.
 // the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
-// witness: contains the input variables
 // a, b, c vectors: ab-c = hz
-// solution.values =  [publicWires | secretWires | internalWires ]
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
+// returns  [publicWires | secretWires | internalWires ]
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
 
 	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
@@ -64,7 +63,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	}
 
 	// keep track of wire that have a value
-	solution, err  := newSolution(nbWires, hintFunctions)
+	solution, err  := newSolution(nbWires, hintFunctions, cs.Coefficients)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +87,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
+	// TODO @gbotrel clean this
 	// this variable is used to navigate in the debugInfoComputation slice.
 	// It is incremented by one each time a division happens for solving a constraint.
 	var debugInfoComputationOffset uint
@@ -101,10 +101,14 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		debugInfoComputationOffset += cs.solveR1C(&cs.Constraints[i], &solution)
+		offset, err := cs.solveConstraint(cs.Constraints[i], &solution)
+		if err != nil {
+			return nil, err
+		}
+		debugInfoComputationOffset += offset
 
 		// compute values for the R1C (ie value * coeff)
-		a[i], b[i], c[i] = instantiateR1C(&cs.Constraints[i], cs, &solution)
+		a[i], b[i], c[i] = cs.instantiateR1C(cs.Constraints[i], &solution)
 
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
@@ -173,56 +177,39 @@ func (cs *R1CS) printLogs(solution *solution) {
 	}
 }
 
-// AddTerm returns res += (value * term.Coefficient)
-func (cs *R1CS) AddTerm(res *fr.Element, t compiled.Term, value fr.Element) *fr.Element {
+// mulByCoeff sets res = res * t.Coeff
+func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term)  {
 	cID := t.CoeffID()
 	switch cID {
 	case compiled.CoeffIdOne:
-		return res.Add(res, &value)
+		return
 	case compiled.CoeffIdMinusOne:
-		return res.Sub(res, &value)
+		res.Neg(res)
 	case compiled.CoeffIdZero:
-		return res
+		res.SetZero()
 	case compiled.CoeffIdTwo:
-		var buffer fr.Element
-		buffer.Double(&value)
-		return res.Add(res, &buffer)
+		res.Double(res)
 	default:
-		var buffer fr.Element
-		buffer.Mul(&cs.Coefficients[cID], &value)
-		return res.Add(res, &buffer)
-	}
-}
-
-// mulWireByCoeff returns into.Mul(into, term.Coefficient)
-func (cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
-	cID := t.CoeffID()
-	switch cID {
-	case compiled.CoeffIdOne:
-		return res
-	case compiled.CoeffIdMinusOne:
-		return res.Neg(res)
-	case compiled.CoeffIdZero:
-		return res.SetZero()
-	case compiled.CoeffIdTwo:
-		return res.Double(res)
-	default:
-		return res.Mul(res, &cs.Coefficients[cID])
+		res.Mul(res, &cs.Coefficients[cID])
 	}
 }
 
 // compute left, right, o part of a cs constraint
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
-func instantiateR1C(r *compiled.R1C, cs *R1CS, solution *solution) (a, b, c fr.Element) {
+func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.Element) {
+	var v fr.Element
 	for _, t := range r.L {
-		cs.AddTerm(&a, t, solution.values[t.VariableID()])
+		v = solution.computeTerm(t)
+		a.Add(&a, &v)
 	}
 	for _, t := range r.R {
-		cs.AddTerm(&b, t, solution.values[t.VariableID()])
+		v = solution.computeTerm(t)
+		b.Add(&b, &v)
 	}
 	for _, t := range r.O {
-		cs.AddTerm(&c, t, solution.values[t.VariableID()])
+		v = solution.computeTerm(t)
+		c.Add(&c, &v)
 	}
 	return
 }
@@ -237,7 +224,7 @@ func instantiateR1C(r *compiled.R1C, cs *R1CS, solution *solution) (a, b, c fr.E
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (cs *R1CS) solveR1C(r *compiled.R1C, solution *solution) uint {
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error) {
 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
@@ -249,40 +236,20 @@ func (cs *R1CS) solveR1C(r *compiled.R1C, solution *solution) uint {
 	var a, b, c fr.Element
 	var termToCompute compiled.Term
 
-	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) {
+	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
 		vID := t.VariableID()
 
 		// wire is already computed, we just accumulate in val
 		if solution.solved[vID] {
-			cs.AddTerm(val, t, solution.values[vID])
-			return
+			v := solution.computeTerm(t)
+			val.Add(val, &v)
+			return nil 
 		}
 
 		// first we check if this is a hint wire
 		if hID, ok := cs.mHints[vID];ok {
-			// compute hint value
-			hint := cs.Hints[hID]
-
-			// compute values for all inputs. 
-			inputs := make([]fr.Element, len(hint.Inputs))
-			for i:=0;i<len(hint.Inputs);i++ {
-				// input is a linear expression, we must compute the value
-				for j:=0; j < len(hint.Inputs[i]); j++ {
-					viID := hint.Inputs[i][j].VariableID()
-					if !solution.solved[viID] {
-						// TODO @gbotrel return error here
-						panic("input not instantiated for hint function")
-					}
-					cs.AddTerm(&inputs[i], hint.Inputs[i][j], solution.values[viID])
-				}
-			}
-
-			f, ok := solution.mHintsFunctions[hint.ID]
-			if !ok {
-				panic("missing hint function")
-			}
-			solution.set(vID, f(inputs))
-			return 
+			// TODO handle error 
+			return solution.solveHint(cs.Hints[hID], vID)
 		}
 
 		if loc != 0 {
@@ -290,25 +257,32 @@ func (cs *R1CS) solveR1C(r *compiled.R1C, solution *solution) uint {
 		}
 		termToCompute = t
 		loc = locValue
+		return nil 
 	}
 
 	for _, t := range r.L {
-		processTerm(t, &a, 1)
+		if err := processTerm(t, &a, 1); err != nil {
+			return 0, err
+		}
 	}
 
 	for _, t := range r.R {
-		processTerm(t, &b, 2)
+		if err := processTerm(t, &b, 2); err != nil {
+			return 0, err
+		}
 	}
 
 	for _, t := range r.O {
-		processTerm(t, &c, 3)
+		if err := processTerm(t, &c, 3); err != nil {
+			return 0, err
+		}
 	}
 
 	if loc == 0 {
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return 0
+		return 0, nil 
 	}
 
 	// we compute the wire value and instantiate it
@@ -322,59 +296,30 @@ func (cs *R1CS) solveR1C(r *compiled.R1C, solution *solution) uint {
 		if !b.IsZero() {
 			wire.Div(&c, &b).
 				Sub(&wire, &a)
-			cs.mulWireByCoeff(&wire, termToCompute)
+			cs.mulByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 2:
 		if !a.IsZero() {
 			wire.Div(&c, &a).
 				Sub(&wire, &b)
-			cs.mulWireByCoeff(&wire, termToCompute)
+			cs.mulByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 3:
 		wire.Mul(&a, &b).
 			Sub(&wire, &c)
-		cs.mulWireByCoeff(&wire, termToCompute)
+		cs.mulByCoeff(&wire, termToCompute)
 	}
 
 	solution.set(vID, wire)
 
-	return offset
+	return offset, nil 
 }
 
 
-// default hint functions
 
-func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
-	if len(inputs) != 1 {
-		panic("expected one input")
-	} 
-	var eOne big.Int 
-	eOne.SetUint64(1)
-	eOne.Sub(fr.Modulus(), &eOne)
-	v.Exp(inputs[0], &eOne)
-	one := fr.One()
-	v.Sub(&one, &v)
-	return v 
-}
-
-func ithBit(inputs []fr.Element) (v fr.Element) {
-	if len(inputs) != 2 {
-		panic("expected 2 inputs; inputs[0] == value, inputs[1] == bit position")
-	}
-	// TODO @gbotrel this is very inneficient; it adds ~256*2 multiplications to extract all bits of a value. 
-	inputs[0].FromMont()
-	inputs[1].FromMont()
-	if !inputs[1].IsUint64() {
-		panic("expected bit position to fit on one word")
-	}
-	v.SetUint64(inputs[0].Bit(inputs[1][0]))
-
-	return v 
-}
-
-
+// TODO @gbotrel clean logs and html
 
 // ToHTML returns an HTML human-readable representation of the constraint system
 func (cs *R1CS) ToHTML(w io.Writer) error {

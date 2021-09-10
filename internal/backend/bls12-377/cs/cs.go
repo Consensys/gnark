@@ -19,8 +19,10 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 )
@@ -30,16 +32,19 @@ var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
 
 type hintFunction func(input []fr.Element) fr.Element
 
+// solution represents elements needed to compute
+// a solution to a R1CS or SparseR1CS
 type solution struct {
-	values          []fr.Element
-	solved          []bool
-	nbSolved        int
-	mHintsFunctions map[hint.ID]hintFunction
+	values, coefficients []fr.Element
+	solved               []bool
+	nbSolved             int
+	mHintsFunctions      map[hint.ID]hintFunction
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function) (solution, error) {
+func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
 	s := solution{
 		values:          make([]fr.Element, nbWires),
+		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: make(map[hint.ID]hintFunction, len(hintFunctions)+2),
 	}
@@ -73,4 +78,97 @@ func (s *solution) set(id int, value fr.Element) {
 
 func (s *solution) isValid() bool {
 	return s.nbSolved == len(s.values)
+}
+
+// computeTerm computes coef*variable
+func (s *solution) computeTerm(t compiled.Term) fr.Element {
+	cID, vID, _ := t.Unpack()
+	if cID != 0 && !s.solved[vID] {
+		panic("computing a term with an unsolved wire")
+	}
+	switch cID {
+	case compiled.CoeffIdZero:
+		return fr.Element{}
+	case compiled.CoeffIdOne:
+		return s.values[vID]
+	case compiled.CoeffIdTwo:
+		var res fr.Element
+		res.Double(&s.values[vID])
+		return res
+	case compiled.CoeffIdMinusOne:
+		var res fr.Element
+		res.Neg(&s.values[vID])
+		return res
+	default:
+		var res fr.Element
+		res.Mul(&s.coefficients[cID], &s.values[vID])
+		return res
+	}
+}
+
+// solveHint compute solution.values[vID] using provided solver hint
+func (s *solution) solveHint(h compiled.Hint, vID int) error {
+	// compute values for all inputs.
+	inputs := make([]fr.Element, len(h.Inputs))
+
+	for i := 0; i < len(h.Inputs); i++ {
+		// input is a linear expression, we must compute the value
+		for j := 0; j < len(h.Inputs[i]); j++ {
+			ciID, viID, visibility := h.Inputs[i][j].Unpack()
+			if visibility == compiled.Virtual {
+				// we have a constant, just take the coefficient value
+				inputs[i].Add(&inputs[i], &s.coefficients[ciID])
+				continue
+			}
+			if !s.solved[viID] {
+				return errors.New("expected wire to be instantiated while evaluating hint")
+			}
+			v := s.computeTerm(h.Inputs[i][j])
+			inputs[i].Add(&inputs[i], &v)
+		}
+	}
+
+	f, ok := s.mHintsFunctions[h.ID]
+	if !ok {
+		return errors.New("missing hint function")
+	}
+	s.set(vID, f(inputs))
+	return nil
+}
+
+// default hint functions
+
+// powModulusMinusOne expects len(inputs) == 1
+// inputs[0] == a
+// returns m = a^(modulus-1) - 1
+func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 1 {
+		panic("expected one input")
+	}
+	var eOne big.Int
+	eOne.SetUint64(1)
+	eOne.Sub(fr.Modulus(), &eOne)
+	v.Exp(inputs[0], &eOne)
+	one := fr.One()
+	v.Sub(&one, &v)
+	return v
+}
+
+// ithBit expects len(inputs) == 2
+// inputs[0] == a
+// inputs[1] == n
+// returns bit number n of a
+func ithBit(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 2 {
+		panic("expected 2 inputs; inputs[0] == value, inputs[1] == bit position")
+	}
+	// TODO @gbotrel this is very inneficient; it adds ~256*2 multiplications to extract all bits of a value.
+	inputs[0].FromMont()
+	inputs[1].FromMont()
+	if !inputs[1].IsUint64() {
+		panic("expected bit position to fit on one word")
+	}
+	v.SetUint64(inputs[0].Bit(inputs[1][0]))
+
+	return v
 }

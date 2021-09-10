@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"math/big"
 	"math/bits"
 )
@@ -307,6 +308,26 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
+	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
+		cID := t.CoeffID()
+		switch cID {
+		case compiled.CoeffIdZero:
+			return
+		case compiled.CoeffIdOne:
+			res.Add(res, value)
+		case compiled.CoeffIdMinusOne:
+			res.Sub(res, value)
+		case compiled.CoeffIdTwo:
+			var buffer fr.Element
+			buffer.Double(value)
+			res.Add(res, &buffer)
+		default:
+			var buffer fr.Element
+			buffer.Mul(&r1cs.Coefficients[cID], value)
+			res.Add(res, &buffer)
+		}
+	}
+
 	// each constraint is in the form
 	// L * R == O
 	// L, R and O being linear expressions
@@ -316,13 +337,13 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
-			r1cs.AddTerm(&A[t.VariableID()], t, L)
+			accumulate(&A[t.VariableID()], t, &L)
 		}
 		for _, t := range c.R {
-			r1cs.AddTerm(&B[t.VariableID()], t, L)
+			accumulate(&B[t.VariableID()], t, &L)
 		}
 		for _, t := range c.O {
-			r1cs.AddTerm(&C[t.VariableID()], t, L)
+			accumulate(&C[t.VariableID()], t, &L)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))

@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"strings"
 	"text/template"
-	"errors"
 	
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -39,52 +38,6 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	return &cs 
 }
 
-func (cs *SparseR1CS) initHints() {
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
-	// deterministic, hence avoid maps in there.
-	cs.mHints = make(map[int]int, len(cs.Hints))
-	for i:=0; i <len(cs.Hints);i++ {
-		cs.mHints[cs.Hints[i].WireID] = i
-	}
-}
-
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *SparseR1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
-// GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (cs *SparseR1CS) GetNbCoefficients() int {
-	return len(cs.Coefficients)
-}
-
-// CurveID returns curve ID as defined in gnark-crypto (ecc.{{.Curve}})
-func (cs *SparseR1CS) CurveID() ecc.ID {
-	return ecc.{{.CurveID}}
-}
-
-// WriteTo encodes SparseR1CS into provided io.Writer using cbor
-func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
-	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	encoder := cbor.NewEncoder(&_w)
-
-	// encode our object
-	err := encoder.Encode(cs)
-	return _w.N, err
-}
-
-// ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
-func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
-	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
-	if err != nil {
-		return 0, err
-	}
-	decoder := dm.NewDecoder(r)
-	err = decoder.Decode(cs)
-	cs.initHints()
-	return int64(decoder.NumBytesRead()), err
-}
-
 
 // Solve sets all the wires.
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
@@ -107,7 +60,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
 
 	// keep track of wire that have a value
-	solution, err  := newSolution(nbVariables, hintFunctions)
+	solution, err  := newSolution(nbVariables, hintFunctions, cs.Coefficients)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +78,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	// defer log printing once all solution.values are computed
 	defer cs.printLogs(&solution)
 
+	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
 	for i:=0; i < len(coefficientsNegInv);i++ {
 		coefficientsNegInv[i].Neg(&coefficientsNegInv[i])
@@ -151,36 +105,6 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 }
 
 
-func (cs *SparseR1CS) solveHint(hID int, vID int, solution *solution) error {
-		h := cs.Hints[hID]
-
-		// compute values for all inputs. 
-		inputs := make([]fr.Element, len(h.Inputs))
-
-		for i:=0;i<len(h.Inputs);i++ {
-			// input is a linear expression, we must compute the value
-			for j:=0; j < len(h.Inputs[i]); j++ {
-				ciID , viID, visibility := h.Inputs[i][j].Unpack()
-				if visibility == compiled.Virtual {
-					// we have a constant, just take the coefficient value
-					inputs[i].Add(&inputs[i], &cs.Coefficients[ciID])
-					continue
-				}
-				if !solution.solved[viID] {
-					return errors.New("expected wire to be instantiated while evaluating hint")
-				}
-				v := cs.computeTerm(h.Inputs[i][j], solution)
-				inputs[i].Add(&inputs[i], &v)
-			}
-		}
-
-		f, ok := solution.mHintsFunctions[h.ID]
-		if !ok {
-			return  errors.New("missing hint function")
-		}
-		solution.set(vID, f(inputs))
-		return nil 
-}
 
 // computeHints computes wires associated with a hint function, if any
 // if there is no remaining wire to solve, returns -1
@@ -192,7 +116,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
 		if hID, ok := cs.mHints[lID]; ok {
-			if err := cs.solveHint(hID,lID, solution); err != nil {
+			if err := solution.solveHint(cs.Hints[hID],lID); err != nil {
 				return -1, err
 			}
 		} else {
@@ -204,7 +128,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !solution.solved[rID] {
 		// check if it's a hint
 		if hID, ok := cs.mHints[rID]; ok {
-			if err := cs.solveHint(hID,rID, solution); err != nil {
+			if err := solution.solveHint(cs.Hints[hID],rID); err != nil {
 				return -1, err
 			}
 		} else {
@@ -215,7 +139,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 	if (c.O.CoeffID() != 0) && !solution.solved[oID] {
 		// check if it's a hint
 		if hID, ok := cs.mHints[oID]; ok {
-			if err := cs.solveHint(hID,oID, solution); err != nil {
+			if err := solution.solveHint(cs.Hints[hID],oID); err != nil {
 				return -1, err
 			}
 		} else {
@@ -225,33 +149,10 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 	return r, nil 
 }
 
-// computeTerm computes coef*variable
-func (cs *SparseR1CS) computeTerm(t compiled.Term, solution *solution) fr.Element {
-	cID, vID, _ := t.Unpack()
-	switch cID {
-		case compiled.CoeffIdZero:
-			return fr.Element{}
-		case compiled.CoeffIdOne:
-			return solution.values[vID]
-		case compiled.CoeffIdTwo:
-			var res fr.Element
-			res.Double(&solution.values[vID])
-			return res 
-		case compiled.CoeffIdMinusOne:
-			var res fr.Element
-			res.Neg(&solution.values[vID])
-			return res
-		default:
-			var res fr.Element
-			res.Mul(&cs.Coefficients[cID], &solution.values[vID])
-			return res
-	}
-}
 
-// solveConstraint solves c with the help of the slices solution.solved
-// and solution.values. Those are used to find which variable remains to be solved,
-// and the way of solving it (binary or single value). Once the variable(s)
-// is solved, solution.values and solution.solved are updated.
+// solveConstraint solve any unsolved wire in given constraint and update the solution
+// a SparseR1C may have up to one unsolved wire (excluding hints)
+// if it doesn't, then this function returns and does nothing
 func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
 
 	lro, err := cs.computeHints(c, solution)
@@ -277,8 +178,8 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 		u2.Set(&cs.Coefficients[c.R.CoeffID()])
 		den.Mul(&u3, &solution.values[c.R.VariableID()]).Add(&den, &u1)
 
-		v1 = cs.computeTerm(c.R, solution)
-		v2 = cs.computeTerm(c.O, solution)
+		v1 = solution.computeTerm(c.R)
+		v2 = solution.computeTerm(c.O)
 		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
 
 		// TODO find a way to do lazy div (/ batch inversion)
@@ -291,10 +192,10 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 	var o fr.Element 
 	cID, vID, _ := c.O.Unpack()
 
-	l := cs.computeTerm(c.L, solution)
-	r := cs.computeTerm(c.R, solution)
-	m0 := cs.computeTerm(c.M[0], solution)
-	m1 := cs.computeTerm(c.M[1], solution)
+	l := solution.computeTerm(c.L)
+	r := solution.computeTerm(c.R)
+	m0 := solution.computeTerm(c.M[0])
+	m1 := solution.computeTerm(c.M[1])
 
 	// o = - ((m0 * m1) + l + r + c.K) / c.O
 	o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
@@ -314,11 +215,11 @@ func (cs *SparseR1CS) IsSolved(witness []fr.Element,  hintFunctions []hint.Funct
 
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) error {
-	l := cs.computeTerm(c.L, solution)
-	r := cs.computeTerm(c.R, solution)
-	m0 := cs.computeTerm(c.M[0], solution)
-	m1 := cs.computeTerm(c.M[1], solution)
-	o := cs.computeTerm(c.O, solution)
+	l := solution.computeTerm(c.L)
+	r := solution.computeTerm(c.R)
+	m0 := solution.computeTerm(c.M[0])
+	m1 := solution.computeTerm(c.M[1])
+	o := solution.computeTerm(c.O)
 
 	// l + r + (m0 * m1) + o + c.K == 0
 	var t fr.Element 
@@ -406,3 +307,50 @@ func toHTMLCoeff(cID int, coeffs []fr.Element) string {
 }
 
 
+
+
+func (cs *SparseR1CS) initHints() {
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
+	// deterministic, hence avoid maps in there.
+	cs.mHints = make(map[int]int, len(cs.Hints))
+	for i:=0; i <len(cs.Hints);i++ {
+		cs.mHints[cs.Hints[i].WireID] = i
+	}
+}
+
+// FrSize return fr.Limbs * 8, size in byte of a fr element
+func (cs *SparseR1CS) FrSize() int {
+	return fr.Limbs * 8
+}
+
+// GetNbCoefficients return the number of unique coefficients needed in the R1CS
+func (cs *SparseR1CS) GetNbCoefficients() int {
+	return len(cs.Coefficients)
+}
+
+// CurveID returns curve ID as defined in gnark-crypto (ecc.{{.Curve}})
+func (cs *SparseR1CS) CurveID() ecc.ID {
+	return ecc.{{.CurveID}}
+}
+
+// WriteTo encodes SparseR1CS into provided io.Writer using cbor
+func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
+	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
+	encoder := cbor.NewEncoder(&_w)
+
+	// encode our object
+	err := encoder.Encode(cs)
+	return _w.N, err
+}
+
+// ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
+func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
+	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	if err != nil {
+		return 0, err
+	}
+	decoder := dm.NewDecoder(r)
+	err = decoder.Decode(cs)
+	cs.initHints()
+	return int64(decoder.NumBytesRead()), err
+}
