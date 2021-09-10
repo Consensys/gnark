@@ -1,0 +1,46 @@
+import (
+    "math/big"
+
+    
+	{{ template "import_fr" . }}
+)
+
+
+// hintFunction signature hints functions must match
+type hintFunction func(input []fr.Element) fr.Element
+
+
+// powModulusMinusOne expects len(inputs) == 1
+// inputs[0] == a
+// returns m = a^(modulus-1) - 1
+func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 1 {
+		panic("expected one input")
+	} 
+	var eOne big.Int 
+	eOne.SetUint64(1)
+	eOne.Sub(fr.Modulus(), &eOne)
+	v.Exp(inputs[0], &eOne)
+	one := fr.One()
+	v.Sub(&one, &v)
+	return v 
+}
+
+// ithBit expects len(inputs) == 2
+// inputs[0] == a
+// inputs[1] == n
+// returns bit number n of a
+func ithBit(inputs []fr.Element) (v fr.Element) {
+	if len(inputs) != 2 {
+		panic("expected 2 inputs; inputs[0] == value, inputs[1] == bit position")
+	}
+	// TODO @gbotrel this is very inneficient; it adds ~256*2 multiplications to extract all bits of a value. 
+	inputs[0].FromMont()
+	inputs[1].FromMont()
+	if !inputs[1].IsUint64() {
+		panic("expected bit position to fit on one word")
+	}
+	v.SetUint64(inputs[0].Bit(inputs[1][0]))
+
+	return v 
+}
