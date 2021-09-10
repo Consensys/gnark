@@ -31,6 +31,8 @@ const R1CSTemplate = `
 	<span class="public">{{.NbPublicVariables}} public</span></br>
 	<span class="secret">{{.NbSecretVariables}} secret</span></br>
 	<span>{{$nbConstraints}} constraints (including {{$nbAssertions}} assertions)</span></br>
+  <p class="fw-bold">L * R == O</p>
+  <p class="fst-italic">-</p>
 </div>
 <table class="container table table-bordered">
   <thead>
@@ -88,7 +90,8 @@ const SparseR1CSTemplate = `
 	<span class="public">{{.NbPublicVariables}} public</span></br>
 	<span class="secret">{{.NbSecretVariables}} secret</span></br>
 	<span>{{$nbConstraints}} constraints (including {{$nbAssertions}} assertions)</span></br>
-	<p>L + R + M0*M1 + O + k == 0</p>
+	<p class="fw-bold">L + R + M0*M1 + O + k == 0</p>
+  <p class="fst-italic">all variable id are offseted by 1 to match R1CS</p>
 </div>
 
 <table class="container table table-bordered">

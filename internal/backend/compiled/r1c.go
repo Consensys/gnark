@@ -111,7 +111,8 @@ func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
 }
 
 func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
-	sbb.WriteRune('(')
+	sbb.WriteString(coeffs[t.CoeffID()].String())
+	sbb.WriteString("*")
 	switch t.VariableVisibility() {
 	case Internal:
 		sbb.WriteString("i")
@@ -126,9 +127,5 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 	default:
 		panic("not implemented")
 	}
-	sbb.WriteString(coeffs[t.CoeffID()].String())
-	sbb.WriteString("*")
 	sbb.WriteString(strconv.Itoa(t.VariableID()))
-	sbb.WriteRune(')')
-
 }

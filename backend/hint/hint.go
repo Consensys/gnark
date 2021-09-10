@@ -14,7 +14,7 @@ type Function struct {
 // UUID returns a unique ID for a hint function name
 func UUID(name string) ID {
 	h := fnv.New32a()
-	h.Write([]byte(name))
+	_, _ = h.Write([]byte(name))
 	return ID(h.Sum32())
 }
 

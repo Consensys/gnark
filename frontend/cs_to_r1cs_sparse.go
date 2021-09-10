@@ -39,9 +39,8 @@ type sparseR1CS struct {
 
 	ccs compiled.SparseR1CS
 
-	// cs_variable_id -> plonk_cs_variable_id (internal variables only)
-	mCStoCCS        []int
-	solvedVariables []bool
+	scsInternalVariables int
+	solvedVariables      []bool
 }
 
 func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
@@ -49,15 +48,17 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	res := sparseR1CS{
 		ConstraintSystem: cs,
 		ccs: compiled.SparseR1CS{
-			NbPublicVariables: len(cs.public.variables) - 1, // the ONE_WIRE is discarded as it is not used in PLONK
-			NbSecretVariables: len(cs.secret.variables),
-			Constraints:       make([]compiled.SparseR1C, 0, len(cs.constraints)),
-			Assertions:        make([]compiled.SparseR1C, 0, len(cs.assertions)),
-			Logs:              make([]compiled.LogEntry, len(cs.logs)),
-			Hints:             make([]compiled.Hint, len(cs.hints)),
+			NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded as it is not used in PLONK
+			NbSecretVariables:   len(cs.secret.variables),
+			NbInternalVariables: len(cs.internal.variables),
+			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)),
+			Assertions:          make([]compiled.SparseR1C, 0, len(cs.assertions)),
+			Logs:                make([]compiled.LogEntry, len(cs.logs)),
+			Hints:               make([]compiled.Hint, len(cs.hints)),
 		},
-		mCStoCCS:        make([]int, len(cs.internal.variables)),
-		solvedVariables: make([]bool, len(cs.internal.variables)),
+		solvedVariables: make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
+		// we start our internal variables counting after the ConstraintSystem index
+		scsInternalVariables: len(cs.internal.variables),
 	}
 
 	// note: verbose, but we offset the IDs of the wires where they appear, that is,
@@ -65,8 +66,9 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// since we don't use pointers but Terms (uint64), we need to potentially offset
 	// the same wireID multiple times.
 	copy(res.ccs.Hints, cs.hints)
+
 	for i := 0; i < len(cs.hints); i++ {
-		// res.solvedVariables[cs.hints[i].WireID] = true
+		res.solvedVariables[cs.hints[i].WireID] = true
 	}
 
 	// convert the constraints invidually
@@ -78,12 +80,9 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	}
 
 	// offset variable ID depeneding on visibility
-	shiftVID := func(oldID int, visibility compiled.Visibility, n bool) (int, error) {
+	shiftVID := func(oldID int, visibility compiled.Visibility) (int, error) {
 		switch visibility {
 		case compiled.Internal:
-			if n {
-				oldID = res.mCStoCCS[oldID]
-			}
 			return oldID + res.ccs.NbPublicVariables + res.ccs.NbSecretVariables, nil
 		case compiled.Public:
 			return oldID - 1, nil
@@ -98,7 +97,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 	}
 
-	offsetTermID := func(t *compiled.Term, n bool) error {
+	offsetTermID := func(t *compiled.Term) error {
 		if *t == 0 {
 			// in a PLONK constraint, not all terms are necessarily set,
 			// the terms which are not set are equal to zero. We just
@@ -115,7 +114,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			t.SetVariableVisibility(compiled.Virtual)
 			return nil
 		}
-		newID, err := shiftVID(vID, visibility, n)
+		newID, err := shiftVID(vID, visibility)
 		if err != nil {
 			return err
 		}
@@ -151,26 +150,22 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 
 		// offset each term in the constraint
-		if err := offsetTermID(&r1c.L, false); err != nil {
+		if err := offsetTermID(&r1c.L); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.R, false); err != nil {
+		if err := offsetTermID(&r1c.R); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.O, false); err != nil {
+		if err := offsetTermID(&r1c.O); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.M[0], false); err != nil {
+		if err := offsetTermID(&r1c.M[0]); err != nil {
 			return err
 		}
-		if err := offsetTermID(&r1c.M[1], false); err != nil {
+		if err := offsetTermID(&r1c.M[1]); err != nil {
 			return err
 		}
 		return nil
-	}
-
-	for i := 0; i < len(res.ccs.Constraints); i++ {
-		fmt.Println(res.ccs.Constraints[i].String(res.coeffs))
 	}
 
 	// offset the IDs of all constraints so that the variables are
@@ -194,7 +189,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 		for j := 0; j < len(cs.logs[i].toResolve); j++ {
 			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			newID, err := shiftVID(cID, cVisibility, true)
+			newID, err := shiftVID(cID, cVisibility)
 			if err != nil {
 				panic(err)
 			}
@@ -205,8 +200,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 
 	offsetLinearExpressionID := func(l compiled.LinearExpression) error {
 		for j := 0; j < len(l); j++ {
-			fmt.Println("lj cid", l[j].CoeffID(), l[j].VariableVisibility())
-			if err := offsetTermID(&l[j], true); err != nil {
+			if err := offsetTermID(&l[j]); err != nil {
 				return err
 			}
 		}
@@ -215,11 +209,10 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 
 	// we need to offset the ids in the hints
 	for i := 0; i < len(res.ccs.Hints); i++ {
-		newID, err := shiftVID(res.ccs.Hints[i].WireID, compiled.Internal, true)
+		newID, err := shiftVID(res.ccs.Hints[i].WireID, compiled.Internal)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("newID for hint with wireID", res.ccs.Hints[i].WireID, newID)
 		res.ccs.Hints[i].WireID = newID
 		for j := 0; j < len(res.ccs.Hints[i].Inputs); j++ {
 			if err := offsetLinearExpressionID(res.ccs.Hints[i].Inputs[j]); err != nil {
@@ -228,6 +221,8 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 
 	}
+
+	res.ccs.NbInternalVariables = res.scsInternalVariables
 
 	switch curveID {
 	case ecc.BLS12_377:
@@ -252,49 +247,27 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 // findUnsolvedVariable returns the variable to solve in the r1c. The variables
 // which are not internal are considered solve, otherwise the solvedVariables
 // slice hold the record of which variables have been solved.
-func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (pos int, id int) {
+func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (int, int) {
 	// find the variable to solve among L,R,O. pos=0,1,2 corresponds to left,right,o.
-	pos = -1
-	id = -1
 	for i := 0; i < len(r1c.L); i++ {
-		v := r1c.L[i].VariableVisibility()
-		if v != compiled.Internal {
-			continue
-		}
-		id = r1c.L[i].VariableID()
-		if !solvedVariables[id] {
-			pos = 0
-			break
+		_, vID, visibility := r1c.L[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[vID] {
+			return 0, vID
 		}
 	}
-	if pos == -1 {
-		for i := 0; i < len(r1c.R); i++ {
-			v := r1c.R[i].VariableVisibility()
-			if v != compiled.Internal {
-				continue
-			}
-			id = r1c.R[i].VariableID()
-			if !solvedVariables[id] {
-				pos = 1
-				break
-			}
+	for i := 0; i < len(r1c.R); i++ {
+		_, vID, visibility := r1c.R[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[vID] {
+			return 1, vID
 		}
 	}
-	if pos == -1 {
-		for i := 0; i < len(r1c.O); i++ {
-			v := r1c.O[i].VariableVisibility()
-			if v != compiled.Internal {
-				continue
-			}
-			id = r1c.O[i].VariableID()
-			if !solvedVariables[id] {
-				pos = 2
-				break
-			}
+	for i := 0; i < len(r1c.O); i++ {
+		_, vID, visibility := r1c.O[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[vID] {
+			return 2, vID
 		}
 	}
-
-	return pos, id
+	return -1, -1
 }
 
 // returns l with the term (id+coef) holding the id-th variable removed
@@ -338,33 +311,30 @@ func (scs *sparseR1CS) popConstantTerm(l compiled.LinearExpression) (compiled.Li
 	return l, big.Int{}
 }
 
-// change t's ID to scs.mCStoCCS[t.ID] to get the corresponding variable in the ccs,
-func (scs *sparseR1CS) getCorrespondingTerm(t compiled.Term) compiled.Term {
-
-	// if the variable is internal, we need the variable
-	// that corresponds in the ccs
-	if t.VariableVisibility() == compiled.Internal {
-		t.SetVariableID(scs.mCStoCCS[t.VariableID()])
-	}
-
-	// Otherwise, the variable's ID and visibility is the same
-	return t
-}
-
 // newTerm creates a new term =1*new_variable and
 // records it in the ccs.
 // if idCS is set, updates the mapping of the new variable with the cs one
 func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
-	cID := scs.coeffID(coeff)
-	vID := scs.ccs.NbInternalVariables
-	res := compiled.Pack(vID, cID, compiled.Internal)
-	scs.ccs.NbInternalVariables++
-
+	var vID int
 	if len(idCS) > 0 {
-		scs.mCStoCCS[idCS[0]] = vID
+		vID = idCS[0]
+	} else {
+		vID = scs.scsInternalVariables
+		scs.scsInternalVariables++
 	}
+	// each time we create a new term, we created and added a constraint
+	if vID >= len(scs.solvedVariables) {
+		if vID < cap(scs.solvedVariables) {
+			scs.solvedVariables = scs.solvedVariables[:vID+1]
+		} else {
+			newSlice := make([]bool, vID+1)
+			copy(newSlice, scs.solvedVariables)
+			scs.solvedVariables = newSlice
+		}
+	}
+	scs.solvedVariables[vID] = true
 
-	return res
+	return compiled.Pack(vID, scs.coeffID(coeff), compiled.Internal)
 }
 
 // addConstraint records a plonk constraint in the ccs
@@ -452,41 +422,40 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 // wn' = wn-1'+an-2wn-2
 // split returns a term that is equal to aiwi (it's 1xaiwi)
 // no side effects on le
-func (scs *sparseR1CS) split(acc compiled.Term, le compiled.LinearExpression) compiled.Term {
+func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compiled.Term {
 
 	// floor case
-	if len(le) == 0 {
-		return acc
+	if len(l) == 0 {
+		return a
 	}
 
 	// first call
-	if acc == 0 {
-		t := scs.getCorrespondingTerm(le[0])
-		return scs.split(t, le[1:])
+	if a == 0 {
+		return scs.split(l[0], l[1:])
 	}
 
 	// recursive case
-	r := scs.getCorrespondingTerm(le[0])
+	r := l[0]
 	o := scs.newTerm(bOne)
-	scs.addConstraint(compiled.SparseR1C{L: acc, R: r, O: o})
+	scs.addConstraint(compiled.SparseR1C{L: a, R: r, O: o})
 	o = scs.negate(o)
-	return scs.split(o, le[1:])
+	return scs.split(o, l[1:])
 
 }
 
 // r1cToSparseR1C splits a r1c constraint
 func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
-	fmt.Println(r1c.String(scs.coeffs))
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
 	if lro == -1 {
-		panic("r1c with no variable to solve?")
+		// this may happen if a constraint contained hint wires, that are marked as solved.
+		scs.splitR1C(r1c)
 		return // no variable to solve here.
 	}
 
-	o := r1c.O
 	l := r1c.L
 	r := r1c.R
+	o := r1c.O
 
 	// if the unsolved variable in not in o,
 	// ensure that it is in r1c.L
@@ -774,7 +743,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// toSolve*cR + l*cR + cL*cR-cO-o=0
 	f15 := func() {
 		ot := scs.split(0, o)
-
 		lt := scs.split(0, l)
 
 		cK.Mul(&cL, &cR)
@@ -846,7 +814,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		s |= 0b0001
 	}
 
-	// fmt.Printf("%d: %4b\n", idCS, s)
 	switch s {
 	case 0b0000:
 		// (toSolve + cL)*cR = cO
@@ -902,7 +869,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		f8()
 	}
 
-	scs.solvedVariables[idCS] = true
 }
 
 // splitR1C splits a r1c assertion (meaning that

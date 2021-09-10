@@ -45,7 +45,7 @@ type Circuit struct {
 func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 
 	// number of bits of exponent
-	const bitSize = 3
+	const bitSize = 2
 
 	// specify constraints
 	output := cs.Constant(1)
@@ -80,17 +80,14 @@ func main() {
 		fmt.Println(err)
 	}
 
-	r2, _ := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
-	err = r2.ToHTML(fSparseR1CS)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return
-
 	// building the circuit...
-	r1cs, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	r3, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
 	if err_r1cs != nil {
 		fmt.Println("circuit compilation error")
+	}
+	err = r3.ToHTML(fSparseR1CS)
+	if err != nil {
+		fmt.Println(err)
 	}
 
 	// create the necessary data for KZG.
@@ -98,7 +95,7 @@ func main() {
 	// has been ran before.
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
-	_r1cs := r1cs.(*cs.SparseR1CS)
+	_r1cs := r3.(*cs.SparseR1CS)
 	srs, err := plonk.NewSRS(_r1cs)
 	if err != nil {
 		panic(err)
@@ -110,23 +107,23 @@ func main() {
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
 		witness.X.Assign(2)
-		witness.E.Assign(3)
-		witness.Y.Assign(8)
+		witness.E.Assign(2)
+		witness.Y.Assign(4)
 
 		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(8)
+		publicWitness.Y.Assign(4)
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(r1cs, srs)
+		pk, vk, err := plonk.Setup(r3, srs)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, pk, &witness, nil)
+		proof, err := plonk.Prove(r3, pk, &witness, nil)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -138,7 +135,6 @@ func main() {
 			os.Exit(-1)
 		}
 	}
-
 	// Wrong data: the proof fails
 	{
 		// Witnesses instantiation. Witness is known only by the prover,
@@ -154,14 +150,14 @@ func main() {
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(r1cs, srs)
+		pk, vk, err := plonk.Setup(r3, srs)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
 
-		proof, err := plonk.Prove(r1cs, pk, &witness, nil)
+		proof, err := plonk.Prove(r3, pk, &witness, nil)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(-1)

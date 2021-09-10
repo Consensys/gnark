@@ -29,7 +29,7 @@ type R1CS struct {
 	compiled.R1CS
 	Coefficients    []fr.Element // R1C coefficients indexes point here
 	loggerOut io.Writer
-	MHints map[int]int // correspondance between hint wire ID and hint data struct
+	mHints map[int]int // correspondance between hint wire ID and hint data struct
 }
 
 // NewR1CS returns a new R1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -47,7 +47,7 @@ func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
 	// deterministic, hence avoid maps in there.
 	for i:=0; i <len(r.Hints);i++ {
-		r.MHints[r.Hints[i].WireID] = i
+		r.mHints[r.Hints[i].WireID] = i
 	}
 	return &r 
 }
@@ -199,6 +199,9 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 		}
 	}
 
+
+	// TODO @gbotrel ensure all wires are marked as "instantiated"
+
 	return nil
 }
 
@@ -317,7 +320,7 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		}
 
 		// first we check if this is a hint wire
-		if hID, ok := r1cs.MHints[vID];ok {
+		if hID, ok := r1cs.mHints[vID];ok {
 			// compute hint value
 			hint := r1cs.Hints[hID]
 
@@ -445,7 +448,15 @@ func (r1cs *R1CS) ToHTML(w io.Writer) error {
 		return err
 	}
 
-	return t.Execute(w, r1cs)
+	type data struct {
+		*R1CS
+		MHints map[int]int
+	}
+	d := data {
+		r1cs,
+		r1cs.mHints,
+	}
+	return t.Execute(w, &d)
 }
 
 func add(a, b int) int {
@@ -459,7 +470,7 @@ func sub(a, b int) int {
 func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
-		termToHTML(l[i], &sbb, coeffs, mHints)
+		termToHTML(l[i], &sbb, coeffs, mHints, false)
 		if i+1 < len(l) {
 			sbb.WriteString(" + ")
 		}
@@ -467,29 +478,28 @@ func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int
 	return sbb.String()
 }
 
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHints map[int]int) {
-	c := coeffs[t.CoeffID()]
-
-	var minusOne fr.Element
-	one := fr.One()
-	minusOne.Sub(&minusOne, &one)
-
-	if c.Equal(&one) {
+func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHints map[int]int, offset bool) {
+	tID := t.CoeffID()
+	if tID == compiled.CoeffIdOne {
 		// do nothing, just print the variable
-	} else if c.Equal(&minusOne) {
+	} else if tID == compiled.CoeffIdMinusOne {
 		// print neg sign
 		sbb.WriteString("<span class=\"coefficient\">-</span>")
+	} else if tID == compiled.CoeffIdZero {
+		sbb.WriteString("<span class=\"coefficient\">0</span>")
+		return 
 	} else {
 		sbb.WriteString("<span class=\"coefficient\">")
-		sbb.WriteString(c.String())
+		sbb.WriteString(coeffs[tID].String())
 		sbb.WriteString("</span>*")
 	}
 
+	vID := t.VariableID()
 	class := ""
 	switch t.VariableVisibility() {
 	case compiled.Internal:
 		class = "internal"
-		if _, ok := mHints[t.VariableID()]; ok {
+		if _, ok := mHints[vID]; ok {
 			class = "hint"
 		}
 	case compiled.Public:
@@ -503,6 +513,9 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHin
 	default:
 		panic("not implemented")
 	}
-	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, t.VariableID()))
+	if offset {
+		vID++ // for sparse R1CS, we offset to have same variable numbers as in R1CS
+	}
+	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, vID))
 
 }
