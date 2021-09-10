@@ -67,21 +67,19 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 // returns  [publicWires | secretWires | internalWires ]
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
 
-	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
+	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
+	solution, err := newSolution(nbWires, hintFunctions, cs.Coefficients)
+	if err != nil {
+		return make([]fr.Element, nbWires), err
 	}
 
-	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
+	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
+		return solution.values, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
+	}
 
 	// compute the wires and the a, b, c polynomials
 	if len(a) != int(cs.NbConstraints) || len(b) != int(cs.NbConstraints) || len(c) != int(cs.NbConstraints) {
-		return nil, errors.New("invalid input size: len(a, b, c) == cs.NbConstraints")
-	}
-
-	// keep track of wire that have a value
-	solution, err := newSolution(nbWires, hintFunctions, cs.Coefficients)
-	if err != nil {
-		return nil, err
+		return solution.values, errors.New("invalid input size: len(a, b, c) == cs.NbConstraints")
 	}
 
 	solution.solved[0] = true // ONE_WIRE
@@ -116,7 +114,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 		// solve the constraint, this will compute the missing wire of the gate
 		offset, err := cs.solveConstraint(cs.Constraints[i], &solution)
 		if err != nil {
-			return nil, err
+			return solution.values, err
 		}
 		debugInfoComputationOffset += offset
 
@@ -128,7 +126,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 		if !check.Equal(&c[i]) {
 			debugInfo := cs.DebugInfoComputation[debugInfoComputationOffset]
 			debugInfoStr := solution.logValue(debugInfo)
-			return nil, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
 

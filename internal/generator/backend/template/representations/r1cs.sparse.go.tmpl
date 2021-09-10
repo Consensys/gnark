@@ -241,8 +241,6 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 }
 
 
-
-
 // ToHTML returns an HTML human-readable representation of the constraint system
 func (cs *SparseR1CS) ToHTML(w io.Writer) error {
 	t, err := template.New("scs.html").Funcs(template.FuncMap{
