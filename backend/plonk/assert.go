@@ -143,19 +143,19 @@ func newKZGSrs(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 	// no randomness in the test SRS
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		size := uint64(len(tccs.Constraints) + tccs.NbPublicVariables)
 		return kzg_bn254.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12381.SparseR1CS:
-		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		size := uint64(len(tccs.Constraints) + tccs.NbPublicVariables)
 		return kzg_bls12381.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls12377.SparseR1CS:
-		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		size := uint64(len(tccs.Constraints) + tccs.NbPublicVariables)
 		return kzg_bls12377.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bw6761.SparseR1CS:
-		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		size := uint64(len(tccs.Constraints) + tccs.NbPublicVariables)
 		return kzg_bw6761.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	case *cs_bls24315.SparseR1CS:
-		size := uint64(len(tccs.Constraints) + len(tccs.Assertions) + tccs.NbPublicVariables)
+		size := uint64(len(tccs.Constraints) + tccs.NbPublicVariables)
 		return kzg_bls24315.NewSRS(ecc.NextPowerOfTwo(size)+3, fakeRandomness)
 	default:
 		panic("unknown constraint system type")

@@ -28,9 +28,10 @@ type SparseR1CS struct {
 	NbPublicVariables   int
 	NbSecretVariables   int
 
-	// Constraints
-	Constraints []SparseR1C // list of PLONK constraints that yield an output (for example v3 == v1 * v2, return v3)
-	Assertions  []SparseR1C // list of PLONK constraints that yield no output (for example ensuring v1 == v2)
+	// Constraints contains an ordered list of SparseR1C
+	// the solver will iterate through them and is guaranteed that there will be at most one
+	// unsolved wire per constraint
+	Constraints []SparseR1C
 
 	// Logs (e.g. variables that have been printed using cs.Println)
 	Logs []LogEntry
@@ -49,7 +50,7 @@ func (cs *SparseR1CS) GetNbVariables() (internal, secret, public int) {
 
 // GetNbConstraints returns the number of constraints
 func (cs *SparseR1CS) GetNbConstraints() int {
-	return len(cs.Constraints) + len(cs.Assertions)
+	return len(cs.Constraints)
 }
 
 // GetNbWires returns the number of wires (internal)

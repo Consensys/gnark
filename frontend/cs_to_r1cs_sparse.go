@@ -51,8 +51,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded as it is not used in PLONK
 			NbSecretVariables:   len(cs.secret.variables),
 			NbInternalVariables: len(cs.internal.variables),
-			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)),
-			Assertions:          make([]compiled.SparseR1C, 0, len(cs.assertions)),
+			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)+len(cs.assertions)),
 			Logs:                make([]compiled.LogEntry, len(cs.logs)),
 			Hints:               make([]compiled.Hint, len(cs.hints)),
 		},
@@ -172,11 +171,6 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// numbered like this: [publicVariables| secretVariables | internalVariables ]
 	for i := 0; i < len(res.ccs.Constraints); i++ {
 		if err := offsetR1CID(&res.ccs.Constraints[i]); err != nil {
-			return nil, err
-		}
-	}
-	for i := 0; i < len(res.ccs.Assertions); i++ {
-		if err := offsetR1CID(&res.ccs.Assertions[i]); err != nil {
 			return nil, err
 		}
 	}
@@ -323,6 +317,9 @@ func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
 		scs.scsInternalVariables++
 	}
 	// each time we create a new term, we created and added a constraint
+	// and as we allow only one unsolved wire per constraint
+	// we can mark it as solved such that if it appears in following constraints
+	// we don't consider it "unsolved"
 	if vID >= len(scs.solvedVariables) {
 		if vID < cap(scs.solvedVariables) {
 			scs.solvedVariables = scs.solvedVariables[:vID+1]
@@ -356,11 +353,6 @@ func (scs *sparseR1CS) addConstraint(c compiled.SparseR1C) {
 		c.M[1].SetVariableID(c.R.VariableID())
 	}
 	scs.ccs.Constraints = append(scs.ccs.Constraints, c)
-}
-
-// recordAssertion records a plonk constraint (assertion) in the ccs
-func (scs *sparseR1CS) recordAssertion(c compiled.SparseR1C) {
-	scs.ccs.Assertions = append(scs.ccs.Assertions, c)
 }
 
 // if t=a*variable, it returns -a*variable
@@ -449,6 +441,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
 	if lro == -1 {
 		// this may happen if a constraint contained hint wires, that are marked as solved.
+		// or if we r1c is an assertion (ie it does not yield any output)
 		scs.splitR1C(r1c)
 		return // no variable to solve here.
 	}
@@ -896,7 +889,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK)})
+				scs.addConstraint(compiled.SparseR1C{K: scs.coeffID(&cK)})
 
 			} else { // cL*(r + cR) = cO
 
@@ -906,7 +899,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{R: cosntlrt, K: scs.coeffID(&cK)})
+				scs.addConstraint(compiled.SparseR1C{R: cosntlrt, K: scs.coeffID(&cK)})
 			}
 
 		} else {
@@ -918,7 +911,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{L: cRLT, K: scs.coeffID(&cK)})
+				scs.addConstraint(compiled.SparseR1C{L: cRLT, K: scs.coeffID(&cK)})
 
 			} else { // (l + cL)*(r + cR) = cO
 
@@ -930,7 +923,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{
+				scs.addConstraint(compiled.SparseR1C{
 					L: cRLT,
 					R: cRT,
 					M: [2]compiled.Term{lt, rt},
@@ -949,7 +942,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{K: scs.coeffID(&cK), O: scs.negate(ot)})
+				scs.addConstraint(compiled.SparseR1C{K: scs.coeffID(&cK), O: scs.negate(ot)})
 
 			} else { // cL * (r + cR) = o + cO
 
@@ -960,7 +953,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{
+				scs.addConstraint(compiled.SparseR1C{
 					R: cRT,
 					K: scs.coeffID(&cK),
 					O: scs.negate(ot),
@@ -977,7 +970,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
 
-				scs.recordAssertion(compiled.SparseR1C{
+				scs.addConstraint(compiled.SparseR1C{
 					L: cRLT,
 					K: scs.coeffID(&cK),
 					O: scs.negate(ot),

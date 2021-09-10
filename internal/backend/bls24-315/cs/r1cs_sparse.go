@@ -364,13 +364,6 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		}
 	}
 
-	// loop through the assertions and check consistency
-	for i := 0; i < len(cs.Assertions); i++ {
-		if err := cs.checkConstraint(cs.Assertions[i], solution); err != nil {
-			return nil, fmt.Errorf("assertion %d: %w", i, err)
-		}
-	}
-
 	// TODO @gbotrel ensure all wires are marked as "instantiated"
 
 	return solution, nil

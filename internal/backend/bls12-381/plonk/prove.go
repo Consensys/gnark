@@ -476,12 +476,7 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 		o[offset+i] = solution[spr.Constraints[i].O.VariableID()]
 	}
 	offset += len(spr.Constraints)
-	for i := 0; i < len(spr.Assertions); i++ { // assertions
-		l[offset+i] = solution[spr.Assertions[i].L.VariableID()]
-		r[offset+i] = solution[spr.Assertions[i].R.VariableID()]
-		o[offset+i] = solution[spr.Assertions[i].O.VariableID()]
-	}
-	offset += len(spr.Assertions)
+
 	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
 		l[offset+i] = s0
 		r[offset+i] = s0
