@@ -97,7 +97,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer cs.printLogs(&solution)
+	defer solution.printLogs(cs.loggerOut, cs.Logs)
 
 	// check if there is an inconsistant constraint
 	var check fr.Element
@@ -127,7 +127,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
 			debugInfo := cs.DebugInfoComputation[debugInfoComputationOffset]
-			debugInfoStr := cs.logValue(debugInfo, &solution)
+			debugInfoStr := solution.logValue(debugInfo)
 			return nil, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
@@ -156,32 +156,6 @@ func (cs *R1CS) initHints() {
 	cs.mHints = make(map[int]int, len(cs.Hints))
 	for i := 0; i < len(cs.Hints); i++ {
 		cs.mHints[cs.Hints[i].WireID] = i
-	}
-}
-
-func (cs *R1CS) logValue(entry compiled.LogEntry, solution *solution) string {
-	var toResolve []interface{}
-	for j := 0; j < len(entry.ToResolve); j++ {
-		wireID := entry.ToResolve[j]
-		if !solution.solved[wireID] {
-			toResolve = append(toResolve, "???")
-		} else {
-			toResolve = append(toResolve, solution.values[wireID].String())
-		}
-	}
-	return fmt.Sprintf(entry.Format, toResolve...)
-}
-
-func (cs *R1CS) printLogs(solution *solution) {
-
-	// for each log, resolve the wire values and print the log to stdout
-	for i := 0; i < len(cs.Logs); i++ {
-		logLine := cs.logValue(cs.Logs[i], solution)
-		if cs.loggerOut != nil {
-			if _, err := io.WriteString(cs.loggerOut, logLine); err != nil {
-				fmt.Println("error", err.Error())
-			}
-		}
 	}
 }
 

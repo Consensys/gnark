@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"strings"
 	"text/template"
+	"os"
 	
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -76,7 +77,8 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	solution.nbSolved += len(witness) 
 
 	// defer log printing once all solution.values are computed
-	defer cs.printLogs(&solution)
+	// TODO @gbotrel replace stdout by writer set by user, same as in R1CS
+	defer solution.printLogs(os.Stdout, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
@@ -236,28 +238,6 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 	}
 	return nil 
 
-}
-
-
-
-func logValue(entry compiled.LogEntry, solution *solution) string {
-	var toResolve []interface{}
-	for j := 0; j < len(entry.ToResolve); j++ {
-		wireID := entry.ToResolve[j]
-		if !solution.solved[wireID] {
-			panic("wire values was not instantiated")
-		}
-		toResolve = append(toResolve, solution.values[wireID].String())
-	}
-	return fmt.Sprintf(entry.Format, toResolve...)
-}
-
-func (cs *SparseR1CS) printLogs(solution *solution) {
-
-	// for each log, resolve the wire values and print the log to stdout
-	for i := 0; i < len(cs.Logs); i++ {
-		fmt.Print(logValue(cs.Logs[i], solution))
-	}
 }
 
 

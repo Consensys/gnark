@@ -19,6 +19,7 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -131,4 +132,28 @@ func (s *solution) solveHint(h compiled.Hint, vID int) error {
 	}
 	s.set(vID, f(inputs))
 	return nil
+}
+
+func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
+	if w == nil {
+		return
+	}
+
+	for i := 0; i < len(logs); i++ {
+		logLine := s.logValue(logs[i])
+		_, _ = io.WriteString(w, logLine)
+	}
+}
+
+func (s *solution) logValue(log compiled.LogEntry) string {
+	var toResolve []interface{}
+	for j := 0; j < len(log.ToResolve); j++ {
+		vID := log.ToResolve[j]
+		if !s.solved[vID] {
+			toResolve = append(toResolve, "???")
+		} else {
+			toResolve = append(toResolve, s.values[vID].String())
+		}
+	}
+	return fmt.Sprintf(log.Format, toResolve...)
 }
