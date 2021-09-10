@@ -59,7 +59,6 @@ type ConstraintSystem struct {
 	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
 	debugInfoComputation []logEntry // list of logs storing information about computations (e.g. division by 0).If an computation fails, it prints it in a friendly format
 	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
-	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
 }
 

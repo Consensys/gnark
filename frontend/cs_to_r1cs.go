@@ -1,8 +1,6 @@
 package frontend
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
@@ -50,7 +48,7 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		case compiled.Secret:
 			return oldID + len(cs.public.variables), nil
 		case compiled.Unset:
-			return -1, fmt.Errorf("%w: %s", ErrInputNotSet, cs.unsetVariables[0].format)
+			return -1, ErrInputNotSet
 		// note; we should not have to shift compiled.Virtual variable, since they are not in the resulting
 		// compiled constraint system
 		default:
