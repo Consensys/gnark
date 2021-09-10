@@ -35,20 +35,16 @@ type R1CS struct {
 // NewR1CS returns a new R1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
 func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	r := R1CS{
-		r1cs,
-		make([]fr.Element, len(coefficients)),
-		os.Stdout,
-		make(map[int]int, len(r1cs.Hints)),
+		R1CS: r1cs,
+		Coefficients: make([]fr.Element, len(coefficients)),
+		loggerOut: os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		r.Coefficients[i].SetBigInt(&coefficients[i])
 	}
 
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
-	// deterministic, hence avoid maps in there.
-	for i:=0; i <len(r.Hints);i++ {
-		r.mHints[r.Hints[i].WireID] = i
-	}
+	r.initHints()
+
 	return &r 
 }
 
@@ -81,8 +77,11 @@ func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	encoder := cbor.NewEncoder(&_w)
 
 	// encode our object
-	err := encoder.Encode(r1cs)
-	return _w.N, err
+	if err := encoder.Encode(r1cs); err != nil {
+		return _w.N, err
+	}
+
+	return _w.N, nil
 }
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
@@ -92,8 +91,24 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
-	err = decoder.Decode(r1cs)
-	return int64(decoder.NumBytesRead()), err
+	if err := decoder.Decode(&r1cs); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
+	// init the hint map 
+	r1cs.initHints()
+
+
+	return int64(decoder.NumBytesRead()), nil
+}
+
+func (r1cs *R1CS) initHints() {
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
+	// deterministic, hence avoid maps in there.
+	r1cs.mHints = make(map[int]int, len(r1cs.Hints))
+	for i:=0; i <len(r1cs.Hints);i++ {
+		r1cs.mHints[r1cs.Hints[i].WireID] = i
+	}
 }
 
 
@@ -519,3 +534,4 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHin
 	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, vID))
 
 }
+
