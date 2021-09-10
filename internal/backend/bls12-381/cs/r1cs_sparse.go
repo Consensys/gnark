@@ -103,210 +103,11 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), err
 }
 
-func (cs *SparseR1CS) solveHint(hID int, vID int, wireInstantiated []bool, solution []fr.Element, mHintsFunctions map[hint.ID]hintFunction) error {
-	h := cs.Hints[hID]
-
-	// compute values for all inputs.
-	inputs := make([]fr.Element, len(h.Inputs))
-
-	for i := 0; i < len(h.Inputs); i++ {
-		// input is a linear expression, we must compute the value
-		for j := 0; j < len(h.Inputs[i]); j++ {
-			ciID, viID, visibility := h.Inputs[i][j].Unpack()
-			if visibility == compiled.Virtual {
-				// we have a constant, just take the coefficient value
-				inputs[i].Add(&inputs[i], &cs.Coefficients[ciID])
-				continue
-			}
-			if !wireInstantiated[viID] {
-				return errors.New("expected wire to be instantiated while evaluating hint")
-			}
-			v := cs.computeTerm(h.Inputs[i][j], solution)
-			inputs[i].Add(&inputs[i], &v)
-		}
-	}
-
-	f, ok := mHintsFunctions[h.ID]
-	if !ok {
-		return errors.New("missing hint function")
-	}
-	solution[vID] = f(inputs)
-	wireInstantiated[vID] = true
-	return nil
-}
-
-// computeHints computes wires associated with a hint function, if any
-// if there is no remaining wire to solve, returns -1
-// else returns the wire position (L -> 0, R -> 1, O -> 2)
-func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, wireInstantiated []bool, solution []fr.Element, mHintsFunctions map[hint.ID]hintFunction) (int, error) {
-	r := -1
-	lID, rID, oID := c.L.VariableID(), c.R.VariableID(), c.O.VariableID()
-
-	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !wireInstantiated[lID] {
-		// check if it's a hint
-		if hID, ok := cs.mHints[lID]; ok {
-			if err := cs.solveHint(hID, lID, wireInstantiated, solution, mHintsFunctions); err != nil {
-				return -1, err
-			}
-		} else {
-			r = 0
-		}
-
-	}
-
-	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !wireInstantiated[rID] {
-		// check if it's a hint
-		if hID, ok := cs.mHints[rID]; ok {
-			if err := cs.solveHint(hID, rID, wireInstantiated, solution, mHintsFunctions); err != nil {
-				return -1, err
-			}
-		} else {
-			r = 1
-		}
-	}
-
-	if (c.O.CoeffID() != 0) && !wireInstantiated[oID] {
-		// check if it's a hint
-		if hID, ok := cs.mHints[oID]; ok {
-			if err := cs.solveHint(hID, oID, wireInstantiated, solution, mHintsFunctions); err != nil {
-				return -1, err
-			}
-		} else {
-			r = 2
-		}
-	}
-	return r, nil
-}
-
-// computeTerm computes coef*variable
-func (cs *SparseR1CS) computeTerm(t compiled.Term, solution []fr.Element) fr.Element {
-	cID, vID, _ := t.Unpack()
-	switch cID {
-	case compiled.CoeffIdZero:
-		return fr.Element{}
-	case compiled.CoeffIdOne:
-		return solution[vID]
-	case compiled.CoeffIdTwo:
-		var res fr.Element
-		res.Double(&solution[vID])
-		return res
-	case compiled.CoeffIdMinusOne:
-		var res fr.Element
-		res.Neg(&solution[vID])
-		return res
-	default:
-		var res fr.Element
-		res.Mul(&cs.Coefficients[cID], &solution[vID])
-		return res
-	}
-}
-
-// solveConstraint solves c with the help of the slices wireInstantiated
-// and solution. Those are used to find which variable remains to be solved,
-// and the way of solving it (binary or single value). Once the variable(s)
-// is solved, solution and wireInstantiated are updated.
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, solution, coefficientsNegInv []fr.Element, mHintsFunctions map[hint.ID]hintFunction) error {
-
-	lro, err := cs.computeHints(c, wireInstantiated, solution, mHintsFunctions)
-	if err != nil {
-		return err
-	}
-	if lro == -1 {
-		// no unsolved wire
-		// can happen if the constraint contained only hint wires.
-		return nil
-	}
-
-	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-
-		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
-		u1.Set(&cs.Coefficients[c.L.CoeffID()])
-		u2.Set(&cs.Coefficients[c.R.CoeffID()])
-		den.Mul(&u3, &solution[c.R.VariableID()]).Add(&den, &u1)
-
-		v1 = cs.computeTerm(c.R, solution)
-		v2 = cs.computeTerm(c.O, solution)
-		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
-
-		// TODO find a way to do lazy div (/ batch inversion)
-		solution[c.L.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
-		wireInstantiated[c.L.VariableID()] = true
-
-	} else if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
-
-		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Mul(&cs.Coefficients[c.M[0].VariableID()], &cs.Coefficients[c.M[1].VariableID()])
-		u1.Set(&cs.Coefficients[c.L.CoeffID()])
-		u2.Set(&cs.Coefficients[c.R.CoeffID()])
-		den.Mul(&u3, &solution[c.L.VariableID()]).Add(&den, &u2)
-
-		v1 = cs.computeTerm(c.L, solution)
-		v2 = cs.computeTerm(c.O, solution)
-		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
-
-		// TODO find a way to do lazy div (/ batch inversion)
-		// TODO FIXME solve on R seems better here :-)
-		solution[c.R.VariableID()].Div(&num, &den).Neg(&solution[c.L.VariableID()])
-		wireInstantiated[c.R.VariableID()] = true
-
-	} else { // O we solve for O
-		var o fr.Element
-		cID, vID, _ := c.O.Unpack()
-
-		l := cs.computeTerm(c.L, solution)
-		r := cs.computeTerm(c.R, solution)
-		m0 := cs.computeTerm(c.M[0], solution)
-		m1 := cs.computeTerm(c.M[1], solution)
-
-		// o = - ((m0 * m1) + l + r + c.K) / c.O
-		o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
-		o.Mul(&o, &coefficientsNegInv[cID])
-
-		solution[vID] = o
-		wireInstantiated[vID] = true
-	}
-
-	return nil
-}
-
-// IsSolved returns nil if given witness solves the R1CS and error otherwise
-// this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
-	_, err := cs.Solve(witness, hintFunctions)
-	return err
-}
-
-// checkConstraint verifies that the constraint holds
-func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution []fr.Element) error {
-	l := cs.computeTerm(c.L, solution)
-	r := cs.computeTerm(c.R, solution)
-	m0 := cs.computeTerm(c.M[0], solution)
-	m1 := cs.computeTerm(c.M[1], solution)
-	o := cs.computeTerm(c.O, solution)
-
-	// l + r + (m0 * m1) + o + c.K == 0
-	var t fr.Element
-	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
-	if !t.IsZero() {
-		return fmt.Errorf("%w\n%s + %s + (%s * %s) + %s + %s != 0", ErrUnsatisfiedConstraint,
-			l.String(),
-			r.String(),
-			m0.String(),
-			m1.String(),
-			o.String(),
-			cs.Coefficients[c.K].String(),
-		)
-	}
-	return nil
-
-}
-
 // Solve sets all the wires.
 // wireValues =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (solution []fr.Element, err error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (wireValues []fr.Element, err error) {
 
 	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
 	if len(witness) != expectedWitnessSize {
@@ -319,19 +120,19 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		)
 	}
 
-	// set the slices holding the solution and monitoring which variables have been solved
+	// set the slices holding the wireValues and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
-	solution = make([]fr.Element, nbVariables)
+	wireValues = make([]fr.Element, nbVariables)
 	wireInstantiated := make([]bool, nbVariables)
 
-	// solution = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
-	copy(solution, witness)
+	// wireValues = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
+	copy(wireValues, witness)
 	for i := 0; i < len(witness); i++ {
 		wireInstantiated[i] = true
 	}
 
 	// defer log printing once all wireValues are computed
-	defer cs.printLogs(solution, wireInstantiated)
+	defer cs.printLogs(wireValues, wireInstantiated)
 
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
 	for i := 0; i < len(coefficientsNegInv); i++ {
@@ -354,19 +155,213 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		mHintsFunctions[hintFunctions[i].ID] = f
 	}
 
+	// keep track of the number of wire instantiations we do, for a sanity check to ensure
+	// we instantiated all wires
+	var nbInstantiations int
+	nbInstantiations += len(witness)
+
 	// loop through the constraints to solve the variables
 	for i := 0; i < len(cs.Constraints); i++ {
-		if err := cs.solveConstraint(cs.Constraints[i], wireInstantiated, solution, coefficientsNegInv, mHintsFunctions); err != nil {
+		if err := cs.solveConstraint(cs.Constraints[i], wireInstantiated, wireValues, coefficientsNegInv, mHintsFunctions, &nbInstantiations); err != nil {
 			return nil, fmt.Errorf("constraint %d: %w", i, err)
 		}
-		if err := cs.checkConstraint(cs.Constraints[i], solution); err != nil {
+		if err := cs.checkConstraint(cs.Constraints[i], wireValues); err != nil {
 			return nil, fmt.Errorf("constraint %d: %w", i, err)
 		}
 	}
 
-	// TODO @gbotrel ensure all wires are marked as "instantiated"
+	// sanity check; ensure all wires are marked as "instantiated"
+	if nbInstantiations != len(wireValues) {
+		panic("solver didn't instantiate all wires")
+	}
 
-	return solution, nil
+	return wireValues, nil
+
+}
+
+func (cs *SparseR1CS) solveHint(hID int, vID int, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, nbInstantiations *int) error {
+	h := cs.Hints[hID]
+
+	// compute values for all inputs.
+	inputs := make([]fr.Element, len(h.Inputs))
+
+	for i := 0; i < len(h.Inputs); i++ {
+		// input is a linear expression, we must compute the value
+		for j := 0; j < len(h.Inputs[i]); j++ {
+			ciID, viID, visibility := h.Inputs[i][j].Unpack()
+			if visibility == compiled.Virtual {
+				// we have a constant, just take the coefficient value
+				inputs[i].Add(&inputs[i], &cs.Coefficients[ciID])
+				continue
+			}
+			if !wireInstantiated[viID] {
+				return errors.New("expected wire to be instantiated while evaluating hint")
+			}
+			v := cs.computeTerm(h.Inputs[i][j], wireValues)
+			inputs[i].Add(&inputs[i], &v)
+		}
+	}
+
+	f, ok := mHintsFunctions[h.ID]
+	if !ok {
+		return errors.New("missing hint function")
+	}
+	setWireValue(vID, f(inputs), wireInstantiated, wireValues, nbInstantiations)
+	return nil
+}
+
+// computeHints computes wires associated with a hint function, if any
+// if there is no remaining wire to solve, returns -1
+// else returns the wire position (L -> 0, R -> 1, O -> 2)
+func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, nbInstantiations *int) (int, error) {
+	r := -1
+	lID, rID, oID := c.L.VariableID(), c.R.VariableID(), c.O.VariableID()
+
+	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !wireInstantiated[lID] {
+		// check if it's a hint
+		if hID, ok := cs.mHints[lID]; ok {
+			if err := cs.solveHint(hID, lID, wireInstantiated, wireValues, mHintsFunctions, nbInstantiations); err != nil {
+				return -1, err
+			}
+		} else {
+			r = 0
+		}
+
+	}
+
+	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !wireInstantiated[rID] {
+		// check if it's a hint
+		if hID, ok := cs.mHints[rID]; ok {
+			if err := cs.solveHint(hID, rID, wireInstantiated, wireValues, mHintsFunctions, nbInstantiations); err != nil {
+				return -1, err
+			}
+		} else {
+			r = 1
+		}
+	}
+
+	if (c.O.CoeffID() != 0) && !wireInstantiated[oID] {
+		// check if it's a hint
+		if hID, ok := cs.mHints[oID]; ok {
+			if err := cs.solveHint(hID, oID, wireInstantiated, wireValues, mHintsFunctions, nbInstantiations); err != nil {
+				return -1, err
+			}
+		} else {
+			r = 2
+		}
+	}
+	return r, nil
+}
+
+// computeTerm computes coef*variable
+func (cs *SparseR1CS) computeTerm(t compiled.Term, wireValues []fr.Element) fr.Element {
+	cID, vID, _ := t.Unpack()
+	switch cID {
+	case compiled.CoeffIdZero:
+		return fr.Element{}
+	case compiled.CoeffIdOne:
+		return wireValues[vID]
+	case compiled.CoeffIdTwo:
+		var res fr.Element
+		res.Double(&wireValues[vID])
+		return res
+	case compiled.CoeffIdMinusOne:
+		var res fr.Element
+		res.Neg(&wireValues[vID])
+		return res
+	default:
+		var res fr.Element
+		res.Mul(&cs.Coefficients[cID], &wireValues[vID])
+		return res
+	}
+}
+
+// solveConstraint solves c with the help of the slices wireInstantiated
+// and wireValues. Those are used to find which variable remains to be solved,
+// and the way of solving it (binary or single value). Once the variable(s)
+// is solved, wireValues and wireInstantiated are updated.
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, wireInstantiated []bool, wireValues, coefficientsNegInv []fr.Element, mHintsFunctions map[hint.ID]hintFunction, nbInstantiations *int) error {
+
+	lro, err := cs.computeHints(c, wireInstantiated, wireValues, mHintsFunctions, nbInstantiations)
+	if err != nil {
+		return err
+	}
+	if lro == -1 {
+		// no unsolved wire
+		// can happen if the constraint contained only hint wires.
+		return nil
+	}
+	if lro == 1 {
+		panic("unsolved wire in R; shouldn't happen as frontend puts unsolved wire in L")
+	}
+
+	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
+		if !wireInstantiated[c.R.VariableID()] {
+			panic("R wire should be instantiated when we solve L")
+		}
+		var u1, u2, u3, den, num, v1, v2 fr.Element
+		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
+		u1.Set(&cs.Coefficients[c.L.CoeffID()])
+		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		den.Mul(&u3, &wireValues[c.R.VariableID()]).Add(&den, &u1)
+
+		v1 = cs.computeTerm(c.R, wireValues)
+		v2 = cs.computeTerm(c.O, wireValues)
+		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
+
+		// TODO find a way to do lazy div (/ batch inversion)
+		num.Div(&num, &den).Neg(&num)
+		setWireValue(c.L.VariableID(), num, wireInstantiated, wireValues, nbInstantiations)
+		return nil
+
+	}
+	// O we solve for O
+	var o fr.Element
+	cID, vID, _ := c.O.Unpack()
+
+	l := cs.computeTerm(c.L, wireValues)
+	r := cs.computeTerm(c.R, wireValues)
+	m0 := cs.computeTerm(c.M[0], wireValues)
+	m1 := cs.computeTerm(c.M[1], wireValues)
+
+	// o = - ((m0 * m1) + l + r + c.K) / c.O
+	o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
+	o.Mul(&o, &coefficientsNegInv[cID])
+
+	setWireValue(vID, o, wireInstantiated, wireValues, nbInstantiations)
+
+	return nil
+}
+
+// IsSolved returns nil if given witness solves the R1CS and error otherwise
+// this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
+func (cs *SparseR1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
+	_, err := cs.Solve(witness, hintFunctions)
+	return err
+}
+
+// checkConstraint verifies that the constraint holds
+func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, wireValues []fr.Element) error {
+	l := cs.computeTerm(c.L, wireValues)
+	r := cs.computeTerm(c.R, wireValues)
+	m0 := cs.computeTerm(c.M[0], wireValues)
+	m1 := cs.computeTerm(c.M[1], wireValues)
+	o := cs.computeTerm(c.O, wireValues)
+
+	// l + r + (m0 * m1) + o + c.K == 0
+	var t fr.Element
+	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
+	if !t.IsZero() {
+		return fmt.Errorf("%w\n%s + %s + (%s * %s) + %s + %s != 0", ErrUnsatisfiedConstraint,
+			l.String(),
+			r.String(),
+			m0.String(),
+			m1.String(),
+			o.String(),
+			cs.Coefficients[c.K].String(),
+		)
+	}
+	return nil
 
 }
 

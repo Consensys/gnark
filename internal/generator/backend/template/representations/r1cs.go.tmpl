@@ -178,6 +178,11 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	// It is incremented by one each time a division happens for solving a constraint.
 	var debugInfoComputationOffset uint
 
+	// keep track of the number of wire instantiations we do, for a sanity check to ensure
+	// we instantiated all wires
+	var nbInstantiations int
+	nbInstantiations += len(witness) + 1 
+
 	// for each constraint
 	// we are guaranteed that each R1C contains at most one unsolved wire
 	// first we solve the unsolved wire (if any)
@@ -185,7 +190,7 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(r1cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions)
+		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions, &nbInstantiations)
 
 		// compute values for the R1C (ie value * coeff)
 		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
@@ -201,7 +206,10 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	}
 
 
-	// TODO @gbotrel ensure all wires are marked as "instantiated"
+	// sanity check; ensure all wires are marked as "instantiated"
+	if nbInstantiations != len(wireValues) {
+		panic("solver didn't instantiate all wires")
+	}
 
 	return nil
 }
@@ -274,20 +282,26 @@ func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
 func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
-
 	for _, t := range r.L {
 		r1cs.AddTerm(&a, t, wireValues[t.VariableID()])
 	}
-
 	for _, t := range r.R {
 		r1cs.AddTerm(&b, t, wireValues[t.VariableID()])
 	}
-
 	for _, t := range r.O {
 		r1cs.AddTerm(&c, t, wireValues[t.VariableID()])
 	}
-
 	return
+}
+
+// setWireValue ensure we solve each wire only once.
+func setWireValue(id int, value fr.Element, wireInstantiated []bool, wireValues []fr.Element, nbInstantiations *int) {
+	if wireInstantiated[id] {
+		panic("solving the same wire twice should never happen.")
+	}
+	wireValues[id] = value
+	wireInstantiated[id] = true 
+	*nbInstantiations++
 }
 
 // solveR1c computes a wire by solving a r1cs
@@ -299,7 +313,7 @@ func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b,
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction) uint {
+func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, nbInstantiations *int) uint {
 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
@@ -343,8 +357,7 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 			if !ok {
 				panic("missing hint function")
 			}
-			wireValues[vID] = f(inputs)
-			wireInstantiated[vID] = true
+			setWireValue(vID, f(inputs), wireInstantiated, wireValues, nbInstantiations)
 			return 
 		}
 
@@ -367,40 +380,41 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		processTerm(t, &c, 3)
 	}
 
-	// ensure we found the unset wire
 	if loc == 0 {
-		// this wire may have been instantiated as part of moExpression already
+		// there is nothing to solve, may happen if we have an assertion
+		// (ie a constraints that doesn't yield any output)
+		// or if we solved the unsolved wires with hint functions
 		return 0
 	}
 
 	// we compute the wire value and instantiate it
 	vID := termToCompute.VariableID()
 
+	// solver result
+	var wire fr.Element
+
 	switch loc {
 	case 1:
 		if !b.IsZero() {
-			wireValues[vID].Div(&c, &b).
-				Sub(&wireValues[vID], &a)
-			r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+			wire.Div(&c, &b).
+				Sub(&wire, &a)
+			r1cs.mulWireByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 2:
 		if !a.IsZero() {
-			wireValues[vID].Div(&c, &a).
-				Sub(&wireValues[vID], &b)
-			r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+			wire.Div(&c, &a).
+				Sub(&wire, &b)
+			r1cs.mulWireByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 3:
-		wireValues[vID].Mul(&a, &b).
-			Sub(&wireValues[vID], &c)
-		r1cs.mulWireByCoeff(&wireValues[vID], termToCompute)
+		wire.Mul(&a, &b).
+			Sub(&wire, &c)
+		r1cs.mulWireByCoeff(&wire, termToCompute)
 	}
 
-	wireInstantiated[vID] = true
-
-
-
+	setWireValue(vID, wire, wireInstantiated, wireValues, nbInstantiations)
 
 	return offset
 }
