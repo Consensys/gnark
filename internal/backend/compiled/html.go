@@ -26,11 +26,10 @@ const R1CSTemplate = `
 	<h1>R1CS</h1>
 	{{ $nbHints := len .MHints }}
 	{{ $nbConstraints := len .Constraints}}
-	{{ $nbAssertions := sub $nbConstraints .NbCOConstraints}}
 	<span class="internal">{{.NbInternalVariables}} internal </span> (includes <span class="hint">{{$nbHints}} hints</span>)</br>
 	<span class="public">{{.NbPublicVariables}} public</span></br>
 	<span class="secret">{{.NbSecretVariables}} secret</span></br>
-	<span>{{$nbConstraints}} constraints (including {{$nbAssertions}} assertions)</span></br>
+	<span>{{$nbConstraints}} constraints</span></br>
   <p class="fw-bold">L * R == O</p>
   <p class="fst-italic">-</p>
 </div>
@@ -45,7 +44,7 @@ const R1CSTemplate = `
   </thead>
   <tbody>
     {{- range $i, $c := .Constraints}}
-    <tr {{if ge $i $.NbCOConstraints}} class="table-info"{{- end}}>
+    <tr>
       <th scope="row">{{$i}}</th>
 	  <td> {{ toHTML $c.L $.Coefficients $.MHints}} </td>
       <td> {{ toHTML $c.R $.Coefficients $.MHints}} </td>
@@ -83,13 +82,12 @@ const SparseR1CSTemplate = `
 	<div class="container">
 	<h1>SparseR1CS</h1>
 	{{ $nbHints := len .MHints }}
-	{{ $nbAssertions := len .Assertions}}
-	{{ $nbConstraints := add (len .Constraints) $nbAssertions}}
+	{{ $nbConstraints := len .Constraints}}
 	
 	<span class="internal">{{.NbInternalVariables}} internal </span> (includes <span class="hint">{{$nbHints}} hints</span>)</br>
 	<span class="public">{{.NbPublicVariables}} public</span></br>
 	<span class="secret">{{.NbSecretVariables}} secret</span></br>
-	<span>{{$nbConstraints}} constraints (including {{$nbAssertions}} assertions)</span></br>
+	<span>{{$nbConstraints}} constraints</span></br>
 	<p class="fw-bold">L + R + M0*M1 + O + k == 0</p>
   <p class="fst-italic">all variable id are offseted by 1 to match R1CS</p>
 </div>
@@ -110,17 +108,6 @@ const SparseR1CSTemplate = `
     {{- range $i, $c := .Constraints}}
     <tr>
 		<th scope="row">{{$i}}</th>
-	  <td> {{ toHTML $c.L $.Coefficients $.MHints}} </td>
-      <td> {{ toHTML $c.R $.Coefficients $.MHints}} </td>
-	  <td> {{ toHTML (index $c.M 0) $.Coefficients $.MHints}} </td>
-	  <td> {{ toHTML (index $c.M 1)  $.Coefficients $.MHints}} </td>
-      <td> {{ toHTML $c.O $.Coefficients $.MHints}} </td>
-	  <td> {{ toHTMLCoeff $c.K $.Coefficients }} </td>
-    </tr>
-    {{- end }}
-	{{- range $i, $c := .Assertions}}
-    <tr class="table-info">
-	  <th scope="row">{{add $i (len $.Constraints)}}</th>
 	  <td> {{ toHTML $c.L $.Coefficients $.MHints}} </td>
       <td> {{ toHTML $c.R $.Coefficients $.MHints}} </td>
 	  <td> {{ toHTML (index $c.M 0) $.Coefficients $.MHints}} </td>
