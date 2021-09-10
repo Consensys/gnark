@@ -76,6 +76,7 @@ func main() {
 			entries := []bavard.Entry{
 				{File: filepath.Join(backendCSDir, "r1cs.go"), Templates: []string{"r1cs.go.tmpl", importCurve}},
 				{File: filepath.Join(backendCSDir, "r1cs_sparse.go"), Templates: []string{"r1cs.sparse.go.tmpl", importCurve}},
+				{File: filepath.Join(backendCSDir, "cs.go"), Templates: []string{"cs.solution.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
 				panic(err)

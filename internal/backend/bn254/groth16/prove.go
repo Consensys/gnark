@@ -64,8 +64,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, hintFunc
 	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
 	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
-	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
-	if err := r1cs.Solve(witness, a, b, c, wireValues, hintFunctions); err != nil {
+	var wireValues []fr.Element
+	var err error
+	if wireValues, err = r1cs.Solve(witness, a, b, c, hintFunctions); err != nil {
 		if !force {
 			return nil, err
 		} else {

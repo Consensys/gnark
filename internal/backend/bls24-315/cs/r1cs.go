@@ -36,11 +36,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 )
 
-type hintFunction func(input []fr.Element) fr.Element
-
-// ErrUnsatisfiedConstraint can be generated when solving a R1CS
-var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
-
 // R1CS decsribes a set of R1CS constraint
 type R1CS struct {
 	compiled.R1CS
@@ -49,10 +44,10 @@ type R1CS struct {
 	mHints       map[int]int // correspondance between hint wire ID and hint data struct
 }
 
-// NewR1CS returns a new R1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
+// NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
+func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	r := R1CS{
-		R1CS:         r1cs,
+		R1CS:         cs,
 		Coefficients: make([]fr.Element, len(coefficients)),
 		loggerOut:    os.Stdout,
 	}
@@ -65,124 +60,45 @@ func NewR1CS(r1cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	return &r
 }
 
-// GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (r1cs *R1CS) GetNbCoefficients() int {
-	return len(r1cs.Coefficients)
-}
-
-// CurveID returns curve ID as defined in gnark-crypto (ecc.BLS24-315)
-func (r1cs *R1CS) CurveID() ecc.ID {
-	return ecc.BLS24_315
-}
-
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (r1cs *R1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
-// SetLoggerOutput replace existing logger output with provided one
-// default uses os.Stdout
-// if nil is provided, logs are not printed
-func (r1cs *R1CS) SetLoggerOutput(w io.Writer) {
-	r1cs.loggerOut = w
-}
-
-// WriteTo encodes R1CS into provided io.Writer using cbor
-func (r1cs *R1CS) WriteTo(w io.Writer) (int64, error) {
-	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	encoder := cbor.NewEncoder(&_w)
-
-	// encode our object
-	if err := encoder.Encode(r1cs); err != nil {
-		return _w.N, err
-	}
-
-	return _w.N, nil
-}
-
-// ReadFrom attempts to decode R1CS from io.Reader using cbor
-func (r1cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
-	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
-	if err != nil {
-		return 0, err
-	}
-	decoder := dm.NewDecoder(r)
-	if err := decoder.Decode(&r1cs); err != nil {
-		return int64(decoder.NumBytesRead()), err
-	}
-
-	// init the hint map
-	r1cs.initHints()
-
-	return int64(decoder.NumBytesRead()), nil
-}
-
-func (r1cs *R1CS) initHints() {
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
-	// deterministic, hence avoid maps in there.
-	r1cs.mHints = make(map[int]int, len(r1cs.Hints))
-	for i := 0; i < len(r1cs.Hints); i++ {
-		r1cs.mHints[r1cs.Hints[i].WireID] = i
-	}
-}
-
-// IsSolved returns nil if given witness solves the R1CS and error otherwise
-// this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (r1cs *R1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
-	a := make([]fr.Element, r1cs.NbConstraints)
-	b := make([]fr.Element, r1cs.NbConstraints)
-	c := make([]fr.Element, r1cs.NbConstraints)
-	wireValues := make([]fr.Element, r1cs.NbInternalVariables+r1cs.NbPublicVariables+r1cs.NbSecretVariables)
-	return r1cs.Solve(witness, a, b, c, wireValues, hintFunctions)
-}
-
 // Solve sets all the wires and returns the a, b, c vectors.
-// the r1cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
+// the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // witness: contains the input variables
 // a, b, c vectors: ab-c = hz
-// wireValues =  [publicWires | secretWires | internalWires ]
+// solution.values =  [publicWires | secretWires | internalWires ]
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
-func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, hintFunctions []hint.Function) error {
+func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
 
-	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) { // - 1 for ONE_WIRE
-		return fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables-1, r1cs.NbSecretVariables)
+	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
+		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
 	}
 
-	nbWires := r1cs.NbPublicVariables + r1cs.NbSecretVariables + r1cs.NbInternalVariables
+	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
 
 	// compute the wires and the a, b, c polynomials
-	if len(a) != int(r1cs.NbConstraints) || len(b) != int(r1cs.NbConstraints) || len(c) != int(r1cs.NbConstraints) || len(wireValues) != nbWires {
-		return errors.New("invalid input size: len(a, b, c) == r1cs.NbConstraints and len(wireValues) == r1cs.NbWires")
+	if len(a) != int(cs.NbConstraints) || len(b) != int(cs.NbConstraints) || len(c) != int(cs.NbConstraints) {
+		return nil, errors.New("invalid input size: len(a, b, c) == cs.NbConstraints")
 	}
 
 	// keep track of wire that have a value
-	wireInstantiated := make([]bool, nbWires)
-	wireInstantiated[0] = true // ONE_WIRE
-	wireValues[0].SetOne()
-	copy(wireValues[1:], witness) // TODO factorize
+	solution, err := newSolution(nbWires, hintFunctions)
+	if err != nil {
+		return nil, err
+	}
+
+	solution.solved[0] = true // ONE_WIRE
+	solution.values[0].SetOne()
+	copy(solution.values[1:], witness) // TODO factorize
 	for i := 0; i < len(witness); i++ {
-		wireInstantiated[i+1] = true
+		solution.solved[i+1] = true
 	}
 
-	// now that we know all inputs are set, defer log printing once all wireValues are computed
+	// keep track of the number of wire instantiations we do, for a sanity check to ensure
+	// we instantiated all wires
+	solution.nbSolved += len(witness) + 1
+
+	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer r1cs.printLogs(wireValues, wireInstantiated)
-
-	// init hint functions data structs
-	mHintsFunctions := make(map[hint.ID]hintFunction, len(hintFunctions)+2)
-	mHintsFunctions[hint.IsZero] = powModulusMinusOne
-	mHintsFunctions[hint.IthBit] = ithBit
-
-	for i := 0; i < len(hintFunctions); i++ {
-		if _, ok := mHintsFunctions[hintFunctions[i].ID]; ok {
-			return fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
-		}
-		f, ok := hintFunctions[i].F.(hintFunction)
-		if !ok {
-			return fmt.Errorf("invalid hint function signature with id %d", uint32(hintFunctions[i].ID))
-		}
-		mHintsFunctions[hintFunctions[i].ID] = f
-	}
+	defer cs.printLogs(&solution)
 
 	// check if there is an inconsistant constraint
 	var check fr.Element
@@ -191,61 +107,74 @@ func (r1cs *R1CS) Solve(witness []fr.Element, a, b, c, wireValues []fr.Element, 
 	// It is incremented by one each time a division happens for solving a constraint.
 	var debugInfoComputationOffset uint
 
-	// keep track of the number of wire instantiations we do, for a sanity check to ensure
-	// we instantiated all wires
-	var nbInstantiations int
-	nbInstantiations += len(witness) + 1
-
 	// for each constraint
 	// we are guaranteed that each R1C contains at most one unsolved wire
 	// first we solve the unsolved wire (if any)
 	// then we check that the constraint is valid
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-	for i := 0; i < len(r1cs.Constraints); i++ {
+	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		debugInfoComputationOffset += r1cs.solveR1C(&r1cs.Constraints[i], wireInstantiated, wireValues, mHintsFunctions, &nbInstantiations)
+		debugInfoComputationOffset += cs.solveR1C(&cs.Constraints[i], &solution)
 
 		// compute values for the R1C (ie value * coeff)
-		a[i], b[i], c[i] = instantiateR1C(&r1cs.Constraints[i], r1cs, wireValues)
+		a[i], b[i], c[i] = instantiateR1C(&cs.Constraints[i], cs, &solution)
 
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			//return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, "couldn't solve computational constraint. May happen: div by 0 or no inverse found")
-			debugInfo := r1cs.DebugInfoComputation[debugInfoComputationOffset]
-			debugInfoStr := r1cs.logValue(debugInfo, wireValues, wireInstantiated)
-			return fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			debugInfo := cs.DebugInfoComputation[debugInfoComputationOffset]
+			debugInfoStr := cs.logValue(debugInfo, &solution)
+			return nil, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
 		}
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
-	if nbInstantiations != len(wireValues) {
+	if !solution.isValid() {
 		panic("solver didn't instantiate all wires")
 	}
 
-	return nil
+	return solution.values, nil
 }
 
-func (r1cs *R1CS) logValue(entry compiled.LogEntry, wireValues []fr.Element, wireInstantiated []bool) string {
+// IsSolved returns nil if given witness solves the R1CS and error otherwise
+// this method wraps cs.Solve() and allocates cs.Solve() inputs
+func (cs *R1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
+	a := make([]fr.Element, cs.NbConstraints)
+	b := make([]fr.Element, cs.NbConstraints)
+	c := make([]fr.Element, cs.NbConstraints)
+	_, err := cs.Solve(witness, a, b, c, hintFunctions)
+	return err
+}
+
+func (cs *R1CS) initHints() {
+	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
+	// deterministic, hence avoid maps in there.
+	cs.mHints = make(map[int]int, len(cs.Hints))
+	for i := 0; i < len(cs.Hints); i++ {
+		cs.mHints[cs.Hints[i].WireID] = i
+	}
+}
+
+func (cs *R1CS) logValue(entry compiled.LogEntry, solution *solution) string {
 	var toResolve []interface{}
 	for j := 0; j < len(entry.ToResolve); j++ {
 		wireID := entry.ToResolve[j]
-		if !wireInstantiated[wireID] {
+		if !solution.solved[wireID] {
 			toResolve = append(toResolve, "???")
 		} else {
-			toResolve = append(toResolve, wireValues[wireID].String())
+			toResolve = append(toResolve, solution.values[wireID].String())
 		}
 	}
 	return fmt.Sprintf(entry.Format, toResolve...)
 }
 
-func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
+func (cs *R1CS) printLogs(solution *solution) {
 
 	// for each log, resolve the wire values and print the log to stdout
-	for i := 0; i < len(r1cs.Logs); i++ {
-		logLine := r1cs.logValue(r1cs.Logs[i], wireValues, wireInstantiated)
-		if r1cs.loggerOut != nil {
-			if _, err := io.WriteString(r1cs.loggerOut, logLine); err != nil {
+	for i := 0; i < len(cs.Logs); i++ {
+		logLine := cs.logValue(cs.Logs[i], solution)
+		if cs.loggerOut != nil {
+			if _, err := io.WriteString(cs.loggerOut, logLine); err != nil {
 				fmt.Println("error", err.Error())
 			}
 		}
@@ -253,7 +182,7 @@ func (r1cs *R1CS) printLogs(wireValues []fr.Element, wireInstantiated []bool) {
 }
 
 // AddTerm returns res += (value * term.Coefficient)
-func (r1cs *R1CS) AddTerm(res *fr.Element, t compiled.Term, value fr.Element) *fr.Element {
+func (cs *R1CS) AddTerm(res *fr.Element, t compiled.Term, value fr.Element) *fr.Element {
 	cID := t.CoeffID()
 	switch cID {
 	case compiled.CoeffIdOne:
@@ -268,13 +197,13 @@ func (r1cs *R1CS) AddTerm(res *fr.Element, t compiled.Term, value fr.Element) *f
 		return res.Add(res, &buffer)
 	default:
 		var buffer fr.Element
-		buffer.Mul(&r1cs.Coefficients[cID], &value)
+		buffer.Mul(&cs.Coefficients[cID], &value)
 		return res.Add(res, &buffer)
 	}
 }
 
 // mulWireByCoeff returns into.Mul(into, term.Coefficient)
-func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
+func (cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
 	cID := t.CoeffID()
 	switch cID {
 	case compiled.CoeffIdOne:
@@ -286,46 +215,36 @@ func (r1cs *R1CS) mulWireByCoeff(res *fr.Element, t compiled.Term) *fr.Element {
 	case compiled.CoeffIdTwo:
 		return res.Double(res)
 	default:
-		return res.Mul(res, &r1cs.Coefficients[cID])
+		return res.Mul(res, &cs.Coefficients[cID])
 	}
 }
 
-// compute left, right, o part of a r1cs constraint
+// compute left, right, o part of a cs constraint
 // this function is called when all the wires have been computed
 // it instantiates the l, r o part of a R1C
-func instantiateR1C(r *compiled.R1C, r1cs *R1CS, wireValues []fr.Element) (a, b, c fr.Element) {
+func instantiateR1C(r *compiled.R1C, cs *R1CS, solution *solution) (a, b, c fr.Element) {
 	for _, t := range r.L {
-		r1cs.AddTerm(&a, t, wireValues[t.VariableID()])
+		cs.AddTerm(&a, t, solution.values[t.VariableID()])
 	}
 	for _, t := range r.R {
-		r1cs.AddTerm(&b, t, wireValues[t.VariableID()])
+		cs.AddTerm(&b, t, solution.values[t.VariableID()])
 	}
 	for _, t := range r.O {
-		r1cs.AddTerm(&c, t, wireValues[t.VariableID()])
+		cs.AddTerm(&c, t, solution.values[t.VariableID()])
 	}
 	return
 }
 
-// setWireValue ensure we solve each wire only once.
-func setWireValue(id int, value fr.Element, wireInstantiated []bool, wireValues []fr.Element, nbInstantiations *int) {
-	if wireInstantiated[id] {
-		panic("solving the same wire twice should never happen.")
-	}
-	wireValues[id] = value
-	wireInstantiated[id] = true
-	*nbInstantiations++
-}
-
-// solveR1c computes a wire by solving a r1cs
+// solveR1c computes a wire by solving a cs
 // the function searches for the unset wire (either the unset wire is
 // alone, or it can be computed without ambiguity using the other computed wires
 // , eg when doing a binary decomposition: either way the missing wire can
-// be computed without ambiguity because the r1cs is correctly ordered)
+// be computed without ambiguity because the cs is correctly ordered)
 //
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues []fr.Element, mHintsFunctions map[hint.ID]hintFunction, nbInstantiations *int) uint {
+func (cs *R1CS) solveR1C(r *compiled.R1C, solution *solution) uint {
 
 	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
 	var offset uint
@@ -341,15 +260,15 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		vID := t.VariableID()
 
 		// wire is already computed, we just accumulate in val
-		if wireInstantiated[vID] {
-			r1cs.AddTerm(val, t, wireValues[vID])
+		if solution.solved[vID] {
+			cs.AddTerm(val, t, solution.values[vID])
 			return
 		}
 
 		// first we check if this is a hint wire
-		if hID, ok := r1cs.mHints[vID]; ok {
+		if hID, ok := cs.mHints[vID]; ok {
 			// compute hint value
-			hint := r1cs.Hints[hID]
+			hint := cs.Hints[hID]
 
 			// compute values for all inputs.
 			inputs := make([]fr.Element, len(hint.Inputs))
@@ -357,19 +276,19 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 				// input is a linear expression, we must compute the value
 				for j := 0; j < len(hint.Inputs[i]); j++ {
 					viID := hint.Inputs[i][j].VariableID()
-					if !wireInstantiated[viID] {
+					if !solution.solved[viID] {
 						// TODO @gbotrel return error here
 						panic("input not instantiated for hint function")
 					}
-					r1cs.AddTerm(&inputs[i], hint.Inputs[i][j], wireValues[viID])
+					cs.AddTerm(&inputs[i], hint.Inputs[i][j], solution.values[viID])
 				}
 			}
 
-			f, ok := mHintsFunctions[hint.ID]
+			f, ok := solution.mHintsFunctions[hint.ID]
 			if !ok {
 				panic("missing hint function")
 			}
-			setWireValue(vID, f(inputs), wireInstantiated, wireValues, nbInstantiations)
+			solution.set(vID, f(inputs))
 			return
 		}
 
@@ -410,23 +329,23 @@ func (r1cs *R1CS) solveR1C(r *compiled.R1C, wireInstantiated []bool, wireValues 
 		if !b.IsZero() {
 			wire.Div(&c, &b).
 				Sub(&wire, &a)
-			r1cs.mulWireByCoeff(&wire, termToCompute)
+			cs.mulWireByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 2:
 		if !a.IsZero() {
 			wire.Div(&c, &a).
 				Sub(&wire, &b)
-			r1cs.mulWireByCoeff(&wire, termToCompute)
+			cs.mulWireByCoeff(&wire, termToCompute)
 			offset = 1
 		}
 	case 3:
 		wire.Mul(&a, &b).
 			Sub(&wire, &c)
-		r1cs.mulWireByCoeff(&wire, termToCompute)
+		cs.mulWireByCoeff(&wire, termToCompute)
 	}
 
-	setWireValue(vID, wire, wireInstantiated, wireValues, nbInstantiations)
+	solution.set(vID, wire)
 
 	return offset
 }
@@ -462,8 +381,8 @@ func ithBit(inputs []fr.Element) (v fr.Element) {
 }
 
 // ToHTML returns an HTML human-readable representation of the constraint system
-func (r1cs *R1CS) ToHTML(w io.Writer) error {
-	t, err := template.New("r1cs.html").Funcs(template.FuncMap{
+func (cs *R1CS) ToHTML(w io.Writer) error {
+	t, err := template.New("cs.html").Funcs(template.FuncMap{
 		"toHTML": toHTML,
 		"add":    add,
 		"sub":    sub,
@@ -477,8 +396,8 @@ func (r1cs *R1CS) ToHTML(w io.Writer) error {
 		MHints map[int]int
 	}
 	d := data{
-		r1cs,
-		r1cs.mHints,
+		cs,
+		cs.mHints,
 	}
 	return t.Execute(w, &d)
 }
@@ -542,4 +461,56 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHin
 	}
 	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, vID))
 
+}
+
+// GetNbCoefficients return the number of unique coefficients needed in the R1CS
+func (cs *R1CS) GetNbCoefficients() int {
+	return len(cs.Coefficients)
+}
+
+// CurveID returns curve ID as defined in gnark-crypto (ecc.BLS24-315)
+func (cs *R1CS) CurveID() ecc.ID {
+	return ecc.BLS24_315
+}
+
+// FrSize return fr.Limbs * 8, size in byte of a fr element
+func (cs *R1CS) FrSize() int {
+	return fr.Limbs * 8
+}
+
+// SetLoggerOutput replace existing logger output with provided one
+// default uses os.Stdout
+// if nil is provided, logs are not printed
+func (cs *R1CS) SetLoggerOutput(w io.Writer) {
+	cs.loggerOut = w
+}
+
+// WriteTo encodes R1CS into provided io.Writer using cbor
+func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
+	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
+	encoder := cbor.NewEncoder(&_w)
+
+	// encode our object
+	if err := encoder.Encode(cs); err != nil {
+		return _w.N, err
+	}
+
+	return _w.N, nil
+}
+
+// ReadFrom attempts to decode R1CS from io.Reader using cbor
+func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
+	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	if err != nil {
+		return 0, err
+	}
+	decoder := dm.NewDecoder(r)
+	if err := decoder.Decode(&cs); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
+	// init the hint map
+	cs.initHints()
+
+	return int64(decoder.NumBytesRead()), nil
 }
