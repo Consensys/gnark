@@ -25,23 +25,27 @@ type SparseR1CS struct {
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS(r1cs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS {
+func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS {
 	cs := SparseR1CS{
-		r1cs,
-		make([]fr.Element, len(coefficients)),
-		make(map[int]int, len(r1cs.Hints)),
+		SparseR1CS: ccs,
+		Coefficients: make([]fr.Element, len(coefficients)),
 	}
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
 	}
 
+	cs.initHints()
+
+	return &cs 
+}
+
+func (cs *SparseR1CS) initHints() {
 	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
 	// deterministic, hence avoid maps in there.
+	cs.mHints = make(map[int]int, len(cs.Hints))
 	for i:=0; i <len(cs.Hints);i++ {
 		cs.mHints[cs.Hints[i].WireID] = i
 	}
-
-	return &cs 
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
@@ -77,6 +81,7 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	}
 	decoder := dm.NewDecoder(r)
 	err = decoder.Decode(cs)
+	cs.initHints()
 	return int64(decoder.NumBytesRead()), err
 }
 
