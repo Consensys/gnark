@@ -16,7 +16,7 @@
 //
 // Binary protocol
 //
-// 	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
+// 	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
 // 	Public witness   ->  [uint32(nbElements) | publicVariables ]
 //
 // where
@@ -42,6 +42,7 @@ package witness
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -49,6 +50,8 @@ import (
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/parser"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -127,4 +130,47 @@ func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) 
 	default:
 		panic("not implemented")
 	}
+}
+
+// WriteSequence writes the expected sequence order of the witness on provided writer
+// witness elements are identified by their tag name, or if unset, struct & field name
+func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
+	var public, secret []string
+	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if visibility == compiled.Public {
+			public = append(public, name)
+		} else if visibility == compiled.Secret {
+			secret = append(secret, name)
+		}
+		return nil
+	}
+	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+		return err
+	}
+
+	if _, err := io.WriteString(w, "public:\n"); err != nil {
+		return err
+	}
+	for _, p := range public {
+		if _, err := io.WriteString(w, p); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	if _, err := io.WriteString(w, "secret:\n"); err != nil {
+		return err
+	}
+	for _, s := range secret {
+		if _, err := io.WriteString(w, s); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
