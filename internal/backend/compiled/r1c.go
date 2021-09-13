@@ -14,6 +14,14 @@
 
 package compiled
 
+import (
+	"math/big"
+	"strconv"
+	"strings"
+
+	"github.com/consensys/gnark/backend/hint"
+)
+
 // LinearExpression represent a linear expression of variables
 type LinearExpression []Term
 
@@ -46,10 +54,9 @@ func (l LinearExpression) Less(i, j int) bool {
 
 // R1C used to compute the wires
 type R1C struct {
-	L      LinearExpression
-	R      LinearExpression
-	O      LinearExpression
-	Solver SolvingMethod
+	L LinearExpression
+	R LinearExpression
+	O LinearExpression
 }
 
 // LogEntry is used as a shared data structure between the frontend and the backend
@@ -69,15 +76,56 @@ const (
 	Internal
 	Secret
 	Public
+	Virtual
 )
 
-// SolvingMethod is used by the R1CS solver
-// note: it is not in backend/r1cs to avoid an import cycle
-type SolvingMethod uint8
+// Hint represents a solver hint
+// it enables the solver to compute a Wire with a function provided at solving time
+// using pre-defined inputs
+type Hint struct {
+	WireID int                // resulting wire ID to compute
+	ID     hint.ID            // hint function id
+	Inputs []LinearExpression // terms to inject in the hint function
+}
 
-// SingleOuput and BinaryDec are types of solving method for rank-1 constraints
-const (
-	SingleOutput SolvingMethod = iota
-	BinaryDec
-	IsZero // TODO this is temporary, solver will be improved to be extensible at runtime, or with lambdas.
-)
+func (r1c *R1C) String(coeffs []big.Int) string {
+	var sbb strings.Builder
+	sbb.WriteString("L[")
+	r1c.L.string(&sbb, coeffs)
+	sbb.WriteString("] * R[")
+	r1c.R.string(&sbb, coeffs)
+	sbb.WriteString("] = O[")
+	r1c.O.string(&sbb, coeffs)
+	sbb.WriteString("]")
+
+	return sbb.String()
+}
+
+func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
+	for i := 0; i < len(l); i++ {
+		l[i].string(sbb, coeffs)
+		if i+1 < len(l) {
+			sbb.WriteString(" + ")
+		}
+	}
+}
+
+func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
+	sbb.WriteString(coeffs[t.CoeffID()].String())
+	sbb.WriteString("*")
+	switch t.VariableVisibility() {
+	case Internal:
+		sbb.WriteString("i")
+	case Public:
+		sbb.WriteString("p")
+	case Secret:
+		sbb.WriteString("s")
+	case Virtual:
+		sbb.WriteString("v")
+	case Unset:
+		sbb.WriteString("u")
+	default:
+		panic("not implemented")
+	}
+	sbb.WriteString(strconv.Itoa(t.VariableID()))
+}

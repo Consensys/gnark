@@ -38,6 +38,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -59,7 +60,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, hintFunctions []hint.Function) (*Proof, error) {
 
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -71,7 +72,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness)
 	proof := &Proof{}
 
 	// compute the constraint system solution
-	solution, err := spr.Solve(fullWitness)
+	solution, err := spr.Solve(fullWitness, hintFunctions)
 	if err != nil {
 		return nil, err
 	}
@@ -475,12 +476,7 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 		o[offset+i] = solution[spr.Constraints[i].O.VariableID()]
 	}
 	offset += len(spr.Constraints)
-	for i := 0; i < len(spr.Assertions); i++ { // assertions
-		l[offset+i] = solution[spr.Assertions[i].L.VariableID()]
-		r[offset+i] = solution[spr.Assertions[i].R.VariableID()]
-		o[offset+i] = solution[spr.Assertions[i].O.VariableID()]
-	}
-	offset += len(spr.Assertions)
+
 	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
 		l[offset+i] = s0
 		r[offset+i] = s0

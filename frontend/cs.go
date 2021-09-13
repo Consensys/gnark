@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"sort"
@@ -27,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -38,18 +40,9 @@ import (
 // these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
 type ConstraintSystem struct {
 	// Variables (aka wires)
-	public struct {
-		variables []Variable       // public inputs
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
-	secret struct {
-		variables []Variable       // secret inputs
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
-	internal struct {
-		variables []Variable       // internal variables
-		booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
-	}
+	// virtual variables do not result in a new circuit wire
+	// they may only contain a linear expression
+	public, secret, internal, virtual variables
 
 	// Constraints
 	constraints []compiled.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
@@ -59,12 +52,28 @@ type ConstraintSystem struct {
 	coeffs    []big.Int      // list of unique coefficients.
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
+	// Hints
+	hints []compiled.Hint // solver hints
+
 	// debug info
 	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
 	debugInfoComputation []logEntry // list of logs storing information about computations (e.g. division by 0).If an computation fails, it prints it in a friendly format
 	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
-	unsetVariables       []logEntry // unset variables. If a variable is unset, the error is caught when compiling the circuit
 
+}
+
+type variables struct {
+	variables []Variable
+	booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
+}
+
+func (v *variables) new(cs *ConstraintSystem, visibility compiled.Visibility) Variable {
+	idx := len(v.variables)
+	w := Wire{visibility, idx, nil}
+	variable := cs.buildVarFromWire(w)
+
+	v.variables = append(v.variables, variable)
+	return variable
 }
 
 // CompiledConstraintSystem ...
@@ -82,6 +91,9 @@ type CompiledConstraintSystem interface {
 
 	CurveID() ecc.ID
 	FrSize() int
+
+	// ToHTML generates a human readable representation of the constraint system
+	ToHTML(w io.Writer) error
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -112,10 +124,103 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 	cs.internal.variables = make([]Variable, 0, capacity)
 	cs.internal.booleans = make(map[int]struct{})
 
+	cs.virtual.variables = make([]Variable, 0)
+	cs.virtual.booleans = make(map[int]struct{})
+
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
 
+	cs.hints = make([]compiled.Hint, 0)
+
 	return cs
+}
+
+// NewHint initialize a variable whose value will be evaluated in the Prover by the constraint
+// solver using the provided hint function
+// hint function is provided at proof creation time and must match the hintID
+// inputs must be either variables or convertible to big int
+// /!\ warning /!\
+// this doesn't add any constraint to the newly created wire
+// from the backend point of view, it's equivalent to a user-supplied witness
+// except, the solver is going to assign it a value, not the caller
+func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Variable {
+	// create resulting wire
+	r := cs.newInternalVariable()
+
+	// now we need to store the linear expressions of the expected input
+	// that will be resolved in the solver
+	hintInputs := make([]compiled.LinearExpression, len(inputs))
+
+	// ensure inputs are set and pack them in a []uint64
+	for i, in := range inputs {
+		t := cs.Constant(in)
+		hintInputs[i] = t.linExp.Clone() // TODO @gbotrel check that we need to clone here ?
+	}
+
+	// add the hint to the constraint system
+	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hintID, Inputs: hintInputs})
+
+	return r
+}
+
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
+func (cs *ConstraintSystem) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	// for each argument, if it is a circuit structure and contains variable
+	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
+	// if it doesn't contain variable, call fmt.Sprint(arg) instead
+	entry := logEntry{}
+
+	// this is call recursively on the arguments using reflection on each argument
+	foundVariable := false
+
+	var handler logValueHandler = func(name string, tInput reflect.Value) {
+
+		v := tInput.Interface().(Variable)
+
+		// if the variable is only in linExp form, we allocate it
+		_v := cs.allocate(v)
+
+		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
+
+		if name == "" {
+			sbb.WriteString("%s")
+		} else {
+			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
+		}
+
+		foundVariable = true
+	}
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		foundVariable = false
+		parseLogValue(arg, "", handler)
+		if !foundVariable {
+			sbb.WriteString(fmt.Sprint(arg))
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	entry.format = sbb.String()
+
+	cs.logs = append(cs.logs, entry)
 }
 
 type logEntry struct {
@@ -147,23 +252,18 @@ func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
 
 // newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func newR1C(l, r, o Variable, s ...compiled.SolvingMethod) compiled.R1C {
-	solver := compiled.SingleOutput
-	if len(s) > 0 {
-		solver = s[0]
-	}
-
+func newR1C(l, r, o Variable) compiled.R1C {
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
 	// but the "l" linear expression is going to end up in the A matrix
 	// the "r" linear expression is going to end up in the B matrix
 	// the less variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if solver == compiled.SingleOutput && len(l.linExp) > len(r.linExp) {
+	if len(l.linExp) > len(r.linExp) {
 		l, r = r, l
 	}
 
-	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone(), Solver: solver}
+	return compiled.R1C{L: l.linExp.Clone(), R: r.linExp.Clone(), O: o.linExp.Clone()}
 }
 
 // NbConstraints enables circuit profiling and helps debugging
@@ -265,34 +365,24 @@ func (cs *ConstraintSystem) allocate(v Variable) Variable {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *ConstraintSystem) newInternalVariable() Variable {
-	w := Wire{
-		id:         len(cs.internal.variables),
-		visibility: compiled.Internal,
-	}
-	v := cs.buildVarFromWire(w)
-	cs.internal.variables = append(cs.internal.variables, v)
-	return v
+	return cs.internal.new(cs, compiled.Internal)
 }
 
-// newPublicVariable creates a new public input
+// newPublicVariable creates a new public variable
 func (cs *ConstraintSystem) newPublicVariable() Variable {
-
-	idx := len(cs.public.variables)
-	w := Wire{compiled.Public, idx, nil}
-
-	v := cs.buildVarFromWire(w)
-	cs.public.variables = append(cs.public.variables, v)
-	return v
+	return cs.public.new(cs, compiled.Public)
 }
 
-// newSecretVariable creates a new secret input
+// newSecretVariable creates a new secret variable
 func (cs *ConstraintSystem) newSecretVariable() Variable {
-	idx := len(cs.secret.variables)
-	w := Wire{compiled.Secret, idx, nil}
+	return cs.secret.new(cs, compiled.Secret)
+}
 
-	v := cs.buildVarFromWire(w)
-	cs.secret.variables = append(cs.secret.variables, v)
-	return v
+// newVirtualVariable creates a new virtual variable
+// this will not result in a new wire in the constraint system
+// and just represents a linear expression
+func (cs *ConstraintSystem) newVirtualVariable() Variable {
+	return cs.virtual.new(cs, compiled.Virtual)
 }
 
 type logValueHandler func(name string, tValue reflect.Value)
@@ -373,4 +463,55 @@ func getCallStack() []string {
 
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
 	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne))}
+}
+
+// creates a string formatted to display correctly a variable, from its linear expression representation
+// (i.e. the linear expression leading to it)
+func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
+
+	var res logEntry
+	var sbb strings.Builder
+	sbb.Grow(len(v.linExp) * len(" + (xx + xxxxxxxxxxxx"))
+
+	for i := 0; i < len(v.linExp); i++ {
+		if i > 0 {
+			sbb.WriteString(" + ")
+		}
+		c := cs.coeffs[v.linExp[i].CoeffID()]
+		sbb.WriteString(fmt.Sprintf("(%%s * %s)", c.String()))
+	}
+	res.format = sbb.String()
+	res.toResolve = v.linExp.Clone()
+	return res
+}
+
+// markBoolean marks the variable as boolean and return true
+// if a constraint was added, false if the variable was already
+// constrained as a boolean
+func (cs *ConstraintSystem) markBoolean(v Variable) bool {
+	switch v.visibility {
+	case compiled.Internal:
+		if _, ok := cs.internal.booleans[v.id]; ok {
+			return false
+		}
+		cs.internal.booleans[v.id] = struct{}{}
+	case compiled.Secret:
+		if _, ok := cs.secret.booleans[v.id]; ok {
+			return false
+		}
+		cs.secret.booleans[v.id] = struct{}{}
+	case compiled.Public:
+		if _, ok := cs.public.booleans[v.id]; ok {
+			return false
+		}
+		cs.public.booleans[v.id] = struct{}{}
+	case compiled.Virtual:
+		if _, ok := cs.virtual.booleans[v.id]; ok {
+			return false
+		}
+		cs.virtual.booleans[v.id] = struct{}{}
+	default:
+		panic("not implemented")
+	}
+	return true
 }

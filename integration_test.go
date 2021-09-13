@@ -63,10 +63,10 @@ func TestIntegrationAPI(t *testing.T) {
 			pk, vk, err := groth16.Setup(r1cs)
 			assert.NoError(err)
 
-			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good)
+			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good, nil)
 			assert.NoError(err)
 
-			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, true)
+			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, nil, true)
 			assert.NoError(err)
 
 			assert.NoError(groth16.Verify(correctProof, vk, circuit.Public))
@@ -79,7 +79,7 @@ func TestIntegrationAPI(t *testing.T) {
 				_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
 				assert.NoError(err)
 
-				correctProof, err := groth16.ReadAndProve(r1cs, pk, &buf)
+				correctProof, err := groth16.ReadAndProve(r1cs, pk, &buf, nil)
 				assert.NoError(err)
 
 				buf.Reset()

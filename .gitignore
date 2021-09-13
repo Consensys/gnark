@@ -38,6 +38,7 @@ integratrion_test/**
 gnark
 playground
 examples/benchmark/benchmark
+examples/**/*.html
 
 # gnarkd example circuits
 gnarkd/circuits/**

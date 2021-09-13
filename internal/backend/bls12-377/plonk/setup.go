@@ -93,10 +93,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	pk.Vk = &vk
 
 	nbConstraints := len(spr.Constraints)
-	nbAssertions := len(spr.Assertions)
 
 	// fft domains
-	sizeSystem := uint64(nbConstraints + nbAssertions + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
+	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
 	pk.DomainNum = *fft.NewDomain(sizeSystem, 0, false)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
@@ -147,17 +146,6 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
 		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
-	}
-	offset += nbConstraints
-	for i := 0; i < nbAssertions; i++ { // assertions
-
-		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Assertions[i].L.CoeffID()])
-		pk.Qr[offset+i].Set(&spr.Coefficients[spr.Assertions[i].R.CoeffID()])
-		pk.Qm[offset+i].Set(&spr.Coefficients[spr.Assertions[i].M[0].CoeffID()]).
-			Mul(&pk.Qm[offset+i], &spr.Coefficients[spr.Assertions[i].M[1].CoeffID()])
-		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Assertions[i].O.CoeffID()])
-		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
-		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Assertions[i].K])
 	}
 
 	pk.DomainNum.FFTInverse(pk.Ql, fft.DIF, 0)
@@ -250,17 +238,7 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 		pk.Permutation[2*sizeSolution+i+offset] = -1
 	}
 	offset += len(spr.Constraints)
-	for i := 0; i < len(spr.Assertions); i++ { // IDs of LRO associated to assertions
 
-		lro[offset+i] = spr.Assertions[i].L.VariableID()
-		lro[offset+sizeSolution+i] = spr.Assertions[i].R.VariableID()
-		lro[offset+2*sizeSolution+i] = spr.Assertions[i].O.VariableID()
-
-		pk.Permutation[offset+i] = -1
-		pk.Permutation[offset+sizeSolution+i] = -1
-		pk.Permutation[offset+2*sizeSolution+i] = -1
-	}
-	offset += len(spr.Assertions)
 	for i := 0; i < sizeSolution-offset; i++ {
 
 		pk.Permutation[offset+i] = -1

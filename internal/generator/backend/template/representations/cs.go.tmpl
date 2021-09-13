@@ -1,0 +1,152 @@
+import (
+	"io"
+	"errors"
+    "fmt"
+
+    "github.com/consensys/gnark/backend/hint"
+    "github.com/consensys/gnark/internal/backend/compiled"
+    
+	{{ template "import_fr" . }}
+)
+
+// ErrUnsatisfiedConstraint can be generated when solving a R1CS
+var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
+
+// solution represents elements needed to compute
+// a solution to a R1CS or SparseR1CS
+type solution struct {
+    values, coefficients []fr.Element 
+    solved []bool
+    nbSolved int 
+    mHintsFunctions map[hint.ID]hintFunction
+}
+
+func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+    s := solution{
+        values: make([]fr.Element, nbWires),
+        coefficients: coefficients,
+        solved: make([]bool, nbWires),
+        mHintsFunctions: make(map[hint.ID]hintFunction, len(hintFunctions) + 2),
+    }
+
+	s.mHintsFunctions = make(map[hint.ID]hintFunction, len(hintFunctions) + 2)
+	s.mHintsFunctions[hint.IsZero] = powModulusMinusOne
+	s.mHintsFunctions[hint.IthBit] = ithBit
+	
+	for i := 0; i < len(hintFunctions);i++ {
+		if _, ok := s.mHintsFunctions[hintFunctions[i].ID]; ok {
+			return solution{}, fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
+		}
+		f, ok := hintFunctions[i].F.(hintFunction)
+		if !ok {
+			return solution{}, fmt.Errorf("invalid hint function signature with id %d", uint32(hintFunctions[i].ID))
+		}
+		s.mHintsFunctions[hintFunctions[i].ID] = f
+	}
+
+
+    return s, nil 
+}
+
+func (s *solution) set(id int, value fr.Element) {
+    if s.solved[id] {
+		panic("solving the same wire twice should never happen.")
+	}
+	s.values[id] = value
+	s.solved[id] = true 
+    s.nbSolved++
+}
+
+
+func (s *solution) isValid() bool {
+    return s.nbSolved == len(s.values)
+}
+
+
+// computeTerm computes coef*variable
+func (s *solution) computeTerm(t compiled.Term) fr.Element {
+	cID, vID, _ := t.Unpack()
+    if cID != 0 && !s.solved[vID] {
+        panic("computing a term with an unsolved wire")
+    }
+	switch cID {
+		case compiled.CoeffIdZero:
+			return fr.Element{}
+		case compiled.CoeffIdOne:
+			return s.values[vID]
+		case compiled.CoeffIdTwo:
+			var res fr.Element
+			res.Double(&s.values[vID])
+			return res 
+		case compiled.CoeffIdMinusOne:
+			var res fr.Element
+			res.Neg(&s.values[vID])
+			return res
+		default:
+			var res fr.Element
+			res.Mul(&s.coefficients[cID], &s.values[vID])
+			return res
+	}
+}
+
+
+// solveHint compute solution.values[vID] using provided solver hint
+func (s *solution) solveHint(h compiled.Hint, vID int) error {
+		// compute values for all inputs. 
+		inputs := make([]fr.Element, len(h.Inputs))
+
+		for i:=0;i<len(h.Inputs);i++ {
+			// input is a linear expression, we must compute the value
+			for j:=0; j < len(h.Inputs[i]); j++ {
+				ciID , viID, visibility := h.Inputs[i][j].Unpack()
+				if visibility == compiled.Virtual {
+					// we have a constant, just take the coefficient value
+					inputs[i].Add(&inputs[i], &s.coefficients[ciID])
+					continue
+				}
+				if !s.solved[viID] {
+					return errors.New("expected wire to be instantiated while evaluating hint")
+				}
+				v := s.computeTerm(h.Inputs[i][j])
+				inputs[i].Add(&inputs[i], &v)
+			}
+		}
+
+		f, ok := s.mHintsFunctions[h.ID]
+		if !ok {
+			return  errors.New("missing hint function")
+		}
+		v, err :=  f(inputs)
+		if err != nil {
+			return err
+		}
+		s.set(vID, v)
+		return nil 
+}
+
+
+
+func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
+	if w == nil {
+		return 
+	}
+
+	for i := 0; i < len(logs); i++ {
+		logLine := s.logValue(logs[i])
+		_, _ = io.WriteString(w, logLine)
+	}
+}
+
+
+func (s *solution) logValue(log compiled.LogEntry) string {
+	var toResolve []interface{}
+	for j := 0; j < len(log.ToResolve); j++ {
+		vID := log.ToResolve[j]
+		if !s.solved[vID] {
+			toResolve = append(toResolve, "???")
+		} else {
+			toResolve = append(toResolve, s.values[vID].String())
+		}
+	}
+	return fmt.Sprintf(log.Format, toResolve...)
+}

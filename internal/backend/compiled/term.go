@@ -30,17 +30,18 @@ const (
 )
 
 const (
-	_                uint64 = 0b00
-	variablePublic   uint64 = 0b01
-	variableSecret   uint64 = 0b11
-	variableInternal uint64 = 0b10
+	_                uint64 = 0b000
+	variablePublic   uint64 = 0b001
+	variableSecret   uint64 = 0b010
+	variableInternal uint64 = 0b011
+	variableVirtual  uint64 = 0b100
 )
 
 const (
 	nbBitsVariableID         = 29
 	nbBitsCoeffID            = 30
-	nbBitsFutureUse          = 3
-	nbBitsVariableVisibility = 2
+	nbBitsFutureUse          = 2
+	nbBitsVariableVisibility = 3
 )
 
 const (
@@ -88,6 +89,8 @@ func (t Term) VariableVisibility() Visibility {
 		return Public
 	case variableSecret:
 		return Secret
+	case variableVirtual:
+		return Virtual
 	default:
 		return Unset
 	}
@@ -103,6 +106,8 @@ func (t *Term) SetVariableVisibility(v Visibility) {
 		variableVisiblity = variablePublic
 	case Secret:
 		variableVisiblity = variableSecret
+	case Virtual:
+		variableVisiblity = variableVirtual
 	default:
 		return
 	}

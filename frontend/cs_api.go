@@ -17,14 +17,10 @@ limitations under the License.
 package frontend
 
 import (
-	"fmt"
 	"math/big"
-	"path/filepath"
-	"reflect"
-	"runtime"
-	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -55,19 +51,6 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-// returns -le, the result is a copy
-func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
-	res := make(compiled.LinearExpression, len(l))
-	var coeff, coeffCopy big.Int
-	for i, t := range l {
-		coeffID, variableID, constraintVis := t.Unpack()
-		coeff = cs.coeffs[coeffID]
-		coeffCopy.Neg(&coeff)
-		res[i] = cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy)
-	}
-	return res
-}
-
 // Neg returns -i
 func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 
@@ -83,6 +66,19 @@ func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 			return cs.one()
 		}
 		res = cs.Constant(n)
+	}
+	return res
+}
+
+// returns -le, the result is a copy
+func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
+	res := make(compiled.LinearExpression, len(l))
+	var coeff, coeffCopy big.Int
+	for i, t := range l {
+		coeffID, variableID, constraintVis := t.Unpack()
+		coeff = cs.coeffs[coeffID]
+		coeffCopy.Neg(&coeff)
+		res[i] = cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy)
 	}
 	return res
 }
@@ -216,11 +212,6 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	return res
 }
 
-// AssertIsDifferent constrain i1 and i2 to be different
-func (cs *ConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
-	cs.Inverse(cs.Sub(i1, i2))
-}
-
 // Div returns res = i1 / i2
 func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 
@@ -329,10 +320,10 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
 	// a * m = 0            // constrain m to be 0 if a != 0
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
-	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 
-	m := cs.newInternalVariable()
-	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0), compiled.IsZero))
+	// m is computed by the solver such that m = 1 - a^(modulus - 1)
+	m := cs.NewHint(hint.IsZero, a)
+	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0)))
 
 	cs.AssertIsBoolean(m)
 	ma := cs.Add(m, a)
@@ -351,7 +342,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	// allocate the resulting variables and bit-constraint them
 	b := make([]Variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.newInternalVariable()
+		b[i] = cs.NewHint(hint.IthBit, a, i)
 		cs.AssertIsBoolean(b[i])
 	}
 
@@ -369,7 +360,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	}
 
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a, compiled.BinaryDec))
+	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a))
 	return b
 
 }
@@ -459,306 +450,4 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 			cs.makeTerm(Wire{compiled.Public, 0, nil}, &n),
 		}}
 	}
-}
-
-// creates a string formatted to display correctly a variable, from its linear expression representation
-// (i.e. the linear expression leading to it)
-func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
-
-	var res logEntry
-	var sbb strings.Builder
-	sbb.Grow(len(v.linExp) * len(" + (xx + xxxxxxxxxxxx"))
-
-	for i := 0; i < len(v.linExp); i++ {
-		if i > 0 {
-			sbb.WriteString(" + ")
-		}
-		c := cs.coeffs[v.linExp[i].CoeffID()]
-		sbb.WriteString(fmt.Sprintf("(%%s * %s)", c.String()))
-	}
-	res.format = sbb.String()
-	res.toResolve = v.linExp.Clone()
-	return res
-}
-
-// AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
-
-	// encoded as L * R == O
-	// set L = i1
-	// set R = 1
-	// set O = i2
-
-	// we don't do just "cs.Sub(i1,i2)" to allow proper logging
-	debugInfo := logEntry{}
-
-	l := cs.Constant(i1) // no constraint is recorded
-	r := cs.Constant(1)  // no constraint is recorded
-	o := cs.Constant(i2) // no constraint is recorded
-
-	// build log
-	var sbb strings.Builder
-	sbb.WriteString("[")
-	lhs := cs.buildLogEntryFromVariable(l)
-	sbb.WriteString(lhs.format)
-	debugInfo.toResolve = lhs.toResolve
-	sbb.WriteString(" != ")
-	rhs := cs.buildLogEntryFromVariable(o)
-	sbb.WriteString(rhs.format)
-	debugInfo.toResolve = append(debugInfo.toResolve, rhs.toResolve...)
-	sbb.WriteString("]")
-
-	// get call stack
-	sbb.WriteString("error AssertIsEqual")
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
-
-	cs.addAssertion(newR1C(l, r, o), debugInfo)
-}
-
-// markBoolean marks the variable as boolean and return true
-// if a constraint was added, false if the variable was already
-// constrained as a boolean
-func (cs *ConstraintSystem) markBoolean(v Variable) bool {
-	switch v.visibility {
-	case compiled.Internal:
-		if _, ok := cs.internal.booleans[v.id]; ok {
-			return false
-		}
-		cs.internal.booleans[v.id] = struct{}{}
-	case compiled.Secret:
-		if _, ok := cs.secret.booleans[v.id]; ok {
-			return false
-		}
-		cs.secret.booleans[v.id] = struct{}{}
-	case compiled.Public:
-		if _, ok := cs.public.booleans[v.id]; ok {
-			return false
-		}
-		cs.public.booleans[v.id] = struct{}{}
-	default:
-		panic("not implemented")
-	}
-	return true
-}
-
-// AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
-
-	v.assertIsSet()
-
-	if !cs.markBoolean(v) {
-		return // variable is already constrained
-	}
-
-	// ensure v * (1 - v) == 0
-
-	_v := cs.Sub(1, v)  // no variable is recorded in the cs
-	o := cs.Constant(0) // no variable is recorded in the cs
-
-	// prepare debug info to be displayed in case the constraint is not solved
-	debugInfo := logEntry{
-		toResolve: nil,
-	}
-	var sbb strings.Builder
-	sbb.WriteString("error AssertIsBoolean")
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
-
-	cs.addAssertion(newR1C(v, _v, o), debugInfo)
-}
-
-// AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
-//
-// bound can be a constant or a Variable
-//
-// derived from:
-// https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
-func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
-
-	v.assertIsSet()
-
-	switch b := bound.(type) {
-	case Variable:
-		b.assertIsSet()
-		cs.mustBeLessOrEqVar(v, b)
-	default:
-		cs.mustBeLessOrEqCst(v, FromInterface(b))
-	}
-
-}
-
-func (cs *ConstraintSystem) mustBeLessOrEqVar(w, bound Variable) {
-
-	// prepare debug info to be displayed in case the constraint is not solved
-	dbgInfoW := cs.buildLogEntryFromVariable(w)
-	dbgInfoBound := cs.buildLogEntryFromVariable(bound)
-	var sbb strings.Builder
-	var debugInfo logEntry
-	sbb.WriteString(dbgInfoW.format)
-	sbb.WriteString(" <= ")
-	sbb.WriteString(dbgInfoBound.format)
-	debugInfo.toResolve = make([]compiled.Term, len(dbgInfoW.toResolve)+len(dbgInfoBound.toResolve))
-	copy(debugInfo.toResolve[:], dbgInfoW.toResolve)
-	copy(debugInfo.toResolve[len(dbgInfoW.toResolve):], dbgInfoBound.toResolve)
-
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
-
-	const nbBits = 256
-
-	binw := cs.ToBinary(w, nbBits)
-	binbound := cs.ToBinary(bound, nbBits)
-
-	p := make([]Variable, nbBits+1)
-	p[nbBits] = cs.Constant(1)
-
-	zero := cs.Constant(0)
-
-	for i := nbBits - 1; i >= 0; i-- {
-
-		p1 := cs.Mul(p[i+1], binw[i])
-		p[i] = cs.Select(binbound[i], p1, p[i+1])
-		t := cs.Select(binbound[i], zero, p[i+1])
-
-		l := cs.one()
-		l = cs.Sub(l, t)       // no constraint is recorded
-		l = cs.Sub(l, binw[i]) // no constraint is recorded
-
-		r := binw[i]
-
-		o := cs.Constant(0) // no constraint is recorded
-
-		cs.addAssertion(newR1C(l, r, o), debugInfo)
-	}
-
-}
-
-func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
-
-	// prepare debug info to be displayed in case the constraint is not solved
-	dbgInfoW := cs.buildLogEntryFromVariable(v)
-	var sbb strings.Builder
-	var debugInfo logEntry
-	sbb.WriteString(dbgInfoW.format)
-	sbb.WriteString(" <= ")
-	sbb.WriteString(bound.String())
-
-	debugInfo.toResolve = dbgInfoW.toResolve
-
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
-
-	// TODO store those constant elsewhere (for the moment they don't depend on the base curve, but that might change)
-	const nbBits = 256
-	const nbWords = 4
-	const wordSize = 64
-
-	vBits := cs.ToBinary(v, nbBits)
-	boundBits := bound.Bits()
-	l := len(boundBits)
-	if len(boundBits) < nbWords {
-		for i := 0; i < nbWords-l; i++ {
-			boundBits = append(boundBits, big.Word(0))
-		}
-	}
-
-	p := make([]Variable, nbBits+1)
-
-	p[nbBits] = cs.Constant(1)
-	for i := nbWords - 1; i >= 0; i-- {
-		for j := 0; j < wordSize; j++ {
-			b := (boundBits[i] >> (wordSize - 1 - j)) & 1
-			if b == 0 {
-				p[(i+1)*wordSize-1-j] = p[(i+1)*wordSize-j]
-
-				l := cs.one()
-				l = cs.Sub(l, p[(i+1)*wordSize-j])       // no constraint is recorded
-				l = cs.Sub(l, vBits[(i+1)*wordSize-1-j]) // no constraint is recorded
-
-				r := vBits[(i+1)*wordSize-1-j]
-				o := cs.Constant(0)
-				cs.addAssertion(newR1C(l, r, o), debugInfo)
-
-			} else {
-				p[(i+1)*wordSize-1-j] = cs.Mul(p[(i+1)*wordSize-j], vBits[(i+1)*wordSize-1-j])
-			}
-		}
-	}
-}
-
-// Println enables circuit debugging and behaves almost like fmt.Println()
-//
-// the print will be done once the R1CS.Solve() method is executed
-//
-// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
-	var sbb strings.Builder
-
-	// prefix log line with file.go:line
-	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
-	}
-
-	// for each argument, if it is a circuit structure and contains variable
-	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
-	// if it doesn't contain variable, call fmt.Sprint(arg) instead
-	entry := logEntry{}
-
-	// this is call recursively on the arguments using reflection on each argument
-	foundVariable := false
-
-	var handler logValueHandler = func(name string, tInput reflect.Value) {
-
-		v := tInput.Interface().(Variable)
-
-		// if the variable is only in linExp form, we allocate it
-		_v := cs.allocate(v)
-
-		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
-
-		if name == "" {
-			sbb.WriteString("%s")
-		} else {
-			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
-		}
-
-		foundVariable = true
-	}
-
-	for i, arg := range a {
-		if i > 0 {
-			sbb.WriteByte(' ')
-		}
-		foundVariable = false
-		parseLogValue(arg, "", handler)
-		if !foundVariable {
-			sbb.WriteString(fmt.Sprint(arg))
-		}
-	}
-	sbb.WriteByte('\n')
-
-	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
-	entry.format = sbb.String()
-
-	cs.logs = append(cs.logs, entry)
 }

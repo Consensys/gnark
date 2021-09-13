@@ -110,7 +110,7 @@ func TestFindUnsolvedVariable(t *testing.T) {
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = true
 	}
-	r1c := compiled.R1C{L: l, R: r, O: o, Solver: compiled.SingleOutput}
+	r1c := compiled.R1C{L: l, R: r, O: o}
 
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = false

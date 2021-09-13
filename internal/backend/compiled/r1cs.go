@@ -21,22 +21,20 @@ import (
 )
 
 // R1CS decsribes a set of R1CS constraint
-// The coefficients from the rank-1 constraint it contains
-// are big.Int and not tied to a curve base field
 type R1CS struct {
-
 	// Wires
 	NbInternalVariables  int
 	NbPublicVariables    int // includes ONE wire
 	NbSecretVariables    int
 	Logs                 []LogEntry
 	DebugInfoComputation []LogEntry
-	DebugInfoAssertion   []LogEntry
 
 	// Constraints
-	NbConstraints   int // total number of constraints
-	NbCOConstraints int // number of constraints that need to be solved, the first of the Constraints slice
-	Constraints     []R1C
+	NbConstraints int // total number of constraints
+	Constraints   []R1C
+
+	// Hints
+	Hints []Hint
 }
 
 // GetNbConstraints returns the number of constraints
@@ -81,5 +79,10 @@ func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
 // default uses os.Stdout
 // if nil is provided, logs are not printed
 func (r1cs *R1CS) SetLoggerOutput(w io.Writer) {
+	panic("not implemented")
+}
+
+// ToHTML returns an HTML human-readable representation of the constraint system
+func (r1cs *R1CS) ToHTML(w io.Writer) error {
 	panic("not implemented")
 }
