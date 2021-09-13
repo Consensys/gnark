@@ -130,7 +130,11 @@ func (s *solution) solveHint(h compiled.Hint, vID int) error {
 	if !ok {
 		return errors.New("missing hint function")
 	}
-	s.set(vID, f(inputs))
+	v, err := f(inputs)
+	if err != nil {
+		return err
+	}
+	s.set(vID, v)
 	return nil
 }
 

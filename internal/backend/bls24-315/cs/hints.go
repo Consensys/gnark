@@ -17,45 +17,53 @@
 package cs
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 )
 
 // hintFunction signature hints functions must match
-type hintFunction func(input []fr.Element) fr.Element
+type hintFunction func(input []fr.Element) (fr.Element, error)
+
+// qMinusOne is used by powModulusMinusOne
+var qMinusOne big.Int
+
+func init() {
+	qMinusOne.SetUint64(1)
+	qMinusOne.Sub(fr.Modulus(), &qMinusOne)
+}
 
 // powModulusMinusOne expects len(inputs) == 1
 // inputs[0] == a
 // returns m = a^(modulus-1) - 1
-func powModulusMinusOne(inputs []fr.Element) (v fr.Element) {
+func powModulusMinusOne(inputs []fr.Element) (fr.Element, error) {
 	if len(inputs) != 1 {
-		panic("expected one input")
+		return fr.Element{}, errors.New("powModulusMinusOne expects one input")
 	}
-	var eOne big.Int
-	eOne.SetUint64(1)
-	eOne.Sub(fr.Modulus(), &eOne)
-	v.Exp(inputs[0], &eOne)
+	var v fr.Element
+	v.Exp(inputs[0], &qMinusOne)
 	one := fr.One()
 	v.Sub(&one, &v)
-	return v
+	return v, nil
 }
 
 // ithBit expects len(inputs) == 2
 // inputs[0] == a
 // inputs[1] == n
 // returns bit number n of a
-func ithBit(inputs []fr.Element) (v fr.Element) {
+func ithBit(inputs []fr.Element) (fr.Element, error) {
 	if len(inputs) != 2 {
-		panic("expected 2 inputs; inputs[0] == value, inputs[1] == bit position")
+		return fr.Element{}, errors.New("ithBit expects 2 inputs; inputs[0] == value, inputs[1] == bit position")
 	}
 	// TODO @gbotrel this is very inneficient; it adds ~256*2 multiplications to extract all bits of a value.
 	inputs[0].FromMont()
 	inputs[1].FromMont()
 	if !inputs[1].IsUint64() {
-		panic("expected bit position to fit on one word")
+		return fr.Element{}, errors.New("ithBit expects bit position (input[1]) to fit on one word")
 	}
-	v.SetUint64(inputs[0].Bit(inputs[1][0]))
-
-	return v
+	if inputs[0].Bit(inputs[1][0]) == 0 {
+		return fr.Element{}, nil
+	}
+	return fr.One(), nil
 }
