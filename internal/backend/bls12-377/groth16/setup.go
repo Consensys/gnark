@@ -52,7 +52,7 @@ type ProvingKey struct {
 
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
-	NbInfinityA, NbInfinityB int
+	NbInfinityA, NbInfinityB uint64
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -186,7 +186,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		n++
 	}
 	A = A[:n]
-	pk.NbInfinityA = nbWires - n
+	pk.NbInfinityA = uint64(nbWires - n)
 	n = 0
 	for i, e := range B {
 		if e.IsZero() {
@@ -197,7 +197,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		n++
 	}
 	B = B[:n]
-	pk.NbInfinityB = nbWires - n
+	pk.NbInfinityB = uint64(nbWires - n)
 
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
@@ -431,8 +431,8 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// set infinity markers
 	pk.InfinityA = make([]bool, nbWires)
 	pk.InfinityB = make([]bool, nbWires)
-	pk.NbInfinityA = nbZeroesA
-	pk.NbInfinityB = nbZeroesB
+	pk.NbInfinityA = uint64(nbZeroesA)
+	pk.NbInfinityB = uint64(nbZeroesB)
 	for i := 0; i < nbZeroesA; i++ {
 		pk.InfinityA[i] = true
 	}

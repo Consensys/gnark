@@ -196,6 +196,12 @@ func TestProvingKeySerialization(t *testing.T) {
 			pk.G1.B[0] = p1
 			pk.G2.B[0] = p2
 
+			// infinity flags
+			pk.NbInfinityA = 1
+			pk.InfinityA = make([]bool, nbWires)
+			pk.InfinityB = make([]bool, nbWires)
+			pk.InfinityA[2] = true
+
 			var bufCompressed bytes.Buffer
 			written, err := pk.WriteTo(&bufCompressed)
 			if err != nil {

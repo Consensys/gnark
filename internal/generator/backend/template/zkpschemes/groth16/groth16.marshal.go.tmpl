@@ -186,6 +186,7 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 	} else {
 		enc = curve.NewEncoder(w)
 	}
+	nbWires := uint64(len(pk.InfinityA))
 	
 	toEncode := []interface{}{
 		&pk.G1.Alpha,
@@ -198,6 +199,11 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		&pk.G2.Beta,
 		&pk.G2.Delta,
 		pk.G2.B,
+		nbWires,
+		pk.NbInfinityA,
+		pk.NbInfinityB,
+		pk.InfinityA,
+		pk.InfinityB,
 	}
 
 	for _, v := range toEncode {
@@ -223,6 +229,8 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(r)
 
+	var nbWires uint64 
+
 	toDecode := []interface{}{
 		&pk.G1.Alpha,
 		&pk.G1.Beta,
@@ -234,12 +242,24 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 		&pk.G2.Beta,
 		&pk.G2.Delta,
 		&pk.G2.B,
+		&nbWires, 
+		&pk.NbInfinityA,
+		&pk.NbInfinityB,
 	}
 
 	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
 			return n + dec.BytesRead(), err
 		}
+	}
+	pk.InfinityA = make([]bool, nbWires)
+	pk.InfinityB = make([]bool, nbWires)
+
+	if err := dec.Decode(&pk.InfinityA); err != nil {
+		return n + dec.BytesRead(), err
+	}
+	if err := dec.Decode(&pk.InfinityB); err != nil {
+		return n + dec.BytesRead(), err
 	}
 
 	return n + dec.BytesRead(), nil

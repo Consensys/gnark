@@ -104,7 +104,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, hint
 	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
 
 	go func() {
-		wireValuesA = make([]fr.Element, len(wireValues)-pk.NbInfinityA)
+		wireValuesA = make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
 		for i, j := 0, 0; j < len(wireValuesA); i++ {
 			if pk.InfinityA[i] {
 				continue
@@ -115,7 +115,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, hint
 		close(chWireValuesA)
 	}()
 	go func() {
-		wireValuesB = make([]fr.Element, len(wireValues)-pk.NbInfinityB)
+		wireValuesB = make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
 		for i, j := 0, 0; j < len(wireValuesB); i++ {
 			if pk.InfinityB[i] {
 				continue
