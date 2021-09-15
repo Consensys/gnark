@@ -25,7 +25,7 @@ func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 
 func init() {
 
-	var circuit, good, bad, public andCircuit
+	var circuit, good, bad andCircuit
 
 	good.Left[0].Assign(0)
 	good.Left[1].Assign(0)
@@ -57,5 +57,5 @@ func init() {
 	bad.Res[2].Assign(1)
 	bad.Res[3].Assign(0)
 
-	addEntry("AND", &circuit, &good, &bad, &public)
+	addEntry("AND", &circuit, &good, &bad)
 }

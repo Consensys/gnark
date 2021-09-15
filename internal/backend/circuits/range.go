@@ -20,7 +20,7 @@ func (circuit *rangeCheckConstantCircuit) Define(curveID ecc.ID, cs *frontend.Co
 }
 
 func rangeCheckConstant() {
-	var circuit, good, bad, public rangeCheckConstantCircuit
+	var circuit, good, bad rangeCheckConstantCircuit
 
 	good.X.Assign(10)
 	good.Y.Assign(4)
@@ -28,9 +28,7 @@ func rangeCheckConstant() {
 	bad.X.Assign(11)
 	bad.Y.Assign(4)
 
-	public.Y.Assign(4)
-
-	addEntry("range_constant", &circuit, &good, &bad, &public)
+	addEntry("range_constant", &circuit, &good, &bad)
 }
 
 type rangeCheckCircuit struct {
@@ -50,7 +48,7 @@ func (circuit *rangeCheckCircuit) Define(curveID ecc.ID, cs *frontend.Constraint
 
 func rangeCheck() {
 
-	var circuit, good, bad, public rangeCheckCircuit
+	var circuit, good, bad rangeCheckCircuit
 
 	good.X.Assign(10)
 	good.Y.Assign(4)
@@ -60,10 +58,7 @@ func rangeCheck() {
 	bad.Y.Assign(4)
 	bad.Bound.Assign(161)
 
-	public.Y.Assign(4)
-	public.Bound.Assign(161)
-
-	addEntry("range", &circuit, &good, &bad, &public)
+	addEntry("range", &circuit, &good, &bad)
 }
 
 func init() {

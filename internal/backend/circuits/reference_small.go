@@ -23,7 +23,7 @@ func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs *frontend.Constr
 }
 
 func init() {
-	var circuit, good, bad, public referenceSmallCircuit
+	var circuit, good, bad referenceSmallCircuit
 
 	good.X.Assign(2)
 
@@ -40,7 +40,5 @@ func init() {
 	bad.X.Assign(3)
 	bad.Y.Assign(expectedY)
 
-	public.Y.Assign(expectedY)
-
-	addEntry("reference_small", &circuit, &good, &bad, &public)
+	addEntry("reference_small", &circuit, &good, &bad)
 }

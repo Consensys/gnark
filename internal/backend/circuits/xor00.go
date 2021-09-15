@@ -22,7 +22,7 @@ func (circuit *xorCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 }
 
 func init() {
-	var circuit, good, bad, public xorCircuit
+	var circuit, good, bad xorCircuit
 
 	good.B0.Assign(0)
 	good.B1.Assign(0)
@@ -32,7 +32,5 @@ func init() {
 	bad.B1.Assign(1)
 	bad.Y0.Assign(0)
 
-	public.Y0.Assign(0)
-
-	addEntry("xor00", &circuit, &good, &bad, &public)
+	addEntry("xor00", &circuit, &good, &bad)
 }

@@ -20,7 +20,7 @@ func (circuit *negCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 
 func init() {
 
-	var circuit, good, bad, public negCircuit
+	var circuit, good, bad negCircuit
 
 	good.X.Assign(6)
 	good.Z.Assign(30)
@@ -28,7 +28,5 @@ func init() {
 	bad.X.Assign(7)
 	bad.Z.Assign(30)
 
-	public.Z.Assign(30)
-
-	addEntry("neg", &circuit, &good, &bad, &public)
+	addEntry("neg", &circuit, &good, &bad)
 }

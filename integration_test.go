@@ -74,8 +74,8 @@ func TestIntegrationAPI(t *testing.T) {
 				wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, nil, true)
 				assert.NoError(err)
 
-				assert.NoError(groth16.Verify(correctProof, vk, circuit.Public))
-				assert.Error(groth16.Verify(wrongProof, vk, circuit.Public))
+				assert.NoError(groth16.Verify(correctProof, vk, circuit.Good))
+				assert.Error(groth16.Verify(wrongProof, vk, circuit.Good))
 
 				// witness serialization tests.
 				{
@@ -117,11 +117,11 @@ func TestIntegrationAPI(t *testing.T) {
 				correctProof, err := plonk.Prove(ccs, pk, circuit.Good, nil)
 				assert.NoError(err)
 
-				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, nil, true) // true ?
+				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, nil, true)
 				assert.NoError(err)
 
-				assert.NoError(plonk.Verify(correctProof, vk, circuit.Public))
-				assert.Error(plonk.Verify(wrongProof, vk, circuit.Public))
+				assert.NoError(plonk.Verify(correctProof, vk, circuit.Good))
+				assert.Error(plonk.Verify(wrongProof, vk, circuit.Good))
 
 				// witness serialization tests.
 				{

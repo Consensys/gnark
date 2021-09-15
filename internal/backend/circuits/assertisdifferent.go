@@ -19,7 +19,7 @@ func (circuit *assertIsDifferentCircuit) Define(curveID ecc.ID, cs *frontend.Con
 }
 
 func init() {
-	var circuit, good, bad, public assertIsDifferentCircuit
+	var circuit, good, bad assertIsDifferentCircuit
 
 	// expected Z
 	var expectedZ big.Int
@@ -27,10 +27,9 @@ func init() {
 
 	good.X.Assign(6)
 	good.Y.Assign(37)
-	public.Y.Assign(37)
 
 	bad.X.Assign(6)
 	bad.Y.Assign(36)
 
-	addEntry("assert_different", &circuit, &good, &bad, &public)
+	addEntry("assert_different", &circuit, &good, &bad)
 }

@@ -7,14 +7,14 @@ import (
 
 // TestCircuit are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 type TestCircuit struct {
-	Circuit           frontend.Circuit
-	Good, Bad, Public frontend.Circuit // good and bad witness for the prover + public verifier data
+	Circuit   frontend.Circuit
+	Good, Bad frontend.Circuit // good and bad witness for the prover + public verifier data
 }
 
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 var Circuits map[string]TestCircuit
 
-func addEntry(name string, circuit, proverGood, proverBad, publicData frontend.Circuit) {
+func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
 	}
@@ -22,5 +22,5 @@ func addEntry(name string, circuit, proverGood, proverBad, publicData frontend.C
 		panic("name " + name + "already taken by another test circuit ")
 	}
 
-	Circuits[name] = TestCircuit{circuit, proverGood, proverBad, publicData}
+	Circuits[name] = TestCircuit{circuit, proverGood, proverBad}
 }

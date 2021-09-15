@@ -21,7 +21,7 @@ func (circuit *isZero) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 
 func init() {
 
-	var circuit, good, bad, public isZero
+	var circuit, good, bad isZero
 
 	good.X.Assign(0)
 	good.Y.Assign(203028)
@@ -29,5 +29,5 @@ func init() {
 	bad.X.Assign(23)
 	bad.Y.Assign(0)
 
-	addEntry("isZero", &circuit, &good, &bad, &public)
+	addEntry("isZero", &circuit, &good, &bad)
 }

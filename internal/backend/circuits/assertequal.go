@@ -19,7 +19,7 @@ func (circuit *checkAssertEqualCircuit) Define(curveID ecc.ID, cs *frontend.Cons
 
 func init() {
 
-	var circuit, good, bad, public checkAssertEqualCircuit
+	var circuit, good, bad checkAssertEqualCircuit
 
 	good.X.Assign(3)
 	good.Y.Assign(3)
@@ -27,7 +27,5 @@ func init() {
 	bad.X.Assign(5)
 	bad.Y.Assign(2)
 
-	public.Y.Assign(3)
-
-	addEntry("assert_equal", &circuit, &good, &bad, &public)
+	addEntry("assert_equal", &circuit, &good, &bad)
 }

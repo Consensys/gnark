@@ -18,7 +18,7 @@ func (c *noComputationCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSys
 
 func init() {
 
-	var circuit, good, bad, public noComputationCircuit
+	var circuit, good, bad noComputationCircuit
 
 	good.A.Assign(42)
 	good.B.Assign(42)
@@ -26,7 +26,5 @@ func init() {
 	bad.A.Assign(42)
 	bad.B.Assign(43)
 
-	public.A.Assign(42)
-
-	addEntry("noComputationCircuit", &circuit, &good, &bad, &public)
+	addEntry("noComputationCircuit", &circuit, &good, &bad)
 }

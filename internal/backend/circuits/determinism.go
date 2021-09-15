@@ -28,7 +28,7 @@ func (circuit *determinism) Define(curveID ecc.ID, cs *frontend.ConstraintSystem
 }
 
 func init() {
-	var circuit, good, bad, public determinism
+	var circuit, good, bad determinism
 
 	good.X[0].Assign(1)
 	good.X[1].Assign(2)
@@ -44,7 +44,5 @@ func init() {
 	bad.X[4].Assign(1)
 	bad.Z.Assign(900)
 
-	public.Z.Assign(900)
-
-	addEntry("determinism", &circuit, &good, &bad, &public)
+	addEntry("determinism", &circuit, &good, &bad)
 }

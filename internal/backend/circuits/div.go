@@ -20,7 +20,7 @@ func (circuit *divCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 }
 
 func init() {
-	var circuit, good, bad, public divCircuit
+	var circuit, good, bad divCircuit
 
 	// expected Z
 	var expectedZ big.Int
@@ -34,7 +34,5 @@ func init() {
 	bad.Y.Assign(10)
 	bad.Z.Assign(expectedZ)
 
-	public.Z.Assign(expectedZ)
-
-	addEntry("div", &circuit, &good, &bad, &public)
+	addEntry("div", &circuit, &good, &bad)
 }

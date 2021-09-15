@@ -23,7 +23,7 @@ func (circuit *fromBinaryCircuit) Define(curveID ecc.ID, cs *frontend.Constraint
 }
 
 func init() {
-	var circuit, good, bad, public fromBinaryCircuit
+	var circuit, good, bad fromBinaryCircuit
 
 	good.B0.Assign(1)
 	good.B1.Assign(0)
@@ -37,7 +37,5 @@ func init() {
 	bad.B3.Assign(1)
 	bad.Y.Assign(13)
 
-	public.Y.Assign(13)
-
-	addEntry("frombinary", &circuit, &good, &bad, &public)
+	addEntry("frombinary", &circuit, &good, &bad)
 }

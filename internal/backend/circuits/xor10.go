@@ -1,7 +1,7 @@
 package circuits
 
 func init() {
-	var circuit, good, bad, public xorCircuit
+	var circuit, good, bad xorCircuit
 
 	good.B0.Assign(1)
 	good.B1.Assign(0)
@@ -11,7 +11,5 @@ func init() {
 	bad.B1.Assign(1)
 	bad.Y0.Assign(1)
 
-	public.Y0.Assign(1)
-
-	addEntry("xor10", &circuit, &good, &bad, &public)
+	addEntry("xor10", &circuit, &good, &bad)
 }
