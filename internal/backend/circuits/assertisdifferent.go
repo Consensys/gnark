@@ -27,6 +27,7 @@ func init() {
 
 	good.X.Assign(6)
 	good.Y.Assign(37)
+	public.Y.Assign(37)
 
 	bad.X.Assign(6)
 	bad.Y.Assign(36)

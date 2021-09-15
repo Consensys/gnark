@@ -46,9 +46,14 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // it returns the full slice of wires
 func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (values []fr.Element, err error) {
 
+
+	// set the slices holding the solution.values and monitoring which variables have been solved
+	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
+
+
 	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
 	if len(witness) != expectedWitnessSize {
-		return nil, fmt.Errorf(
+		return make([]fr.Element, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
 			len(witness),
 			expectedWitnessSize,
@@ -57,13 +62,12 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 		)
 	}
 
-	// set the slices holding the solution.values and monitoring which variables have been solved
-	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
+
 
 	// keep track of wire that have a value
 	solution, err  := newSolution(nbVariables, hintFunctions, cs.Coefficients)
 	if err != nil {
-		return nil, err
+		return solution.values, err
 	}
 
 	// solution.values = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
@@ -90,10 +94,10 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	// loop through the constraints to solve the variables
 	for i := 0; i < len(cs.Constraints); i++ {
 		if err := cs.solveConstraint(cs.Constraints[i], &solution, coefficientsNegInv); err != nil {
-			return nil, fmt.Errorf("constraint %d: %w", i, err)
+			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
-			return nil, fmt.Errorf("constraint %d: %w", i, err)
+			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 	}
 

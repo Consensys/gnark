@@ -60,7 +60,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witness, hintFunctions []hint.Function) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witness, hintFunctions []hint.Function, force bool) (*Proof, error) {
 
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -72,9 +72,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	proof := &Proof{}
 
 	// compute the constraint system solution
-	solution, err := spr.Solve(fullWitness, hintFunctions)
-	if err != nil {
-		return nil, err
+	var solution []fr.Element
+	var err error
+	if solution, err = spr.Solve(fullWitness, hintFunctions); err != nil {
+		if !force {
+			return nil, err
+		} else {
+			// we need to fill solution with random values
+			var r fr.Element
+			_, _ = r.SetRandom()
+			for i := spr.NbPublicVariables + spr.NbSecretVariables; i < len(solution); i++ {
+				solution[i] = r
+				r.Double(&r)
+			}
+		}
 	}
 
 	// query l, r, o in Lagrange basis, not blinded

@@ -115,7 +115,7 @@ func BenchmarkProver(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil )
+		_, err = {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil , false)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -140,7 +140,7 @@ func BenchmarkVerifier(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil )
+	proof, err := {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil , false)
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +166,7 @@ func BenchmarkSerialization(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil)
+	proof, err := {{toLower .CurveID}}plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil, false )
 	if err != nil {
 		b.Fatal(err)
 	}

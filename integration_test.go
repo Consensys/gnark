@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -46,49 +47,96 @@ func TestIntegrationAPI(t *testing.T) {
 	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
-		t.Log(name)
+		// t.Log(name)
 
 		if testing.Short() {
-			if name != "lut01" && name != "frombinary" {
+			if name == "reference_small" {
 				continue
 			}
+			// if name != "lut01" && name != "frombinary" {
+			// 	continue
+			// }
 		}
 
 		for _, curve := range curves {
-			t.Log(curve.String())
-
-			r1cs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
-			assert.NoError(err)
-
-			pk, vk, err := groth16.Setup(r1cs)
-			assert.NoError(err)
-
-			correctProof, err := groth16.Prove(r1cs, pk, circuit.Good, nil)
-			assert.NoError(err)
-
-			wrongProof, err := groth16.Prove(r1cs, pk, circuit.Bad, nil, true)
-			assert.NoError(err)
-
-			assert.NoError(groth16.Verify(correctProof, vk, circuit.Public))
-			assert.Error(groth16.Verify(wrongProof, vk, circuit.Public))
-
-			// witness serialization tests.
 			{
-				buf.Reset()
+				t.Log(name, curve.String(), "groth16")
 
-				_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+				ccs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
 				assert.NoError(err)
 
-				correctProof, err := groth16.ReadAndProve(r1cs, pk, &buf, nil)
+				pk, vk, err := groth16.Setup(ccs)
 				assert.NoError(err)
 
-				buf.Reset()
-
-				_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+				correctProof, err := groth16.Prove(ccs, pk, circuit.Good, nil)
 				assert.NoError(err)
 
-				err = groth16.ReadAndVerify(correctProof, vk, &buf)
+				wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, nil, true)
 				assert.NoError(err)
+
+				assert.NoError(groth16.Verify(correctProof, vk, circuit.Public))
+				assert.Error(groth16.Verify(wrongProof, vk, circuit.Public))
+
+				// witness serialization tests.
+				{
+					buf.Reset()
+
+					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+					assert.NoError(err)
+
+					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, nil)
+					assert.NoError(err)
+
+					buf.Reset()
+
+					_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+					assert.NoError(err)
+
+					err = groth16.ReadAndVerify(correctProof, vk, &buf)
+					assert.NoError(err)
+				}
+
+			}
+			{
+				t.Log(name, curve.String(), "plonk")
+
+				ccs, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
+				assert.NoError(err)
+
+				srs, err := plonk.NewSRS(ccs)
+				assert.NoError(err)
+
+				pk, vk, err := plonk.Setup(ccs, srs)
+				assert.NoError(err)
+
+				correctProof, err := plonk.Prove(ccs, pk, circuit.Good, nil)
+				assert.NoError(err)
+
+				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, nil, true) // true ?
+				assert.NoError(err)
+
+				assert.NoError(plonk.Verify(correctProof, vk, circuit.Public))
+				assert.Error(plonk.Verify(wrongProof, vk, circuit.Public))
+
+				// witness serialization tests.
+				{
+					buf.Reset()
+
+					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+					assert.NoError(err)
+
+					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, nil)
+					assert.NoError(err)
+
+					buf.Reset()
+
+					_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+					assert.NoError(err)
+
+					err = plonk.ReadAndVerify(correctProof, vk, &buf)
+					assert.NoError(err)
+				}
+
 			}
 
 		}

@@ -92,13 +92,9 @@ type VerifyingKey interface {
 func NewSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 
 	nbConstraints := ccs.GetNbConstraints()
-	internal, secret, public := ccs.GetNbVariables()
-	nbVariables := internal + secret + public
-	kzgSize := uint64(nbVariables)
-	if nbConstraints > nbVariables {
-		kzgSize = uint64(nbConstraints)
-	}
-	kzgSize = ecc.NextPowerOfTwo(kzgSize) + 3
+	_, _, public := ccs.GetNbVariables()
+	sizeSystem := nbConstraints + public
+	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem)) + 3
 
 	switch ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -152,13 +148,22 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 	case *cs_bls24315.SparseR1CS:
 		return plonk_bls24315.Setup(tccs, kzgSRS.(*kzg_bls24315.SRS))
 	default:
-		panic("unrecognized R1CS curve type")
+		panic("unrecognized SparseR1CS curve type")
 	}
 
 }
 
 // Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, hintFunctions []hint.Function) (Proof, error) {
+// if the force flag is set:
+// 	will executes all the prover computations, even if the witness is invalid
+//  will produce an invalid proof
+//	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
+func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, hintFunctions []hint.Function, force ...bool) (Proof, error) {
+
+	_force := false
+	if len(force) > 0 {
+		_force = force[0]
+	}
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -166,38 +171,38 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, hintFunctions)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, hintFunctions, _force)
 
 	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, hintFunctions)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, hintFunctions, _force)
 
 	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, hintFunctions)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, hintFunctions, _force)
 
 	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, hintFunctions)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, hintFunctions, _force)
 
 	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, hintFunctions)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, hintFunctions, _force)
 
 	default:
-		panic("unrecognized R1CS curve type")
+		panic("unrecognized SparseR1CS curve type")
 	}
 }
 
@@ -334,7 +339,12 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 }
 
 // ReadAndProve generates PLONK proof from a circuit, associated proving key, and the full witness
-func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, hintFunctions []hint.Function) (Proof, error) {
+func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, hintFunctions []hint.Function, force ...bool) (Proof, error) {
+
+	_force := false
+	if len(force) > 0 {
+		_force = force[0]
+	}
 
 	_, nbSecret, nbPublic := ccs.GetNbVariables()
 	expectedSize := (nbSecret + nbPublic)
@@ -346,7 +356,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bn254.Prove(tccs, _pk, w, hintFunctions)
+		proof, err := plonk_bn254.Prove(tccs, _pk, w, hintFunctions, _force)
 		if err != nil {
 			return proof, err
 		}
@@ -358,7 +368,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12381.Prove(tccs, _pk, w, hintFunctions)
+		proof, err := plonk_bls12381.Prove(tccs, _pk, w, hintFunctions, _force)
 		if err != nil {
 			return proof, err
 		}
@@ -370,7 +380,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12377.Prove(tccs, _pk, w, hintFunctions)
+		proof, err := plonk_bls12377.Prove(tccs, _pk, w, hintFunctions, _force)
 		if err != nil {
 			return proof, err
 		}
@@ -382,7 +392,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bw6761.Prove(tccs, _pk, w, hintFunctions)
+		proof, err := plonk_bw6761.Prove(tccs, _pk, w, hintFunctions, _force)
 		if err != nil {
 			return proof, err
 		}
@@ -394,7 +404,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls24315.Prove(tccs, _pk, w, hintFunctions)
+		proof, err := plonk_bls24315.Prove(tccs, _pk, w, hintFunctions, _force)
 		if err != nil {
 			return proof, err
 		}
