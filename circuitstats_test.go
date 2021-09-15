@@ -22,16 +22,16 @@ func checkStats(t *testing.T, circuitName string, nbConstraints, internal, secre
 	} else {
 		ref := referenceStats[backendID][curve]
 		if ref.nbConstraints != nbConstraints {
-			t.Fatalf("expected %d nbConstraints (reference), got %d. %s, %s, %s", ref.nbConstraints, nbConstraints, circuitName, backendID.String(), curve.String())
+			t.Errorf("expected %d nbConstraints (reference), got %d. %s, %s, %s", ref.nbConstraints, nbConstraints, circuitName, backendID.String(), curve.String())
 		}
 		if ref.internal != internal {
-			t.Fatalf("expected %d internal (reference), got %d. %s, %s, %s", ref.internal, internal, circuitName, backendID.String(), curve.String())
+			t.Errorf("expected %d internal (reference), got %d. %s, %s, %s", ref.internal, internal, circuitName, backendID.String(), curve.String())
 		}
 		if ref.secret != secret {
-			t.Fatalf("expected %d secret (reference), got %d. %s, %s, %s", ref.secret, secret, circuitName, backendID.String(), curve.String())
+			t.Errorf("expected %d secret (reference), got %d. %s, %s, %s", ref.secret, secret, circuitName, backendID.String(), curve.String())
 		}
 		if ref.public != public {
-			t.Fatalf("expected %d public (reference), got %d. %s, %s, %s", ref.public, public, circuitName, backendID.String(), curve.String())
+			t.Errorf("expected %d public (reference), got %d. %s, %s, %s", ref.public, public, circuitName, backendID.String(), curve.String())
 		}
 	}
 }
