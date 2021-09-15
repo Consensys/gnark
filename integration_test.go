@@ -47,15 +47,10 @@ func TestIntegrationAPI(t *testing.T) {
 	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
-		// t.Log(name)
-
 		if testing.Short() {
 			if name == "reference_small" {
 				continue
 			}
-			// if name != "lut01" && name != "frombinary" {
-			// 	continue
-			// }
 		}
 
 		for _, curve := range curves {
@@ -64,6 +59,11 @@ func TestIntegrationAPI(t *testing.T) {
 
 				ccs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
 				assert.NoError(err)
+
+				// ensure we didn't introduce regressions that make circuits less efficient
+				nbConstraints := ccs.GetNbConstraints()
+				internal, secret, public := ccs.GetNbVariables()
+				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.GROTH16)
 
 				pk, vk, err := groth16.Setup(ccs)
 				assert.NoError(err)
@@ -102,6 +102,11 @@ func TestIntegrationAPI(t *testing.T) {
 
 				ccs, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
 				assert.NoError(err)
+
+				// ensure we didn't introduce regressions that make circuits less efficient
+				nbConstraints := ccs.GetNbConstraints()
+				internal, secret, public := ccs.GetNbVariables()
+				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.PLONK)
 
 				srs, err := plonk.NewSRS(ccs)
 				assert.NoError(err)
