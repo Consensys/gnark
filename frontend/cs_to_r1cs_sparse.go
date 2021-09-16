@@ -169,6 +169,11 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		}
 	}
 
+	res.ccs.MHints = make(map[int]int, len(res.ccs.Hints))
+	for i := 0; i < len(res.ccs.Hints); i++ {
+		res.ccs.MHints[res.ccs.Hints[i].WireID] = i
+	}
+
 	// update number of internal variables with new wires created
 	// while processing R1C -> SparseR1C
 	res.ccs.NbInternalVariables = res.scsInternalVariables

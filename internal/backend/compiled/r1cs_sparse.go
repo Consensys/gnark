@@ -38,7 +38,9 @@ type SparseR1CS struct {
 	DebugInfo []LogEntry
 
 	// Hints
-	Hints  []Hint
+	Hints []Hint
+
+	MHints map[int]int // maps wire id to hint id
 	MDebug map[int]int // maps constraint id to debugInfo id
 }
 

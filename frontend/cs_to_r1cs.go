@@ -78,7 +78,11 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		for j := 0; j < len(res.Hints[i].Inputs); j++ {
 			offsetIDs(res.Hints[i].Inputs[j])
 		}
+	}
 
+	res.MHints = make(map[int]int, len(res.Hints))
+	for i := 0; i < len(res.Hints); i++ {
+		res.MHints[res.Hints[i].WireID] = i
 	}
 
 	// we need to offset the ids in logs & debugInfo

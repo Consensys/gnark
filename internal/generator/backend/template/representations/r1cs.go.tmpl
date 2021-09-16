@@ -24,7 +24,6 @@ type R1CS struct {
 	compiled.R1CS
 	Coefficients    []fr.Element // R1C coefficients indexes point here
 	loggerOut io.Writer
-	mHints map[int]int // correspondance between hint wire ID and hint data struct
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
@@ -37,8 +36,6 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	for i := 0; i < len(coefficients); i++ {
 		r.Coefficients[i].SetBigInt(&coefficients[i])
 	}
-
-	r.initHints()
 
 	return &r 
 }
@@ -98,6 +95,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
 		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
+			// TODO should return debug info, if any.
 			return solution.values, err
 		}
 
@@ -132,17 +130,6 @@ func (cs *R1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) er
 	c := make([]fr.Element, cs.NbConstraints)
 	_, err := cs.Solve(witness, a, b, c, hintFunctions)
 	return err 
-}
-
-
-
-func (cs *R1CS) initHints() {
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be 
-	// deterministic, hence avoid maps in there.
-	cs.mHints = make(map[int]int, len(cs.Hints))
-	for i:=0; i <len(cs.Hints);i++ {
-		cs.mHints[cs.Hints[i].WireID] = i
-	}
 }
 
 
@@ -214,8 +201,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 		}
 
 		// first we check if this is a hint wire
-		if hID, ok := cs.mHints[vID];ok {
-			// TODO handle error 
+		if hID, ok := cs.MHints[vID];ok {
 			return solution.solveHint(cs.Hints[hID], vID)
 		}
 
@@ -297,15 +283,8 @@ func (cs *R1CS) ToHTML(w io.Writer) error {
 		return err
 	}
 
-	type data struct {
-		*R1CS
-		MHints map[int]int
-	}
-	d := data {
-		cs,
-		cs.mHints,
-	}
-	return t.Execute(w, &d)
+
+	return t.Execute(w, cs)
 }
 
 func add(a, b int) int {
@@ -316,10 +295,10 @@ func sub(a, b int) int {
 	return a-b
 }
 
-func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int) string {
+func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]int) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
-		termToHTML(l[i], &sbb, coeffs, mHints, false)
+		termToHTML(l[i], &sbb, coeffs, MHints, false)
 		if i+1 < len(l) {
 			sbb.WriteString(" + ")
 		}
@@ -327,7 +306,7 @@ func toHTML(l compiled.LinearExpression, coeffs []fr.Element, mHints map[int]int
 	return sbb.String()
 }
 
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHints map[int]int, offset bool) {
+func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]int, offset bool) {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
 		// do nothing, just print the variable
@@ -348,7 +327,7 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, mHin
 	switch t.VariableVisibility() {
 	case compiled.Internal:
 		class = "internal"
-		if _, ok := mHints[vID]; ok {
+		if _, ok := MHints[vID]; ok {
 			class = "hint"
 		}
 	case compiled.Public:
@@ -418,9 +397,6 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err
 	}
-
-	// init the hint map 
-	cs.initHints()
 
 	return int64(decoder.NumBytesRead()), nil
 }

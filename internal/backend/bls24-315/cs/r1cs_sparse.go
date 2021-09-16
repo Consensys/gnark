@@ -39,7 +39,6 @@ type SparseR1CS struct {
 
 	// Coefficients in the constraints
 	Coefficients []fr.Element // list of unique coefficients.
-	mHints       map[int]int  // correspondance between hint wire ID and hint data struct
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -51,8 +50,6 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
 	}
-
-	cs.initHints()
 
 	return &cs
 }
@@ -135,7 +132,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[lID]; ok {
+		if hID, ok := cs.MHints[lID]; ok {
 			if err := solution.solveHint(cs.Hints[hID], lID); err != nil {
 				return -1, err
 			}
@@ -147,7 +144,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !solution.solved[rID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[rID]; ok {
+		if hID, ok := cs.MHints[rID]; ok {
 			if err := solution.solveHint(cs.Hints[hID], rID); err != nil {
 				return -1, err
 			}
@@ -158,7 +155,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.O.CoeffID() != 0) && !solution.solved[oID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[oID]; ok {
+		if hID, ok := cs.MHints[oID]; ok {
 			if err := solution.solveHint(cs.Hints[hID], oID); err != nil {
 				return -1, err
 			}
@@ -269,21 +266,12 @@ func (cs *SparseR1CS) ToHTML(w io.Writer) error {
 		return err
 	}
 
-	type data struct {
-		*SparseR1CS
-		MHints map[int]int
-	}
-	d := data{
-		cs,
-		cs.mHints,
-	}
-
-	return t.Execute(w, &d)
+	return t.Execute(w, cs)
 }
 
-func toHTMLTerm(t compiled.Term, coeffs []fr.Element, mHints map[int]int) string {
+func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]int) string {
 	var sbb strings.Builder
-	termToHTML(t, &sbb, coeffs, mHints, true)
+	termToHTML(t, &sbb, coeffs, MHints, true)
 	return sbb.String()
 }
 
@@ -297,15 +285,6 @@ func toHTMLCoeff(cID int, coeffs []fr.Element) string {
 	sbb.WriteString(coeffs[cID].String())
 	sbb.WriteString("</span>")
 	return sbb.String()
-}
-
-func (cs *SparseR1CS) initHints() {
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
-	// deterministic, hence avoid maps in there.
-	cs.mHints = make(map[int]int, len(cs.Hints))
-	for i := 0; i < len(cs.Hints); i++ {
-		cs.mHints[cs.Hints[i].WireID] = i
-	}
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
@@ -345,6 +324,5 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	}
 	decoder := dm.NewDecoder(r)
 	err = decoder.Decode(cs)
-	cs.initHints()
 	return int64(decoder.NumBytesRead()), err
 }
