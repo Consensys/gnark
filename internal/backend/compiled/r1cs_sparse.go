@@ -34,10 +34,12 @@ type SparseR1CS struct {
 	Constraints []SparseR1C
 
 	// Logs (e.g. variables that have been printed using cs.Println)
-	Logs []LogEntry
+	Logs      []LogEntry
+	DebugInfo []LogEntry
 
 	// Hints
-	Hints []Hint
+	Hints  []Hint
+	MDebug map[int]int // maps constraint id to debugInfo id
 }
 
 // GetNbVariables return number of internal, secret and public variables

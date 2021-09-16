@@ -44,6 +44,9 @@ const (
 	nbBitsVariableVisibility = 3
 )
 
+// TermDelimitor is reserved for internal use
+const TermDelimitor Term = Term(maskFutureUse)
+
 const (
 	shiftVariableID         = 0
 	shiftCoeffID            = nbBitsVariableID

@@ -54,17 +54,7 @@ func (l LinearExpression) Less(i, j int) bool {
 
 // R1C used to compute the wires
 type R1C struct {
-	L LinearExpression
-	R LinearExpression
-	O LinearExpression
-}
-
-// LogEntry is used as a shared data structure between the frontend and the backend
-// to represent string values (in logs or debug info) where a value is not known at compile time
-// (which is the case for variables that need to be resolved in the R1CS)
-type LogEntry struct {
-	Format    string
-	ToResolve []int
+	L, R, O LinearExpression
 }
 
 // Visibility encodes a Variable (or wire) visibility

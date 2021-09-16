@@ -18,7 +18,6 @@ package frontend
 
 import (
 	"math/big"
-	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -185,79 +184,28 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 
 // Inverse returns res = inverse(v)
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
-
 	v.assertIsSet()
+	debug := cs.addDebugInfo("inverse", v)
 
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
-	cs.constraints = append(cs.constraints, newR1C(v, res, cs.one()))
-
-	// prepare debug info to be displayed in case the constraint is not solved
-	debugInfo := logEntry{
-		toResolve: nil,
-	}
-	var sbb strings.Builder
-	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
-
-	// add it to the logs record
-	cs.debugInfoComputation = append(cs.debugInfoComputation, debugInfo)
+	cs.addConstraint(newR1C(v, res, cs.one()), debug)
 
 	return res
 }
 
 // Div returns res = i1 / i2
 func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
-
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
-	// O
-	switch t1 := i1.(type) {
-	case Variable:
-		t1.assertIsSet()
-		switch t2 := i2.(type) {
-		case Variable:
-			t2.assertIsSet()
-			cs.constraints = append(cs.constraints, newR1C(t2, res, t1))
-		default:
-			tmp := cs.Constant(t2)
-			cs.constraints = append(cs.constraints, newR1C(res, tmp, t1))
-		}
-	default:
-		switch t2 := i2.(type) {
-		case Variable:
-			t2.assertIsSet()
-			tmp := cs.Constant(t1)
-			cs.constraints = append(cs.constraints, newR1C(t2, res, tmp))
-		default:
-			tmp1 := cs.Constant(t1)
-			tmp2 := cs.Constant(t2)
-			cs.constraints = append(cs.constraints, newR1C(res, tmp2, tmp1))
-		}
-	}
+	v1 := cs.Constant(i1)
+	v2 := cs.Constant(i2)
 
-	// prepare debug info to be displayed in case the constraint is not solved
-	debugInfo := logEntry{
-		toResolve: nil,
-	}
-	var sbb strings.Builder
-	sbb.WriteString("couldn't solve computational constraint (inversion by zero ?)")
-	stack := getCallStack()
-	for i := 0; i < len(stack); i++ {
-		sbb.WriteByte('\n')
-		sbb.WriteString(stack[i])
-	}
-	debugInfo.format = sbb.String()
+	debug := cs.addDebugInfo("div", v1, " / ", v2, " != ", res)
 
-	// add it to the logs record
-	cs.debugInfoComputation = append(cs.debugInfoComputation, debugInfo)
+	cs.addConstraint(newR1C(v2, res, v1), debug)
 
 	return res
 }
@@ -316,6 +264,7 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 // IsZero returns 1 if a is zero, 0 otherwise
 func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 	a.assertIsSet()
+	debug := cs.addDebugInfo("isZero", a)
 
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
 	// a * m = 0            // constrain m to be 0 if a != 0
@@ -323,7 +272,7 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 	m := cs.NewHint(hint.IsZero, a)
-	cs.constraints = append(cs.constraints, newR1C(a, m, cs.Constant(0)))
+	cs.addConstraint(newR1C(a, m, cs.Constant(0)), debug)
 
 	cs.AssertIsBoolean(m)
 	ma := cs.Add(m, a)
@@ -349,7 +298,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 	// here what we do is we add a single constraint where
 	// Σ (2**i * b[i]) == a
 	var c big.Int
-	c.Set(bOne)
+	c.SetUint64(1)
 
 	var Σbi Variable
 	Σbi.linExp = make(compiled.LinearExpression, nbBits)
@@ -378,7 +327,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 	res = cs.Constant(0) // no constraint is recorded
 
 	var c big.Int
-	c.Set(bOne)
+	c.SetUint64(1)
 
 	L := make(compiled.LinearExpression, len(b))
 	for i := 0; i < len(L); i++ {

@@ -109,7 +109,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
-			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
+			if dID, ok := cs.MDebug[i]; ok {
+				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			}
+			return solution.values, ErrUnsatisfiedConstraint
 		}
 	}
 
@@ -322,10 +326,14 @@ func (cs *SparseR1CS) CurveID() ecc.ID {
 // WriteTo encodes SparseR1CS into provided io.Writer using cbor
 func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	encoder := cbor.NewEncoder(&_w)
+	enc, err := cbor.CoreDetEncOptions().EncMode()
+	if err != nil {
+		return 0, err
+	}
+	encoder := enc.NewEncoder(&_w)
 
 	// encode our object
-	err := encoder.Encode(cs)
+	err = encoder.Encode(cs)
 	return _w.N, err
 }
 

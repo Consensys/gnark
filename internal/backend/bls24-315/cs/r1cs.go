@@ -100,11 +100,6 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	// check if there is an inconsistant constraint
 	var check fr.Element
 
-	// TODO @gbotrel clean this
-	// this variable is used to navigate in the debugInfoComputation slice.
-	// It is incremented by one each time a division happens for solving a constraint.
-	var debugInfoComputationOffset uint
-
 	// for each constraint
 	// we are guaranteed that each R1C contains at most one unsolved wire
 	// first we solve the unsolved wire (if any)
@@ -112,11 +107,9 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		offset, err := cs.solveConstraint(cs.Constraints[i], &solution)
-		if err != nil {
+		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
 			return solution.values, err
 		}
-		debugInfoComputationOffset += offset
 
 		// compute values for the R1C (ie value * coeff)
 		a[i], b[i], c[i] = cs.instantiateR1C(cs.Constraints[i], &solution)
@@ -124,9 +117,11 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
-			debugInfo := cs.DebugInfoComputation[debugInfoComputationOffset]
-			debugInfoStr := solution.logValue(debugInfo)
-			return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			if dID, ok := cs.MDebug[i]; ok {
+				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			}
+			return solution.values, ErrUnsatisfiedConstraint
 		}
 	}
 
@@ -203,10 +198,7 @@ func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.E
 // It returns the 1 if the the position to solve is in the quadratic part (it
 // means that there is a division and serves to navigate in the log info for the
 // computational constraints), and 0 otherwise.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error) {
-
-	// value to return: 1 if the wire to solve is in the quadratic term, 0 otherwise
-	var offset uint
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
@@ -241,19 +233,19 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error
 
 	for _, t := range r.L {
 		if err := processTerm(t, &a, 1); err != nil {
-			return 0, err
+			return err
 		}
 	}
 
 	for _, t := range r.R {
 		if err := processTerm(t, &b, 2); err != nil {
-			return 0, err
+			return err
 		}
 	}
 
 	for _, t := range r.O {
 		if err := processTerm(t, &c, 3); err != nil {
-			return 0, err
+			return err
 		}
 	}
 
@@ -261,7 +253,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return 0, nil
+		return nil
 	}
 
 	// we compute the wire value and instantiate it
@@ -276,14 +268,12 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error
 			wire.Div(&c, &b).
 				Sub(&wire, &a)
 			cs.mulByCoeff(&wire, termToCompute)
-			offset = 1
 		}
 	case 2:
 		if !a.IsZero() {
 			wire.Div(&c, &a).
 				Sub(&wire, &b)
 			cs.mulByCoeff(&wire, termToCompute)
-			offset = 1
 		}
 	case 3:
 		wire.Mul(&a, &b).
@@ -293,7 +283,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (uint, error
 
 	solution.set(vID, wire)
 
-	return offset, nil
+	return nil
 }
 
 // TODO @gbotrel clean logs and html
@@ -406,14 +396,15 @@ func (cs *R1CS) SetLoggerOutput(w io.Writer) {
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	encoder := cbor.NewEncoder(&_w)
+	enc, err := cbor.CoreDetEncOptions().EncMode()
+	if err != nil {
+		return 0, err
+	}
+	encoder := enc.NewEncoder(&_w)
 
 	// encode our object
-	if err := encoder.Encode(cs); err != nil {
-		return _w.N, err
-	}
-
-	return _w.N, nil
+	err = encoder.Encode(cs)
+	return _w.N, err
 }
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor

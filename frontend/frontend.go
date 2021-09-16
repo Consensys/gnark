@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime/debug"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -112,7 +113,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 	// recover from panics to print user-friendlier messages
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
+			err = fmt.Errorf("%v\n%s", r, string(debug.Stack()))
 		}
 	}()
 	// instantiate our constraint system

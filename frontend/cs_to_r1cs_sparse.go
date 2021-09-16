@@ -48,6 +48,8 @@ type sparseR1CS struct {
 	// and guarantee that the solver will encounter at most one unsolved wire
 	// per SparseR1C
 	solvedVariables []bool
+
+	currentR1CDebugID int // mark the current R1C debugID
 }
 
 func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
@@ -58,12 +60,15 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded as it is not used in PLONK
 			NbSecretVariables:   len(cs.secret.variables),
 			NbInternalVariables: len(cs.internal.variables),
-			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)+len(cs.assertions)),
+			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)),
 			Logs:                make([]compiled.LogEntry, len(cs.logs)),
+			DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 			Hints:               make([]compiled.Hint, len(cs.hints)),
+			MDebug:              make(map[int]int),
 		},
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
+		currentR1CDebugID:    -1,
 	}
 
 	// note: verbose, but we offset the IDs of the wires where they appear, that is,
@@ -71,6 +76,9 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// since we don't use pointers but Terms (uint64), we need to potentially offset
 	// the same wireID multiple times.
 	copy(res.ccs.Hints, cs.hints)
+
+	copy(res.ccs.Logs, cs.logs)
+	copy(res.ccs.DebugInfo, cs.debugInfo)
 
 	// TODO @gbotrel we may not want to do that as it may hide some bugs
 	// if there is a R1C with several unsolved wires, wether they are hint wires or not
@@ -83,10 +91,12 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// in particular, all linear expressions that appear in the R1C
 	// will be split in multiple constraints in the SparseR1C
 	for i := 0; i < len(cs.constraints); i++ {
+		if dID, ok := cs.mDebug[i]; ok {
+			res.currentR1CDebugID = dID
+		} else {
+			res.currentR1CDebugID = -1
+		}
 		res.r1cToSparseR1C(cs.constraints[i])
-	}
-	for i := 0; i < len(cs.assertions); i++ {
-		res.r1cToSparseR1C(cs.assertions[i])
 	}
 
 	// shift variable ID
@@ -136,16 +146,16 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	}
 
 	// offset IDs in the logs
-	for i := 0; i < len(cs.logs); i++ {
-		entry := compiled.LogEntry{
-			Format:    cs.logs[i].format,
-			ToResolve: make([]int, len(cs.logs[i].toResolve)),
+	// we need to offset the ids in logs & debugInfo
+	for i := 0; i < len(res.ccs.Logs); i++ {
+		for j := 0; j < len(res.ccs.Logs[i].ToResolve); j++ {
+			offsetTermID(&res.ccs.Logs[i].ToResolve[j])
 		}
-		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, cID, cVisibility := cs.logs[i].toResolve[j].Unpack()
-			entry.ToResolve[j] = shiftVID(cID, cVisibility)
+	}
+	for i := 0; i < len(res.ccs.DebugInfo); i++ {
+		for j := 0; j < len(res.ccs.DebugInfo[i].ToResolve); j++ {
+			offsetTermID(&res.ccs.DebugInfo[i].ToResolve[j])
 		}
-		res.ccs.Logs[i] = entry
 	}
 
 	// we need to offset the ids in the hints
@@ -295,6 +305,9 @@ func (scs *sparseR1CS) addConstraint(c compiled.SparseR1C) {
 	if c.M[1] == 0 {
 		c.M[1].SetVariableID(c.R.VariableID())
 	}
+	if scs.currentR1CDebugID != -1 {
+		scs.ccs.MDebug[len(scs.ccs.Constraints)] = scs.currentR1CDebugID
+	}
 	scs.ccs.Constraints = append(scs.ccs.Constraints, c)
 }
 
@@ -391,6 +404,7 @@ func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compi
 
 // r1cToSparseR1C splits a r1c constraint
 func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
+
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
 	if lro == -1 {

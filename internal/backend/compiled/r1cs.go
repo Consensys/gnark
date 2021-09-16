@@ -23,18 +23,19 @@ import (
 // R1CS decsribes a set of R1CS constraint
 type R1CS struct {
 	// Wires
-	NbInternalVariables  int
-	NbPublicVariables    int // includes ONE wire
-	NbSecretVariables    int
-	Logs                 []LogEntry
-	DebugInfoComputation []LogEntry
+	NbInternalVariables int
+	NbPublicVariables   int // includes ONE wire
+	NbSecretVariables   int
+	Logs                []LogEntry
+	DebugInfo           []LogEntry
 
 	// Constraints
 	NbConstraints int // total number of constraints
 	Constraints   []R1C
 
 	// Hints
-	Hints []Hint
+	Hints  []Hint
+	MDebug map[int]int // maps constraint id to debugInfo id
 }
 
 // GetNbConstraints returns the number of constraints

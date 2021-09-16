@@ -44,22 +44,24 @@ type ConstraintSystem struct {
 	// they may only contain a linear expression
 	public, secret, internal, virtual variables
 
-	// Constraints
-	constraints []compiled.R1C // list of R1C that yield an output (for example v3 == v1 * v2, return v3)
-	assertions  []compiled.R1C // list of R1C that yield no output (for example ensuring v1 == v2)
+	// list of constraints in the form a * b == c
+	// a,b and c being linear expressions
+	constraints []compiled.R1C
 
 	// Coefficients in the constraints
 	coeffs    []big.Int      // list of unique coefficients.
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
 	// Hints
+	// TODO @gbotrel let's make it a map directly here.
 	hints []compiled.Hint // solver hints
 
+	// TODO @gbotrel we may want to make that optional through build tags
 	// debug info
-	logs                 []logEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
-	debugInfoComputation []logEntry // list of logs storing information about computations (e.g. division by 0).If an computation fails, it prints it in a friendly format
-	debugInfoAssertion   []logEntry // list of logs storing information about assertions. If an assertion fails, it prints it in a friendly format
+	logs      []compiled.LogEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
+	debugInfo []compiled.LogEntry // list of logs storing information about R1C
 
+	mDebug map[int]int // maps constraint ID to debugInfo id
 }
 
 type variables struct {
@@ -107,7 +109,7 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 		coeffs:      make([]big.Int, 4),
 		coeffsIDs:   make(map[string]int),
 		constraints: make([]compiled.R1C, 0, capacity),
-		assertions:  make([]compiled.R1C, 0),
+		mDebug:      make(map[int]int),
 	}
 
 	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -179,67 +181,36 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 		sbb.WriteByte(' ')
 	}
 
-	// for each argument, if it is a circuit structure and contains variable
-	// we add the variables in the logEntry.toResolve part, and add %s to the format string in the log entry
-	// if it doesn't contain variable, call fmt.Sprint(arg) instead
-	entry := logEntry{}
-
-	// this is call recursively on the arguments using reflection on each argument
-	foundVariable := false
-
-	var handler logValueHandler = func(name string, tInput reflect.Value) {
-
-		v := tInput.Interface().(Variable)
-
-		// if the variable is only in linExp form, we allocate it
-		_v := cs.allocate(v)
-
-		entry.toResolve = append(entry.toResolve, compiled.Pack(_v.id, 0, _v.visibility))
-
-		if name == "" {
-			sbb.WriteString("%s")
-		} else {
-			sbb.WriteString(fmt.Sprintf("%s: %%s ", name))
-		}
-
-		foundVariable = true
-	}
+	var log compiled.LogEntry
 
 	for i, arg := range a {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		foundVariable = false
-		parseLogValue(arg, "", handler)
-		if !foundVariable {
+		if v, ok := arg.(Variable); ok {
+			v.assertIsSet()
+
+			sbb.WriteString("%s")
+			// we set limits to the linear expression, so that the log printer
+			// can evaluate it before printing it
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, v.linExp...)
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		} else {
 			sbb.WriteString(fmt.Sprint(arg))
 		}
 	}
 	sbb.WriteByte('\n')
 
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
-	entry.format = sbb.String()
+	log.Format = sbb.String()
 
-	cs.logs = append(cs.logs, entry)
-}
-
-type logEntry struct {
-	format    string
-	toResolve []compiled.Term
+	cs.logs = append(cs.logs, log)
 }
 
 var (
 	bOne = new(big.Int).SetInt64(1)
 )
-
-// debug info in case a variable is not set
-// func debugInfoUnsetVariable(term compiled.Term) logEntry {
-// 	entry := logEntry{}
-// 	stack := getCallStack()
-// 	entry.format = stack[len(stack)-1]
-// 	entry.toResolve = append(entry.toResolve, term)
-// 	return entry
-// }
 
 func (cs *ConstraintSystem) one() Variable {
 	return cs.public.variables[0]
@@ -268,11 +239,8 @@ func newR1C(l, r, o Variable) compiled.R1C {
 
 // NbConstraints enables circuit profiling and helps debugging
 // It returns the number of constraints created at the current stage of the circuit construction.
-//
-// The number returns included both the assertions and the non-assertion constraints
-// (eg: the constraints which creates a new variable)
 func (cs *ConstraintSystem) NbConstraints() int {
-	return len(cs.constraints) + len(cs.assertions)
+	return len(cs.constraints)
 }
 
 // LinearExpression packs a list of compiled.Term in a compiled.LinearExpression and returns it.
@@ -310,11 +278,6 @@ func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 	return l
 }
 
-func (cs *ConstraintSystem) addAssertion(constraint compiled.R1C, debugInfo logEntry) {
-	cs.assertions = append(cs.assertions, constraint)
-	cs.debugInfoAssertion = append(cs.debugInfoAssertion, debugInfo)
-}
-
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *ConstraintSystem) coeffID(b *big.Int) int {
@@ -349,17 +312,11 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	return resID
 }
 
-// if v is unset and linExp is non empty, the variable is allocated
-// resulting in one more constraint in the system. If v is set OR v is
-// unset and linexp is emppty, it does nothing.
-func (cs *ConstraintSystem) allocate(v Variable) Variable {
-	if v.visibility == compiled.Unset && len(v.linExp) > 0 {
-		iv := cs.newInternalVariable()
-		one := cs.one()
-		cs.constraints = append(cs.constraints, newR1C(v, one, iv))
-		return iv
+func (cs *ConstraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
+	cs.constraints = append(cs.constraints, r1c)
+	if len(debugID) > 0 {
+		cs.mDebug[len(cs.constraints)-1] = debugID[0]
 	}
-	return v
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -430,59 +387,8 @@ func parseLogValue(input interface{}, name string, handler logValueHandler) {
 	}
 }
 
-// derived from: https://golang.org/pkg/runtime/#example_Frames
-// we stop when func name == Define as it is where the gnark circuit code should start
-func getCallStack() []string {
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(3, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return nil
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	var toReturn []string
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-		toReturn = append(toReturn, fmt.Sprintf("%s\n\t%s:%d", function, frame.File, frame.Line))
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
-	return toReturn
-}
-
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(cs.makeTerm(pv, bOne))}
-}
-
-// creates a string formatted to display correctly a variable, from its linear expression representation
-// (i.e. the linear expression leading to it)
-func (cs *ConstraintSystem) buildLogEntryFromVariable(v Variable) logEntry {
-
-	var res logEntry
-	var sbb strings.Builder
-	sbb.Grow(len(v.linExp) * len(" + (xx + xxxxxxxxxxxx"))
-
-	for i := 0; i < len(v.linExp); i++ {
-		if i > 0 {
-			sbb.WriteString(" + ")
-		}
-		c := cs.coeffs[v.linExp[i].CoeffID()]
-		sbb.WriteString(fmt.Sprintf("(%%s * %s)", c.String()))
-	}
-	res.format = sbb.String()
-	res.toResolve = v.linExp.Clone()
-	return res
+	return Variable{pv, cs.LinearExpression(compiled.Pack(pv.id, compiled.CoeffIdOne, pv.visibility))}
 }
 
 // markBoolean marks the variable as boolean and return true

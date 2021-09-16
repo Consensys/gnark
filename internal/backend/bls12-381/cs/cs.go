@@ -151,8 +151,59 @@ func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
 
 func (s *solution) logValue(log compiled.LogEntry) string {
 	var toResolve []interface{}
+	var (
+		isEval       bool
+		eval         fr.Element
+		missingValue bool
+	)
 	for j := 0; j < len(log.ToResolve); j++ {
-		vID := log.ToResolve[j]
+		if log.ToResolve[j] == compiled.TermDelimitor {
+			// this is a special case where we want to evaluate the following terms until the next delimitor.
+			if !isEval {
+				isEval = true
+				missingValue = false
+				eval.SetZero()
+				continue
+			}
+			isEval = false
+			if missingValue {
+				toResolve = append(toResolve, "???")
+			} else {
+				// we have to append our accumulator
+				toResolve = append(toResolve, eval.String())
+			}
+			continue
+		}
+		cID, vID, visibility := log.ToResolve[j].Unpack()
+
+		if isEval {
+			// we are evaluating
+			if visibility == compiled.Virtual {
+				// just add the constant
+				eval.Add(&eval, &s.coefficients[cID])
+				continue
+			}
+			if !s.solved[vID] {
+				missingValue = true
+				continue
+			}
+			tv := s.computeTerm(log.ToResolve[j])
+			eval.Add(&eval, &tv)
+			continue
+		}
+
+		if visibility == compiled.Virtual {
+			// it's just a constant
+			if cID == compiled.CoeffIdMinusOne {
+				toResolve = append(toResolve, "-1")
+			} else {
+				toResolve = append(toResolve, s.coefficients[cID].String())
+			}
+			continue
+		}
+		if !(cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne) {
+			toResolve = append(toResolve, s.coefficients[cID].String())
+		}
 		if !s.solved[vID] {
 			toResolve = append(toResolve, "???")
 		} else {

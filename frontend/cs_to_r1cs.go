@@ -18,19 +18,26 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 	// setting up the result
 	res := compiled.R1CS{
-		NbInternalVariables:  len(cs.internal.variables),
-		NbPublicVariables:    len(cs.public.variables),
-		NbSecretVariables:    len(cs.secret.variables),
-		NbConstraints:        len(cs.constraints) + len(cs.assertions),
-		Constraints:          make([]compiled.R1C, len(cs.constraints)+len(cs.assertions)),
-		Logs:                 make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfoComputation: make([]compiled.LogEntry, len(cs.debugInfoComputation)+len(cs.debugInfoAssertion)),
-		Hints:                make([]compiled.Hint, len(cs.hints)),
+		NbInternalVariables: len(cs.internal.variables),
+		NbPublicVariables:   len(cs.public.variables),
+		NbSecretVariables:   len(cs.secret.variables),
+		NbConstraints:       len(cs.constraints),
+		Constraints:         make([]compiled.R1C, len(cs.constraints)),
+		Logs:                make([]compiled.LogEntry, len(cs.logs)),
+		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
+		Hints:               make([]compiled.Hint, len(cs.hints)),
+		MDebug:              make(map[int]int),
 	}
 
 	// computational constraints (= gates)
 	copy(res.Constraints, cs.constraints)
-	copy(res.Constraints[len(cs.constraints):], cs.assertions)
+
+	copy(res.Logs, cs.logs)
+	copy(res.DebugInfo, cs.debugInfo)
+
+	for k, v := range cs.mDebug {
+		res.MDebug[k] = v
+	}
 
 	// note: verbose, but we offset the IDs of the wires where they appear, that is,
 	// in the logs, debug info, constraints and hints
@@ -74,41 +81,18 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 	}
 
-	// we need to offset the ids in logs
-	for i := 0; i < len(cs.logs); i++ {
-		entry := compiled.LogEntry{
-			Format: cs.logs[i].format,
+	// we need to offset the ids in logs & debugInfo
+	for i := 0; i < len(res.Logs); i++ {
+		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
+			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
+			res.Logs[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))
 		}
-		for j := 0; j < len(cs.logs[i].toResolve); j++ {
-			_, vID, visibility := cs.logs[i].toResolve[j].Unpack()
-			entry.ToResolve = append(entry.ToResolve, shiftVID(vID, visibility))
-		}
-
-		res.Logs[i] = entry
 	}
-
-	// offset ids in the debugInfoComputation
-	for i := 0; i < len(cs.debugInfoComputation); i++ {
-		entry := compiled.LogEntry{
-			Format: cs.debugInfoComputation[i].format,
+	for i := 0; i < len(res.DebugInfo); i++ {
+		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
+			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
+			res.DebugInfo[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))
 		}
-		for j := 0; j < len(cs.debugInfoComputation[i].toResolve); j++ {
-			_, vID, visibility := cs.debugInfoComputation[i].toResolve[j].Unpack()
-			entry.ToResolve = append(entry.ToResolve, shiftVID(vID, visibility))
-		}
-
-		res.DebugInfoComputation[i] = entry
-	}
-	for i := 0; i < len(cs.debugInfoAssertion); i++ {
-		entry := compiled.LogEntry{
-			Format: cs.debugInfoAssertion[i].format,
-		}
-		for j := 0; j < len(cs.debugInfoAssertion[i].toResolve); j++ {
-			_, vID, visibility := cs.debugInfoAssertion[i].toResolve[j].Unpack()
-			entry.ToResolve = append(entry.ToResolve, shiftVID(vID, visibility))
-		}
-
-		res.DebugInfoComputation[i+len(cs.debugInfoComputation)] = entry
 	}
 
 	switch curveID {
