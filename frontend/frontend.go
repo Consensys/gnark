@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"runtime/debug"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -42,11 +41,6 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 		return nil, err
 	}
 
-	// sanity checks
-	if err := cs.sanityCheck(); err != nil {
-		return nil, err
-	}
-
 	switch zkpID {
 	case backend.GROTH16:
 		ccs, err = cs.toR1CS(curveID)
@@ -62,50 +56,6 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 	return
 }
 
-// sanityCheck ensures:
-// * all constraints must have at most one unsolved wire, excluding hint wires
-func (cs *ConstraintSystem) sanityCheck() error {
-
-	solved := make([]bool, len(cs.internal.variables))
-	for i := 0; i < len(cs.hints); i++ {
-		solved[cs.hints[i].WireID] = true
-	}
-
-	countUnsolved := func(r1c compiled.R1C) int {
-		c := 0
-		for i := 0; i < len(r1c.L); i++ {
-			_, vID, visibility := r1c.L[i].Unpack()
-			if visibility == compiled.Internal && !solved[vID] {
-				c++
-				solved[vID] = true
-			}
-		}
-		for i := 0; i < len(r1c.R); i++ {
-			_, vID, visibility := r1c.R[i].Unpack()
-			if visibility == compiled.Internal && !solved[vID] {
-				c++
-				solved[vID] = true
-			}
-		}
-		for i := 0; i < len(r1c.O); i++ {
-			_, vID, visibility := r1c.O[i].Unpack()
-			if visibility == compiled.Internal && !solved[vID] {
-				c++
-				solved[vID] = true
-			}
-		}
-		return c
-	}
-
-	for _, r1c := range cs.constraints {
-		if countUnsolved(r1c) > 1 {
-			return errors.New("constraint system has invalid constraints with multiple unsolved wire")
-		}
-	}
-
-	return nil
-}
-
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
@@ -113,7 +63,9 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 	// recover from panics to print user-friendlier messages
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v\n%s", r, string(debug.Stack()))
+			err = fmt.Errorf("%v", r)
+			// TODO @gbotrel with debug buiild tag
+			// fmt.Println(string(debug.Stack()))
 		}
 	}()
 	// instantiate our constraint system
