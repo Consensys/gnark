@@ -21,7 +21,6 @@ import (
 	"io"
 	"math/big"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -333,51 +332,6 @@ func (cs *ConstraintSystem) newSecretVariable() Variable {
 // and just represents a linear expression
 func (cs *ConstraintSystem) newVirtualVariable() Variable {
 	return cs.virtual.new(cs, compiled.Virtual)
-}
-
-type logValueHandler func(name string, tValue reflect.Value)
-
-func appendName(baseName, name string) string {
-	if baseName == "" {
-		return name
-	}
-	return baseName + "_" + name
-}
-
-func parseLogValue(input interface{}, name string, handler logValueHandler) {
-	tVariable := reflect.TypeOf(Variable{})
-
-	tValue := reflect.ValueOf(input)
-	if tValue.Kind() == reflect.Ptr {
-		tValue = tValue.Elem()
-	}
-	switch tValue.Kind() {
-	case reflect.Struct:
-		switch tValue.Type() {
-		case tVariable:
-			handler(name, tValue)
-			return
-		default:
-			for i := 0; i < tValue.NumField(); i++ {
-				if tValue.Field(i).CanInterface() {
-					value := tValue.Field(i).Interface()
-					_name := appendName(name, tValue.Type().Field(i).Name)
-					parseLogValue(value, _name, handler)
-				}
-			}
-		}
-	case reflect.Slice, reflect.Array:
-		if tValue.Len() == 0 {
-			fmt.Println("warning, got unitizalized slice (or empty array). Ignoring;")
-			return
-		}
-		for j := 0; j < tValue.Len(); j++ {
-			value := tValue.Index(j).Interface()
-			entry := "[" + strconv.Itoa(j) + "]"
-			_name := appendName(name, entry)
-			parseLogValue(value, _name, handler)
-		}
-	}
 }
 
 func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
