@@ -185,10 +185,11 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 // Inverse returns res = inverse(v)
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 	v.assertIsSet()
-	debug := cs.addDebugInfo("inverse", v)
 
 	// allocate resulting variable
 	res := cs.newInternalVariable()
+
+	debug := cs.addDebugInfo("inverse", v, "*", res, " == 1")
 
 	cs.addConstraint(newR1C(v, res, cs.one()), debug)
 
@@ -203,7 +204,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 	v1 := cs.Constant(i1)
 	v2 := cs.Constant(i2)
 
-	debug := cs.addDebugInfo("div", v1, " / ", v2, " != ", res)
+	debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
 
 	cs.addConstraint(newR1C(v2, res, v1), debug)
 

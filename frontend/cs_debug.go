@@ -22,7 +22,14 @@ func (cs *ConstraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 	for _, _i := range i {
 		switch v := _i.(type) {
 		case Variable:
+			if len(v.linExp) > 1 {
+				sbb.WriteString("(")
+			}
 			debug.WriteLinearExpression(v.linExp, &sbb)
+			if len(v.linExp) > 1 {
+				sbb.WriteString(")")
+			}
+
 		case string:
 			sbb.WriteString(v)
 		case int:

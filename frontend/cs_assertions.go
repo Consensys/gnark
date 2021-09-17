@@ -41,7 +41,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 	if !cs.markBoolean(v) {
 		return // variable is already constrained
 	}
-	debug := cs.addDebugInfo("assertIsBoolean", v)
+	debug := cs.addDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	// ensure v * (1 - v) == 0
 	_v := cs.Sub(1, v)
