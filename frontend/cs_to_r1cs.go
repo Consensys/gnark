@@ -33,11 +33,15 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// for logs, debugInfo and hints the only thing that will change
 	// is that ID of the wires will be offseted to take into account the final wire vector ordering
 	// that is: public wires  | secret wires | internal wires
-	copy(res.Logs, cs.logs)
-	copy(res.DebugInfo, cs.debugInfo)
 
 	// computational constraints (= gates)
-	copy(res.Constraints, cs.constraints)
+	for i, r1c := range cs.constraints {
+		res.Constraints[i] = compiled.R1C{
+			L: r1c.L.Clone(),
+			R: r1c.R.Clone(),
+			O: r1c.O.Clone(),
+		}
+	}
 
 	// for a R1CS, the correspondance between constraint and debug info won't change, we just copy
 	for k, v := range cs.mDebug {
@@ -83,13 +87,25 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	}
 
 	// we need to offset the ids in logs & debugInfo
-	for i := 0; i < len(res.Logs); i++ {
+	for i := 0; i < len(cs.logs); i++ {
+		res.Logs[i] = compiled.LogEntry{
+			Format:    cs.logs[i].Format,
+			ToResolve: make([]compiled.Term, len(cs.logs[i].ToResolve)),
+		}
+		copy(res.Logs[i].ToResolve, cs.logs[i].ToResolve)
+
 		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
 			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
 			res.Logs[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))
 		}
 	}
-	for i := 0; i < len(res.DebugInfo); i++ {
+	for i := 0; i < len(cs.debugInfo); i++ {
+		res.DebugInfo[i] = compiled.LogEntry{
+			Format:    cs.debugInfo[i].Format,
+			ToResolve: make([]compiled.Term, len(cs.debugInfo[i].ToResolve)),
+		}
+		copy(res.DebugInfo[i].ToResolve, cs.debugInfo[i].ToResolve)
+
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
 			res.DebugInfo[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))

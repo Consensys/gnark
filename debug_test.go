@@ -79,7 +79,7 @@ func TestDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:65")
+		assert.Contains(err.Error(), "debug_test.go:65")
 	}
 
 	{
@@ -87,7 +87,7 @@ func TestDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:65")
+		assert.Contains(err.Error(), "debug_test.go:65")
 	}
 }
 
@@ -116,7 +116,7 @@ func TestNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:102")
+		assert.Contains(err.Error(), "debug_test.go:102")
 	}
 
 	{
@@ -124,7 +124,7 @@ func TestNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:102")
+		assert.Contains(err.Error(), "debug_test.go:102")
 	}
 }
 
@@ -153,7 +153,7 @@ func TestNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:139")
+		assert.Contains(err.Error(), "debug_test.go:139")
 	}
 
 	{
@@ -161,7 +161,7 @@ func TestNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "gnark/debug_test.go:139")
+		assert.Contains(err.Error(), "debug_test.go:139")
 	}
 }
 

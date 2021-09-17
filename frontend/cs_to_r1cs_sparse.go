@@ -76,8 +76,6 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// logs, debugInfo and hints are copied, the only thing that will change
 	// is that ID of the wires will be offseted to take into account the final wire vector ordering
 	// that is: public wires  | secret wires | internal wires
-	copy(res.ccs.Logs, cs.logs)
-	copy(res.ccs.DebugInfo, cs.debugInfo)
 
 	// we mark hint wires are solved
 	// each R1C from the frontend.ConstraintSystem is allowed to have at most one unsolved wire
@@ -147,14 +145,25 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		offsetTermID(&r1c.M[1])
 	}
 
-	// offset IDs in the logs
 	// we need to offset the ids in logs & debugInfo
-	for i := 0; i < len(res.ccs.Logs); i++ {
+	for i := 0; i < len(cs.logs); i++ {
+		res.ccs.Logs[i] = compiled.LogEntry{
+			Format:    cs.logs[i].Format,
+			ToResolve: make([]compiled.Term, len(cs.logs[i].ToResolve)),
+		}
+		copy(res.ccs.Logs[i].ToResolve, cs.logs[i].ToResolve)
+
 		for j := 0; j < len(res.ccs.Logs[i].ToResolve); j++ {
 			offsetTermID(&res.ccs.Logs[i].ToResolve[j])
 		}
 	}
-	for i := 0; i < len(res.ccs.DebugInfo); i++ {
+	for i := 0; i < len(cs.debugInfo); i++ {
+		res.ccs.DebugInfo[i] = compiled.LogEntry{
+			Format:    cs.debugInfo[i].Format,
+			ToResolve: make([]compiled.Term, len(cs.debugInfo[i].ToResolve)),
+		}
+		copy(res.ccs.DebugInfo[i].ToResolve, cs.debugInfo[i].ToResolve)
+
 		for j := 0; j < len(res.ccs.DebugInfo[i].ToResolve); j++ {
 			offsetTermID(&res.ccs.DebugInfo[i].ToResolve[j])
 		}
