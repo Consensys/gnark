@@ -105,7 +105,7 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveHint(h compiled.Hint, vID int) error {
+func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 	// compute values for all inputs.
 	inputs := make([]fr.Element, len(h.Inputs))
 

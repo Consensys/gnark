@@ -53,11 +53,8 @@ type ConstraintSystem struct {
 	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
 
 	// Hints
-	// TODO @gbotrel let's make it a map directly here.
-	hints []compiled.Hint // solver hints
+	mHints map[int]compiled.Hint // solver hints
 
-	// TODO @gbotrel we may want to make that optional through build tags
-	// debug info
 	logs      []compiled.LogEntry // list of logs to be printed when solving a circuit. The logs are called with the method Println
 	debugInfo []compiled.LogEntry // list of logs storing information about R1C
 
@@ -110,6 +107,7 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 		coeffsIDs:   make(map[string]int),
 		constraints: make([]compiled.R1C, 0, capacity),
 		mDebug:      make(map[int]int),
+		mHints:      make(map[int]compiled.Hint),
 	}
 
 	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -131,8 +129,6 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
-
-	cs.hints = make([]compiled.Hint, 0)
 
 	return cs
 }
@@ -160,7 +156,7 @@ func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 	}
 
 	// add the hint to the constraint system
-	cs.hints = append(cs.hints, compiled.Hint{WireID: r.id, ID: hintID, Inputs: hintInputs})
+	cs.mHints[r.id] = compiled.Hint{ID: hintID, Inputs: hintInputs}
 
 	return r
 }

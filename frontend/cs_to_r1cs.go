@@ -24,27 +24,25 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			NbSecretVariables:   len(cs.secret.variables),
 			DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 			Logs:                make([]compiled.LogEntry, len(cs.logs)),
-			Hints:               make([]compiled.Hint, len(cs.hints)),
+			MHints:              make(map[int]compiled.Hint, len(cs.mHints)),
 			MDebug:              make(map[int]int),
 		},
 		Constraints: make([]compiled.R1C, len(cs.constraints)),
 	}
 
-	// computational constraints (= gates)
-	copy(res.Constraints, cs.constraints)
-
+	// for logs, debugInfo and hints the only thing that will change
+	// is that ID of the wires will be offseted to take into account the final wire vector ordering
+	// that is: public wires  | secret wires | internal wires
 	copy(res.Logs, cs.logs)
 	copy(res.DebugInfo, cs.debugInfo)
 
+	// computational constraints (= gates)
+	copy(res.Constraints, cs.constraints)
+
+	// for a R1CS, the correspondance between constraint and debug info won't change, we just copy
 	for k, v := range cs.mDebug {
 		res.MDebug[k] = v
 	}
-
-	// note: verbose, but we offset the IDs of the wires where they appear, that is,
-	// in the logs, debug info, constraints and hints
-	// since we don't use pointers but Terms (uint64), we need to potentially offset
-	// the same wireID multiple times.
-	copy(res.Hints, cs.hints)
 
 	// offset variable ID depeneding on visibility
 	shiftVID := func(oldID int, visibility compiled.Visibility) int {
@@ -74,16 +72,14 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	}
 
 	// we need to offset the ids in the hints
-	for i := 0; i < len(res.Hints); i++ {
-		res.Hints[i].WireID = shiftVID(res.Hints[i].WireID, compiled.Internal)
-		for j := 0; j < len(res.Hints[i].Inputs); j++ {
-			offsetIDs(res.Hints[i].Inputs[j])
+	for vID, hint := range cs.mHints {
+		k := shiftVID(vID, compiled.Internal)
+		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
+		copy(inputs, hint.Inputs)
+		for j := 0; j < len(inputs); j++ {
+			offsetIDs(inputs[j])
 		}
-	}
-
-	res.MHints = make(map[int]int, len(res.Hints))
-	for i := 0; i < len(res.Hints); i++ {
-		res.MHints[res.Hints[i].WireID] = i
+		res.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}
 
 	// we need to offset the ids in logs & debugInfo

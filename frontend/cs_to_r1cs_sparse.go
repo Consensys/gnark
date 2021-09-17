@@ -63,8 +63,8 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 				NbSecretVariables:   len(cs.secret.variables),
 				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 				Logs:                make([]compiled.LogEntry, len(cs.logs)),
-				Hints:               make([]compiled.Hint, len(cs.hints)),
 				MDebug:              make(map[int]int),
+				MHints:              make(map[int]compiled.Hint),
 			},
 			Constraints: make([]compiled.SparseR1C, 0, len(cs.constraints)),
 		},
@@ -73,26 +73,26 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		currentR1CDebugID:    -1,
 	}
 
-	// note: verbose, but we offset the IDs of the wires where they appear, that is,
-	// in the logs, debug info, constraints and hints
-	// since we don't use pointers but Terms (uint64), we need to potentially offset
-	// the same wireID multiple times.
-	copy(res.ccs.Hints, cs.hints)
-
+	// logs, debugInfo and hints are copied, the only thing that will change
+	// is that ID of the wires will be offseted to take into account the final wire vector ordering
+	// that is: public wires  | secret wires | internal wires
 	copy(res.ccs.Logs, cs.logs)
 	copy(res.ccs.DebugInfo, cs.debugInfo)
 
-	// TODO @gbotrel we may not want to do that as it may hide some bugs
-	// if there is a R1C with several unsolved wires, wether they are hint wires or not
-	// will be problematic at solving time
-	for i := 0; i < len(cs.hints); i++ {
-		res.solvedVariables[cs.hints[i].WireID] = true
+	// we mark hint wires are solved
+	// each R1C from the frontend.ConstraintSystem is allowed to have at most one unsolved wire
+	// excluding hints. We mark hint wires as "solved" to ensure spliting R1C to SparseR1C
+	// won't create invalid SparseR1C constraint with more than one wire to solve for the solver
+	for vID := range cs.mHints {
+		res.solvedVariables[vID] = true
 	}
 
 	// convert the R1C to SparseR1C
 	// in particular, all linear expressions that appear in the R1C
 	// will be split in multiple constraints in the SparseR1C
 	for i := 0; i < len(cs.constraints); i++ {
+		// we set currentR1CDebugID to the debugInfo ID corresponding to the R1C we're processing
+		// if present. All constraints created throuh addConstraint will add a new mapping
 		if dID, ok := cs.mDebug[i]; ok {
 			res.currentR1CDebugID = dID
 		} else {
@@ -161,19 +161,16 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	}
 
 	// we need to offset the ids in the hints
-	for i := 0; i < len(res.ccs.Hints); i++ {
-		res.ccs.Hints[i].WireID = shiftVID(res.ccs.Hints[i].WireID, compiled.Internal)
-		for j := 0; j < len(res.ccs.Hints[i].Inputs); j++ {
-			l := res.ccs.Hints[i].Inputs[j]
-			for k := 0; k < len(l); k++ {
-				offsetTermID(&l[k])
+	for vID, hint := range cs.mHints {
+		k := shiftVID(vID, compiled.Internal)
+		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
+		copy(inputs, hint.Inputs)
+		for j := 0; j < len(inputs); j++ {
+			for k := 0; k < len(inputs[j]); k++ {
+				offsetTermID(&inputs[j][k])
 			}
 		}
-	}
-
-	res.ccs.MHints = make(map[int]int, len(res.ccs.Hints))
-	for i := 0; i < len(res.ccs.Hints); i++ {
-		res.ccs.MHints[res.ccs.Hints[i].WireID] = i
+		res.ccs.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}
 
 	// update number of internal variables with new wires created

@@ -133,8 +133,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
-		if hID, ok := cs.MHints[lID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], lID); err != nil {
+		if hint, ok := cs.MHints[lID]; ok {
+			if err := solution.solveWithHint(lID, hint); err != nil {
 				return -1, err
 			}
 		} else {
@@ -145,8 +145,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !solution.solved[rID] {
 		// check if it's a hint
-		if hID, ok := cs.MHints[rID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], rID); err != nil {
+		if hint, ok := cs.MHints[rID]; ok {
+			if err := solution.solveWithHint(rID, hint); err != nil {
 				return -1, err
 			}
 		} else {
@@ -156,8 +156,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.O.CoeffID() != 0) && !solution.solved[oID] {
 		// check if it's a hint
-		if hID, ok := cs.MHints[oID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], oID); err != nil {
+		if hint, ok := cs.MHints[oID]; ok {
+			if err := solution.solveWithHint(oID, hint); err != nil {
 				return -1, err
 			}
 		} else {

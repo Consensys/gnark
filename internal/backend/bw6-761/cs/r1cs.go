@@ -207,8 +207,8 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 		}
 
 		// first we check if this is a hint wire
-		if hID, ok := cs.MHints[vID]; ok {
-			return solution.solveHint(cs.Hints[hID], vID)
+		if hint, ok := cs.MHints[vID]; ok {
+			return solution.solveWithHint(vID, hint)
 		}
 
 		if loc != 0 {

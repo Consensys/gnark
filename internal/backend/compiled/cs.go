@@ -21,13 +21,12 @@ type CS struct {
 	// results in an unsolved constraint
 	DebugInfo []LogEntry
 
-	// hints
-	Hints []Hint
-
-	// maps wire id to hint id
-	MHints map[int]int
+	// maps wire id to hint
+	// a wire may point to at most one hint
+	MHints map[int]Hint
 
 	// maps constraint id to debugInfo id
+	// several constraints may point to the same debug info
 	MDebug map[int]int
 }
 
@@ -47,7 +46,6 @@ const (
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs
 type Hint struct {
-	WireID int                // resulting wire ID to compute
 	ID     hint.ID            // hint function id
 	Inputs []LinearExpression // terms to inject in the hint function
 }
