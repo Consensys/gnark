@@ -30,8 +30,7 @@ type R1CS struct {
 	DebugInfo           []LogEntry
 
 	// Constraints
-	NbConstraints int // total number of constraints
-	Constraints   []R1C
+	Constraints []R1C
 
 	// Hints
 	Hints []Hint
@@ -42,7 +41,7 @@ type R1CS struct {
 
 // GetNbConstraints returns the number of constraints
 func (r1cs *R1CS) GetNbConstraints() int {
-	return r1cs.NbConstraints
+	return len(r1cs.Constraints)
 }
 
 // GetNbVariables return number of internal, secret and public variables

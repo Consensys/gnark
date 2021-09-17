@@ -61,9 +61,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, hint
 	}
 
 	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
-	b := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
-	c := make([]fr.Element, r1cs.NbConstraints, pk.Domain.Cardinality)
+	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 	var wireValues []fr.Element
 	var err error
 	if wireValues, err = r1cs.Solve(witness, a, b, c, hintFunctions); err != nil {

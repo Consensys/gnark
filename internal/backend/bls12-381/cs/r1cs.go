@@ -75,8 +75,8 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 	}
 
 	// compute the wires and the a, b, c polynomials
-	if len(a) != int(cs.NbConstraints) || len(b) != int(cs.NbConstraints) || len(c) != int(cs.NbConstraints) {
-		return solution.values, errors.New("invalid input size: len(a, b, c) == cs.NbConstraints")
+	if len(a) != len(cs.Constraints) || len(b) != len(cs.Constraints) || len(c) != len(cs.Constraints) {
+		return solution.values, errors.New("invalid input size: len(a, b, c) == len(Constraints)")
 	}
 
 	solution.solved[0] = true // ONE_WIRE
@@ -134,9 +134,9 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
 func (cs *R1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
-	a := make([]fr.Element, cs.NbConstraints)
-	b := make([]fr.Element, cs.NbConstraints)
-	c := make([]fr.Element, cs.NbConstraints)
+	a := make([]fr.Element, len(cs.Constraints))
+	b := make([]fr.Element, len(cs.Constraints))
+	c := make([]fr.Element, len(cs.Constraints))
 	_, err := cs.Solve(witness, a, b, c, hintFunctions)
 	return err
 }

@@ -37,8 +37,8 @@ import (
 type SparseR1CS struct {
 	compiled.SparseR1CS
 
-	// Coefficients in the constraints
-	Coefficients []fr.Element // list of unique coefficients.
+	Coefficients []fr.Element // coefficients in the constraints
+	loggerOut    io.Writer
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -46,6 +46,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	cs := SparseR1CS{
 		SparseR1CS:   ccs,
 		Coefficients: make([]fr.Element, len(coefficients)),
+		loggerOut:    os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
@@ -58,7 +59,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (values []fr.Element, err error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables

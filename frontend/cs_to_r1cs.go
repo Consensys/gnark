@@ -21,7 +21,6 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 		NbInternalVariables: len(cs.internal.variables),
 		NbPublicVariables:   len(cs.public.variables),
 		NbSecretVariables:   len(cs.secret.variables),
-		NbConstraints:       len(cs.constraints),
 		Constraints:         make([]compiled.R1C, len(cs.constraints)),
 		Logs:                make([]compiled.LogEntry, len(cs.logs)),
 		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
