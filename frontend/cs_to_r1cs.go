@@ -18,14 +18,16 @@ func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 	// setting up the result
 	res := compiled.R1CS{
-		NbInternalVariables: len(cs.internal.variables),
-		NbPublicVariables:   len(cs.public.variables),
-		NbSecretVariables:   len(cs.secret.variables),
-		Constraints:         make([]compiled.R1C, len(cs.constraints)),
-		Logs:                make([]compiled.LogEntry, len(cs.logs)),
-		DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
-		Hints:               make([]compiled.Hint, len(cs.hints)),
-		MDebug:              make(map[int]int),
+		CS: compiled.CS{
+			NbInternalVariables: len(cs.internal.variables),
+			NbPublicVariables:   len(cs.public.variables),
+			NbSecretVariables:   len(cs.secret.variables),
+			DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
+			Logs:                make([]compiled.LogEntry, len(cs.logs)),
+			Hints:               make([]compiled.Hint, len(cs.hints)),
+			MDebug:              make(map[int]int),
+		},
+		Constraints: make([]compiled.R1C, len(cs.constraints)),
 	}
 
 	// computational constraints (= gates)

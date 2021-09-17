@@ -14,77 +14,13 @@
 
 package compiled
 
-import (
-	"io"
-
-	"github.com/consensys/gnark-crypto/ecc"
-)
-
-// R1CS decsribes a set of R1CS constraint
+// R1CS decsribes a set of R1C constraint
 type R1CS struct {
-	// Wires
-	NbInternalVariables int
-	NbPublicVariables   int // includes ONE wire
-	NbSecretVariables   int
-	Logs                []LogEntry
-	DebugInfo           []LogEntry
-
-	// Constraints
+	CS
 	Constraints []R1C
-
-	// Hints
-	Hints []Hint
-
-	MHints map[int]int // maps wire id to hint id
-	MDebug map[int]int // maps constraint id to debugInfo id
 }
 
 // GetNbConstraints returns the number of constraints
 func (r1cs *R1CS) GetNbConstraints() int {
 	return len(r1cs.Constraints)
-}
-
-// GetNbVariables return number of internal, secret and public variables
-func (r1cs *R1CS) GetNbVariables() (internal, secret, public int) {
-	internal = r1cs.NbInternalVariables
-	secret = r1cs.NbSecretVariables
-	public = r1cs.NbPublicVariables
-	return
-}
-
-// GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (r1cs *R1CS) GetNbCoefficients() int {
-	panic("not implemented")
-}
-
-// CurveID returns ecc.UNKNOWN as this is a untyped R1CS using big.Int
-func (r1cs *R1CS) CurveID() ecc.ID {
-	return ecc.UNKNOWN
-}
-
-// FrSize panics
-func (r1cs *R1CS) FrSize() int {
-	panic("not implemented")
-}
-
-// WriteTo panics (can't serialize untyped R1CS)
-func (r1cs *R1CS) WriteTo(w io.Writer) (n int64, err error) {
-	panic("not implemented")
-}
-
-// ReadFrom panics (can't deserialize untyped R1CS)
-func (r1cs *R1CS) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("not implemented")
-}
-
-// SetLoggerOutput replace existing logger output with provided one
-// default uses os.Stdout
-// if nil is provided, logs are not printed
-func (r1cs *R1CS) SetLoggerOutput(w io.Writer) {
-	panic("not implemented")
-}
-
-// ToHTML returns an HTML human-readable representation of the constraint system
-func (r1cs *R1CS) ToHTML(w io.Writer) error {
-	panic("not implemented")
 }

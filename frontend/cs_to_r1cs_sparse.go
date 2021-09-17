@@ -57,14 +57,16 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	res := sparseR1CS{
 		ConstraintSystem: cs,
 		ccs: compiled.SparseR1CS{
-			NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded as it is not used in PLONK
-			NbSecretVariables:   len(cs.secret.variables),
-			NbInternalVariables: len(cs.internal.variables),
-			Constraints:         make([]compiled.SparseR1C, 0, len(cs.constraints)),
-			Logs:                make([]compiled.LogEntry, len(cs.logs)),
-			DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
-			Hints:               make([]compiled.Hint, len(cs.hints)),
-			MDebug:              make(map[int]int),
+			CS: compiled.CS{
+				NbInternalVariables: len(cs.internal.variables),
+				NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded in PlonK
+				NbSecretVariables:   len(cs.secret.variables),
+				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
+				Logs:                make([]compiled.LogEntry, len(cs.logs)),
+				Hints:               make([]compiled.Hint, len(cs.hints)),
+				MDebug:              make(map[int]int),
+			},
+			Constraints: make([]compiled.SparseR1C, 0, len(cs.constraints)),
 		},
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
