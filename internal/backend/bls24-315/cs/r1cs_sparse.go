@@ -26,7 +26,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -59,7 +59,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverOption) ([]fr.Element, error) {
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
@@ -76,7 +76,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	}
 
 	// keep track of wire that have a value
-	solution, err := newSolution(nbVariables, hintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
 		return solution.values, err
 	}
@@ -92,8 +92,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	solution.nbSolved += len(witness)
 
 	// defer log printing once all solution.values are computed
-	// TODO @gbotrel replace stdout by writer set by user, same as in R1CS
-	defer solution.printLogs(os.Stdout, cs.Logs)
+	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
@@ -225,8 +224,8 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
-	_, err := cs.Solve(witness, hintFunctions)
+func (cs *SparseR1CS) IsSolved(witness []fr.Element, opt backend.ProverOption) error {
+	_, err := cs.Solve(witness, opt)
 	return err
 }
 
@@ -326,4 +325,11 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	decoder := dm.NewDecoder(r)
 	err = decoder.Decode(cs)
 	return int64(decoder.NumBytesRead()), err
+}
+
+// SetLoggerOutput replace existing logger output with provided one
+// default uses os.Stdout
+// if nil is provided, logs are not printed
+func (cs *SparseR1CS) SetLoggerOutput(w io.Writer) {
+	cs.loggerOut = w
 }

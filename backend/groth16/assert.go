@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -47,11 +47,11 @@ func NewAssert(t *testing.T) *Assert {
 }
 
 // ProverFailed check that a witness does NOT solve a circuit
-func (assert *Assert) ProverFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, hintFunctions ...hint.Function) {
+func (assert *Assert) ProverFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
 	// setup
 	pk, err := DummySetup(r1cs)
 	assert.NoError(err)
-	_, err = Prove(r1cs, pk, witness, hintFunctions)
+	_, err = Prove(r1cs, pk, witness, opts...)
 	assert.Error(err, "proving with bad witness should output an error")
 }
 
@@ -68,7 +68,7 @@ func (assert *Assert) ProverFailed(r1cs frontend.CompiledConstraintSystem, witne
 // 5. Ensure deserialization(serialization) of generated objects is correct
 //
 // ensure result vectors a*b=c, and check other properties like random sampling
-func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, hintFunctions ...hint.Function) {
+func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
 	// setup
 	pk, vk, err := Setup(r1cs)
 	assert.NoError(err)
@@ -84,17 +84,17 @@ func (assert *Assert) ProverSucceeded(r1cs frontend.CompiledConstraintSystem, wi
 	}
 
 	// ensure expected Values are computed correctly
-	assert.SolvingSucceeded(r1cs, witness, hintFunctions...)
+	assert.SolvingSucceeded(r1cs, witness, opts...)
 
 	// extract full witness & public witness
 
 	// prover
-	proof, err := Prove(r1cs, pk, witness, hintFunctions)
+	proof, err := Prove(r1cs, pk, witness, opts...)
 	assert.NoError(err, "proving with good witness should not output an error")
 
 	// ensure random sampling; calling prove twice with same witness should produce different proof
 	{
-		proof2, err := Prove(r1cs, pk, witness, hintFunctions)
+		proof2, err := Prove(r1cs, pk, witness, opts...)
 		assert.NoError(err, "proving with good witness should not output an error")
 		assert.False(reflect.DeepEqual(proof, proof2), "calling prove twice with same input should produce different proof")
 	}
@@ -130,49 +130,56 @@ func (assert *Assert) SerializationRawSucceeded(from gnarkio.WriterRawTo, to io.
 }
 
 // SolvingSucceeded Verifies that the R1CS is solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, hintFunctions ...hint.Function) {
-	assert.NoError(IsSolved(r1cs, witness, hintFunctions))
+func (assert *Assert) SolvingSucceeded(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
+	assert.NoError(IsSolved(r1cs, witness, opts...))
 }
 
 // SolvingFailed Verifies that the R1CS is not solved with the given witness, without executing groth16 workflow
-func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, hintFunctions ...hint.Function) {
-	assert.Error(IsSolved(r1cs, witness, hintFunctions))
+func (assert *Assert) SolvingFailed(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
+	assert.Error(IsSolved(r1cs, witness, opts...))
 }
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
-func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, hintFunctions []hint.Function) error {
+func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
+
+	// apply options
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return err
+	}
+
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
 		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _r1cs.IsSolved(w, hintFunctions)
+		return _r1cs.IsSolved(w, opt)
 	case *backend_bls12381.R1CS:
 		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _r1cs.IsSolved(w, hintFunctions)
+		return _r1cs.IsSolved(w, opt)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _r1cs.IsSolved(w, hintFunctions)
+		return _r1cs.IsSolved(w, opt)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _r1cs.IsSolved(w, hintFunctions)
+		return _r1cs.IsSolved(w, opt)
 	case *backend_bls24315.R1CS:
 		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(witness); err != nil {
 			return err
 		}
-		return _r1cs.IsSolved(w, hintFunctions)
+		return _r1cs.IsSolved(w, opt)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

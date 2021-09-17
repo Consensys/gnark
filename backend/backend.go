@@ -15,6 +15,13 @@
 // Package backend implements Zero Knowledge Proof systems: it consumes circuit compiled with gnark/frontend.
 package backend
 
+import (
+	"io"
+	"os"
+
+	"github.com/consensys/gnark/backend/hint"
+)
+
 // ID represent a unique ID for a proving scheme
 type ID uint16
 
@@ -38,5 +45,50 @@ func (id ID) String() string {
 		return "plonk"
 	default:
 		return "unknown"
+	}
+}
+
+// NewProverOption returns a default ProverOption with given options applied
+func NewProverOption(opts ...func(opt *ProverOption) error) (ProverOption, error) {
+	opt := ProverOption{LoggerOut: os.Stdout}
+	for _, option := range opts {
+		if err := option(&opt); err != nil {
+			return ProverOption{}, err
+		}
+	}
+	return opt, nil
+}
+
+// ProverOption is shared accross backends to parametrize calls to xxx.Prove(...)
+type ProverOption struct {
+	Force         bool            // default to false
+	HintFunctions []hint.Function // default to nil (use only solver std hints)
+	LoggerOut     io.Writer       // default to os.Stdout
+}
+
+// IgnoreSolverError is a ProverOption that indicates that the Prove algorithm
+// should complete, even if constraint system is not solved.
+// In that case, Prove will output an invalid Proof, but will execute all algorithms
+// which is useful for test and benchmarking purposes
+func IgnoreSolverError(opt *ProverOption) error {
+	opt.Force = true
+	return nil
+}
+
+// WithHints is a Prover option that specifies additional hint functions to be used
+// by the constraint solver
+func WithHints(hintFunctions ...hint.Function) func(opt *ProverOption) error {
+	return func(opt *ProverOption) error {
+		opt.HintFunctions = append(opt.HintFunctions, hintFunctions...)
+		return nil
+	}
+}
+
+// WithOutput is a Prover option that specifies an io.Writer as destination for logs printed by
+// cs.Println(). If set to nil, no logs are printed.
+func WithOutput(w io.Writer) func(opt *ProverOption) error {
+	return func(opt *ProverOption) error {
+		opt.LoggerOut = w
+		return nil
 	}
 }

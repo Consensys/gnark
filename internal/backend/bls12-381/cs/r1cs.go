@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"os"
 	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -40,7 +39,6 @@ import (
 type R1CS struct {
 	compiled.R1CS
 	Coefficients []fr.Element // R1C coefficients indexes point here
-	loggerOut    io.Writer
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
@@ -48,7 +46,6 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 	r := R1CS{
 		R1CS:         cs,
 		Coefficients: make([]fr.Element, len(coefficients)),
-		loggerOut:    os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		r.Coefficients[i].SetBigInt(&coefficients[i])
@@ -62,10 +59,10 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Function) ([]fr.Element, error) {
+func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) ([]fr.Element, error) {
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, hintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}
@@ -92,7 +89,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer solution.printLogs(cs.loggerOut, cs.Logs)
+	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
 	// check if there is an inconsistant constraint
 	var check fr.Element
@@ -133,11 +130,11 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, hintFunctions []hint.Functi
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
+func (cs *R1CS) IsSolved(witness []fr.Element, opt backend.ProverOption) error {
 	a := make([]fr.Element, len(cs.Constraints))
 	b := make([]fr.Element, len(cs.Constraints))
 	c := make([]fr.Element, len(cs.Constraints))
-	_, err := cs.Solve(witness, a, b, c, hintFunctions)
+	_, err := cs.Solve(witness, a, b, c, opt)
 	return err
 }
 
@@ -364,13 +361,6 @@ func (cs *R1CS) CurveID() ecc.ID {
 // FrSize return fr.Limbs * 8, size in byte of a fr element
 func (cs *R1CS) FrSize() int {
 	return fr.Limbs * 8
-}
-
-// SetLoggerOutput replace existing logger output with provided one
-// default uses os.Stdout
-// if nil is provided, logs are not printed
-func (cs *R1CS) SetLoggerOutput(w io.Writer) {
-	cs.loggerOut = w
 }
 
 // WriteTo encodes R1CS into provided io.Writer using cbor

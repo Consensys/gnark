@@ -70,8 +70,5 @@ func (cs *CS) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented
 // ReadFrom panics
 func (cs *CS) ReadFrom(r io.Reader) (n int64, err error) { panic("not implemented") }
 
-// SetLoggerOutput panics
-func (cs *CS) SetLoggerOutput(w io.Writer) { panic("not implemented") }
-
 // ToHTML panics
 func (cs *CS) ToHTML(w io.Writer) error { panic("not implemtened") }

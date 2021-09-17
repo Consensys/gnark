@@ -37,9 +37,6 @@ func TestSerialization(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// no need to serialize.
-		r1cs.SetLoggerOutput(nil)
-		r1cs2.SetLoggerOutput(nil)
 		{
 			buffer.Reset()
 			t.Log(name)
