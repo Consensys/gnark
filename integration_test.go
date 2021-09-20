@@ -19,6 +19,7 @@ package gnark
 import (
 	"bytes"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -57,8 +58,16 @@ func TestIntegrationAPI(t *testing.T) {
 			{
 				t.Log(name, curve.String(), "groth16")
 
+				ccs1, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
+				assert.NoError(err)
+
 				ccs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
 				assert.NoError(err)
+
+				if !reflect.DeepEqual(ccs, ccs1) {
+					// cs may have been mutated, or output data struct is not deterministic
+					t.Fatal("compiling CS -> R1CS is not deterministic")
+				}
 
 				// ensure we didn't introduce regressions that make circuits less efficient
 				nbConstraints := ccs.GetNbConstraints()
@@ -100,8 +109,16 @@ func TestIntegrationAPI(t *testing.T) {
 			{
 				t.Log(name, curve.String(), "plonk")
 
+				ccs1, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
+				assert.NoError(err)
+
 				ccs, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
 				assert.NoError(err)
+
+				if !reflect.DeepEqual(ccs, ccs1) {
+					// cs may have been mutated, or output data struct is not deterministic
+					t.Fatal("compiling CS -> SparseR1CS is not deterministic")
+				}
 
 				// ensure we didn't introduce regressions that make circuits less efficient
 				nbConstraints := ccs.GetNbConstraints()
