@@ -95,7 +95,7 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
-		val := frontend.GetAssignedValue(v)
+		val, _ := v.GetAssignedValue()
 		if val == nil {
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
 		}
@@ -131,7 +131,7 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
 			v := tInput.Interface().(frontend.Variable)
-			val := frontend.GetAssignedValue(v)
+			val, _ := v.GetAssignedValue()
 			if val == nil {
 				return fmt.Errorf("when parsing variable %s: missing assignment", name)
 			}

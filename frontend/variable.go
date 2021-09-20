@@ -14,6 +14,8 @@ limitations under the License.
 package frontend
 
 import (
+	"errors"
+
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -45,11 +47,14 @@ func (v *Variable) assertIsSet() {
 	}
 }
 
-// GetAssignedValue returns the assigned value (or nil) to the variable
-// This is used for witness preparation internally
-// and not exposed on Variable struct to avoid confusion in circuit definition.
-func GetAssignedValue(v Variable) interface{} {
-	return v.val
+// GetAssignedValue returns the assigned value to the variable
+// This is used for witness preparation internally, and must not be used in a circuit definition
+// if the value is nil, returns an error
+func (v *Variable) GetAssignedValue() (interface{}, error) {
+	if v.val == nil {
+		return nil, errors.New("nil value: witness not assigned or invalid value access in Define(..)")
+	}
+	return v.val, nil
 }
 
 // Assign v = value . This must called when using a Circuit as a witness data structure

@@ -20,7 +20,7 @@
 // 	Public witness   ->  [uint32(nbElements) | publicVariables ]
 //
 // where
-// 	* `nbElements == len(publicVariables) + len(secretVariables)`.
+// 	* `nbElements == len(publicVariables) [+ len(secretVariables)]`.
 // 	* each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
 //
 // Ordering
@@ -41,10 +41,19 @@
 package witness
 
 import (
+	"encoding/binary"
+	"errors"
 	"io"
+	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark/frontend"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
@@ -52,8 +61,6 @@ import (
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
-
-	"github.com/consensys/gnark/frontend"
 )
 
 // WriteFullTo encodes the witness to a slice of []fr.Element and write the []byte on provided writer
@@ -136,7 +143,7 @@ func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) 
 // witness elements are identified by their tag name, or if unset, struct & field name
 func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 	var public, secret []string
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
 			public = append(public, name)
 		} else if visibility == compiled.Secret {
@@ -173,4 +180,159 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 	}
 
 	return nil
+}
+
+// ReadPublicFrom reads bytes from provided reader and attempts to reconstruct
+// a statically typed witness, with big.Int values
+// The stream must match the binary protocol to encode witnesses
+// This function will read at most the number of expected bytes
+// If it can't fully re-construct the witness from the reader, returns an error
+// if the provided witness has 0 public Variables this function returns 0, nil
+func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
+	nbPublic := 0
+	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if visibility == compiled.Public {
+			nbPublic++
+		}
+		return nil
+	}
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+
+	if nbPublic == 0 {
+		return 0, nil
+	}
+
+	// first 4 bytes have number of bytes
+	var buf [4]byte
+	if read, err := io.ReadFull(r, buf[:4]); err != nil {
+		return int64(read), err
+	}
+	sliceLen := binary.BigEndian.Uint32(buf[:4])
+	if int(sliceLen) != nbPublic {
+		return 4, errors.New("invalid witness size")
+	}
+
+	elementSize := getElementSize(curveID)
+
+	expectedSize := elementSize * nbPublic
+
+	lr := io.LimitReader(r, int64(expectedSize*elementSize))
+	read := 4
+
+	bufElement := make([]byte, elementSize)
+	reader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if visibility == compiled.Public {
+			r, err := io.ReadFull(lr, bufElement)
+			read += r
+			if err != nil {
+				return err
+			}
+			v := tInput.Interface().(frontend.Variable)
+			v.Assign(new(big.Int).SetBytes(bufElement))
+			tInput.Set(reflect.ValueOf(v))
+		}
+		return nil
+	}
+
+	if err := parser.Visit(witness, "", compiled.Unset, reader, reflect.TypeOf(frontend.Variable{})); err != nil {
+		return int64(read), err
+	}
+
+	return int64(read), nil
+}
+
+// ReadFullFrom reads bytes from provided reader and attempts to reconstruct
+// a statically typed witness, with big.Int values
+// The stream must match the binary protocol to encode witnesses
+// This function will read at most the number of expected bytes
+// If it can't fully re-construct the witness from the reader, returns an error
+// if the provided witness has 0 public Variables and 0 secret Variables this function returns 0, nil
+func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
+	nbPublic := 0
+	nbSecrets := 0
+	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if visibility == compiled.Public {
+			nbPublic++
+		} else if visibility == compiled.Secret {
+			nbSecrets++
+		}
+		return nil
+	}
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+
+	if nbPublic == 0 && nbSecrets == 0 {
+		return 0, nil
+	}
+
+	// first 4 bytes have number of bytes
+	var buf [4]byte
+	if read, err := io.ReadFull(r, buf[:4]); err != nil {
+		return int64(read), err
+	}
+	sliceLen := binary.BigEndian.Uint32(buf[:4])
+	if int(sliceLen) != (nbPublic + nbSecrets) {
+		return 4, errors.New("invalid witness size")
+	}
+
+	elementSize := getElementSize(curveID)
+	expectedSize := elementSize * (nbPublic + nbSecrets)
+
+	lr := io.LimitReader(r, int64(expectedSize*elementSize))
+	read := 4
+
+	bufElement := make([]byte, elementSize)
+
+	reader := func(targetVisibility, visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if visibility == targetVisibility {
+			r, err := io.ReadFull(lr, bufElement)
+			read += r
+			if err != nil {
+				return err
+			}
+			v := tInput.Interface().(frontend.Variable)
+			v.Assign(new(big.Int).SetBytes(bufElement))
+			tInput.Set(reflect.ValueOf(v))
+		}
+		return nil
+	}
+
+	publicReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		return reader(compiled.Public, visibility, name, tInput)
+	}
+
+	secretReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		return reader(compiled.Secret, visibility, name, tInput)
+	}
+
+	// public
+	if err := parser.Visit(witness, "", compiled.Unset, publicReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+		return int64(read), err
+	}
+
+	// secret
+	if err := parser.Visit(witness, "", compiled.Unset, secretReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+		return int64(read), err
+	}
+
+	return int64(read), nil
+}
+
+func getElementSize(curve ecc.ID) int {
+	// now compute expected size from field element size.
+	var elementSize int
+	switch curve {
+	case ecc.BLS12_377:
+		elementSize = fr_bls12377.Bytes
+	case ecc.BLS12_381:
+		elementSize = fr_bls12381.Bytes
+	case ecc.BLS24_315:
+		elementSize = fr_bls24315.Bytes
+	case ecc.BN254:
+		elementSize = fr_bn254.Bytes
+	case ecc.BW6_761:
+		elementSize = fr_bw6761.Bytes
+	default:
+		panic("not implemented")
+	}
+	return elementSize
 }
