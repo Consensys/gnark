@@ -17,14 +17,9 @@ limitations under the License.
 package frontend
 
 import (
-	"fmt"
 	"io"
 	"math/big"
-	"path/filepath"
-	"runtime"
 	"sort"
-	"strconv"
-	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
@@ -156,53 +151,6 @@ func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 
 	return r
 }
-
-// Println enables circuit debugging and behaves almost like fmt.Println()
-//
-// the print will be done once the R1CS.Solve() method is executed
-//
-// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
-	var sbb strings.Builder
-
-	// prefix log line with file.go:line
-	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
-	}
-
-	var log compiled.LogEntry
-
-	for i, arg := range a {
-		if i > 0 {
-			sbb.WriteByte(' ')
-		}
-		if v, ok := arg.(Variable); ok {
-			v.assertIsSet()
-
-			sbb.WriteString("%s")
-			// we set limits to the linear expression, so that the log printer
-			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v.linExp...)
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		} else {
-			sbb.WriteString(fmt.Sprint(arg))
-		}
-	}
-	sbb.WriteByte('\n')
-
-	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
-	log.Format = sbb.String()
-
-	cs.logs = append(cs.logs, log)
-}
-
-var (
-	bOne = new(big.Int).SetInt64(1)
-)
 
 func (cs *ConstraintSystem) one() Variable {
 	return cs.public.variables[0]

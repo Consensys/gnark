@@ -149,6 +149,8 @@ func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
 	}
 }
 
+const unsolvedVariable = "<unsolved>"
+
 func (s *solution) logValue(log compiled.LogEntry) string {
 	var toResolve []interface{}
 	var (
@@ -167,7 +169,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 			}
 			isEval = false
 			if missingValue {
-				toResolve = append(toResolve, "???")
+				toResolve = append(toResolve, unsolvedVariable)
 			} else {
 				// we have to append our accumulator
 				toResolve = append(toResolve, eval.String())
@@ -205,7 +207,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 			toResolve = append(toResolve, s.coefficients[cID].String())
 		}
 		if !s.solved[vID] {
-			toResolve = append(toResolve, "???")
+			toResolve = append(toResolve, unsolvedVariable)
 		} else {
 			toResolve = append(toResolve, s.values[vID].String())
 		}

@@ -26,6 +26,10 @@ func (circuit *printlnCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSys
 	cs.Println(d, new(big.Int).SetInt64(42))
 	bs := cs.ToBinary(circuit.B, 10)
 	cs.Println("bits", bs[3])
+	cs.Println("circuit", circuit)
+	cs.AssertIsBoolean(cs.Constant(10)) // this will fail
+	m := cs.Mul(circuit.A, circuit.B)
+	cs.Println("m", m) // this should not be resolved
 	return nil
 }
 
@@ -40,16 +44,16 @@ func TestPrintln(t *testing.T) {
 	expected.WriteString("debug_test.go:24 13 is the addition\n")
 	expected.WriteString("debug_test.go:26 26 42\n")
 	expected.WriteString("debug_test.go:28 bits 1\n")
+	expected.WriteString("debug_test.go:29 circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:32 m <unsolved>\n")
 
 	{
-		trace, err := getGroth16Trace(&circuit, &witness)
-		assert.NoError(err)
+		trace, _ := getGroth16Trace(&circuit, &witness)
 		assert.Equal(trace, expected.String())
 	}
 
 	{
-		trace, err := getPlonkTrace(&circuit, &witness)
-		assert.NoError(err)
+		trace, _ := getPlonkTrace(&circuit, &witness)
 		assert.Equal(trace, expected.String())
 	}
 }
@@ -66,7 +70,7 @@ func (circuit *divBy0Trace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem
 	return nil
 }
 
-func TestDivBy0(t *testing.T) {
+func TestTraceDivBy0(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness divBy0Trace
@@ -79,7 +83,7 @@ func TestDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:65")
+		assert.Contains(err.Error(), "debug_test.go:69")
 	}
 
 	{
@@ -87,7 +91,7 @@ func TestDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:65")
+		assert.Contains(err.Error(), "debug_test.go:69")
 	}
 }
 
@@ -103,7 +107,7 @@ func (circuit *notEqualTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 	return nil
 }
 
-func TestNotEqual(t *testing.T) {
+func TestTraceNotEqual(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notEqualTrace
@@ -116,7 +120,7 @@ func TestNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:102")
+		assert.Contains(err.Error(), "debug_test.go:106")
 	}
 
 	{
@@ -124,7 +128,7 @@ func TestNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:102")
+		assert.Contains(err.Error(), "debug_test.go:106")
 	}
 }
 
@@ -140,7 +144,7 @@ func (circuit *notBooleanTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSy
 	return nil
 }
 
-func TestNotBoolean(t *testing.T) {
+func TestTraceNotBoolean(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notBooleanTrace
@@ -153,7 +157,7 @@ func TestNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:139")
+		assert.Contains(err.Error(), "debug_test.go:143")
 	}
 
 	{
@@ -161,7 +165,7 @@ func TestNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:139")
+		assert.Contains(err.Error(), "debug_test.go:143")
 	}
 }
 

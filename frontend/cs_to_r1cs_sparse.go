@@ -52,6 +52,8 @@ type sparseR1CS struct {
 	currentR1CDebugID int // mark the current R1C debugID
 }
 
+var bOne = new(big.Int).SetInt64(1)
+
 func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 
 	res := sparseR1CS{
