@@ -74,7 +74,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(r1cs.NbConstraints), 1, true)
+	domain := fft.NewDomain(uint64(len(r1cs.Constraints)), 1, true)
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -401,7 +401,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-	nbConstraints := r1cs.NbConstraints
+	nbConstraints := len(r1cs.Constraints)
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints), 1, true)

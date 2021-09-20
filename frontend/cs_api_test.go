@@ -19,7 +19,6 @@ type csState struct {
 	nbSecretVariables   int
 	nbInternalVariables int
 	nbConstraints       int
-	nbAssertions        int
 }
 
 // deltaState holds the difference between the next state (after calling a function from the API) and the previous one
@@ -38,7 +37,7 @@ type nextstatefunc func(state commands.State) commands.State
 
 // the names of the public/secret inputs are variableName.String()
 func incVariableName() {
-	variableName.Add(&variableName, bOne)
+	variableName.Add(&variableName, new(big.Int).SetUint64(1))
 }
 
 // ------------------------------------------------------------------------------
@@ -103,8 +102,7 @@ func postConditionAPI(state commands.State, result commands.Result) *gopter.Prop
 	if len(csRes.cs.public.variables) != st.nbPublicVariables ||
 		len(csRes.cs.secret.variables) != st.nbSecretVariables ||
 		len(csRes.cs.internal.variables) != st.nbInternalVariables ||
-		len(csRes.cs.constraints) != st.nbConstraints ||
-		len(csRes.cs.assertions) != st.nbAssertions {
+		len(csRes.cs.constraints) != st.nbConstraints {
 		return &gopter.PropResult{Status: gopter.PropFalse}
 	}
 	return &gopter.PropResult{Status: gopter.PropTrue}
@@ -150,7 +148,7 @@ func rfAddSub() runfunc {
 	return res
 }
 
-var nsAddSub = deltaState{1, 2, 0, 0, 0} // ex: after calling add, we should have 1 public variable, 3 secret variables, 0 internal variable, 0 constraint more in the cs
+var nsAddSub = deltaState{1, 2, 0, 0} // ex: after calling add, we should have 1 public variable, 3 secret variables, 0 internal variable, 0 constraint more in the cs
 
 // mul variables
 func rfMul() runfunc {
@@ -182,7 +180,7 @@ func rfMul() runfunc {
 	return res
 }
 
-var nsMul = csState{1, 1, 1, 1, 0}
+var nsMul = csState{1, 1, 1, 1}
 
 // inverse a variable
 func rfInverse() runfunc {
@@ -210,7 +208,7 @@ func rfInverse() runfunc {
 	return res
 }
 
-var nsInverse = deltaState{1, 0, 1, 1, 0}
+var nsInverse = deltaState{1, 0, 1, 1}
 
 // div 2 variables
 func rfDiv() runfunc {
@@ -251,7 +249,7 @@ func rfDiv() runfunc {
 	return res
 }
 
-var nsDiv = deltaState{1, 1, 4, 4, 0}
+var nsDiv = deltaState{1, 1, 4, 4}
 
 // xor between two variables
 func rfXor() runfunc {
@@ -283,7 +281,7 @@ func rfXor() runfunc {
 	return res
 }
 
-var nsXor = deltaState{1, 1, 1, 1, 2}
+var nsXor = deltaState{1, 1, 1, 3}
 
 // binary decomposition of a variable
 func rfToBinary() runfunc {
@@ -309,7 +307,7 @@ func rfToBinary() runfunc {
 	return res
 }
 
-var nsToBinary = deltaState{1, 0, 256, 1, 256}
+var nsToBinary = deltaState{1, 0, 256, 257}
 
 // select constraint betwwen variableq
 func rfSelect() runfunc {
@@ -353,7 +351,7 @@ func rfSelect() runfunc {
 	return res
 }
 
-var nsSelect = deltaState{1, 2, 3, 3, 1}
+var nsSelect = deltaState{1, 2, 3, 4}
 
 // copy of variable
 func rfConstant() runfunc {
@@ -381,7 +379,7 @@ func rfConstant() runfunc {
 	return res
 }
 
-var nsConstant = deltaState{1, 0, 0, 0, 0}
+var nsConstant = deltaState{1, 0, 0, 0}
 
 // equality between 2 variables
 func rfIsEqual() runfunc {
@@ -416,7 +414,7 @@ func rfIsEqual() runfunc {
 	return res
 }
 
-var nsIsEqual = deltaState{1, 1, 0, 0, 2}
+var nsIsEqual = deltaState{1, 1, 0, 2}
 
 // packing from binary variables
 func rfFromBinary() runfunc {
@@ -444,7 +442,7 @@ func rfFromBinary() runfunc {
 	return res
 }
 
-var nsFromBinary = deltaState{256, 0, 0, 0, 256}
+var nsFromBinary = deltaState{256, 0, 0, 256}
 
 // boolean constrain a variable
 func rfIsBoolean() runfunc {
@@ -481,11 +479,11 @@ func rfIsBoolean() runfunc {
 	return res
 }
 
-var nsIsBoolean = deltaState{1, 1, 0, 0, 2}
+var nsIsBoolean = deltaState{1, 1, 0, 2}
 
-var nsMustBeLessOrEqVar = deltaState{1, 1, 1281, 771, 768}
+var nsMustBeLessOrEqVar = deltaState{1, 1, 1281, 1539}
 
-var nsMustBeLessOrEqConst = csState{1, 0, 257, 2, 511} // nb internal variables: 256+HW(bound), nb constraints: 1+HW(bound), nb assertions: 256+HW(^bound)
+var nsMustBeLessOrEqConst = csState{1, 0, 257, 513} // nb internal variables: 256+HW(bound), nb constraints: 1+HW(bound), nb assertions: 256+HW(^bound)
 
 // ------------------------------------------------------------------------------
 // build the next state function using the delta state
@@ -496,7 +494,6 @@ func nextStateFunc(ds deltaState) nextstatefunc {
 		state.(*csState).nbSecretVariables += ds.nbSecretVariables
 		state.(*csState).nbInternalVariables += ds.nbInternalVariables
 		state.(*csState).nbConstraints += ds.nbConstraints
-		state.(*csState).nbAssertions += ds.nbAssertions
 		return state
 	}
 	return res
@@ -679,11 +676,6 @@ func (c *isLessOrEq) Define(curveID ecc.ID, cs *ConstraintSystem) error {
 }
 
 func TestUnsetVariables(t *testing.T) {
-	// TODO unset variables with markBoolean will panic.
-	// doing
-	// var a Variable
-	// cs.AssertIsBoolean(a)
-	// will panic.
 	mapFuncs := map[string]Circuit{
 		"add":          &addCircuit{},
 		"sub":          &subCircuit{},

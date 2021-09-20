@@ -68,10 +68,10 @@ func TestIntegrationAPI(t *testing.T) {
 				pk, vk, err := groth16.Setup(ccs)
 				assert.NoError(err)
 
-				correctProof, err := groth16.Prove(ccs, pk, circuit.Good, nil)
+				correctProof, err := groth16.Prove(ccs, pk, circuit.Good)
 				assert.NoError(err)
 
-				wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, nil, true)
+				wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
 				assert.NoError(err)
 
 				assert.NoError(groth16.Verify(correctProof, vk, circuit.Good))
@@ -84,7 +84,7 @@ func TestIntegrationAPI(t *testing.T) {
 					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
 					assert.NoError(err)
 
-					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, nil)
+					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
 					assert.NoError(err)
 
 					buf.Reset()
@@ -114,10 +114,10 @@ func TestIntegrationAPI(t *testing.T) {
 				pk, vk, err := plonk.Setup(ccs, srs)
 				assert.NoError(err)
 
-				correctProof, err := plonk.Prove(ccs, pk, circuit.Good, nil)
+				correctProof, err := plonk.Prove(ccs, pk, circuit.Good)
 				assert.NoError(err)
 
-				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, nil, true)
+				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
 				assert.NoError(err)
 
 				assert.NoError(plonk.Verify(correctProof, vk, circuit.Good))
@@ -130,7 +130,7 @@ func TestIntegrationAPI(t *testing.T) {
 					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
 					assert.NoError(err)
 
-					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, nil)
+					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
 					assert.NoError(err)
 
 					buf.Reset()

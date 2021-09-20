@@ -14,6 +14,12 @@
 
 package compiled
 
+import (
+	"math/big"
+	"strconv"
+	"strings"
+)
+
 // Term lightweight version of a term, no pointers
 // first 4 bits are reserved
 // next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
@@ -40,20 +46,27 @@ const (
 const (
 	nbBitsVariableID         = 29
 	nbBitsCoeffID            = 30
-	nbBitsFutureUse          = 2
+	nbBitsDelimitor          = 1
+	nbBitsFutureUse          = 1
 	nbBitsVariableVisibility = 3
 )
+
+// TermDelimitor is reserved for internal use
+// the constraint solver will evaluate the sum of all terms appearing between two TermDelimitor
+const TermDelimitor Term = Term(maskDelimitor)
 
 const (
 	shiftVariableID         = 0
 	shiftCoeffID            = nbBitsVariableID
-	shiftFutureUse          = shiftCoeffID + nbBitsCoeffID
+	shiftDelimitor          = shiftCoeffID + nbBitsCoeffID
+	shiftFutureUse          = shiftDelimitor + nbBitsDelimitor
 	shiftVariableVisibility = shiftFutureUse + nbBitsFutureUse
 )
 
 const (
 	maskVariableID         = uint64((1 << nbBitsVariableID) - 1)
 	maskCoeffID            = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
+	maskDelimitor          = uint64((1<<nbBitsDelimitor)-1) << shiftDelimitor
 	maskFutureUse          = uint64((1<<nbBitsFutureUse)-1) << shiftFutureUse
 	maskVariableVisibility = uint64((1<<nbBitsVariableVisibility)-1) << shiftVariableVisibility
 )
@@ -142,4 +155,24 @@ func (t Term) VariableID() int {
 // CoeffID returns the coefficient id (see R1CS data structure)
 func (t Term) CoeffID() int {
 	return int((uint64(t) & maskCoeffID) >> shiftCoeffID)
+}
+
+func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
+	sbb.WriteString(coeffs[t.CoeffID()].String())
+	sbb.WriteString("*")
+	switch t.VariableVisibility() {
+	case Internal:
+		sbb.WriteString("i")
+	case Public:
+		sbb.WriteString("p")
+	case Secret:
+		sbb.WriteString("s")
+	case Virtual:
+		sbb.WriteString("v")
+	case Unset:
+		sbb.WriteString("u")
+	default:
+		panic("not implemented")
+	}
+	sbb.WriteString(strconv.Itoa(t.VariableID()))
 }

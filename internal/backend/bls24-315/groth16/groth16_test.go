@@ -130,7 +130,7 @@ func BenchmarkProver(b *testing.B) {
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, nil, false)
+			_, _ = bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverOption{})
 		}
 	})
 }
@@ -151,7 +151,7 @@ func BenchmarkVerifier(b *testing.B) {
 	var pk bls24_315groth16.ProvingKey
 	var vk bls24_315groth16.VerifyingKey
 	bls24_315groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
-	proof, err := bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, nil, false)
+	proof, err := bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverOption{})
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +175,7 @@ func BenchmarkSerialization(b *testing.B) {
 	var pk bls24_315groth16.ProvingKey
 	var vk bls24_315groth16.VerifyingKey
 	bls24_315groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
-	proof, err := bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, nil, false)
+	proof, err := bls24_315groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverOption{})
 	if err != nil {
 		panic(err)
 	}

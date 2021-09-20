@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 
 	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -158,11 +158,12 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, hintFunctions []hint.Function, force ...bool) (Proof, error) {
+func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
-	_force := false
-	if len(force) > 0 {
-		_force = force[0]
+	// apply options
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	switch tccs := ccs.(type) {
@@ -171,35 +172,35 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, hintFunctions, _force)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
 
 	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, hintFunctions, _force)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, opt)
 
 	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, hintFunctions, _force)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, opt)
 
 	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, hintFunctions, _force)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, opt)
 
 	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
 		if err := w.FromFullAssignment(fullWitness); err != nil {
 			return nil, err
 		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, hintFunctions, _force)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, opt)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")
@@ -339,11 +340,12 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 }
 
 // ReadAndProve generates PLONK proof from a circuit, associated proving key, and the full witness
-func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, hintFunctions []hint.Function, force ...bool) (Proof, error) {
+func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
-	_force := false
-	if len(force) > 0 {
-		_force = force[0]
+	// apply options
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	_, nbSecret, nbPublic := ccs.GetNbVariables()
@@ -356,7 +358,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bn254.Prove(tccs, _pk, w, hintFunctions, _force)
+		proof, err := plonk_bn254.Prove(tccs, _pk, w, opt)
 		if err != nil {
 			return proof, err
 		}
@@ -368,7 +370,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12381.Prove(tccs, _pk, w, hintFunctions, _force)
+		proof, err := plonk_bls12381.Prove(tccs, _pk, w, opt)
 		if err != nil {
 			return proof, err
 		}
@@ -380,7 +382,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls12377.Prove(tccs, _pk, w, hintFunctions, _force)
+		proof, err := plonk_bls12377.Prove(tccs, _pk, w, opt)
 		if err != nil {
 			return proof, err
 		}
@@ -392,7 +394,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bw6761.Prove(tccs, _pk, w, hintFunctions, _force)
+		proof, err := plonk_bw6761.Prove(tccs, _pk, w, opt)
 		if err != nil {
 			return proof, err
 		}
@@ -404,7 +406,7 @@ func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness 
 		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
 			return nil, err
 		}
-		proof, err := plonk_bls24315.Prove(tccs, _pk, w, hintFunctions, _force)
+		proof, err := plonk_bls24315.Prove(tccs, _pk, w, opt)
 		if err != nil {
 			return proof, err
 		}

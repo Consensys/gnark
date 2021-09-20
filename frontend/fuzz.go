@@ -22,13 +22,13 @@ func Fuzz(data []byte) int {
 
 	curves := []ecc.ID{ecc.BN254, ecc.BLS12_381}
 	for _, curveID := range curves {
-		_, _ = CsFuzzed(data, curveID)
+		_ = CsFuzzed(data, curveID)
 	}
 
 	return 1
 }
 
-func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem, nbAssertions int) {
+func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 	cs := newConstraintSystem()
 	reader := bytes.NewReader(data)
 
@@ -126,7 +126,7 @@ compile:
 	if err != nil {
 		panic(fmt.Sprintf("compiling (curve %s) failed: %v", curveID.String(), err))
 	}
-	return ccs, len(cs.assertions)
+	return ccs
 }
 
 func (cs *ConstraintSystem) shuffleVariables(seed int64, withConstant bool) []interface{} {

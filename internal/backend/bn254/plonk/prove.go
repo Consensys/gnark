@@ -38,7 +38,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -60,7 +60,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, hintFunctions []hint.Function, force bool) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverOption) (*Proof, error) {
 
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -74,8 +74,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	// compute the constraint system solution
 	var solution []fr.Element
 	var err error
-	if solution, err = spr.Solve(fullWitness, hintFunctions); err != nil {
-		if !force {
+	if solution, err = spr.Solve(fullWitness, opt); err != nil {
+		if !opt.Force {
 			return nil, err
 		} else {
 			// we need to fill solution with random values

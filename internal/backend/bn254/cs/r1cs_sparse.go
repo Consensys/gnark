@@ -26,7 +26,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -37,9 +37,8 @@ import (
 type SparseR1CS struct {
 	compiled.SparseR1CS
 
-	// Coefficients in the constraints
-	Coefficients []fr.Element // list of unique coefficients.
-	mHints       map[int]int  // correspondance between hint wire ID and hint data struct
+	Coefficients []fr.Element // coefficients in the constraints
+	loggerOut    io.Writer
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -47,12 +46,11 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	cs := SparseR1CS{
 		SparseR1CS:   ccs,
 		Coefficients: make([]fr.Element, len(coefficients)),
+		loggerOut:    os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
 	}
-
-	cs.initHints()
 
 	return &cs
 }
@@ -61,7 +59,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function) (values []fr.Element, err error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverOption) ([]fr.Element, error) {
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
@@ -78,7 +76,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	}
 
 	// keep track of wire that have a value
-	solution, err := newSolution(nbVariables, hintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
 		return solution.values, err
 	}
@@ -94,8 +92,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 	solution.nbSolved += len(witness)
 
 	// defer log printing once all solution.values are computed
-	// TODO @gbotrel replace stdout by writer set by user, same as in R1CS
-	defer solution.printLogs(os.Stdout, cs.Logs)
+	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
@@ -109,7 +106,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, hintFunctions []hint.Function)
 			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
-			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
+			if dID, ok := cs.MDebug[i]; ok {
+				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+			}
+			return solution.values, ErrUnsatisfiedConstraint
 		}
 	}
 
@@ -131,8 +132,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[lID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], lID); err != nil {
+		if hint, ok := cs.MHints[lID]; ok {
+			if err := solution.solveWithHint(lID, hint); err != nil {
 				return -1, err
 			}
 		} else {
@@ -143,8 +144,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !solution.solved[rID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[rID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], rID); err != nil {
+		if hint, ok := cs.MHints[rID]; ok {
+			if err := solution.solveWithHint(rID, hint); err != nil {
 				return -1, err
 			}
 		} else {
@@ -154,8 +155,8 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (in
 
 	if (c.O.CoeffID() != 0) && !solution.solved[oID] {
 		// check if it's a hint
-		if hID, ok := cs.mHints[oID]; ok {
-			if err := solution.solveHint(cs.Hints[hID], oID); err != nil {
+		if hint, ok := cs.MHints[oID]; ok {
+			if err := solution.solveWithHint(oID, hint); err != nil {
 				return -1, err
 			}
 		} else {
@@ -223,8 +224,8 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps r1cs.Solve() and allocates r1cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness []fr.Element, hintFunctions []hint.Function) error {
-	_, err := cs.Solve(witness, hintFunctions)
+func (cs *SparseR1CS) IsSolved(witness []fr.Element, opt backend.ProverOption) error {
+	_, err := cs.Solve(witness, opt)
 	return err
 }
 
@@ -265,21 +266,12 @@ func (cs *SparseR1CS) ToHTML(w io.Writer) error {
 		return err
 	}
 
-	type data struct {
-		*SparseR1CS
-		MHints map[int]int
-	}
-	d := data{
-		cs,
-		cs.mHints,
-	}
-
-	return t.Execute(w, &d)
+	return t.Execute(w, cs)
 }
 
-func toHTMLTerm(t compiled.Term, coeffs []fr.Element, mHints map[int]int) string {
+func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]int) string {
 	var sbb strings.Builder
-	termToHTML(t, &sbb, coeffs, mHints, true)
+	termToHTML(t, &sbb, coeffs, MHints, true)
 	return sbb.String()
 }
 
@@ -293,15 +285,6 @@ func toHTMLCoeff(cID int, coeffs []fr.Element) string {
 	sbb.WriteString(coeffs[cID].String())
 	sbb.WriteString("</span>")
 	return sbb.String()
-}
-
-func (cs *SparseR1CS) initHints() {
-	// we may do that sooner to save time in the solver, but we want the serialized data structures to be
-	// deterministic, hence avoid maps in there.
-	cs.mHints = make(map[int]int, len(cs.Hints))
-	for i := 0; i < len(cs.Hints); i++ {
-		cs.mHints[cs.Hints[i].WireID] = i
-	}
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
@@ -322,10 +305,14 @@ func (cs *SparseR1CS) CurveID() ecc.ID {
 // WriteTo encodes SparseR1CS into provided io.Writer using cbor
 func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	encoder := cbor.NewEncoder(&_w)
+	enc, err := cbor.CoreDetEncOptions().EncMode()
+	if err != nil {
+		return 0, err
+	}
+	encoder := enc.NewEncoder(&_w)
 
 	// encode our object
-	err := encoder.Encode(cs)
+	err = encoder.Encode(cs)
 	return _w.N, err
 }
 
@@ -337,6 +324,12 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	}
 	decoder := dm.NewDecoder(r)
 	err = decoder.Decode(cs)
-	cs.initHints()
 	return int64(decoder.NumBytesRead()), err
+}
+
+// SetLoggerOutput replace existing logger output with provided one
+// default uses os.Stdout
+// if nil is provided, logs are not printed
+func (cs *SparseR1CS) SetLoggerOutput(w io.Writer) {
+	cs.loggerOut = w
 }

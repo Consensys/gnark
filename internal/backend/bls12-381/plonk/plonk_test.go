@@ -135,7 +135,7 @@ func BenchmarkProver(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil, false)
+		_, err = bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverOption{})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -160,7 +160,7 @@ func BenchmarkVerifier(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil, false)
+	proof, err := bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverOption{})
 	if err != nil {
 		panic(err)
 	}
@@ -184,7 +184,7 @@ func BenchmarkSerialization(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, nil, false)
+	proof, err := bls12_381plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverOption{})
 	if err != nil {
 		b.Fatal(err)
 	}
