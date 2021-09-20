@@ -55,21 +55,22 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 	cs.logs = append(cs.logs, log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) error {
+func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 
 	count := 0
 	counter := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
 		count++
 		return nil
 	}
-	if err := parser.Visit(a, "", compiled.Unset, counter, reflect.TypeOf(Variable{})); err != nil {
-		return err
-	}
+	// ignoring error, counter() always return nil
+	_ = parser.Visit(a, "", compiled.Unset, counter, reflect.TypeOf(Variable{}))
 
+	// no variables in nested struct, we use fmt std print function
 	if count == 0 {
 		sbb.WriteString(fmt.Sprint(a))
-		return nil
+		return
 	}
+
 	sbb.WriteByte('{')
 	printer := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
 		count--
@@ -88,12 +89,9 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) error
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		return nil
 	}
-	if err := parser.Visit(a, "", compiled.Unset, printer, reflect.TypeOf(Variable{})); err != nil {
-		return err
-	}
+	// ignoring error, printer() doesn't return errors
+	_ = parser.Visit(a, "", compiled.Unset, printer, reflect.TypeOf(Variable{}))
 	sbb.WriteByte('}')
-
-	return nil
 }
 
 func (cs *ConstraintSystem) addDebugInfo(errName string, i ...interface{}) int {
