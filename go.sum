@@ -1,7 +1,7 @@
-github.com/consensys/bavard v0.1.8-0.20210806153619-fcffe4ffd871 h1:gfdz2r/E4uQhD8jDUv2SaWQClfzFuZioHGAzPw7oZng=
-github.com/consensys/bavard v0.1.8-0.20210806153619-fcffe4ffd871/go.mod h1:Bpd0/3mZuaj6Sj+PqrmIquiOKy397AKGThQPaGzNXAQ=
-github.com/consensys/gnark-crypto v0.5.1-0.20210917183421-cb36b2c871c0 h1:ODfAG0P/XaGvh1JNZM9tzL2MKVaqFdE7FeATcrdrHB0=
-github.com/consensys/gnark-crypto v0.5.1-0.20210917183421-cb36b2c871c0/go.mod h1:wAZ9dsKCDVTSIy2KVTik+ZF16GUX9qp96mxFBDl9iAQ=
+github.com/consensys/bavard v0.1.8-0.20210915155054-088da2f7f54a h1:AEpwbXTjBGKoqxuQ6QAcBMEuK0+PtajQj0wJkhTnSd0=
+github.com/consensys/bavard v0.1.8-0.20210915155054-088da2f7f54a/go.mod h1:9ItSMtA/dXMAiL7BG6bqW2m3NdSEObYWoH223nGHukI=
+github.com/consensys/gnark-crypto v0.5.1 h1:80Uu3fxY5mezoT2cIctyQcn4AcqMNl6nb+zfnYBE24Q=
+github.com/consensys/gnark-crypto v0.5.1/go.mod h1:hOdPlWQV1gDLp7faZVeg8Y0iEPFaOUnCc4XeCCk96p0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -36,3 +36,5 @@ gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b h1:h8qDotaEPuJATrMmW04NCwg7v22aHH28wwpauUhK9Oo=
 gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+rsc.io/tmplfunc v0.0.3 h1:53XFQh69AfOa8Tw0Jm7t+GV7KZhOi6jzsCzTtKbMvzU=
+rsc.io/tmplfunc v0.0.3/go.mod h1:AG3sTPzElb1Io3Yg4voV9AGZJuleGAwaVRxL9M49PhA=

@@ -1,3 +1,42 @@
+<a name="v0.5.1"></a>
+## [v0.5.1] - 2021-09-20
+
+### Build
+- updated to gnark-crypto@v0.5.1
+
+### Feat
+- adds solver hints `cs.NewHint` [#139](https://github.com/ConsenSys/gnark/pull/139)
+- adds `cs.AssertIsDifferent` [#131](https://github.com/ConsenSys/gnark/pull/131)
+- consistent support of `cs.Println` and `debugInfo` [#142](https://github.com/ConsenSys/gnark/pull/142)
+- adds sanity check in `frontend.Compile` to ensure constraint validity
+- adds `witness.WriteSequence` to export expected witness sequence
+- adds sanity checks in R1CS and SparseR1CS solvers
+- adds ToHTML on SparseR1CS and R1CS
+- add witness reconstruction methods. closes [#135](https://github.com/consensys/gnark/issues/135)
+
+### Perf
+- IsZero is now implemented with 3 constraints [#134](https://github.com/ConsenSys/gnark/pull/134)
+- Groth16 maximize number of infinity points in G2 part of the ProvingKey [#130](https://github.com/ConsenSys/gnark/pull/130)
+
+### Fix
+- can constraint linear expressions to be boolean fixes [#136](https://github.com/consensys/gnark/issues/136)
+- **eddsa:** addition of isOnCurve check
+- **eddsa:** S not splitted (s<r) + 2,3 Double instead of [cofactor]G
+
+### Refactor
+- `groth16.Prove` and `plonk.Prove` takes `backend.ProverOption` as parameter
+- factorized structs between `compiled.SparseR1CS` and `compiled.R1CS`
+- assertions -> constraints in `R1CS` and `SparseR1CS`
+- removed `r1c.SolvingMethod` in favor of `cs.NewHint`
+- `cs.IsZero` doesn't need curveID anymore
+
+### Test
+- ensure `frontend.Compile` is deterministic
+- added non regression for `cs.Println` and `debugInfo` traces
+- added circuit statistic non regression tests
+- added plonk path to `integration_test.go`
+- added test from [#136](https://github.com/consensys/gnark/issues/136)
+
 
 <a name="v0.5.0"></a>
 
