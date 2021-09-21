@@ -30,9 +30,9 @@ type PairingContext struct {
 	BTwistCoeff fields.E2
 }
 
-// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
-type lineEvaluation struct {
-	r0, r1, r2 fields.E2
+// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+type LineEvaluation struct {
+	R0, R1, R2 fields.E2
 }
 
 // MillerLoop computes the miller loop
@@ -46,7 +46,7 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 	}
 
 	res.SetOne(cs)
-	var l lineEvaluation
+	var l LineEvaluation
 
 	var qProj G2Proj
 	qProj.X = Q.X
@@ -63,11 +63,11 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 		// l(P) where div(l) = 2(qProj)+([-2]qProj)-2(O)
 		// qProj <- 2*qProj
 		qProj.DoubleStep(cs, &l, pairingInfo)
-		l.r0.MulByFp(cs, &l.r0, P.Y)
-		l.r1.MulByFp(cs, &l.r1, P.X)
+		l.R0.MulByFp(cs, &l.R0, P.Y)
+		l.R1.MulByFp(cs, &l.R1, P.X)
 
 		// res <- res*l(P)
-		res.MulBy034(cs, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
+		res.MulBy034(cs, &l.R0, &l.R1, &l.R2, pairingInfo.Extension)
 
 		if ateLoopBin[i] == 0 {
 			continue
@@ -76,12 +76,125 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 		// l(P) where div(l) = (qProj)+(Q)+(-Q-qProj)-3(O)
 		// qProj <- qProj + Q
 		qProj.AddMixedStep(cs, &l, &Q, pairingInfo)
-		l.r0.MulByFp(cs, &l.r0, P.Y)
-		l.r1.MulByFp(cs, &l.r1, P.X)
+		l.R0.MulByFp(cs, &l.R0, P.Y)
+		l.R1.MulByFp(cs, &l.R1, P.X)
 
 		// res <- res*l(P)
-		res.MulBy034(cs, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
+		res.MulBy034(cs, &l.R0, &l.R1, &l.R2, pairingInfo.Extension)
 
+	}
+
+	return res
+}
+
+// computeLineCoef computes the coefficients of the line passing through Q, R of equation
+// x*LineCoeff.R0 +  y*LineCoeff.R1 + LineCoeff.R2
+func computeLineCoef(cs *frontend.ConstraintSystem, Q, R G2Affine, ext fields.Extension) LineEvaluation {
+
+	var res LineEvaluation
+	res.R0.Sub(cs, &Q.Y, &R.Y)
+	res.R1.Sub(cs, &R.X, &Q.X)
+	var tmp fields.E2
+	res.R2.Mul(cs, &Q.X, &R.Y, ext)
+	tmp.Mul(cs, &R.X, &Q.Y, ext)
+	res.R2.Sub(cs, &res.R2, &tmp)
+	return res
+}
+
+// mulByUntwistedLineEval multiplies acc with a (back to the original curve) line evaluation at P
+// equivalent to mulBy235
+func mulByUntwistedLineEval(cs *frontend.ConstraintSystem, lineEval LineEvaluation, acc fields.E12, ext fields.Extension) fields.E12 {
+
+	var res fields.E12
+	var t1, t2 fields.E2
+
+	t1.Mul(cs, &lineEval.R0, &acc.C1.B1, ext)
+	t2.Mul(cs, &lineEval.R1, &acc.C0.B2, ext)
+	res.C0.B0.Mul(cs, &lineEval.R2, &acc.C1.B0, ext).
+		Add(cs, &res.C0.B0, &t1).
+		Add(cs, &res.C0.B0, &t2).
+		MulByIm(cs, &res.C0.B0, ext)
+
+	t1.Mul(cs, &lineEval.R0, &acc.C1.B2, ext)
+	t2.Mul(cs, &lineEval.R2, &acc.C1.B1, ext)
+	t1.Add(cs, &t1, &t2).MulByIm(cs, &t1, ext)
+	res.C0.B1.Mul(cs, &lineEval.R1, &acc.C0.B0, ext).
+		Add(cs, &res.C0.B1, &t1)
+
+	t1.Mul(cs, &lineEval.R0, &acc.C1.B0, ext)
+	t2.Mul(cs, &lineEval.R1, &acc.C0.B1, ext)
+	res.C0.B2.Mul(cs, &lineEval.R2, &acc.C1.B2, ext).
+		MulByIm(cs, &res.C0.B2, ext).
+		Add(cs, &res.C0.B2, &t1).
+		Add(cs, &res.C0.B2, &t2)
+
+	t1.Mul(cs, &lineEval.R0, &acc.C0.B2, ext)
+	t2.Mul(cs, &lineEval.R1, &acc.C1.B2, ext)
+	res.C1.B0.Mul(cs, &lineEval.R2, &acc.C0.B1, ext).
+		Add(cs, &res.C1.B0, &t1).
+		Add(cs, &res.C1.B0, &t2).
+		MulByIm(cs, &res.C1.B0, ext)
+
+	t1.Mul(cs, &lineEval.R0, &acc.C0.B0, ext)
+	t2.Mul(cs, &lineEval.R1, &acc.C1.B0, ext)
+	res.C1.B1.Mul(cs, &lineEval.R2, &acc.C0.B2, ext).
+		MulByIm(cs, &res.C1.B1, ext).
+		Add(cs, &res.C1.B1, &t1).
+		Add(cs, &res.C1.B1, &t2)
+
+	t1.Mul(cs, &lineEval.R0, &acc.C0.B1, ext)
+	t2.Mul(cs, &lineEval.R1, &acc.C1.B1, ext)
+	res.C1.B2.Mul(cs, &lineEval.R2, &acc.C0.B0, ext).
+		Add(cs, &res.C1.B2, &t1).
+		Add(cs, &res.C1.B2, &t2)
+
+	return res
+}
+
+// MillerLoop computes the miller loop
+func MillerLoopAffine(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+
+	var ateLoopBin [64]uint
+	var ateLoopBigInt big.Int
+	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
+	for i := 0; i < 64; i++ {
+		ateLoopBin[i] = ateLoopBigInt.Bit(i)
+	}
+
+	res.SetOne(cs)
+	var l LineEvaluation
+
+	var QCur, QNext G2Affine
+	QCur = Q
+
+	// Miller loop
+	for i := len(ateLoopBin) - 2; i >= 0; i-- {
+
+		// res <- res**2
+		res.Mul(cs, res, res, pairingInfo.Extension)
+
+		// l(P) where div(l) = 2(qProj)+([-2]qProj)-2(O)
+		QNext.Double(cs, &QCur, pairingInfo.Extension).Neg(cs, &QNext)
+		l = computeLineCoef(cs, QCur, QNext, pairingInfo.Extension)
+		l.R0.MulByFp(cs, &l.R0, P.X)
+		l.R1.MulByFp(cs, &l.R1, P.Y)
+
+		// res <- res*l(P)
+		*res = mulByUntwistedLineEval(cs, l, *res, pairingInfo.Extension)
+
+		QCur.Neg(cs, &QNext)
+
+		if ateLoopBin[i] == 0 {
+			continue
+		}
+
+		// l(P) where div(l) = (qProj)+(Q)+(-Q-qProj)-3(O)
+		QNext.Neg(cs, &QNext).AddAssign(cs, &Q, pairingInfo.Extension)
+		l = computeLineCoef(cs, QCur, Q, pairingInfo.Extension)
+		l.R0.MulByFp(cs, &l.R0, P.X)
+		l.R1.MulByFp(cs, &l.R1, P.Y)
+		*res = mulByUntwistedLineEval(cs, l, *res, pairingInfo.Extension)
+		QCur = QNext
 	}
 
 	return res
@@ -89,7 +202,7 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 
 // DoubleStep doubles a point in Homogenous projective coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) DoubleStep(cs *frontend.ConstraintSystem, evaluation *lineEvaluation, pairingInfo PairingContext) {
+func (p *G2Proj) DoubleStep(cs *frontend.ConstraintSystem, evaluation *LineEvaluation, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var t0, t1, A, B, C, D, E, EE, F, G, H, I, J, K fields.E2
@@ -124,15 +237,15 @@ func (p *G2Proj) DoubleStep(cs *frontend.ConstraintSystem, evaluation *lineEvalu
 	p.Z.Mul(cs, &B, &H, pairingInfo.Extension)
 
 	// Line evaluation
-	evaluation.r0.Neg(cs, &H)
-	evaluation.r1.Add(cs, &J, &J).
-		Add(cs, &evaluation.r1, &J)
-	evaluation.r2 = I
+	evaluation.R0.Neg(cs, &H)
+	evaluation.R1.Add(cs, &J, &J).
+		Add(cs, &evaluation.R1, &J)
+	evaluation.R2 = I
 }
 
 // AddMixedStep point addition in Mixed Homogenous projective and Affine coordinates
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) AddMixedStep(cs *frontend.ConstraintSystem, evaluation *lineEvaluation, a *G2Affine, pairingInfo PairingContext) {
+func (p *G2Proj) AddMixedStep(cs *frontend.ConstraintSystem, evaluation *LineEvaluation, a *G2Affine, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var Y2Z1, X2Z1, O, L, C, D, E, F, G, H, t0, t1, t2, J fields.E2
@@ -162,7 +275,7 @@ func (p *G2Proj) AddMixedStep(cs *frontend.ConstraintSystem, evaluation *lineEva
 		Sub(cs, &J, &t2)
 
 	// Line evaluation
-	evaluation.r0 = L
-	evaluation.r1.Neg(cs, &O)
-	evaluation.r2 = J
+	evaluation.R0 = L
+	evaluation.R1.Neg(cs, &O)
+	evaluation.R2 = J
 }

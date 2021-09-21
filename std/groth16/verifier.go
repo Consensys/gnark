@@ -53,10 +53,11 @@ func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerV
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	sw.MillerLoop(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	//sw.MillerLoop(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoop(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoopAffine(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
