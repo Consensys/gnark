@@ -45,7 +45,7 @@ func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 	milRes := fields.E12{}
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	MillerLoopAffineSA(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
 	pairingRes.FinalExponentiation(cs, &milRes, ateLoop, ext)
@@ -91,7 +91,7 @@ func (circuit *ml) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
-	MillerLoopAffineSA(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	return nil
 
