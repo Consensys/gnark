@@ -29,7 +29,7 @@ func Fuzz(data []byte) int {
 }
 
 func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
-	cs := newConstraintSystem()
+	cs := newConstraintSystem(curveID)
 	reader := bytes.NewReader(data)
 
 	for {
