@@ -282,12 +282,19 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 
 }
 
-// ToBinary unpacks a variable in binary, n is the number of bits of the variable
+// ToBinary unpacks a variable in binary,
+// n is the number of bits to select (starting from lsb)
+// n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
+func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 	// ensure a is set
 	a.assertIsSet()
+
+	nbBits := cs.bitLen()
+	if len(n) == 1 {
+		nbBits = n[0]
+	}
 
 	// allocate the resulting variables and bit-constraint them
 	b := make([]Variable, nbBits)

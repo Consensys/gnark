@@ -18,6 +18,7 @@ package gnark
 
 import (
 	"bytes"
+	"encoding/gob"
 	"os"
 	"reflect"
 	"testing"
@@ -30,6 +31,11 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	fileStats        = "init.stats"
+	generateNewStats = false
 )
 
 func TestIntegrationAPI(t *testing.T) {
@@ -74,35 +80,37 @@ func TestIntegrationAPI(t *testing.T) {
 				internal, secret, public := ccs.GetNbVariables()
 				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.GROTH16)
 
-				pk, vk, err := groth16.Setup(ccs)
-				assert.NoError(err)
-
-				correctProof, err := groth16.Prove(ccs, pk, circuit.Good)
-				assert.NoError(err)
-
-				wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
-				assert.NoError(err)
-
-				assert.NoError(groth16.Verify(correctProof, vk, circuit.Good))
-				assert.Error(groth16.Verify(wrongProof, vk, circuit.Good))
-
-				// witness serialization tests.
-				{
-					buf.Reset()
-
-					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+				if !generateNewStats {
+					pk, vk, err := groth16.Setup(ccs)
 					assert.NoError(err)
 
-					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
+					correctProof, err := groth16.Prove(ccs, pk, circuit.Good)
 					assert.NoError(err)
 
-					buf.Reset()
-
-					_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+					wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
 					assert.NoError(err)
 
-					err = groth16.ReadAndVerify(correctProof, vk, &buf)
-					assert.NoError(err)
+					assert.NoError(groth16.Verify(correctProof, vk, circuit.Good))
+					assert.Error(groth16.Verify(wrongProof, vk, circuit.Good))
+
+					// witness serialization tests.
+					{
+						buf.Reset()
+
+						_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
+						assert.NoError(err)
+
+						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
+						assert.NoError(err)
+
+						buf.Reset()
+
+						_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
+						assert.NoError(err)
+
+						err = groth16.ReadAndVerify(correctProof, vk, &buf)
+						assert.NoError(err)
+					}
 				}
 
 			}
@@ -124,7 +132,9 @@ func TestIntegrationAPI(t *testing.T) {
 				nbConstraints := ccs.GetNbConstraints()
 				internal, secret, public := ccs.GetNbVariables()
 				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.PLONK)
-
+				if generateNewStats {
+					continue
+				}
 				srs, err := plonk.NewSRS(ccs)
 				assert.NoError(err)
 
@@ -162,5 +172,15 @@ func TestIntegrationAPI(t *testing.T) {
 			}
 
 		}
+	}
+
+	// serialize newStats
+	if generateNewStats {
+		fStats, err := os.Create(fileStats)
+		assert.NoError(err)
+
+		encoder := gob.NewEncoder(fStats)
+		err = encoder.Encode(mStats)
+		assert.NoError(err)
 	}
 }

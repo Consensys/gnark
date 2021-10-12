@@ -69,7 +69,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 		}
 	}()
 	// instantiate our constraint system
-	cs = newConstraintSystem(initialCapacity...)
+	cs = newConstraintSystem(curveID, initialCapacity...)
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit

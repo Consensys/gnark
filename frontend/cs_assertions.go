@@ -72,7 +72,7 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
-	const nbBits = 256
+	nbBits := cs.bitLen()
 
 	aBits := cs.toBinaryUnsafe(a, nbBits)
 	boundBits := cs.ToBinary(bound, nbBits)
@@ -111,7 +111,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 }
 
 func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
-	const nbBits = 256
+	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {
@@ -137,7 +137,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
 		t++
 	}
 
-	var p [nbBits + 1]Variable
+	p := make([]Variable, nbBits+1)
 	p[nbBits] = cs.Constant(1)
 
 	for i := nbBits - 1; i >= t; i-- {
