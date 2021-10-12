@@ -103,6 +103,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
+		cs.markBoolean(aBits[i]) // this does not create a constraint
 
 		cs.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
