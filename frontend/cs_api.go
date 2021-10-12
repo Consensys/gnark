@@ -315,6 +315,36 @@ func (cs *ConstraintSystem) ToBinary(a Variable, nbBits int) []Variable {
 
 }
 
+// toBinaryUnsafe is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
+func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
+	// ensure a is set
+	a.assertIsSet()
+
+	// allocate the resulting variables and bit-constraint them
+	b := make([]Variable, nbBits)
+	for i := 0; i < nbBits; i++ {
+		b[i] = cs.NewHint(hint.IthBit, a, i)
+	}
+
+	// here what we do is we add a single constraint where
+	// Σ (2**i * b[i]) == a
+	var c big.Int
+	c.SetUint64(1)
+
+	var Σbi Variable
+	Σbi.linExp = make(compiled.LinearExpression, nbBits)
+
+	for i := 0; i < nbBits; i++ {
+		Σbi.linExp[i] = cs.makeTerm(Wire{compiled.Internal, b[i].id, nil}, &c)
+		c.Lsh(&c, 1)
+	}
+
+	// record the constraint Σ (2**i * b[i]) == a
+	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a))
+	return b
+
+}
+
 // FromBinary packs b, seen as a fr.Element in little endian
 func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 	// ensure inputs are set
