@@ -316,8 +316,10 @@ func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 		c.Lsh(&c, 1)
 	}
 
+	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
+
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a))
+	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
 	return b
 
 }
@@ -346,8 +348,10 @@ func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 		c.Lsh(&c, 1)
 	}
 
+	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
+
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.constraints = append(cs.constraints, newR1C(Σbi, cs.one(), a))
+	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
 	return b
 
 }
