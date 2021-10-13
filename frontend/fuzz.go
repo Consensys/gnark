@@ -30,7 +30,9 @@ func Fuzz(data []byte) int {
 
 func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 	cs := newConstraintSystem(curveID)
+
 	reader := bytes.NewReader(data)
+	goto compile // TODO fixme @gbotrel
 
 	for {
 		b, err := reader.ReadByte()
