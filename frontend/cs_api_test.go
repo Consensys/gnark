@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -698,7 +699,7 @@ func TestUnsetVariables(t *testing.T) {
 				_t.Fatal("An unset variable error should be caught when the circuit is compiled")
 			}
 
-			if err.Error() != ErrInputNotSet.Error() {
+			if !strings.Contains(err.Error(), ErrInputNotSet.Error()) {
 				_t.Fatal("expected input not set error, got " + err.Error())
 			}
 		})

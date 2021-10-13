@@ -15,6 +15,8 @@ package frontend
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -43,7 +45,10 @@ type Variable struct {
 // since a was not in the circuit struct it is not a secret variable
 func (v *Variable) assertIsSet() {
 	if len(v.linExp) == 0 {
-		panic(ErrInputNotSet)
+		var l compiled.LogEntry
+		var sbb strings.Builder
+		l.WriteStack(&sbb)
+		panic(fmt.Errorf("%w\n%s", ErrInputNotSet, sbb.String()))
 	}
 }
 
