@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -32,7 +33,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newConstraintSystem()
+	cs := newConstraintSystem(ecc.BN254)
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()

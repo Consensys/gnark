@@ -24,6 +24,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
+
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // ConstraintSystem represents a Groth16 like circuit
@@ -53,6 +59,8 @@ type ConstraintSystem struct {
 	debugInfo []compiled.LogEntry // list of logs storing information about R1C
 
 	mDebug map[int]int // maps constraint ID to debugInfo id
+
+	curveID ecc.ID
 }
 
 type variables struct {
@@ -88,7 +96,7 @@ type CompiledConstraintSystem interface {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
+func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) ConstraintSystem {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
@@ -121,6 +129,8 @@ func newConstraintSystem(initialCapacity ...int) ConstraintSystem {
 	// by default the circuit is given on public wire equal to 1
 	cs.public.variables[0] = cs.newPublicVariable()
 
+	cs.curveID = curveID
+
 	return cs
 }
 
@@ -150,6 +160,24 @@ func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 	cs.mHints[r.id] = compiled.Hint{ID: hintID, Inputs: hintInputs}
 
 	return r
+}
+
+// bitLen returns the number of bits needed to represent a fr.Element
+func (cs *ConstraintSystem) bitLen() int {
+	switch cs.curveID {
+	case ecc.BN254:
+		return fr_bn254.Bits
+	case ecc.BLS12_377:
+		return fr_bls12377.Bits
+	case ecc.BLS12_381:
+		return fr_bls12381.Bits
+	case ecc.BW6_761:
+		return fr_bw6761.Bits
+	case ecc.BLS24_315:
+		return fr_bls24315.Bits
+	default:
+		panic("curve not implemented")
+	}
 }
 
 func (cs *ConstraintSystem) one() Variable {

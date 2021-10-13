@@ -523,7 +523,7 @@ func TestAPI(t *testing.T) {
 	// generate randomly a sequence of commands
 	var apiCommands = &commands.ProtoCommands{
 		NewSystemUnderTestFunc: func(initialState commands.State) commands.SystemUnderTest {
-			nc := newConstraintSystem()
+			nc := newConstraintSystem(ecc.BN254)
 			return &nc
 		},
 		InitialStateGen: gen.Const(1).Map(func(npv int) *csState {
@@ -708,7 +708,7 @@ func TestUnsetVariables(t *testing.T) {
 
 func TestPrintln(t *testing.T) {
 	// must not panic.
-	cs := newConstraintSystem()
+	cs := newConstraintSystem(ecc.BN254)
 	one := cs.newPublicVariable()
 
 	cs.Println(nil)

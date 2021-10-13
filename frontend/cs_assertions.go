@@ -54,7 +54,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 // bound can be a constant or a Variable
 //
 // derived from:
-// https://github.com/zcash/zips/blOoutputb/master/protocol/protocol.pdf
+// https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
 func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 	v.assertIsSet()
@@ -69,13 +69,12 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqVar(v, bound Variable) {
-	debug := cs.addDebugInfo("mustBeLessOrEq", v, " <= ", bound)
+func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
+	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
-	// TODO nbBits shouldn't be here.
-	const nbBits = 256
+	nbBits := cs.bitLen()
 
-	wBits := cs.ToBinary(v, nbBits)
+	aBits := cs.toBinaryUnsafe(a, nbBits)
 	boundBits := cs.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
@@ -85,61 +84,83 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(v, bound Variable) {
 
 	for i := nbBits - 1; i >= 0; i-- {
 
-		p1 := cs.Mul(p[i+1], wBits[i])
-		p[i] = cs.Select(boundBits[i], p1, p[i+1])
+		// if bound[i] == 0
+		// 		p[i] = p[i+1]
+		//		t = p[i+1]
+		// else
+		// 		p[i] = p[i+1] * a[i]
+		//		t = 0
+		v := cs.Mul(p[i+1], aBits[i])
+		p[i] = cs.Select(boundBits[i], v, p[i+1])
+
 		t := cs.Select(boundBits[i], zero, p[i+1])
 
+		// (1 - t - ai) * ai == 0
 		l := cs.one()
-		l = cs.Sub(l, t)        // no constraint is recorded
-		l = cs.Sub(l, wBits[i]) // no constraint is recorded
+		l = cs.Sub(l, t)
+		l = cs.Sub(l, aBits[i])
 
-		r := wBits[i]
+		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
+		// --> this is a boolean constraint
+		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
+		cs.markBoolean(aBits[i]) // this does not create a constraint
 
-		o := cs.Constant(0) // no constraint is recorded
-
-		cs.addConstraint(newR1C(l, r, o), debug)
+		cs.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqCst(v Variable, bound big.Int) {
-	debug := cs.addDebugInfo("mustBeLessOrEq", v, " <= ", cs.Constant(bound))
+func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
+	nbBits := cs.bitLen()
 
-	// TODO store those constant elsewhere (for the moment they don't depend on the base curve, but that might change)
-	const nbBits = 256
-	const nbWords = 4
-	const wordSize = 64
+	// ensure the bound is positive, it's bit-len doesn't matter
+	if bound.Sign() == -1 {
+		panic("AssertIsLessOrEqual: bound must be positive")
+	}
+	if bound.BitLen() > nbBits {
+		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
+	}
 
-	vBits := cs.ToBinary(v, nbBits)
-	boundBits := bound.Bits()
-	l := len(boundBits)
-	if len(boundBits) < nbWords {
-		for i := 0; i < nbWords-l; i++ {
-			boundBits = append(boundBits, big.Word(0))
+	// debug info
+	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.Constant(bound))
+
+	// note that at this stage, we didn't boolean-constraint these new variables yet
+	// (as opposed to ToBinary)
+	aBits := cs.toBinaryUnsafe(a, nbBits)
+
+	// t trailing bits in the bound
+	t := 0
+	for i := 0; i < nbBits; i++ {
+		if bound.Bit(i) == 0 {
+			break
 		}
+		t++
 	}
 
 	p := make([]Variable, nbBits+1)
-
+	// p[i] == 1 --> a[j] == c[j] for all j >= i
 	p[nbBits] = cs.Constant(1)
-	for i := nbWords - 1; i >= 0; i-- {
-		for j := 0; j < wordSize; j++ {
-			b := (boundBits[i] >> (wordSize - 1 - j)) & 1
-			if b == 0 {
-				p[(i+1)*wordSize-1-j] = p[(i+1)*wordSize-j]
 
-				l := cs.one()
-				l = cs.Sub(l, p[(i+1)*wordSize-j])       // no constraint is recorded
-				l = cs.Sub(l, vBits[(i+1)*wordSize-1-j]) // no constraint is recorded
-
-				r := vBits[(i+1)*wordSize-1-j]
-				o := cs.Constant(0)
-
-				cs.addConstraint(newR1C(l, r, o), debug)
-
-			} else {
-				p[(i+1)*wordSize-1-j] = cs.Mul(p[(i+1)*wordSize-j], vBits[(i+1)*wordSize-1-j])
-			}
+	for i := nbBits - 1; i >= t; i-- {
+		if bound.Bit(i) == 0 {
+			p[i] = p[i+1]
+		} else {
+			p[i] = cs.Mul(p[i+1], aBits[i])
 		}
 	}
+
+	for i := nbBits - 1; i >= 0; i-- {
+		if bound.Bit(i) == 0 {
+			// (1 - p(i+1) - ai) * ai == 0
+			l := cs.one()
+			l = cs.Sub(l, p[i+1])
+			l = cs.Sub(l, aBits[i])
+
+			cs.addConstraint(newR1C(l, aBits[i], cs.Constant(0)), debug)
+			cs.markBoolean(aBits[i])
+		} else {
+			cs.AssertIsBoolean(aBits[i])
+		}
+	}
+
 }
