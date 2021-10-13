@@ -138,6 +138,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
 	}
 
 	p := make([]Variable, nbBits+1)
+	// p[i] == 1 --> a[j] == c[j] for all j >= i
 	p[nbBits] = cs.Constant(1)
 
 	for i := nbBits - 1; i >= t; i-- {
