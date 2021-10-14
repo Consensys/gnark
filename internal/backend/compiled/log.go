@@ -47,6 +47,7 @@ func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 }
 
 func (l *LogEntry) WriteStack(sbb *strings.Builder) {
+	// TODO @gbotrel should be a package level function somewhere (internal), not a method on log.
 	// derived from: https://golang.org/pkg/runtime/#example_Frames
 	// we stop when func name == Define as it is where the gnark circuit code should start
 

@@ -5,6 +5,77 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+type andNew struct {
+	Op1, Op2, Res frontend.Variable
+}
+
+func (circuit *andNew) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+	d := cs.And(circuit.Op1, circuit.Op2)
+
+	cs.AssertIsEqual(d, circuit.Res)
+	return nil
+}
+
+func (circuit *andNew) ValidWitnesses(curveID ecc.ID) []frontend.Circuit {
+	return []frontend.Circuit{
+		&andNew{
+			Op1: frontend.Variable{WitnessValue: 1},
+			Op2: frontend.Value(1),
+			Res: frontend.Value(1),
+		},
+		&andNew{
+			Op1: frontend.Value(1),
+			Op2: frontend.Value(0),
+			Res: frontend.Value(0),
+		},
+		&andNew{
+			Op1: frontend.Value(0),
+			Op2: frontend.Value(1),
+			Res: frontend.Value(0),
+		},
+		&andNew{
+			Op1: frontend.Value(0),
+			Op2: frontend.Value(0),
+			Res: frontend.Value(0),
+		},
+	}
+}
+
+func (circuit *andNew) InvalidWitnesses(curveID ecc.ID) []frontend.Circuit {
+	return []frontend.Circuit{
+		&andNew{
+			Op1: frontend.Value(1),
+			Op2: frontend.Value(1),
+			Res: frontend.Value(0),
+		},
+		&andNew{
+			Op1: frontend.Value(1),
+			Op2: frontend.Value(0),
+			Res: frontend.Value(1),
+		},
+		&andNew{
+			Op1: frontend.Value(0),
+			Op2: frontend.Value(1),
+			Res: frontend.Value(1),
+		},
+		&andNew{
+			Op1: frontend.Value(0),
+			Op2: frontend.Value(0),
+			Res: frontend.Value(1),
+		},
+		&andNew{
+			Op1: frontend.Value(42),
+			Op2: frontend.Value(1),
+			Res: frontend.Value(1),
+		},
+		&andNew{
+			Op1: frontend.Value(1),
+			Op2: frontend.Value(1),
+			Res: frontend.Value(42),
+		},
+	}
+}
+
 type andCircuit struct {
 	Left  [4]frontend.Variable
 	Right [4]frontend.Variable
@@ -16,10 +87,12 @@ func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 	b := cs.And(circuit.Left[1], circuit.Right[1])
 	c := cs.And(circuit.Left[2], circuit.Right[2])
 	d := cs.And(circuit.Left[3], circuit.Right[3])
+
 	cs.AssertIsEqual(a, circuit.Res[0])
 	cs.AssertIsEqual(b, circuit.Res[1])
 	cs.AssertIsEqual(c, circuit.Res[2])
 	cs.AssertIsEqual(d, circuit.Res[3])
+
 	return nil
 }
 
@@ -58,4 +131,5 @@ func init() {
 	bad.Res[3].Assign(0)
 
 	addEntry("AND", &circuit, &good, &bad)
+	addNewEntry("AND", &andNew{})
 }

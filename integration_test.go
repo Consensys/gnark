@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +38,18 @@ const (
 	fileStats        = "init.stats"
 	generateNewStats = false
 )
+
+func TestIntegrationAPINew(t *testing.T) {
+	assert := require.New(t)
+	for name, v := range circuits.NewCircuits {
+		t.Log("testing", name)
+		assert.NoError(test.Run(v))
+		if f, ok := v.(frontend.FuzzableCircuit); ok {
+			t.Log("fuzzing", name)
+			assert.NoError(test.Fuzz(f))
+		}
+	}
+}
 
 func TestIntegrationAPI(t *testing.T) {
 

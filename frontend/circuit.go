@@ -22,3 +22,18 @@ type Circuit interface {
 	// Define declares the circuit's Constraints
 	Define(curveID ecc.ID, cs *ConstraintSystem) error
 }
+
+// TODO @gbotrel add doc.
+
+type TestableCircuit interface {
+	Circuit
+	ValidWitnesses(curveID ecc.ID) []Circuit
+	InvalidWitnesses(curveID ecc.ID) []Circuit
+}
+
+type FuzzableCircuit interface {
+	Circuit
+	// IsValidWitness --> ensure a fuzzed witness with assign values respect a list of defined properties
+	IsValidWitness(curveID ecc.ID) bool
+	// optional SeedCorpus() []big.Int
+}

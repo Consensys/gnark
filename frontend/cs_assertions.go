@@ -30,7 +30,7 @@ func (cs *ConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
 func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
-	v.assertIsSet()
+	v.assertIsSet(cs)
 	if v.visibility == compiled.Unset {
 		// we need to create a new wire here.
 		vv := cs.newVirtualVariable()
@@ -57,11 +57,11 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
 func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
-	v.assertIsSet()
+	v.assertIsSet(cs)
 
 	switch b := bound.(type) {
 	case Variable:
-		b.assertIsSet()
+		b.assertIsSet(cs)
 		cs.mustBeLessOrEqVar(v, b)
 	default:
 		cs.mustBeLessOrEqCst(v, FromInterface(b))

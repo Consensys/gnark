@@ -70,8 +70,7 @@ type variables struct {
 
 func (v *variables) new(cs *ConstraintSystem, visibility compiled.Visibility) Variable {
 	idx := len(v.variables)
-	w := Wire{visibility, idx, nil}
-	variable := cs.buildVarFromWire(w)
+	variable := Variable{visibility: visibility, id: idx, linExp: cs.LinearExpression(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}
 
 	v.variables = append(v.variables, variable)
 	return variable
@@ -185,7 +184,7 @@ func (cs *ConstraintSystem) one() Variable {
 }
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
-func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
+func (cs *ConstraintSystem) makeTerm(v Variable, coeff *big.Int) compiled.Term {
 	return compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
 }
 
@@ -308,10 +307,6 @@ func (cs *ConstraintSystem) newSecretVariable() Variable {
 // and just represents a linear expression
 func (cs *ConstraintSystem) newVirtualVariable() Variable {
 	return cs.virtual.new(cs, compiled.Virtual)
-}
-
-func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(compiled.Pack(pv.id, compiled.CoeffIdOne, pv.visibility))}
 }
 
 // markBoolean marks the variable as boolean and return true

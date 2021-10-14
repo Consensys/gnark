@@ -32,7 +32,7 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	add := func(_i interface{}) {
 		switch t := _i.(type) {
 		case Variable:
-			t.assertIsSet() // always call this in case of a dangling variable, otherwise compile will not recognize Unset variables
+			t.assertIsSet(cs) // always call this in case of a dangling variable, otherwise compile will not recognize Unset variables
 			res.linExp = append(res.linExp, t.linExp.Clone()...)
 		default:
 			v := cs.Constant(t)
@@ -77,7 +77,7 @@ func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 		coeffID, variableID, constraintVis := t.Unpack()
 		coeff = cs.coeffs[coeffID]
 		coeffCopy.Neg(&coeff)
-		res[i] = cs.makeTerm(Wire{constraintVis, variableID, nil}, &coeffCopy)
+		res[i] = cs.makeTerm(Variable{visibility: constraintVis, id: variableID}, &coeffCopy)
 	}
 	return res
 }
@@ -90,7 +90,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	switch t := i1.(type) {
 	case Variable:
-		t.assertIsSet()
+		t.assertIsSet(cs)
 		res.linExp = t.linExp.Clone()
 	default:
 		v := cs.Constant(t)
@@ -99,7 +99,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	switch t := i2.(type) {
 	case Variable:
-		t.assertIsSet()
+		t.assertIsSet(cs)
 		negLinExp := cs.negateLinExp(t.linExp)
 		res.linExp = append(res.linExp, negLinExp...)
 	default:
@@ -134,9 +134,9 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 			coeff := cs.coeffs[cID]
 			newCoeff.Mul(&coeff, &lambda)
 		}
-		linExp = append(linExp, cs.makeTerm(Wire{visibility, vID, nil}, &newCoeff))
+		linExp = append(linExp, cs.makeTerm(Variable{visibility: visibility, id: vID}, &newCoeff))
 	}
-	return Variable{Wire{}, linExp}
+	return Variable{linExp: linExp}
 }
 
 // Mul returns res = i1 * i2 * ... in
@@ -146,10 +146,10 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 		var _res Variable
 		switch t1 := _i1.(type) {
 		case Variable:
-			t1.assertIsSet()
+			t1.assertIsSet(cs)
 			switch t2 := _i2.(type) {
 			case Variable:
-				t2.assertIsSet()
+				t2.assertIsSet(cs)
 				_res = cs.newInternalVariable() // only in this case we record the constraint in the cs
 				cs.constraints = append(cs.constraints, newR1C(t1, t2, _res))
 				return _res
@@ -160,7 +160,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 		default:
 			switch t2 := _i2.(type) {
 			case Variable:
-				t2.assertIsSet()
+				t2.assertIsSet(cs)
 				_res = cs.mulConstant(t1, t2)
 				return _res
 			default:
@@ -184,7 +184,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 
 // Inverse returns res = inverse(v)
 func (cs *ConstraintSystem) Inverse(v Variable) Variable {
-	v.assertIsSet()
+	v.assertIsSet(cs)
 
 	// allocate resulting variable
 	res := cs.newInternalVariable()
@@ -214,8 +214,8 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 // Xor compute the XOR between two variables
 func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 
-	a.assertIsSet()
-	b.assertIsSet()
+	a.assertIsSet(cs)
+	b.assertIsSet(cs)
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -233,8 +233,8 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 // Or compute the OR between two variables
 func (cs *ConstraintSystem) Or(a, b Variable) Variable {
 
-	a.assertIsSet()
-	b.assertIsSet()
+	a.assertIsSet(cs)
+	b.assertIsSet(cs)
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -251,8 +251,8 @@ func (cs *ConstraintSystem) Or(a, b Variable) Variable {
 // And compute the AND between two variables
 func (cs *ConstraintSystem) And(a, b Variable) Variable {
 
-	a.assertIsSet()
-	b.assertIsSet()
+	a.assertIsSet(cs)
+	b.assertIsSet(cs)
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -264,7 +264,7 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 
 // IsZero returns 1 if a is zero, 0 otherwise
 func (cs *ConstraintSystem) IsZero(a Variable) Variable {
-	a.assertIsSet()
+	a.assertIsSet(cs)
 	debug := cs.addDebugInfo("isZero", a)
 
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
@@ -289,7 +289,7 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 // The result in in little endian (first bit= lsb)
 func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 	// ensure a is set
-	a.assertIsSet()
+	a.assertIsSet(cs)
 
 	nbBits := cs.bitLen()
 	if len(n) == 1 {
@@ -312,7 +312,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 	Σbi.linExp = make(compiled.LinearExpression, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		Σbi.linExp[i] = cs.makeTerm(Wire{compiled.Internal, b[i].id, nil}, &c)
+		Σbi.linExp[i] = cs.makeTerm(Variable{visibility: compiled.Internal, id: b[i].id}, &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -327,7 +327,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 // toBinaryUnsafe is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
 func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 	// ensure a is set
-	a.assertIsSet()
+	a.assertIsSet(cs)
 
 	// allocate the resulting variables and bit-constraint them
 	b := make([]Variable, nbBits)
@@ -344,7 +344,7 @@ func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 	Σbi.linExp = make(compiled.LinearExpression, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		Σbi.linExp[i] = cs.makeTerm(Wire{compiled.Internal, b[i].id, nil}, &c)
+		Σbi.linExp[i] = cs.makeTerm(Variable{visibility: compiled.Internal, id: b[i].id}, &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -360,7 +360,7 @@ func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
-		b[i].assertIsSet()
+		b[i].assertIsSet(cs)
 	}
 
 	// res = Σ (2**i * b[i])
@@ -385,7 +385,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 // Select if b is true, yields i1 else yields i2
 func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
-	b.assertIsSet()
+	b.assertIsSet(cs)
 
 	// ensures that b is boolean
 	cs.AssertIsBoolean(b)
@@ -394,7 +394,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 	switch t1 := i1.(type) {
 	case Variable:
-		t1.assertIsSet()
+		t1.assertIsSet(cs)
 		res = cs.newInternalVariable()
 		v := cs.Sub(t1, i2)  // no constraint is recorded
 		w := cs.Sub(res, i2) // no constraint is recorded
@@ -404,7 +404,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	default:
 		switch t2 := i2.(type) {
 		case Variable:
-			t2.assertIsSet()
+			t2.assertIsSet(cs)
 			res = cs.newInternalVariable()
 			v := cs.Sub(t1, t2)  // no constraint is recorded
 			w := cs.Sub(res, t2) // no constraint is recorded
@@ -429,7 +429,7 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 
 	switch t := input.(type) {
 	case Variable:
-		t.assertIsSet()
+		t.assertIsSet(cs)
 		return t
 	default:
 		n := FromInterface(t)
@@ -437,8 +437,8 @@ func (cs *ConstraintSystem) Constant(input interface{}) Variable {
 			return cs.one()
 		}
 		// cs.mulConstant(n, cs.one())
-		return Variable{Wire{}, compiled.LinearExpression{
-			cs.makeTerm(Wire{compiled.Public, 0, nil}, &n),
+		return Variable{linExp: compiled.LinearExpression{
+			cs.makeTerm(Variable{visibility: compiled.Public, id: 0}, &n),
 		}}
 	}
 }

@@ -336,3 +336,22 @@ func getElementSize(curve ecc.ID) int {
 	}
 	return elementSize
 }
+
+// ToJSON outputs a JSON string with variableName: value
+// values are first converted to field element (mod base curve modulus)
+func ToJSON(witness frontend.Circuit, curveID ecc.ID) (string, error) {
+	switch curveID {
+	case ecc.BN254:
+		return witness_bn254.ToJSON(witness)
+	case ecc.BLS12_377:
+		return witness_bls12377.ToJSON(witness)
+	case ecc.BLS12_381:
+		return witness_bls12381.ToJSON(witness)
+	case ecc.BW6_761:
+		return witness_bw6761.ToJSON(witness)
+	case ecc.BLS24_315:
+		return witness_bls24315.ToJSON(witness)
+	default:
+		panic("not implemented")
+	}
+}

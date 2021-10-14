@@ -35,7 +35,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 			sbb.WriteByte(' ')
 		}
 		if v, ok := arg.(Variable); ok {
-			v.assertIsSet()
+			v.assertIsSet(cs)
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer

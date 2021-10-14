@@ -80,7 +80,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 				v.id = 0
 				// return errors.New("circuit was already compiled")
 			}
-			if v.val != nil {
+			if v.WitnessValue != nil {
 				return errors.New("circuit has some assigned values, can't compile")
 			}
 			switch visibility {
@@ -109,4 +109,12 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 
 	return
 
+}
+
+// Value returned a Variable with an assigned value
+// This is to be used in the context of witness creation only and
+// will triger an error if used inside a circuit Define(...) method
+// This is syntatic sugar for: frontend.Variable{WitnessValue: value}
+func Value(value interface{}) Variable {
+	return Variable{WitnessValue: value}
 }

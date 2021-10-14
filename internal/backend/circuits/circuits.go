@@ -14,6 +14,8 @@ type TestCircuit struct {
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 var Circuits map[string]TestCircuit
 
+var NewCircuits map[string]frontend.TestableCircuit
+
 func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
@@ -23,4 +25,15 @@ func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit) {
 	}
 
 	Circuits[name] = TestCircuit{circuit, proverGood, proverBad}
+}
+
+func addNewEntry(name string, circuit frontend.TestableCircuit) {
+	if NewCircuits == nil {
+		NewCircuits = make(map[string]frontend.TestableCircuit)
+	}
+	if _, ok := NewCircuits[name]; ok {
+		panic("name " + name + "already taken by another test circuit ")
+	}
+
+	NewCircuits[name] = circuit
 }
