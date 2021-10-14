@@ -22,9 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 type mimcCircuit struct {
@@ -45,7 +44,7 @@ func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem
 }
 
 func TestMimcAll(t *testing.T) {
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	// input
 	var data, tamperedData big.Int
@@ -64,10 +63,6 @@ func TestMimcAll(t *testing.T) {
 
 		// minimal cs res = hash(data)
 		var circuit, witness, wrongWitness mimcCircuit
-		r1cs, err := frontend.Compile(curve, backend.GROTH16, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		// running MiMC (Go)
 		goMimc := hashFunc.New("seed")
@@ -77,12 +72,12 @@ func TestMimcAll(t *testing.T) {
 		// assert correctness against correct witness
 		witness.Data.Assign(data)
 		witness.ExpectedResult.Assign(b)
-		assert.SolvingSucceeded(r1cs, &witness)
+		assert.ProverSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(curve))
 
 		// assert failure against wrong witness
 		wrongWitness.Data.Assign(tamperedData)
 		wrongWitness.ExpectedResult.Assign(b)
-		assert.SolvingFailed(r1cs, &wrongWitness)
+		assert.ProverFailed(&circuit, []frontend.Circuit{&wrongWitness}, test.WithCurves(curve))
 	}
 
 }

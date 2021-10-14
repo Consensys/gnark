@@ -18,31 +18,23 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 func TestPreimage(t *testing.T) {
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var mimcCircuit Circuit
 
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &mimcCircuit)
-	assert.NoError(err)
+	assert.ProverFailed(&mimcCircuit, []frontend.Circuit{&Circuit{
+		Hash:     frontend.Value(42),
+		PreImage: frontend.Value(42),
+	}})
 
-	{
-		var witness Circuit
-		witness.Hash.Assign(42)
-		witness.PreImage.Assign(42)
-		assert.ProverFailed(r1cs, &witness)
-	}
-
-	{
-		var witness Circuit
-		witness.PreImage.Assign(35)
-		witness.Hash.Assign("16130099170765464552823636852555369511329944820189892919423002775646948828469")
-		assert.ProverSucceeded(r1cs, &witness)
-	}
+	assert.ProverSucceeded(&mimcCircuit, []frontend.Circuit{&Circuit{
+		PreImage: frontend.Value(35),
+		Hash:     frontend.Value("16130099170765464552823636852555369511329944820189892919423002775646948828469"),
+	}}, test.WithCurves(ecc.BN254))
 
 }

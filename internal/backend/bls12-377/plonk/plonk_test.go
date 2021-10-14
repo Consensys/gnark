@@ -34,22 +34,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/circuits"
 )
-
-func TestCircuits(t *testing.T) {
-	for name, circuit := range circuits.Circuits {
-		t.Run(name, func(t *testing.T) {
-			assert := plonk.NewAssert(t)
-			pcs, err := frontend.Compile(curve.ID, backend.PLONK, circuit.Circuit)
-			assert.NoError(err)
-			assert.ProverSucceeded(pcs, circuit.Good)
-			assert.ProverFailed(pcs, circuit.Bad)
-		})
-	}
-}
 
 //--------------------//
 //     benches		  //
@@ -97,15 +83,6 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 	}
 
 	return ccs, &good, srs
-}
-
-func TestReferenceCircuit(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow()
-	}
-	assert := plonk.NewAssert(t)
-	ccs, witness, _ := referenceCircuit()
-	assert.ProverSucceeded(ccs, witness)
 }
 
 func BenchmarkSetup(b *testing.B) {

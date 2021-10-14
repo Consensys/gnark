@@ -22,15 +22,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 //--------------------------------------------------------------------
@@ -131,10 +130,6 @@ func TestVerifier(t *testing.T) {
 	// create an empty cs
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -163,9 +158,9 @@ func TestVerifier(t *testing.T) {
 	witness.Hash.Assign(publicHash)
 
 	// verifies the cs
-	assertbw6761 := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
-	assertbw6761.SolvingSucceeded(r1cs.(*backend_bw6761.R1CS), &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BW6_761))
 
 	/* comment from here */
 

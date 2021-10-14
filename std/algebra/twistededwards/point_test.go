@@ -22,9 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 type mustBeOnCurve struct {
@@ -46,14 +45,9 @@ func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 
 func TestIsOnCurve(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness mustBeOnCurve
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	params, err := NewEdCurve(ecc.BN254)
 	if err != nil {
@@ -63,8 +57,7 @@ func TestIsOnCurve(t *testing.T) {
 	witness.P.X.Assign(params.BaseX)
 	witness.P.Y.Assign(params.BaseY)
 
-	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }
 
@@ -90,14 +83,9 @@ func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 
 func TestAddFixedPoint(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness add
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate a random point, and compute expected_point = base + random_point
 	params, err := NewEdCurve(ecc.BN254)
@@ -119,7 +107,7 @@ func TestAddFixedPoint(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }
 
@@ -145,13 +133,8 @@ func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 
 func TestAddGeneric(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 	var circuit, witness addGeneric
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate random points, and compute expected_point = point1 + point2s
 	params, err := NewEdCurve(ecc.BN254)
@@ -177,7 +160,7 @@ func TestAddGeneric(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }
 
@@ -203,14 +186,9 @@ func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 
 func TestDouble(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness double
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -229,7 +207,7 @@ func TestDouble(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }
 
@@ -260,13 +238,9 @@ func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) 
 
 func TestScalarMul(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness scalarMul
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -287,7 +261,7 @@ func TestScalarMul(t *testing.T) {
 	witness.S.Assign(r)
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }
 
@@ -306,7 +280,7 @@ func (circuit *neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 
 func TestNeg(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -325,11 +299,6 @@ func TestNeg(t *testing.T) {
 	witness.E.X.Assign(expected.X)
 	witness.E.Y.Assign(expected.Y)
 
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 
 }

@@ -5,131 +5,75 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-type andNew struct {
+type andCircuit struct {
 	Op1, Op2, Res frontend.Variable
 }
 
-func (circuit *andNew) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
 	d := cs.And(circuit.Op1, circuit.Op2)
 
 	cs.AssertIsEqual(d, circuit.Res)
 	return nil
 }
 
-func (circuit *andNew) ValidWitnesses(curveID ecc.ID) []frontend.Circuit {
-	return []frontend.Circuit{
-		&andNew{
+func init() {
+
+	good := []frontend.Circuit{
+		&andCircuit{
 			Op1: frontend.Variable{WitnessValue: 1},
 			Op2: frontend.Value(1),
 			Res: frontend.Value(1),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(1),
 			Op2: frontend.Value(0),
 			Res: frontend.Value(0),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(0),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(0),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(0),
 			Op2: frontend.Value(0),
 			Res: frontend.Value(0),
 		},
 	}
-}
 
-func (circuit *andNew) InvalidWitnesses(curveID ecc.ID) []frontend.Circuit {
-	return []frontend.Circuit{
-		&andNew{
+	bad := []frontend.Circuit{
+		&andCircuit{
 			Op1: frontend.Value(1),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(0),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(1),
 			Op2: frontend.Value(0),
 			Res: frontend.Value(1),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(0),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(1),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(0),
 			Op2: frontend.Value(0),
 			Res: frontend.Value(1),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(42),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(1),
 		},
-		&andNew{
+		&andCircuit{
 			Op1: frontend.Value(1),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(42),
 		},
 	}
-}
+	var circuit andCircuit
 
-type andCircuit struct {
-	Left  [4]frontend.Variable
-	Right [4]frontend.Variable
-	Res   [4]frontend.Variable
-}
-
-func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	a := cs.And(circuit.Left[0], circuit.Right[0])
-	b := cs.And(circuit.Left[1], circuit.Right[1])
-	c := cs.And(circuit.Left[2], circuit.Right[2])
-	d := cs.And(circuit.Left[3], circuit.Right[3])
-
-	cs.AssertIsEqual(a, circuit.Res[0])
-	cs.AssertIsEqual(b, circuit.Res[1])
-	cs.AssertIsEqual(c, circuit.Res[2])
-	cs.AssertIsEqual(d, circuit.Res[3])
-
-	return nil
-}
-
-func init() {
-
-	var circuit, good, bad andCircuit
-
-	good.Left[0].Assign(0)
-	good.Left[1].Assign(0)
-	good.Left[2].Assign(1)
-	good.Left[3].Assign(1)
-
-	good.Right[0].Assign(0)
-	good.Right[1].Assign(1)
-	good.Right[2].Assign(0)
-	good.Right[3].Assign(1)
-
-	good.Res[0].Assign(0)
-	good.Res[1].Assign(0)
-	good.Res[2].Assign(0)
-	good.Res[3].Assign(1)
-
-	bad.Left[0].Assign(0)
-	bad.Left[1].Assign(0)
-	bad.Left[2].Assign(1)
-	bad.Left[3].Assign(1)
-
-	bad.Right[0].Assign(0)
-	bad.Right[1].Assign(1)
-	bad.Right[2].Assign(0)
-	bad.Right[3].Assign(1)
-
-	bad.Res[0].Assign(1)
-	bad.Res[1].Assign(0)
-	bad.Res[2].Assign(1)
-	bad.Res[3].Assign(0)
-
-	addEntry("AND", &circuit, &good, &bad)
-	addNewEntry("AND", &andNew{})
+	addNewEntry("AND", &circuit, good, bad)
 }

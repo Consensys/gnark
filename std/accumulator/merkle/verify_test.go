@@ -25,10 +25,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 type merkleCircuit struct {
@@ -81,10 +80,6 @@ func TestVerify(t *testing.T) {
 	circuit.Helper = make([]frontend.Variable, len(proof)-1)
 	witness.Path = make([]frontend.Variable, len(proof))
 	witness.Helper = make([]frontend.Variable, len(proof)-1)
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	witness.RootHash.Assign(merkleRoot)
 
@@ -95,6 +90,6 @@ func TestVerify(t *testing.T) {
 		witness.Helper[i].Assign(proofHelper[i])
 	}
 
-	assert := groth16.NewAssert(t)
-	assert.ProverSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.ProverSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
 }

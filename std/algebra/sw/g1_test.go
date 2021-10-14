@@ -22,9 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
@@ -52,10 +51,6 @@ func TestAddAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -65,8 +60,8 @@ func TestAddAssignG1(t *testing.T) {
 	a.AddAssign(&b)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -96,10 +91,6 @@ func TestAddAssignAffineG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssignAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -110,8 +101,8 @@ func TestAddAssignAffineG1(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -137,10 +128,6 @@ func TestDoubleAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -149,8 +136,8 @@ func TestDoubleAssignG1(t *testing.T) {
 	a.DoubleAssign()
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -178,10 +165,6 @@ func TestDoubleAffineG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -191,8 +174,8 @@ func TestDoubleAffineG1(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -218,10 +201,6 @@ func TestNegG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1Neg
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -230,8 +209,8 @@ func TestNegG1(t *testing.T) {
 	a.Neg(&a)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -265,10 +244,6 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	circuit.r = r
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -279,8 +254,8 @@ func TestScalarMulG1(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 

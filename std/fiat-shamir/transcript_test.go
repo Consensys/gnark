@@ -23,10 +23,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 type FiatShamirCircuit struct {
@@ -130,10 +129,6 @@ func TestFiatShamir(t *testing.T) {
 
 	// instantiate the circuit with provided inputs
 	var circuit, witness FiatShamirCircuit
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 4; j++ {
@@ -141,7 +136,7 @@ func TestFiatShamir(t *testing.T) {
 		}
 		witness.Challenges[i].Assign(expectedChallenges[i])
 	}
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }

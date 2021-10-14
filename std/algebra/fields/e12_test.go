@@ -22,9 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 //--------------------------------------------------------------------
@@ -45,10 +44,6 @@ func (circuit *fp12Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) er
 func TestAddFp12(t *testing.T) {
 
 	var circuit, witness fp12Add
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -61,8 +56,8 @@ func TestAddFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12Sub struct {
@@ -80,10 +75,6 @@ func (circuit *fp12Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) er
 func TestSubFp12(t *testing.T) {
 
 	var circuit, witness fp12Sub
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -96,8 +87,8 @@ func TestSubFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12Mul struct {
@@ -116,10 +107,6 @@ func (circuit *fp12Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) er
 func TestMulFp12(t *testing.T) {
 
 	var circuit, witness fp12Mul
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -132,8 +119,8 @@ func TestMulFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12Square struct {
@@ -151,10 +138,6 @@ func (circuit *fp12Square) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 func TestSquareFp12(t *testing.T) {
 
 	var circuit, witness fp12Square
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b bls12377.E12
@@ -165,8 +148,8 @@ func TestSquareFp12(t *testing.T) {
 	witness.B.Assign(&b)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -188,10 +171,6 @@ func (circuit *fp12CycloSquare) Define(curveID ecc.ID, cs *frontend.ConstraintSy
 func TestFp12CyclotomicSquare(t *testing.T) {
 
 	var circuit, witness fp12CycloSquare
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b bls12377.E12
@@ -209,8 +188,8 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 	witness.B.Assign(&b)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -229,10 +208,6 @@ func (circuit *fp12Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 func TestConjugateFp12(t *testing.T) {
 
 	var circuit, witness fp12Conjugate
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -243,8 +218,8 @@ func TestConjugateFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12Frobenius struct {
@@ -271,10 +246,6 @@ func (circuit *fp12Frobenius) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 func TestFrobeniusFp12(t *testing.T) {
 
 	var circuit, witness fp12Frobenius
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c, d, e bls12377.E12
@@ -289,8 +260,8 @@ func TestFrobeniusFp12(t *testing.T) {
 	witness.E.Assign(&e)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12Inverse struct {
@@ -309,10 +280,6 @@ func (circuit *fp12Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem
 func TestInverseFp12(t *testing.T) {
 
 	var circuit, witness fp12Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -323,8 +290,8 @@ func TestInverseFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12FixedExpo struct {
@@ -343,10 +310,6 @@ func (circuit *fp12FixedExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 
 func TestExpFixedExpoFp12(t *testing.T) {
 	var circuit, witness fp12FixedExpo
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -359,8 +322,8 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12FinalExpo struct {
@@ -379,10 +342,6 @@ func (circuit *fp12FinalExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 
 func TestExpFinalExpoFp12(t *testing.T) {
 	var circuit, witness fp12FinalExpo
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -394,8 +353,8 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp12MulBy034 struct {
@@ -414,10 +373,6 @@ func (circuit *fp12MulBy034) Define(curveID ecc.ID, cs *frontend.ConstraintSyste
 func TestFp12MulBy034(t *testing.T) {
 
 	var circuit, witness fp12MulBy034
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var a bls12377.E12
 	var b, c, d bls12377.E2
@@ -437,7 +392,7 @@ func TestFp12MulBy034(t *testing.T) {
 
 	witness.W.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }

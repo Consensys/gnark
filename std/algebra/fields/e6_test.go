@@ -21,9 +21,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 func getBLS377ExtensionFp6(cs *frontend.ConstraintSystem) Extension {
@@ -51,10 +50,6 @@ func (circuit *fp6Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 func TestAddFp6(t *testing.T) {
 
 	var circuit, witness fp6Add
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -67,8 +62,8 @@ func TestAddFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp6Sub struct {
@@ -86,10 +81,6 @@ func (circuit *fp6Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 func TestSubFp6(t *testing.T) {
 
 	var circuit, witness fp6Sub
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -102,8 +93,8 @@ func TestSubFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp6Mul struct {
@@ -122,10 +113,6 @@ func (circuit *fp6Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 func TestMulFp6(t *testing.T) {
 
 	var circuit, witness fp6Mul
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -138,8 +125,8 @@ func TestMulFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp6MulByNonResidue struct {
@@ -159,10 +146,6 @@ func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, cs *frontend.Constrain
 func TestMulByNonResidueFp6(t *testing.T) {
 
 	var circuit, witness fp6MulByNonResidue
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E6
@@ -173,8 +156,8 @@ func TestMulByNonResidueFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -195,10 +178,6 @@ func (circuit *fp6Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 func TestInverseFp6(t *testing.T) {
 
 	var circuit, witness fp6Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E6
@@ -209,8 +188,8 @@ func TestInverseFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 

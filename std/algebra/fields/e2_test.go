@@ -22,9 +22,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 type e2TestCircuit struct {
@@ -49,10 +48,6 @@ func TestAddFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -65,8 +60,8 @@ func TestAddFp2(t *testing.T) {
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -83,10 +78,6 @@ func TestSubFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -99,8 +90,8 @@ func TestSubFp2(t *testing.T) {
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -117,10 +108,6 @@ func TestMulFp2(t *testing.T) {
 	}
 
 	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -133,8 +120,8 @@ func TestMulFp2(t *testing.T) {
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp2MulByFp struct {
@@ -154,10 +141,6 @@ func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 func TestMulByFpFp2(t *testing.T) {
 
 	var circuit, witness fp2MulByFp
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -171,8 +154,8 @@ func TestMulByFpFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
@@ -192,10 +175,6 @@ func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSyste
 func TestConjugateFp2(t *testing.T) {
 
 	var circuit, witness fp2Conjugate
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -206,8 +185,8 @@ func TestConjugateFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 }
 
 type fp2Inverse struct {
@@ -227,10 +206,6 @@ func (circuit *fp2Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 func TestInverseFp2(t *testing.T) {
 
 	var circuit, witness fp2Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -241,8 +216,8 @@ func TestInverseFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 

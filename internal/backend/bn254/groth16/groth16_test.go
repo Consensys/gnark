@@ -32,22 +32,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/circuits"
 )
-
-func TestCircuits(t *testing.T) {
-	for name, circuit := range circuits.Circuits {
-		t.Run(name, func(t *testing.T) {
-			assert := groth16.NewAssert(t)
-			r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, circuit.Circuit)
-			assert.NoError(err)
-			assert.ProverFailed(r1cs, circuit.Bad)
-			assert.ProverSucceeded(r1cs, circuit.Good)
-		})
-	}
-}
 
 //--------------------//
 //     benches		  //
@@ -91,15 +77,6 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	good.Y.Assign(expectedY)
 
 	return r1cs, &good
-}
-
-func TestReferenceCircuit(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow()
-	}
-	assert := groth16.NewAssert(t)
-	r1cs, witness := referenceCircuit()
-	assert.ProverSucceeded(r1cs, witness)
 }
 
 func BenchmarkSetup(b *testing.B) {

@@ -16,9 +16,6 @@ package plonk
 
 import (
 	"math/big"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -43,60 +40,6 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 	"github.com/consensys/gnark-crypto/kzg"
 )
-
-// Assert is a helper to test circuits
-type Assert struct {
-	*require.Assertions
-}
-
-// NewAssert returns an Assert helper
-func NewAssert(t *testing.T) *Assert {
-	return &Assert{require.New(t)}
-}
-
-func (assert *Assert) ProverSucceeded(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
-
-	// checks if the system is solvable
-	assert.SolvingSucceeded(ccs, witness)
-
-	// generates public data
-	srs, err := newKZGSrs(ccs)
-	assert.NoError(err, "building (test) kzg srs failed")
-	pk, vk, err := Setup(ccs, srs)
-	assert.NoError(err, "Generating public data should not have failed")
-
-	// generates the proof
-	proof, err := Prove(ccs, pk, witness, opts...)
-	assert.NoError(err, "Proving with good witness should not output an error")
-
-	// verifies the proof
-	err = Verify(proof, vk, witness)
-	assert.NoError(err, "Verifying correct proof with correct witness should not output an error")
-
-}
-
-func (assert *Assert) ProverFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) {
-
-	// generates public data
-	srs, err := newKZGSrs(ccs)
-	assert.NoError(err, "building (test) kzg srs failed")
-	pk, _, err := Setup(ccs, srs)
-	assert.NoError(err, "Generating public data should not have failed")
-
-	// generates the proof
-	_, err = Prove(ccs, pk, witness, opts...)
-	assert.Error(err, "generating an incorrect proof should output an error")
-}
-
-// SolvingSucceeded Verifies that the sparse constraint system is solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingSucceeded(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.NoError(IsSolved(ccs, witness))
-}
-
-// SolvingFailed Verifies that the cs.PCS is not solved with the given witness, without executing plonk workflow
-func (assert *Assert) SolvingFailed(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit) {
-	assert.Error(IsSolved(ccs, witness))
-}
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.

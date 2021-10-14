@@ -21,11 +21,14 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
+
+// TODO @gbotrel fixme with PLONK backend.
+var opts = []func(opt *test.TestingOption) error{test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16)}
 
 type circuitSignature struct {
 	Circuit `gnark:",embed"`
@@ -77,13 +80,10 @@ func TestCircuitSignature(t *testing.T) {
 	}
 
 	// verifies the signature of the transfer
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &signatureCircuit)
-	assert.NoError(err)
-
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&signatureCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
 
 }
 
@@ -145,13 +145,11 @@ func TestCircuitInclusionProof(t *testing.T) {
 	}
 
 	// verifies the proofs of inclusion of the transfer
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var inclusionProofCircuit circuitInclusionProof
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &inclusionProofCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&inclusionProofCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
 
 }
 
@@ -204,13 +202,11 @@ func TestCircuitUpdateAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var updateAccountCircuit circuitUpdateAccount
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &updateAccountCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&updateAccountCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
 
 }
 
@@ -249,13 +245,11 @@ func TestCircuitFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 	// verifies the proofs of inclusion of the transfer
 
 	var rollupCircuit Circuit
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &rollupCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&rollupCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
 
 }

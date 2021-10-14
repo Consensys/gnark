@@ -17,21 +17,15 @@ limitations under the License.
 package gnark
 
 import (
-	"bytes"
 	"encoding/gob"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -39,21 +33,9 @@ const (
 	generateNewStats = false
 )
 
-func TestIntegrationAPINew(t *testing.T) {
-	assert := require.New(t)
-	for name, v := range circuits.NewCircuits {
-		t.Log("testing", name)
-		assert.NoError(test.Run(v))
-		if f, ok := v.(frontend.FuzzableCircuit); ok {
-			t.Log("fuzzing", name)
-			assert.NoError(test.Fuzz(f))
-		}
-	}
-}
-
 func TestIntegrationAPI(t *testing.T) {
 
-	assert := require.New(t)
+	assert := test.NewAssert(t)
 
 	// create temporary dir for integration test
 	parentDir := "./integration_test"
@@ -64,7 +46,6 @@ func TestIntegrationAPI(t *testing.T) {
 	}
 
 	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315}
-	var buf bytes.Buffer
 	for name, circuit := range circuits.Circuits {
 
 		if testing.Short() {
@@ -73,117 +54,33 @@ func TestIntegrationAPI(t *testing.T) {
 			}
 		}
 
+		assert.ProverSucceeded(circuit.Circuit, circuit.Good)
+		assert.ProverFailed(circuit.Circuit, circuit.Bad)
+
 		for _, curve := range curves {
 			{
 				t.Log(name, curve.String(), "groth16")
 
-				ccs1, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
-				assert.NoError(err)
-
 				ccs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
 				assert.NoError(err)
-
-				if !reflect.DeepEqual(ccs, ccs1) {
-					// cs may have been mutated, or output data struct is not deterministic
-					t.Fatal("compiling CS -> R1CS is not deterministic")
-				}
 
 				// ensure we didn't introduce regressions that make circuits less efficient
 				nbConstraints := ccs.GetNbConstraints()
 				internal, secret, public := ccs.GetNbVariables()
 				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.GROTH16)
 
-				if !generateNewStats {
-					pk, vk, err := groth16.Setup(ccs)
-					assert.NoError(err)
-
-					correctProof, err := groth16.Prove(ccs, pk, circuit.Good)
-					assert.NoError(err)
-
-					wrongProof, err := groth16.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
-					assert.NoError(err)
-
-					assert.NoError(groth16.Verify(correctProof, vk, circuit.Good))
-					assert.Error(groth16.Verify(wrongProof, vk, circuit.Good))
-
-					// witness serialization tests.
-					{
-						buf.Reset()
-
-						_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
-						assert.NoError(err)
-
-						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
-						assert.NoError(err)
-
-						buf.Reset()
-
-						_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
-						assert.NoError(err)
-
-						err = groth16.ReadAndVerify(correctProof, vk, &buf)
-						assert.NoError(err)
-					}
-				}
-
 			}
 			{
 				t.Log(name, curve.String(), "plonk")
 
-				ccs1, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
-				assert.NoError(err)
-
 				ccs, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
 				assert.NoError(err)
-
-				if !reflect.DeepEqual(ccs, ccs1) {
-					// cs may have been mutated, or output data struct is not deterministic
-					t.Fatal("compiling CS -> SparseR1CS is not deterministic")
-				}
 
 				// ensure we didn't introduce regressions that make circuits less efficient
 				nbConstraints := ccs.GetNbConstraints()
 				internal, secret, public := ccs.GetNbVariables()
 				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.PLONK)
-				if generateNewStats {
-					continue
-				}
-				srs, err := plonk.NewSRS(ccs)
-				assert.NoError(err)
-
-				pk, vk, err := plonk.Setup(ccs, srs)
-				assert.NoError(err)
-
-				correctProof, err := plonk.Prove(ccs, pk, circuit.Good)
-				assert.NoError(err)
-
-				wrongProof, err := plonk.Prove(ccs, pk, circuit.Bad, backend.IgnoreSolverError)
-				assert.NoError(err)
-
-				assert.NoError(plonk.Verify(correctProof, vk, circuit.Good))
-				assert.Error(plonk.Verify(wrongProof, vk, circuit.Good))
-
-				// witness serialization tests.
-				{
-					buf.Reset()
-
-					_, err := witness.WriteFullTo(&buf, curve, circuit.Good)
-					assert.NoError(err)
-
-					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
-					assert.NoError(err)
-
-					buf.Reset()
-
-					_, err = witness.WritePublicTo(&buf, curve, circuit.Good)
-					assert.NoError(err)
-
-					err = plonk.ReadAndVerify(correctProof, vk, &buf)
-					assert.NoError(err)
-				}
-
 			}
-
 		}
 	}
 

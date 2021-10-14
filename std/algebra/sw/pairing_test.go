@@ -21,10 +21,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/test"
 )
 
 type pairingBLS377 struct {
@@ -60,17 +59,13 @@ func TestPairingBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign values to witness
 	witness.P.Assign(&P)
 	witness.Q.Assign(&Q)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
 
 }
 
