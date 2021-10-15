@@ -27,16 +27,16 @@ func TestExponentiateGroth16(t *testing.T) {
 
 	var expCircuit Circuit
 
-	assert.ProverFailed(&expCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverFailed(&expCircuit, &Circuit{
 		X: frontend.Value(2),
 		E: frontend.Value(12),
 		Y: frontend.Value(4095),
-	}})
+	})
 
-	assert.ProverSucceeded(&expCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverSucceeded(&expCircuit, &Circuit{
 		X: frontend.Value(2),
 		E: frontend.Value(12),
 		Y: frontend.Value(4096),
-	}})
+	})
 
 }

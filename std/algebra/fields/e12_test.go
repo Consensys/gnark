@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -57,7 +58,7 @@ func TestAddFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Sub struct {
@@ -88,7 +89,7 @@ func TestSubFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Mul struct {
@@ -120,7 +121,7 @@ func TestMulFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Square struct {
@@ -149,7 +150,7 @@ func TestSquareFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -189,7 +190,7 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -219,7 +220,7 @@ func TestConjugateFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Frobenius struct {
@@ -261,7 +262,7 @@ func TestFrobeniusFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Inverse struct {
@@ -291,7 +292,7 @@ func TestInverseFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FixedExpo struct {
@@ -323,7 +324,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FinalExpo struct {
@@ -354,7 +355,8 @@ func TestExpFinalExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	// TODO @gbotrel this seems to hang on PLONK
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
 }
 
 type fp12MulBy034 struct {
@@ -393,6 +395,6 @@ func TestFp12MulBy034(t *testing.T) {
 	witness.W.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }

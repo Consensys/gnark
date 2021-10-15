@@ -57,7 +57,7 @@ func TestIsOnCurve(t *testing.T) {
 	witness.P.X.Assign(params.BaseX)
 	witness.P.Y.Assign(params.BaseY)
 
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -107,7 +107,7 @@ func TestAddFixedPoint(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -160,7 +160,7 @@ func TestAddGeneric(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -207,7 +207,7 @@ func TestDouble(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -261,7 +261,7 @@ func TestScalarMul(t *testing.T) {
 	witness.S.Assign(r)
 
 	// creates r1cs
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -299,6 +299,6 @@ func TestNeg(t *testing.T) {
 	witness.E.X.Assign(expected.X)
 	witness.E.Y.Assign(expected.Y)
 
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }

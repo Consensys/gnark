@@ -137,6 +137,6 @@ func TestFiatShamir(t *testing.T) {
 		witness.Challenges[i].Assign(expectedChallenges[i])
 	}
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness)
 
 }

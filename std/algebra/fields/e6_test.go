@@ -63,7 +63,7 @@ func TestAddFp6(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6Sub struct {
@@ -94,7 +94,7 @@ func TestSubFp6(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6Mul struct {
@@ -126,7 +126,7 @@ func TestMulFp6(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6MulByNonResidue struct {
@@ -157,7 +157,7 @@ func TestMulByNonResidueFp6(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -189,7 +189,7 @@ func TestInverseFp6(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 

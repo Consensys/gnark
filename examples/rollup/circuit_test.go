@@ -83,7 +83,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	assert.ProverSucceeded(&signatureCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
+	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, opts...)
 
 }
 
@@ -149,7 +149,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	var inclusionProofCircuit circuitInclusionProof
 
-	assert.ProverSucceeded(&inclusionProofCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
+	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, opts...)
 
 }
 
@@ -206,7 +206,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	var updateAccountCircuit circuitUpdateAccount
 
-	assert.ProverSucceeded(&updateAccountCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
+	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, opts...)
 
 }
 
@@ -250,6 +250,6 @@ func TestCircuitFull(t *testing.T) {
 
 	var rollupCircuit Circuit
 
-	assert.ProverSucceeded(&rollupCircuit, []frontend.Circuit{&operator.witnesses}, opts...)
+	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, opts...)
 
 }

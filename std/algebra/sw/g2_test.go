@@ -62,7 +62,7 @@ func TestAddAssignG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -103,7 +103,7 @@ func TestAddAssignAffineG2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -138,7 +138,7 @@ func TestDoubleAssignG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -176,7 +176,7 @@ func TestDoubleAffineG2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -211,7 +211,7 @@ func TestNegG2(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, []frontend.Circuit{&witness})
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 

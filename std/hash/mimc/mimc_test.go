@@ -72,12 +72,12 @@ func TestMimcAll(t *testing.T) {
 		// assert correctness against correct witness
 		witness.Data.Assign(data)
 		witness.ExpectedResult.Assign(b)
-		assert.ProverSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(curve))
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(curve))
 
 		// assert failure against wrong witness
 		wrongWitness.Data.Assign(tamperedData)
 		wrongWitness.ExpectedResult.Assign(b)
-		assert.ProverFailed(&circuit, []frontend.Circuit{&wrongWitness}, test.WithCurves(curve))
+		assert.ProverFailed(&circuit, &wrongWitness, test.WithCurves(curve))
 	}
 
 }

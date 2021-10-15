@@ -27,14 +27,14 @@ func TestPreimage(t *testing.T) {
 
 	var mimcCircuit Circuit
 
-	assert.ProverFailed(&mimcCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverFailed(&mimcCircuit, &Circuit{
 		Hash:     frontend.Value(42),
 		PreImage: frontend.Value(42),
-	}})
+	})
 
-	assert.ProverSucceeded(&mimcCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverSucceeded(&mimcCircuit, &Circuit{
 		PreImage: frontend.Value(35),
 		Hash:     frontend.Value("16130099170765464552823636852555369511329944820189892919423002775646948828469"),
-	}}, test.WithCurves(ecc.BN254))
+	}, test.WithCurves(ecc.BN254))
 
 }

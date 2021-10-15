@@ -25,17 +25,18 @@ var (
 // Assert is a helper to test circuits
 type Assert struct {
 	*require.Assertions
+	compiled map[string]frontend.CompiledConstraintSystem // cache compilation
 }
 
 // NewAssert returns an Assert helper
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{require.New(t)}
+	return &Assert{require.New(t), make(map[string]frontend.CompiledConstraintSystem)}
 }
 
 // TODO @gbotrel cache plonk.NewSRS(..) per curve, to avoid slow tests.
 // TODO @gbotrel proverSucceeded / failed must check first without backend (ie constraint system)
 
-func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitnesses []frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt, err := options(opts...)
 	assert.NoError(err, "parsing TestingOption")
 
@@ -59,12 +60,12 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitnesses [
 			}
 
 			// 1- compile the circuit
-			ccs, err := frontend.Compile(curve, b, circuit)
+			ccs, err := assert.compile(circuit, curve, b)
 			if err != nil {
 				fail(err)
 			}
 
-			_ccs, err := frontend.Compile(curve, b, circuit)
+			_ccs, err := assert.compile(circuit, curve, b)
 			if err != nil {
 				fail(err)
 			}
@@ -87,39 +88,37 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitnesses [
 				}
 
 				// ensure prove / verify works well with valid witnesses
-				for _, w := range validWitnesses {
-					currentWitness = w
-					proof, err := groth16.Prove(ccs, pk, w)
+				currentWitness = validWitness
+				proof, err := groth16.Prove(ccs, pk, validWitness)
+				if err != nil {
+					fail(err)
+				}
+				if err := groth16.Verify(proof, vk, validWitness); err != nil {
+					fail(err)
+				}
+
+				// same thing through serialized witnesses
+				if opt.witnessSerialization {
+					buf.Reset()
+
+					if _, err := witness.WriteFullTo(&buf, curve, validWitness); err != nil {
+						fail(err)
+					}
+
+					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
 					if err != nil {
 						fail(err)
 					}
-					if err := groth16.Verify(proof, vk, w); err != nil {
+
+					buf.Reset()
+
+					_, err = witness.WritePublicTo(&buf, curve, validWitness)
+					if err != nil {
 						fail(err)
 					}
 
-					// same thing through serialized witnesses
-					if opt.witnessSerialization {
-						buf.Reset()
-
-						if _, err := witness.WriteFullTo(&buf, curve, w); err != nil {
-							fail(err)
-						}
-
-						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
-						if err != nil {
-							fail(err)
-						}
-
-						buf.Reset()
-
-						_, err = witness.WritePublicTo(&buf, curve, w)
-						if err != nil {
-							fail(err)
-						}
-
-						if err = groth16.ReadAndVerify(correctProof, vk, &buf); err != nil {
-							fail(err)
-						}
+					if err = groth16.ReadAndVerify(correctProof, vk, &buf); err != nil {
+						fail(err)
 					}
 				}
 
@@ -134,41 +133,39 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitnesses [
 					fail(err)
 				}
 
-				for _, w := range validWitnesses {
-					currentWitness = w
-					correctProof, err := plonk.Prove(ccs, pk, w)
+				currentWitness = validWitness
+				correctProof, err := plonk.Prove(ccs, pk, validWitness)
+				if err != nil {
+					fail(err)
+				}
+				if err := plonk.Verify(correctProof, vk, validWitness); err != nil {
+					fail(err)
+				}
+
+				// witness serialization tests.
+				if opt.witnessSerialization {
+					buf.Reset()
+
+					_, err := witness.WriteFullTo(&buf, curve, validWitness)
 					if err != nil {
 						fail(err)
 					}
-					if err := plonk.Verify(correctProof, vk, w); err != nil {
+
+					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
+					if err != nil {
 						fail(err)
 					}
 
-					// witness serialization tests.
-					if opt.witnessSerialization {
-						buf.Reset()
+					buf.Reset()
 
-						_, err := witness.WriteFullTo(&buf, curve, w)
-						if err != nil {
-							fail(err)
-						}
+					_, err = witness.WritePublicTo(&buf, curve, validWitness)
+					if err != nil {
+						fail(err)
+					}
 
-						correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
-						if err != nil {
-							fail(err)
-						}
-
-						buf.Reset()
-
-						_, err = witness.WritePublicTo(&buf, curve, w)
-						if err != nil {
-							fail(err)
-						}
-
-						err = plonk.ReadAndVerify(correctProof, vk, &buf)
-						if err != nil {
-							fail(err)
-						}
+					err = plonk.ReadAndVerify(correctProof, vk, &buf)
+					if err != nil {
+						fail(err)
 					}
 				}
 
@@ -180,7 +177,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitnesses [
 
 }
 
-func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitnesses []frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt, err := options(opts...)
 	assert.NoError(err, "parsing TestingOption")
 
@@ -204,12 +201,12 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitnesses []
 			}
 
 			// 1- compile the circuit
-			ccs, err := frontend.Compile(curve, b, circuit)
+			ccs, err := assert.compile(circuit, curve, b)
 			if err != nil {
 				fail(err)
 			}
 
-			_ccs, err := frontend.Compile(curve, b, circuit)
+			_ccs, err := assert.compile(circuit, curve, b)
 			if err != nil {
 				fail(err)
 			}
@@ -232,18 +229,16 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitnesses []
 				}
 
 				// ensure prove / verify fails with invalid witness
-				for _, w := range invalidWitnesses {
-					currentWitness = w
+				currentWitness = invalidWitness
 
-					if err := groth16.IsSolved(ccs, w); err == nil {
-						fail(ErrInvalidWitnessSolvedCS)
-					}
+				if err := groth16.IsSolved(ccs, invalidWitness); err == nil {
+					fail(ErrInvalidWitnessSolvedCS)
+				}
 
-					proof, _ := groth16.Prove(ccs, pk, w, backend.IgnoreSolverError)
+				proof, _ := groth16.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
 
-					if err := groth16.Verify(proof, vk, w); err == nil {
-						fail(ErrInvalidWitnessVerified)
-					}
+				if err := groth16.Verify(proof, vk, invalidWitness); err == nil {
+					fail(ErrInvalidWitnessVerified)
 				}
 
 			case backend.PLONK:
@@ -257,15 +252,13 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitnesses []
 					fail(err)
 				}
 
-				for _, w := range invalidWitnesses {
-					currentWitness = w
-					incorrectProof, err := plonk.Prove(ccs, pk, w, backend.IgnoreSolverError)
-					if err != nil {
-						fail(err)
-					}
-					if err := plonk.Verify(incorrectProof, vk, w); err == nil {
-						fail(err)
-					}
+				currentWitness = invalidWitness
+				incorrectProof, err := plonk.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
+				if err != nil {
+					fail(err)
+				}
+				if err := plonk.Verify(incorrectProof, vk, invalidWitness); err == nil {
+					fail(err)
 				}
 			default:
 				panic("backend not implemented")
@@ -274,12 +267,126 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitnesses []
 	}
 }
 
-func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitnesses []frontend.Circuit, opts ...func(opt *TestingOption) error) {
-	// TODO @gbotrel
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID) (frontend.CompiledConstraintSystem, error) {
+	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
+
+	// check if we already compiled it
+	if ccs, ok := assert.compiled[key]; ok {
+		return ccs, nil
+	}
+
+	// else compile it and ensure it is deterministic
+	ccs, err := frontend.Compile(curveID, backendID, circuit)
+	if err != nil {
+		return nil, err
+	}
+
+	_ccs, err := frontend.Compile(curveID, backendID, circuit)
+	if err != nil {
+		return nil, err
+	}
+
+	if !reflect.DeepEqual(ccs, _ccs) {
+		return nil, ErrCompilationNotDeterministic
+	}
+
+	return ccs, nil
 }
 
-func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitnesses []frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	// TODO @gbotrel
+	opt, err := options(opts...)
+	assert.NoError(err, "parsing TestingOption")
+
+	var currentWitness frontend.Circuit
+
+	// for each {curve, backend} tuple
+	for _, curve := range opt.curves {
+		for _, b := range opt.backends {
+
+			currentWitness = nil
+
+			fail := func(err error) {
+				toReturn := fmt.Errorf("%s(%s): %w", b.String(), curve.String(), err)
+				json, err := witness.ToJSON(currentWitness, curve)
+				if err != nil {
+					toReturn = fmt.Errorf("%s(%s): %w", b.String(), curve.String(), err)
+				} else if currentWitness != nil {
+					toReturn = fmt.Errorf("%w\nwitness:%s", toReturn, json)
+				}
+				assert.FailNow(toReturn.Error())
+			}
+
+			// 1- compile the circuit
+			ccs, err := assert.compile(circuit, curve, b)
+			if err != nil {
+				fail(err)
+			}
+
+			switch b {
+			case backend.GROTH16:
+				if err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...); err != nil {
+					fail(err)
+				}
+
+			case backend.PLONK:
+				if err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...); err != nil {
+					fail(err)
+				}
+			default:
+				panic("not implemented")
+			}
+
+		}
+	}
+}
+
+func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+	// TODO @gbotrel
+	opt, err := options(opts...)
+	assert.NoError(err, "parsing TestingOption")
+
+	var currentWitness frontend.Circuit
+
+	// for each {curve, backend} tuple
+	for _, curve := range opt.curves {
+		for _, b := range opt.backends {
+
+			currentWitness = nil
+
+			fail := func(err error) {
+				toReturn := fmt.Errorf("%s(%s): %w", b.String(), curve.String(), err)
+				json, err := witness.ToJSON(currentWitness, curve)
+				if err != nil {
+					toReturn = fmt.Errorf("%s(%s): %w", b.String(), curve.String(), err)
+				} else if currentWitness != nil {
+					toReturn = fmt.Errorf("%w\nwitness:%s", toReturn, json)
+				}
+				assert.FailNow(toReturn.Error())
+			}
+
+			// 1- compile the circuit
+			ccs, err := assert.compile(circuit, curve, b)
+			if err != nil {
+				fail(err)
+			}
+
+			switch b {
+			case backend.GROTH16:
+				if err := groth16.IsSolved(ccs, invalidWitness, opt.proverOpts...); err == nil {
+					fail(err)
+				}
+
+			case backend.PLONK:
+				if err := plonk.IsSolved(ccs, invalidWitness, opt.proverOpts...); err == nil {
+					fail(err)
+				}
+			default:
+				panic("not implemented")
+			}
+
+		}
+	}
 }
 
 func options(opts ...func(*TestingOption) error) (TestingOption, error) {

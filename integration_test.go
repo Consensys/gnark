@@ -46,7 +46,7 @@ func TestIntegrationAPI(t *testing.T) {
 	}
 
 	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315}
-	for name, circuit := range circuits.Circuits {
+	for name, tData := range circuits.Circuits {
 
 		if testing.Short() {
 			if name == "reference_small" {
@@ -54,14 +54,19 @@ func TestIntegrationAPI(t *testing.T) {
 			}
 		}
 
-		assert.ProverSucceeded(circuit.Circuit, circuit.Good)
-		assert.ProverFailed(circuit.Circuit, circuit.Bad)
+		for _, w := range tData.ValidWitnesses {
+			assert.ProverSucceeded(tData.Circuit, w)
+		}
+
+		for _, w := range tData.InvalidWitnesses {
+			assert.ProverFailed(tData.Circuit, w)
+		}
 
 		for _, curve := range curves {
 			{
 				t.Log(name, curve.String(), "groth16")
 
-				ccs, err := frontend.Compile(curve, backend.GROTH16, circuit.Circuit)
+				ccs, err := frontend.Compile(curve, backend.GROTH16, tData.Circuit)
 				assert.NoError(err)
 
 				// ensure we didn't introduce regressions that make circuits less efficient
@@ -73,7 +78,7 @@ func TestIntegrationAPI(t *testing.T) {
 			{
 				t.Log(name, curve.String(), "plonk")
 
-				ccs, err := frontend.Compile(curve, backend.PLONK, circuit.Circuit)
+				ccs, err := frontend.Compile(curve, backend.PLONK, tData.Circuit)
 				assert.NoError(err)
 
 				// ensure we didn't introduce regressions that make circuits less efficient

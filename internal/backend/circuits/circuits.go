@@ -7,8 +7,8 @@ import (
 
 // TestCircuit are used for test purposes (backend.Groth16 and gnark/integration_test.go)
 type TestCircuit struct {
-	Circuit   frontend.Circuit
-	Good, Bad []frontend.Circuit // good and bad witness for the prover + public verifier data
+	Circuit                          frontend.Circuit
+	ValidWitnesses, InvalidWitnesses []frontend.Circuit // good and bad witness for the prover + public verifier data
 }
 
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)

@@ -91,5 +91,5 @@ func TestVerify(t *testing.T) {
 	}
 
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, []frontend.Circuit{&witness}, test.WithCurves(ecc.BN254))
+	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 }

@@ -26,14 +26,14 @@ func TestCubicEquation(t *testing.T) {
 
 	var cubicCircuit Circuit
 
-	assert.ProverFailed(&cubicCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverFailed(&cubicCircuit, &Circuit{
 		X: frontend.Value(42),
 		Y: frontend.Value(42),
-	}})
+	})
 
-	assert.ProverSucceeded(&cubicCircuit, []frontend.Circuit{&Circuit{
+	assert.ProverSucceeded(&cubicCircuit, &Circuit{
 		X: frontend.Value(3),
 		Y: frontend.Value(35),
-	}})
+	})
 
 }
