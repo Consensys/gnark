@@ -185,7 +185,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 
 		if visibility == compiled.Secret {
 			if v.WitnessValue == nil {
-				toPrint.Secret[name] = "0"
+				toPrint.Secret[name] = "<nil>"
 			} else {
 				if _, err := e.SetInterface(v.WitnessValue); err != nil {
 					return fmt.Errorf("when parsing variable %s: %v", name, err)
@@ -194,7 +194,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 			}
 		} else if visibility == compiled.Public {
 			if v.WitnessValue == nil {
-				toPrint.Public[name] = "0"
+				toPrint.Public[name] = "<nil>"
 			} else {
 				if _, err := e.SetInterface(v.WitnessValue); err != nil {
 					return fmt.Errorf("when parsing variable %s: %v", name, err)
