@@ -414,3 +414,48 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, witness io.Reader) error {
 		panic("unrecognized R1CS curve type")
 	}
 }
+
+// IsSolved attempts to solve the constraint system with provided witness
+// returns nil if it succeeds, error otherwise.
+func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
+
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return err
+	}
+
+	switch tccs := ccs.(type) {
+	case *cs_bn254.SparseR1CS:
+		w := witness_bn254.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return tccs.IsSolved(w, opt)
+	case *cs_bls12381.SparseR1CS:
+		w := witness_bls12381.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return tccs.IsSolved(w, opt)
+	case *cs_bls12377.SparseR1CS:
+		w := witness_bls12377.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return tccs.IsSolved(w, opt)
+	case *cs_bw6761.SparseR1CS:
+		w := witness_bw6761.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return tccs.IsSolved(w, opt)
+	case *cs_bls24315.SparseR1CS:
+		w := witness_bls24315.Witness{}
+		if err := w.FromFullAssignment(witness); err != nil {
+			return err
+		}
+		return tccs.IsSolved(w, opt)
+	default:
+		panic("unknown constraint system type")
+	}
+}
