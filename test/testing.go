@@ -33,9 +33,6 @@ func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t), make(map[string]frontend.CompiledConstraintSystem)}
 }
 
-// TODO @gbotrel cache plonk.NewSRS(..) per curve, to avoid slow tests.
-// TODO @gbotrel proverSucceeded / failed must check first without backend (ie constraint system)
-
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 

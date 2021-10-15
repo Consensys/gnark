@@ -102,7 +102,10 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
 		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
-			// TODO should return debug info, if any.
+			if dID, ok := cs.MDebug[i]; ok {
+				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+				return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
+			}
 			return solution.values, err
 		}
 
@@ -271,7 +274,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	return nil
 }
 
-// TODO @gbotrel clean logs and html
+// TODO @gbotrel clean logs and html see https://github.com/ConsenSys/gnark/issues/140
 
 // ToHTML returns an HTML human-readable representation of the constraint system
 func (cs *R1CS) ToHTML(w io.Writer) error {

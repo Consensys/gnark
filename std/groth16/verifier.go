@@ -63,7 +63,7 @@ func Verify(gnark frontend.API, pairingInfo sw.PairingContext, innerVk Verifying
 	var psi0, tmp sw.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
-	// TODO this assumes ONE_WIRE is at position 0
+	// note this assumes ONE_WIRE is at position 0
 	psi0.X = innerVk.G1[0].X
 	psi0.Y = innerVk.G1[0].Y
 

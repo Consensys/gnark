@@ -232,7 +232,6 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 // ReadFrom attempts to decode a ProvingKey from reader
 // ProvingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
 // note that we don't check that the points are on the curve or in the correct subgroup at this point
-// TODO while Proof points correctness is checkd in the Verifier, here may be a good place to check key
 func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 	n, err := pk.Domain.ReadFrom(r)

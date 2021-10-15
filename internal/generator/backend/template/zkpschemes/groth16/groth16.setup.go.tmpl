@@ -276,7 +276,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	t := make([]fr.Element, len(r1cs.Constraints) +1 )
 	for i:=0; i < len(t);i++ {
 		t[i].Sub(&toxicWaste.t, &wi)
-		wi.Mul(&wi, &w) // TODO is this not already pre computed in fft.Domain ? 
+		wi.Mul(&wi, &w) // TODO this is already pre computed in fft.Domain
 	}
 	tInv := fr.BatchInvert(t)
 

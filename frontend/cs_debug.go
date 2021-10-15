@@ -97,7 +97,6 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 	var debug compiled.LogEntry
 
-	// TODO @gbotrel reserve capacity for the string builder
 	const minLogSize = 500
 	var sbb strings.Builder
 	sbb.Grow(minLogSize)

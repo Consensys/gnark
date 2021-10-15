@@ -9,7 +9,6 @@ import (
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
-	// TODO do cs.Sub(i1,i2) == 0 ?
 
 	l := cs.Constant(i1)
 	o := cs.Constant(i2)

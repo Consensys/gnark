@@ -19,7 +19,6 @@ package twistededwards
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -124,14 +123,7 @@ func (p *Point) Double(gnark frontend.API, p1 *Point, curve EdCurve) *Point {
 func (p *Point) ScalarMulNonFixedBase(gnark frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
-	// TODO handle this properly (put the size in curve struct probably)
-	var frSize int
-	if curve.ID == ecc.BW6_761 {
-		frSize = 384
-	} else {
-		frSize = 256
-	}
-	b := gnark.ToBinary(scalar, frSize)
+	b := gnark.ToBinary(scalar)
 
 	res := Point{
 		gnark.Constant(0),
@@ -159,14 +151,7 @@ func (p *Point) ScalarMulNonFixedBase(gnark frontend.API, p1 *Point, scalar fron
 func (p *Point) ScalarMulFixedBase(gnark frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
-	// TODO handle this properly (put the size in curve struct probably)
-	var frSize int
-	if curve.ID == ecc.BW6_761 {
-		frSize = 384
-	} else {
-		frSize = 256
-	}
-	b := gnark.ToBinary(scalar, frSize)
+	b := gnark.ToBinary(scalar)
 
 	res := Point{
 		gnark.Constant(0),

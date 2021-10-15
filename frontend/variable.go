@@ -77,7 +77,7 @@ func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 		l.WriteStack(&sbb)
 		panic(fmt.Errorf("%w\n%s", ErrInputNotSet, sbb.String()))
 	}
-	// TODO @gbotrel switch on curveID, do a mod fr, go back to big int.
+
 	b := FromInterface(v.WitnessValue)
 	switch curveID {
 	case ecc.BLS12_377:
