@@ -69,10 +69,13 @@ func (v *Variable) assertIsSet(cs *constraintSystem) {
 // GetWitnessValue returns the assigned value to the variable
 // the value is converted to a field element (mod curveID base field modulus)
 // then converted to a big.Int
-// if it is not set, returns new(big.Int) (0)
+// if it is not set this panics
 func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 	if v.WitnessValue == nil {
-		return big.Int{}
+		var l compiled.LogEntry
+		var sbb strings.Builder
+		l.WriteStack(&sbb)
+		panic(fmt.Errorf("%w\n%s", ErrInputNotSet, sbb.String()))
 	}
 	// TODO @gbotrel switch on curveID, do a mod fr, go back to big int.
 	b := FromInterface(v.WitnessValue)

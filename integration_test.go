@@ -20,7 +20,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
 )
@@ -36,19 +35,15 @@ func TestIntegrationAPI(t *testing.T) {
 	if err := os.MkdirAll(parentDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	var opts []func(opt *test.TestingOption) error
-	if testing.Short() {
-		opts = append(opts, test.WithCurves(ecc.BN254))
-	}
 
 	for name, tData := range circuits.Circuits {
 		t.Log(name)
 		for _, w := range tData.ValidWitnesses {
-			assert.ProverSucceeded(tData.Circuit, w, opts...)
+			assert.ProverSucceeded(tData.Circuit, w)
 		}
 
 		for _, w := range tData.InvalidWitnesses {
-			assert.ProverFailed(tData.Circuit, w, opts...)
+			assert.ProverFailed(tData.Circuit, w)
 		}
 
 	}

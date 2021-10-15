@@ -51,6 +51,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 			ccs, err := assert.compile(circuit, curve, b)
 			checkError(err)
 
+			// must not error with big int test engine
+			err = isSolved(circuit, validWitness, curve)
+			checkError(err)
+
 			switch b {
 			case backend.GROTH16:
 				pk, vk, err := groth16.Setup(ccs)
@@ -135,6 +139,10 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 			ccs, err := assert.compile(circuit, curve, b)
 			checkError(err)
 
+			// must error with big int test engine
+			err = isSolved(circuit, invalidWitness, curve)
+			mustError(err)
+
 			switch b {
 			case backend.GROTH16:
 				pk, vk, err := groth16.Setup(ccs)
@@ -182,6 +190,10 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 			ccs, err := assert.compile(circuit, curve, b)
 			checkError(err)
 
+			// must not error with big int test engine
+			err = isSolved(circuit, validWitness, curve)
+			checkError(err)
+
 			switch b {
 			case backend.GROTH16:
 				err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...)
@@ -210,6 +222,10 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 			// 1- compile the circuit
 			ccs, err := assert.compile(circuit, curve, b)
 			checkError(err)
+
+			// must error with big int test engine
+			err = isSolved(circuit, invalidWitness, curve)
+			mustError(err)
 
 			switch b {
 			case backend.GROTH16:
@@ -268,6 +284,13 @@ func (assert *Assert) options(opts ...func(*TestingOption) error) TestingOption 
 	for _, option := range opts {
 		err := option(&opt)
 		assert.NoError(err, "parsing TestingOption")
+	}
+
+	if testing.Short() {
+		// if curves are all there, we just test with bn254
+		if reflect.DeepEqual(opt.curves, ecc.Implemented()) {
+			opt.curves = []ecc.ID{ecc.BN254}
+		}
 	}
 	return opt
 }

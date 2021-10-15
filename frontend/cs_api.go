@@ -294,6 +294,9 @@ func (cs *constraintSystem) ToBinary(a Variable, n ...int) []Variable {
 	nbBits := cs.bitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
+		if nbBits < 0 {
+			panic("invalid n")
+		}
 	}
 
 	// allocate the resulting variables and bit-constraint them

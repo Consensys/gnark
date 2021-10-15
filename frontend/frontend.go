@@ -81,7 +81,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 				// return errors.New("circuit was already compiled")
 			}
 			if v.WitnessValue != nil {
-				return errors.New("circuit has some assigned values, can't compile")
+				return fmt.Errorf("circuit has %s illegaly assigned, can't compile", name)
 			}
 			switch visibility {
 			case compiled.Secret:
