@@ -324,7 +324,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
 }
 
 type fp12FinalExpo struct {
@@ -355,7 +355,7 @@ func TestExpFinalExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	// TODO @gbotrel this seems to hang on PLONK
+	// TODO @gbotrel this seems to hang on PLONK compiler due to split of large linear exps
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
 }
 

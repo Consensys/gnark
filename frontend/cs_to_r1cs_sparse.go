@@ -397,6 +397,7 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 // split returns a term that is equal to aiwi (it's 1xaiwi)
 // no side effects on le
 func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compiled.Term {
+	// TODO @thomas @gbotrel this performs terribly for large linear expressions
 
 	// floor case
 	if len(l) == 0 {

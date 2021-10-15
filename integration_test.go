@@ -17,7 +17,6 @@ limitations under the License.
 package gnark
 
 import (
-	"os"
 	"testing"
 
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -27,14 +26,6 @@ import (
 func TestIntegrationAPI(t *testing.T) {
 
 	assert := test.NewAssert(t)
-
-	// create temporary dir for integration test
-	parentDir := "./integration_test"
-	os.RemoveAll(parentDir)
-	defer os.RemoveAll(parentDir)
-	if err := os.MkdirAll(parentDir, 0700); err != nil {
-		t.Fatal(err)
-	}
 
 	for name, tData := range circuits.Circuits {
 		t.Log(name)

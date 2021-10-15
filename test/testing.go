@@ -178,7 +178,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 }
 
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
-	// TODO @gbotrel
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {
