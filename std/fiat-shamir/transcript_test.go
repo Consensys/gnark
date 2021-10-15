@@ -91,6 +91,7 @@ func getChallenges() (string, string, string) {
 }
 
 func TestFiatShamir(t *testing.T) {
+	// TODO test with all curves
 
 	// get the domain separators, correctly formatted so they match the frontend.Variable size
 	// (which under the hood is a fr.Element)
@@ -137,6 +138,6 @@ func TestFiatShamir(t *testing.T) {
 		witness.Challenges[i].Assign(expectedChallenges[i])
 	}
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }

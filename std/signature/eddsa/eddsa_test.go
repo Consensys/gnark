@@ -213,7 +213,7 @@ func TestEddsa(t *testing.T) {
 			// witness.Signature.S2.Assign(sigS2)
 			witness.Signature.S.Assign(sigS)
 
-			assert.SolvingSucceeded(&circuit, &witness)
+			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 		}
 
 		// verification with incorrect Message
@@ -231,7 +231,7 @@ func TestEddsa(t *testing.T) {
 			witness.Signature.R.Y.Assign(sigRy)
 			witness.Signature.S.Assign(sigS)
 
-			assert.SolvingFailed(&circuit, &witness)
+			assert.SolvingFailed(&circuit, &witness, test.WithCurves(id))
 		}
 
 	}

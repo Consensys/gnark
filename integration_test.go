@@ -44,6 +44,10 @@ func TestIntegrationAPI(t *testing.T) {
 	if err := os.MkdirAll(parentDir, 0700); err != nil {
 		t.Fatal(err)
 	}
+	var opts []func(opt *test.TestingOption) error
+	if testing.Short() {
+		opts = append(opts, test.WithCurves(ecc.BN254))
+	}
 
 	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315}
 	for name, tData := range circuits.Circuits {
@@ -55,11 +59,11 @@ func TestIntegrationAPI(t *testing.T) {
 		}
 
 		for _, w := range tData.ValidWitnesses {
-			assert.ProverSucceeded(tData.Circuit, w)
+			assert.ProverSucceeded(tData.Circuit, w, opts...)
 		}
 
 		for _, w := range tData.InvalidWitnesses {
-			assert.ProverFailed(tData.Circuit, w)
+			assert.ProverFailed(tData.Circuit, w, opts...)
 		}
 
 		for _, curve := range curves {
