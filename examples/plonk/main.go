@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -96,7 +97,7 @@ func main() {
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
 	_r1cs := r3.(*cs.SparseR1CS)
-	srs, err := plonk.NewSRS(_r1cs)
+	srs, err := test.NewKZGSRS(_r1cs)
 	if err != nil {
 		panic(err)
 	}

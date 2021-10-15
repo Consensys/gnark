@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,11 +42,11 @@ func TestPrintln(t *testing.T) {
 	witness.B.Assign(11)
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:24 13 is the addition\n")
-	expected.WriteString("debug_test.go:26 26 42\n")
-	expected.WriteString("debug_test.go:28 bits 1\n")
-	expected.WriteString("debug_test.go:29 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:32 m <unsolved>\n")
+	expected.WriteString("debug_test.go:25 13 is the addition\n")
+	expected.WriteString("debug_test.go:27 26 42\n")
+	expected.WriteString("debug_test.go:29 bits 1\n")
+	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:33 m <unsolved>\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -83,7 +84,7 @@ func TestTraceDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:69")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
@@ -91,7 +92,7 @@ func TestTraceDivBy0(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
 		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:69")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -120,7 +121,7 @@ func TestTraceNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:106")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
@@ -128,7 +129,7 @@ func TestTraceNotEqual(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
 		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:106")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -157,7 +158,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:143")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
@@ -165,7 +166,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
 		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:143")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -175,7 +176,7 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 		return "", err
 	}
 
-	srs, err := plonk.NewSRS(ccs)
+	srs, err := test.NewKZGSRS(ccs)
 	if err != nil {
 		return "", err
 	}
