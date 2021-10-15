@@ -256,9 +256,7 @@ func TestScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	// TODO @thomas @gbotrel testing only with Groth16: with PLONK, the compile takes forever due to large linear expressions splits
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
-
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 func randomPointG1() bls12377.G1Jac {
@@ -271,4 +269,25 @@ func randomPointG1() bls12377.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1
+}
+
+var ccsBench frontend.CompiledConstraintSystem
+
+func BenchmarkScalarMulG1(b *testing.B) {
+	var c g1ScalarMul
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
+
 }

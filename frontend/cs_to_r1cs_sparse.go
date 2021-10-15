@@ -279,24 +279,12 @@ func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
 	var vID int
 	if len(idCS) > 0 {
 		vID = idCS[0]
+		scs.solvedVariables[vID] = true
 	} else {
 		vID = scs.scsInternalVariables
 		scs.scsInternalVariables++
+		scs.solvedVariables = append(scs.solvedVariables, true)
 	}
-	// each time we create a new term, we created and added a constraint
-	// and as we allow only one unsolved wire per constraint
-	// we can mark it as solved such that if it appears in following constraints
-	// we don't consider it "unsolved"
-	if vID >= len(scs.solvedVariables) {
-		if vID < cap(scs.solvedVariables) {
-			scs.solvedVariables = scs.solvedVariables[:vID+1]
-		} else {
-			newSlice := make([]bool, vID+1)
-			copy(newSlice, scs.solvedVariables)
-			scs.solvedVariables = newSlice
-		}
-	}
-	scs.solvedVariables[vID] = true
 
 	return compiled.Pack(vID, scs.coeffID(coeff), compiled.Internal)
 }
@@ -397,8 +385,6 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 // split returns a term that is equal to aiwi (it's 1xaiwi)
 // no side effects on le
 func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compiled.Term {
-	// TODO @thomas @gbotrel this performs terribly for large linear expressions
-
 	// floor case
 	if len(l) == 0 {
 		return a

@@ -22,7 +22,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -324,7 +323,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FinalExpo struct {
@@ -355,8 +354,7 @@ func TestExpFinalExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	// TODO @gbotrel this seems to hang on PLONK compiler due to split of large linear exps
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12MulBy034 struct {

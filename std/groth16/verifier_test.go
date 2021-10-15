@@ -160,7 +160,7 @@ func TestVerifier(t *testing.T) {
 	// verifies the cs
 	assert := test.NewAssert(t)
 
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 	/* comment from here */
 

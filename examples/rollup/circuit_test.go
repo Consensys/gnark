@@ -20,15 +20,11 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
-
-// TODO @gbotrel fixme with PLONK backend.
-var opts = []func(opt *test.TestingOption) error{test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16)}
 
 type circuitSignature struct {
 	Circuit `gnark:",embed"`
@@ -83,7 +79,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, opts...)
+	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -149,7 +145,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	var inclusionProofCircuit circuitInclusionProof
 
-	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, opts...)
+	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -206,7 +202,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	var updateAccountCircuit circuitUpdateAccount
 
-	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, opts...)
+	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -250,6 +246,6 @@ func TestCircuitFull(t *testing.T) {
 
 	var rollupCircuit Circuit
 
-	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, opts...)
+	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
