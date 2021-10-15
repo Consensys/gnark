@@ -43,15 +43,15 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	mimc, err := mimc.NewMiMC("seed", curveID, cs)
+func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	mimc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
 	//result := mimc.Sum(circuit.Data)
 	mimc.Write(circuit.Data)
 	result := mimc.Sum()
-	cs.AssertIsEqual(result, circuit.Hash)
+	api.AssertIsEqual(result, circuit.Hash)
 	return nil
 }
 
@@ -105,17 +105,17 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *verifierCircuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(cs)
+	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := sw.PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	// create the verifier cs
-	Verify(cs, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
+	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
 
 	return nil
 }
@@ -205,7 +205,7 @@ func TestVerifier(t *testing.T) {
 
 // 	// pairing data
 // 	var pairingInfo sw.PairingContext
-// 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&cs)
+// 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&api)
 // 	pairingInfo.AteLoop = 9586122913090633729
 
 // 	// allocate the verifying key
@@ -220,7 +220,7 @@ func TestVerifier(t *testing.T) {
 // 	Verify(&cs, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
 
 // 	// create r1cs
-// 	r1cs := cs.ToR1CS().ToR1CS(ecc.BW6_761)
+// 	r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
 
 // 	// create assignment, the private part consists of the proof,
 // 	// the public part is exactly the public part of the inner proof,

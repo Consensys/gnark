@@ -30,7 +30,7 @@ type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *mustBeOnCurve) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -38,7 +38,7 @@ func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs frontend.API) error {
 		return err
 	}
 
-	circuit.P.MustBeOnCurve(cs, params)
+	circuit.P.MustBeOnCurve(api, params)
 
 	return nil
 }
@@ -65,7 +65,7 @@ type add struct {
 	P, E Point
 }
 
-func (circuit *add) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *add) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -73,10 +73,10 @@ func (circuit *add) Define(curveID ecc.ID, cs frontend.API) error {
 		return err
 	}
 
-	res := circuit.P.AddFixedPoint(cs, &circuit.P, params.BaseX, params.BaseY, params)
+	res := circuit.P.AddFixedPoint(api, &circuit.P, params.BaseX, params.BaseY, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
@@ -115,7 +115,7 @@ type addGeneric struct {
 	P1, P2, E Point
 }
 
-func (circuit *addGeneric) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *addGeneric) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -123,10 +123,10 @@ func (circuit *addGeneric) Define(curveID ecc.ID, cs frontend.API) error {
 		return err
 	}
 
-	res := circuit.P1.AddGeneric(cs, &circuit.P1, &circuit.P2, params)
+	res := circuit.P1.AddGeneric(api, &circuit.P1, &circuit.P2, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
@@ -168,7 +168,7 @@ type double struct {
 	P, E Point
 }
 
-func (circuit *double) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *double) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -176,10 +176,10 @@ func (circuit *double) Define(curveID ecc.ID, cs frontend.API) error {
 		return err
 	}
 
-	res := circuit.P.Double(cs, &circuit.P, params)
+	res := circuit.P.Double(api, &circuit.P, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
@@ -216,7 +216,7 @@ type scalarMul struct {
 	S    frontend.Variable
 }
 
-func (circuit *scalarMul) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *scalarMul) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -224,14 +224,14 @@ func (circuit *scalarMul) Define(curveID ecc.ID, cs frontend.API) error {
 		return err
 	}
 
-	resNonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, circuit.S, params)
-	resFixed := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, circuit.S, params)
+	resNonFixed := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
+	resFixed := circuit.P.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
 
-	cs.AssertIsEqual(resFixed.X, circuit.E.X)
-	cs.AssertIsEqual(resFixed.Y, circuit.E.Y)
+	api.AssertIsEqual(resFixed.X, circuit.E.X)
+	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
 
-	cs.AssertIsEqual(resNonFixed.X, circuit.E.X)
-	cs.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
+	api.AssertIsEqual(resNonFixed.X, circuit.E.X)
+	api.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
 
 	return nil
 }
@@ -269,11 +269,11 @@ type neg struct {
 	P, E Point
 }
 
-func (circuit *neg) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *neg) Define(curveID ecc.ID, api frontend.API) error {
 
-	circuit.P.Neg(cs, &circuit.P)
-	cs.AssertIsEqual(circuit.P.X, circuit.E.X)
-	cs.AssertIsEqual(circuit.P.Y, circuit.E.Y)
+	circuit.P.Neg(api, &circuit.P)
+	api.AssertIsEqual(circuit.P.X, circuit.E.X)
+	api.AssertIsEqual(circuit.P.Y, circuit.E.Y)
 
 	return nil
 }

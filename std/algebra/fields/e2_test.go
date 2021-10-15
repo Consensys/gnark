@@ -28,21 +28,21 @@ import (
 
 type e2TestCircuit struct {
 	A, B, C E2
-	define  func(curveID ecc.ID, cs frontend.API, A, B, C E2) error
+	define  func(curveID ecc.ID, api frontend.API, A, B, C E2) error
 }
 
-func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	return circuit.define(curveID, cs, circuit.A, circuit.B, circuit.C)
+func (circuit *e2TestCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	return circuit.define(curveID, api, circuit.A, circuit.B, circuit.C)
 }
 
 func TestAddFp2(t *testing.T) {
 
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
+		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
 			expected := E2{}
-			expected.Add(cs, &A, &B)
-			expected.MustBeEqual(cs, C)
+			expected.Add(api, &A, &B)
+			expected.MustBeEqual(api, C)
 			return nil
 		},
 	}
@@ -69,10 +69,10 @@ func TestSubFp2(t *testing.T) {
 
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
+		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
 			expected := E2{}
-			expected.Sub(cs, &A, &B)
-			expected.MustBeEqual(cs, C)
+			expected.Sub(api, &A, &B)
+			expected.MustBeEqual(api, C)
 			return nil
 		},
 	}
@@ -98,11 +98,11 @@ func TestSubFp2(t *testing.T) {
 func TestMulFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
+		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
 			ext := Extension{uSquare: -5}
 			expected := E2{}
-			expected.Mul(cs, &A, &B, ext)
-			expected.MustBeEqual(cs, C)
+			expected.Mul(api, &A, &B, ext)
+			expected.MustBeEqual(api, C)
 			return nil
 		},
 	}
@@ -130,11 +130,11 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *fp2MulByFp) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.MulByFp(cs, &circuit.A, circuit.B)
+	expected.MulByFp(api, &circuit.A, circuit.B)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -164,11 +164,11 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *fp2Conjugate) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.Conjugate(cs, &circuit.A)
+	expected.Conjugate(api, &circuit.A)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -194,12 +194,12 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *fp2Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
-	expected.Inverse(cs, &circuit.A, ext)
+	expected.Inverse(api, &circuit.A, ext)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -238,13 +238,13 @@ func TestMulByImFp2(t *testing.T) {
 
 	// // TODO c.MulByNonSquare(&a)
 
-	// fp2a := NewFp2Elmt(&cs, cs.SECRET_INPUT("a0"), cs.SECRET_INPUT("a1"))
+	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
 
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
 	// fp2c.MulByIm(&cs, &fp2a, ext)
 
-	// cs.Tag(fp2c.X, "c0")
-	// cs.Tag(fp2c.Y, "c1")
+	// api.Tag(fp2c.X, "c0")
+	// api.Tag(fp2c.Y, "c1")
 
 	//
 	// witness.A.A0.Assign(a.A0)

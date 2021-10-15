@@ -122,7 +122,7 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 	}
 }
 
-func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *eddsaCircuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -131,7 +131,7 @@ func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	circuit.PublicKey.Curve = params
 
 	// verify the signature in the cs
-	Verify(cs, circuit.Signature, circuit.Message, circuit.PublicKey)
+	Verify(api, circuit.Signature, circuit.Message, circuit.PublicKey)
 
 	return nil
 }

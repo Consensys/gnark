@@ -20,17 +20,17 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	c := cs.Add(circuit.A, circuit.B)
-	cs.Println(c, "is the addition")
-	d := cs.Mul(circuit.A, c)
-	cs.Println(d, new(big.Int).SetInt64(42))
-	bs := cs.ToBinary(circuit.B, 10)
-	cs.Println("bits", bs[3])
-	cs.Println("circuit", circuit)
-	cs.AssertIsBoolean(cs.Constant(10)) // this will fail
-	m := cs.Mul(circuit.A, circuit.B)
-	cs.Println("m", m) // this should not be resolved
+func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	c := api.Add(circuit.A, circuit.B)
+	api.Println(c, "is the addition")
+	d := api.Mul(circuit.A, c)
+	api.Println(d, new(big.Int).SetInt64(42))
+	bs := api.ToBinary(circuit.B, 10)
+	api.Println("bits", bs[3])
+	api.Println("circuit", circuit)
+	api.AssertIsBoolean(api.Constant(10)) // this will fail
+	m := api.Mul(circuit.A, circuit.B)
+	api.Println("m", m) // this should not be resolved
 	return nil
 }
 
@@ -65,9 +65,9 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, cs frontend.API) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.Div(circuit.A, d)
+func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.Div(circuit.A, d)
 	return nil
 }
 
@@ -102,9 +102,9 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, cs frontend.API) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.AssertIsEqual(circuit.A, d)
+func (circuit *notEqualTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsEqual(circuit.A, d)
 	return nil
 }
 
@@ -139,9 +139,9 @@ type notBooleanTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, cs frontend.API) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.AssertIsBoolean(d)
+func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsBoolean(d)
 	return nil
 }
 

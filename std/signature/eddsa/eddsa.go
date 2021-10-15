@@ -42,7 +42,7 @@ type Signature struct {
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(cs frontend.API, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
+func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
 	data := []frontend.Variable{
@@ -53,7 +53,7 @@ func Verify(cs frontend.API, sig Signature, msg frontend.Variable, pubKey Public
 		msg,
 	}
 
-	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID, cs)
+	hash, err := mimc.NewMiMC("seed", pubKey.Curve.ID, api)
 	if err != nil {
 		return err
 	}
@@ -64,31 +64,31 @@ func Verify(cs frontend.API, sig Signature, msg frontend.Variable, pubKey Public
 	// lhs = [S]G
 	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
-	lhs.ScalarMulFixedBase(cs, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
-	lhs.MustBeOnCurve(cs, pubKey.Curve)
+	lhs.ScalarMulFixedBase(api, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
+	lhs.MustBeOnCurve(api, pubKey.Curve)
 
 	// rhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
-	rhs.ScalarMulNonFixedBase(cs, &pubKey.A, hramConstant, pubKey.Curve).
-		AddGeneric(cs, &rhs, &sig.R, pubKey.Curve)
-	rhs.MustBeOnCurve(cs, pubKey.Curve)
+	rhs.ScalarMulNonFixedBase(api, &pubKey.A, hramConstant, pubKey.Curve).
+		AddGeneric(api, &rhs, &sig.R, pubKey.Curve)
+	rhs.MustBeOnCurve(api, pubKey.Curve)
 
 	// lhs-rhs
-	rhs.Neg(cs, &rhs).AddGeneric(cs, &lhs, &rhs, pubKey.Curve)
+	rhs.Neg(api, &rhs).AddGeneric(api, &lhs, &rhs, pubKey.Curve)
 
 	// [cofactor](lhs-rhs)
 	switch cofactor {
 	case 4:
-		rhs.Double(cs, &rhs, pubKey.Curve).
-			Double(cs, &rhs, pubKey.Curve)
+		rhs.Double(api, &rhs, pubKey.Curve).
+			Double(api, &rhs, pubKey.Curve)
 	case 8:
-		rhs.Double(cs, &rhs, pubKey.Curve).
-			Double(cs, &rhs, pubKey.Curve).Double(cs, &rhs, pubKey.Curve)
+		rhs.Double(api, &rhs, pubKey.Curve).
+			Double(api, &rhs, pubKey.Curve).Double(api, &rhs, pubKey.Curve)
 	}
 
-	//rhs.MustBeOnCurve(cs, pubKey.Curve)
-	cs.AssertIsEqual(rhs.X, 0)
-	cs.AssertIsEqual(rhs.Y, 1)
+	//rhs.MustBeOnCurve(api, pubKey.Curve)
+	api.AssertIsEqual(rhs.X, 0)
+	api.AssertIsEqual(rhs.Y, 1)
 
 	return nil
 }

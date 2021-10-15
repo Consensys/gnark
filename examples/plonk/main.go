@@ -43,27 +43,27 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 2
 
 	// specify constraints
-	output := cs.Constant(1)
-	bits := cs.ToBinary(circuit.E, bitSize)
+	output := api.Constant(1)
+	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		// cs.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
+		// api.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
 
 		if i != 0 {
-			output = cs.Mul(output, output)
+			output = api.Mul(output, output)
 		}
-		multiply := cs.Mul(output, circuit.X)
-		output = cs.Select(bits[len(bits)-1-i], multiply, output)
+		multiply := api.Mul(output, circuit.X)
+		output = api.Select(bits[len(bits)-1-i], multiply, output)
 
 	}
 
-	cs.AssertIsEqual(circuit.Y, output)
+	api.AssertIsEqual(circuit.Y, output)
 
 	return nil
 }

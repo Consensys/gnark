@@ -36,10 +36,10 @@ type g1AddAssign struct {
 	C    G1Jac `gnark:",public"`
 }
 
-func (circuit *g1AddAssign) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1AddAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, &circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -73,10 +73,10 @@ type g1AddAssignAffine struct {
 	C    G1Affine `gnark:",public"`
 }
 
-func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, &circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -114,10 +114,10 @@ type g1DoubleAssign struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1DoubleAssign) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1DoubleAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.DoubleAssign(cs)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.DoubleAssign(api)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -149,10 +149,10 @@ type g1DoubleAffine struct {
 	C G1Affine `gnark:",public"`
 }
 
-func (circuit *g1DoubleAffine) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.Double(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Double(api, &circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -187,10 +187,10 @@ type g1Neg struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1Neg) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1Neg) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Jac{}
-	expected.Neg(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Neg(api, &circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -223,10 +223,10 @@ type g1ScalarMul struct {
 	r fr.Element
 }
 
-func (circuit *g1ScalarMul) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(cs, &circuit.A, circuit.r.String(), 256)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.ScalarMul(api, &circuit.A, circuit.r.String(), 256)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
