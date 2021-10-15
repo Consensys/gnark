@@ -32,28 +32,28 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) Define(curveID ecc.ID, gnark frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 8
 
 	// specify constraints
-	output := api.Constant(1)
-	bits := api.ToBinary(circuit.E, bitSize)
-	api.ToBinary(circuit.E, bitSize)
+	output := gnark.Constant(1)
+	bits := gnark.ToBinary(circuit.E, bitSize)
+	gnark.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		// api.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
+		// gnark.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
 
 		if i != 0 {
-			output = api.Mul(output, output)
+			output = gnark.Mul(output, output)
 		}
-		multiply := api.Mul(output, circuit.X)
-		output = api.Select(bits[len(bits)-1-i], multiply, output)
+		multiply := gnark.Mul(output, circuit.X)
+		output = gnark.Select(bits[len(bits)-1-i], multiply, output)
 
 	}
 
-	api.AssertIsEqual(circuit.Y, output)
+	gnark.AssertIsEqual(circuit.Y, output)
 
 	return nil
 }

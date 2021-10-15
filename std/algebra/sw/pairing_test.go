@@ -33,21 +33,21 @@ type pairingBLS377 struct {
 	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *pairingBLS377) Define(curveID ecc.ID, gnark frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(api)
+	ext := fields.GetBLS377ExtensionFp12(gnark)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = gnark.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = gnark.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
-	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(gnark, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
-	pairingRes.FinalExponentiation(api, &milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(gnark, &milRes, ateLoop, ext)
 
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
+	mustbeEq(gnark, pairingRes, &circuit.pairingRes)
 
 	return nil
 }
@@ -77,17 +77,17 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls1237
 	return
 }
 
-func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
-	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
-	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
-	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
-	api.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
-	api.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
-	api.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
-	api.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
-	api.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
-	api.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
-	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
-	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
-	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
+func mustbeEq(gnark frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
+	gnark.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
+	gnark.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
+	gnark.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
+	gnark.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
+	gnark.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
+	gnark.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
+	gnark.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
+	gnark.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
+	gnark.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
+	gnark.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
+	gnark.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
+	gnark.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }

@@ -25,10 +25,10 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-func getBLS377ExtensionFp6(api frontend.API) Extension {
+func getBLS377ExtensionFp6(gnark frontend.API) Extension {
 	res := Extension{}
 	res.uSquare = -5
-	res.vCube = &E2{A0: api.Constant(0), A1: api.Constant(1)}
+	res.vCube = &E2{A0: gnark.Constant(0), A1: gnark.Constant(1)}
 	return res
 }
 
@@ -40,10 +40,10 @@ type fp6Add struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Add) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp6Add) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E6{}
-	expected.Add(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Add(gnark, &circuit.A, &circuit.B)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -71,10 +71,10 @@ type fp6Sub struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Sub) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp6Sub) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E6{}
-	expected.Sub(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Sub(gnark, &circuit.A, &circuit.B)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -102,11 +102,11 @@ type fp6Mul struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Mul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp6Mul) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Mul(api, &circuit.A, &circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	ext := getBLS377ExtensionFp6(gnark)
+	expected.Mul(gnark, &circuit.A, &circuit.B, ext)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -134,12 +134,12 @@ type fp6MulByNonResidue struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.MulByNonResidue(api, &circuit.A, ext)
+	ext := getBLS377ExtensionFp6(gnark)
+	expected.MulByNonResidue(gnark, &circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -166,12 +166,12 @@ type fp6Inverse struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6Inverse) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp6Inverse) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Inverse(api, &circuit.A, ext)
+	ext := getBLS377ExtensionFp6(gnark)
+	expected.Inverse(gnark, &circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -202,7 +202,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// 	t.Fatal(err)
 	// }
 
-	// ext := getBLS377ExtensionFp6(&api)
+	// ext := getBLS377ExtensionFp6(&gnark)
 
 	// // witness values
 	// var a, c bls12377.E6
@@ -228,7 +228,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// expectedValues := make(map[string]*fp.Element)
 	// getExpectedValuesFp6(expectedValues, "c", c)
 
-	// r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
+	// r1cs := gnark.ToR1CS().ToR1CS(ecc.BW6_761)
 
 	// // inspect and compare the results
 	// res, err := r1cs.Inspect(inputs, false)

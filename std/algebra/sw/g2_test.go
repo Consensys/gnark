@@ -37,10 +37,10 @@ type g2AddAssign struct {
 	C    G2Jac `gnark:",public"`
 }
 
-func (circuit *g2AddAssign) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2AddAssign) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
-	expected.MustBeEqual(api, circuit.C)
+	expected.AddAssign(gnark, &circuit.B, fields.GetBLS377ExtensionFp12(gnark))
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -74,10 +74,10 @@ type g2AddAssignAffine struct {
 	C    G2Affine `gnark:",public"`
 }
 
-func (circuit *g2AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2AddAssignAffine) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
-	expected.MustBeEqual(api, circuit.C)
+	expected.AddAssign(gnark, &circuit.B, fields.GetBLS377ExtensionFp12(gnark))
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -115,10 +115,10 @@ type g2DoubleAssign struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2DoubleAssign) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2DoubleAssign) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
-	expected.MustBeEqual(api, circuit.C)
+	expected.Double(gnark, &circuit.A, fields.GetBLS377ExtensionFp12(gnark))
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -150,10 +150,10 @@ type g2DoubleAffine struct {
 	C G2Affine `gnark:",public"`
 }
 
-func (circuit *g2DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2DoubleAffine) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
-	expected.MustBeEqual(api, circuit.C)
+	expected.Double(gnark, &circuit.A, fields.GetBLS377ExtensionFp12(gnark))
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -188,10 +188,10 @@ type g2Neg struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2Neg) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2Neg) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := G2Jac{}
-	expected.Neg(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Neg(gnark, &circuit.A)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 

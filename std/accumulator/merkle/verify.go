@@ -52,7 +52,7 @@ import (
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Variable {
+func leafSum(gnark frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
 	h.Write(data)
 	res := h.Sum()
@@ -62,7 +62,7 @@ func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Var
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(api frontend.API, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
+func nodeSum(gnark frontend.API, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
 	h.Write(a, b)
 	//res := h.Sum(a, b)
@@ -132,18 +132,18 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(api frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(gnark frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
 
-	sum := leafSum(api, h, proofSet[0])
+	sum := leafSum(gnark, h, proofSet[0])
 
 	for i := 1; i < len(proofSet); i++ {
-		api.AssertIsBoolean(helper[i-1])
-		d1 := api.Select(helper[i-1], sum, proofSet[i])
-		d2 := api.Select(helper[i-1], proofSet[i], sum)
-		sum = nodeSum(api, h, d1, d2)
+		gnark.AssertIsBoolean(helper[i-1])
+		d1 := gnark.Select(helper[i-1], sum, proofSet[i])
+		d2 := gnark.Select(helper[i-1], proofSet[i], sum)
+		sum = nodeSum(gnark, h, d1, d2)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
-	api.AssertIsEqual(sum, merkleRoot)
+	gnark.AssertIsEqual(sum, merkleRoot)
 
 }

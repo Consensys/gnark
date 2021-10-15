@@ -20,7 +20,7 @@ type circuit struct {
 	E frontend.Variable
 }
 
-func (circuit *circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *circuit) Define(curveID ecc.ID, gnark frontend.API) error {
 	return nil
 }
 

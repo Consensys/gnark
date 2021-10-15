@@ -48,15 +48,15 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(gnark frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	sw.MillerLoop(api, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoop(gnark, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoop(api, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoop(gnark, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
@@ -68,23 +68,23 @@ func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKe
 	psi0.Y = innerVk.G1[0].Y
 
 	for k, v := range innerPubInputs {
-		tmp.ScalarMul(api, &innerVk.G1[k+1], v, 256)
-		psi0.AddAssign(api, &tmp)
+		tmp.ScalarMul(gnark, &innerVk.G1[k+1], v, 256)
+		psi0.AddAssign(gnark, &tmp)
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoop(api, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoop(gnark, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12
-	preFinalExpo.Mul(api, &eπCdelta, &eπAπB, pairingInfo.Extension).
-		Mul(api, &preFinalExpo, &epsigamma, pairingInfo.Extension)
+	preFinalExpo.Mul(gnark, &eπCdelta, &eπAπB, pairingInfo.Extension).
+		Mul(gnark, &preFinalExpo, &epsigamma, pairingInfo.Extension)
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExponentiation(api, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(gnark, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MustBeEqual(api, resPairing)
+	innerVk.E.MustBeEqual(gnark, resPairing)
 
 }

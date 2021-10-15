@@ -31,13 +31,13 @@ type MiMC struct {
 	id     ecc.ID              // id needed to know which encryption function to use
 	h      frontend.Variable   // current vector in the Miyaguchi–Preneel scheme
 	data   []frontend.Variable // state storage. data is updated when Write() is called. Sum sums the data.
-	api    frontend.API        // underlying constraint system
+	gnark  frontend.API        // underlying constraint system
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID, api frontend.API) (MiMC, error) {
+func NewMiMC(seed string, id ecc.ID, gnark frontend.API) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
-		return constructor(seed, api), nil
+		return constructor(seed, gnark), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
 }
@@ -50,7 +50,7 @@ func (h *MiMC) Write(data ...frontend.Variable) {
 // Reset resets the Hash to its initial state.
 func (h *MiMC) Reset() {
 	h.data = nil
-	h.h = h.api.Constant(0)
+	h.h = h.gnark.Constant(0)
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
@@ -61,8 +61,8 @@ func (h *MiMC) Sum() frontend.Variable {
 
 	//h.Write(data...)
 	for _, stream := range h.data {
-		h.h = encryptFuncs[h.id](h.api, *h, stream, h.h)
-		h.h = h.api.Add(h.h, stream)
+		h.h = encryptFuncs[h.id](h.gnark, *h, stream, h.h)
+		h.h = h.gnark.Add(h.h, stream)
 	}
 
 	h.data = nil // flush the data already hashed

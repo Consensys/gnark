@@ -54,13 +54,13 @@ type Transcript struct {
 	h hash.Hash
 
 	// underlying constraint system
-	api frontend.API
+	gnark frontend.API
 }
 
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(api frontend.API, h hash.Hash, challenges ...string) Transcript {
+func NewTranscript(gnark frontend.API, h hash.Hash, challenges ...string) Transcript {
 
 	var res Transcript
 
@@ -81,7 +81,7 @@ func NewTranscript(api frontend.API, h hash.Hash, challenges ...string) Transcri
 
 	res.h = h
 
-	res.api = api
+	res.gnark = gnark
 
 	return res
 }
@@ -126,7 +126,7 @@ func (m *Transcript) ComputeChallenge(challenge string) (frontend.Variable, erro
 	m.h.Reset()
 
 	// write the challenge name, the purpose is to have a domain separator
-	cChallenge := m.api.Constant([]byte(challenge))
+	cChallenge := m.gnark.Constant([]byte(challenge))
 	m.h.Write(cChallenge)
 
 	// write the previous challenge if it's not the first challenge

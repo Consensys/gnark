@@ -30,88 +30,88 @@ type Point struct {
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
 // -x^2 + y^2 = 1 + d*x^2*y^2.
-func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
+func (p *Point) MustBeOnCurve(gnark frontend.API, curve EdCurve) {
 
 	one := big.NewInt(1)
 
-	xx := api.Mul(p.X, p.X)
-	yy := api.Mul(p.Y, p.Y)
-	lhs := api.Sub(yy, xx)
+	xx := gnark.Mul(p.X, p.X)
+	yy := gnark.Mul(p.Y, p.Y)
+	lhs := gnark.Sub(yy, xx)
 
-	dxx := api.Mul(xx, &curve.D)
-	dxxyy := api.Mul(dxx, yy)
-	rhs := api.Add(dxxyy, one)
+	dxx := gnark.Mul(xx, &curve.D)
+	dxxyy := gnark.Mul(dxx, yy)
+	rhs := gnark.Add(dxxyy, one)
 
-	api.AssertIsEqual(lhs, rhs)
+	gnark.AssertIsEqual(lhs, rhs)
 
 }
 
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddFixedPoint(api frontend.API, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
+func (p *Point) AddFixedPoint(gnark frontend.API, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
-	n11 := api.Mul(p1.X, y)
-	n12 := api.Mul(p1.Y, x)
-	n1 := api.Add(n11, n12)
+	n11 := gnark.Mul(p1.X, y)
+	n12 := gnark.Mul(p1.Y, x)
+	n1 := gnark.Add(n11, n12)
 
-	n21 := api.Mul(p1.Y, y)
-	n22 := api.Mul(p1.X, x)
-	n2 := api.Add(n21, n22) // y**2-a*x**2, here we use a=-1
+	n21 := gnark.Mul(p1.Y, y)
+	n22 := gnark.Mul(p1.X, x)
+	n2 := gnark.Add(n21, n22) // y**2-a*x**2, here we use a=-1
 
-	d11 := api.Mul(curve.D, x, y, p1.X, p1.Y)
-	d1 := api.Add(1, d11)
-	d2 := api.Sub(1, d11)
+	d11 := gnark.Mul(curve.D, x, y, p1.X, p1.Y)
+	d1 := gnark.Add(1, d11)
+	d2 := gnark.Sub(1, d11)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = gnark.Div(n1, d1)
+	p.Y = gnark.Div(n2, d2)
 
 	return p
 }
 
 // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
+func (p *Point) AddGeneric(gnark frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
-	n11 := api.Mul(p1.X, p2.Y)
-	n12 := api.Mul(p1.Y, p2.X)
-	n1 := api.Add(n11, n12)
+	n11 := gnark.Mul(p1.X, p2.Y)
+	n12 := gnark.Mul(p1.Y, p2.X)
+	n1 := gnark.Add(n11, n12)
 
-	n21 := api.Mul(p1.Y, p2.Y)
-	n22 := api.Mul(p1.X, p2.X)
-	n2 := api.Add(n21, n22) // y**2-a*x**2, here we use a=-1
+	n21 := gnark.Mul(p1.Y, p2.Y)
+	n22 := gnark.Mul(p1.X, p2.X)
+	n2 := gnark.Add(n21, n22) // y**2-a*x**2, here we use a=-1
 
-	d11 := api.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
-	d1 := api.Add(1, d11)
+	d11 := gnark.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
+	d1 := gnark.Add(1, d11)
 
-	d2 := api.Sub(1, d11)
+	d2 := gnark.Sub(1, d11)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = gnark.Div(n1, d1)
+	p.Y = gnark.Div(n2, d2)
 
 	return p
 }
 
 // Double doubles a points in SNARK coordinates
 // IMPORTANT: it assumes the twisted Edwards is reduced (a=-1)
-func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
+func (p *Point) Double(gnark frontend.API, p1 *Point, curve EdCurve) *Point {
 
-	u := api.Mul(p1.X, p1.Y)
-	v := api.Mul(p1.X, p1.X)
-	w := api.Mul(p1.Y, p1.Y)
-	z := api.Mul(v, w) // x**2*y**2
+	u := gnark.Mul(p1.X, p1.Y)
+	v := gnark.Mul(p1.X, p1.X)
+	w := gnark.Mul(p1.Y, p1.Y)
+	z := gnark.Mul(v, w) // x**2*y**2
 
-	n1 := api.Mul(2, u)
-	n2 := api.Add(v, w)
-	d := api.Mul(z, curve.D)
-	d1 := api.Add(1, d)
-	d2 := api.Sub(1, d)
+	n1 := gnark.Mul(2, u)
+	n2 := gnark.Add(v, w)
+	d := gnark.Mul(z, curve.D)
+	d1 := gnark.Add(1, d)
+	d2 := gnark.Sub(1, d)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = gnark.Div(n1, d1)
+	p.Y = gnark.Div(n2, d2)
 
 	return p
 }
@@ -121,7 +121,7 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulNonFixedBase(gnark frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
@@ -131,19 +131,19 @@ func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar fronte
 	} else {
 		frSize = 256
 	}
-	b := api.ToBinary(scalar, frSize)
+	b := gnark.ToBinary(scalar, frSize)
 
 	res := Point{
-		api.Constant(0),
-		api.Constant(1),
+		gnark.Constant(0),
+		gnark.Constant(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
-		res.Double(api, &res, curve)
+		res.Double(gnark, &res, curve)
 		tmp := Point{}
-		tmp.AddGeneric(api, &res, p1, curve)
-		res.X = api.Select(b[i], tmp.X, res.X)
-		res.Y = api.Select(b[i], tmp.Y, res.Y)
+		tmp.AddGeneric(gnark, &res, p1, curve)
+		res.X = gnark.Select(b[i], tmp.X, res.X)
+		res.Y = gnark.Select(b[i], tmp.Y, res.Y)
 	}
 
 	p.X = res.X
@@ -156,7 +156,7 @@ func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar fronte
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulFixedBase(gnark frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
@@ -166,19 +166,19 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 	} else {
 		frSize = 256
 	}
-	b := api.ToBinary(scalar, frSize)
+	b := gnark.ToBinary(scalar, frSize)
 
 	res := Point{
-		api.Constant(0),
-		api.Constant(1),
+		gnark.Constant(0),
+		gnark.Constant(1),
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
-		res.Double(api, &res, curve)
+		res.Double(gnark, &res, curve)
 		tmp := Point{}
-		tmp.AddFixedPoint(api, &res, x, y, curve)
-		res.X = api.Select(b[i], tmp.X, res.X)
-		res.Y = api.Select(b[i], tmp.Y, res.Y)
+		tmp.AddFixedPoint(gnark, &res, x, y, curve)
+		res.X = gnark.Select(b[i], tmp.X, res.X)
+		res.Y = gnark.Select(b[i], tmp.Y, res.Y)
 	}
 
 	p.X = res.X
@@ -188,8 +188,8 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 }
 
 // Neg computes the negative of a point in SNARK coordinates
-func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
-	p.X = api.Neg(p1.X)
+func (p *Point) Neg(gnark frontend.API, p1 *Point) *Point {
+	p.X = gnark.Neg(p1.X)
 	p.Y = p1.Y
 	return p
 }

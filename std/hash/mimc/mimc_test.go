@@ -31,15 +31,15 @@ type mimcCircuit struct {
 	Data           frontend.Variable
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	mimc, err := NewMiMC("seed", curveID, api)
+func (circuit *mimcCircuit) Define(curveID ecc.ID, gnark frontend.API) error {
+	mimc, err := NewMiMC("seed", curveID, gnark)
 	if err != nil {
 		return err
 	}
 	//result := mimc.Sum(circuit.Data)
 	mimc.Write(circuit.Data)
 	result := mimc.Sum()
-	api.AssertIsEqual(result, circuit.ExpectedResult)
+	gnark.AssertIsEqual(result, circuit.ExpectedResult)
 	return nil
 }
 

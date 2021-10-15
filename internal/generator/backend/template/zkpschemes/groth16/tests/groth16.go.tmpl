@@ -25,11 +25,11 @@ type refCircuit struct {
 	Y frontend.Variable  `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *refCircuit) Define(curveID ecc.ID, gnark frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
-		circuit.X = cs.Mul(circuit.X, circuit.X)
+		circuit.X = gnark.Mul(circuit.X, circuit.X)
 	}
-	cs.AssertIsEqual(circuit.X, circuit.Y)
+	gnark.AssertIsEqual(circuit.X, circuit.Y)
 	return nil 
 }
 

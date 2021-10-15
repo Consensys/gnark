@@ -105,7 +105,7 @@ func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 
 // Assign v = value . This must called when using a Circuit as a witness data structure
 //
-// Deprecated: prefer the use of variable.WitnessValue = value
+// Prefer the use of variable.WitnessValue = value
 func (v *Variable) Assign(value interface{}) {
 	if v.WitnessValue != nil {
 		panic("variable already assigned")

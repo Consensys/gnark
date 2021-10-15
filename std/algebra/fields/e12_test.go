@@ -35,10 +35,10 @@ type fp12Add struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Add) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12Add) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	expected.Add(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Add(gnark, &circuit.A, &circuit.B)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -66,10 +66,10 @@ type fp12Sub struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Sub) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12Sub) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	expected.Sub(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Sub(gnark, &circuit.A, &circuit.B)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -97,11 +97,11 @@ type fp12Mul struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Mul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12Mul) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
-	expected.Mul(api, &circuit.A, &circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	ext := GetBLS377ExtensionFp12(gnark)
+	expected.Mul(gnark, &circuit.A, &circuit.B, ext)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -129,10 +129,10 @@ type fp12Square struct {
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12Square) Define(curveID ecc.ID, api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
-	s := circuit.A.Square(api, &circuit.A, ext)
-	s.MustBeEqual(api, *s)
+func (circuit *fp12Square) Define(curveID ecc.ID, gnark frontend.API) error {
+	ext := GetBLS377ExtensionFp12(gnark)
+	s := circuit.A.Square(gnark, &circuit.A, ext)
+	s.MustBeEqual(gnark, *s)
 	return nil
 }
 
@@ -159,13 +159,13 @@ type fp12CycloSquare struct {
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12CycloSquare) Define(curveID ecc.ID, api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+func (circuit *fp12CycloSquare) Define(curveID ecc.ID, gnark frontend.API) error {
+	ext := GetBLS377ExtensionFp12(gnark)
 	var u, v E12
-	u.Square(api, &circuit.A, ext)
-	v.CyclotomicSquare(api, &circuit.A, ext)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u.Square(gnark, &circuit.A, ext)
+	v.CyclotomicSquare(gnark, &circuit.A, ext)
+	u.MustBeEqual(gnark, v)
+	u.MustBeEqual(gnark, circuit.B)
 	return nil
 }
 
@@ -199,10 +199,10 @@ type fp12Conjugate struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Conjugate) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12Conjugate) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	expected.Conjugate(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Conjugate(gnark, &circuit.A)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -228,19 +228,19 @@ type fp12Frobenius struct {
 	C, D, E E12 `gnark:",public"`
 }
 
-func (circuit *fp12Frobenius) Define(curveID ecc.ID, api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+func (circuit *fp12Frobenius) Define(curveID ecc.ID, gnark frontend.API) error {
+	ext := GetBLS377ExtensionFp12(gnark)
 	fb := E12{}
-	fb.Frobenius(api, &circuit.A, ext)
-	fb.MustBeEqual(api, circuit.C)
+	fb.Frobenius(gnark, &circuit.A, ext)
+	fb.MustBeEqual(gnark, circuit.C)
 
 	fbSquare := E12{}
-	fbSquare.FrobeniusSquare(api, &circuit.A, ext)
-	fbSquare.MustBeEqual(api, circuit.D)
+	fbSquare.FrobeniusSquare(gnark, &circuit.A, ext)
+	fbSquare.MustBeEqual(gnark, circuit.D)
 
 	fbCube := E12{}
-	fbCube.FrobeniusCube(api, &circuit.A, ext)
-	fbCube.MustBeEqual(api, circuit.E)
+	fbCube.FrobeniusCube(gnark, &circuit.A, ext)
+	fbCube.MustBeEqual(gnark, circuit.E)
 	return nil
 }
 
@@ -270,11 +270,11 @@ type fp12Inverse struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Inverse) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12Inverse) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
-	expected.Inverse(api, &circuit.A, ext)
-	expected.MustBeEqual(api, circuit.C)
+	ext := GetBLS377ExtensionFp12(gnark)
+	expected.Inverse(gnark, &circuit.A, ext)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -300,12 +300,12 @@ type fp12FixedExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FixedExpo) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12FixedExpo) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS377ExtensionFp12(gnark)
 	expo := uint64(9586122913090633729)
-	expected.FixedExponentiation(api, &circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected.FixedExponentiation(gnark, &circuit.A, expo, ext)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -332,12 +332,12 @@ type fp12FinalExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FinalExpo) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp12FinalExpo) Define(curveID ecc.ID, gnark frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS377ExtensionFp12(gnark)
 	expo := uint64(9586122913090633729)
-	expected.FinalExponentiation(api, &circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected.FinalExponentiation(gnark, &circuit.A, expo, ext)
+	expected.MustBeEqual(gnark, circuit.C)
 	return nil
 }
 
@@ -365,10 +365,10 @@ type fp12MulBy034 struct {
 	B, C, D E2
 }
 
-func (circuit *fp12MulBy034) Define(curveID ecc.ID, api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
-	circuit.A.MulBy034(api, &circuit.B, &circuit.C, &circuit.D, ext)
-	circuit.A.MustBeEqual(api, circuit.W)
+func (circuit *fp12MulBy034) Define(curveID ecc.ID, gnark frontend.API) error {
+	ext := GetBLS377ExtensionFp12(gnark)
+	circuit.A.MulBy034(gnark, &circuit.B, &circuit.C, &circuit.D, ext)
+	circuit.A.MustBeEqual(gnark, circuit.W)
 	return nil
 }
 

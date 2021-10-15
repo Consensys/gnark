@@ -33,10 +33,10 @@ type FiatShamirCircuit struct {
 	Challenges [3]frontend.Variable    `gnark:",secret"`
 }
 
-func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, gnark frontend.API) error {
 
 	// create the hash function
-	hSnark, err := mimc.NewMiMC("seed", ecc.BN254, api)
+	hSnark, err := mimc.NewMiMC("seed", ecc.BN254, gnark)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, api frontend.API) error
 	alpha, beta, gamma := getChallenges()
 
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
+	tsSnark := NewTranscript(gnark, &hSnark, alpha, beta, gamma)
 
 	// Bind challenges
 	tsSnark.Bind(alpha, circuit.Bindings[0][:])
@@ -68,9 +68,9 @@ func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, api frontend.API) error
 	}
 
 	// // check equality between expected values
-	api.AssertIsEqual(challenges[0], circuit.Challenges[0])
-	api.AssertIsEqual(challenges[1], circuit.Challenges[1])
-	api.AssertIsEqual(challenges[2], circuit.Challenges[2])
+	gnark.AssertIsEqual(challenges[0], circuit.Challenges[0])
+	gnark.AssertIsEqual(challenges[1], circuit.Challenges[1])
+	gnark.AssertIsEqual(challenges[2], circuit.Challenges[2])
 
 	return nil
 }

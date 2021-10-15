@@ -35,12 +35,12 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	hFunc, err := mimc.NewMiMC("seed", curveID, api)
+func (circuit *merkleCircuit) Define(curveID ecc.ID, gnark frontend.API) error {
+	hFunc, err := mimc.NewMiMC("seed", curveID, gnark)
 	if err != nil {
 		return err
 	}
-	VerifyProof(api, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
+	VerifyProof(gnark, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
 	return nil
 }
 
