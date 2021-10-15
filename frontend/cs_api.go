@@ -24,7 +24,7 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
 	var res Variable
 	res.linExp = make(compiled.LinearExpression, 0, 2+len(in))
@@ -51,7 +51,7 @@ func (cs *ConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // Neg returns -i
-func (cs *ConstraintSystem) Neg(i interface{}) Variable {
+func (cs *constraintSystem) Neg(i interface{}) Variable {
 
 	var res Variable
 
@@ -70,7 +70,7 @@ func (cs *ConstraintSystem) Neg(i interface{}) Variable {
 }
 
 // returns -le, the result is a copy
-func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
+func (cs *constraintSystem) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
 	res := make(compiled.LinearExpression, len(l))
 	var coeff, coeffCopy big.Int
 	for i, t := range l {
@@ -83,7 +83,7 @@ func (cs *ConstraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 }
 
 // Sub returns res = i1 - i2
-func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
+func (cs *constraintSystem) Sub(i1, i2 interface{}) Variable {
 
 	var res Variable
 	res.linExp = make(compiled.LinearExpression, 0, 2)
@@ -113,7 +113,7 @@ func (cs *ConstraintSystem) Sub(i1, i2 interface{}) Variable {
 	return res
 }
 
-func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
+func (cs *constraintSystem) mulConstant(i interface{}, v Variable) Variable {
 	var linExp compiled.LinearExpression
 	var newCoeff big.Int
 
@@ -140,7 +140,7 @@ func (cs *ConstraintSystem) mulConstant(i interface{}, v Variable) Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 
 	mul := func(_i1, _i2 interface{}) Variable {
 		var _res Variable
@@ -183,7 +183,7 @@ func (cs *ConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // Inverse returns res = inverse(v)
-func (cs *ConstraintSystem) Inverse(v Variable) Variable {
+func (cs *constraintSystem) Inverse(v Variable) Variable {
 	v.assertIsSet(cs)
 
 	// allocate resulting variable
@@ -197,7 +197,7 @@ func (cs *ConstraintSystem) Inverse(v Variable) Variable {
 }
 
 // Div returns res = i1 / i2
-func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
+func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
@@ -212,7 +212,7 @@ func (cs *ConstraintSystem) Div(i1, i2 interface{}) Variable {
 }
 
 // Xor compute the XOR between two variables
-func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
+func (cs *constraintSystem) Xor(a, b Variable) Variable {
 
 	a.assertIsSet(cs)
 	b.assertIsSet(cs)
@@ -231,7 +231,7 @@ func (cs *ConstraintSystem) Xor(a, b Variable) Variable {
 }
 
 // Or compute the OR between two variables
-func (cs *ConstraintSystem) Or(a, b Variable) Variable {
+func (cs *constraintSystem) Or(a, b Variable) Variable {
 
 	a.assertIsSet(cs)
 	b.assertIsSet(cs)
@@ -249,7 +249,7 @@ func (cs *ConstraintSystem) Or(a, b Variable) Variable {
 }
 
 // And compute the AND between two variables
-func (cs *ConstraintSystem) And(a, b Variable) Variable {
+func (cs *constraintSystem) And(a, b Variable) Variable {
 
 	a.assertIsSet(cs)
 	b.assertIsSet(cs)
@@ -263,7 +263,7 @@ func (cs *ConstraintSystem) And(a, b Variable) Variable {
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *ConstraintSystem) IsZero(a Variable) Variable {
+func (cs *constraintSystem) IsZero(a Variable) Variable {
 	a.assertIsSet(cs)
 	debug := cs.addDebugInfo("isZero", a)
 
@@ -287,7 +287,7 @@ func (cs *ConstraintSystem) IsZero(a Variable) Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
+func (cs *constraintSystem) ToBinary(a Variable, n ...int) []Variable {
 	// ensure a is set
 	a.assertIsSet(cs)
 
@@ -325,7 +325,7 @@ func (cs *ConstraintSystem) ToBinary(a Variable, n ...int) []Variable {
 }
 
 // toBinaryUnsafe is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
+func (cs *constraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 	// ensure a is set
 	a.assertIsSet(cs)
 
@@ -357,7 +357,7 @@ func (cs *ConstraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
+func (cs *constraintSystem) FromBinary(b ...Variable) Variable {
 	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
 		b[i].assertIsSet(cs)
@@ -383,7 +383,7 @@ func (cs *ConstraintSystem) FromBinary(b ...Variable) Variable {
 }
 
 // Select if b is true, yields i1 else yields i2
-func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
+func (cs *constraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 
 	b.assertIsSet(cs)
 
@@ -425,7 +425,7 @@ func (cs *ConstraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 // Constant will return (and allocate if neccesary) a constant Variable
 //
 // input can be a Variable or must be convertible to big.Int (see FromInterface)
-func (cs *ConstraintSystem) Constant(input interface{}) Variable {
+func (cs *constraintSystem) Constant(input interface{}) Variable {
 
 	switch t := input.(type) {
 	case Variable:

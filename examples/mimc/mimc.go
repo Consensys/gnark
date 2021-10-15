@@ -31,7 +31,7 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // Hash = mimc(PreImage)
-func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs frontend.API) error {
 	// hash function
 	mimc, _ := mimc.NewMiMC("seed", curveID, cs)
 

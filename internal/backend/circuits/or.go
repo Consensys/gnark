@@ -11,7 +11,7 @@ type orCircuit struct {
 	Res   [4]frontend.Variable
 }
 
-func (circuit *orCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *orCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	a := cs.Or(circuit.Left[0], circuit.Right[0])
 	b := cs.Or(circuit.Left[1], circuit.Right[1])
 	c := cs.Or(circuit.Left[2], circuit.Right[2])

@@ -10,7 +10,7 @@ type negCircuit struct {
 	Z frontend.Variable `gnark:",public"`
 }
 
-func (circuit *negCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *negCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	a := cs.Mul(circuit.X, circuit.X)
 	b := cs.Neg(circuit.X)
 	c := cs.Add(a, b)

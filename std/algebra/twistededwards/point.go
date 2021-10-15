@@ -30,7 +30,7 @@ type Point struct {
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
 // -x^2 + y^2 = 1 + d*x^2*y^2.
-func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
+func (p *Point) MustBeOnCurve(cs frontend.API, curve EdCurve) {
 
 	one := big.NewInt(1)
 
@@ -48,7 +48,7 @@ func (p *Point) MustBeOnCurve(cs *frontend.ConstraintSystem, curve EdCurve) {
 
 // AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
 // p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
+func (p *Point) AddFixedPoint(cs frontend.API, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
@@ -72,7 +72,7 @@ func (p *Point) AddFixedPoint(cs *frontend.ConstraintSystem, p1 *Point /*basex*/
 
 // AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve EdCurve) *Point {
+func (p *Point) AddGeneric(cs frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
@@ -97,7 +97,7 @@ func (p *Point) AddGeneric(cs *frontend.ConstraintSystem, p1, p2 *Point, curve E
 
 // Double doubles a points in SNARK coordinates
 // IMPORTANT: it assumes the twisted Edwards is reduced (a=-1)
-func (p *Point) Double(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) *Point {
+func (p *Point) Double(cs frontend.API, p1 *Point, curve EdCurve) *Point {
 
 	u := cs.Mul(p1.X, p1.Y)
 	v := cs.Mul(p1.X, p1.X)
@@ -121,7 +121,7 @@ func (p *Point) Double(cs *frontend.ConstraintSystem, p1 *Point, curve EdCurve) 
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulNonFixedBase(cs *frontend.ConstraintSystem, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulNonFixedBase(cs frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
@@ -156,7 +156,7 @@ func (p *Point) ScalarMulNonFixedBase(cs *frontend.ConstraintSystem, p1 *Point, 
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulFixedBase(cs frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	// TODO handle this properly (put the size in curve struct probably)
@@ -188,7 +188,7 @@ func (p *Point) ScalarMulFixedBase(cs *frontend.ConstraintSystem, x, y interface
 }
 
 // Neg computes the negative of a point in SNARK coordinates
-func (p *Point) Neg(cs *frontend.ConstraintSystem, p1 *Point) *Point {
+func (p *Point) Neg(cs frontend.API, p1 *Point) *Point {
 	p.X = cs.Neg(p1.X)
 	p.Y = p1.Y
 	return p

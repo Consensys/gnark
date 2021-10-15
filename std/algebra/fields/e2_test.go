@@ -28,10 +28,10 @@ import (
 
 type e2TestCircuit struct {
 	A, B, C E2
-	define  func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error
+	define  func(curveID ecc.ID, cs frontend.API, A, B, C E2) error
 }
 
-func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	return circuit.define(curveID, cs, circuit.A, circuit.B, circuit.C)
 }
 
@@ -39,7 +39,7 @@ func TestAddFp2(t *testing.T) {
 
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
 			expected := E2{}
 			expected.Add(cs, &A, &B)
 			expected.MustBeEqual(cs, C)
@@ -69,7 +69,7 @@ func TestSubFp2(t *testing.T) {
 
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
 			expected := E2{}
 			expected.Sub(cs, &A, &B)
 			expected.MustBeEqual(cs, C)
@@ -98,7 +98,7 @@ func TestSubFp2(t *testing.T) {
 func TestMulFp2(t *testing.T) {
 	// test circuit
 	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
+		define: func(curveID ecc.ID, cs frontend.API, A, B, C E2) error {
 			ext := Extension{uSquare: -5}
 			expected := E2{}
 			expected.Mul(cs, &A, &B, ext)
@@ -130,7 +130,7 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E2{}
 	expected.MulByFp(cs, &circuit.A, circuit.B)
 
@@ -164,7 +164,7 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E2{}
 	expected.Conjugate(cs, &circuit.A)
 
@@ -194,7 +194,7 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Inverse) Define(curveID ecc.ID, cs frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
 	expected.Inverse(cs, &circuit.A, ext)

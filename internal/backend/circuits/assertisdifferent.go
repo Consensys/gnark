@@ -12,7 +12,7 @@ type assertIsDifferentCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *assertIsDifferentCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *assertIsDifferentCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	m := cs.Mul(circuit.X, circuit.X)
 	cs.AssertIsDifferent(m, circuit.Y)
 	return nil

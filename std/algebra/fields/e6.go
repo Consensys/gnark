@@ -27,7 +27,7 @@ type E6 struct {
 }
 
 // Add creates a fp6elmt from fp elmts
-func (e *E6) Add(cs *frontend.ConstraintSystem, e1, e2 *E6) *E6 {
+func (e *E6) Add(cs frontend.API, e1, e2 *E6) *E6 {
 
 	e.B0.Add(cs, &e1.B0, &e2.B0)
 	e.B1.Add(cs, &e1.B1, &e2.B1)
@@ -37,7 +37,7 @@ func (e *E6) Add(cs *frontend.ConstraintSystem, e1, e2 *E6) *E6 {
 }
 
 // NewFp6Zero creates a new
-func NewFp6Zero(cs *frontend.ConstraintSystem) E6 {
+func NewFp6Zero(cs frontend.API) E6 {
 	return E6{
 		B0: E2{cs.Constant(0), cs.Constant(0)},
 		B1: E2{cs.Constant(0), cs.Constant(0)},
@@ -46,7 +46,7 @@ func NewFp6Zero(cs *frontend.ConstraintSystem) E6 {
 }
 
 // Sub creates a fp6elmt from fp elmts
-func (e *E6) Sub(cs *frontend.ConstraintSystem, e1, e2 *E6) *E6 {
+func (e *E6) Sub(cs frontend.API, e1, e2 *E6) *E6 {
 
 	e.B0.Sub(cs, &e1.B0, &e2.B0)
 	e.B1.Sub(cs, &e1.B1, &e2.B1)
@@ -56,7 +56,7 @@ func (e *E6) Sub(cs *frontend.ConstraintSystem, e1, e2 *E6) *E6 {
 }
 
 // Neg negates an Fp6 elmt
-func (e *E6) Neg(cs *frontend.ConstraintSystem, e1 *E6) *E6 {
+func (e *E6) Neg(cs frontend.API, e1 *E6) *E6 {
 	e.B0.Neg(cs, &e1.B0)
 	e.B1.Neg(cs, &e1.B1)
 	e.B2.Neg(cs, &e1.B2)
@@ -65,7 +65,7 @@ func (e *E6) Neg(cs *frontend.ConstraintSystem, e1 *E6) *E6 {
 
 // Mul creates a fp6elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *E6) Mul(cs *frontend.ConstraintSystem, e1, e2 *E6, ext Extension) *E6 {
+func (e *E6) Mul(cs frontend.API, e1, e2 *E6, ext Extension) *E6 {
 
 	// notations: (a+bv+cv2)*(d+ev+fe2)
 	var ad, bf, ce E2
@@ -92,7 +92,7 @@ func (e *E6) Mul(cs *frontend.ConstraintSystem, e1, e2 *E6, ext Extension) *E6 {
 
 // MulByFp2 creates a fp6elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *E6) MulByFp2(cs *frontend.ConstraintSystem, e1 *E6, e2 *E2, ext Extension) *E6 {
+func (e *E6) MulByFp2(cs frontend.API, e1 *E6, e2 *E2, ext Extension) *E6 {
 	res := E6{}
 
 	res.B0.Mul(cs, &e1.B0, e2, ext)
@@ -107,7 +107,7 @@ func (e *E6) MulByFp2(cs *frontend.ConstraintSystem, e1 *E6, e2 *E2, ext Extensi
 }
 
 // MulByNonResidue multiplies e by the imaginary elmt of Fp6 (noted a+bV+cV where V**3 in F^2)
-func (e *E6) MulByNonResidue(cs *frontend.ConstraintSystem, e1 *E6, ext Extension) *E6 {
+func (e *E6) MulByNonResidue(cs frontend.API, e1 *E6, ext Extension) *E6 {
 	res := E6{}
 	res.B0.Mul(cs, &e1.B2, ext.vCube, ext)
 	e.B1 = e1.B0
@@ -117,7 +117,7 @@ func (e *E6) MulByNonResidue(cs *frontend.ConstraintSystem, e1 *E6, ext Extensio
 }
 
 // Inverse inverses an Fp2 elmt
-func (e *E6) Inverse(cs *frontend.ConstraintSystem, e1 *E6, ext Extension) *E6 {
+func (e *E6) Inverse(cs frontend.API, e1 *E6, ext Extension) *E6 {
 
 	var t [7]E2
 	var c [3]E2
@@ -164,7 +164,7 @@ func (e *E6) Assign(a *bls12377.E6) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E6) MustBeEqual(cs *frontend.ConstraintSystem, other E6) {
+func (e *E6) MustBeEqual(cs frontend.API, other E6) {
 	e.B0.MustBeEqual(cs, other.B0)
 	e.B1.MustBeEqual(cs, other.B1)
 	e.B2.MustBeEqual(cs, other.B2)

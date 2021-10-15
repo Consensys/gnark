@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-func getBLS377ExtensionFp6(cs *frontend.ConstraintSystem) Extension {
+func getBLS377ExtensionFp6(cs frontend.API) Extension {
 	res := Extension{}
 	res.uSquare = -5
 	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
@@ -40,7 +40,7 @@ type fp6Add struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Add) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E6{}
 	expected.Add(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -71,7 +71,7 @@ type fp6Sub struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Sub) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E6{}
 	expected.Sub(cs, &circuit.A, &circuit.B)
 	expected.MustBeEqual(cs, circuit.C)
@@ -102,7 +102,7 @@ type fp6Mul struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Mul) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Mul(cs, &circuit.A, &circuit.B, ext)
@@ -134,7 +134,7 @@ type fp6MulByNonResidue struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.MulByNonResidue(cs, &circuit.A, ext)
@@ -166,7 +166,7 @@ type fp6Inverse struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Inverse) Define(curveID ecc.ID, cs frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(cs)
 	expected.Inverse(cs, &circuit.A, ext)

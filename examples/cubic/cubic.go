@@ -30,7 +30,7 @@ type Circuit struct {
 
 // Define declares the circuit constraints
 // x**3 + x + 5 == y
-func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs frontend.API) error {
 	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
 	cs.AssertIsEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
 	return nil

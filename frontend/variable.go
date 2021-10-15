@@ -50,7 +50,7 @@ type Variable struct {
 // var a Variable
 // cs.Mul(a, 1)
 // since a was not in the circuit struct it is not a secret variable
-func (v *Variable) assertIsSet(cs *ConstraintSystem) {
+func (v *Variable) assertIsSet(cs *constraintSystem) {
 	if v.WitnessValue != nil {
 		var l compiled.LogEntry
 		var sbb strings.Builder

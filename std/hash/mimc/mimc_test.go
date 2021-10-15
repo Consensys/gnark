@@ -31,7 +31,7 @@ type mimcCircuit struct {
 	Data           frontend.Variable
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mimcCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	mimc, err := NewMiMC("seed", curveID, cs)
 	if err != nil {
 		return err

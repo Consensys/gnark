@@ -122,7 +122,7 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 	}
 }
 
-func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {

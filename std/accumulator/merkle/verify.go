@@ -52,7 +52,7 @@ import (
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(cs *frontend.ConstraintSystem, h mimc.MiMC, data frontend.Variable) frontend.Variable {
+func leafSum(cs frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Variable {
 
 	h.Write(data)
 	res := h.Sum()
@@ -62,7 +62,7 @@ func leafSum(cs *frontend.ConstraintSystem, h mimc.MiMC, data frontend.Variable)
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(cs *frontend.ConstraintSystem, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
+func nodeSum(cs frontend.API, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
 
 	h.Write(a, b)
 	//res := h.Sum(a, b)
@@ -132,7 +132,7 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(cs *frontend.ConstraintSystem, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(cs frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
 
 	sum := leafSum(cs, h, proofSet[0])
 

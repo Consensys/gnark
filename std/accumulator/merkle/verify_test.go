@@ -35,7 +35,7 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *merkleCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	hFunc, err := mimc.NewMiMC("seed", curveID, cs)
 	if err != nil {
 		return err

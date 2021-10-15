@@ -43,7 +43,7 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mimcCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	mimc, err := mimc.NewMiMC("seed", curveID, cs)
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *verifierCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)

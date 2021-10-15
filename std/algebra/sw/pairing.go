@@ -36,7 +36,7 @@ type lineEvaluation struct {
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoop(cs frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -89,7 +89,7 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 
 // DoubleStep doubles a point in Homogenous projective coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) DoubleStep(cs *frontend.ConstraintSystem, evaluation *lineEvaluation, pairingInfo PairingContext) {
+func (p *G2Proj) DoubleStep(cs frontend.API, evaluation *lineEvaluation, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var t0, t1, A, B, C, D, E, EE, F, G, H, I, J, K fields.E2
@@ -132,7 +132,7 @@ func (p *G2Proj) DoubleStep(cs *frontend.ConstraintSystem, evaluation *lineEvalu
 
 // AddMixedStep point addition in Mixed Homogenous projective and Affine coordinates
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) AddMixedStep(cs *frontend.ConstraintSystem, evaluation *lineEvaluation, a *G2Affine, pairingInfo PairingContext) {
+func (p *G2Proj) AddMixedStep(cs frontend.API, evaluation *lineEvaluation, a *G2Affine, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var Y2Z1, X2Z1, O, L, C, D, E, F, G, H, t0, t1, t2, J fields.E2

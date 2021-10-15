@@ -17,7 +17,7 @@ import (
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
+func (cs *constraintSystem) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -94,7 +94,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 	sbb.WriteByte('}')
 }
 
-func (cs *ConstraintSystem) addDebugInfo(errName string, i ...interface{}) int {
+func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 	var debug compiled.LogEntry
 
 	// TODO @gbotrel reserve capacity for the string builder

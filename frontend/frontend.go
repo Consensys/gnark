@@ -59,7 +59,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs ConstraintSystem, err error) {
+func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
 	// recover from panics to print user-friendlier messages
 	defer func() {
 		if r := recover(); r != nil {

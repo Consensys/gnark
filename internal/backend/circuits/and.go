@@ -9,7 +9,7 @@ type andCircuit struct {
 	Op1, Op2, Res frontend.Variable
 }
 
-func (circuit *andCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *andCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	d := cs.And(circuit.Op1, circuit.Op2)
 
 	cs.AssertIsEqual(d, circuit.Res)

@@ -43,7 +43,7 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 2

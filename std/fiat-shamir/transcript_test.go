@@ -33,7 +33,7 @@ type FiatShamirCircuit struct {
 	Challenges [3]frontend.Variable    `gnark:",secret"`
 }
 
-func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// create the hash function
 	hSnark, err := mimc.NewMiMC("seed", ecc.BN254, cs)

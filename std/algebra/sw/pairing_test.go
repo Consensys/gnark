@@ -33,7 +33,7 @@ type pairingBLS377 struct {
 	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingBLS377) Define(curveID ecc.ID, cs frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(cs)
@@ -77,7 +77,7 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls1237
 	return
 }
 
-func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls12377.GT) {
+func mustbeEq(cs frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
 	cs.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	cs.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	cs.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)

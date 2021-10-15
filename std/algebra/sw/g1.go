@@ -36,7 +36,7 @@ type G1Affine struct {
 }
 
 // Neg outputs -p
-func (p *G1Jac) Neg(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) Neg(cs frontend.API, p1 *G1Jac) *G1Jac {
 	p.X = p1.X
 	p.Y = cs.Sub(0, p1.Y)
 	p.Z = p1.Z
@@ -44,14 +44,14 @@ func (p *G1Jac) Neg(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
 }
 
 // Neg outputs -p
-func (p *G1Affine) Neg(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Neg(cs frontend.API, p1 *G1Affine) *G1Affine {
 	p.X = p1.X
 	p.Y = cs.Sub(0, p1.Y)
 	return p
 }
 
 // AddAssign adds p1 to p using the affine formulas with division, and return p
-func (p *G1Affine) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) AddAssign(cs frontend.API, p1 *G1Affine) *G1Affine {
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 
@@ -78,7 +78,7 @@ func (p *G1Affine) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Aff
 }
 
 // AssignToRefactor sets p to p1 and return it
-func (p *G1Jac) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AssignToRefactor(cs frontend.API, p1 *G1Jac) *G1Jac {
 	p.X = cs.Constant(p1.X)
 	p.Y = cs.Constant(p1.Y)
 	p.Z = cs.Constant(p1.Z)
@@ -86,7 +86,7 @@ func (p *G1Jac) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Ja
 }
 
 // AssignToRefactor sets p to p1 and return it
-func (p *G1Affine) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) AssignToRefactor(cs frontend.API, p1 *G1Affine) *G1Affine {
 	p.X = cs.Constant(p1.X)
 	p.Y = cs.Constant(p1.Y)
 	return p
@@ -94,7 +94,7 @@ func (p *G1Affine) AssignToRefactor(cs *frontend.ConstraintSystem, p1 *G1Affine)
 
 // AddAssign adds 2 point in Jacobian coordinates
 // p=p, a=p1
-func (p *G1Jac) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AddAssign(cs frontend.API, p1 *G1Jac) *G1Jac {
 
 	// get some Element from our pool
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
@@ -148,7 +148,7 @@ func (p *G1Jac) AddAssign(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Jac {
 }
 
 // DoubleAssign doubles the receiver point in jacobian coords and returns it
-func (p *G1Jac) DoubleAssign(cs *frontend.ConstraintSystem) *G1Jac {
+func (p *G1Jac) DoubleAssign(cs frontend.API) *G1Jac {
 	// get some Element from our pool
 	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
 
@@ -178,7 +178,7 @@ func (p *G1Jac) DoubleAssign(cs *frontend.ConstraintSystem) *G1Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G1Affine) Select(cs *frontend.ConstraintSystem, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
+func (p *G1Affine) Select(cs frontend.API, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
 
 	p.X = cs.Select(b, p1.X, p2.X)
 	p.Y = cs.Select(b, p1.Y, p2.Y)
@@ -188,7 +188,7 @@ func (p *G1Affine) Select(cs *frontend.ConstraintSystem, b frontend.Variable, p1
 }
 
 // FromJac sets p to p1 in affine and returns it
-func (p *G1Affine) FromJac(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Affine {
+func (p *G1Affine) FromJac(cs frontend.API, p1 *G1Jac) *G1Affine {
 	s := cs.Mul(p1.Z, p1.Z)
 	p.X = cs.Div(p1.X, s)
 	p.Y = cs.Div(p1.Y, cs.Mul(s, p1.Z))
@@ -196,7 +196,7 @@ func (p *G1Affine) FromJac(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Affine {
 }
 
 // Double double a point in affine coords
-func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Double(cs frontend.API, p1 *G1Affine) *G1Affine {
 
 	var t, d, c1, c2, c3 big.Int
 	t.SetInt64(3)
@@ -235,7 +235,7 @@ func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine
 // n is the number of bits used for the scalar mul.
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
-func (p *G1Affine) ScalarMul(cs *frontend.ConstraintSystem, p1 *G1Affine, s interface{}, n int) *G1Affine {
+func (p *G1Affine) ScalarMul(cs frontend.API, p1 *G1Affine, s interface{}, n int) *G1Affine {
 
 	scalar := cs.Constant(s)
 
@@ -279,7 +279,7 @@ func (p *G1Jac) Assign(p1 *bls12377.G1Jac) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Jac) MustBeEqual(cs *frontend.ConstraintSystem, other G1Jac) {
+func (p *G1Jac) MustBeEqual(cs frontend.API, other G1Jac) {
 	cs.AssertIsEqual(p.X, other.X)
 	cs.AssertIsEqual(p.Y, other.Y)
 	cs.AssertIsEqual(p.Z, other.Z)
@@ -292,7 +292,7 @@ func (p *G1Affine) Assign(p1 *bls12377.G1Affine) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Affine) MustBeEqual(cs *frontend.ConstraintSystem, other G1Affine) {
+func (p *G1Affine) MustBeEqual(cs frontend.API, other G1Affine) {
 	cs.AssertIsEqual(p.X, other.X)
 	cs.AssertIsEqual(p.Y, other.Y)
 }

@@ -29,28 +29,28 @@ type E2 struct {
 }
 
 // Neg negates a e2 elmt
-func (e *E2) Neg(cs *frontend.ConstraintSystem, e1 *E2) *E2 {
+func (e *E2) Neg(cs frontend.API, e1 *E2) *E2 {
 	e.A0 = cs.Sub(0, e1.A0)
 	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
 // Add e2 elmts
-func (e *E2) Add(cs *frontend.ConstraintSystem, e1, e2 *E2) *E2 {
+func (e *E2) Add(cs frontend.API, e1, e2 *E2) *E2 {
 	e.A0 = cs.Add(e1.A0, e2.A0)
 	e.A1 = cs.Add(e1.A1, e2.A1)
 	return e
 }
 
 // Sub e2 elmts
-func (e *E2) Sub(cs *frontend.ConstraintSystem, e1, e2 *E2) *E2 {
+func (e *E2) Sub(cs frontend.API, e1, e2 *E2) *E2 {
 	e.A0 = cs.Sub(e1.A0, e2.A0)
 	e.A1 = cs.Sub(e1.A1, e2.A1)
 	return e
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
+func (e *E2) Mul(cs frontend.API, e1, e2 *E2, ext Extension) *E2 {
 
 	// 1C
 	l1 := cs.Add(e1.A0, e1.A1)
@@ -78,7 +78,7 @@ func (e *E2) Mul(cs *frontend.ConstraintSystem, e1, e2 *E2, ext Extension) *E2 {
 }
 
 // Square e2 elt
-func (z *E2) Square(cs *frontend.ConstraintSystem, x *E2, ext Extension) *E2 {
+func (z *E2) Square(cs frontend.API, x *E2, ext Extension) *E2 {
 	//algo 22 https://eprint.iacr.org/2010/354.pdf
 	c0 := cs.Add(x.A0, x.A1)
 	buSquare := frontend.FromInterface(ext.uSquare)
@@ -96,7 +96,7 @@ func (z *E2) Square(cs *frontend.ConstraintSystem, x *E2, ext Extension) *E2 {
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
-func (e *E2) MulByFp(cs *frontend.ConstraintSystem, e1 *E2, c interface{}) *E2 {
+func (e *E2) MulByFp(cs frontend.API, e1 *E2, c interface{}) *E2 {
 	e.A0 = cs.Mul(e1.A0, c)
 	e.A1 = cs.Mul(e1.A1, c)
 	return e
@@ -104,7 +104,7 @@ func (e *E2) MulByFp(cs *frontend.ConstraintSystem, e1 *E2, c interface{}) *E2 {
 
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByIm(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
+func (e *E2) MulByIm(cs frontend.API, e1 *E2, ext Extension) *E2 {
 	x := e1.A0
 	e.A0 = cs.Mul(e1.A1, ext.uSquare)
 	e.A1 = x
@@ -112,14 +112,14 @@ func (e *E2) MulByIm(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
 }
 
 // Conjugate conjugation of an e2 elmt
-func (e *E2) Conjugate(cs *frontend.ConstraintSystem, e1 *E2) *E2 {
+func (e *E2) Conjugate(cs frontend.API, e1 *E2) *E2 {
 	e.A0 = e1.A0
 	e.A1 = cs.Sub(0, e1.A1)
 	return e
 }
 
 // Inverse inverses an fp2elmt
-func (e *E2) Inverse(cs *frontend.ConstraintSystem, e1 *E2, ext Extension) *E2 {
+func (e *E2) Inverse(cs frontend.API, e1 *E2, ext Extension) *E2 {
 
 	var a0, a1, t0, t1, t1beta frontend.Variable
 
@@ -146,7 +146,7 @@ func (e *E2) Assign(a *bls12377.E2) {
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E2) MustBeEqual(cs *frontend.ConstraintSystem, other E2) {
+func (e *E2) MustBeEqual(cs frontend.API, other E2) {
 	cs.AssertIsEqual(e.A0, other.A0)
 	cs.AssertIsEqual(e.A1, other.A1)
 }

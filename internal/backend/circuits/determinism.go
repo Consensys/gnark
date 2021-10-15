@@ -10,7 +10,7 @@ type determinism struct {
 	Z frontend.Variable `gnark:",public"`
 }
 
-func (circuit *determinism) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *determinism) Define(curveID ecc.ID, cs frontend.API) error {
 	a := cs.Add(circuit.X[0],
 		circuit.X[0],
 		circuit.X[1],

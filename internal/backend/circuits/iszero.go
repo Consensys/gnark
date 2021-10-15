@@ -9,7 +9,7 @@ type isZero struct {
 	X, Y frontend.Variable
 }
 
-func (circuit *isZero) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *isZero) Define(curveID ecc.ID, cs frontend.API) error {
 
 	a := cs.IsZero(circuit.X)
 	b := cs.IsZero(circuit.Y)

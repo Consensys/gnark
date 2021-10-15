@@ -47,7 +47,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *refCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

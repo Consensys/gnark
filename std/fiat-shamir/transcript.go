@@ -54,13 +54,13 @@ type Transcript struct {
 	h hash.Hash
 
 	// underlying constraint system
-	cs *frontend.ConstraintSystem
+	cs frontend.API
 }
 
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(cs *frontend.ConstraintSystem, h hash.Hash, challenges ...string) Transcript {
+func NewTranscript(cs frontend.API, h hash.Hash, challenges ...string) Transcript {
 
 	var res Transcript
 

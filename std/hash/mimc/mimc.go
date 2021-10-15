@@ -27,15 +27,15 @@ import (
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
 type MiMC struct {
-	params []big.Int                  // slice containing constants for the encryption rounds
-	id     ecc.ID                     // id needed to know which encryption function to use
-	h      frontend.Variable          // current vector in the Miyaguchi–Preneel scheme
-	data   []frontend.Variable        // state storage. data is updated when Write() is called. Sum sums the data.
-	cs     *frontend.ConstraintSystem // underlying constraint system
+	params []big.Int           // slice containing constants for the encryption rounds
+	id     ecc.ID              // id needed to know which encryption function to use
+	h      frontend.Variable   // current vector in the Miyaguchi–Preneel scheme
+	data   []frontend.Variable // state storage. data is updated when Write() is called. Sum sums the data.
+	cs     frontend.API        // underlying constraint system
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID, cs *frontend.ConstraintSystem) (MiMC, error) {
+func NewMiMC(seed string, id ecc.ID, cs frontend.API) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
 		return constructor(seed, cs), nil
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 // toR1CS constructs a rank-1 constraint sytem
-func (cs *ConstraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
+func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 
 	// wires = public wires  | secret wires | internal wires
 

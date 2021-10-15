@@ -7,7 +7,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
+func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
 	// TODO do cs.Sub(i1,i2) == 0 ?
 
@@ -24,12 +24,12 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (cs *ConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
+func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 	cs.Inverse(cs.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
+func (cs *constraintSystem) AssertIsBoolean(v Variable) {
 	v.assertIsSet(cs)
 	if v.visibility == compiled.Unset {
 		// we need to create a new wire here.
@@ -55,7 +55,7 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
+func (cs *constraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 	v.assertIsSet(cs)
 
@@ -69,7 +69,7 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
+func (cs *constraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
@@ -110,7 +110,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
+func (cs *constraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter

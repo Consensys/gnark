@@ -33,7 +33,7 @@ type benchCircuit struct {
 	Y Variable `gnark:",public"`
 }
 
-func (circuit *benchCircuit) Define(curveID ecc.ID, cs *ConstraintSystem) error {
+func (circuit *benchCircuit) Define(curveID ecc.ID, cs API) error {
 	for i := 0; i < benchSize; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

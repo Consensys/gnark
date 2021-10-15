@@ -30,7 +30,7 @@ type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -65,7 +65,7 @@ type add struct {
 	P, E Point
 }
 
-func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *add) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -115,7 +115,7 @@ type addGeneric struct {
 	P1, P2, E Point
 }
 
-func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *addGeneric) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -168,7 +168,7 @@ type double struct {
 	P, E Point
 }
 
-func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *double) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -216,7 +216,7 @@ type scalarMul struct {
 	S    frontend.Variable
 }
 
-func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *scalarMul) Define(curveID ecc.ID, cs frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -269,7 +269,7 @@ type neg struct {
 	P, E Point
 }
 
-func (circuit *neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *neg) Define(curveID ecc.ID, cs frontend.API) error {
 
 	circuit.P.Neg(cs, &circuit.P)
 	cs.AssertIsEqual(circuit.P.X, circuit.E.X)

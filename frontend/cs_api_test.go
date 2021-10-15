@@ -57,7 +57,7 @@ func TestIsBool3(t *testing.T) {
 	}
 }
 
-func (c *IsBool1) Define(curve ecc.ID, cs *ConstraintSystem) error {
+func (c *IsBool1) Define(curve ecc.ID, cs API) error {
 
 	zero := cs.Constant(0)
 	one := cs.Constant(1)
@@ -66,7 +66,7 @@ func (c *IsBool1) Define(curve ecc.ID, cs *ConstraintSystem) error {
 	return nil
 }
 
-func (c *IsBool2) Define(curve ecc.ID, cs *ConstraintSystem) error {
+func (c *IsBool2) Define(curve ecc.ID, cs API) error {
 
 	zero := cs.Constant(0)
 	one := cs.Constant(1)
@@ -75,7 +75,7 @@ func (c *IsBool2) Define(curve ecc.ID, cs *ConstraintSystem) error {
 	return nil
 }
 
-func (c *IsBool3) Define(curve ecc.ID, cs *ConstraintSystem) error {
+func (c *IsBool3) Define(curve ecc.ID, cs API) error {
 
 	zero := cs.Constant(0)
 	one := cs.Constant(1)

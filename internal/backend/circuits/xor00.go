@@ -10,7 +10,7 @@ type xorCircuit struct {
 	Y0     frontend.Variable `gnark:",public"`
 }
 
-func (circuit *xorCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *xorCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	cs.AssertIsBoolean(circuit.B0)
 	cs.AssertIsBoolean(circuit.B1)
 

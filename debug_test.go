@@ -20,7 +20,7 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *printlnCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	c := cs.Add(circuit.A, circuit.B)
 	cs.Println(c, "is the addition")
 	d := cs.Mul(circuit.A, c)
@@ -65,7 +65,7 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *divBy0Trace) Define(curveID ecc.ID, cs frontend.API) error {
 	d := cs.Add(circuit.B, circuit.C)
 	cs.Div(circuit.A, d)
 	return nil
@@ -102,7 +102,7 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *notEqualTrace) Define(curveID ecc.ID, cs frontend.API) error {
 	d := cs.Add(circuit.B, circuit.C)
 	cs.AssertIsEqual(circuit.A, d)
 	return nil
@@ -139,7 +139,7 @@ type notBooleanTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *notBooleanTrace) Define(curveID ecc.ID, cs frontend.API) error {
 	d := cs.Add(circuit.B, circuit.C)
 	cs.AssertIsBoolean(d)
 	return nil

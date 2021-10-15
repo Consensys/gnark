@@ -29,18 +29,18 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-var encryptFuncs map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
-var newMimc map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC
+var encryptFuncs map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var newMimc map[ecc.ID]func(string, frontend.API) MiMC
 
 func init() {
-	encryptFuncs = make(map[ecc.ID]func(*frontend.ConstraintSystem, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs = make(map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
 	encryptFuncs[ecc.BN254] = encryptBN254
 	encryptFuncs[ecc.BLS12_381] = encryptBLS381
 	encryptFuncs[ecc.BLS12_377] = encryptBLS377
 	encryptFuncs[ecc.BW6_761] = encryptBW761
 	encryptFuncs[ecc.BLS24_315] = encryptBLS315
 
-	newMimc = make(map[ecc.ID]func(string, *frontend.ConstraintSystem) MiMC)
+	newMimc = make(map[ecc.ID]func(string, frontend.API) MiMC)
 	newMimc[ecc.BN254] = newMimcBN254
 	newMimc[ecc.BLS12_381] = newMimcBLS381
 	newMimc[ecc.BLS12_377] = newMimcBLS377
@@ -51,7 +51,7 @@ func init() {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string, cs *frontend.ConstraintSystem) MiMC {
+func newMimcBLS377(seed string, cs frontend.API) MiMC {
 	res := MiMC{}
 	params := bls12377.NewParams(seed)
 	for _, v := range params {
@@ -65,7 +65,7 @@ func newMimcBLS377(seed string, cs *frontend.ConstraintSystem) MiMC {
 	return res
 }
 
-func newMimcBLS381(seed string, cs *frontend.ConstraintSystem) MiMC {
+func newMimcBLS381(seed string, cs frontend.API) MiMC {
 	res := MiMC{}
 	params := bls12381.NewParams(seed)
 	for _, v := range params {
@@ -79,7 +79,7 @@ func newMimcBLS381(seed string, cs *frontend.ConstraintSystem) MiMC {
 	return res
 }
 
-func newMimcBN254(seed string, cs *frontend.ConstraintSystem) MiMC {
+func newMimcBN254(seed string, cs frontend.API) MiMC {
 	res := MiMC{}
 	params := bn254.NewParams(seed)
 	for _, v := range params {
@@ -93,7 +93,7 @@ func newMimcBN254(seed string, cs *frontend.ConstraintSystem) MiMC {
 	return res
 }
 
-func newMimcBW761(seed string, cs *frontend.ConstraintSystem) MiMC {
+func newMimcBW761(seed string, cs frontend.API) MiMC {
 	res := MiMC{}
 	params := bw6761.NewParams(seed)
 	for _, v := range params {
@@ -107,7 +107,7 @@ func newMimcBW761(seed string, cs *frontend.ConstraintSystem) MiMC {
 	return res
 }
 
-func newMimcBLS315(seed string, cs *frontend.ConstraintSystem) MiMC {
+func newMimcBLS315(seed string, cs frontend.API) MiMC {
 	res := MiMC{}
 	params := bls24315.NewParams(seed)
 	for _, v := range params {
@@ -125,7 +125,7 @@ func newMimcBLS315(seed string, cs *frontend.ConstraintSystem) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN254(cs frontend.API, h MiMC, message, key frontend.Variable) frontend.Variable {
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
@@ -141,7 +141,7 @@ func encryptBN254(cs *frontend.ConstraintSystem, h MiMC, message, key frontend.V
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(cs frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
@@ -157,7 +157,7 @@ func encryptBLS381(cs *frontend.ConstraintSystem, h MiMC, message frontend.Varia
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBW761(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBW761(cs frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
@@ -174,7 +174,7 @@ func encryptBW761(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variab
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(cs frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
 		tmp := cs.Add(res, h.params[i], key)
@@ -187,7 +187,7 @@ func encryptBLS377(cs *frontend.ConstraintSystem, h MiMC, message frontend.Varia
 }
 
 // encryptBLS315 of a mimc run expressed as r1cs
-func encryptBLS315(cs *frontend.ConstraintSystem, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS315(cs frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
 		tmp := cs.Add(res, h.params[i], key)
