@@ -36,7 +36,7 @@ type lineEvaluation struct {
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(gnark frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -45,29 +45,29 @@ func MillerLoop(gnark frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pai
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
-	res.SetOne(gnark)
+	res.SetOne(api)
 	var l lineEvaluation
 
 	var qProj G2Proj
 	qProj.X = Q.X
 	qProj.Y = Q.Y
-	qProj.Z.A0 = gnark.Constant(1)
-	qProj.Z.A1 = gnark.Constant(0)
+	qProj.Z.A0 = api.Constant(1)
+	qProj.Z.A1 = api.Constant(0)
 
 	// Miller loop
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
 
 		// res <- res**2
-		res.Mul(gnark, res, res, pairingInfo.Extension)
+		res.Mul(api, res, res, pairingInfo.Extension)
 
 		// l(P) where div(l) = 2(qProj)+([-2]qProj)-2(O)
 		// qProj <- 2*qProj
-		qProj.DoubleStep(gnark, &l, pairingInfo)
-		l.r0.MulByFp(gnark, &l.r0, P.Y)
-		l.r1.MulByFp(gnark, &l.r1, P.X)
+		qProj.DoubleStep(api, &l, pairingInfo)
+		l.r0.MulByFp(api, &l.r0, P.Y)
+		l.r1.MulByFp(api, &l.r1, P.X)
 
 		// res <- res*l(P)
-		res.MulBy034(gnark, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
+		res.MulBy034(api, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
 
 		if ateLoopBin[i] == 0 {
 			continue
@@ -75,12 +75,12 @@ func MillerLoop(gnark frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pai
 
 		// l(P) where div(l) = (qProj)+(Q)+(-Q-qProj)-3(O)
 		// qProj <- qProj + Q
-		qProj.AddMixedStep(gnark, &l, &Q, pairingInfo)
-		l.r0.MulByFp(gnark, &l.r0, P.Y)
-		l.r1.MulByFp(gnark, &l.r1, P.X)
+		qProj.AddMixedStep(api, &l, &Q, pairingInfo)
+		l.r0.MulByFp(api, &l.r0, P.Y)
+		l.r1.MulByFp(api, &l.r1, P.X)
 
 		// res <- res*l(P)
-		res.MulBy034(gnark, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
+		res.MulBy034(api, &l.r0, &l.r1, &l.r2, pairingInfo.Extension)
 
 	}
 
@@ -89,80 +89,80 @@ func MillerLoop(gnark frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pai
 
 // DoubleStep doubles a point in Homogenous projective coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) DoubleStep(gnark frontend.API, evaluation *lineEvaluation, pairingInfo PairingContext) {
+func (p *G2Proj) DoubleStep(api frontend.API, evaluation *lineEvaluation, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var t0, t1, A, B, C, D, E, EE, F, G, H, I, J, K fields.E2
-	twoInv := gnark.Constant(2)
-	twoInv = gnark.Inverse(twoInv)
-	t0.Mul(gnark, &p.X, &p.Y, pairingInfo.Extension)
-	A.MulByFp(gnark, &t0, twoInv)
-	B.Mul(gnark, &p.Y, &p.Y, pairingInfo.Extension)
-	C.Mul(gnark, &p.Z, &p.Z, pairingInfo.Extension)
-	D.Add(gnark, &C, &C).
-		Add(gnark, &D, &C)
-	E.Mul(gnark, &D, &pairingInfo.BTwistCoeff, pairingInfo.Extension)
-	F.Add(gnark, &E, &E).
-		Add(gnark, &F, &E)
-	G.Add(gnark, &B, &F)
-	G.MulByFp(gnark, &G, twoInv)
-	H.Add(gnark, &p.Y, &p.Z).
-		Mul(gnark, &H, &H, pairingInfo.Extension)
-	t1.Add(gnark, &B, &C)
-	H.Sub(gnark, &H, &t1)
-	I.Sub(gnark, &E, &B)
-	J.Mul(gnark, &p.X, &p.X, pairingInfo.Extension)
-	EE.Mul(gnark, &E, &E, pairingInfo.Extension)
-	K.Add(gnark, &EE, &EE).
-		Add(gnark, &K, &EE)
+	twoInv := api.Constant(2)
+	twoInv = api.Inverse(twoInv)
+	t0.Mul(api, &p.X, &p.Y, pairingInfo.Extension)
+	A.MulByFp(api, &t0, twoInv)
+	B.Mul(api, &p.Y, &p.Y, pairingInfo.Extension)
+	C.Mul(api, &p.Z, &p.Z, pairingInfo.Extension)
+	D.Add(api, &C, &C).
+		Add(api, &D, &C)
+	E.Mul(api, &D, &pairingInfo.BTwistCoeff, pairingInfo.Extension)
+	F.Add(api, &E, &E).
+		Add(api, &F, &E)
+	G.Add(api, &B, &F)
+	G.MulByFp(api, &G, twoInv)
+	H.Add(api, &p.Y, &p.Z).
+		Mul(api, &H, &H, pairingInfo.Extension)
+	t1.Add(api, &B, &C)
+	H.Sub(api, &H, &t1)
+	I.Sub(api, &E, &B)
+	J.Mul(api, &p.X, &p.X, pairingInfo.Extension)
+	EE.Mul(api, &E, &E, pairingInfo.Extension)
+	K.Add(api, &EE, &EE).
+		Add(api, &K, &EE)
 
 	// X, Y, Z
-	p.X.Sub(gnark, &B, &F).
-		Mul(gnark, &p.X, &A, pairingInfo.Extension)
-	p.Y.Mul(gnark, &G, &G, pairingInfo.Extension).
-		Sub(gnark, &p.Y, &K)
-	p.Z.Mul(gnark, &B, &H, pairingInfo.Extension)
+	p.X.Sub(api, &B, &F).
+		Mul(api, &p.X, &A, pairingInfo.Extension)
+	p.Y.Mul(api, &G, &G, pairingInfo.Extension).
+		Sub(api, &p.Y, &K)
+	p.Z.Mul(api, &B, &H, pairingInfo.Extension)
 
 	// Line evaluation
-	evaluation.r0.Neg(gnark, &H)
-	evaluation.r1.Add(gnark, &J, &J).
-		Add(gnark, &evaluation.r1, &J)
+	evaluation.r0.Neg(api, &H)
+	evaluation.r1.Add(api, &J, &J).
+		Add(api, &evaluation.r1, &J)
 	evaluation.r2 = I
 }
 
 // AddMixedStep point addition in Mixed Homogenous projective and Affine coordinates
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *G2Proj) AddMixedStep(gnark frontend.API, evaluation *lineEvaluation, a *G2Affine, pairingInfo PairingContext) {
+func (p *G2Proj) AddMixedStep(api frontend.API, evaluation *lineEvaluation, a *G2Affine, pairingInfo PairingContext) {
 
 	// get some Element from our pool
 	var Y2Z1, X2Z1, O, L, C, D, E, F, G, H, t0, t1, t2, J fields.E2
-	Y2Z1.Mul(gnark, &a.Y, &p.Z, pairingInfo.Extension)
-	O.Sub(gnark, &p.Y, &Y2Z1)
-	X2Z1.Mul(gnark, &a.X, &p.Z, pairingInfo.Extension)
-	L.Sub(gnark, &p.X, &X2Z1)
-	C.Mul(gnark, &O, &O, pairingInfo.Extension)
-	D.Mul(gnark, &L, &L, pairingInfo.Extension)
-	E.Mul(gnark, &L, &D, pairingInfo.Extension)
-	F.Mul(gnark, &p.Z, &C, pairingInfo.Extension)
-	G.Mul(gnark, &p.X, &D, pairingInfo.Extension)
-	t0.Add(gnark, &G, &G)
-	H.Add(gnark, &E, &F).
-		Sub(gnark, &H, &t0)
-	t1.Mul(gnark, &p.Y, &E, pairingInfo.Extension)
+	Y2Z1.Mul(api, &a.Y, &p.Z, pairingInfo.Extension)
+	O.Sub(api, &p.Y, &Y2Z1)
+	X2Z1.Mul(api, &a.X, &p.Z, pairingInfo.Extension)
+	L.Sub(api, &p.X, &X2Z1)
+	C.Mul(api, &O, &O, pairingInfo.Extension)
+	D.Mul(api, &L, &L, pairingInfo.Extension)
+	E.Mul(api, &L, &D, pairingInfo.Extension)
+	F.Mul(api, &p.Z, &C, pairingInfo.Extension)
+	G.Mul(api, &p.X, &D, pairingInfo.Extension)
+	t0.Add(api, &G, &G)
+	H.Add(api, &E, &F).
+		Sub(api, &H, &t0)
+	t1.Mul(api, &p.Y, &E, pairingInfo.Extension)
 
 	// X, Y, Z
-	p.X.Mul(gnark, &L, &H, pairingInfo.Extension)
-	p.Y.Sub(gnark, &G, &H).
-		Mul(gnark, &p.Y, &O, pairingInfo.Extension).
-		Sub(gnark, &p.Y, &t1)
-	p.Z.Mul(gnark, &E, &p.Z, pairingInfo.Extension)
+	p.X.Mul(api, &L, &H, pairingInfo.Extension)
+	p.Y.Sub(api, &G, &H).
+		Mul(api, &p.Y, &O, pairingInfo.Extension).
+		Sub(api, &p.Y, &t1)
+	p.Z.Mul(api, &E, &p.Z, pairingInfo.Extension)
 
-	t2.Mul(gnark, &L, &a.Y, pairingInfo.Extension)
-	J.Mul(gnark, &a.X, &O, pairingInfo.Extension).
-		Sub(gnark, &J, &t2)
+	t2.Mul(api, &L, &a.Y, pairingInfo.Extension)
+	J.Mul(api, &a.X, &O, pairingInfo.Extension).
+		Sub(api, &J, &t2)
 
 	// Line evaluation
 	evaluation.r0 = L
-	evaluation.r1.Neg(gnark, &O)
+	evaluation.r1.Neg(api, &O)
 	evaluation.r2 = J
 }

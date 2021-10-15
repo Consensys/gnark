@@ -87,7 +87,7 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *Circuit) postInit(curveID ecc.ID, gnark frontend.API) error {
+func (circuit *Circuit) postInit(curveID ecc.ID, api frontend.API) error {
 	// edward curve params
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -123,12 +123,12 @@ func (circuit *Circuit) postInit(curveID ecc.ID, gnark frontend.API) error {
 }
 
 // Define declares the circuit's constraints
-func (circuit *Circuit) Define(curveID ecc.ID, gnark frontend.API) error {
-	if err := circuit.postInit(curveID, gnark); err != nil {
+func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+	if err := circuit.postInit(curveID, api); err != nil {
 		return err
 	}
 	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", curveID, gnark)
+	hFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
@@ -137,55 +137,55 @@ func (circuit *Circuit) Define(curveID ecc.ID, gnark frontend.API) error {
 	for i := 0; i < batchSize; i++ {
 
 		// verify the sender and receiver accounts exist before the update
-		merkle.VerifyProof(gnark, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
-		merkle.VerifyProof(gnark, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
+		merkle.VerifyProof(api, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
+		merkle.VerifyProof(api, hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
 
 		// verify the sender and receiver accounts exist after the update
-		merkle.VerifyProof(gnark, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
-		merkle.VerifyProof(gnark, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
+		merkle.VerifyProof(api, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
+		merkle.VerifyProof(api, hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
 
 		// verify the transaction transfer
-		err := verifyTransferSignature(gnark, circuit.Transfers[i], hFunc)
+		err := verifyTransferSignature(api, circuit.Transfers[i], hFunc)
 		if err != nil {
 			return err
 		}
 
 		// update the accounts
-		verifyAccountUpdated(gnark, circuit.SenderAccountsBefore[i], circuit.ReceiverAccountsBefore[i], circuit.SenderAccountsAfter[i], circuit.ReceiverAccountsAfter[i], circuit.Transfers[i].Amount)
+		verifyAccountUpdated(api, circuit.SenderAccountsBefore[i], circuit.ReceiverAccountsBefore[i], circuit.SenderAccountsAfter[i], circuit.ReceiverAccountsAfter[i], circuit.Transfers[i].Amount)
 	}
 
 	return nil
 }
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
-func verifyTransferSignature(gnark frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
+func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 	htransfer := hFunc.Sum()
 
-	err := eddsa.Verify(gnark, t.Signature, htransfer, t.SenderPubKey)
+	err := eddsa.Verify(api, t.Signature, htransfer, t.SenderPubKey)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func verifyAccountUpdated(gnark frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
+func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := gnark.Constant(1)
-	nonceUpdated := gnark.Add(from.Nonce, one)
-	gnark.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
+	one := api.Constant(1)
+	nonceUpdated := api.Add(from.Nonce, one)
+	api.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// ensures that the amount is less than the balance
-	gnark.AssertIsLessOrEqual(amount, from.Balance)
+	api.AssertIsLessOrEqual(amount, from.Balance)
 
 	// ensure that balance is correctly updated
-	fromBalanceUpdated := gnark.Sub(from.Balance, amount)
-	gnark.AssertIsEqual(fromBalanceUpdated, fromUpdated.Balance)
+	fromBalanceUpdated := api.Sub(from.Balance, amount)
+	api.AssertIsEqual(fromBalanceUpdated, fromUpdated.Balance)
 
-	toBalanceUpdated := gnark.Add(to.Balance, amount)
-	gnark.AssertIsEqual(toBalanceUpdated, toUpdated.Balance)
+	toBalanceUpdated := api.Add(to.Balance, amount)
+	api.AssertIsEqual(toBalanceUpdated, toUpdated.Balance)
 
 }

@@ -51,7 +51,7 @@ func init() {
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newMimcBLS377(seed string, gnark frontend.API) MiMC {
+func newMimcBLS377(seed string, api frontend.API) MiMC {
 	res := MiMC{}
 	params := bls12377.NewParams(seed)
 	for _, v := range params {
@@ -60,12 +60,12 @@ func newMimcBLS377(seed string, gnark frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_377
-	res.h = gnark.Constant(0)
-	res.gnark = gnark
+	res.h = api.Constant(0)
+	res.api = api
 	return res
 }
 
-func newMimcBLS381(seed string, gnark frontend.API) MiMC {
+func newMimcBLS381(seed string, api frontend.API) MiMC {
 	res := MiMC{}
 	params := bls12381.NewParams(seed)
 	for _, v := range params {
@@ -74,12 +74,12 @@ func newMimcBLS381(seed string, gnark frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_381
-	res.h = gnark.Constant(0)
-	res.gnark = gnark
+	res.h = api.Constant(0)
+	res.api = api
 	return res
 }
 
-func newMimcBN254(seed string, gnark frontend.API) MiMC {
+func newMimcBN254(seed string, api frontend.API) MiMC {
 	res := MiMC{}
 	params := bn254.NewParams(seed)
 	for _, v := range params {
@@ -88,12 +88,12 @@ func newMimcBN254(seed string, gnark frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BN254
-	res.h = gnark.Constant(0)
-	res.gnark = gnark
+	res.h = api.Constant(0)
+	res.api = api
 	return res
 }
 
-func newMimcBW761(seed string, gnark frontend.API) MiMC {
+func newMimcBW761(seed string, api frontend.API) MiMC {
 	res := MiMC{}
 	params := bw6761.NewParams(seed)
 	for _, v := range params {
@@ -102,12 +102,12 @@ func newMimcBW761(seed string, gnark frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BW6_761
-	res.h = gnark.Constant(0)
-	res.gnark = gnark
+	res.h = api.Constant(0)
+	res.api = api
 	return res
 }
 
-func newMimcBLS315(seed string, gnark frontend.API) MiMC {
+func newMimcBLS315(seed string, api frontend.API) MiMC {
 	res := MiMC{}
 	params := bls24315.NewParams(seed)
 	for _, v := range params {
@@ -116,8 +116,8 @@ func newMimcBLS315(seed string, gnark frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS24_315
-	res.h = gnark.Constant(0)
-	res.gnark = gnark
+	res.h = api.Constant(0)
+	res.api = api
 	return res
 }
 
@@ -125,78 +125,78 @@ func newMimcBLS315(seed string, gnark frontend.API) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN254(gnark frontend.API, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN254(api frontend.API, h MiMC, message, key frontend.Variable) frontend.Variable {
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
-		tmp := gnark.Add(res, key, h.params[i])
+		tmp := api.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
-		res = gnark.Mul(tmp, tmp)
-		res = gnark.Mul(res, res)
-		res = gnark.Mul(res, tmp)
+		res = api.Mul(tmp, tmp)
+		res = api.Mul(res, res)
+		res = api.Mul(res, tmp)
 	}
-	res = gnark.Add(res, key)
+	res = api.Add(res, key)
 	return res
 
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(gnark frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		tmp := gnark.Add(res, key, h.params[i])
+		tmp := api.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
-		res = gnark.Mul(tmp, tmp) // square
-		res = gnark.Mul(res, res) // square
-		res = gnark.Mul(res, tmp) // mul
+		res = api.Mul(tmp, tmp) // square
+		res = api.Mul(res, res) // square
+		res = api.Mul(res, tmp) // mul
 	}
-	res = gnark.Add(res, key)
+	res = api.Add(res, key)
 	return res
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBW761(gnark frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBW761(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 
 	res := message
 
 	for i := 0; i < len(h.params); i++ {
-		tmp := gnark.Add(res, key, h.params[i])
+		tmp := api.Add(res, key, h.params[i])
 		// res = (res+k+c)^5
-		res = gnark.Mul(tmp, tmp) // square
-		res = gnark.Mul(res, res) // square
-		res = gnark.Mul(res, tmp) // mul
+		res = api.Mul(tmp, tmp) // square
+		res = api.Mul(res, res) // square
+		res = api.Mul(res, tmp) // mul
 	}
-	res = gnark.Add(res, key)
+	res = api.Add(res, key)
 	return res
 
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(gnark frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
-		tmp := gnark.Add(res, h.params[i], key)
+		tmp := api.Add(res, h.params[i], key)
 		// res = (res+key+c)**-1
-		res = gnark.Inverse(tmp)
+		res = api.Inverse(tmp)
 	}
-	res = gnark.Add(res, key)
+	res = api.Add(res, key)
 	return res
 
 }
 
 // encryptBLS315 of a mimc run expressed as r1cs
-func encryptBLS315(gnark frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS315(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
-		tmp := gnark.Add(res, h.params[i], key)
+		tmp := api.Add(res, h.params[i], key)
 		// res = (res+k+c)^5
-		res = gnark.Mul(tmp, tmp) // square
-		res = gnark.Mul(res, res) // square
-		res = gnark.Mul(res, tmp) // mul
+		res = api.Mul(tmp, tmp) // square
+		res = api.Mul(res, res) // square
+		res = api.Mul(res, tmp) // mul
 	}
-	res = gnark.Add(res, key)
+	res = api.Add(res, key)
 	return res
 
 }

@@ -31,15 +31,15 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(curveID ecc.ID, gnark frontend.API) error {
-	if err := t.postInit(curveID, gnark); err != nil {
+func (t *circuitSignature) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID, gnark)
+	hFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
-	return verifyTransferSignature(gnark, t.Transfers[0], hFunc)
+	return verifyTransferSignature(api, t.Transfers[0], hFunc)
 }
 
 func TestCircuitSignature(t *testing.T) {
@@ -88,19 +88,19 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(curveID ecc.ID, gnark frontend.API) error {
-	if err := t.postInit(curveID, gnark); err != nil {
+func (t *circuitInclusionProof) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	hashFunc, err := mimc.NewMiMC("seed", curveID, gnark)
+	hashFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
-	merkle.VerifyProof(gnark, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
-	merkle.VerifyProof(gnark, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
 
-	merkle.VerifyProof(gnark, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
-	merkle.VerifyProof(gnark, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
 
 	return nil
 }
@@ -154,11 +154,11 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(curveID ecc.ID, gnark frontend.API) error {
-	if err := t.postInit(curveID, gnark); err != nil {
+func (t *circuitUpdateAccount) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	verifyAccountUpdated(gnark, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
+	verifyAccountUpdated(api, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
 		t.SenderAccountsAfter[0], t.ReceiverAccountsAfter[0], t.Transfers[0].Amount)
 	return nil
 }

@@ -20,17 +20,17 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, gnark frontend.API) error {
-	c := gnark.Add(circuit.A, circuit.B)
-	gnark.Println(c, "is the addition")
-	d := gnark.Mul(circuit.A, c)
-	gnark.Println(d, new(big.Int).SetInt64(42))
-	bs := gnark.ToBinary(circuit.B, 10)
-	gnark.Println("bits", bs[3])
-	gnark.Println("circuit", circuit)
-	gnark.AssertIsBoolean(gnark.Constant(10)) // this will fail
-	m := gnark.Mul(circuit.A, circuit.B)
-	gnark.Println("m", m) // this should not be resolved
+func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	c := api.Add(circuit.A, circuit.B)
+	api.Println(c, "is the addition")
+	d := api.Mul(circuit.A, c)
+	api.Println(d, new(big.Int).SetInt64(42))
+	bs := api.ToBinary(circuit.B, 10)
+	api.Println("bits", bs[3])
+	api.Println("circuit", circuit)
+	api.AssertIsBoolean(api.Constant(10)) // this will fail
+	m := api.Mul(circuit.A, circuit.B)
+	api.Println("m", m) // this should not be resolved
 	return nil
 }
 
@@ -65,9 +65,9 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, gnark frontend.API) error {
-	d := gnark.Add(circuit.B, circuit.C)
-	gnark.Div(circuit.A, d)
+func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.Div(circuit.A, d)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func TestTraceDivBy0(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "api.(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -91,7 +91,7 @@ func TestTraceDivBy0(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "api.(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
@@ -102,9 +102,9 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, gnark frontend.API) error {
-	d := gnark.Add(circuit.B, circuit.C)
-	gnark.AssertIsEqual(circuit.A, d)
+func (circuit *notEqualTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsEqual(circuit.A, d)
 	return nil
 }
 
@@ -120,7 +120,7 @@ func TestTraceNotEqual(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "api.(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -128,7 +128,7 @@ func TestTraceNotEqual(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "api.(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
@@ -139,9 +139,9 @@ type notBooleanTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, gnark frontend.API) error {
-	d := gnark.Add(circuit.B, circuit.C)
-	gnark.AssertIsBoolean(d)
+func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsBoolean(d)
 	return nil
 }
 
@@ -157,7 +157,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "api.(*notBooleanTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -165,7 +165,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "api.(*notBooleanTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }

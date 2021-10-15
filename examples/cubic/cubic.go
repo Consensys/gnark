@@ -30,8 +30,8 @@ type Circuit struct {
 
 // Define declares the circuit constraints
 // x**3 + x + 5 == y
-func (circuit *Circuit) Define(curveID ecc.ID, gnark frontend.API) error {
-	x3 := gnark.Mul(circuit.X, circuit.X, circuit.X)
-	gnark.AssertIsEqual(circuit.Y, gnark.Add(x3, circuit.X, 5))
+func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+	x3 := api.Mul(circuit.X, circuit.X, circuit.X)
+	api.AssertIsEqual(circuit.Y, api.Add(x3, circuit.X, 5))
 	return nil
 }
