@@ -131,7 +131,7 @@ compile:
 	return ccs
 }
 
-func (cs *ConstraintSystem) shuffleVariables(seed int64, withConstant bool) []interface{} {
+func (cs *constraintSystem) shuffleVariables(seed int64, withConstant bool) []interface{} {
 	var v []interface{}
 	n := len(cs.public.variables) + len(cs.secret.variables) + len(cs.internal.variables)
 	if withConstant {

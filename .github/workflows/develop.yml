@@ -80,8 +80,8 @@ jobs:
       run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
     - name: Test
       run: |
-        go test -v -timeout=20m -short ./...
-        go test -v -timeout=20m -tags=noadx -short ./internal/backend/bn254/...
+        go test -v -timeout=20m ./...
+        go test -v -timeout=20m -tags=noadx -short
     - name: Test (race)
       if: matrix.os == 'ubuntu-latest'
       run: |
