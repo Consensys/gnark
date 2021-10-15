@@ -33,7 +33,7 @@ import (
 
 func TestProofSerialization(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 1000
+	parameters.MinSuccessfulTests = 10
 
 	properties := gopter.NewProperties(parameters)
 
