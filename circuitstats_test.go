@@ -7,7 +7,50 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/stretchr/testify/require"
 )
+
+const (
+	fileStats        = "init.stats"
+	generateNewStats = false
+)
+
+func TestCircuitStatistics(t *testing.T) {
+
+	assert := require.New(t)
+
+	curves := ecc.Implemented()
+	for name, tData := range circuits.Circuits {
+
+		for _, curve := range curves {
+			check := func(backendID backend.ID) {
+				t.Log(name, curve.String(), backendID.String())
+
+				ccs, err := frontend.Compile(curve, backendID, tData.Circuit)
+				assert.NoError(err)
+
+				// ensure we didn't introduce regressions that make circuits less efficient
+				nbConstraints := ccs.GetNbConstraints()
+				internal, secret, public := ccs.GetNbVariables()
+				checkStats(t, name, nbConstraints, internal, secret, public, curve, backendID)
+			}
+			check(backend.GROTH16)
+			check(backend.PLONK)
+		}
+	}
+
+	// serialize newStats
+	if generateNewStats {
+		fStats, err := os.Create(fileStats)
+		assert.NoError(err)
+
+		encoder := gob.NewEncoder(fStats)
+		err = encoder.Encode(mStats)
+		assert.NoError(err)
+	}
+}
 
 type circuitStats struct {
 	NbConstraints, Internal, Secret, Public int

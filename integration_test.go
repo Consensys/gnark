@@ -17,20 +17,12 @@ limitations under the License.
 package gnark
 
 import (
-	"encoding/gob"
 	"os"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
-)
-
-const (
-	fileStats        = "init.stats"
-	generateNewStats = false
 )
 
 func TestIntegrationAPI(t *testing.T) {
@@ -49,15 +41,8 @@ func TestIntegrationAPI(t *testing.T) {
 		opts = append(opts, test.WithCurves(ecc.BN254))
 	}
 
-	curves := []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315}
 	for name, tData := range circuits.Circuits {
-
-		if testing.Short() {
-			if name == "reference_small" {
-				continue
-			}
-		}
-
+		t.Log(name)
 		for _, w := range tData.ValidWitnesses {
 			assert.ProverSucceeded(tData.Circuit, w, opts...)
 		}
@@ -66,40 +51,6 @@ func TestIntegrationAPI(t *testing.T) {
 			assert.ProverFailed(tData.Circuit, w, opts...)
 		}
 
-		for _, curve := range curves {
-			{
-				t.Log(name, curve.String(), "groth16")
-
-				ccs, err := frontend.Compile(curve, backend.GROTH16, tData.Circuit)
-				assert.NoError(err)
-
-				// ensure we didn't introduce regressions that make circuits less efficient
-				nbConstraints := ccs.GetNbConstraints()
-				internal, secret, public := ccs.GetNbVariables()
-				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.GROTH16)
-
-			}
-			{
-				t.Log(name, curve.String(), "plonk")
-
-				ccs, err := frontend.Compile(curve, backend.PLONK, tData.Circuit)
-				assert.NoError(err)
-
-				// ensure we didn't introduce regressions that make circuits less efficient
-				nbConstraints := ccs.GetNbConstraints()
-				internal, secret, public := ccs.GetNbVariables()
-				checkStats(t, name, nbConstraints, internal, secret, public, curve, backend.PLONK)
-			}
-		}
 	}
 
-	// serialize newStats
-	if generateNewStats {
-		fStats, err := os.Create(fileStats)
-		assert.NoError(err)
-
-		encoder := gob.NewEncoder(fStats)
-		err = encoder.Encode(mStats)
-		assert.NoError(err)
-	}
 }
