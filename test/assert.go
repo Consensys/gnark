@@ -1,3 +1,19 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package test
 
 import (
@@ -28,11 +44,24 @@ type Assert struct {
 	compiled map[string]frontend.CompiledConstraintSystem // cache compilation
 }
 
-// NewAssert returns an Assert helper
+// NewAssert returns an Assert helper embedding a testify/require object for convenience
+//
+// The Assert object caches the compiled circuit:
+//
+// the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
+// and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
 	return &Assert{require.New(t), make(map[string]frontend.CompiledConstraintSystem)}
 }
 
+// ProverSucceeded fails the test if any of the following step errored:
+//
+// 1. compiles the circuit (or fetch it from the cache)
+// 2. using the test execution engine, executes the circuit with provided witness
+// 3. run Setup / Prove / Verify with the backend
+// 4. if set, (de)serializes the witness and call ReadAndProve and ReadAndVerify on the backend
+//
+// By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
@@ -49,7 +78,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 			checkError(err)
 
 			// must not error with big int test engine
-			err = isSolved(circuit, validWitness, curve)
+			err = IsSolved(circuit, validWitness, curve)
 			checkError(err)
 
 			switch b {
@@ -123,6 +152,13 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 
 }
 
+// ProverSucceeded fails the test if any of the following step errored:
+//
+// 1. compiles the circuit (or fetch it from the cache)
+// 2. using the test execution engine, executes the circuit with provided witness (must fail)
+// 3. run Setup / Prove / Verify with the backend (must fail)
+//
+// By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
@@ -137,7 +173,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 			checkError(err)
 
 			// must error with big int test engine
-			err = isSolved(circuit, invalidWitness, curve)
+			err = IsSolved(circuit, invalidWitness, curve)
 			mustError(err)
 
 			switch b {
@@ -187,7 +223,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 			checkError(err)
 
 			// must not error with big int test engine
-			err = isSolved(circuit, validWitness, curve)
+			err = IsSolved(circuit, validWitness, curve)
 			checkError(err)
 
 			switch b {
@@ -220,7 +256,7 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 			checkError(err)
 
 			// must error with big int test engine
-			err = isSolved(circuit, invalidWitness, curve)
+			err = IsSolved(circuit, invalidWitness, curve)
 			mustError(err)
 
 			switch b {

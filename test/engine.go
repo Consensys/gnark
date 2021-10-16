@@ -1,3 +1,19 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package test
 
 import (
@@ -29,7 +45,13 @@ type engine struct {
 	curveID ecc.ID
 }
 
-func isSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
+// IsSolved returns an error if the test execution engine failed to execute the given circuit
+// with provided witness as input.
+//
+// The test execution engine implements frontend.API using big.Int operations.
+//
+// This is an experimental feature.
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
 	e := &engine{curveID: curveID}
 
 	// we clone the circuit, in case the circuit has some attributes it uses in its Define function
@@ -57,7 +79,8 @@ func isSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
 
 	err = c.Define(curveID, e)
 
-	// we clear the values, in case our clone earlier copied somes slices or pointers
+	// we clear the frontend.Variable values, in case we accidentally mutated the circuit
+	// (our clone earlier copied somes slices or pointers)
 	clearValues(c)
 
 	return
