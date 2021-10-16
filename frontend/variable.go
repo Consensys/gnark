@@ -28,12 +28,6 @@ import (
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
-// // Wire of a circuit
-// // They represent secret or public inputs in a circuit struct{} / definition (see circuit.Define(), type Tag)
-// type Wire struct {
-
-// }
-
 // Variable of a circuit
 // represents a Variable to a circuit, plus the  linear combination leading to it.
 // the linExp is always non empty, the PartialVariabl can be unset. It is set and allocated in the

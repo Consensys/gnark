@@ -83,7 +83,7 @@ func TestTraceDivBy0(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "api.(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -91,7 +91,7 @@ func TestTraceDivBy0(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "api.(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
@@ -120,7 +120,7 @@ func TestTraceNotEqual(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "api.(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -128,7 +128,7 @@ func TestTraceNotEqual(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "api.(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
@@ -157,7 +157,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "api.(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
@@ -165,7 +165,7 @@ func TestTraceNotBoolean(t *testing.T) {
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "api.(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
