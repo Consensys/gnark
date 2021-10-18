@@ -19,8 +19,11 @@ package test
 import (
 	"fmt"
 	"math/big"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -228,14 +231,14 @@ func (e *engine) Constant(input interface{}) frontend.Variable {
 func (e *engine) AssertIsEqual(i1, i2 interface{}) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) != 0 {
-		panic("AssertIsEqual: b1 != b2")
+		panic(fmt.Sprintf("[assertIsEqual] %s == %s", b1.String(), b2.String()))
 	}
 }
 
 func (e *engine) AssertIsDifferent(i1, i2 interface{}) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) == 0 {
-		panic("AssertIsDifferent: b1 == b2")
+		panic(fmt.Sprintf("[assertIsDifferent] %s != %s", b1.String(), b2.String()))
 	}
 }
 
@@ -255,12 +258,21 @@ func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound interface{}) {
 
 	b1 := e.toBigInt(v)
 	if b1.Cmp(&bValue) == 1 {
-		panic("AssertIsLessOrEqual: b1 > bound")
+		panic(fmt.Sprintf("[assertIsLessOrEqual] %s > %s", b1.String(), bValue.String()))
 	}
 }
 
 func (e *engine) Println(a ...interface{}) {
 	var sbb strings.Builder
+	sbb.WriteString("(test.engine) ")
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
 
 	for i := 0; i < len(a); i++ {
 		if v, ok := a[i].(frontend.Variable); ok {
@@ -300,7 +312,7 @@ func (e *engine) bitLen() int {
 
 func (e *engine) mustBeBoolean(b *big.Int) {
 	if !b.IsUint64() || !(b.Uint64() == 0 || b.Uint64() == 1) {
-		panic(b.String() + "is not a boolean value")
+		panic(fmt.Sprintf("[assertIsBoolean] %s", b.String()))
 	}
 }
 
