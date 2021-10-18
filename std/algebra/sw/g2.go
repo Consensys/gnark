@@ -157,9 +157,9 @@ func (p *G2Affine) Double(api frontend.API, p1 *G2Affine, ext fields.Extension) 
 		Sub(api, &xr, &p1.X)
 
 	// yr = lambda*(p.x-xr)-p.y
-	yr.Sub(api, &p.X, &xr).
+	yr.Sub(api, &p1.X, &xr).
 		Mul(api, &l, &yr, ext).
-		Sub(api, &yr, &p.Y)
+		Sub(api, &yr, &p1.Y)
 
 	p.X = xr
 	p.Y = yr
