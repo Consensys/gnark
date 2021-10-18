@@ -232,7 +232,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 				checkError(err)
 
 			case backend.PLONK:
-				plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
+				err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
 				checkError(err)
 			default:
 				panic("not implemented")

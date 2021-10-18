@@ -347,7 +347,8 @@ func copyWitness(to, from frontend.Circuit) {
 		}
 		return nil
 	}
-	parser.Visit(to, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
+	// this can't error.
+	_ = parser.Visit(to, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
 
 }
 
@@ -358,5 +359,6 @@ func clearValues(c frontend.Circuit) {
 		}
 		return nil
 	}
-	parser.Visit(c, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
+	// this can't error.
+	_ = parser.Visit(c, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
 }
