@@ -17,6 +17,7 @@ limitations under the License.
 package sw
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -42,6 +43,8 @@ func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
+	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
@@ -71,6 +74,39 @@ func TestPairingBLS377(t *testing.T) {
 
 	assert := groth16.NewAssert(t)
 	assert.SolvingSucceeded(r1cs, &witness)
+
+}
+
+type ml struct {
+	P G1Affine `gnark:",public"`
+	Q G2Affine
+}
+
+func (circuit *ml) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+
+	ateLoop := uint64(9586122913090633729)
+	ext := fields.GetBLS377ExtensionFp12(cs)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+
+	milRes := fields.E12{}
+	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+
+	return nil
+
+}
+
+func TestMillerLoop(t *testing.T) {
+
+	var circuit ml
+
+	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%d constraints\n", r1cs.GetNbConstraints())
 
 }
 

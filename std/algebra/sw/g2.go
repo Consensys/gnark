@@ -157,9 +157,9 @@ func (p *G2Affine) Double(cs *frontend.ConstraintSystem, p1 *G2Affine, ext field
 		Sub(cs, &xr, &p1.X)
 
 	// yr = lambda*(p.x-xr)-p.y
-	yr.Sub(cs, &p.X, &xr).
+	yr.Sub(cs, &p1.X, &xr).
 		Mul(cs, &l, &yr, ext).
-		Sub(cs, &yr, &p.Y)
+		Sub(cs, &yr, &p1.Y)
 
 	p.X = xr
 	p.Y = yr
