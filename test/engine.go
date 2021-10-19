@@ -30,12 +30,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
-
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // engine implements frontend.API
@@ -294,20 +288,7 @@ func (e *engine) toBigInt(i1 interface{}) big.Int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) bitLen() int {
-	switch e.curveID {
-	case ecc.BN254:
-		return fr_bn254.Bits
-	case ecc.BLS12_377:
-		return fr_bls12377.Bits
-	case ecc.BLS12_381:
-		return fr_bls12381.Bits
-	case ecc.BW6_761:
-		return fr_bw6761.Bits
-	case ecc.BLS24_315:
-		return fr_bls24315.Bits
-	default:
-		panic("curve not implemented")
-	}
+	return e.curveID.Info().Fr.Bits
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
@@ -317,20 +298,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 }
 
 func (e *engine) modulus() *big.Int {
-	switch e.curveID {
-	case ecc.BN254:
-		return fr_bn254.Modulus()
-	case ecc.BLS12_377:
-		return fr_bls12377.Modulus()
-	case ecc.BLS12_381:
-		return fr_bls12381.Modulus()
-	case ecc.BW6_761:
-		return fr_bw6761.Modulus()
-	case ecc.BLS24_315:
-		return fr_bls24315.Modulus()
-	default:
-		panic("curve not implemented")
-	}
+	return e.curveID.Info().Fr.Modulus()
 }
 
 func copyWitness(to, from frontend.Circuit) {
