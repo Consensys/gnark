@@ -31,8 +31,8 @@ import (
 
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
-	A, D, Cofactor, Order, BaseX, BaseY big.Int
-	ID                                  ecc.ID
+	D, Cofactor, Order, BaseX, BaseY big.Int
+	ID                               ecc.ID
 }
 
 var newTwistedEdwards map[ecc.ID]func() EdCurve
