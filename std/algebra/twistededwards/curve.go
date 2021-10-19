@@ -21,23 +21,18 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	frbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	frbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	frbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	frbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark/frontend"
 )
 
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
-	A, D, Cofactor, Order, BaseX, BaseY, Modulus big.Int
-	ID                                           ecc.ID
+	A, D, Cofactor, Order, BaseX, BaseY big.Int
+	ID                                  ecc.ID
 }
 
 var newTwistedEdwards map[ecc.ID]func() EdCurve
@@ -69,7 +64,6 @@ func newEdBN254() EdCurve {
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(cofactorReg),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -77,7 +71,6 @@ func newEdBN254() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BN254,
 	}
-	res.Modulus.Set(frbn254.Modulus())
 
 	return res
 
@@ -90,7 +83,6 @@ func newEdBLS381() EdCurve {
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(cofactorReg),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -98,7 +90,6 @@ func newEdBLS381() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_381,
 	}
-	res.Modulus.Set(frbls12381.Modulus())
 
 	return res
 }
@@ -110,7 +101,6 @@ func newEdBLS377() EdCurve {
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(cofactorReg),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -118,7 +108,6 @@ func newEdBLS377() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_377,
 	}
-	res.Modulus.Set(frbls12377.Modulus())
 
 	return res
 }
@@ -130,7 +119,6 @@ func newEdBW761() EdCurve {
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(cofactorReg),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -138,7 +126,6 @@ func newEdBW761() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BW6_761,
 	}
-	res.Modulus.Set(frbw6761.Modulus())
 
 	return res
 }
@@ -150,7 +137,6 @@ func newEdBLS315() EdCurve {
 	edcurve.Cofactor.ToBigInt(&cofactorReg)
 
 	res := EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(cofactorReg),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -158,7 +144,6 @@ func newEdBLS315() EdCurve {
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS24_315,
 	}
-	res.Modulus.Set(frbls24315.Modulus())
 
 	return res
 }
