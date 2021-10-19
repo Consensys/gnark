@@ -85,9 +85,7 @@ type API interface {
 	// AssertIsBoolean fails if v != 0 || v != 1
 	AssertIsBoolean(v Variable)
 
-	// AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
-	//
-	// bound can be a constant or a Variable
+	// AssertIsLessOrEqual fails if  v > bound
 	AssertIsLessOrEqual(v Variable, bound interface{})
 
 	// Println behaves like fmt.Println but accepts frontend.Variable as parameter

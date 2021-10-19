@@ -28,8 +28,8 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// ErrInputNotSet triggered when trying to access a variable that was not allocated
-var ErrInputNotSet = errors.New("variable is not allocated")
+// errInputNotSet triggered when trying to access a variable that was not allocated
+var errInputNotSet = errors.New("variable is not allocated")
 
 // Compile will generate a CompiledConstraintSystem from the given circuit
 //
