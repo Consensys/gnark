@@ -24,12 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
-
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // constraintSystem represents a Groth16 like circuit
@@ -163,20 +157,7 @@ func (cs *constraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *constraintSystem) bitLen() int {
-	switch cs.curveID {
-	case ecc.BN254:
-		return fr_bn254.Bits
-	case ecc.BLS12_377:
-		return fr_bls12377.Bits
-	case ecc.BLS12_381:
-		return fr_bls12381.Bits
-	case ecc.BW6_761:
-		return fr_bw6761.Bits
-	case ecc.BLS24_315:
-		return fr_bls24315.Bits
-	default:
-		panic("curve not implemented")
-	}
+	return cs.curveID.Info().Fr.Bits
 }
 
 func (cs *constraintSystem) one() Variable {

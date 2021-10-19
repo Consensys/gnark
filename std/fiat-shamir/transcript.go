@@ -130,6 +130,8 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	t.challenges[challengeID] = challenge
 
+	t.h.Reset()
+
 	return challenge.value, nil
 
 }
