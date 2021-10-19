@@ -30,25 +30,27 @@ import (
 )
 
 // EdCurve stores the info on the chosen edwards curve
+// note that all curves implemented in gnark-crypto have A = -1
 type EdCurve struct {
 	D, Cofactor, Order, BaseX, BaseY big.Int
 	ID                               ecc.ID
 }
 
-var newTwistedEdwards map[ecc.ID]func() EdCurve
+var constructors map[ecc.ID]func() EdCurve
 
 func init() {
-	newTwistedEdwards = make(map[ecc.ID]func() EdCurve)
-	newTwistedEdwards[ecc.BLS12_381] = newEdBLS381
-	newTwistedEdwards[ecc.BN254] = newEdBN254
-	newTwistedEdwards[ecc.BLS12_377] = newEdBLS377
-	newTwistedEdwards[ecc.BW6_761] = newEdBW761
-	newTwistedEdwards[ecc.BLS24_315] = newEdBLS315
+	constructors = map[ecc.ID]func() EdCurve{
+		ecc.BLS12_381: newEdBLS381,
+		ecc.BN254:     newEdBN254,
+		ecc.BLS12_377: newEdBLS377,
+		ecc.BW6_761:   newEdBW761,
+		ecc.BLS24_315: newEdBLS315,
+	}
 }
 
 // NewEdCurve returns an Edwards curve parameters
 func NewEdCurve(id ecc.ID) (EdCurve, error) {
-	if constructor, ok := newTwistedEdwards[id]; ok {
+	if constructor, ok := constructors[id]; ok {
 		return constructor(), nil
 	}
 	return EdCurve{}, errors.New("unknown curve id")
@@ -60,90 +62,79 @@ func NewEdCurve(id ecc.ID) (EdCurve, error) {
 func newEdBN254() EdCurve {
 
 	edcurve := edbn254.GetEdwardsCurve()
-	var cofactorReg big.Int
-	edcurve.Cofactor.ToBigInt(&cofactorReg)
+	edcurve.Cofactor.FromMont()
 
-	res := EdCurve{
+	return EdCurve{
 		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(cofactorReg),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BN254,
 	}
 
-	return res
-
 }
 
 func newEdBLS381() EdCurve {
 
 	edcurve := edbls12381.GetEdwardsCurve()
-	var cofactorReg big.Int
-	edcurve.Cofactor.ToBigInt(&cofactorReg)
+	edcurve.Cofactor.FromMont()
 
-	res := EdCurve{
+	return EdCurve{
 		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(cofactorReg),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_381,
 	}
 
-	return res
 }
 
 func newEdBLS377() EdCurve {
 
 	edcurve := edbls12377.GetEdwardsCurve()
-	var cofactorReg big.Int
-	edcurve.Cofactor.ToBigInt(&cofactorReg)
+	edcurve.Cofactor.FromMont()
 
-	res := EdCurve{
+	return EdCurve{
 		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(cofactorReg),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_377,
 	}
 
-	return res
 }
 
 func newEdBW761() EdCurve {
 
 	edcurve := edbw6761.GetEdwardsCurve()
-	var cofactorReg big.Int
-	edcurve.Cofactor.ToBigInt(&cofactorReg)
+	edcurve.Cofactor.FromMont()
 
-	res := EdCurve{
+	return EdCurve{
 		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(cofactorReg),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BW6_761,
 	}
 
-	return res
 }
 
 func newEdBLS315() EdCurve {
 
 	edcurve := edbls24315.GetEdwardsCurve()
-	var cofactorReg big.Int
-	edcurve.Cofactor.ToBigInt(&cofactorReg)
+	edcurve.Cofactor.FromMont()
 
-	res := EdCurve{
+	return EdCurve{
 		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(cofactorReg),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS24_315,
 	}
 
-	return res
 }
