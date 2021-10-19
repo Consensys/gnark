@@ -20,7 +20,7 @@ func init() {
 
 	good := []frontend.Circuit{
 		&andCircuit{
-			Op1: frontend.Variable{WitnessValue: 1},
+			Op1: frontend.Value(1),
 			Op2: frontend.Value(1),
 			Res: frontend.Value(1),
 		},
@@ -73,7 +73,6 @@ func init() {
 			Res: frontend.Value(42),
 		},
 	}
-	var circuit andCircuit
 
-	addNewEntry("AND", &circuit, good, bad)
+	addNewEntry("and", &andCircuit{}, good, bad)
 }

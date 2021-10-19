@@ -12,8 +12,6 @@ type checkAssertEqualCircuit struct {
 
 func (circuit *checkAssertEqualCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	cs.AssertIsEqual(circuit.X, circuit.Y)
-	c1 := cs.Add(circuit.X, circuit.Y)
-	cs.AssertIsEqual(c1, 6)
 	return nil
 }
 
