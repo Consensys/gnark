@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -215,31 +216,34 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
-
-			checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
-
-			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
-			checkError(err)
-
-			// must not error with big int test engine
-			err = IsSolved(circuit, validWitness, curve)
-			checkError(err)
-
-			switch b {
-			case backend.GROTH16:
-				err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...)
-				checkError(err)
-
-			case backend.PLONK:
-				err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
-				checkError(err)
-			default:
-				panic("not implemented")
-			}
-
+			assert.solvingSucceeded(circuit, validWitness, b, curve, &opt)
 		}
 	}
+}
+
+func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
+
+	// 1- compile the circuit
+	ccs, err := assert.compile(circuit, curve, b)
+	checkError(err)
+
+	// must not error with big int test engine
+	err = IsSolved(circuit, validWitness, curve)
+	checkError(err)
+
+	switch b {
+	case backend.GROTH16:
+		err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...)
+		checkError(err)
+
+	case backend.PLONK:
+		err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
+		checkError(err)
+	default:
+		panic("not implemented")
+	}
+
 }
 
 func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
@@ -247,35 +251,94 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
-
-			checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
-			mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
-
-			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
-			checkError(err)
-
-			// must error with big int test engine
-			err = IsSolved(circuit, invalidWitness, curve)
-			mustError(err)
-
-			switch b {
-			case backend.GROTH16:
-				err := groth16.IsSolved(ccs, invalidWitness, opt.proverOpts...)
-				mustError(err)
-			case backend.PLONK:
-				err := plonk.IsSolved(ccs, invalidWitness, opt.proverOpts...)
-				mustError(err)
-			default:
-				panic("not implemented")
-			}
-
+			assert.solvingFailed(circuit, invalidWitness, b, curve, &opt)
 		}
 	}
 }
 
-func Fuzz(circuit frontend.Circuit) error {
-	panic("not implemented")
+func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
+	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
+
+	// 1- compile the circuit
+	ccs, err := assert.compile(circuit, curve, b)
+	checkError(err)
+
+	// must error with big int test engine
+	err = IsSolved(circuit, invalidWitness, curve)
+	mustError(err)
+
+	switch b {
+	case backend.GROTH16:
+		err := groth16.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		mustError(err)
+	case backend.PLONK:
+		err := plonk.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		mustError(err)
+	default:
+		panic("not implemented")
+	}
+
+}
+
+// Fuzz fuzzes the given circuit by instantiating "randomized" witnesses and cross checking
+// execution result between constraint system solver and big.Int test execution engine
+//
+// note: this is experimental and will be more tightly integrated with go1.18 built-in fuzzing
+func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func(opt *TestingOption) error) {
+	opt := assert.options(opts...)
+
+	// first we clone the circuit
+	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
+	// (% of allocations to be tuned)
+	w := utils.CloneCircuit(circuit)
+
+	fillers := []filler{randomFiller, binaryFiller, seedFiller}
+
+	for _, curve := range opt.curves {
+		for _, b := range opt.backends {
+
+			// this puts the compiled circuit in the cache
+			// we do this here in case our fuzzWitness method mutates some references in the circuit
+			// (like []frontend.Variable) before cleaning up
+			_, err := assert.compile(circuit, curve, b)
+			assert.NoError(err)
+			valid := 0
+			// "fuzz" with zeros
+			valid += assert.fuzzer(zeroFiller, circuit, w, b, curve, &opt)
+
+			for i := 0; i < fuzzCount; i++ {
+				for _, f := range fillers {
+					valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
+				}
+			}
+			utils.ResetWitness(w)
+
+			// ensure we're clean for next users.
+			// if we reached that point; compiled work so the circuit was clean and this does nothing
+			// except ensuring the witness cloning / fuzzing didn't mutate circuit
+			utils.ResetWitness(circuit)
+
+			// fmt.Println(reflect.TypeOf(circuit).String(), valid)
+		}
+	}
+}
+
+func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) int {
+	// fuzz a witness
+	fuzzer(w, curve)
+
+	err := IsSolved(circuit, w, curve)
+
+	if err == nil {
+		// valid witness
+		assert.solvingSucceeded(circuit, w, b, curve, opt)
+		return 1
+	}
+
+	// invalid witness
+	assert.solvingFailed(circuit, w, b, curve, opt)
+	return 0
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
@@ -333,13 +396,13 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 	if err != nil {
 		return
 	}
-	e := fmt.Errorf("did not error (but should have) %s(%s): %w", backendID.String(), curve.String(), err)
-	json, err := witness.ToJSON(w, curve)
+	var json string
+	json, err = witness.ToJSON(w, curve)
 	if err != nil {
-		e = fmt.Errorf("did not error (but should have) %s(%s): %w", backendID.String(), curve.String(), err)
-	} else if w != nil {
-		e = fmt.Errorf("did not error (but should have) %w\nwitness:%s", e, json)
+		json = err.Error()
 	}
+	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
+
 	assert.FailNow(e.Error())
 }
 

@@ -55,7 +55,7 @@ func (v *Variable) assertIsSet(cs *constraintSystem) {
 		var l compiled.LogEntry
 		var sbb strings.Builder
 		l.WriteStack(&sbb)
-		panic(fmt.Errorf("%w\n%s", ErrInputNotSet, sbb.String()))
+		panic(fmt.Errorf("%w\n%s", errInputNotSet, sbb.String()))
 	}
 
 }
@@ -69,7 +69,7 @@ func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 		var l compiled.LogEntry
 		var sbb strings.Builder
 		l.WriteStack(&sbb)
-		panic(fmt.Errorf("%w\n%s", ErrInputNotSet, sbb.String()))
+		panic(fmt.Errorf("%w\n%s", errInputNotSet, sbb.String()))
 	}
 
 	b := FromInterface(v.WitnessValue)

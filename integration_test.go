@@ -27,6 +27,11 @@ func TestIntegrationAPI(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
+	fuzzCount := 500
+	if testing.Short() {
+		fuzzCount = 50
+	}
+
 	for name, tData := range circuits.Circuits {
 		t.Log(name)
 		for _, w := range tData.ValidWitnesses {
@@ -36,6 +41,8 @@ func TestIntegrationAPI(t *testing.T) {
 		for _, w := range tData.InvalidWitnesses {
 			assert.ProverFailed(tData.Circuit, w)
 		}
+
+		assert.Fuzz(tData.Circuit, fuzzCount)
 
 	}
 

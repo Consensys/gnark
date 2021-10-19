@@ -82,7 +82,7 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
+		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == <unsolved>")
 		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
@@ -90,7 +90,7 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
+		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == <unsolved>")
 		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}

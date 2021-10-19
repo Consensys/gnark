@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math/big"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -28,8 +27,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // engine implements frontend.API
@@ -56,17 +54,10 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
 	// then, we set all the variables values to the ones from the witness
 
 	// clone the circuit
-	cValue := reflect.ValueOf(circuit).Elem()
-	newCircuit := reflect.New(cValue.Type())
-	newCircuit.Elem().Set(cValue)
-
-	c, ok := newCircuit.Interface().(frontend.Circuit)
-	if !ok {
-		panic("couldn't clone the circuit")
-	}
+	c := utils.CloneCircuit(circuit)
 
 	// set the witness values
-	copyWitness(c, witness)
+	utils.CopyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -78,7 +69,7 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
 
 	// we clear the frontend.Variable values, in case we accidentally mutated the circuit
 	// (our clone earlier copied somes slices or pointers)
-	clearValues(c)
+	utils.ResetWitness(c)
 
 	return
 }
@@ -299,46 +290,4 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 
 func (e *engine) modulus() *big.Int {
 	return e.curveID.Info().Fr.Modulus()
-}
-
-func copyWitness(to, from frontend.Circuit) {
-	var wValues []interface{}
-
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(frontend.Variable)
-
-		if visibility == compiled.Secret || visibility == compiled.Public {
-			if v.WitnessValue == nil {
-				return fmt.Errorf("when parsing variable %s: missing assignment", name)
-			}
-			wValues = append(wValues, v.WitnessValue)
-		}
-		return nil
-	}
-	if err := parser.Visit(from, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
-		panic(err)
-	}
-
-	i := 0
-	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret || visibility == compiled.Public {
-			tInput.Set(reflect.ValueOf(frontend.Value(wValues[i])))
-			i++
-		}
-		return nil
-	}
-	// this can't error.
-	_ = parser.Visit(to, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
-
-}
-
-func clearValues(c frontend.Circuit) {
-	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret || visibility == compiled.Public {
-			tInput.Set(reflect.ValueOf(frontend.Value(nil)))
-		}
-		return nil
-	}
-	// this can't error.
-	_ = parser.Visit(c, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
 }

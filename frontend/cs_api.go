@@ -206,7 +206,11 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 
 	debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
 
-	cs.addConstraint(newR1C(v2, res, v1), debug)
+	// TODO @gbotrel this adds a constraint but deals nicely with the case Div(0, 0)
+	v2Inv := cs.newInternalVariable()
+	cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
+
+	cs.addConstraint(newR1C(v1, v2Inv, res), debug)
 
 	return res
 }
