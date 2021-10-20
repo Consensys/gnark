@@ -75,13 +75,15 @@ func TestVerify(t *testing.T) {
 	}
 
 	// create cs
-	var circuit, witness merkleCircuit
-	circuit.Path = make([]frontend.Variable, len(proof))
-	circuit.Helper = make([]frontend.Variable, len(proof)-1)
-	witness.Path = make([]frontend.Variable, len(proof))
-	witness.Helper = make([]frontend.Variable, len(proof)-1)
-
-	witness.RootHash.Assign(merkleRoot)
+	circuit := merkleCircuit{
+		Path:   make([]frontend.Variable, len(proof)),
+		Helper: make([]frontend.Variable, len(proof)-1),
+	}
+	witness := merkleCircuit{
+		Path:     make([]frontend.Variable, len(proof)),
+		Helper:   make([]frontend.Variable, len(proof)-1),
+		RootHash: frontend.Value(merkleRoot),
+	}
 
 	for i := 0; i < len(proof); i++ {
 		witness.Path[i].Assign(proof[i])

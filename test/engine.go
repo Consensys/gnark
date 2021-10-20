@@ -54,7 +54,7 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
 	// then, we set all the variables values to the ones from the witness
 
 	// clone the circuit
-	c := utils.CloneCircuit(circuit)
+	c := utils.ShallowClone(circuit)
 
 	// set the witness values
 	utils.CopyWitness(c, witness)

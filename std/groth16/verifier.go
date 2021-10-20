@@ -77,12 +77,12 @@ func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKe
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12
-	preFinalExpo.Mul(api, &eπCdelta, &eπAπB, pairingInfo.Extension).
-		Mul(api, &preFinalExpo, &epsigamma, pairingInfo.Extension)
+	preFinalExpo.Mul(api, eπCdelta, eπAπB, pairingInfo.Extension).
+		Mul(api, preFinalExpo, epsigamma, pairingInfo.Extension)
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExponentiation(api, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(api, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MustBeEqual(api, resPairing)

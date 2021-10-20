@@ -48,7 +48,7 @@ func (circuit *pairingBLS377) Define(curveID ecc.ID, api frontend.API) error {
 	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
-	pairingRes.FinalExponentiation(api, &milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 

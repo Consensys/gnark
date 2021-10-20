@@ -9,17 +9,25 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// CloneCircuit clones given circuit
-func CloneCircuit(circuit frontend.Circuit) frontend.Circuit {
+// ShallowClone clones given circuit
+// this is actually a shallow copy --> if the circuits contains maps or slices
+// only the reference is copied.
+func ShallowClone(circuit frontend.Circuit) frontend.Circuit {
+
 	cValue := reflect.ValueOf(circuit).Elem()
 	newCircuit := reflect.New(cValue.Type())
 	newCircuit.Elem().Set(cValue)
 
-	c, ok := newCircuit.Interface().(frontend.Circuit)
+	circuitCopy, ok := newCircuit.Interface().(frontend.Circuit)
 	if !ok {
 		panic("couldn't clone the circuit")
 	}
-	return c
+
+	if !reflect.DeepEqual(circuitCopy, circuit) {
+		panic("clone failed")
+	}
+
+	return circuitCopy
 }
 
 // ResetWitness parses the reachable frontend.Variable values in the given circuit and sets them to nil

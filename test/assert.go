@@ -151,6 +151,9 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 		}
 	}
 
+	// TODO may not be the right place, but ensures all our tests call these minimal tests
+	// (like filling a witness with zeroes, or binary values, ...)
+	assert.Fuzz(circuit, 5, opts...)
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -262,6 +265,9 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b)
+	if err != nil {
+		fmt.Println(reflect.TypeOf(circuit).String())
+	}
 	checkError(err)
 
 	// must error with big int test engine
@@ -291,7 +297,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 	// first we clone the circuit
 	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
-	w := utils.CloneCircuit(circuit)
+	w := utils.ShallowClone(circuit)
 
 	fillers := []filler{randomFiller, binaryFiller, seedFiller}
 
@@ -364,6 +370,9 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	if !reflect.DeepEqual(ccs, _ccs) {
 		return nil, ErrCompilationNotDeterministic
 	}
+
+	// add the compiled circuit to the cache
+	assert.compiled[key] = ccs
 
 	return ccs, nil
 }
