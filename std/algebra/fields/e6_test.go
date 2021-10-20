@@ -28,7 +28,7 @@ import (
 func getBLS377ExtensionFp6(api frontend.API) Extension {
 	res := Extension{}
 	res.uSquare = -5
-	res.vCube = &E2{A0: api.Constant(0), A1: api.Constant(1)}
+	res.vCube = E2{A0: api.Constant(0), A1: api.Constant(1)}
 	return res
 }
 
@@ -42,7 +42,7 @@ type fp6Add struct {
 
 func (circuit *fp6Add) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	expected.Add(api, &circuit.A, &circuit.B)
+	expected.Add(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -73,7 +73,7 @@ type fp6Sub struct {
 
 func (circuit *fp6Sub) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	expected.Sub(api, &circuit.A, &circuit.B)
+	expected.Sub(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -105,7 +105,7 @@ type fp6Mul struct {
 func (circuit *fp6Mul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(api)
-	expected.Mul(api, &circuit.A, &circuit.B, ext)
+	expected.Mul(api, circuit.A, circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -137,7 +137,7 @@ type fp6MulByNonResidue struct {
 func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(api)
-	expected.MulByNonResidue(api, &circuit.A, ext)
+	expected.MulByNonResidue(api, circuit.A, ext)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -169,7 +169,7 @@ type fp6Inverse struct {
 func (circuit *fp6Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
 	ext := getBLS377ExtensionFp6(api)
-	expected.Inverse(api, &circuit.A, ext)
+	expected.Inverse(api, circuit.A, ext)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil

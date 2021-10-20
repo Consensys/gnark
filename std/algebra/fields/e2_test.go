@@ -26,28 +26,18 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type e2TestCircuit struct {
+type e2Add struct {
 	A, B, C E2
-	define  func(curveID ecc.ID, api frontend.API, A, B, C E2) error
 }
 
-func (circuit *e2TestCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	return circuit.define(curveID, api, circuit.A, circuit.B, circuit.C)
+func (circuit *e2Add) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	expected.Add(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
 }
 
 func TestAddFp2(t *testing.T) {
-
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
-			expected := E2{}
-			expected.Add(api, &A, &B)
-			expected.MustBeEqual(api, C)
-			return nil
-		},
-	}
-
-	// compile it into a R1CS
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -55,29 +45,28 @@ func TestAddFp2(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Add
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&e2Add{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
+type e2Sub struct {
+	A, B, C E2
+}
+
+func (circuit *e2Sub) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	expected.Sub(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
 func TestSubFp2(t *testing.T) {
-
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
-			expected := E2{}
-			expected.Sub(api, &A, &B)
-			expected.MustBeEqual(api, C)
-			return nil
-		},
-	}
-
-	// compile it into a R1CS
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -85,29 +74,29 @@ func TestSubFp2(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Sub
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&e2Sub{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
-func TestMulFp2(t *testing.T) {
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, api frontend.API, A, B, C E2) error {
-			ext := Extension{uSquare: -5}
-			expected := E2{}
-			expected.Mul(api, &A, &B, ext)
-			expected.MustBeEqual(api, C)
-			return nil
-		},
-	}
+type e2Mul struct {
+	A, B, C E2
+}
 
-	// compile it into a R1CS
+func (circuit *e2Mul) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	ext := Extension{uSquare: -5}
+	expected.Mul(api, circuit.A, circuit.B, ext)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestMulFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -115,13 +104,14 @@ func TestMulFp2(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Mul
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&e2Mul{}, &witness, test.WithCurves(ecc.BW6_761))
+
 }
 
 type fp2MulByFp struct {
@@ -132,7 +122,7 @@ type fp2MulByFp struct {
 
 func (circuit *fp2MulByFp) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.MulByFp(api, &circuit.A, circuit.B)
+	expected.MulByFp(api, circuit.A, circuit.B)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -166,7 +156,7 @@ type fp2Conjugate struct {
 
 func (circuit *fp2Conjugate) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.Conjugate(api, &circuit.A)
+	expected.Conjugate(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -197,7 +187,7 @@ type fp2Inverse struct {
 func (circuit *fp2Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
-	expected.Inverse(api, &circuit.A, ext)
+	expected.Inverse(api, circuit.A, ext)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil

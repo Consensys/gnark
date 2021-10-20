@@ -29,28 +29,28 @@ type E2 struct {
 }
 
 // Neg negates a e2 elmt
-func (e *E2) Neg(api frontend.API, e1 *E2) *E2 {
+func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 	e.A0 = api.Sub(0, e1.A0)
 	e.A1 = api.Sub(0, e1.A1)
 	return e
 }
 
 // Add e2 elmts
-func (e *E2) Add(api frontend.API, e1, e2 *E2) *E2 {
+func (e *E2) Add(api frontend.API, e1, e2 E2) *E2 {
 	e.A0 = api.Add(e1.A0, e2.A0)
 	e.A1 = api.Add(e1.A1, e2.A1)
 	return e
 }
 
 // Sub e2 elmts
-func (e *E2) Sub(api frontend.API, e1, e2 *E2) *E2 {
+func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 	e.A0 = api.Sub(e1.A0, e2.A0)
 	e.A1 = api.Sub(e1.A1, e2.A1)
 	return e
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(api frontend.API, e1, e2 *E2, ext Extension) *E2 {
+func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 
 	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
@@ -78,7 +78,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 *E2, ext Extension) *E2 {
 }
 
 // Square e2 elt
-func (z *E2) Square(api frontend.API, x *E2, ext Extension) *E2 {
+func (e *E2) Square(api frontend.API, x E2, ext Extension) *E2 {
 	//algo 22 https://eprint.iacr.org/2010/354.pdf
 	c0 := api.Add(x.A0, x.A1)
 	buSquare := frontend.FromInterface(ext.uSquare)
@@ -88,15 +88,15 @@ func (z *E2) Square(api frontend.API, x *E2, ext Extension) *E2 {
 	c0 = api.Mul(c0, c2) // (x1+x2)*(x1+(u**2)x2)
 	c2 = api.Mul(x.A0, x.A1)
 	c2 = api.Add(c2, c2)
-	z.A1 = c2
+	e.A1 = c2
 	c2 = api.Add(c2, c2)
-	z.A0 = api.Add(c0, c2)
+	e.A0 = api.Add(c0, c2)
 
-	return z
+	return e
 }
 
 // MulByFp multiplies an fp2 elmt by an fp elmt
-func (e *E2) MulByFp(api frontend.API, e1 *E2, c interface{}) *E2 {
+func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 	e.A0 = api.Mul(e1.A0, c)
 	e.A1 = api.Mul(e1.A1, c)
 	return e
@@ -104,7 +104,7 @@ func (e *E2) MulByFp(api frontend.API, e1 *E2, c interface{}) *E2 {
 
 // MulByIm multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByIm(api frontend.API, e1 *E2, ext Extension) *E2 {
+func (e *E2) MulByIm(api frontend.API, e1 E2, ext Extension) *E2 {
 	x := e1.A0
 	e.A0 = api.Mul(e1.A1, ext.uSquare)
 	e.A1 = x
@@ -112,14 +112,14 @@ func (e *E2) MulByIm(api frontend.API, e1 *E2, ext Extension) *E2 {
 }
 
 // Conjugate conjugation of an e2 elmt
-func (e *E2) Conjugate(api frontend.API, e1 *E2) *E2 {
+func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	e.A0 = e1.A0
 	e.A1 = api.Sub(0, e1.A1)
 	return e
 }
 
 // Inverse inverses an fp2elmt
-func (e *E2) Inverse(api frontend.API, e1 *E2, ext Extension) *E2 {
+func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
 
 	var a0, a1, t0, t1, t1beta frontend.Variable
 

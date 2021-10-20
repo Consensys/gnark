@@ -26,8 +26,8 @@ type Extension struct {
 
 	// generators of each sub field
 	uSquare interface{}
-	vCube   *E2
-	wSquare *E6
+	vCube   E2
+	wSquare E6
 
 	// frobenius applied to generators
 	frobv   interface{} // v**p  = (v**6)**(p-1/6)*v, frobv=(v**6)**(p-1/6), belongs to Fp)
@@ -64,9 +64,9 @@ func GetBLS377ExtensionFp12(api frontend.API) Extension {
 
 	res.uSquare = -5
 
-	res.vCube = &E2{A0: api.Constant(0), A1: api.Constant(1)}
+	res.vCube = E2{A0: api.Constant(0), A1: api.Constant(1)}
 
-	res.wSquare = &E6{
+	res.wSquare = E6{
 		B0: E2{api.Constant(0), api.Constant(0)},
 		B1: E2{api.Constant(1), api.Constant(0)},
 		B2: E2{api.Constant(0), api.Constant(0)},
@@ -111,102 +111,102 @@ func (e *E12) SetOne(api frontend.API) *E12 {
 }
 
 // Add adds 2 elmts in Fp12
-func (e *E12) Add(api frontend.API, e1, e2 *E12) *E12 {
-	e.C0.Add(api, &e1.C0, &e2.C0)
-	e.C1.Add(api, &e1.C1, &e2.C1)
+func (e *E12) Add(api frontend.API, e1, e2 E12) *E12 {
+	e.C0.Add(api, e1.C0, e2.C0)
+	e.C1.Add(api, e1.C1, e2.C1)
 	return e
 }
 
 // Sub substracts 2 elmts in Fp12
-func (e *E12) Sub(api frontend.API, e1, e2 *E12) *E12 {
-	e.C0.Sub(api, &e1.C0, &e2.C0)
-	e.C1.Sub(api, &e1.C1, &e2.C1)
+func (e *E12) Sub(api frontend.API, e1, e2 E12) *E12 {
+	e.C0.Sub(api, e1.C0, e2.C0)
+	e.C1.Sub(api, e1.C1, e2.C1)
 	return e
 }
 
 // Neg negates an Fp6elmt
-func (e *E12) Neg(api frontend.API, e1 *E12) *E12 {
-	e.C0.Neg(api, &e1.C0)
-	e.C1.Neg(api, &e1.C1)
+func (e *E12) Neg(api frontend.API, e1 E12) *E12 {
+	e.C0.Neg(api, e1.C0)
+	e.C1.Neg(api, e1.C1)
 	return e
 }
 
 // Mul multiplies 2 elmts in Fp12
-func (e *E12) Mul(api frontend.API, e1, e2 *E12, ext Extension) *E12 {
+func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
 
 	var u, v, ac, bd E6
-	u.Add(api, &e1.C0, &e1.C1) // 6C
-	v.Add(api, &e2.C0, &e2.C1) // 6C
-	v.Mul(api, &u, &v, ext)    // 61C
+	u.Add(api, e1.C0, e1.C1) // 6C
+	v.Add(api, e2.C0, e2.C1) // 6C
+	v.Mul(api, u, v, ext)    // 61C
 
-	ac.Mul(api, &e1.C0, &e2.C0, ext)            // 61C
-	bd.Mul(api, &e1.C1, &e2.C1, ext)            // 61C
-	e.C1.Sub(api, &v, &ac).Sub(api, &e.C1, &bd) // 12C
+	ac.Mul(api, e1.C0, e2.C0, ext)          // 61C
+	bd.Mul(api, e1.C1, e2.C1, ext)          // 61C
+	e.C1.Sub(api, v, ac).Sub(api, e.C1, bd) // 12C
 
-	bd.Mul(api, &bd, ext.wSquare, ext) // 6C
-	e.C0.Add(api, &ac, &bd)            // 6C
+	bd.Mul(api, bd, ext.wSquare, ext) // 6C
+	e.C0.Add(api, ac, bd)             // 6C
 
 	return e
 }
 
 // Square squares an element in Fp12
-func (z *E12) Square(api frontend.API, x *E12, ext Extension) *E12 {
+func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 	var c0, c2, c3 E6
-	c0.Sub(api, &x.C0, &x.C1)
-	c3.Mul(api, &x.C1, ext.wSquare, ext)
-	c3.Neg(api, &c3).Add(api, &x.C0, &c3)
-	c2.Mul(api, &x.C0, &x.C1, ext)
-	c0.Mul(api, &c0, &c3, ext).Add(api, &c0, &c2)
-	z.C1.Add(api, &c2, &c2)
-	c2.Mul(api, &c2, ext.wSquare, ext)
-	z.C0.Add(api, &c0, &c2)
+	c0.Sub(api, x.C0, x.C1)
+	c3.Mul(api, x.C1, ext.wSquare, ext)
+	c3.Neg(api, c3).Add(api, x.C0, c3)
+	c2.Mul(api, x.C0, x.C1, ext)
+	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
+	e.C1.Add(api, c2, c2)
+	c2.Mul(api, c2, ext.wSquare, ext)
+	e.C0.Add(api, c0, c2)
 
-	return z
+	return e
 }
 
 // CyclotomicSquare squares a Fp12 elt in the cyclotomic group
-func (z *E12) CyclotomicSquare(api frontend.API, x *E12, ext Extension) *E12 {
+func (e *E12) CyclotomicSquare(api frontend.API, x E12, ext Extension) *E12 {
 
 	// https://eprint.iacr.org/2009/565.pdf, 3.2
 	var t [9]E2
 
-	t[0].Square(api, &x.C1.B1, ext)
-	t[1].Square(api, &x.C0.B0, ext)
-	t[6].Add(api, &x.C1.B1, &x.C0.B0).Square(api, &t[6], ext).Sub(api, &t[6], &t[0]).Sub(api, &t[6], &t[1]) // 2*x4*x0
-	t[2].Square(api, &x.C0.B2, ext)
-	t[3].Square(api, &x.C1.B0, ext)
-	t[7].Add(api, &x.C0.B2, &x.C1.B0).Square(api, &t[7], ext).Sub(api, &t[7], &t[2]).Sub(api, &t[7], &t[3]) // 2*x2*x3
-	t[4].Square(api, &x.C1.B2, ext)
-	t[5].Square(api, &x.C0.B1, ext)
-	t[8].Add(api, &x.C1.B2, &x.C0.B1).Square(api, &t[8], ext).Sub(api, &t[8], &t[4]).Sub(api, &t[8], &t[5]).Mul(api, &t[8], ext.vCube, ext) // 2*x5*x1*u
+	t[0].Square(api, x.C1.B1, ext)
+	t[1].Square(api, x.C0.B0, ext)
+	t[6].Add(api, x.C1.B1, x.C0.B0).Square(api, t[6], ext).Sub(api, t[6], t[0]).Sub(api, t[6], t[1]) // 2*x4*x0
+	t[2].Square(api, x.C0.B2, ext)
+	t[3].Square(api, x.C1.B0, ext)
+	t[7].Add(api, x.C0.B2, x.C1.B0).Square(api, t[7], ext).Sub(api, t[7], t[2]).Sub(api, t[7], t[3]) // 2*x2*x3
+	t[4].Square(api, x.C1.B2, ext)
+	t[5].Square(api, x.C0.B1, ext)
+	t[8].Add(api, x.C1.B2, x.C0.B1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).Mul(api, t[8], ext.vCube, ext) // 2*x5*x1*u
 
-	t[0].Mul(api, &t[0], ext.vCube, ext).Add(api, &t[0], &t[1]) // x4^2*u + x0^2
-	t[2].Mul(api, &t[2], ext.vCube, ext).Add(api, &t[2], &t[3]) // x2^2*u + x3^2
-	t[4].Mul(api, &t[4], ext.vCube, ext).Add(api, &t[4], &t[5]) // x5^2*u + x1^2
+	t[0].Mul(api, t[0], ext.vCube, ext).Add(api, t[0], t[1]) // x4^2*u + x0^2
+	t[2].Mul(api, t[2], ext.vCube, ext).Add(api, t[2], t[3]) // x2^2*u + x3^2
+	t[4].Mul(api, t[4], ext.vCube, ext).Add(api, t[4], t[5]) // x5^2*u + x1^2
 
-	z.C0.B0.Sub(api, &t[0], &x.C0.B0).Add(api, &z.C0.B0, &z.C0.B0).Add(api, &z.C0.B0, &t[0])
-	z.C0.B1.Sub(api, &t[2], &x.C0.B1).Add(api, &z.C0.B1, &z.C0.B1).Add(api, &z.C0.B1, &t[2])
-	z.C0.B2.Sub(api, &t[4], &x.C0.B2).Add(api, &z.C0.B2, &z.C0.B2).Add(api, &z.C0.B2, &t[4])
+	e.C0.B0.Sub(api, t[0], x.C0.B0).Add(api, e.C0.B0, e.C0.B0).Add(api, e.C0.B0, t[0])
+	e.C0.B1.Sub(api, t[2], x.C0.B1).Add(api, e.C0.B1, e.C0.B1).Add(api, e.C0.B1, t[2])
+	e.C0.B2.Sub(api, t[4], x.C0.B2).Add(api, e.C0.B2, e.C0.B2).Add(api, e.C0.B2, t[4])
 
-	z.C1.B0.Add(api, &t[8], &x.C1.B0).Add(api, &z.C1.B0, &z.C1.B0).Add(api, &z.C1.B0, &t[8])
-	z.C1.B1.Add(api, &t[6], &x.C1.B1).Add(api, &z.C1.B1, &z.C1.B1).Add(api, &z.C1.B1, &t[6])
-	z.C1.B2.Add(api, &t[7], &x.C1.B2).Add(api, &z.C1.B2, &z.C1.B2).Add(api, &z.C1.B2, &t[7])
+	e.C1.B0.Add(api, t[8], x.C1.B0).Add(api, e.C1.B0, e.C1.B0).Add(api, e.C1.B0, t[8])
+	e.C1.B1.Add(api, t[6], x.C1.B1).Add(api, e.C1.B1, e.C1.B1).Add(api, e.C1.B1, t[6])
+	e.C1.B2.Add(api, t[7], x.C1.B2).Add(api, e.C1.B2, e.C1.B2).Add(api, e.C1.B2, t[7])
 
-	return z
+	return e
 }
 
 // Conjugate applies Frob**6 (conjugation over Fp6)
-func (e *E12) Conjugate(api frontend.API, e1 *E12) *E12 {
+func (e *E12) Conjugate(api frontend.API, e1 E12) *E12 {
 	zero := NewFp6Zero(api)
-	e.C1.Sub(api, &zero, &e1.C1)
+	e.C1.Sub(api, *zero, e1.C1)
 	e.C0 = e1.C0
 	return e
 }
 
 // MulBy034 multiplication by sparse element
-func (e *E12) MulBy034(api frontend.API, c0, c3, c4 *E2, ext Extension) *E12 {
+func (e *E12) MulBy034(api frontend.API, c0, c3, c4 E2, ext Extension) *E12 {
 
 	var z0, z1, z2, z3, z4, z5, tmp1, tmp2 E2
 	var t [12]E2
@@ -221,109 +221,109 @@ func (e *E12) MulBy034(api frontend.API, c0, c3, c4 *E2, ext Extension) *E12 {
 	tmp1.MulByIm(api, c3, ext) // MulByNonResidue
 	tmp2.MulByIm(api, c4, ext) // MulByNonResidue
 
-	t[0].Mul(api, &tmp1, &z5, ext)
-	t[1].Mul(api, &tmp2, &z4, ext)
-	t[2].Mul(api, c3, &z3, ext)
-	t[3].Mul(api, &tmp2, &z5, ext)
-	t[4].Mul(api, c3, &z4, ext)
-	t[5].Mul(api, c4, &z3, ext)
-	t[6].Mul(api, c3, &z0, ext)
-	t[7].Mul(api, &tmp2, &z2, ext)
-	t[8].Mul(api, c3, &z1, ext)
-	t[9].Mul(api, c4, &z0, ext)
-	t[10].Mul(api, c3, &z2, ext)
-	t[11].Mul(api, c4, &z1, ext)
+	t[0].Mul(api, tmp1, z5, ext)
+	t[1].Mul(api, tmp2, z4, ext)
+	t[2].Mul(api, c3, z3, ext)
+	t[3].Mul(api, tmp2, z5, ext)
+	t[4].Mul(api, c3, z4, ext)
+	t[5].Mul(api, c4, z3, ext)
+	t[6].Mul(api, c3, z0, ext)
+	t[7].Mul(api, tmp2, z2, ext)
+	t[8].Mul(api, c3, z1, ext)
+	t[9].Mul(api, c4, z0, ext)
+	t[10].Mul(api, c3, z2, ext)
+	t[11].Mul(api, c4, z1, ext)
 
-	e.C0.B0.Mul(api, c0, &z0, ext).
-		Add(api, &e.C0.B0, &t[0]).
-		Add(api, &e.C0.B0, &t[1])
-	e.C0.B1.Mul(api, c0, &z1, ext).
-		Add(api, &e.C0.B1, &t[2]).
-		Add(api, &e.C0.B1, &t[3])
-	e.C0.B2.Mul(api, c0, &z2, ext).
-		Add(api, &e.C0.B2, &t[4]).
-		Add(api, &e.C0.B2, &t[5])
-	e.C1.B0.Mul(api, c0, &z3, ext).
-		Add(api, &e.C1.B0, &t[6]).
-		Add(api, &e.C1.B0, &t[7])
-	e.C1.B1.Mul(api, c0, &z4, ext).
-		Add(api, &e.C1.B1, &t[8]).
-		Add(api, &e.C1.B1, &t[9])
-	e.C1.B2.Mul(api, c0, &z5, ext).
-		Add(api, &e.C1.B2, &t[10]).
-		Add(api, &e.C1.B2, &t[11])
+	e.C0.B0.Mul(api, c0, z0, ext).
+		Add(api, e.C0.B0, t[0]).
+		Add(api, e.C0.B0, t[1])
+	e.C0.B1.Mul(api, c0, z1, ext).
+		Add(api, e.C0.B1, t[2]).
+		Add(api, e.C0.B1, t[3])
+	e.C0.B2.Mul(api, c0, z2, ext).
+		Add(api, e.C0.B2, t[4]).
+		Add(api, e.C0.B2, t[5])
+	e.C1.B0.Mul(api, c0, z3, ext).
+		Add(api, e.C1.B0, t[6]).
+		Add(api, e.C1.B0, t[7])
+	e.C1.B1.Mul(api, c0, z4, ext).
+		Add(api, e.C1.B1, t[8]).
+		Add(api, e.C1.B1, t[9])
+	e.C1.B2.Mul(api, c0, z5, ext).
+		Add(api, e.C1.B2, t[10]).
+		Add(api, e.C1.B2, t[11])
 
 	return e
 }
 
 // Frobenius applies frob to an fp12 elmt
-func (e *E12) Frobenius(api frontend.API, e1 *E12, ext Extension) *E12 {
+func (e *E12) Frobenius(api frontend.API, e1 E12, ext Extension) *E12 {
 
-	e.C0.B0.Conjugate(api, &e1.C0.B0)
-	e.C0.B1.Conjugate(api, &e1.C0.B1).MulByFp(api, &e.C0.B1, ext.frobv)
-	e.C0.B2.Conjugate(api, &e1.C0.B2).MulByFp(api, &e.C0.B2, ext.frobv2)
-	e.C1.B0.Conjugate(api, &e1.C1.B0).MulByFp(api, &e.C1.B0, ext.frobw)
-	e.C1.B1.Conjugate(api, &e1.C1.B1).MulByFp(api, &e.C1.B1, ext.frobvw)
-	e.C1.B2.Conjugate(api, &e1.C1.B2).MulByFp(api, &e.C1.B2, ext.frobv2w)
+	e.C0.B0.Conjugate(api, e1.C0.B0)
+	e.C0.B1.Conjugate(api, e1.C0.B1).MulByFp(api, e.C0.B1, ext.frobv)
+	e.C0.B2.Conjugate(api, e1.C0.B2).MulByFp(api, e.C0.B2, ext.frobv2)
+	e.C1.B0.Conjugate(api, e1.C1.B0).MulByFp(api, e.C1.B0, ext.frobw)
+	e.C1.B1.Conjugate(api, e1.C1.B1).MulByFp(api, e.C1.B1, ext.frobvw)
+	e.C1.B2.Conjugate(api, e1.C1.B2).MulByFp(api, e.C1.B2, ext.frobv2w)
 
 	return e
 
 }
 
 // FrobeniusSquare applies frob**2 to an fp12 elmt
-func (e *E12) FrobeniusSquare(api frontend.API, e1 *E12, ext Extension) *E12 {
+func (e *E12) FrobeniusSquare(api frontend.API, e1 E12, ext Extension) *E12 {
 
 	e.C0.B0 = e1.C0.B0
-	e.C0.B1.MulByFp(api, &e1.C0.B1, ext.frob2v)
-	e.C0.B2.MulByFp(api, &e1.C0.B2, ext.frob2v2)
-	e.C1.B0.MulByFp(api, &e1.C1.B0, ext.frob2w)
-	e.C1.B1.MulByFp(api, &e1.C1.B1, ext.frob2vw)
-	e.C1.B2.MulByFp(api, &e1.C1.B2, ext.frob2v2w)
+	e.C0.B1.MulByFp(api, e1.C0.B1, ext.frob2v)
+	e.C0.B2.MulByFp(api, e1.C0.B2, ext.frob2v2)
+	e.C1.B0.MulByFp(api, e1.C1.B0, ext.frob2w)
+	e.C1.B1.MulByFp(api, e1.C1.B1, ext.frob2vw)
+	e.C1.B2.MulByFp(api, e1.C1.B2, ext.frob2v2w)
 
 	return e
 }
 
 // FrobeniusCube applies frob**2 to an fp12 elmt
-func (e *E12) FrobeniusCube(api frontend.API, e1 *E12, ext Extension) *E12 {
+func (e *E12) FrobeniusCube(api frontend.API, e1 E12, ext Extension) *E12 {
 
-	e.C0.B0.Conjugate(api, &e1.C0.B0)
-	e.C0.B1.Conjugate(api, &e1.C0.B1).MulByFp(api, &e.C0.B1, ext.frob3v)
-	e.C0.B2.Conjugate(api, &e1.C0.B2).MulByFp(api, &e.C0.B2, ext.frob3v2)
-	e.C1.B0.Conjugate(api, &e1.C1.B0).MulByFp(api, &e.C1.B0, ext.frob3w)
-	e.C1.B1.Conjugate(api, &e1.C1.B1).MulByFp(api, &e.C1.B1, ext.frob3vw)
-	e.C1.B2.Conjugate(api, &e1.C1.B2).MulByFp(api, &e.C1.B2, ext.frob3v2w)
+	e.C0.B0.Conjugate(api, e1.C0.B0)
+	e.C0.B1.Conjugate(api, e1.C0.B1).MulByFp(api, e.C0.B1, ext.frob3v)
+	e.C0.B2.Conjugate(api, e1.C0.B2).MulByFp(api, e.C0.B2, ext.frob3v2)
+	e.C1.B0.Conjugate(api, e1.C1.B0).MulByFp(api, e.C1.B0, ext.frob3w)
+	e.C1.B1.Conjugate(api, e1.C1.B1).MulByFp(api, e.C1.B1, ext.frob3vw)
+	e.C1.B2.Conjugate(api, e1.C1.B2).MulByFp(api, e.C1.B2, ext.frob3v2w)
 
 	return e
 }
 
 // Inverse inverse an elmt in Fp12
-func (e *E12) Inverse(api frontend.API, e1 *E12, ext Extension) *E12 {
+func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 
 	var t [2]E6
 	var buf E6
 
-	t[0].Mul(api, &e1.C0, &e1.C0, ext)
-	t[1].Mul(api, &e1.C1, &e1.C1, ext)
+	t[0].Mul(api, e1.C0, e1.C0, ext)
+	t[1].Mul(api, e1.C1, e1.C1, ext)
 
-	buf.MulByNonResidue(api, &t[1], ext)
-	t[0].Sub(api, &t[0], &buf)
+	buf.MulByNonResidue(api, t[1], ext)
+	t[0].Sub(api, t[0], buf)
 
-	t[1].Inverse(api, &t[0], ext)
-	e.C0.Mul(api, &e1.C0, &t[1], ext)
-	e.C1.Mul(api, &e1.C1, &t[1], ext).Neg(api, &e.C1)
+	t[1].Inverse(api, t[0], ext)
+	e.C0.Mul(api, e1.C0, t[1], ext)
+	e.C1.Mul(api, e1.C1, t[1], ext).Neg(api, e.C1)
 
 	return e
 }
 
 // ConjugateFp12 conjugates an Fp12 elmt (applies Frob**6)
-func (e *E12) ConjugateFp12(api frontend.API, e1 *E12) *E12 {
+func (e *E12) ConjugateFp12(api frontend.API, e1 E12) *E12 {
 	e.C0 = e1.C0
-	e.C1.Neg(api, &e1.C1)
+	e.C1.Neg(api, e1.C1)
 	return e
 }
 
 // Select sets e to r1 if b=1, r2 otherwise
-func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 *E12) *E12 {
+func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
 	e.C0.B0.A0 = api.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
 	e.C0.B0.A1 = api.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)
@@ -344,7 +344,7 @@ func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 *E12) *E12 {
 // FixedExponentiation compute e1**exponent, where the exponent is hardcoded
 // This function is only used for the final expo of the pairing for bls12377, so the exponent is supposed to be hardcoded
 // and on 64 bits.
-func (e *E12) FixedExponentiation(api frontend.API, e1 *E12, exponent uint64, ext Extension) *E12 {
+func (e *E12) FixedExponentiation(api frontend.API, e1 E12, exponent uint64, ext Extension) *E12 {
 
 	var expoBin [64]uint8
 	for i := 0; i < 64; i++ {
@@ -355,9 +355,9 @@ func (e *E12) FixedExponentiation(api frontend.API, e1 *E12, exponent uint64, ex
 	res.SetOne(api)
 
 	for i := 0; i < 64; i++ {
-		res.Mul(api, &res, &res, ext)
+		res.Mul(api, res, res, ext)
 		if expoBin[i] == 1 {
-			res.Mul(api, &res, e1, ext)
+			res.Mul(api, res, e1, ext)
 		}
 	}
 	*e = res
@@ -366,42 +366,42 @@ func (e *E12) FixedExponentiation(api frontend.API, e1 *E12, exponent uint64, ex
 }
 
 // FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
-func (e *E12) FinalExponentiation(api frontend.API, e1 *E12, genT uint64, ext Extension) *E12 {
+func (e *E12) FinalExponentiation(api frontend.API, e1 E12, genT uint64, ext Extension) *E12 {
 
-	result := *e1
+	result := e1
 
 	// https://eprint.iacr.org/2016/130.pdf
 	var t [3]E12
 
 	// easy part
-	t[0].Conjugate(api, &result)
-	result.Inverse(api, &result, ext)
-	t[0].Mul(api, &t[0], &result, ext)
-	result.FrobeniusSquare(api, &t[0], ext).
-		Mul(api, &result, &t[0], ext)
+	t[0].Conjugate(api, result)
+	result.Inverse(api, result, ext)
+	t[0].Mul(api, t[0], result, ext)
+	result.FrobeniusSquare(api, t[0], ext).
+		Mul(api, result, t[0], ext)
 
 	// hard part (up to permutation)
 	// Daiki Hayashida and Kenichiro Hayasaka
 	// and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	t[0].CyclotomicSquare(api, &result, ext)
-	t[1].FixedExponentiation(api, &result, genT, ext)
-	t[2].Conjugate(api, &result)
-	t[1].Mul(api, &t[1], &t[2], ext)
-	t[2].FixedExponentiation(api, &t[1], genT, ext)
-	t[1].Conjugate(api, &t[1])
-	t[1].Mul(api, &t[1], &t[2], ext)
-	t[2].FixedExponentiation(api, &t[1], genT, ext)
-	t[1].Frobenius(api, &t[1], ext)
-	t[1].Mul(api, &t[1], &t[2], ext)
-	result.Mul(api, &result, &t[0], ext)
-	t[0].FixedExponentiation(api, &t[1], genT, ext)
-	t[2].FixedExponentiation(api, &t[0], genT, ext)
-	t[0].FrobeniusSquare(api, &t[1], ext)
-	t[1].Conjugate(api, &t[1])
-	t[1].Mul(api, &t[1], &t[2], ext)
-	t[1].Mul(api, &t[1], &t[0], ext)
-	result.Mul(api, &result, &t[1], ext)
+	t[0].CyclotomicSquare(api, result, ext)
+	t[1].FixedExponentiation(api, result, genT, ext)
+	t[2].Conjugate(api, result)
+	t[1].Mul(api, t[1], t[2], ext)
+	t[2].FixedExponentiation(api, t[1], genT, ext)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2], ext)
+	t[2].FixedExponentiation(api, t[1], genT, ext)
+	t[1].Frobenius(api, t[1], ext)
+	t[1].Mul(api, t[1], t[2], ext)
+	result.Mul(api, result, t[0], ext)
+	t[0].FixedExponentiation(api, t[1], genT, ext)
+	t[2].FixedExponentiation(api, t[0], genT, ext)
+	t[0].FrobeniusSquare(api, t[1], ext)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2], ext)
+	t[1].Mul(api, t[1], t[0], ext)
+	result.Mul(api, result, t[1], ext)
 
 	*e = result
 	return e

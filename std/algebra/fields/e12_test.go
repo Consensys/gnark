@@ -36,7 +36,7 @@ type fp12Add struct {
 
 func (circuit *fp12Add) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Add(api, &circuit.A, &circuit.B)
+	expected.Add(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -67,7 +67,7 @@ type fp12Sub struct {
 
 func (circuit *fp12Sub) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Sub(api, &circuit.A, &circuit.B)
+	expected.Sub(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -99,7 +99,7 @@ type fp12Mul struct {
 func (circuit *fp12Mul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(api)
-	expected.Mul(api, &circuit.A, &circuit.B, ext)
+	expected.Mul(api, circuit.A, circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -130,7 +130,7 @@ type fp12Square struct {
 
 func (circuit *fp12Square) Define(curveID ecc.ID, api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
-	s := circuit.A.Square(api, &circuit.A, ext)
+	s := circuit.A.Square(api, circuit.A, ext)
 	s.MustBeEqual(api, *s)
 	return nil
 }
@@ -161,8 +161,8 @@ type fp12CycloSquare struct {
 func (circuit *fp12CycloSquare) Define(curveID ecc.ID, api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
 	var u, v E12
-	u.Square(api, &circuit.A, ext)
-	v.CyclotomicSquare(api, &circuit.A, ext)
+	u.Square(api, circuit.A, ext)
+	v.CyclotomicSquare(api, circuit.A, ext)
 	u.MustBeEqual(api, v)
 	u.MustBeEqual(api, circuit.B)
 	return nil
@@ -200,7 +200,7 @@ type fp12Conjugate struct {
 
 func (circuit *fp12Conjugate) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Conjugate(api, &circuit.A)
+	expected.Conjugate(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -230,15 +230,15 @@ type fp12Frobenius struct {
 func (circuit *fp12Frobenius) Define(curveID ecc.ID, api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
 	fb := E12{}
-	fb.Frobenius(api, &circuit.A, ext)
+	fb.Frobenius(api, circuit.A, ext)
 	fb.MustBeEqual(api, circuit.C)
 
 	fbSquare := E12{}
-	fbSquare.FrobeniusSquare(api, &circuit.A, ext)
+	fbSquare.FrobeniusSquare(api, circuit.A, ext)
 	fbSquare.MustBeEqual(api, circuit.D)
 
 	fbCube := E12{}
-	fbCube.FrobeniusCube(api, &circuit.A, ext)
+	fbCube.FrobeniusCube(api, circuit.A, ext)
 	fbCube.MustBeEqual(api, circuit.E)
 	return nil
 }
@@ -272,7 +272,7 @@ type fp12Inverse struct {
 func (circuit *fp12Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(api)
-	expected.Inverse(api, &circuit.A, ext)
+	expected.Inverse(api, circuit.A, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -303,7 +303,7 @@ func (circuit *fp12FixedExpo) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
-	expected.FixedExponentiation(api, &circuit.A, expo, ext)
+	expected.FixedExponentiation(api, circuit.A, expo, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -335,7 +335,7 @@ func (circuit *fp12FinalExpo) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
-	expected.FinalExponentiation(api, &circuit.A, expo, ext)
+	expected.FinalExponentiation(api, circuit.A, expo, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -365,7 +365,7 @@ type fp12MulBy034 struct {
 
 func (circuit *fp12MulBy034) Define(curveID ecc.ID, api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
-	circuit.A.MulBy034(api, &circuit.B, &circuit.C, &circuit.D, ext)
+	circuit.A.MulBy034(api, circuit.B, circuit.C, circuit.D, ext)
 	circuit.A.MustBeEqual(api, circuit.W)
 	return nil
 }
