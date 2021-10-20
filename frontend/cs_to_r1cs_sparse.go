@@ -17,6 +17,8 @@ limitations under the License.
 package frontend
 
 import (
+	"crypto/sha256"
+	"hash"
 	"math/big"
 	"sync"
 
@@ -50,6 +52,10 @@ type sparseR1CS struct {
 	solvedVariables []bool
 
 	currentR1CDebugID int // mark the current R1C debugID
+
+	// map LinearExpression -> Term. The goal is to not reduce
+	// the same linear expression twice.
+	record map[string]compiled.Term
 }
 
 var bOne = new(big.Int).SetInt64(1)
@@ -73,6 +79,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
 		currentR1CDebugID:    -1,
+		record:               make(map[string]compiled.Term),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -90,6 +97,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// convert the R1C to SparseR1C
 	// in particular, all linear expressions that appear in the R1C
 	// will be split in multiple constraints in the SparseR1C
+	h := sha256.New()
 	for i := 0; i < len(cs.constraints); i++ {
 		// we set currentR1CDebugID to the debugInfo ID corresponding to the R1C we're processing
 		// if present. All constraints created throuh addConstraint will add a new mapping
@@ -98,7 +106,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		} else {
 			res.currentR1CDebugID = -1
 		}
-		res.r1cToSparseR1C(cs.constraints[i])
+		res.r1cToSparseR1C(cs.constraints[i], h)
 	}
 
 	// shift variable ID
@@ -388,6 +396,12 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 }
 
 // split splits a linear expression to plonk constraints
+// ex: split(0, nil, l, record, sha256) --> returns a sequence
+// u0=l[0]+l[1], left = append(left, l[0])
+// u1=u0+l[2], left = append(left, l[0])
+// ...,
+// un=u_n-1+l[n+1] left = append(left, l[n+1])
+// split splits a linear expression to plonk constraints
 // ex: le = aiwi is split into PLONK constraints (using sums)
 // of 3 terms) like this:
 // w0' = a0w0+a1w1
@@ -417,8 +431,33 @@ func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compi
 
 }
 
+func (scs *sparseR1CS) splitBis(l compiled.LinearExpression, record map[string]compiled.Term, h hash.Hash) compiled.Term {
+
+	// floor case
+	if len(l) == 1 {
+		return l[0]
+	}
+
+	// recursive case
+
+	// check if l is recorded, if so we pick it from the record
+	k := l.GetKey(h)
+	if t, ok := record[k]; ok {
+		return t
+	}
+
+	// else we record it, and continue
+	o := scs.newTerm(bOne)
+	a := l[0]
+	b := scs.splitBis(l[1:], record, h)
+	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: o})
+	o = scs.negate(o)
+	record[k] = o
+	return o
+}
+
 // r1cToSparseR1C splits a r1c constraint
-func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
+func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C, h hash.Hash) {
 
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
@@ -473,7 +512,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + cO
 	f2 := func() {
-		rt := scs.split(0, r)
+		//rt := scs.split(0, r)
+		rt := scs.splitBis(r, scs.record, h)
 
 		cRT := scs.multiply(rt, &cL)
 		cK.Mul(&cL, &cR)
@@ -489,7 +529,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + cO
 	f3 := func() {
-		lt := scs.split(0, l)
+		//lt := scs.split(0, l)
+		lt := scs.splitBis(l, scs.record, h)
 
 		cRLT := scs.multiply(lt, &cR)
 		cK.Mul(&cL, &cR)
@@ -504,8 +545,35 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*(r + cR) = toSolve + cO
 	f4 := func() {
-		lt := scs.split(0, l)
-		rt := scs.split(0, r)
+		// lt := scs.split(0, l)
+		// rt := scs.split(0, r)
+		// var sbb, _sbb strings.Builder
+		// //fmt.Printf("len(l): %d\n", len(l))
+		// for i, t := range l {
+		// 	coefID, varID, _ := t.Unpack()
+		// 	coef := scs.coeffs[coefID]
+		// 	sbb.WriteString(fmt.Sprintf("%s*%d", coef.String(), varID))
+		// 	if i < len(l)-1 {
+		// 		sbb.WriteString(" + ")
+		// 	}
+		// }
+		// //fmt.Printf("%s\n", sbb.String())
+		lt := scs.splitBis(l, scs.record, h)
+		// //fmt.Printf("nb constraints: %d\n", len(scs.ccs.Constraints))
+
+		// //fmt.Printf("len(r): %d\n", len(r))
+		// for i, t := range r {
+		// 	coefID, varID, _ := t.Unpack()
+		// 	coef := scs.coeffs[coefID]
+		// 	_sbb.WriteString(fmt.Sprintf("%s*%d", coef.String(), varID))
+		// 	if i < len(r)-1 {
+		// 		_sbb.WriteString(" + ")
+		// 	}
+		// }
+		// //fmt.Printf("%s\n", _sbb.String())
+		rt := scs.splitBis(r, scs.record, h)
+		// //fmt.Printf("nb constraints: %d\n", len(scs.ccs.Constraints))
+		// //fmt.Printf("--\n")
 
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
@@ -523,7 +591,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*cR = toSolve + o + cO
 	f5 := func() {
-		ot := scs.split(0, o)
+		//ot := scs.split(0, o)
+		ot := scs.splitBis(o, scs.record, h)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -538,8 +607,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + o + cO
 	f6 := func() {
-		rt := scs.split(0, r)
-		ot := scs.split(0, o)
+		// rt := scs.split(0, r)
+		// ot := scs.split(0, o)
+		rt := scs.splitBis(r, scs.record, h)
+		ot := scs.splitBis(o, scs.record, h)
 
 		cRT := scs.multiply(rt, &cL)
 		cK.Mul(&cL, &cR)
@@ -556,8 +627,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + o + cO
 	f7 := func() {
-		lt := scs.split(0, l)
-		ot := scs.split(0, o)
+		// lt := scs.split(0, l)
+		// ot := scs.split(0, o)
+		lt := scs.splitBis(l, scs.record, h)
+		ot := scs.splitBis(o, scs.record, h)
 
 		cRLT := scs.multiply(lt, &cR)
 		cK.Mul(&cL, &cR)
@@ -574,9 +647,12 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*(r + cR) = toSolve + o + cO
 	f8 := func() {
-		lt := scs.split(0, l)
-		rt := scs.split(0, r)
-		ot := scs.split(0, o)
+		// lt := scs.split(0, l)
+		// rt := scs.split(0, r)
+		// ot := scs.split(0, o)
+		lt := scs.splitBis(l, scs.record, h)
+		rt := scs.splitBis(r, scs.record, h)
+		ot := scs.splitBis(o, scs.record, h)
 
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
@@ -617,7 +693,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f10 := func() {
 		res := scs.newTerm(&cS, idCS)
 
-		rt := scs.split(0, r)
+		// rt := scs.split(0, r)
+		rt := scs.splitBis(r, scs.record, h)
 		cRT := scs.multiply(rt, &cL)
 		cRes := scs.multiply(res, &cR)
 
@@ -634,7 +711,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (toSolve + l + cL)*cR = cO
 	f11 := func() {
-		lt := scs.split(0, l)
+		//lt := scs.split(0, l)
+		lt := scs.splitBis(l, scs.record, h)
 		lt = scs.multiply(lt, &cR)
 
 		cK.Mul(&cL, &cR)
@@ -653,8 +731,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
 	f12 := func() {
 		u := scs.newTerm(bOne)
-		lt := scs.split(0, l)
-		rt := scs.split(0, r)
+		// lt := scs.split(0, l)
+		// rt := scs.split(0, r)
+		lt := scs.splitBis(l, scs.record, h)
+		rt := scs.splitBis(r, scs.record, h)
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
 
@@ -681,7 +761,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (toSolve + cL)*cR = o + cO
 	f13 := func() {
-		ot := scs.split(0, o)
+		//ot := scs.split(0, o)
+		ot := scs.splitBis(o, scs.record, h)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -698,10 +779,12 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + cL)*(r + cR) = o + cO
 	// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 	f14 := func() {
-		ot := scs.split(0, o)
+		//ot := scs.split(0, o)
+		ot := scs.splitBis(o, scs.record, h)
 		res := scs.newTerm(&cS, idCS)
 
-		rt := scs.split(0, r)
+		//rt := scs.split(0, r)
+		rt := scs.splitBis(r, scs.record, h)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -718,8 +801,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + l + cL)*cR = o + cO
 	// toSolve*cR + l*cR + cL*cR-cO-o=0
 	f15 := func() {
-		ot := scs.split(0, o)
-		lt := scs.split(0, l)
+		// ot := scs.split(0, o)
+		// lt := scs.split(0, l)
+		ot := scs.splitBis(o, scs.record, h)
+		lt := scs.splitBis(l, scs.record, h)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -739,8 +824,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f16 := func() {
 		// [l*r + l*cR +cL*r+cL*cR-cO] + u = 0
 		u := scs.newTerm(bOne)
-		lt := scs.split(0, l)
-		rt := scs.split(0, r)
+		// lt := scs.split(0, l)
+		// rt := scs.split(0, r)
+		lt := scs.splitBis(l, scs.record, h)
+		rt := scs.splitBis(r, scs.record, h)
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
 
@@ -792,55 +879,71 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	switch s {
 	case 0b0000:
+		//fmt.Printf("0b0000\n")
 		// (toSolve + cL)*cR = cO
 		f9()
 	case 0b0001:
+		//fmt.Printf("0b0001\n")
 		// (toSolve + cL)*(r + cR) = cO
 		f10()
 	case 0b0010:
+		//fmt.Printf("0b0010\n")
 		// (toSolve + l + cL)*cR = cO
 		f11()
 	case 0b0011:
+		//fmt.Printf("0b0011\n")
 		// (toSolve + l + cL)*(r + cR) = cO
 		// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
 		f12()
 	case 0b0100:
+		//fmt.Printf("0b0100\n")
 		// (toSolve + cL)*cR = o + cO
 		f13()
 	case 0b0101:
+		//fmt.Printf("0b0101\n")
 		// (toSolve + cL)*(r + cR) = o + cO
 		// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 		f14()
 	case 0b0110:
+		//fmt.Printf("0b0110\n")
 		// (toSolve + l + cL)*cR = o + cO
 		// toSolve*cR + l*cR + cL*cR-cO-o=0
 		f15()
 	case 0b0111:
+		//fmt.Printf("0b0111\n")
 		// (toSolve + l + cL)*(r + cR) = o + cO
 		// => toSolve*r + toSolve*cR + [ [l*r + l*cR +cL*r+cL*cR-cO]- o ]=0
 		f16()
 	case 0b1000:
+		//fmt.Printf("0b1000\n")
 		// cL*cR = toSolve + cO
 		f1()
 	case 0b1001:
+		//fmt.Printf("0b1001\n")
 		// cL*(r + cR) = toSolve + cO
 		f2()
 	case 0b1010:
+		//fmt.Printf("0b1010\n")
 		// (l + cL)*cR = toSolve + cO
 		f3()
 	case 0b1011:
+		//fmt.Printf("0b1011\n")
 		// (l + cL)*(r + cR) = toSolve + cO
 		f4()
 	case 0b1100:
+		//fmt.Printf("0b1100\n")
 		// cL*cR = toSolve + o + cO
 		f5()
 	case 0b1101:
+		//fmt.Printf("0b1101\n")
 		// cL*(r + cR) = toSolve + o + cO
 		f6()
 	case 0b1110:
+		//fmt.Printf("0b1110\n")
 		// (l + cL)*cR = toSolve + o + cO
 		f7()
 	case 0b1111:
+		//fmt.Printf("0b1111\n")
 		// (l + cL)*(r + cR) = toSolve + o + cO
 		f8()
 	}
