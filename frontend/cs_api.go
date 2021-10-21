@@ -126,20 +126,21 @@ func (cs *constraintSystem) mulConstant(v1, constant Variable) Variable {
 
 	for i, t := range v1.linExp {
 		cID, vID, visibility := t.Unpack()
+		var newCoeff big.Int
 		switch cID {
 		case compiled.CoeffIdMinusOne:
-			lambda.Neg(lambda)
+			newCoeff.Neg(lambda)
 		case compiled.CoeffIdZero:
-			lambda.SetUint64(0)
+			newCoeff.SetUint64(0)
 		case compiled.CoeffIdOne:
-			// lambda.Set(lambda)
+			newCoeff.Set(lambda)
 		case compiled.CoeffIdTwo:
-			lambda.Add(lambda, lambda)
+			newCoeff.Add(lambda, lambda)
 		default:
 			coeff := cs.coeffs[cID]
-			lambda.Mul(&coeff, lambda).Mod(lambda, cs.curveID.Info().Fr.Modulus())
+			newCoeff.Mul(&coeff, lambda).Mod(&newCoeff, cs.curveID.Info().Fr.Modulus())
 		}
-		linExp[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, lambda)
+		linExp[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, &newCoeff)
 	}
 	return Variable{linExp: linExp}
 }
