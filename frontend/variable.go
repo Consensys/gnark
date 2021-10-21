@@ -60,6 +60,22 @@ func (v *Variable) assertIsSet(cs *constraintSystem) {
 
 }
 
+// isConstant returns true if the variable is ONE_WIRE * coeff
+func (v *Variable) isConstant() bool {
+	if len(v.linExp) != 1 {
+		return false
+	}
+	_, vID, visibility := v.linExp[0].Unpack()
+	return vID == 0 && visibility == compiled.Public
+}
+
+func (v *Variable) constantValue(cs *constraintSystem) *big.Int {
+	if !v.isConstant() {
+		panic("can't get constantCoeffID on a non-constant variable")
+	}
+	return new(big.Int).Set(&cs.coeffs[v.linExp[0].CoeffID()])
+}
+
 // GetWitnessValue returns the assigned value to the variable
 // the value is converted to a field element (mod curveID base field modulus)
 // then converted to a big.Int

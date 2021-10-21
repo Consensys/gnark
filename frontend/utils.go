@@ -61,7 +61,7 @@ func FromInterface(i1 interface{}) big.Int {
 				}
 			}
 		}
-		panic("unsupported type")
+		panic(reflect.TypeOf(i1).String() + " to big.Int not supported")
 	}
 
 	return val

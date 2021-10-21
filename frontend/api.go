@@ -33,6 +33,9 @@ type API interface {
 	// Mul returns res = i1 * i2 * ... in
 	Mul(i1, i2 interface{}, in ...interface{}) Variable
 
+	// DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
+	DivUnchecked(i1, i2 interface{}) Variable
+
 	// Div returns i1 / i2
 	Div(i1, i2 interface{}) Variable
 

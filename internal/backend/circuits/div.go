@@ -11,7 +11,7 @@ type divCircuit struct {
 }
 
 func (circuit *divCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	cs.AssertIsEqual(cs.Div(circuit.X, circuit.Y), circuit.Z)
+	cs.AssertIsEqual(cs.DivUnchecked(circuit.X, circuit.Y), circuit.Z)
 	return nil
 }
 

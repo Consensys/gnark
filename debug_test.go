@@ -67,7 +67,7 @@ type divBy0Trace struct {
 
 func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
-	api.Div(circuit.A, d)
+	api.DivUnchecked(circuit.A, d)
 	return nil
 }
 

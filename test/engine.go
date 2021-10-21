@@ -122,6 +122,18 @@ func (e *engine) Div(i1, i2 interface{}) frontend.Variable {
 	return frontend.Value(b2)
 }
 
+func (e *engine) DivUnchecked(i1, i2 interface{}) frontend.Variable {
+	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
+	if b1.IsUint64() && b2.IsUint64() && b1.Uint64() == 0 && b2.Uint64() == 0 {
+		return frontend.Value(0)
+	}
+	if b2.ModInverse(&b2, e.modulus()) == nil {
+		panic("no inverse")
+	}
+	b2.Mul(&b1, &b2).Mod(&b2, e.modulus())
+	return frontend.Value(b2)
+}
+
 func (e *engine) Inverse(v frontend.Variable) frontend.Variable {
 	b1 := e.toBigInt(v)
 	if b1.ModInverse(&b1, e.modulus()) == nil {

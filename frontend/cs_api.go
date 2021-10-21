@@ -27,7 +27,7 @@ import (
 func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// extract variables from input
-	vars, s := cs.extractVariables(i1, i2, in...)
+	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting variable
 	res := Variable{
@@ -50,6 +50,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 
 	switch t := i.(type) {
 	case Variable:
+		t.assertIsSet(cs)
 		res.linExp = cs.negateLinExp(t.linExp)
 	default:
 		n := FromInterface(t)
@@ -67,10 +68,11 @@ func (cs *constraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 	res := make(compiled.LinearExpression, len(l))
 	var coeff, coeffCopy big.Int
 	for i, t := range l {
-		coeffID, variableID, constraintVis := t.Unpack()
-		coeff = cs.coeffs[coeffID]
+		cID, vID, visibility := t.Unpack()
+		coeff = cs.coeffs[cID]
+		// TODO fast path for known coeffs
 		coeffCopy.Neg(&coeff)
-		res[i] = cs.makeTerm(Variable{visibility: constraintVis, id: variableID}, &coeffCopy)
+		res[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, &coeffCopy)
 	}
 	return res
 }
@@ -79,7 +81,7 @@ func (cs *constraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// extract variables from input
-	vars, s := cs.extractVariables(i1, i2, in...)
+	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting variable
 	res := Variable{
@@ -98,70 +100,73 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-func (cs *constraintSystem) mulConstant(i interface{}, v Variable) Variable {
-	var linExp compiled.LinearExpression
-	var newCoeff big.Int
+func (cs *constraintSystem) mulConstant(v1, constant Variable) Variable {
+	// sanity check
+	if v1.isConstant() || !constant.isConstant() {
+		panic("v1 must not be constant, constant must be.")
+	}
 
-	lambda := FromInterface(i)
+	linExp := v1.linExp.Clone()
 
-	for _, t := range v.linExp {
+	lambda := constant.constantValue(cs)
+
+	for i, t := range v1.linExp {
 		cID, vID, visibility := t.Unpack()
 		switch cID {
 		case compiled.CoeffIdMinusOne:
-			newCoeff.Neg(&lambda)
+			lambda.Neg(lambda)
 		case compiled.CoeffIdZero:
-			newCoeff.SetUint64(0)
+			lambda.SetUint64(0)
 		case compiled.CoeffIdOne:
-			newCoeff.Set(&lambda)
+			// lambda.Set(lambda)
 		case compiled.CoeffIdTwo:
-			newCoeff.Add(&lambda, &lambda)
+			lambda.Add(lambda, lambda)
 		default:
 			coeff := cs.coeffs[cID]
-			newCoeff.Mul(&coeff, &lambda)
+			lambda.Mul(&coeff, lambda).Mod(lambda, cs.curveID.Info().Fr.Modulus())
 		}
-		linExp = append(linExp, cs.makeTerm(Variable{visibility: visibility, id: vID}, &newCoeff))
+		linExp[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, lambda)
 	}
 	return Variable{linExp: linExp}
 }
 
 // Mul returns res = i1 * i2 * ... in
 func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
+	vars, _ := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	mul := func(_i1, _i2 interface{}) Variable {
-		var _res Variable
-		switch t1 := _i1.(type) {
-		case Variable:
-			t1.assertIsSet(cs)
-			switch t2 := _i2.(type) {
-			case Variable:
-				t2.assertIsSet(cs)
-				_res = cs.newInternalVariable() // only in this case we record the constraint in the cs
-				cs.constraints = append(cs.constraints, newR1C(t1, t2, _res))
-				return _res
-			default:
-				_res = cs.mulConstant(t2, t1)
-				return _res
-			}
-		default:
-			switch t2 := _i2.(type) {
-			case Variable:
-				t2.assertIsSet(cs)
-				_res = cs.mulConstant(t1, t2)
-				return _res
-			default:
-				n1 := FromInterface(t1)
-				n2 := FromInterface(t2)
-				n1.Mul(&n1, &n2)
-				_res = cs.Constant(n1)
-				return _res
-			}
+	mul := func(v1, v2 Variable) Variable {
+
+		// v1 and v2 are both unknown, this is the only case we add a constraint
+		if !v1.isConstant() && !v2.isConstant() {
+			res := cs.newInternalVariable()
+			cs.constraints = append(cs.constraints, newR1C(v1, v2, res))
+			return res
 		}
+
+		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
+		if v1.isConstant() && v2.isConstant() {
+			b1 := v1.constantValue(cs)
+			b2 := v2.constantValue(cs)
+
+			b1.Mul(b1, b2).Mod(b1, cs.curveID.Info().Fr.Modulus())
+			return cs.Constant(b1)
+		}
+
+		// multiplying a variable by a constant -> we updated the coefficients in the linear expression
+		// leading to that variable
+
+		// ensure v2 is the constant
+		if v1.isConstant() {
+			v1, v2 = v2, v1
+		}
+
+		return cs.mulConstant(v1, v2)
 	}
 
-	res := mul(i1, i2)
+	res := mul(vars[0], vars[1])
 
-	for i := 0; i < len(in); i++ {
-		res = mul(res, in[i])
+	for i := 2; i < len(vars); i++ {
+		res = mul(res, vars[i])
 	}
 
 	return res
@@ -183,6 +188,22 @@ func (cs *constraintSystem) Inverse(v Variable) Variable {
 
 // Div returns res = i1 / i2
 func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
+	// allocate resulting variable
+	res := cs.newInternalVariable()
+
+	v1 := cs.Constant(i1)
+	v2 := cs.Constant(i2)
+	debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
+
+	v2Inv := cs.newInternalVariable()
+
+	cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
+	cs.addConstraint(newR1C(v1, v2Inv, res), debug)
+
+	return res
+}
+
+func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 	// allocate resulting variable
 	res := cs.newInternalVariable()
 
@@ -412,9 +433,13 @@ func (cs *constraintSystem) Select(b Variable, i1, i2 interface{}) Variable {
 	}
 }
 
-// Constant will return (and allocate if neccesary) a constant Variable
+// Constant will return (and allocate if neccesary) a Variable from given value
 //
-// input can be a Variable or must be convertible to big.Int (see FromInterface)
+// if input is already a Variable, does nothing
+// else, attempts to convert input to a big.Int (see FromInterface) and returns a Constant Variable
+//
+// a Constant variable does NOT necessary allocate a Variable in the ConstraintSystem
+// it is in the form ONE_WIRE * coeff
 func (cs *constraintSystem) Constant(input interface{}) Variable {
 
 	switch t := input.(type) {
@@ -426,31 +451,23 @@ func (cs *constraintSystem) Constant(input interface{}) Variable {
 		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
-		// cs.mulConstant(n, cs.one())
 		return Variable{linExp: compiled.LinearExpression{
 			cs.makeTerm(Variable{visibility: compiled.Public, id: 0}, &n),
 		}}
 	}
 }
 
-// extractVariables return Variable corresponding to inputs and the total size of the linear expressions
-func (cs *constraintSystem) extractVariables(i1, i2 interface{}, in ...interface{}) ([]Variable, int) {
-	r := make([]Variable, 0, len(in)+2)
+// toVariables return Variable corresponding to inputs and the total size of the linear expressions
+func (cs *constraintSystem) toVariables(in ...interface{}) ([]Variable, int) {
+	r := make([]Variable, 0, len(in))
 	s := 0
 	e := func(i interface{}) {
-		switch t := i.(type) {
-		case Variable:
-			t.assertIsSet(cs)
-			r = append(r, t)
-			s += len(t.linExp)
-		default:
-			v := cs.Constant(t)
-			r = append(r, v)
-			s += len(v.linExp)
-		}
+		v := cs.Constant(i)
+		r = append(r, v)
+		s += len(v.linExp)
 	}
-	e(i1)
-	e(i2)
+	// e(i1)
+	// e(i2)
 	for i := 0; i < len(in); i++ {
 		e(in[i])
 	}

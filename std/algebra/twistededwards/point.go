@@ -63,8 +63,8 @@ func (p *Point) AddFixedPoint(api frontend.API, p1 *Point /*basex*/, x /*basey*/
 	d1 := api.Add(1, d11)
 	d2 := api.Sub(1, d11)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = api.DivUnchecked(n1, d1)
+	p.Y = api.DivUnchecked(n2, d2)
 
 	return p
 }
@@ -88,8 +88,8 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 
 	d2 := api.Sub(1, d11)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = api.DivUnchecked(n1, d1)
+	p.Y = api.DivUnchecked(n2, d2)
 
 	return p
 }
@@ -109,8 +109,8 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 	d1 := api.Add(1, d)
 	d2 := api.Sub(1, d)
 
-	p.X = api.Div(n1, d1)
-	p.Y = api.Div(n2, d2)
+	p.X = api.DivUnchecked(n1, d1)
+	p.Y = api.DivUnchecked(n2, d2)
 
 	return p
 }

@@ -54,7 +54,7 @@ func (p *G1Affine) Neg(api frontend.API, p1 G1Affine) *G1Affine {
 func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
-	lambda := api.Div(api.Sub(p1.Y, p.Y), api.Sub(p1.X, p.X))
+	lambda := api.DivUnchecked(api.Sub(p1.Y, p.Y), api.Sub(p1.X, p.X))
 
 	// xr = lambda**2-p.x-p1.x
 	xr := api.Sub(api.Mul(lambda, lambda), api.Add(p.X, p1.X))
@@ -165,8 +165,8 @@ func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine
 // FromJac sets p to p1 in affine and returns it
 func (p *G1Affine) FromJac(api frontend.API, p1 G1Jac) *G1Affine {
 	s := api.Mul(p1.Z, p1.Z)
-	p.X = api.Div(p1.X, s)
-	p.Y = api.Div(p1.Y, api.Mul(s, p1.Z))
+	p.X = api.DivUnchecked(p1.X, s)
+	p.Y = api.DivUnchecked(p1.Y, api.Mul(s, p1.Z))
 	return p
 }
 
@@ -178,7 +178,7 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	two.SetInt64(2)
 
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
-	lambda := api.Div(api.Mul(p1.X, p1.X, three), api.Mul(p1.Y, two))
+	lambda := api.DivUnchecked(api.Mul(p1.X, p1.X, three), api.Mul(p1.Y, two))
 
 	// xr = lambda**2-p1.x-p1.x
 	xr := api.Sub(api.Mul(lambda, lambda), api.Mul(p1.X, two))
