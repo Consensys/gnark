@@ -198,36 +198,32 @@ func (p *G1Affine) FromJac(cs *frontend.ConstraintSystem, p1 *G1Jac) *G1Affine {
 // Double double a point in affine coords
 func (p *G1Affine) Double(cs *frontend.ConstraintSystem, p1 *G1Affine) *G1Affine {
 
-	var t, d, c1, c2, c3 big.Int
+	var t, d, c2, c3 big.Int
 	t.SetInt64(3)
 	d.SetInt64(2)
-	c1.SetInt64(1)
 	c2.SetInt64(-2)
 	c3.SetInt64(-1)
 
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	x2 := cs.Mul(p1.X, p1.X)
-	cs.Mul(p1.X, p1.X)
 	l1 := cs.Mul(x2, t)
 	l2 := cs.Mul(p1.Y, d)
 	l := cs.Div(l1, l2)
 
 	// xr = lambda**2-p.x-p1.x
-	_x1 := cs.Mul(l, l, c1)
+	_x1 := cs.Mul(l, l)
 	_x2 := cs.Mul(p1.X, c2)
 	_x := cs.Add(_x1, _x2)
 
 	// p.y = lambda(p.x-xr) - p.y
 	t1 := cs.Mul(p1.X, l)
 	t2 := cs.Mul(l, _x)
-	l31 := cs.Mul(t1, c1)
 	l32 := cs.Mul(t2, c3)
 	l33 := cs.Mul(p1.Y, c3)
-	l3 := cs.Add(l31, l32, l33)
-	p.Y = cs.Mul(l3, 1)
+	p.Y = cs.Add(t1, l32, l33)
 
 	//p.x = xr
-	p.X = cs.Mul(_x, 1)
+	p.X = _x
 	return p
 }
 
