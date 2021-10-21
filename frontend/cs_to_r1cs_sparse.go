@@ -18,6 +18,7 @@ package frontend
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"hash"
 	"math/big"
 	"sync"
@@ -260,6 +261,45 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 	return _l, t
 }
 
+// GetKey returns a unique identifier for the primitive linear expression
+// corresponding to l
+func (scs *sparseR1CS) GetKey(l compiled.LinearExpression) string {
+
+	// get the primitive form
+	d := big.NewInt(1)
+	coefs := make([]big.Int, len(l))
+	cid, _, _ := l[0].Unpack()
+	c := scs.coeffs[cid]
+	coefs[0].Set(&c)
+	if len(l) > 1 {
+		for i := 0; i < len(l)-1; i++ {
+			cid1, _, _ := l[i].Unpack()
+			cid2, _, _ := l[i+1].Unpack()
+			coefs[i].Set(&scs.coeffs[cid1])
+			coefs[i+1].Set(&scs.coeffs[cid2])
+			d.GCD(nil, nil, &coefs[i], &coefs[i+1])
+		}
+	}
+	for i := 0; i < len(l); i++ {
+		coefs[i].Div(&coefs[i], d)
+	}
+
+	// get the id
+	scs.h.Reset()
+	b := make([]byte, 8)
+	for i := 0; i < len(l); i++ {
+		t := l[i]
+		t.SetCoeffID(0)
+		binary.LittleEndian.PutUint64(b, uint64(l[i]))
+		scs.h.Write(b)
+	}
+	for i := 0; i < len(coefs); i++ {
+		scs.h.Write(coefs[i].Bytes())
+	}
+	return string(scs.h.Sum(nil))
+
+}
+
 // pops the constant associated to the one_wire in the cs, which will become
 // a constant in a PLONK constraint.
 //
@@ -444,7 +484,7 @@ func (scs *sparseR1CS) splitBis(l compiled.LinearExpression) compiled.Term {
 	// recursive case
 
 	// check if l is recorded, if so we pick it from the record
-	k := l.GetKey(scs.h)
+	k := scs.GetKey(l)
 	if t, ok := scs.record[k]; ok {
 		return t
 	}

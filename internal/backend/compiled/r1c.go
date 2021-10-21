@@ -15,8 +15,6 @@
 package compiled
 
 import (
-	"encoding/binary"
-	"hash"
 	"math/big"
 	"strings"
 )
@@ -28,17 +26,6 @@ type R1C struct {
 
 // LinearExpression represent a linear expression of variables
 type LinearExpression []Term
-
-// getKey returns a unique identifier of a LinearExpression
-func (l LinearExpression) GetKey(h hash.Hash) string {
-	h.Reset()
-	b := make([]byte, 8)
-	for i := 0; i < len(l); i++ {
-		binary.LittleEndian.PutUint64(b, uint64(l[i]))
-		h.Write(b)
-	}
-	return string(h.Sum(nil))
-}
 
 // Clone returns a copy of the underlying slice
 func (l LinearExpression) Clone() LinearExpression {
