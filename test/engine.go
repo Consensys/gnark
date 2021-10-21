@@ -250,11 +250,13 @@ func (e *engine) AssertIsBoolean(i1 interface{}) {
 }
 
 func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound interface{}) {
-	// note: here we don't do a mod reduce on the bound.
+
 	var bValue big.Int
 	if v, ok := bound.(frontend.Variable); ok {
 		bValue = frontend.FromInterface(v.WitnessValue)
+		bValue.Mod(&bValue, e.modulus())
 	} else {
+		// note: here we don't do a mod reduce on the bound.
 		bValue = frontend.FromInterface(bound)
 	}
 
