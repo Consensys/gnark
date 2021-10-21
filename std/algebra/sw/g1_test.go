@@ -39,7 +39,7 @@ type g1AddAssign struct {
 
 func (circuit *g1AddAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B)
+	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -76,7 +76,7 @@ type g1AddAssignAffine struct {
 
 func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B)
+	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -152,7 +152,7 @@ type g1DoubleAffine struct {
 
 func (circuit *g1DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A)
+	expected.Double(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -190,7 +190,7 @@ type g1Neg struct {
 
 func (circuit *g1Neg) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Jac{}
-	expected.Neg(api, &circuit.A)
+	expected.Neg(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -226,7 +226,7 @@ type g1ScalarMul struct {
 
 func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(api, &circuit.A, circuit.r.String(), 256)
+	expected.ScalarMul(api, circuit.A, circuit.r.String())
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }

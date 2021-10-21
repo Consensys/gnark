@@ -79,6 +79,7 @@ func TestVerify(t *testing.T) {
 		Path:   make([]frontend.Variable, len(proof)),
 		Helper: make([]frontend.Variable, len(proof)-1),
 	}
+
 	witness := merkleCircuit{
 		Path:     make([]frontend.Variable, len(proof)),
 		Helper:   make([]frontend.Variable, len(proof)-1),

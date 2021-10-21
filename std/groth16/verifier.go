@@ -68,8 +68,8 @@ func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKe
 	psi0.Y = innerVk.G1[0].Y
 
 	for k, v := range innerPubInputs {
-		tmp.ScalarMul(api, &innerVk.G1[k+1], v, 256)
-		psi0.AddAssign(api, &tmp)
+		tmp.ScalarMul(api, innerVk.G1[k+1], v)
+		psi0.AddAssign(api, tmp)
 	}
 
 	// e(psi0, -gamma)

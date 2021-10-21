@@ -36,7 +36,7 @@ type G1Affine struct {
 }
 
 // Neg outputs -p
-func (p *G1Jac) Neg(api frontend.API, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) Neg(api frontend.API, p1 G1Jac) *G1Jac {
 	p.X = p1.X
 	p.Y = api.Sub(0, p1.Y)
 	p.Z = p1.Z
@@ -44,57 +44,32 @@ func (p *G1Jac) Neg(api frontend.API, p1 *G1Jac) *G1Jac {
 }
 
 // Neg outputs -p
-func (p *G1Affine) Neg(api frontend.API, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Neg(api frontend.API, p1 G1Affine) *G1Affine {
 	p.X = p1.X
 	p.Y = api.Sub(0, p1.Y)
 	return p
 }
 
 // AddAssign adds p1 to p using the affine formulas with division, and return p
-func (p *G1Affine) AddAssign(api frontend.API, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
-
-	l1 := api.Sub(p1.Y, p.Y)
-	l2 := api.Sub(p1.X, p.X)
-	l := api.Div(l1, l2)
+	lambda := api.Div(api.Sub(p1.Y, p.Y), api.Sub(p1.X, p.X))
 
 	// xr = lambda**2-p.x-p1.x
-	_x1 := api.Mul(l, l)
-	_x2 := api.Add(p.X, p1.X)
-	_x := api.Sub(_x1, _x2)
+	xr := api.Sub(api.Mul(lambda, lambda), api.Add(p.X, p1.X))
 
 	// p.y = lambda(p.x-xr) - p.y
-	t1 := api.Mul(p.X, l)
-	t2 := api.Mul(l, _x)
-	l31 := api.Add(t2, p.Y)
-	l3 := api.Sub(t1, l31)
-
-	p.Y = api.Mul(l3, 1)
+	p.Y = api.Sub(api.Mul(lambda, api.Sub(p.X, xr)), p.Y)
 
 	//p.x = xr
-	p.X = api.Mul(_x, 1)
-	return p
-}
-
-// AssignToRefactor sets p to p1 and return it
-func (p *G1Jac) AssignToRefactor(api frontend.API, p1 *G1Jac) *G1Jac {
-	p.X = api.Constant(p1.X)
-	p.Y = api.Constant(p1.Y)
-	p.Z = api.Constant(p1.Z)
-	return p
-}
-
-// AssignToRefactor sets p to p1 and return it
-func (p *G1Affine) AssignToRefactor(api frontend.API, p1 *G1Affine) *G1Affine {
-	p.X = api.Constant(p1.X)
-	p.Y = api.Constant(p1.Y)
+	p.X = xr
 	return p
 }
 
 // AddAssign adds 2 point in Jacobian coordinates
 // p=p, a=p1
-func (p *G1Jac) AddAssign(api frontend.API, p1 *G1Jac) *G1Jac {
+func (p *G1Jac) AddAssign(api frontend.API, p1 G1Jac) *G1Jac {
 
 	// get some Element from our pool
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
@@ -178,7 +153,7 @@ func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
+func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine) *G1Affine {
 
 	p.X = api.Select(b, p1.X, p2.X)
 	p.Y = api.Select(b, p1.Y, p2.Y)
@@ -188,7 +163,7 @@ func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 *G1Affin
 }
 
 // FromJac sets p to p1 in affine and returns it
-func (p *G1Affine) FromJac(api frontend.API, p1 *G1Jac) *G1Affine {
+func (p *G1Affine) FromJac(api frontend.API, p1 G1Jac) *G1Affine {
 	s := api.Mul(p1.Z, p1.Z)
 	p.X = api.Div(p1.X, s)
 	p.Y = api.Div(p1.Y, api.Mul(s, p1.Z))
@@ -196,38 +171,24 @@ func (p *G1Affine) FromJac(api frontend.API, p1 *G1Jac) *G1Affine {
 }
 
 // Double double a point in affine coords
-func (p *G1Affine) Double(api frontend.API, p1 *G1Affine) *G1Affine {
+func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 
-	var t, d, c1, c2, c3 big.Int
-	t.SetInt64(3)
-	d.SetInt64(2)
-	c1.SetInt64(1)
-	c2.SetInt64(-2)
-	c3.SetInt64(-1)
+	var three, two big.Int
+	three.SetInt64(3)
+	two.SetInt64(2)
 
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
-	x2 := api.Mul(p1.X, p1.X)
-	api.Mul(p1.X, p1.X)
-	l1 := api.Mul(x2, t)
-	l2 := api.Mul(p1.Y, d)
-	l := api.Div(l1, l2)
+	lambda := api.Div(api.Mul(p1.X, p1.X, three), api.Mul(p1.Y, two))
 
-	// xr = lambda**2-p.x-p1.x
-	_x1 := api.Mul(l, l, c1)
-	_x2 := api.Mul(p1.X, c2)
-	_x := api.Add(_x1, _x2)
+	// xr = lambda**2-p1.x-p1.x
+	xr := api.Sub(api.Mul(lambda, lambda), api.Mul(p1.X, two))
 
 	// p.y = lambda(p.x-xr) - p.y
-	t1 := api.Mul(p1.X, l)
-	t2 := api.Mul(l, _x)
-	l31 := api.Mul(t1, c1)
-	l32 := api.Mul(t2, c3)
-	l33 := api.Mul(p1.Y, c3)
-	l3 := api.Add(l31, l32, l33)
-	p.Y = api.Mul(l3, 1)
+	p.Y = api.Sub(api.Mul(lambda, api.Sub(p1.X, xr)), p1.Y)
 
 	//p.x = xr
-	p.X = api.Mul(_x, 1)
+	p.X = xr
+
 	return p
 }
 
@@ -235,30 +196,33 @@ func (p *G1Affine) Double(api frontend.API, p1 *G1Affine) *G1Affine {
 // n is the number of bits used for the scalar mul.
 // TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
 // TODO add a panic if scalar == 1
-func (p *G1Affine) ScalarMul(api frontend.API, p1 *G1Affine, s interface{}, n int) *G1Affine {
-
+// TODO s is an interface, but treated as a variable (ToBinary), there is no specific path for constants
+func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Affine {
+	// scalar bits
 	scalar := api.Constant(s)
+	bits := api.ToBinary(scalar)
 
-	var base, res G1Affine
+	var base G1Affine
 	base.Double(api, p1)
-	res.AssignToRefactor(api, p1)
-
-	b := api.ToBinary(scalar, n)
-
-	var tmp G1Affine
+	r1 := p1
 
 	// start from 1 and use right-to-left scalar multiplication to avoid bugs due to incomplete addition law
 	// (I don't see how to avoid that)
-	for i := 1; i <= n-1; i++ {
-		tmp.AssignToRefactor(api, &res).AddAssign(api, &base)
-		res.Select(api, b[i], &tmp, &res)
-		base.Double(api, &base)
+	for i := 1; i < len(bits); i++ {
+		tmp := r1
+		tmp.AddAssign(api, base)
+
+		// if bits[i] == 0, do nothing, if bits[i] == 1, res += 2**p1
+		r1.Select(api, bits[i], tmp, r1)
+
+		base.Double(api, base)
 	}
 
 	// now check the lsb, if it's one, leave the result as is, otherwise substract P
-	tmp.Neg(api, p1).AddAssign(api, &res)
+	var r2 G1Affine
+	r2.Neg(api, p1).AddAssign(api, r1)
 
-	p.Select(api, b[0], &res, &tmp)
+	p.Select(api, bits[0], r1, r2)
 
 	return p
 
