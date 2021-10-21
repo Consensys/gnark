@@ -298,7 +298,7 @@ func sub(a, b int) int {
 	return a - b
 }
 
-func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]int) string {
+func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
 		termToHTML(l[i], &sbb, coeffs, MHints, false)
@@ -309,7 +309,7 @@ func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]int
 	return sbb.String()
 }
 
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]int, offset bool) {
+func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]compiled.Hint, offset bool) {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
 		// do nothing, just print the variable

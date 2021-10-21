@@ -222,7 +222,6 @@ func (cs *constraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 			i--
 		}
 	}
-
 	return l
 }
 

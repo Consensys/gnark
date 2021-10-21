@@ -204,13 +204,11 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	v1 := cs.Constant(i1)
 	v2 := cs.Constant(i2)
 
+	// TODO if v1 or v2 is a constant, this shouldn't add a constraint.
+
 	debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
 
-	// TODO @gbotrel this adds a constraint but deals nicely with the case Div(0, 0)
-	v2Inv := cs.newInternalVariable()
-	cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
-
-	cs.addConstraint(newR1C(v1, v2Inv, res), debug)
+	cs.addConstraint(newR1C(v2, res, v1), debug)
 
 	return res
 }
