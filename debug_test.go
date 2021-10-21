@@ -28,7 +28,8 @@ func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
 	bs := api.ToBinary(circuit.B, 10)
 	api.Println("bits", bs[3])
 	api.Println("circuit", circuit)
-	api.AssertIsBoolean(api.Constant(10)) // this will fail
+	nb := api.Mul(bs[1], 2)
+	api.AssertIsBoolean(nb) // this will fail
 	m := api.Mul(circuit.A, circuit.B)
 	api.Println("m", m) // this should not be resolved
 	return nil
@@ -46,7 +47,7 @@ func TestPrintln(t *testing.T) {
 	expected.WriteString("debug_test.go:27 26 42\n")
 	expected.WriteString("debug_test.go:29 bits 1\n")
 	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:33 m <unsolved>\n")
+	expected.WriteString("debug_test.go:34 m <unsolved>\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -67,7 +68,7 @@ type divBy0Trace struct {
 
 func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
-	api.DivUnchecked(circuit.A, d)
+	api.Div(circuit.A, d)
 	return nil
 }
 

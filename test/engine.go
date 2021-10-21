@@ -258,6 +258,10 @@ func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound interface{}) {
 		bValue = frontend.FromInterface(bound)
 	}
 
+	if bValue.Sign() == -1 {
+		panic(fmt.Sprintf("[assertIsLessOrEqual] bound (%s) must be positive", bValue.String()))
+	}
+
 	b1 := e.toBigInt(v)
 	if b1.Cmp(&bValue) == 1 {
 		panic(fmt.Sprintf("[assertIsLessOrEqual] %s > %s", b1.String(), bValue.String()))
