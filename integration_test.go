@@ -17,6 +17,7 @@ limitations under the License.
 package gnark
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -27,8 +28,15 @@ func TestIntegrationAPI(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	for name, tData := range circuits.Circuits {
-		t.Log(name)
+	keys := make([]string, 0, len(circuits.Circuits))
+	for k := range circuits.Circuits {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		tData := circuits.Circuits[k]
+		t.Log(k)
 		for _, w := range tData.ValidWitnesses {
 			assert.ProverSucceeded(tData.Circuit, w)
 		}
