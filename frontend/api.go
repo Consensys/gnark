@@ -24,8 +24,8 @@ type API interface {
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 interface{}, in ...interface{}) Variable
 
-	// Sub returns res = i1 - i2
-	Sub(i1, i2 interface{}) Variable
+	// Sub returns res = i1 - i2 - ...in
+	Sub(i1, i2 interface{}, in ...interface{}) Variable
 
 	// Neg returns -i
 	Neg(i1 interface{}) Variable

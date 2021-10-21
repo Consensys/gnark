@@ -85,9 +85,14 @@ func (e *engine) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 	return frontend.Value(b1)
 }
 
-func (e *engine) Sub(i1, i2 interface{}) frontend.Variable {
+func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
-	b1.Sub(&b1, &b2).Mod(&b1, e.modulus())
+	b1.Sub(&b1, &b2)
+	for i := 0; i < len(in); i++ {
+		bn := e.toBigInt(in[i])
+		b1.Sub(&b1, &bn)
+	}
+	b1.Mod(&b1, e.modulus())
 	return frontend.Value(b1)
 }
 

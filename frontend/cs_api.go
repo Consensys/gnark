@@ -26,23 +26,16 @@ import (
 // Add returns res = i1+i2+...in
 func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
-	var res Variable
-	res.linExp = make(compiled.LinearExpression, 0, 2+len(in))
+	// extract variables from input
+	vars, s := cs.extractVariables(i1, i2, in...)
 
-	add := func(_i interface{}) {
-		switch t := _i.(type) {
-		case Variable:
-			t.assertIsSet(cs) // always call this in case of a dangling variable, otherwise compile will not recognize Unset variables
-			res.linExp = append(res.linExp, t.linExp.Clone()...)
-		default:
-			v := cs.Constant(t)
-			res.linExp = append(res.linExp, v.linExp.Clone()...)
-		}
+	// allocate resulting variable
+	res := Variable{
+		linExp: make(compiled.LinearExpression, 0, s),
 	}
-	add(i1)
-	add(i2)
-	for i := 0; i < len(in); i++ {
-		add(in[i])
+
+	for _, v := range vars {
+		res.linExp = append(res.linExp, v.linExp.Clone()...)
 	}
 
 	res.linExp = cs.reduce(res.linExp)
@@ -83,31 +76,23 @@ func (cs *constraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 }
 
 // Sub returns res = i1 - i2
-func (cs *constraintSystem) Sub(i1, i2 interface{}) Variable {
+func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 
-	var res Variable
-	res.linExp = make(compiled.LinearExpression, 0, 2)
+	// extract variables from input
+	vars, s := cs.extractVariables(i1, i2, in...)
 
-	switch t := i1.(type) {
-	case Variable:
-		t.assertIsSet(cs)
-		res.linExp = t.linExp.Clone()
-	default:
-		v := cs.Constant(t)
-		res.linExp = v.linExp.Clone()
+	// allocate resulting variable
+	res := Variable{
+		linExp: make(compiled.LinearExpression, 0, s),
 	}
 
-	switch t := i2.(type) {
-	case Variable:
-		t.assertIsSet(cs)
-		negLinExp := cs.negateLinExp(t.linExp)
-		res.linExp = append(res.linExp, negLinExp...)
-	default:
-		v := cs.Constant(t)
-		negLinExp := cs.negateLinExp(v.linExp)
+	res.linExp = append(res.linExp, vars[0].linExp.Clone()...)
+	for i := 1; i < len(vars); i++ {
+		negLinExp := cs.negateLinExp(vars[i].linExp)
 		res.linExp = append(res.linExp, negLinExp...)
 	}
 
+	// reduce linear expression
 	res.linExp = cs.reduce(res.linExp)
 
 	return res
@@ -446,4 +431,28 @@ func (cs *constraintSystem) Constant(input interface{}) Variable {
 			cs.makeTerm(Variable{visibility: compiled.Public, id: 0}, &n),
 		}}
 	}
+}
+
+// extractVariables return Variable corresponding to inputs and the total size of the linear expressions
+func (cs *constraintSystem) extractVariables(i1, i2 interface{}, in ...interface{}) ([]Variable, int) {
+	r := make([]Variable, 0, len(in)+2)
+	s := 0
+	e := func(i interface{}) {
+		switch t := i.(type) {
+		case Variable:
+			t.assertIsSet(cs)
+			r = append(r, t)
+			s += len(t.linExp)
+		default:
+			v := cs.Constant(t)
+			r = append(r, v)
+			s += len(v.linExp)
+		}
+	}
+	e(i1)
+	e(i2)
+	for i := 0; i < len(in); i++ {
+		e(in[i])
+	}
+	return r, s
 }
