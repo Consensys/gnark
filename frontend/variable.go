@@ -70,6 +70,8 @@ func (v *Variable) isConstant() bool {
 }
 
 func (v *Variable) constantValue(cs *constraintSystem) *big.Int {
+	// TODO this might be a good place to start hunting useless allocations.
+	// maybe through a big.Int pool.
 	if !v.isConstant() {
 		panic("can't get constantCoeffID on a non-constant variable")
 	}

@@ -39,8 +39,8 @@ type API interface {
 	// Div returns i1 / i2
 	Div(i1, i2 interface{}) Variable
 
-	// Inverse returns res = 1 / v
-	Inverse(v Variable) Variable
+	// Inverse returns res = 1 / i1
+	Inverse(i1 interface{}) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
@@ -50,7 +50,7 @@ type API interface {
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
 	// The result in in little endian (first bit= lsb)
-	ToBinary(a Variable, n ...int) []Variable
+	ToBinary(i1 interface{}, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
 	FromBinary(b ...Variable) Variable
@@ -71,10 +71,10 @@ type API interface {
 	// Conditionals
 
 	// Select if b is true, yields i1 else yields i2
-	Select(b Variable, i1, i2 interface{}) Variable
+	Select(b interface{}, i1, i2 interface{}) Variable
 
 	// IsZero returns 1 if a is zero, 0 otherwise
-	IsZero(a Variable) Variable
+	IsZero(i1 interface{}) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Assertions
@@ -86,7 +86,7 @@ type API interface {
 	AssertIsDifferent(i1, i2 interface{})
 
 	// AssertIsBoolean fails if v != 0 || v != 1
-	AssertIsBoolean(v Variable)
+	AssertIsBoolean(i1 interface{})
 
 	// AssertIsLessOrEqual fails if  v > bound
 	AssertIsLessOrEqual(v Variable, bound interface{})

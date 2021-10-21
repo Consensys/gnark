@@ -17,7 +17,9 @@ limitations under the License.
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"runtime/debug"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -44,8 +46,16 @@ func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (cs *constraintSystem) AssertIsBoolean(v Variable) {
-	v.assertIsSet(cs)
+func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
+	vars, _ := cs.toVariables(i1)
+	v := vars[0]
+	if v.isConstant() {
+		c := v.constantValue(cs)
+		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
+			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)\n%s", c.String(), string(debug.Stack())))
+		}
+	}
+
 	if v.visibility == compiled.Unset {
 		// we need to create a new wire here.
 		vv := cs.newVirtualVariable()

@@ -134,15 +134,15 @@ func (e *engine) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	return frontend.Value(b2)
 }
 
-func (e *engine) Inverse(v frontend.Variable) frontend.Variable {
-	b1 := e.toBigInt(v)
+func (e *engine) Inverse(i1 interface{}) frontend.Variable {
+	b1 := e.toBigInt(i1)
 	if b1.ModInverse(&b1, e.modulus()) == nil {
 		panic("no inverse")
 	}
 	return frontend.Value(b1)
 }
 
-func (e *engine) ToBinary(a frontend.Variable, n ...int) []frontend.Variable {
+func (e *engine) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
 	nbBits := e.bitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
@@ -151,7 +151,7 @@ func (e *engine) ToBinary(a frontend.Variable, n ...int) []frontend.Variable {
 		}
 	}
 
-	b1 := e.toBigInt(a)
+	b1 := e.toBigInt(i1)
 	r := make([]frontend.Variable, nbBits)
 	for i := 0; i < len(r); i++ {
 		r[i] = frontend.Value(b1.Bit(i))
@@ -205,7 +205,7 @@ func (e *engine) And(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Select if b is true, yields i1 else yields i2
-func (e *engine) Select(b frontend.Variable, i1, i2 interface{}) frontend.Variable {
+func (e *engine) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 	b1 := e.toBigInt(b)
 	e.mustBeBoolean(&b1)
 
@@ -216,8 +216,8 @@ func (e *engine) Select(b frontend.Variable, i1, i2 interface{}) frontend.Variab
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (e *engine) IsZero(a frontend.Variable) frontend.Variable {
-	b1 := e.toBigInt(a)
+func (e *engine) IsZero(i1 interface{}) frontend.Variable {
+	b1 := e.toBigInt(i1)
 
 	if b1.IsUint64() && b1.Uint64() == 0 {
 		return frontend.Value(1)
@@ -244,8 +244,8 @@ func (e *engine) AssertIsDifferent(i1, i2 interface{}) {
 	}
 }
 
-func (e *engine) AssertIsBoolean(v frontend.Variable) {
-	b1 := e.toBigInt(v)
+func (e *engine) AssertIsBoolean(i1 interface{}) {
+	b1 := e.toBigInt(i1)
 	e.mustBeBoolean(&b1)
 }
 
