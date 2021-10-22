@@ -263,22 +263,22 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 }
 
 // returns ( b/gcd(b...), gcd(b...) )
-func gcd(b []big.Int, s *big.Int) {
+func gcd(b []*big.Int, s *big.Int) {
 
-	s.Set(&b[0])
+	s.Set(b[0])
 	for i := 0; i < len(b); i++ {
-		s.GCD(nil, nil, s, &b[i])
+		s.GCD(nil, nil, s, b[i])
 	}
-	if s.Cmp(big.NewInt(0)) == 0 {
+	if s.IsUint64() && s.Uint64() == 0 {
 		return
 	}
 
 	// ensure the gcd doesn't depend on the sign
-	if b[0].Cmp(big.NewInt(0)) == -1 {
+	if b[0].Sign() == -1 {
 		s.Neg(s)
 	}
 	for i := 0; i < len(b); i++ {
-		b[i].Div(&b[i], s)
+		b[i].Div(b[i], s)
 	}
 
 }
@@ -287,16 +287,24 @@ func gcd(b []big.Int, s *big.Int) {
 func (scs *sparseR1CS) reduce(l compiled.LinearExpression) (compiled.LinearExpression, big.Int) {
 
 	var s big.Int
-	coefs := make([]big.Int, len(l))
+
+	// get the coeffs from the linear expression
+	coeffs := make([]*big.Int, len(l))
 
 	for i := 0; i < len(l); i++ {
-		coefs[i].Set(&scs.coeffs[l[i].CoeffID()])
+		coeffs[i] = bigIntPool.Get().(*big.Int)
+		coeffs[i].Set(&scs.coeffs[l[i].CoeffID()])
 	}
-	gcd(coefs, &s)
+
+	// compute gcd
+	gcd(coeffs, &s)
+
+	// resulting linear expression
 	_l := make(compiled.LinearExpression, len(l))
 	copy(_l, l)
 	for i := 0; i < len(_l); i++ {
-		id := scs.coeffID(&coefs[i])
+		id := scs.coeffID(coeffs[i])
+		bigIntPool.Put(coeffs[i])
 		_l[i].SetCoeffID(id)
 	}
 	return _l, s
@@ -307,16 +315,18 @@ func (scs *sparseR1CS) reduce(l compiled.LinearExpression) (compiled.LinearExpre
 func (scs *sparseR1CS) GetKey(primitiveLinExp compiled.LinearExpression) string {
 
 	// sort l to have a unique non ambiguous id
-	_l := make(compiled.LinearExpression, len(primitiveLinExp))
-	copy(_l, primitiveLinExp)
-	sort.Sort(_l)
+	l := make(compiled.LinearExpression, len(primitiveLinExp))
+	copy(l, primitiveLinExp)
+	if !sort.IsSorted(l) { // not sure that helps
+		sort.Sort(l)
+	}
 
 	// get the id
-	b := make([]byte, 8)
+	var b [8]byte
 	scs.h.Reset()
-	for i := 0; i < len(_l); i++ {
-		binary.LittleEndian.PutUint64(b, uint64(_l[i]))
-		scs.h.Write(b)
+	for i := 0; i < len(l); i++ {
+		binary.LittleEndian.PutUint64(b[:], uint64(l[i]))
+		scs.h.Write(b[:])
 	}
 	return string(scs.h.Sum(nil))
 
