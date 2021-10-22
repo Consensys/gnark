@@ -160,17 +160,14 @@ func (circuit *g1DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
 func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
-	_a := randomPointG1()
-	var a, c bls12377.G1Affine
-	a.FromJacobian(&_a)
+	_a, _, a, _ := bls12377.Generators()
+	var c bls12377.G1Affine
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
 
-	// assign the inputs
+	// assign the inputs and compute the result
 	witness.A.Assign(&a)
-
-	// compute the result
 	_a.DoubleAssign()
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
@@ -200,18 +197,14 @@ func TestNegG1(t *testing.T) {
 	// sample 2 random points
 	a := randomPointG1()
 
-	// create the cs
-	var circuit, witness g1Neg
-
 	// assign the inputs
+	var witness g1Neg
 	witness.A.Assign(&a)
-
-	// compute the result
 	a.Neg(&a)
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -248,7 +241,6 @@ func TestScalarMulG1(t *testing.T) {
 
 	// assign the inputs
 	witness.A.Assign(&a)
-
 	// compute the result
 	var br big.Int
 	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
