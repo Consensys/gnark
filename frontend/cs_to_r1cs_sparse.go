@@ -555,7 +555,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + cO
 	f2 := func() {
-		//rt := scs.split(0, r)
 		rt := scs.split(r)
 
 		cRT := scs.multiply(rt, &cL)
@@ -572,7 +571,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + cO
 	f3 := func() {
-		//lt := scs.split(0, l)
 		lt := scs.split(l)
 
 		cRLT := scs.multiply(lt, &cR)
@@ -588,35 +586,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*(r + cR) = toSolve + cO
 	f4 := func() {
-		// lt := scs.split(0, l)
-		// rt := scs.split(0, r)
-		// var sbb, _sbb strings.Builder
-		// //fmt.Printf("len(l): %d\n", len(l))
-		// for i, t := range l {
-		// 	coefID, varID, _ := t.Unpack()
-		// 	coef := scs.coeffs[coefID]
-		// 	sbb.WriteString(fmt.Sprintf("%s*%d", coef.String(), varID))
-		// 	if i < len(l)-1 {
-		// 		sbb.WriteString(" + ")
-		// 	}
-		// }
-		// //fmt.Printf("%s\n", sbb.String())
 		lt := scs.split(l)
-		// //fmt.Printf("nb constraints: %d\n", len(scs.ccs.Constraints))
-
-		// //fmt.Printf("len(r): %d\n", len(r))
-		// for i, t := range r {
-		// 	coefID, varID, _ := t.Unpack()
-		// 	coef := scs.coeffs[coefID]
-		// 	_sbb.WriteString(fmt.Sprintf("%s*%d", coef.String(), varID))
-		// 	if i < len(r)-1 {
-		// 		_sbb.WriteString(" + ")
-		// 	}
-		// }
-		// //fmt.Printf("%s\n", _sbb.String())
 		rt := scs.split(r)
-		// //fmt.Printf("nb constraints: %d\n", len(scs.ccs.Constraints))
-		// //fmt.Printf("--\n")
 
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
@@ -634,7 +605,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*cR = toSolve + o + cO
 	f5 := func() {
-		//ot := scs.split(0, o)
 		ot := scs.split(o)
 
 		cK.Mul(&cL, &cR)
@@ -650,8 +620,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + o + cO
 	f6 := func() {
-		// rt := scs.split(0, r)
-		// ot := scs.split(0, o)
 		rt := scs.split(r)
 		ot := scs.split(o)
 
@@ -670,8 +638,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + o + cO
 	f7 := func() {
-		// lt := scs.split(0, l)
-		// ot := scs.split(0, o)
 		lt := scs.split(l)
 		ot := scs.split(o)
 
@@ -690,9 +656,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*(r + cR) = toSolve + o + cO
 	f8 := func() {
-		// lt := scs.split(0, l)
-		// rt := scs.split(0, r)
-		// ot := scs.split(0, o)
+
 		lt := scs.split(l)
 		rt := scs.split(r)
 		ot := scs.split(o)
@@ -736,7 +700,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f10 := func() {
 		res := scs.newTerm(&cS, idCS)
 
-		// rt := scs.split(0, r)
 		rt := scs.split(r)
 		cRT := scs.multiply(rt, &cL)
 		cRes := scs.multiply(res, &cR)
@@ -754,7 +717,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (toSolve + l + cL)*cR = cO
 	f11 := func() {
-		//lt := scs.split(0, l)
+
 		lt := scs.split(l)
 		lt = scs.multiply(lt, &cR)
 
@@ -774,8 +737,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
 	f12 := func() {
 		u := scs.newTerm(bOne)
-		// lt := scs.split(0, l)
-		// rt := scs.split(0, r)
+
 		lt := scs.split(l)
 		rt := scs.split(r)
 		cRLT := scs.multiply(lt, &cR)
@@ -804,7 +766,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (toSolve + cL)*cR = o + cO
 	f13 := func() {
-		//ot := scs.split(0, o)
 		ot := scs.split(o)
 
 		cK.Mul(&cL, &cR)
@@ -822,11 +783,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + cL)*(r + cR) = o + cO
 	// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 	f14 := func() {
-		//ot := scs.split(0, o)
 		ot := scs.split(o)
 		res := scs.newTerm(&cS, idCS)
 
-		//rt := scs.split(0, r)
 		rt := scs.split(r)
 
 		cK.Mul(&cL, &cR)
@@ -844,8 +803,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + l + cL)*cR = o + cO
 	// toSolve*cR + l*cR + cL*cR-cO-o=0
 	f15 := func() {
-		// ot := scs.split(0, o)
-		// lt := scs.split(0, l)
+
 		ot := scs.split(o)
 		lt := scs.split(l)
 
@@ -867,8 +825,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f16 := func() {
 		// [l*r + l*cR +cL*r+cL*cR-cO] + u = 0
 		u := scs.newTerm(bOne)
-		// lt := scs.split(0, l)
-		// rt := scs.split(0, r)
+
 		lt := scs.split(l)
 		rt := scs.split(r)
 		cRLT := scs.multiply(lt, &cR)
@@ -887,7 +844,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 		// u+o+v = 0 (v = -u - o = [l*r + l*cR +cL*r+cL*cR-cO] -  o)
 		v := scs.newTerm(bOne)
-		//ot := scs.split(0, o)
 		ot := scs.split(o)
 		scs.addConstraint(compiled.SparseR1C{
 			L: u,
@@ -923,72 +879,36 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	switch s {
 	case 0b0000:
-		//fmt.Printf("0b0000\n")
-		// (toSolve + cL)*cR = cO
 		f9()
 	case 0b0001:
-		//fmt.Printf("0b0001\n")
-		// (toSolve + cL)*(r + cR) = cO
 		f10()
 	case 0b0010:
-		//fmt.Printf("0b0010\n")
-		// (toSolve + l + cL)*cR = cO
 		f11()
 	case 0b0011:
-		//fmt.Printf("0b0011\n")
-		// (toSolve + l + cL)*(r + cR) = cO
-		// => toSolve*r + toSolve*cR + [ l*r + l*cR +cL*r+cL*cR-cO ]=0
 		f12()
 	case 0b0100:
-		//fmt.Printf("0b0100\n")
-		// (toSolve + cL)*cR = o + cO
 		f13()
 	case 0b0101:
-		//fmt.Printf("0b0101\n")
-		// (toSolve + cL)*(r + cR) = o + cO
-		// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 		f14()
 	case 0b0110:
-		//fmt.Printf("0b0110\n")
-		// (toSolve + l + cL)*cR = o + cO
-		// toSolve*cR + l*cR + cL*cR-cO-o=0
 		f15()
 	case 0b0111:
-		//fmt.Printf("0b0111\n")
-		// (toSolve + l + cL)*(r + cR) = o + cO
-		// => toSolve*r + toSolve*cR + [ [l*r + l*cR +cL*r+cL*cR-cO]- o ]=0
 		f16()
 	case 0b1000:
-		//fmt.Printf("0b1000\n")
-		// cL*cR = toSolve + cO
 		f1()
 	case 0b1001:
-		//fmt.Printf("0b1001\n")
-		// cL*(r + cR) = toSolve + cO
 		f2()
 	case 0b1010:
-		//fmt.Printf("0b1010\n")
-		// (l + cL)*cR = toSolve + cO
 		f3()
 	case 0b1011:
-		//fmt.Printf("0b1011\n")
-		// (l + cL)*(r + cR) = toSolve + cO
 		f4()
 	case 0b1100:
-		//fmt.Printf("0b1100\n")
-		// cL*cR = toSolve + o + cO
 		f5()
 	case 0b1101:
-		//fmt.Printf("0b1101\n")
-		// cL*(r + cR) = toSolve + o + cO
 		f6()
 	case 0b1110:
-		//fmt.Printf("0b1110\n")
-		// (l + cL)*cR = toSolve + o + cO
 		f7()
 	case 0b1111:
-		//fmt.Printf("0b1111\n")
-		// (l + cL)*(r + cR) = toSolve + o + cO
 		f8()
 	}
 
