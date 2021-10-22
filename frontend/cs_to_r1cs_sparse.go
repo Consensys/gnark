@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"hash"
 	"math/big"
+	"sort"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -261,40 +262,61 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 	return _l, t
 }
 
-// GetKey returns a unique identifier for the primitive linear expression
-// corresponding to l
-func (scs *sparseR1CS) GetKey(l compiled.LinearExpression) string {
+// returns ( b/gcd(b...), gcd(b...) )
+func gcd(b []big.Int, s *big.Int) {
 
-	// get the primitive form
-	d := big.NewInt(1)
+	s.Set(&b[0])
+	for i := 0; i < len(b); i++ {
+		s.GCD(nil, nil, s, &b[i])
+	}
+	if s.Cmp(big.NewInt(0)) == 0 {
+		return
+	}
+
+	// ensure the gcd doesn't depend on the sign
+	if b[0].Cmp(big.NewInt(0)) == -1 {
+		s.Neg(s)
+	}
+	for i := 0; i < len(b); i++ {
+		b[i].Div(&b[i], s)
+	}
+
+}
+
+// reduce returns ( l/gcd(l.coefs), gcd(l.coefs) )
+func (scs *sparseR1CS) reduce(l compiled.LinearExpression) (compiled.LinearExpression, big.Int) {
+
+	var s big.Int
 	coefs := make([]big.Int, len(l))
-	cid, _, _ := l[0].Unpack()
-	c := scs.coeffs[cid]
-	coefs[0].Set(&c)
-	if len(l) > 1 {
-		for i := 0; i < len(l)-1; i++ {
-			cid1, _, _ := l[i].Unpack()
-			cid2, _, _ := l[i+1].Unpack()
-			coefs[i].Set(&scs.coeffs[cid1])
-			coefs[i+1].Set(&scs.coeffs[cid2])
-			d.GCD(nil, nil, &coefs[i], &coefs[i+1])
-		}
-	}
+
 	for i := 0; i < len(l); i++ {
-		coefs[i].Div(&coefs[i], d)
+		coefs[i].Set(&scs.coeffs[l[i].CoeffID()])
 	}
+	gcd(coefs, &s)
+	_l := make(compiled.LinearExpression, len(l))
+	copy(_l, l)
+	for i := 0; i < len(_l); i++ {
+		id := scs.coeffID(&coefs[i])
+		_l[i].SetCoeffID(id)
+	}
+	return _l, s
+
+}
+
+// getKeyPrimitive returns id of l, assuming that l is primitive
+func (scs *sparseR1CS) GetKey(primitiveLinExp compiled.LinearExpression) string {
+
+	// sort l to have a unique non ambiguous id
+	_l := make(compiled.LinearExpression, len(primitiveLinExp))
+	copy(_l, primitiveLinExp)
+	sort.Sort(_l)
 
 	// get the id
-	scs.h.Reset()
 	b := make([]byte, 8)
-	for i := 0; i < len(l); i++ {
-		t := l[i]
-		t.SetCoeffID(0)
-		binary.LittleEndian.PutUint64(b, uint64(l[i]))
+	scs.h.Reset()
+	for i := 0; i < len(_l); i++ {
+		binary.LittleEndian.PutUint64(b, uint64(_l[i]))
 		scs.h.Write(b)
-	}
-	for i := 0; i < len(coefs); i++ {
-		scs.h.Write(coefs[i].Bytes())
 	}
 	return string(scs.h.Sum(nil))
 
@@ -323,7 +345,7 @@ func (scs *sparseR1CS) popConstantTerm(l compiled.LinearExpression) (compiled.Li
 	return l, big.Int{}
 }
 
-// newTerm creates a new term =1*new_variable and records it in the scs
+// newTerm creates a new term =coeff*new_variable and records it in the scs
 // if idCS is set, uses it as variable id and does not increment the number
 // of new internal variables created
 func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
@@ -438,42 +460,6 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 	return t
 }
 
-// split splits a linear expression to plonk constraints
-// ex: split(0, nil, l, record, sha256) --> returns a sequence
-// u0=l[0]+l[1], left = append(left, l[0])
-// u1=u0+l[2], left = append(left, l[0])
-// ...,
-// un=u_n-1+l[n+1] left = append(left, l[n+1])
-// split splits a linear expression to plonk constraints
-// ex: le = aiwi is split into PLONK constraints (using sums)
-// of 3 terms) like this:
-// w0' = a0w0+a1w1
-// w1' = w0' + a2w2
-// ..
-// wn' = wn-1'+an-2wn-2
-// split returns a term that is equal to aiwi (it's 1xaiwi)
-// no side effects on le
-func (scs *sparseR1CS) split(a compiled.Term, l compiled.LinearExpression) compiled.Term {
-
-	// floor case
-	if len(l) == 0 {
-		return a
-	}
-
-	// first call
-	if a == 0 {
-		return scs.split(l[0], l[1:])
-	}
-
-	// recursive case
-	r := l[0]
-	o := scs.newTerm(bOne)
-	scs.addConstraint(compiled.SparseR1C{L: a, R: r, O: o})
-	o = scs.negate(o)
-	return scs.split(o, l[1:])
-
-}
-
 func (scs *sparseR1CS) splitBis(l compiled.LinearExpression) compiled.Term {
 
 	// floor case
@@ -481,22 +467,36 @@ func (scs *sparseR1CS) splitBis(l compiled.LinearExpression) compiled.Term {
 		return l[0]
 	}
 
-	// recursive case
-
-	// check if l is recorded, if so we pick it from the record
-	k := scs.GetKey(l)
+	// check if l is recorded, if so we get it from the record
+	_l, s := scs.reduce(l)
+	k := scs.GetKey(_l)
 	if t, ok := scs.record[k]; ok {
+		t.SetCoeffID(scs.coeffID(&s))
 		return t
 	}
 
-	// else we record it, and continue
+	// find if in the left side the constraint is recorded
+	for i := len(l) - 1; i > 0; i-- {
+		ll, _s := scs.reduce(_l[:i])
+		_k := scs.GetKey(ll)
+		if t, ok := scs.record[_k]; ok {
+			t = scs.multiply(t, &_s)
+			o := scs.newTerm(bOne)
+			_o := scs.negate(o)
+			b := scs.splitBis(_l[i:])
+			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: _o})
+			scs.record[k] = o
+			return scs.multiply(o, &s)
+		}
+	}
+	// else we build the reduction starting from l[0]
 	o := scs.newTerm(bOne)
-	a := l[0]
-	b := scs.splitBis(l[1:])
-	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: o})
-	o = scs.negate(o)
+	_o := scs.negate(o)
+	a := _l[0]
+	b := scs.splitBis(_l[1:])
+	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: _o})
 	scs.record[k] = o
-	return o
+	return scs.multiply(o, &s)
 }
 
 // r1cToSparseR1C splits a r1c constraint
