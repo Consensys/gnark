@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -172,27 +173,33 @@ func (circuit *g1DoubleAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSys
 func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
-	_a := randomPointG1()
-	var a, c bls12377.G1Affine
-	a.FromJacobian(&_a)
+	_a, _, a, _ := bls12377.Generators()
+	var c bls12377.G1Affine
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	// assign the inputs
+	// assign the inputs and compute the result
 	witness.A.Assign(&a)
-
-	// compute the result
 	_a.DoubleAssign()
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	{
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert := groth16.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
+	{
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert := plonk.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
 
 }
 
@@ -216,22 +223,30 @@ func TestNegG1(t *testing.T) {
 	// sample 2 random points
 	a := randomPointG1()
 
-	// create the cs
-	var circuit, witness g1Neg
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// assign the inputs
+	var witness g1Neg
 	witness.A.Assign(&a)
-
-	// compute the result
 	a.Neg(&a)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	// create the cs
+	var circuit g1Neg
+	{
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert := groth16.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
+	{
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert := plonk.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
 
 }
 
@@ -265,22 +280,32 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	circuit.r = r
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// assign the inputs
 	witness.A.Assign(&a)
-
 	// compute the result
 	var br big.Int
 	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
+	{
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+		// assign the inputs
+		assert := groth16.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
+	{
+		circuit.r = r
+		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert := plonk.NewAssert(t)
+		assert.SolvingSucceeded(r1cs, &witness)
+	}
 
 }
 
