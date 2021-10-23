@@ -39,6 +39,40 @@ func (l LinearExpression) Len() int {
 	return len(l)
 }
 
+// Hash returns a fast hash of the linear expression; this is not collision resistant
+// but two SORTED equal linear expressions will have equal hashes.
+//
+// pre conditions: l is sorted
+func (l LinearExpression) Hash() uint64 {
+	if len(l) == 0 {
+		return 0
+	}
+
+	hashcode := uint64(1)
+	for i := 0; i < len(l); i++ {
+		hashcode = hashcode*31 + uint64(l[i])
+	}
+	return hashcode
+}
+
+// Equals returns true if both SORTED expressions are the same
+//
+// pre conditions: l and o are sorted
+func (l LinearExpression) Equal(o LinearExpression) bool {
+	if len(l) != len(o) {
+		return false
+	}
+	if (l == nil) != (o == nil) {
+		return false
+	}
+	for i := 0; i < len(l); i++ {
+		if l[i] != o[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Swap swaps terms in the LinearExpression (implements Sort interface)
 func (l LinearExpression) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]

@@ -18,8 +18,6 @@ package frontend
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/binary"
 	"math/big"
 	"sort"
 	"sync"
@@ -57,10 +55,16 @@ type sparseR1CS struct {
 
 	// map LinearExpression -> Term. The goal is to not reduce
 	// the same linear expression twice.
-	record map[[sha256.Size]byte]compiled.Term
+	record    map[uint64][]innerRecord
+	tmpCoeffs []big.Int
 
 	// hash function used to navigate in record
 	rBuffer bytes.Buffer
+}
+
+type innerRecord struct {
+	t compiled.Term
+	l compiled.LinearExpression
 }
 
 var bOne = new(big.Int).SetInt64(1)
@@ -84,7 +88,8 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
 		currentR1CDebugID:    -1,
-		record:               make(map[[sha256.Size]byte]compiled.Term),
+		record:               make(map[uint64][]innerRecord, len(cs.internal.variables)),
+		tmpCoeffs:            make([]big.Int, 256),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -263,12 +268,12 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 
 // returns ( b/computeGCD(b...), computeGCD(b...) )
 // if gcd is != 0 and gcd != 1, returns true and divides the coefficients by gcd
-func computeGCD(b []*big.Int, gcd *big.Int) bool {
+func computeGCD(b []big.Int, gcd *big.Int) bool {
 	negGCD := b[0].Sign() == -1
 
-	gcd.Set(b[0])
+	gcd.Set(&b[0])
 	for i := 1; i < len(b); i++ {
-		gcd.GCD(nil, nil, gcd, b[i])
+		gcd.GCD(nil, nil, gcd, &b[i])
 		if gcd.IsUint64() && gcd.Uint64() == 1 && !negGCD {
 			return false
 		}
@@ -284,7 +289,7 @@ func computeGCD(b []*big.Int, gcd *big.Int) bool {
 	}
 
 	for i := 0; i < len(b); i++ {
-		b[i].Div(b[i], gcd)
+		b[i].Div(&b[i], gcd)
 	}
 	return true
 }
@@ -294,18 +299,19 @@ func computeGCD(b []*big.Int, gcd *big.Int) bool {
 func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
 
 	// get the coeffs from the linear expression
-	coeffs := make([]*big.Int, len(l))
+	if len(l) > len(scs.tmpCoeffs) {
+		scs.tmpCoeffs = make([]big.Int, len(l))
+	}
+	coeffs := scs.tmpCoeffs[:len(l)]
 
+	// TODO no need to allocate big int from pool here, a shared []big.Int would do.
+	// TODO check if gcd is 1 here, before doing the rest.
 	for i := 0; i < len(l); i++ {
-		coeffs[i] = bigIntPool.Get().(*big.Int)
 		coeffs[i].Set(&scs.coeffs[l[i].CoeffID()])
 	}
 
 	// compute gcd
 	if !computeGCD(coeffs, gcd) {
-		for i := 0; i < len(l); i++ {
-			bigIntPool.Put(coeffs[i])
-		}
 		return l
 	}
 
@@ -313,32 +319,9 @@ func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compile
 	r := make(compiled.LinearExpression, len(l))
 	copy(r, l)
 	for i := 0; i < len(r); i++ {
-		r[i].SetCoeffID(scs.coeffID(coeffs[i]))
-		bigIntPool.Put(coeffs[i])
+		r[i].SetCoeffID(scs.coeffID(&coeffs[i]))
 	}
 	return r
-
-}
-
-// getKeyPrimitive returns id of l, assuming that l is primitive
-func (scs *sparseR1CS) getKey(l compiled.LinearExpression) [sha256.Size]byte {
-
-	// sort l to have a unique non ambiguous id
-	// l := make(compiled.LinearExpression, len(primitiveLinExp))
-	// copy(l, primitiveLinExp)
-	if !sort.IsSorted(l) { // that helps
-		sort.Sort(l)
-	}
-
-	// get the id
-	var b [8]byte
-	scs.rBuffer.Reset()
-	for i := 0; i < len(l); i++ {
-		binary.LittleEndian.PutUint64(b[:], uint64(l[i]))
-		scs.rBuffer.Write(b[:])
-	}
-
-	return sha256.Sum256(scs.rBuffer.Bytes())
 
 }
 
@@ -467,6 +450,38 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 	return t
 }
 
+func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bool) {
+	id := l.Hash()
+	list, ok := scs.record[id]
+	if !ok {
+		return 0, false
+	}
+
+	for i := 0; i < len(list); i++ {
+		if list[i].l.Hash() == id && list[i].l.Equal(l) {
+			return list[i].t, true
+		}
+	}
+
+	return 0, false
+}
+
+func (scs *sparseR1CS) putRecord(l compiled.LinearExpression, t compiled.Term) {
+	id := l.Hash()
+	list := scs.record[id]
+
+	for i := 0; i < len(list); i++ {
+		if list[i].l.Hash() == id && list[i].l.Equal(l) {
+			list[i].t = t
+			scs.record[id] = list
+			return
+		}
+	}
+
+	list = append(list, innerRecord{t: t, l: l})
+	scs.record[id] = list
+}
+
 func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 
 	// floor case
@@ -475,11 +490,9 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 	}
 
 	gcd := bigIntPool.Get().(*big.Int)
-
 	// check if l is recorded, if so we get it from the record
 	_l := scs.reduce(l, gcd)
-	k := scs.getKey(_l)
-	if t, ok := scs.record[k]; ok {
+	if t, ok := scs.getRecord(_l); ok {
 		t.SetCoeffID(scs.coeffID(gcd))
 		bigIntPool.Put(gcd)
 		return t
@@ -490,14 +503,12 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 
 	for i := len(l) - 1; i > 0; i-- {
 		ll := scs.reduce(_l[:i], gcd2)
-		_k := scs.getKey(ll)
-		if t, ok := scs.record[_k]; ok {
+		if t, ok := scs.getRecord(ll); ok {
 			t = scs.multiply(t, gcd2)
 			o := scs.newTerm(bOne)
-			_o := scs.negate(o)
 			b := scs.split(_l[i:])
-			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: _o})
-			scs.record[k] = o
+			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: scs.negate(o)})
+			scs.putRecord(_l, o)
 			r := scs.multiply(o, gcd)
 			bigIntPool.Put(gcd)
 			bigIntPool.Put(gcd2)
@@ -508,11 +519,10 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 
 	// else we build the reduction starting from l[0]
 	o := scs.newTerm(bOne)
-	_o := scs.negate(o)
 	a := _l[0]
 	b := scs.split(_l[1:])
-	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: _o})
-	scs.record[k] = o
+	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: scs.negate(o)})
+	scs.putRecord(_l, o)
 	r := scs.multiply(o, gcd)
 	bigIntPool.Put(gcd)
 
@@ -534,6 +544,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	l := r1c.L
 	r := r1c.R
 	o := r1c.O
+	sort.Sort(l)
+	sort.Sort(r)
+	sort.Sort(o)
 
 	// if the unsolved variable in not in o,
 	// ensure that it is in r1c.L
@@ -943,6 +956,10 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 	l := r1c.L
 	r := r1c.R
 	o := r1c.O
+
+	sort.Sort(l)
+	sort.Sort(r)
+	sort.Sort(o)
 
 	l, cL := scs.popConstantTerm(l)
 	r, cR := scs.popConstantTerm(r)
