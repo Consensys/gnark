@@ -452,7 +452,7 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 	if vars[1].isConstant() && vars[2].isConstant() {
 		n1 := vars[1].constantValue(cs)
 		n2 := vars[2].constantValue(cs)
-		diff := n1.Sub(n2, n1)
+		diff := n1.Sub(n1, n2)
 		res := cs.Mul(b, diff)     // no constraint is recorded
 		res = cs.Add(res, vars[2]) // no constraint is recorded
 		return res
