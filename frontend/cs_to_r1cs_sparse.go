@@ -17,7 +17,6 @@ limitations under the License.
 package frontend
 
 import (
-	"bytes"
 	"math/big"
 	"sort"
 	"sync"
@@ -57,9 +56,6 @@ type sparseR1CS struct {
 	// the same linear expression twice.
 	record    map[uint64][]innerRecord
 	tmpCoeffs []big.Int
-
-	// hash function used to navigate in record
-	rBuffer bytes.Buffer
 }
 
 type innerRecord struct {
