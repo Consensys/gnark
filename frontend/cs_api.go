@@ -97,7 +97,7 @@ func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 			b1 := v1.constantValue(cs)
 			b2 := v2.constantValue(cs)
 
-			b1.Mul(b1, b2) // .Mod(b1, cs.curveID.Info().Fr.Modulus())
+			b1.Mul(b1, b2).Mod(b1, cs.curveID.Info().Fr.Modulus())
 			return cs.Constant(b1)
 		}
 
@@ -196,7 +196,7 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	b2.ModInverse(b2, q)
 
 	if v1.isConstant() {
-		b2.Mul(b2, v1.constantValue(cs)) // .Mod(b2, q)
+		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
 		return cs.Constant(b2)
 	}
 
@@ -228,7 +228,7 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 	b2.ModInverse(b2, q)
 
 	if v1.isConstant() {
-		b2.Mul(b2, v1.constantValue(cs)) // .Mod(b2, q)
+		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
 		return cs.Constant(b2)
 	}
 

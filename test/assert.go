@@ -355,7 +355,6 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	if ccs, ok := assert.compiled[key]; ok {
 		return ccs, nil
 	}
-
 	// else compile it and ensure it is deterministic
 	ccs, err := frontend.Compile(curveID, backendID, circuit)
 	if err != nil {
@@ -373,6 +372,8 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 
 	// add the compiled circuit to the cache
 	assert.compiled[key] = ccs
+
+	// fmt.Println(key, ccs.GetNbConstraints())
 
 	return ccs, nil
 }

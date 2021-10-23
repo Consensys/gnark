@@ -185,6 +185,24 @@ func TestVerifier(t *testing.T) {
 
 }
 
+func BenchmarkCompile(b *testing.B) {
+	// get the data
+	var innerVk groth16_bls12377.VerifyingKey
+	var innerProof groth16_bls12377.Proof
+	generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
+
+	// create an empty cs
+	var circuit verifierCircuit
+	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
+
+	var ccs frontend.CompiledConstraintSystem
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	}
+	b.Log(ccs.GetNbConstraints())
+}
+
 //--------------------------------------------------------------------
 // bench
 
