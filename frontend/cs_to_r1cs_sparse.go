@@ -54,8 +54,7 @@ type sparseR1CS struct {
 
 	// map LinearExpression -> Term. The goal is to not reduce
 	// the same linear expression twice.
-	record    map[uint64][]innerRecord
-	tmpCoeffs []big.Int
+	record map[uint64][]innerRecord
 }
 
 type innerRecord struct {
@@ -85,7 +84,6 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		scsInternalVariables: len(cs.internal.variables),
 		currentR1CDebugID:    -1,
 		record:               make(map[uint64][]innerRecord, len(cs.internal.variables)),
-		tmpCoeffs:            make([]big.Int, 256),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -263,15 +261,18 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 }
 
 // returns ( b/computeGCD(b...), computeGCD(b...) )
-// if gcd is != 0 and gcd != 1, returns true and divides the coefficients by gcd
-func computeGCD(b []big.Int, gcd *big.Int) bool {
+// if gcd is != 0 and gcd != 1, returns true
+func computeGCD(b []*big.Int, gcd *big.Int) {
 	negGCD := b[0].Sign() == -1
+	gcd.SetUint64(0)
+	for i := 0; i < len(b); i++ {
+		if b[i].IsUint64() && b[i].Uint64() == 0 {
+			continue
+		}
+		gcd.GCD(nil, nil, gcd, b[i])
 
-	gcd.Set(&b[0])
-	for i := 1; i < len(b); i++ {
-		gcd.GCD(nil, nil, gcd, &b[i])
-		if gcd.IsUint64() && gcd.Uint64() == 1 && !negGCD {
-			return false
+		if gcd.IsUint64() && gcd.Uint64() == 1 {
+			break
 		}
 	}
 
@@ -279,44 +280,45 @@ func computeGCD(b []big.Int, gcd *big.Int) bool {
 	if negGCD {
 		gcd.Neg(gcd)
 	}
-
-	if gcd.IsUint64() && gcd.Uint64() == 0 {
-		return false
-	}
-
-	for i := 0; i < len(b); i++ {
-		b[i].Div(&b[i], gcd)
-	}
-	return true
 }
 
 // reduce sets gcd = gcd(l.coefs) and returns l/gcd(l.coefs)
 // if gcd == 1, this returns l
 func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
 
-	// get the coeffs from the linear expression
-	if len(l) > len(scs.tmpCoeffs) {
-		scs.tmpCoeffs = make([]big.Int, len(l))
+	// these won't be mutated, but we just allocate a pointer slice
+	const s = 256
+	var stlc [s]*big.Int
+	var lc []*big.Int
+	if len(l) > s {
+		lc = make([]*big.Int, len(l))
+	} else {
+		lc = stlc[:len(l)]
 	}
-	coeffs := scs.tmpCoeffs[:len(l)]
 
-	// TODO no need to allocate big int from pool here, a shared []big.Int would do.
-	// TODO check if gcd is 1 here, before doing the rest.
 	for i := 0; i < len(l); i++ {
-		coeffs[i].Set(&scs.coeffs[l[i].CoeffID()])
+		lc[i] = &scs.coeffs[l[i].CoeffID()]
 	}
 
 	// compute gcd
-	if !computeGCD(coeffs, gcd) {
+	computeGCD(lc, gcd)
+	if gcd.IsUint64() && (gcd.Uint64() == 0 || gcd.Uint64() == 1) {
+		// no need to create a new linear expression
 		return l
 	}
 
+	// we need to divide the coeffs by gcd
 	// resulting linear expression
 	r := make(compiled.LinearExpression, len(l))
 	copy(r, l)
+	lambda := bigIntPool.Get().(*big.Int)
+
 	for i := 0; i < len(r); i++ {
-		r[i].SetCoeffID(scs.coeffID(&coeffs[i]))
+		lambda.Div(lc[i], gcd)
+		r[i].SetCoeffID(scs.coeffID(lambda))
 	}
+
+	bigIntPool.Put(lambda)
 	return r
 
 }
@@ -485,42 +487,42 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 		return l[0]
 	}
 
-	gcd := bigIntPool.Get().(*big.Int)
+	lGCD := bigIntPool.Get().(*big.Int)
 	// check if l is recorded, if so we get it from the record
-	_l := scs.reduce(l, gcd)
-	if t, ok := scs.getRecord(_l); ok {
-		t.SetCoeffID(scs.coeffID(gcd))
-		bigIntPool.Put(gcd)
+	lReduced := scs.reduce(l, lGCD)
+	if t, ok := scs.getRecord(lReduced); ok {
+		t.SetCoeffID(scs.coeffID(lGCD))
+		bigIntPool.Put(lGCD)
 		return t
 	}
 
 	// find if in the left side the constraint is recorded
-	gcd2 := bigIntPool.Get().(*big.Int)
+	gcd := bigIntPool.Get().(*big.Int)
 
 	for i := len(l) - 1; i > 0; i-- {
-		ll := scs.reduce(_l[:i], gcd2)
+		ll := scs.reduce(lReduced[:i], gcd)
 		if t, ok := scs.getRecord(ll); ok {
-			t = scs.multiply(t, gcd2)
+			t = scs.multiply(t, gcd)
 			o := scs.newTerm(bOne)
-			b := scs.split(_l[i:])
+			b := scs.split(lReduced[i:])
 			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: scs.negate(o)})
-			scs.putRecord(_l, o)
-			r := scs.multiply(o, gcd)
+			scs.putRecord(lReduced, o)
+			r := scs.multiply(o, lGCD)
+			bigIntPool.Put(lGCD)
 			bigIntPool.Put(gcd)
-			bigIntPool.Put(gcd2)
 			return r
 		}
 	}
-	bigIntPool.Put(gcd2)
+	bigIntPool.Put(gcd)
 
 	// else we build the reduction starting from l[0]
 	o := scs.newTerm(bOne)
-	a := _l[0]
-	b := scs.split(_l[1:])
+	a := lReduced[0]
+	b := scs.split(lReduced[1:])
 	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: scs.negate(o)})
-	scs.putRecord(_l, o)
-	r := scs.multiply(o, gcd)
-	bigIntPool.Put(gcd)
+	scs.putRecord(lReduced, o)
+	r := scs.multiply(o, lGCD)
+	bigIntPool.Put(lGCD)
 
 	return r
 }
