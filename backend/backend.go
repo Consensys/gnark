@@ -85,7 +85,7 @@ func WithHints(hintFunctions ...hint.Function) func(opt *ProverOption) error {
 }
 
 // WithOutput is a Prover option that specifies an io.Writer as destination for logs printed by
-// cs.Println(). If set to nil, no logs are printed.
+// api.Println(). If set to nil, no logs are printed.
 func WithOutput(w io.Writer) func(opt *ProverOption) error {
 	return func(opt *ProverOption) error {
 		opt.LoggerOut = w

@@ -14,7 +14,7 @@ type referenceSmallCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	for i := 0; i < nbConstraintsRefSmall; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}

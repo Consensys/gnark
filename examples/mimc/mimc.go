@@ -31,14 +31,14 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // Hash = mimc(PreImage)
-func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
 	// hash function
-	mimc, _ := mimc.NewMiMC("seed", curveID, cs)
+	mimc, _ := mimc.NewMiMC("seed", curveID, api)
 
 	// specify constraints
 	// mimc(preImage) == hash
 	mimc.Write(circuit.PreImage)
-	cs.AssertIsEqual(circuit.Hash, mimc.Sum())
+	api.AssertIsEqual(circuit.Hash, mimc.Sum())
 
 	return nil
 }

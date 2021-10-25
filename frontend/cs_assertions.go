@@ -1,15 +1,32 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package frontend
 
 import (
+	"fmt"
 	"math/big"
+	"runtime/debug"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
+func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
-	// TODO do cs.Sub(i1,i2) == 0 ?
 
 	l := cs.Constant(i1)
 	o := cs.Constant(i2)
@@ -24,13 +41,21 @@ func (cs *ConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (cs *ConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
+func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 	cs.Inverse(cs.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
-	v.assertIsSet()
+func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
+	vars, _ := cs.toVariables(i1)
+	v := vars[0]
+	if v.isConstant() {
+		c := v.constantValue(cs)
+		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
+			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)\n%s", c.String(), string(debug.Stack())))
+		}
+	}
+
 	if v.visibility == compiled.Unset {
 		// we need to create a new wire here.
 		vv := cs.newVirtualVariable()
@@ -55,13 +80,13 @@ func (cs *ConstraintSystem) AssertIsBoolean(v Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
+func (cs *constraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
-	v.assertIsSet()
+	v.assertIsSet(cs)
 
 	switch b := bound.(type) {
 	case Variable:
-		b.assertIsSet()
+		b.assertIsSet(cs)
 		cs.mustBeLessOrEqVar(v, b)
 	default:
 		cs.mustBeLessOrEqCst(v, FromInterface(b))
@@ -69,7 +94,7 @@ func (cs *ConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
+func (cs *constraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
@@ -110,7 +135,7 @@ func (cs *ConstraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 
 }
 
-func (cs *ConstraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
+func (cs *constraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter

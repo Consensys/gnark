@@ -20,25 +20,20 @@ import (
 	"io"
 	"math/big"
 	"sort"
+	"strconv"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
-
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
-// ConstraintSystem represents a Groth16 like circuit
+// constraintSystem represents a Groth16 like circuit
 //
 // All the APIs to define a circuit (see Circuit.Define) like Add, Sub, Mul, ...
 // may take as input interface{}
 //
 // these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
-type ConstraintSystem struct {
+type constraintSystem struct {
 	// Variables (aka wires)
 	// virtual variables do not result in a new circuit wire
 	// they may only contain a linear expression
@@ -68,10 +63,9 @@ type variables struct {
 	booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 }
 
-func (v *variables) new(cs *ConstraintSystem, visibility compiled.Visibility) Variable {
+func (v *variables) new(cs *constraintSystem, visibility compiled.Visibility) Variable {
 	idx := len(v.variables)
-	w := Wire{visibility, idx, nil}
-	variable := cs.buildVarFromWire(w)
+	variable := Variable{visibility: visibility, id: idx, linExp: cs.LinearExpression(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}
 
 	v.variables = append(v.variables, variable)
 	return variable
@@ -96,12 +90,12 @@ type CompiledConstraintSystem interface {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) ConstraintSystem {
+func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSystem {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	cs := ConstraintSystem{
+	cs := constraintSystem{
 		coeffs:      make([]big.Int, 4),
 		coeffsIDs:   make(map[string]int),
 		constraints: make([]compiled.R1C, 0, capacity),
@@ -142,7 +136,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) ConstraintSyste
 // this doesn't add any constraint to the newly created wire
 // from the backend point of view, it's equivalent to a user-supplied witness
 // except, the solver is going to assign it a value, not the caller
-func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Variable {
+func (cs *constraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
 
@@ -163,29 +157,16 @@ func (cs *ConstraintSystem) NewHint(hintID hint.ID, inputs ...interface{}) Varia
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *ConstraintSystem) bitLen() int {
-	switch cs.curveID {
-	case ecc.BN254:
-		return fr_bn254.Bits
-	case ecc.BLS12_377:
-		return fr_bls12377.Bits
-	case ecc.BLS12_381:
-		return fr_bls12381.Bits
-	case ecc.BW6_761:
-		return fr_bw6761.Bits
-	case ecc.BLS24_315:
-		return fr_bls24315.Bits
-	default:
-		panic("curve not implemented")
-	}
+func (cs *constraintSystem) bitLen() int {
+	return cs.curveID.Info().Fr.Bits
 }
 
-func (cs *ConstraintSystem) one() Variable {
+func (cs *constraintSystem) one() Variable {
 	return cs.public.variables[0]
 }
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
-func (cs *ConstraintSystem) makeTerm(v Wire, coeff *big.Int) compiled.Term {
+func (cs *constraintSystem) makeTerm(v Variable, coeff *big.Int) compiled.Term {
 	return compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
 }
 
@@ -207,12 +188,12 @@ func newR1C(l, r, o Variable) compiled.R1C {
 
 // NbConstraints enables circuit profiling and helps debugging
 // It returns the number of constraints created at the current stage of the circuit construction.
-func (cs *ConstraintSystem) NbConstraints() int {
+func (cs *constraintSystem) NbConstraints() int {
 	return len(cs.constraints)
 }
 
 // LinearExpression packs a list of compiled.Term in a compiled.LinearExpression and returns it.
-func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.LinearExpression {
+func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.LinearExpression {
 	res := make(compiled.LinearExpression, len(terms))
 	for i, args := range terms {
 		res[i] = args
@@ -224,7 +205,7 @@ func (cs *ConstraintSystem) LinearExpression(terms ...compiled.Term) compiled.Li
 // It factorizes variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, variables are stored as public||secret||internal||unset
 // for each visibility, the variables are sorted from lowest ID to highest ID
-func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+func (cs *constraintSystem) reduce(l compiled.LinearExpression) compiled.LinearExpression {
 	// ensure our linear expression is sorted, by visibility and by variable ID
 	if !sort.IsSorted(l) { // may not help
 		sort.Sort(l)
@@ -242,13 +223,12 @@ func (cs *ConstraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 			i--
 		}
 	}
-
 	return l
 }
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
-func (cs *ConstraintSystem) coeffID(b *big.Int) int {
+func (cs *constraintSystem) coeffID(b *big.Int) int {
 
 	// if the coeff is a int64, and has value -1, 0, 1 or 2, we have a fast path.
 	if b.IsInt64() {
@@ -262,10 +242,26 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 			return compiled.CoeffIdOne
 		case 2:
 			return compiled.CoeffIdTwo
+		default:
+			key := strconv.FormatInt(v, 16)
+			if idx, ok := cs.coeffsIDs[key]; ok {
+				return idx
+			}
+
+			// else add it in the cs.coeffs map and update the cs.coeffsIDs map
+			var bCopy big.Int
+			bCopy.SetInt64(v)
+			resID := len(cs.coeffs)
+			cs.coeffs = append(cs.coeffs, bCopy)
+			cs.coeffsIDs[key] = resID
+			return resID
 		}
 	}
 
 	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
+
+	// GobEncode is 3x faster than b.Text(16). Slightly slower than Bytes, but Bytes return the same
+	// thing for -x and x . However, we keep b.Text(16) for now as it enables a fast path for int64 above.
 	key := b.Text(16)
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		return idx
@@ -280,7 +276,7 @@ func (cs *ConstraintSystem) coeffID(b *big.Int) int {
 	return resID
 }
 
-func (cs *ConstraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
+func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 	cs.constraints = append(cs.constraints, r1c)
 	if len(debugID) > 0 {
 		cs.mDebug[len(cs.constraints)-1] = debugID[0]
@@ -289,35 +285,31 @@ func (cs *ConstraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *ConstraintSystem) newInternalVariable() Variable {
+func (cs *constraintSystem) newInternalVariable() Variable {
 	return cs.internal.new(cs, compiled.Internal)
 }
 
 // newPublicVariable creates a new public variable
-func (cs *ConstraintSystem) newPublicVariable() Variable {
+func (cs *constraintSystem) newPublicVariable() Variable {
 	return cs.public.new(cs, compiled.Public)
 }
 
 // newSecretVariable creates a new secret variable
-func (cs *ConstraintSystem) newSecretVariable() Variable {
+func (cs *constraintSystem) newSecretVariable() Variable {
 	return cs.secret.new(cs, compiled.Secret)
 }
 
 // newVirtualVariable creates a new virtual variable
 // this will not result in a new wire in the constraint system
 // and just represents a linear expression
-func (cs *ConstraintSystem) newVirtualVariable() Variable {
+func (cs *constraintSystem) newVirtualVariable() Variable {
 	return cs.virtual.new(cs, compiled.Virtual)
-}
-
-func (cs *ConstraintSystem) buildVarFromWire(pv Wire) Variable {
-	return Variable{pv, cs.LinearExpression(compiled.Pack(pv.id, compiled.CoeffIdOne, pv.visibility))}
 }
 
 // markBoolean marks the variable as boolean and return true
 // if a constraint was added, false if the variable was already
 // constrained as a boolean
-func (cs *ConstraintSystem) markBoolean(v Variable) bool {
+func (cs *constraintSystem) markBoolean(v Variable) bool {
 	switch v.visibility {
 	case compiled.Internal:
 		if _, ok := cs.internal.booleans[v.id]; ok {

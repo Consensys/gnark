@@ -48,43 +48,43 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(cs *frontend.ConstraintSystem, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	var eπCdelta, eπAπB, epsigamma fields.E12
 
 	// e(-πC, -δ)
-	sw.MillerLoop(cs, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
+	sw.MillerLoop(api, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
 
 	// e(πA, πB)
-	sw.MillerLoop(cs, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
+	sw.MillerLoop(api, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
 	var psi0, tmp sw.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
-	// TODO this assumes ONE_WIRE is at position 0
+	// note this assumes ONE_WIRE is at position 0
 	psi0.X = innerVk.G1[0].X
 	psi0.Y = innerVk.G1[0].Y
 
 	for k, v := range innerPubInputs {
-		tmp.ScalarMul(cs, &innerVk.G1[k+1], v, 256)
-		psi0.AddAssign(cs, &tmp)
+		tmp.ScalarMul(api, innerVk.G1[k+1], v)
+		psi0.AddAssign(api, tmp)
 	}
 
 	// e(psi0, -gamma)
-	sw.MillerLoop(cs, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
+	sw.MillerLoop(api, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
 
 	// combine the results before performing the final expo
 	var preFinalExpo fields.E12
-	preFinalExpo.Mul(cs, &eπCdelta, &eπAπB, pairingInfo.Extension).
-		Mul(cs, &preFinalExpo, &epsigamma, pairingInfo.Extension)
+	preFinalExpo.Mul(api, eπCdelta, eπAπB, pairingInfo.Extension).
+		Mul(api, preFinalExpo, epsigamma, pairingInfo.Extension)
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExponentiation(cs, &preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(api, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MustBeEqual(cs, resPairing)
+	innerVk.E.MustBeEqual(api, resPairing)
 
 }

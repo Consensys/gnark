@@ -27,17 +27,17 @@ import (
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
 type MiMC struct {
-	params []big.Int                  // slice containing constants for the encryption rounds
-	id     ecc.ID                     // id needed to know which encryption function to use
-	h      frontend.Variable          // current vector in the Miyaguchi–Preneel scheme
-	data   []frontend.Variable        // state storage. data is updated when Write() is called. Sum sums the data.
-	cs     *frontend.ConstraintSystem // underlying constraint system
+	params []big.Int           // slice containing constants for the encryption rounds
+	id     ecc.ID              // id needed to know which encryption function to use
+	h      frontend.Variable   // current vector in the Miyaguchi–Preneel scheme
+	data   []frontend.Variable // state storage. data is updated when Write() is called. Sum sums the data.
+	api    frontend.API        // underlying constraint system
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID, cs *frontend.ConstraintSystem) (MiMC, error) {
+func NewMiMC(seed string, id ecc.ID, api frontend.API) (MiMC, error) {
 	if constructor, ok := newMimc[id]; ok {
-		return constructor(seed, cs), nil
+		return constructor(seed, api), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
 }
@@ -50,7 +50,7 @@ func (h *MiMC) Write(data ...frontend.Variable) {
 // Reset resets the Hash to its initial state.
 func (h *MiMC) Reset() {
 	h.data = nil
-	h.h = h.cs.Constant(0)
+	h.h = h.api.Constant(0)
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
@@ -61,8 +61,8 @@ func (h *MiMC) Sum() frontend.Variable {
 
 	//h.Write(data...)
 	for _, stream := range h.data {
-		h.h = encryptFuncs[h.id](h.cs, *h, stream, h.h)
-		h.h = h.cs.Add(h.h, stream)
+		h.h = encryptFuncs[h.id](h.api, *h, stream, h.h)
+		h.h = h.api.Add(h.h, stream)
 	}
 
 	h.data = nil // flush the data already hashed

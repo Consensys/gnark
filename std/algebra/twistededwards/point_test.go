@@ -22,16 +22,15 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *mustBeOnCurve) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -39,21 +38,16 @@ func (circuit *mustBeOnCurve) Define(curveID ecc.ID, cs *frontend.ConstraintSyst
 		return err
 	}
 
-	circuit.P.MustBeOnCurve(cs, params)
+	circuit.P.MustBeOnCurve(api, params)
 
 	return nil
 }
 
 func TestIsOnCurve(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness mustBeOnCurve
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	params, err := NewEdCurve(ecc.BN254)
 	if err != nil {
@@ -63,8 +57,7 @@ func TestIsOnCurve(t *testing.T) {
 	witness.P.X.Assign(params.BaseX)
 	witness.P.Y.Assign(params.BaseY)
 
-	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -72,7 +65,7 @@ type add struct {
 	P, E Point
 }
 
-func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *add) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -80,24 +73,19 @@ func (circuit *add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error 
 		return err
 	}
 
-	res := circuit.P.AddFixedPoint(cs, &circuit.P, params.BaseX, params.BaseY, params)
+	res := circuit.P.AddFixedPoint(api, &circuit.P, params.BaseX, params.BaseY, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestAddFixedPoint(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness add
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate a random point, and compute expected_point = base + random_point
 	params, err := NewEdCurve(ecc.BN254)
@@ -119,7 +107,7 @@ func TestAddFixedPoint(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -127,7 +115,7 @@ type addGeneric struct {
 	P1, P2, E Point
 }
 
-func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *addGeneric) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -135,23 +123,18 @@ func (circuit *addGeneric) Define(curveID ecc.ID, cs *frontend.ConstraintSystem)
 		return err
 	}
 
-	res := circuit.P1.AddGeneric(cs, &circuit.P1, &circuit.P2, params)
+	res := circuit.P1.AddGeneric(api, &circuit.P1, &circuit.P2, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestAddGeneric(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 	var circuit, witness addGeneric
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate random points, and compute expected_point = point1 + point2s
 	params, err := NewEdCurve(ecc.BN254)
@@ -177,7 +160,7 @@ func TestAddGeneric(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -185,7 +168,7 @@ type double struct {
 	P, E Point
 }
 
-func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *double) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -193,24 +176,19 @@ func (circuit *double) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) err
 		return err
 	}
 
-	res := circuit.P.Double(cs, &circuit.P, params)
+	res := circuit.P.Double(api, &circuit.P, params)
 
-	cs.AssertIsEqual(res.X, circuit.E.X)
-	cs.AssertIsEqual(res.Y, circuit.E.Y)
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestDouble(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness double
-
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -229,7 +207,7 @@ func TestDouble(t *testing.T) {
 	witness.E.Y.Assign(expected.Y.String())
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -238,7 +216,7 @@ type scalarMul struct {
 	S    frontend.Variable
 }
 
-func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *scalarMul) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -246,27 +224,23 @@ func (circuit *scalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) 
 		return err
 	}
 
-	resNonFixed := circuit.P.ScalarMulNonFixedBase(cs, &circuit.P, circuit.S, params)
-	resFixed := circuit.P.ScalarMulFixedBase(cs, params.BaseX, params.BaseY, circuit.S, params)
+	resNonFixed := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
+	resFixed := circuit.P.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
 
-	cs.AssertIsEqual(resFixed.X, circuit.E.X)
-	cs.AssertIsEqual(resFixed.Y, circuit.E.Y)
+	api.AssertIsEqual(resFixed.X, circuit.E.X)
+	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
 
-	cs.AssertIsEqual(resNonFixed.X, circuit.E.X)
-	cs.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
+	api.AssertIsEqual(resNonFixed.X, circuit.E.X)
+	api.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestScalarMul(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var circuit, witness scalarMul
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -287,7 +261,7 @@ func TestScalarMul(t *testing.T) {
 	witness.S.Assign(r)
 
 	// creates r1cs
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -295,18 +269,18 @@ type neg struct {
 	P, E Point
 }
 
-func (circuit *neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *neg) Define(curveID ecc.ID, api frontend.API) error {
 
-	circuit.P.Neg(cs, &circuit.P)
-	cs.AssertIsEqual(circuit.P.X, circuit.E.X)
-	cs.AssertIsEqual(circuit.P.Y, circuit.E.Y)
+	circuit.P.Neg(api, &circuit.P)
+	api.AssertIsEqual(circuit.P.X, circuit.E.X)
+	api.AssertIsEqual(circuit.P.Y, circuit.E.Y)
 
 	return nil
 }
 
 func TestNeg(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -325,11 +299,6 @@ func TestNeg(t *testing.T) {
 	witness.E.X.Assign(expected.X)
 	witness.E.Y.Assign(expected.Y)
 
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }

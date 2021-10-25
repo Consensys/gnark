@@ -1,8 +1,6 @@
 package circuits
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
@@ -12,27 +10,21 @@ type divCircuit struct {
 	Z    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	m := cs.Mul(circuit.X, circuit.X)
-	d := cs.Div(m, circuit.Y)
-	cs.AssertIsEqual(d, circuit.Z)
+func (circuit *divCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+	cs.AssertIsEqual(cs.DivUnchecked(circuit.X, circuit.Y), circuit.Z)
 	return nil
 }
 
 func init() {
-	var circuit, good, bad divCircuit
+	var good, bad divCircuit
 
-	// expected Z
-	var expectedZ big.Int
-	expectedZ.SetUint64(3)
+	good.X.Assign(12)
+	good.Y.Assign(6)
+	good.Z.Assign(2)
 
-	good.X.Assign(6)
-	good.Y.Assign(12)
-	good.Z.Assign(expectedZ)
+	bad.X.Assign(12)
+	bad.Y.Assign(6)
+	bad.Z.Assign(3)
 
-	bad.X.Assign(4)
-	bad.Y.Assign(10)
-	bad.Z.Assign(expectedZ)
-
-	addEntry("div", &circuit, &good, &bad)
+	addEntry("div", &divCircuit{}, &good, &bad)
 }

@@ -43,20 +43,20 @@ type mlStep struct {
 
 // computeLineCoef computes the coefficients of the line passing through Q, R of equation
 // x*LineCoeff.R0 +  y*LineCoeff.R1 + LineCoeff.R2
-func computeLineCoef(cs *frontend.ConstraintSystem, Q, R G2Affine, ext fields.Extension) LineEvaluation {
+func computeLineCoef(api frontend.API, Q, R G2Affine, ext fields.Extension) LineEvaluation {
 
 	var res LineEvaluation
-	res.R0.Sub(cs, &Q.Y, &R.Y)
-	res.R1.Sub(cs, &R.X, &Q.X)
+	res.R0.Sub(api, Q.Y, R.Y)
+	res.R1.Sub(api, R.X, Q.X)
 	var tmp fields.E2
-	res.R2.Mul(cs, &Q.X, &R.Y, ext)
-	tmp.Mul(cs, &R.X, &Q.Y, ext)
-	res.R2.Sub(cs, &res.R2, &tmp)
+	res.R2.Mul(api, Q.X, R.Y, ext)
+	tmp.Mul(api, R.X, Q.Y, ext)
+	res.R2.Sub(api, res.R2, tmp)
 	return res
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -65,37 +65,37 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
-	res.SetOne(cs)
+	res.SetOne(api)
 	var l LineEvaluation
 
 	var QCur, QNext G2Affine
 	QCur = Q
 
 	fsquareStep := func() {
-		QNext.Double(cs, &QCur, pairingInfo.Extension).Neg(cs, &QNext)
-		l = computeLineCoef(cs, QCur, QNext, pairingInfo.Extension)
-		l.R0.MulByFp(cs, &l.R0, P.X)
-		l.R1.MulByFp(cs, &l.R1, P.Y)
-		res.MulBy034(cs, &l.R1, &l.R0, &l.R2, pairingInfo.Extension)
-		QCur.Neg(cs, &QNext)
+		QNext.Double(api, &QCur, pairingInfo.Extension).Neg(api, &QNext)
+		l = computeLineCoef(api, QCur, QNext, pairingInfo.Extension)
+		l.R0.MulByFp(api, l.R0, P.X)
+		l.R1.MulByFp(api, l.R1, P.Y)
+		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
+		QCur.Neg(api, &QNext)
 	}
 
 	squareStep := func() {
-		res.Mul(cs, res, res, pairingInfo.Extension)
-		QNext.Double(cs, &QCur, pairingInfo.Extension).Neg(cs, &QNext)
-		l = computeLineCoef(cs, QCur, QNext, pairingInfo.Extension)
-		l.R0.MulByFp(cs, &l.R0, P.X)
-		l.R1.MulByFp(cs, &l.R1, P.Y)
-		res.MulBy034(cs, &l.R1, &l.R0, &l.R2, pairingInfo.Extension)
-		QCur.Neg(cs, &QNext)
+		res.Mul(api, *res, *res, pairingInfo.Extension)
+		QNext.Double(api, &QCur, pairingInfo.Extension).Neg(api, &QNext)
+		l = computeLineCoef(api, QCur, QNext, pairingInfo.Extension)
+		l.R0.MulByFp(api, l.R0, P.X)
+		l.R1.MulByFp(api, l.R1, P.Y)
+		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
+		QCur.Neg(api, &QNext)
 	}
 
 	mulStep := func() {
-		QNext.Neg(cs, &QNext).AddAssign(cs, &Q, pairingInfo.Extension)
-		l = computeLineCoef(cs, QCur, Q, pairingInfo.Extension)
-		l.R0.MulByFp(cs, &l.R0, P.X)
-		l.R1.MulByFp(cs, &l.R1, P.Y)
-		res.MulBy034(cs, &l.R1, &l.R0, &l.R2, pairingInfo.Extension)
+		QNext.Neg(api, &QNext).AddAssign(api, &Q, pairingInfo.Extension)
+		l = computeLineCoef(api, QCur, Q, pairingInfo.Extension)
+		l.R0.MulByFp(api, l.R0, P.X)
+		l.R1.MulByFp(api, l.R1, P.Y)
+		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
 		QCur = QNext
 	}
 
@@ -113,12 +113,12 @@ func MillerLoop(cs *frontend.ConstraintSystem, P G1Affine, Q G2Affine, res *fiel
 	ml33.q = QCur
 	nSquare(7)
 
-	res.Mul(cs, res, &ml33.f, pairingInfo.Extension)
-	l = computeLineCoef(cs, QCur, ml33.q, pairingInfo.Extension)
-	l.R0.MulByFp(cs, &l.R0, P.X)
-	l.R1.MulByFp(cs, &l.R1, P.Y)
-	res.MulBy034(cs, &l.R1, &l.R0, &l.R2, pairingInfo.Extension)
-	QCur.AddAssign(cs, &ml33.q, pairingInfo.Extension)
+	res.Mul(api, *res, ml33.f, pairingInfo.Extension)
+	l = computeLineCoef(api, QCur, ml33.q, pairingInfo.Extension)
+	l.R0.MulByFp(api, l.R0, P.X)
+	l.R1.MulByFp(api, l.R1, P.Y)
+	res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
+	QCur.AddAssign(api, &ml33.q, pairingInfo.Extension)
 
 	nSquare(4)
 	mulStep()

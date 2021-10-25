@@ -22,37 +22,22 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
-type e2TestCircuit struct {
+type e2Add struct {
 	A, B, C E2
-	define  func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error
 }
 
-func (circuit *e2TestCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	return circuit.define(curveID, cs, circuit.A, circuit.B, circuit.C)
+func (circuit *e2Add) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	expected.Add(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
 }
 
 func TestAddFp2(t *testing.T) {
-
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
-			expected := E2{}
-			expected.Add(cs, &A, &B)
-			expected.MustBeEqual(cs, C)
-			return nil
-		},
-	}
-
-	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -60,33 +45,28 @@ func TestAddFp2(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Add
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e2Add{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
+type e2Sub struct {
+	A, B, C E2
+}
+
+func (circuit *e2Sub) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	expected.Sub(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
 func TestSubFp2(t *testing.T) {
-
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
-			expected := E2{}
-			expected.Sub(cs, &A, &B)
-			expected.MustBeEqual(cs, C)
-			return nil
-		},
-	}
-
-	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -94,33 +74,29 @@ func TestSubFp2(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Sub
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e2Sub{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
-func TestMulFp2(t *testing.T) {
-	// test circuit
-	circuit := e2TestCircuit{
-		define: func(curveID ecc.ID, cs *frontend.ConstraintSystem, A, B, C E2) error {
-			ext := Extension{uSquare: -5}
-			expected := E2{}
-			expected.Mul(cs, &A, &B, ext)
-			expected.MustBeEqual(cs, C)
-			return nil
-		},
-	}
+type e2Mul struct {
+	A, B, C E2
+}
 
-	// compile it into a R1CS
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
+func (circuit *e2Mul) Define(curveID ecc.ID, api frontend.API) error {
+	var expected E2
+	ext := Extension{uSquare: -5}
+	expected.Mul(api, circuit.A, circuit.B, ext)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestMulFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
@@ -128,13 +104,14 @@ func TestMulFp2(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	var witness e2TestCircuit
+	var witness e2Mul
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e2Mul{}, &witness, test.WithCurves(ecc.BW6_761))
+
 }
 
 type fp2MulByFp struct {
@@ -143,21 +120,17 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2MulByFp) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.MulByFp(cs, &circuit.A, circuit.B)
+	expected.MulByFp(api, circuit.A, circuit.B)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestMulByFpFp2(t *testing.T) {
 
 	var circuit, witness fp2MulByFp
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -171,8 +144,8 @@ func TestMulByFpFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -181,21 +154,17 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Conjugate) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E2{}
-	expected.Conjugate(cs, &circuit.A)
+	expected.Conjugate(api, circuit.A)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestConjugateFp2(t *testing.T) {
 
 	var circuit, witness fp2Conjugate
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -206,8 +175,8 @@ func TestConjugateFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp2Inverse struct {
@@ -215,22 +184,18 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp2Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
-	expected.Inverse(cs, &circuit.A, ext)
+	expected.Inverse(api, circuit.A, ext)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestInverseFp2(t *testing.T) {
 
 	var circuit, witness fp2Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E2
@@ -241,8 +206,8 @@ func TestInverseFp2(t *testing.T) {
 
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -263,13 +228,13 @@ func TestMulByImFp2(t *testing.T) {
 
 	// // TODO c.MulByNonSquare(&a)
 
-	// fp2a := NewFp2Elmt(&cs, cs.SECRET_INPUT("a0"), cs.SECRET_INPUT("a1"))
+	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
 
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
 	// fp2c.MulByIm(&cs, &fp2a, ext)
 
-	// cs.Tag(fp2c.X, "c0")
-	// cs.Tag(fp2c.Y, "c1")
+	// api.Tag(fp2c.X, "c0")
+	// api.Tag(fp2c.Y, "c1")
 
 	//
 	// witness.A.A0.Assign(a.A0)

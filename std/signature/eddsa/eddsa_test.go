@@ -34,10 +34,9 @@ import (
 	eddsabw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
+	"github.com/consensys/gnark/test"
 )
 
 type eddsaCircuit struct {
@@ -123,7 +122,7 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 	}
 }
 
-func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *eddsaCircuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	params, err := twistededwards.NewEdCurve(curveID)
 	if err != nil {
@@ -132,14 +131,14 @@ func (circuit *eddsaCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSyste
 	circuit.PublicKey.Curve = params
 
 	// verify the signature in the cs
-	Verify(cs, circuit.Signature, circuit.Message, circuit.PublicKey)
+	Verify(api, circuit.Signature, circuit.Message, circuit.PublicKey)
 
 	return nil
 }
 
 func TestEddsa(t *testing.T) {
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	type confSig struct {
 		h hash.Hash
@@ -193,10 +192,6 @@ func TestEddsa(t *testing.T) {
 
 		// create and compile the circuit for signature verification
 		var circuit eddsaCircuit
-		r1cs, err := frontend.Compile(id, backend.GROTH16, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		// verification with the correct Message
 		{
@@ -218,7 +213,7 @@ func TestEddsa(t *testing.T) {
 			// witness.Signature.S2.Assign(sigS2)
 			witness.Signature.S.Assign(sigS)
 
-			assert.SolvingSucceeded(r1cs, &witness)
+			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 		}
 
 		// verification with incorrect Message
@@ -236,7 +231,7 @@ func TestEddsa(t *testing.T) {
 			witness.Signature.R.Y.Assign(sigRy)
 			witness.Signature.S.Assign(sigS)
 
-			assert.SolvingFailed(r1cs, &witness)
+			assert.SolvingFailed(&circuit, &witness, test.WithCurves(id))
 		}
 
 	}

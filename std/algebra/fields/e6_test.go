@@ -21,15 +21,14 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
-func getBLS377ExtensionFp6(cs *frontend.ConstraintSystem) Extension {
+func getBLS377ExtensionFp6(api frontend.API) Extension {
 	res := Extension{}
 	res.uSquare = -5
-	res.vCube = &E2{A0: cs.Constant(0), A1: cs.Constant(1)}
+	res.vCube = E2{A0: api.Constant(0), A1: api.Constant(1)}
 	return res
 }
 
@@ -41,20 +40,16 @@ type fp6Add struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Add) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	expected.Add(cs, &circuit.A, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Add(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestAddFp6(t *testing.T) {
 
 	var circuit, witness fp6Add
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -67,8 +62,8 @@ func TestAddFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6Sub struct {
@@ -76,20 +71,16 @@ type fp6Sub struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Sub) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	expected.Sub(cs, &circuit.A, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Sub(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestSubFp6(t *testing.T) {
 
 	var circuit, witness fp6Sub
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -102,8 +93,8 @@ func TestSubFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6Mul struct {
@@ -111,21 +102,17 @@ type fp6Mul struct {
 	C    E6 `gnark:",public"`
 }
 
-func (circuit *fp6Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Mul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(cs)
-	expected.Mul(cs, &circuit.A, &circuit.B, ext)
-	expected.MustBeEqual(cs, circuit.C)
+	ext := getBLS377ExtensionFp6(api)
+	expected.Mul(api, circuit.A, circuit.B, ext)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestMulFp6(t *testing.T) {
 
 	var circuit, witness fp6Mul
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E6
@@ -138,8 +125,8 @@ func TestMulFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp6MulByNonResidue struct {
@@ -147,22 +134,18 @@ type fp6MulByNonResidue struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6MulByNonResidue) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(cs)
-	expected.MulByNonResidue(cs, &circuit.A, ext)
+	ext := getBLS377ExtensionFp6(api)
+	expected.MulByNonResidue(api, circuit.A, ext)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestMulByNonResidueFp6(t *testing.T) {
 
 	var circuit, witness fp6MulByNonResidue
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E6
@@ -173,8 +156,8 @@ func TestMulByNonResidueFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -183,22 +166,18 @@ type fp6Inverse struct {
 	C E6 `gnark:",public"`
 }
 
-func (circuit *fp6Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp6Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(cs)
-	expected.Inverse(cs, &circuit.A, ext)
+	ext := getBLS377ExtensionFp6(api)
+	expected.Inverse(api, circuit.A, ext)
 
-	expected.MustBeEqual(cs, circuit.C)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestInverseFp6(t *testing.T) {
 
 	var circuit, witness fp6Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E6
@@ -209,8 +188,8 @@ func TestInverseFp6(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -223,7 +202,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// 	t.Fatal(err)
 	// }
 
-	// ext := getBLS377ExtensionFp6(&cs)
+	// ext := getBLS377ExtensionFp6(&gnark)
 
 	// // witness values
 	// var a, c bls12377.E6
@@ -249,7 +228,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// expectedValues := make(map[string]*fp.Element)
 	// getExpectedValuesFp6(expectedValues, "c", c)
 
-	// r1cs := cs.ToR1CS().ToR1CS(ecc.BW6_761)
+	// r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
 
 	// // inspect and compare the results
 	// res, err := r1cs.Inspect(inputs, false)

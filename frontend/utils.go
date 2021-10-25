@@ -38,6 +38,8 @@ func FromInterface(i1 interface{}) big.Int {
 		val.Set(c1)
 	case uint64:
 		val.SetUint64(c1)
+	case uint:
+		val.SetUint64(uint64(c1))
 	case int:
 		val.SetInt64(int64(c1))
 	case string:
@@ -59,7 +61,7 @@ func FromInterface(i1 interface{}) big.Int {
 				}
 			}
 		}
-		panic("unsupported type")
+		panic(reflect.TypeOf(i1).String() + " to big.Int not supported")
 	}
 
 	return val

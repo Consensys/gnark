@@ -17,9 +17,6 @@ limitations under the License.
 package frontend
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
-	"hash"
 	"math/big"
 	"sort"
 	"sync"
@@ -38,7 +35,7 @@ import (
 // alongside with some intermediate data structures needed to convert from
 // ConstraintSystem representataion to SparseR1CS
 type sparseR1CS struct {
-	*ConstraintSystem
+	*constraintSystem
 
 	ccs compiled.SparseR1CS
 
@@ -57,18 +54,20 @@ type sparseR1CS struct {
 
 	// map LinearExpression -> Term. The goal is to not reduce
 	// the same linear expression twice.
-	record map[string]compiled.Term
+	record map[uint64][]innerRecord
+}
 
-	// hash function used to navigate in record
-	h hash.Hash
+type innerRecord struct {
+	t compiled.Term
+	l compiled.LinearExpression
 }
 
 var bOne = new(big.Int).SetInt64(1)
 
-func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
+func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 
 	res := sparseR1CS{
-		ConstraintSystem: cs,
+		constraintSystem: cs,
 		ccs: compiled.SparseR1CS{
 			CS: compiled.CS{
 				NbInternalVariables: len(cs.internal.variables),
@@ -84,8 +83,7 @@ func (cs *ConstraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
 		currentR1CDebugID:    -1,
-		record:               make(map[string]compiled.Term),
-		h:                    sha256.New(),
+		record:               make(map[uint64][]innerRecord, len(cs.internal.variables)),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -262,74 +260,97 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 	return _l, t
 }
 
-// returns ( b/gcd(b...), gcd(b...) )
-func gcd(b []*big.Int, s *big.Int) {
+// returns ( b/computeGCD(b...), computeGCD(b...) )
+// if gcd is != 0 and gcd != 1, returns true
+func (scs *sparseR1CS) computeGCD(l compiled.LinearExpression, gcd *big.Int) {
+	gcd.SetUint64(0)
+	for i := 0; i < len(l); i++ {
+		cID := l[i].CoeffID()
+		if cID == compiled.CoeffIdZero {
+			continue
+		}
+		gcd.GCD(nil, nil, gcd, &scs.coeffs[cID])
 
-	s.Set(b[0])
-	for i := 0; i < len(b); i++ {
-		s.GCD(nil, nil, s, b[i])
-	}
-	if s.IsUint64() && s.Uint64() == 0 {
-		return
-	}
-
-	// ensure the gcd doesn't depend on the sign
-	if b[0].Sign() == -1 {
-		s.Neg(s)
-	}
-	for i := 0; i < len(b); i++ {
-		b[i].Div(b[i], s)
+		if gcd.IsUint64() && gcd.Uint64() == 1 {
+			break
+		}
 	}
 
 }
 
-// reduce returns ( l/gcd(l.coefs), gcd(l.coefs) )
-func (scs *sparseR1CS) reduce(l compiled.LinearExpression) (compiled.LinearExpression, big.Int) {
-
-	var s big.Int
-
-	// get the coeffs from the linear expression
-	coeffs := make([]*big.Int, len(l))
-
+// return true if linear expression contains one or minusOne coefficients
+func hasOnes(l compiled.LinearExpression) bool {
 	for i := 0; i < len(l); i++ {
-		coeffs[i] = bigIntPool.Get().(*big.Int)
-		coeffs[i].Set(&scs.coeffs[l[i].CoeffID()])
+		cID := l[i].CoeffID()
+		if cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne {
+			return true
+		}
+	}
+	return false
+}
+
+// reduce sets gcd = gcd(l.coefs) and returns l/gcd(l.coefs)
+// if gcd == 1, this returns l
+func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
+	mustNeg := scs.coeffs[l[0].CoeffID()].Sign() == -1
+
+	// fast path: if any of the coeffs is 1 or -1, no need to compute the GCD
+	if hasOnes(l) {
+		if !mustNeg {
+			gcd.SetUint64(1)
+			return l
+		}
+		gcd.SetInt64(-1)
+		return scs.divideLinearExpression(l, gcd)
 	}
 
 	// compute gcd
-	gcd(coeffs, &s)
+	scs.computeGCD(l, gcd)
 
-	// resulting linear expression
-	_l := make(compiled.LinearExpression, len(l))
-	copy(_l, l)
-	for i := 0; i < len(_l); i++ {
-		id := scs.coeffID(coeffs[i])
-		bigIntPool.Put(coeffs[i])
-		_l[i].SetCoeffID(id)
+	if mustNeg {
+		// ensure the gcd doesn't depend on the sign
+		gcd.Neg(gcd)
 	}
-	return _l, s
+
+	if gcd.IsUint64() && (gcd.Uint64() == 0 || gcd.Uint64() == 1) {
+		// no need to create a new linear expression
+		return l
+	}
+
+	return scs.divideLinearExpression(l, gcd)
 
 }
 
-// getKeyPrimitive returns id of l, assuming that l is primitive
-func (scs *sparseR1CS) GetKey(primitiveLinExp compiled.LinearExpression) string {
+func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, d *big.Int) compiled.LinearExpression {
+	// copy linear expression
+	r := make(compiled.LinearExpression, len(l))
+	copy(r, l)
 
-	// sort l to have a unique non ambiguous id
-	l := make(compiled.LinearExpression, len(primitiveLinExp))
-	copy(l, primitiveLinExp)
-	if !sort.IsSorted(l) { // not sure that helps
-		sort.Sort(l)
+	// new coeff
+	lambda := bigIntPool.Get().(*big.Int)
+
+	if d.IsInt64() && d.Int64() == -1 {
+		for i := 0; i < len(r); i++ {
+			cID := r[i].CoeffID()
+			if cID == compiled.CoeffIdZero {
+				continue
+			}
+			lambda.Neg(&scs.coeffs[cID])
+			r[i].SetCoeffID(scs.coeffID(lambda))
+		}
+	} else {
+		for i := 0; i < len(r); i++ {
+			cID := r[i].CoeffID()
+			if cID == compiled.CoeffIdZero {
+				continue
+			}
+			lambda.Div(&scs.coeffs[cID], d)
+			r[i].SetCoeffID(scs.coeffID(lambda))
+		}
 	}
 
-	// get the id
-	var b [8]byte
-	scs.h.Reset()
-	for i := 0; i < len(l); i++ {
-		binary.LittleEndian.PutUint64(b[:], uint64(l[i]))
-		scs.h.Write(b[:])
-	}
-	return string(scs.h.Sum(nil))
-
+	bigIntPool.Put(lambda)
+	return r
 }
 
 // pops the constant associated to the one_wire in the cs, which will become
@@ -362,24 +383,12 @@ func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
 	var vID int
 	if len(idCS) > 0 {
 		vID = idCS[0]
+		scs.solvedVariables[vID] = true
 	} else {
 		vID = scs.scsInternalVariables
 		scs.scsInternalVariables++
+		scs.solvedVariables = append(scs.solvedVariables, true)
 	}
-	// each time we create a new term, we created and added a constraint
-	// and as we allow only one unsolved wire per constraint
-	// we can mark it as solved such that if it appears in following constraints
-	// we don't consider it "unsolved"
-	if vID >= len(scs.solvedVariables) {
-		if vID < cap(scs.solvedVariables) {
-			scs.solvedVariables = scs.solvedVariables[:vID+1]
-		} else {
-			newSlice := make([]bool, vID+1)
-			copy(newSlice, scs.solvedVariables)
-			scs.solvedVariables = newSlice
-		}
-	}
-	scs.solvedVariables[vID] = true
 
 	return compiled.Pack(vID, scs.coeffID(coeff), compiled.Internal)
 }
@@ -429,10 +438,9 @@ func (scs *sparseR1CS) negate(t compiled.Term) compiled.Term {
 		t.SetCoeffID(compiled.CoeffIdMinusOne)
 	default:
 		coeff := bigIntPool.Get().(*big.Int)
-		defer bigIntPool.Put(coeff)
-
 		coeff.Neg(&scs.coeffs[t.CoeffID()])
 		t.SetCoeffID(scs.coeffID(coeff))
+		bigIntPool.Put(coeff)
 	}
 
 	return t
@@ -470,6 +478,28 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 	return t
 }
 
+func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bool) {
+	list, ok := scs.record[l.Hash()]
+	if !ok {
+		return 0, false
+	}
+
+	for i := 0; i < len(list); i++ {
+		if list[i].l.Equal(l) {
+			return list[i].t, true
+		}
+	}
+
+	return 0, false
+}
+
+func (scs *sparseR1CS) putRecord(l compiled.LinearExpression, t compiled.Term) {
+	id := l.Hash()
+	list := scs.record[id]
+	list = append(list, innerRecord{t: t, l: l})
+	scs.record[id] = list
+}
+
 func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 
 	// floor case
@@ -477,36 +507,44 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 		return l[0]
 	}
 
+	lGCD := bigIntPool.Get().(*big.Int)
 	// check if l is recorded, if so we get it from the record
-	_l, s := scs.reduce(l)
-	k := scs.GetKey(_l)
-	if t, ok := scs.record[k]; ok {
-		t.SetCoeffID(scs.coeffID(&s))
+	lReduced := scs.reduce(l, lGCD)
+	if t, ok := scs.getRecord(lReduced); ok {
+		t.SetCoeffID(scs.coeffID(lGCD))
+		bigIntPool.Put(lGCD)
 		return t
 	}
 
 	// find if in the left side the constraint is recorded
+	gcd := bigIntPool.Get().(*big.Int)
+
 	for i := len(l) - 1; i > 0; i-- {
-		ll, _s := scs.reduce(_l[:i])
-		_k := scs.GetKey(ll)
-		if t, ok := scs.record[_k]; ok {
-			t = scs.multiply(t, &_s)
+		ll := scs.reduce(lReduced[:i], gcd)
+		if t, ok := scs.getRecord(ll); ok {
+			t = scs.multiply(t, gcd)
 			o := scs.newTerm(bOne)
-			_o := scs.negate(o)
-			b := scs.split(_l[i:])
-			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: _o})
-			scs.record[k] = o
-			return scs.multiply(o, &s)
+			b := scs.split(lReduced[i:])
+			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: scs.negate(o)})
+			scs.putRecord(lReduced, o)
+			r := scs.multiply(o, lGCD)
+			bigIntPool.Put(lGCD)
+			bigIntPool.Put(gcd)
+			return r
 		}
 	}
+	bigIntPool.Put(gcd)
+
 	// else we build the reduction starting from l[0]
 	o := scs.newTerm(bOne)
-	_o := scs.negate(o)
-	a := _l[0]
-	b := scs.split(_l[1:])
-	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: _o})
-	scs.record[k] = o
-	return scs.multiply(o, &s)
+	a := lReduced[0]
+	b := scs.split(lReduced[1:])
+	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: scs.negate(o)})
+	scs.putRecord(lReduced, o)
+	r := scs.multiply(o, lGCD)
+	bigIntPool.Put(lGCD)
+
+	return r
 }
 
 // r1cToSparseR1C splits a r1c constraint
@@ -524,6 +562,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	l := r1c.L
 	r := r1c.R
 	o := r1c.O
+	sort.Sort(l)
+	sort.Sort(r)
+	sort.Sort(o)
 
 	// if the unsolved variable in not in o,
 	// ensure that it is in r1c.L
@@ -933,6 +974,10 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 	l := r1c.L
 	r := r1c.R
 	o := r1c.O
+
+	sort.Sort(l)
+	sort.Sort(r)
+	sort.Sort(o)
 
 	l, cL := scs.popConstantTerm(l)
 	r, cR := scs.popConstantTerm(r)

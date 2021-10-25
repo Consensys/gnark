@@ -23,9 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
@@ -38,10 +37,10 @@ type g1AddAssign struct {
 	C    G1Jac `gnark:",public"`
 }
 
-func (circuit *g1AddAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1AddAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -53,10 +52,6 @@ func TestAddAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -66,8 +61,8 @@ func TestAddAssignG1(t *testing.T) {
 	a.AddAssign(&b)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -79,10 +74,10 @@ type g1AddAssignAffine struct {
 	C    G1Affine `gnark:",public"`
 }
 
-func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -97,10 +92,6 @@ func TestAddAssignAffineG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1AddAssignAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -111,8 +102,8 @@ func TestAddAssignAffineG1(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -124,10 +115,10 @@ type g1DoubleAssign struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1DoubleAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1DoubleAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.DoubleAssign(cs)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.DoubleAssign(api)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -138,10 +129,6 @@ func TestDoubleAssignG1(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g1DoubleAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -150,8 +137,8 @@ func TestDoubleAssignG1(t *testing.T) {
 	a.DoubleAssign()
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -163,10 +150,10 @@ type g1DoubleAffine struct {
 	C G1Affine `gnark:",public"`
 }
 
-func (circuit *g1DoubleAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.Double(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Double(api, circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -184,22 +171,9 @@ func TestDoubleAffineG1(t *testing.T) {
 	_a.DoubleAssign()
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-	{
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert := groth16.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
-	{
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert := plonk.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -211,10 +185,10 @@ type g1Neg struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1Neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1Neg) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Jac{}
-	expected.Neg(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Neg(api, circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -229,24 +203,8 @@ func TestNegG1(t *testing.T) {
 	a.Neg(&a)
 	witness.C.Assign(&a)
 
-	// create the cs
-	var circuit g1Neg
-	{
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert := groth16.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
-	{
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert := plonk.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -259,10 +217,10 @@ type g1ScalarMul struct {
 	r fr.Element
 }
 
-func (circuit *g1ScalarMul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(cs, &circuit.A, circuit.r.String(), 256)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.ScalarMul(api, circuit.A, circuit.r.String())
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -280,33 +238,17 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	circuit.r = r
+
+	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
 	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-	{
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
 
-		// assign the inputs
-		assert := groth16.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
-	{
-		circuit.r = r
-		r1cs, err := frontend.Compile(ecc.BW6_761, backend.PLONK, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		assert := plonk.NewAssert(t)
-		assert.SolvingSucceeded(r1cs, &witness)
-	}
-
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 func randomPointG1() bls12377.G1Jac {
@@ -319,4 +261,25 @@ func randomPointG1() bls12377.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1
+}
+
+var ccsBench frontend.CompiledConstraintSystem
+
+func BenchmarkScalarMulG1(b *testing.B) {
+	var c g1ScalarMul
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
+
 }

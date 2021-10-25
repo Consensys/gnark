@@ -4,6 +4,7 @@ import (
     "fmt"
     "io"
     "encoding/binary"
+    "encoding/json"
 
     "github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/frontend"
@@ -78,18 +79,17 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error  {
     var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
         v := tInput.Interface().(frontend.Variable)
 
-        val, _ := v.GetAssignedValue()
-        if val == nil {
+        if v.WitnessValue == nil {
             return fmt.Errorf("when parsing variable %s: missing assignment", name) 
         }
 
         if visibility == compiled.Secret {
-            if _, err := (*witness)[i].SetInterface(val) ; err != nil {
+            if _, err := (*witness)[i].SetInterface(v.WitnessValue) ; err != nil {
                 return fmt.Errorf("when parsing variable %s: %v", name, err) 
             }
             i++
         } else if visibility == compiled.Public {
-            if _, err := (*witness)[j].SetInterface(val) ; err != nil {
+            if _, err := (*witness)[j].SetInterface(v.WitnessValue) ; err != nil {
                 return fmt.Errorf("when parsing variable %s: %v", name, err) 
             }
             j++
@@ -115,11 +115,12 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
     var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
        if visibility == compiled.Public {
             v := tInput.Interface().(frontend.Variable)
-            val, _ := v.GetAssignedValue()
-            if val == nil {
+
+            if v.WitnessValue == nil {
                 return fmt.Errorf("when parsing variable %s: missing assignment", name) 
             }
-            if _, err := (*witness)[j].SetInterface(val) ; err != nil {
+
+            if _, err := (*witness)[j].SetInterface(v.WitnessValue) ; err != nil {
                 return fmt.Errorf("when parsing variable %s: %v", name, err) 
             }
             j++
@@ -145,4 +146,58 @@ func count(w frontend.Circuit) (nbSecret, nbPublic int) {
         panic("count handler doesn't return an error -- this panic should not happen")
     }
     return 
+}
+
+// ToJSON extracts the full witness [ public | secret ] and returns a JSON string
+// or an error if it can't convert values to field elements 
+func ToJSON(w frontend.Circuit) (string, error)  {
+    nbSecret, nbPublic := count(w)
+
+    type jsonStruct struct {
+        Public map[string]string
+        Secret map[string]string
+    }
+
+    toPrint := jsonStruct{
+        Public: make(map[string]string, nbPublic),
+        Secret: make(map[string]string, nbSecret),
+    }
+
+    
+    var e fr.Element 
+
+    var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+        v := tInput.Interface().(frontend.Variable)
+
+        if visibility == compiled.Secret {
+            if v.WitnessValue == nil {
+                toPrint.Secret[name] = "<nil>"
+            } else {
+                if _, err := e.SetInterface(v.WitnessValue) ; err != nil {
+                    return fmt.Errorf("when parsing variable %s: %v", name, err) 
+                }
+                toPrint.Secret[name] = e.String()
+            }
+        } else if visibility == compiled.Public {
+            if v.WitnessValue == nil {
+                toPrint.Public[name] = "<nil>"
+            } else {
+                if _, err := e.SetInterface(v.WitnessValue) ; err != nil {
+                    return fmt.Errorf("when parsing variable %s: %v", name, err) 
+                }
+                toPrint.Public[name] = e.String()
+            }
+        }
+        return nil
+    }
+    if err := parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+        return "", err
+    }
+    
+
+    prettyJSON, err := json.MarshalIndent(toPrint, "", "    ")
+    if err != nil {
+       return "", err 
+    }
+    return string(prettyJSON), nil 
 }

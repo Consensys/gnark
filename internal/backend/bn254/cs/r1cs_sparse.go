@@ -269,7 +269,7 @@ func (cs *SparseR1CS) ToHTML(w io.Writer) error {
 	return t.Execute(w, cs)
 }
 
-func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]int) string {
+func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
 	var sbb strings.Builder
 	termToHTML(t, &sbb, coeffs, MHints, true)
 	return sbb.String()

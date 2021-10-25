@@ -1,3 +1,19 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 // Package frontend contains the object and logic to define and compile gnark circuits
 package frontend
 
@@ -12,8 +28,8 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// ErrInputNotSet triggered when trying to access a variable that was not allocated
-var ErrInputNotSet = errors.New("variable is not allocated")
+// errInputNotSet triggered when trying to access a variable that was not allocated
+var errInputNotSet = errors.New("variable is not allocated")
 
 // Compile will generate a CompiledConstraintSystem from the given circuit
 //
@@ -59,7 +75,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs ConstraintSystem, err error) {
+func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
 	// recover from panics to print user-friendlier messages
 	defer func() {
 		if r := recover(); r != nil {
@@ -80,8 +96,8 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 				v.id = 0
 				// return errors.New("circuit was already compiled")
 			}
-			if v.val != nil {
-				return errors.New("circuit has some assigned values, can't compile")
+			if v.WitnessValue != nil {
+				return fmt.Errorf("circuit has %s illegaly assigned, can't compile", name)
 			}
 			switch visibility {
 			case compiled.Secret:
@@ -109,4 +125,12 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs Constr
 
 	return
 
+}
+
+// Value returned a Variable with an assigned value
+// This is to be used in the context of witness creation only and
+// will triger an error if used inside a circuit Define(...) method
+// This is syntatic sugar for: frontend.Variable{WitnessValue: value}
+func Value(value interface{}) Variable {
+	return Variable{WitnessValue: value}
 }

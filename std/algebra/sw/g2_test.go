@@ -22,10 +22,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
@@ -38,10 +37,10 @@ type g2AddAssign struct {
 	C    G2Jac `gnark:",public"`
 }
 
-func (circuit *g2AddAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g2AddAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -53,10 +52,6 @@ func TestAddAssignG2(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g2AddAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -66,8 +61,8 @@ func TestAddAssignG2(t *testing.T) {
 	a.AddAssign(&b)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -79,10 +74,10 @@ type g2AddAssignAffine struct {
 	C    G2Affine `gnark:",public"`
 }
 
-func (circuit *g2AddAssignAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g2AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(cs, &circuit.B, fields.GetBLS377ExtensionFp12(cs))
-	expected.MustBeEqual(cs, circuit.C)
+	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -97,10 +92,6 @@ func TestAddAssignAffineG2(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g2AddAssignAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -111,8 +102,8 @@ func TestAddAssignAffineG2(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -124,10 +115,10 @@ type g2DoubleAssign struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2DoubleAssign) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g2DoubleAssign) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -138,10 +129,6 @@ func TestDoubleAssignG2(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g2DoubleAssign
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -150,8 +137,8 @@ func TestDoubleAssignG2(t *testing.T) {
 	a.DoubleAssign()
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -163,10 +150,10 @@ type g2DoubleAffine struct {
 	C G2Affine `gnark:",public"`
 }
 
-func (circuit *g2DoubleAffine) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g2DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
 	expected := circuit.A
-	expected.Double(cs, &circuit.A, fields.GetBLS377ExtensionFp12(cs))
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -179,10 +166,6 @@ func TestDoubleAffineG2(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g2DoubleAffine
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -192,8 +175,8 @@ func TestDoubleAffineG2(t *testing.T) {
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -205,10 +188,10 @@ type g2Neg struct {
 	C G2Jac `gnark:",public"`
 }
 
-func (circuit *g2Neg) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *g2Neg) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G2Jac{}
-	expected.Neg(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Neg(api, &circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
@@ -219,10 +202,6 @@ func TestNegG2(t *testing.T) {
 
 	// create the cs
 	var circuit, witness g2Neg
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -231,8 +210,8 @@ func TestNegG2(t *testing.T) {
 	a.Neg(&a)
 	witness.C.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 

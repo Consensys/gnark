@@ -1,3 +1,19 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package frontend
 
 import (
@@ -17,7 +33,7 @@ import (
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *ConstraintSystem) Println(a ...interface{}) {
+func (cs *constraintSystem) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -35,7 +51,7 @@ func (cs *ConstraintSystem) Println(a ...interface{}) {
 			sbb.WriteByte(' ')
 		}
 		if v, ok := arg.(Variable); ok {
-			v.assertIsSet()
+			v.assertIsSet(cs)
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
@@ -94,10 +110,9 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 	sbb.WriteByte('}')
 }
 
-func (cs *ConstraintSystem) addDebugInfo(errName string, i ...interface{}) int {
+func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 	var debug compiled.LogEntry
 
-	// TODO @gbotrel reserve capacity for the string builder
 	const minLogSize = 500
 	var sbb strings.Builder
 	sbb.Grow(minLogSize)

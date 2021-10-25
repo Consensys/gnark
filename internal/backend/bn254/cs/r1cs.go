@@ -102,7 +102,10 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
 		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
-			// TODO should return debug info, if any.
+			if dID, ok := cs.MDebug[i]; ok {
+				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+				return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
+			}
 			return solution.values, err
 		}
 
@@ -271,7 +274,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	return nil
 }
 
-// TODO @gbotrel clean logs and html
+// TODO @gbotrel clean logs and html see https://github.com/ConsenSys/gnark/issues/140
 
 // ToHTML returns an HTML human-readable representation of the constraint system
 func (cs *R1CS) ToHTML(w io.Writer) error {
@@ -295,7 +298,7 @@ func sub(a, b int) int {
 	return a - b
 }
 
-func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]int) string {
+func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
 		termToHTML(l[i], &sbb, coeffs, MHints, false)
@@ -306,7 +309,7 @@ func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]int
 	return sbb.String()
 }
 
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]int, offset bool) {
+func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]compiled.Hint, offset bool) {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
 		// do nothing, just print the variable

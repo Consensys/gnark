@@ -22,15 +22,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/std/algebra/sw"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 //--------------------------------------------------------------------
@@ -44,15 +43,15 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	mimc, err := mimc.NewMiMC("seed", curveID, cs)
+func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	mimc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
 	//result := mimc.Sum(circuit.Data)
 	mimc.Write(circuit.Data)
 	result := mimc.Sum()
-	cs.AssertIsEqual(result, circuit.Hash)
+	api.AssertIsEqual(result, circuit.Hash)
 	return nil
 }
 
@@ -106,17 +105,17 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *verifierCircuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(cs)
+	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := sw.PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	// create the verifier cs
-	Verify(cs, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
+	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
 
 	return nil
 }
@@ -131,10 +130,6 @@ func TestVerifier(t *testing.T) {
 	// create an empty cs
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -163,9 +158,9 @@ func TestVerifier(t *testing.T) {
 	witness.Hash.Assign(publicHash)
 
 	// verifies the cs
-	assertbw6761 := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
-	assertbw6761.SolvingSucceeded(r1cs.(*backend_bw6761.R1CS), &witness)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 	/* comment from here */
 
@@ -190,6 +185,24 @@ func TestVerifier(t *testing.T) {
 
 }
 
+func BenchmarkCompile(b *testing.B) {
+	// get the data
+	var innerVk groth16_bls12377.VerifyingKey
+	var innerProof groth16_bls12377.Proof
+	generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
+
+	// create an empty cs
+	var circuit verifierCircuit
+	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
+
+	var ccs frontend.CompiledConstraintSystem
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	}
+	b.Log(ccs.GetNbConstraints())
+}
+
 //--------------------------------------------------------------------
 // bench
 
@@ -210,7 +223,7 @@ func TestVerifier(t *testing.T) {
 
 // 	// pairing data
 // 	var pairingInfo sw.PairingContext
-// 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&cs)
+// 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&gnark)
 // 	pairingInfo.AteLoop = 9586122913090633729
 
 // 	// allocate the verifying key
@@ -225,7 +238,7 @@ func TestVerifier(t *testing.T) {
 // 	Verify(&cs, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
 
 // 	// create r1cs
-// 	r1cs := cs.ToR1CS().ToR1CS(ecc.BW6_761)
+// 	r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
 
 // 	// create assignment, the private part consists of the proof,
 // 	// the public part is exactly the public part of the inner proof,

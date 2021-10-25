@@ -40,7 +40,6 @@ func main() {
 
 	// library user is free to use another encoder like gob or cbor to serialize / deserialize objects
 	// but will need to check reconstructed object validity (points on curve, etc)
-	// TODO add example and APIs for that
 	buf.Reset()
 	enc := cbor.NewEncoder(&buf)
 	_ = enc.Encode(vk)

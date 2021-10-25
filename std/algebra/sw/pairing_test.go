@@ -23,9 +23,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/test"
 )
 
 type pairingBLS377 struct {
@@ -34,23 +34,23 @@ type pairingBLS377 struct {
 	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *pairingBLS377) Define(curveID ecc.ID, api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(cs)
+	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	pairingRes := fields.E12{}
-	pairingRes.FinalExponentiation(cs, &milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
-	mustbeEq(cs, pairingRes, &circuit.pairingRes)
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
 	return nil
 }
@@ -63,17 +63,13 @@ func TestPairingBLS377(t *testing.T) {
 	// create cs
 	var circuit, witness pairingBLS377
 	circuit.pairingRes = pairingRes
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// assign values to witness
 	witness.P.Assign(&P)
 	witness.Q.Assign(&Q)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -82,16 +78,16 @@ type ml struct {
 	Q G2Affine
 }
 
-func (circuit *ml) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *ml) Define(curveID ecc.ID, api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(cs)
+	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = cs.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = cs.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
+	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
 
 	milRes := fields.E12{}
-	MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
 
 	return nil
 
@@ -117,17 +113,17 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls1237
 	return
 }
 
-func mustbeEq(cs *frontend.ConstraintSystem, fp12 fields.E12, e12 *bls12377.GT) {
-	cs.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
-	cs.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
-	cs.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
-	cs.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
-	cs.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
-	cs.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
-	cs.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
-	cs.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
-	cs.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
-	cs.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
-	cs.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
-	cs.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
+func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
+	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
+	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
+	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
+	api.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
+	api.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
+	api.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
+	api.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
+	api.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
+	api.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
+	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
+	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
+	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }

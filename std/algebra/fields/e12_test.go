@@ -22,9 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 )
 
 //--------------------------------------------------------------------
@@ -35,20 +34,16 @@ type fp12Add struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Add) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Add) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Add(cs, &circuit.A, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Add(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestAddFp12(t *testing.T) {
 
 	var circuit, witness fp12Add
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -61,8 +56,8 @@ func TestAddFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Sub struct {
@@ -70,20 +65,16 @@ type fp12Sub struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Sub) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Sub) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Sub(cs, &circuit.A, &circuit.B)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Sub(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestSubFp12(t *testing.T) {
 
 	var circuit, witness fp12Sub
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -96,8 +87,8 @@ func TestSubFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Mul struct {
@@ -105,21 +96,17 @@ type fp12Mul struct {
 	C    E12 `gnark:",public"`
 }
 
-func (circuit *fp12Mul) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Mul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(cs)
-	expected.Mul(cs, &circuit.A, &circuit.B, ext)
-	expected.MustBeEqual(cs, circuit.C)
+	ext := GetBLS377ExtensionFp12(api)
+	expected.Mul(api, circuit.A, circuit.B, ext)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestMulFp12(t *testing.T) {
 
 	var circuit, witness fp12Mul
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -132,8 +119,8 @@ func TestMulFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Square struct {
@@ -141,20 +128,16 @@ type fp12Square struct {
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12Square) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	ext := GetBLS377ExtensionFp12(cs)
-	s := circuit.A.Square(cs, &circuit.A, ext)
-	s.MustBeEqual(cs, *s)
+func (circuit *fp12Square) Define(curveID ecc.ID, api frontend.API) error {
+	ext := GetBLS377ExtensionFp12(api)
+	s := circuit.A.Square(api, circuit.A, ext)
+	s.MustBeEqual(api, *s)
 	return nil
 }
 
 func TestSquareFp12(t *testing.T) {
 
 	var circuit, witness fp12Square
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b bls12377.E12
@@ -165,8 +148,8 @@ func TestSquareFp12(t *testing.T) {
 	witness.B.Assign(&b)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -175,23 +158,19 @@ type fp12CycloSquare struct {
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12CycloSquare) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	ext := GetBLS377ExtensionFp12(cs)
+func (circuit *fp12CycloSquare) Define(curveID ecc.ID, api frontend.API) error {
+	ext := GetBLS377ExtensionFp12(api)
 	var u, v E12
-	u.Square(cs, &circuit.A, ext)
-	v.CyclotomicSquare(cs, &circuit.A, ext)
-	u.MustBeEqual(cs, v)
-	u.MustBeEqual(cs, circuit.B)
+	u.Square(api, circuit.A, ext)
+	v.CyclotomicSquare(api, circuit.A, ext)
+	u.MustBeEqual(api, v)
+	u.MustBeEqual(api, circuit.B)
 	return nil
 }
 
 func TestFp12CyclotomicSquare(t *testing.T) {
 
 	var circuit, witness fp12CycloSquare
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, b bls12377.E12
@@ -209,8 +188,8 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 	witness.B.Assign(&b)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -219,20 +198,16 @@ type fp12Conjugate struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Conjugate) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Conjugate) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	expected.Conjugate(cs, &circuit.A)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.Conjugate(api, circuit.A)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestConjugateFp12(t *testing.T) {
 
 	var circuit, witness fp12Conjugate
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -243,8 +218,8 @@ func TestConjugateFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Frobenius struct {
@@ -252,29 +227,25 @@ type fp12Frobenius struct {
 	C, D, E E12 `gnark:",public"`
 }
 
-func (circuit *fp12Frobenius) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	ext := GetBLS377ExtensionFp12(cs)
+func (circuit *fp12Frobenius) Define(curveID ecc.ID, api frontend.API) error {
+	ext := GetBLS377ExtensionFp12(api)
 	fb := E12{}
-	fb.Frobenius(cs, &circuit.A, ext)
-	fb.MustBeEqual(cs, circuit.C)
+	fb.Frobenius(api, circuit.A, ext)
+	fb.MustBeEqual(api, circuit.C)
 
 	fbSquare := E12{}
-	fbSquare.FrobeniusSquare(cs, &circuit.A, ext)
-	fbSquare.MustBeEqual(cs, circuit.D)
+	fbSquare.FrobeniusSquare(api, circuit.A, ext)
+	fbSquare.MustBeEqual(api, circuit.D)
 
 	fbCube := E12{}
-	fbCube.FrobeniusCube(cs, &circuit.A, ext)
-	fbCube.MustBeEqual(cs, circuit.E)
+	fbCube.FrobeniusCube(api, circuit.A, ext)
+	fbCube.MustBeEqual(api, circuit.E)
 	return nil
 }
 
 func TestFrobeniusFp12(t *testing.T) {
 
 	var circuit, witness fp12Frobenius
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c, d, e bls12377.E12
@@ -289,8 +260,8 @@ func TestFrobeniusFp12(t *testing.T) {
 	witness.E.Assign(&e)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Inverse struct {
@@ -298,21 +269,17 @@ type fp12Inverse struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12Inverse) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12Inverse) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(cs)
-	expected.Inverse(cs, &circuit.A, ext)
-	expected.MustBeEqual(cs, circuit.C)
+	ext := GetBLS377ExtensionFp12(api)
+	expected.Inverse(api, circuit.A, ext)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestInverseFp12(t *testing.T) {
 
 	var circuit, witness fp12Inverse
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -323,8 +290,8 @@ func TestInverseFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FixedExpo struct {
@@ -332,21 +299,17 @@ type fp12FixedExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FixedExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12FixedExpo) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(cs)
+	ext := GetBLS377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
-	expected.FixedExponentiation(cs, &circuit.A, expo, ext)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.FixedExponentiation(api, circuit.A, expo, ext)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestExpFixedExpoFp12(t *testing.T) {
 	var circuit, witness fp12FixedExpo
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -359,8 +322,8 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12FinalExpo struct {
@@ -368,21 +331,17 @@ type fp12FinalExpo struct {
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12FinalExpo) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fp12FinalExpo) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(cs)
+	ext := GetBLS377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
-	expected.FinalExponentiation(cs, &circuit.A, expo, ext)
-	expected.MustBeEqual(cs, circuit.C)
+	expected.FinalExponentiation(api, circuit.A, expo, ext)
+	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
 func TestExpFinalExpoFp12(t *testing.T) {
 	var circuit, witness fp12FinalExpo
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// witness values
 	var a, c bls12377.E12
@@ -394,8 +353,8 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	witness.C.Assign(&c)
 
 	// cs values
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type fp12MulBy034 struct {
@@ -404,20 +363,16 @@ type fp12MulBy034 struct {
 	B, C, D E2
 }
 
-func (circuit *fp12MulBy034) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	ext := GetBLS377ExtensionFp12(cs)
-	circuit.A.MulBy034(cs, &circuit.B, &circuit.C, &circuit.D, ext)
-	circuit.A.MustBeEqual(cs, circuit.W)
+func (circuit *fp12MulBy034) Define(curveID ecc.ID, api frontend.API) error {
+	ext := GetBLS377ExtensionFp12(api)
+	circuit.A.MulBy034(api, circuit.B, circuit.C, circuit.D, ext)
+	circuit.A.MustBeEqual(api, circuit.W)
 	return nil
 }
 
 func TestFp12MulBy034(t *testing.T) {
 
 	var circuit, witness fp12MulBy034
-	r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var a bls12377.E12
 	var b, c, d bls12377.E2
@@ -437,7 +392,7 @@ func TestFp12MulBy034(t *testing.T) {
 
 	witness.W.Assign(&a)
 
-	assert := groth16.NewAssert(t)
-	assert.SolvingSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }

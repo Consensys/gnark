@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -42,27 +43,27 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 2
 
 	// specify constraints
-	output := cs.Constant(1)
-	bits := cs.ToBinary(circuit.E, bitSize)
+	output := api.Constant(1)
+	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		// cs.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
+		// api.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
 
 		if i != 0 {
-			output = cs.Mul(output, output)
+			output = api.Mul(output, output)
 		}
-		multiply := cs.Mul(output, circuit.X)
-		output = cs.Select(bits[len(bits)-1-i], multiply, output)
+		multiply := api.Mul(output, circuit.X)
+		output = api.Select(bits[len(bits)-1-i], multiply, output)
 
 	}
 
-	cs.AssertIsEqual(circuit.Y, output)
+	api.AssertIsEqual(circuit.Y, output)
 
 	return nil
 }
@@ -96,7 +97,7 @@ func main() {
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
 	_r1cs := r3.(*cs.SparseR1CS)
-	srs, err := plonk.NewSRS(_r1cs)
+	srs, err := test.NewKZGSRS(_r1cs)
 	if err != nil {
 		panic(err)
 	}

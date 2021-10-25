@@ -10,7 +10,7 @@ type fromBinaryCircuit struct {
 	Y              frontend.Variable `gnark:",public"`
 }
 
-func (circuit *fromBinaryCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
+func (circuit *fromBinaryCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 	cs.AssertIsBoolean(circuit.B0)
 	cs.AssertIsBoolean(circuit.B1)
 	cs.AssertIsBoolean(circuit.B2)

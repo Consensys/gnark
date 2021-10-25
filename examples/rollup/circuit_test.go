@@ -20,11 +20,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 type circuitSignature struct {
@@ -32,15 +31,15 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	if err := t.postInit(curveID, cs); err != nil {
+func (t *circuitSignature) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID, cs)
+	hFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
-	return verifyTransferSignature(cs, t.Transfers[0], hFunc)
+	return verifyTransferSignature(api, t.Transfers[0], hFunc)
 }
 
 func TestCircuitSignature(t *testing.T) {
@@ -77,13 +76,10 @@ func TestCircuitSignature(t *testing.T) {
 	}
 
 	// verifies the signature of the transfer
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &signatureCircuit)
-	assert.NoError(err)
-
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -92,19 +88,19 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	if err := t.postInit(curveID, cs); err != nil {
+func (t *circuitInclusionProof) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	hashFunc, err := mimc.NewMiMC("seed", curveID, cs)
+	hashFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
-	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
-	merkle.VerifyProof(cs, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesBefore[0], t.MerkleProofsSenderBefore[0][:], t.MerkleProofHelperSenderBefore[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesBefore[0], t.MerkleProofsReceiverBefore[0][:], t.MerkleProofHelperReceiverBefore[0][:])
 
-	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
-	merkle.VerifyProof(cs, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
+	merkle.VerifyProof(api, hashFunc, t.RootHashesAfter[0], t.MerkleProofsReceiverAfter[0][:], t.MerkleProofHelperReceiverAfter[0][:])
 
 	return nil
 }
@@ -145,13 +141,11 @@ func TestCircuitInclusionProof(t *testing.T) {
 	}
 
 	// verifies the proofs of inclusion of the transfer
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var inclusionProofCircuit circuitInclusionProof
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &inclusionProofCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -160,11 +154,11 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	if err := t.postInit(curveID, cs); err != nil {
+func (t *circuitUpdateAccount) Define(curveID ecc.ID, api frontend.API) error {
+	if err := t.postInit(curveID, api); err != nil {
 		return err
 	}
-	verifyAccountUpdated(cs, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
+	verifyAccountUpdated(api, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],
 		t.SenderAccountsAfter[0], t.ReceiverAccountsAfter[0], t.Transfers[0].Amount)
 	return nil
 }
@@ -204,13 +198,11 @@ func TestCircuitUpdateAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 
 	var updateAccountCircuit circuitUpdateAccount
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &updateAccountCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }
 
@@ -249,13 +241,11 @@ func TestCircuitFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert := groth16.NewAssert(t)
+	assert := test.NewAssert(t)
 	// verifies the proofs of inclusion of the transfer
 
 	var rollupCircuit Circuit
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &rollupCircuit)
-	assert.NoError(err)
 
-	assert.ProverSucceeded(r1cs, &operator.witnesses)
+	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
 
 }

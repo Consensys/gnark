@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,17 +20,18 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	c := cs.Add(circuit.A, circuit.B)
-	cs.Println(c, "is the addition")
-	d := cs.Mul(circuit.A, c)
-	cs.Println(d, new(big.Int).SetInt64(42))
-	bs := cs.ToBinary(circuit.B, 10)
-	cs.Println("bits", bs[3])
-	cs.Println("circuit", circuit)
-	cs.AssertIsBoolean(cs.Constant(10)) // this will fail
-	m := cs.Mul(circuit.A, circuit.B)
-	cs.Println("m", m) // this should not be resolved
+func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	c := api.Add(circuit.A, circuit.B)
+	api.Println(c, "is the addition")
+	d := api.Mul(circuit.A, c)
+	api.Println(d, new(big.Int).SetInt64(42))
+	bs := api.ToBinary(circuit.B, 10)
+	api.Println("bits", bs[3])
+	api.Println("circuit", circuit)
+	nb := api.Mul(bs[1], 2)
+	api.AssertIsBoolean(nb) // this will fail
+	m := api.Mul(circuit.A, circuit.B)
+	api.Println("m", m) // this should not be resolved
 	return nil
 }
 
@@ -41,11 +43,11 @@ func TestPrintln(t *testing.T) {
 	witness.B.Assign(11)
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:24 13 is the addition\n")
-	expected.WriteString("debug_test.go:26 26 42\n")
-	expected.WriteString("debug_test.go:28 bits 1\n")
-	expected.WriteString("debug_test.go:29 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:32 m <unsolved>\n")
+	expected.WriteString("debug_test.go:25 13 is the addition\n")
+	expected.WriteString("debug_test.go:27 26 42\n")
+	expected.WriteString("debug_test.go:29 bits 1\n")
+	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:34 m <unsolved>\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -64,9 +66,9 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.Div(circuit.A, d)
+func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.Div(circuit.A, d)
 	return nil
 }
 
@@ -81,17 +83,17 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:69")
+		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == <unsolved>")
+		assert.Contains(err.Error(), "(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == 0")
-		assert.Contains(err.Error(), "gnark.(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:69")
+		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/(-2 + 2) == <unsolved>")
+		assert.Contains(err.Error(), "(*divBy0Trace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -101,9 +103,9 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.AssertIsEqual(circuit.A, d)
+func (circuit *notEqualTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsEqual(circuit.A, d)
 	return nil
 }
 
@@ -119,16 +121,16 @@ func TestTraceNotEqual(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:106")
+		assert.Contains(err.Error(), "(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == (24 + 42)")
-		assert.Contains(err.Error(), "gnark.(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:106")
+		assert.Contains(err.Error(), "(*notEqualTrace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -138,9 +140,9 @@ type notBooleanTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	d := cs.Add(circuit.B, circuit.C)
-	cs.AssertIsBoolean(d)
+func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
+	d := api.Add(circuit.B, circuit.C)
+	api.AssertIsBoolean(d)
 	return nil
 }
 
@@ -156,16 +158,16 @@ func TestTraceNotBoolean(t *testing.T) {
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:143")
+		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "gnark.(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:143")
+		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
+		assert.Contains(err.Error(), "debug_test.go:")
 	}
 }
 
@@ -175,7 +177,7 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 		return "", err
 	}
 
-	srs, err := plonk.NewSRS(ccs)
+	srs, err := test.NewKZGSRS(ccs)
 	if err != nil {
 		return "", err
 	}

@@ -25,10 +25,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 type merkleCircuit struct {
@@ -36,12 +35,12 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID ecc.ID, cs *frontend.ConstraintSystem) error {
-	hFunc, err := mimc.NewMiMC("seed", curveID, cs)
+func (circuit *merkleCircuit) Define(curveID ecc.ID, api frontend.API) error {
+	hFunc, err := mimc.NewMiMC("seed", curveID, api)
 	if err != nil {
 		return err
 	}
-	VerifyProof(cs, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
+	VerifyProof(api, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
 	return nil
 }
 
@@ -76,17 +75,16 @@ func TestVerify(t *testing.T) {
 	}
 
 	// create cs
-	var circuit, witness merkleCircuit
-	circuit.Path = make([]frontend.Variable, len(proof))
-	circuit.Helper = make([]frontend.Variable, len(proof)-1)
-	witness.Path = make([]frontend.Variable, len(proof))
-	witness.Helper = make([]frontend.Variable, len(proof)-1)
-	r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal(err)
+	circuit := merkleCircuit{
+		Path:   make([]frontend.Variable, len(proof)),
+		Helper: make([]frontend.Variable, len(proof)-1),
 	}
 
-	witness.RootHash.Assign(merkleRoot)
+	witness := merkleCircuit{
+		Path:     make([]frontend.Variable, len(proof)),
+		Helper:   make([]frontend.Variable, len(proof)-1),
+		RootHash: frontend.Value(merkleRoot),
+	}
 
 	for i := 0; i < len(proof); i++ {
 		witness.Path[i].Assign(proof[i])
@@ -95,6 +93,6 @@ func TestVerify(t *testing.T) {
 		witness.Helper[i].Assign(proofHelper[i])
 	}
 
-	assert := groth16.NewAssert(t)
-	assert.ProverSucceeded(r1cs, &witness)
+	assert := test.NewAssert(t)
+	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 }
