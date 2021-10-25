@@ -262,65 +262,95 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 
 // returns ( b/computeGCD(b...), computeGCD(b...) )
 // if gcd is != 0 and gcd != 1, returns true
-func computeGCD(b []*big.Int, gcd *big.Int) {
-	negGCD := b[0].Sign() == -1
+func (scs *sparseR1CS) computeGCD(l compiled.LinearExpression, gcd *big.Int) {
 	gcd.SetUint64(0)
-	for i := 0; i < len(b); i++ {
-		if b[i].IsUint64() && b[i].Uint64() == 0 {
+	for i := 0; i < len(l); i++ {
+		cID := l[i].CoeffID()
+		if cID == compiled.CoeffIdZero {
 			continue
 		}
-		gcd.GCD(nil, nil, gcd, b[i])
+		gcd.GCD(nil, nil, gcd, &scs.coeffs[cID])
 
 		if gcd.IsUint64() && gcd.Uint64() == 1 {
 			break
 		}
 	}
 
-	// ensure the gcd doesn't depend on the sign
-	if negGCD {
-		gcd.Neg(gcd)
+}
+
+// return true if linear expression contains one or minusOne coefficients
+func hasOnes(l compiled.LinearExpression) bool {
+	for i := 0; i < len(l); i++ {
+		cID := l[i].CoeffID()
+		if cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne {
+			return true
+		}
 	}
+	return false
 }
 
 // reduce sets gcd = gcd(l.coefs) and returns l/gcd(l.coefs)
 // if gcd == 1, this returns l
 func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
+	mustNeg := scs.coeffs[l[0].CoeffID()].Sign() == -1
 
-	// these won't be mutated, but we just allocate a pointer slice
-	const s = 256
-	var stlc [s]*big.Int
-	var lc []*big.Int
-	if len(l) > s {
-		lc = make([]*big.Int, len(l))
-	} else {
-		lc = stlc[:len(l)]
-	}
-
-	for i := 0; i < len(l); i++ {
-		lc[i] = &scs.coeffs[l[i].CoeffID()]
+	// fast path: if any of the coeffs is 1 or -1, no need to compute the GCD
+	if hasOnes(l) {
+		if !mustNeg {
+			gcd.SetUint64(1)
+			return l
+		}
+		gcd.SetInt64(-1)
+		return scs.divideLinearExpression(l, gcd)
 	}
 
 	// compute gcd
-	computeGCD(lc, gcd)
+	scs.computeGCD(l, gcd)
+
+	if mustNeg {
+		// ensure the gcd doesn't depend on the sign
+		gcd.Neg(gcd)
+	}
+
 	if gcd.IsUint64() && (gcd.Uint64() == 0 || gcd.Uint64() == 1) {
 		// no need to create a new linear expression
 		return l
 	}
 
-	// we need to divide the coeffs by gcd
-	// resulting linear expression
+	return scs.divideLinearExpression(l, gcd)
+
+}
+
+func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, d *big.Int) compiled.LinearExpression {
+	// copy linear expression
 	r := make(compiled.LinearExpression, len(l))
 	copy(r, l)
+
+	// new coeff
 	lambda := bigIntPool.Get().(*big.Int)
 
-	for i := 0; i < len(r); i++ {
-		lambda.Div(lc[i], gcd)
-		r[i].SetCoeffID(scs.coeffID(lambda))
+	if d.IsInt64() && d.Int64() == -1 {
+		for i := 0; i < len(r); i++ {
+			cID := r[i].CoeffID()
+			if cID == compiled.CoeffIdZero {
+				continue
+			}
+			lambda.Neg(&scs.coeffs[cID])
+			r[i].SetCoeffID(scs.coeffID(lambda))
+		}
+	} else {
+		for i := 0; i < len(r); i++ {
+			cID := r[i].CoeffID()
+			if cID == compiled.CoeffIdZero {
+				continue
+			}
+			lambda.Div(&scs.coeffs[cID], d)
+			r[i].SetCoeffID(scs.coeffID(lambda))
+		}
 	}
 
 	bigIntPool.Put(lambda)
 	return r
-
 }
 
 // pops the constant associated to the one_wire in the cs, which will become
@@ -449,14 +479,13 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 }
 
 func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bool) {
-	id := l.Hash()
-	list, ok := scs.record[id]
+	list, ok := scs.record[l.Hash()]
 	if !ok {
 		return 0, false
 	}
 
 	for i := 0; i < len(list); i++ {
-		if list[i].l.Hash() == id && list[i].l.Equal(l) {
+		if list[i].l.Equal(l) {
 			return list[i].t, true
 		}
 	}
@@ -467,15 +496,6 @@ func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bo
 func (scs *sparseR1CS) putRecord(l compiled.LinearExpression, t compiled.Term) {
 	id := l.Hash()
 	list := scs.record[id]
-
-	for i := 0; i < len(list); i++ {
-		if list[i].l.Hash() == id && list[i].l.Equal(l) {
-			list[i].t = t
-			scs.record[id] = list
-			return
-		}
-	}
-
 	list = append(list, innerRecord{t: t, l: l})
 	scs.record[id] = list
 }

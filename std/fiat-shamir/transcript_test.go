@@ -17,13 +17,13 @@ limitations under the License.
 package fiatshamir
 
 import (
-	"crypto/rand"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -114,8 +114,7 @@ func TestFiatShamir(t *testing.T) {
 		var bindings [3][4]big.Int
 		for i := 0; i < 3; i++ {
 			for j := 0; j < 4; j++ {
-				b1, _ := rand.Int(rand.Reader, curveID.Info().Fr.Modulus())
-				bindings[i][j].Set(b1)
+				bindings[i][j].SetUint64(uint64(i * j))
 			}
 		}
 		buf := make([]byte, curveID.Info().Fr.Bytes)
@@ -147,4 +146,16 @@ func TestFiatShamir(t *testing.T) {
 		assert.SolvingSucceeded(&FiatShamirCircuit{}, &witness, test.WithCurves(curveID))
 	}
 
+}
+
+func BenchmarkCompile(b *testing.B) {
+	// create an empty cs
+	var circuit FiatShamirCircuit
+
+	var ccs frontend.CompiledConstraintSystem
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	}
+	b.Log(ccs.GetNbConstraints())
 }
