@@ -219,7 +219,7 @@ type g1ScalarMul struct {
 
 func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(api, circuit.A, circuit.A.X)
+	expected.ScalarMul(api, circuit.A, circuit.r)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
