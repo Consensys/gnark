@@ -1,3 +1,43 @@
+<a name="v0.5.2"></a>
+
+## [v0.5.2] - 2021-10-26
+
+
+### Breaking changes
+
+- circuit `Define(... cs *frontend.ConstraintSystem)` now takes an interface `Define( ... api frontend.API)`
+- assert helper is now under `backend/` (instead of `backend/groth16` and `backend/plonk`)
+
+### Build
+- updated to gnark-crypto v0.5.2
+
+### Feat
+- added `api.DivUnchecked` and `api.Div`. `DivUnchecked` will accept 0 / 0 == 0 as valid.
+- `api.Sub` takes a variadic list of input (same as `api.Add`)
+- plonk: kzg test srs is cached up to a certain size for faster tests
+- removed hardcoded bit size in ToBinary, which now depends by default on `fr.Element` bit size
+- api.ToBinary: constraint unsatisfied now has debugInfo
+- unset variables: error message comes with a stack trace
+
+### Fix
+- incorrect formula in api.Select when parameters are constant
+- plonk: reduce duplicate constraint when splitting r1c in the frontend
+- plonk: build permutation index out of bounds 
+
+### Tests
+
+- added a `test/` package with a test execution engine cross checking constraint system with `big.Int` arithmetic
+- bases for `Fuzzing` witness and cross checking constraint system output with test execution engine
+
+### Perf
+- `api.AssertIsLessOrEqual`: reduced redundant constraints in range check
+- std/groth16: ml with short addition chain (13245cs -> 12297, marginal gain)
+
+### Refactor
+- all circuits use frontend.API in place of *frontend.ConstraintSystem
+- use ecc.Info() where possible to get modulus or field size
+
+
 <a name="v0.5.1"></a>
 ## [v0.5.1] - 2021-09-20
 
