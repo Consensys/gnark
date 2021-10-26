@@ -219,7 +219,7 @@ type g1ScalarMul struct {
 
 func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(api, circuit.A, circuit.r.String())
+	expected.ScalarMul(api, circuit.A, circuit.A.X)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -267,16 +267,16 @@ var ccsBench frontend.CompiledConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-		}
+	// b.Run("groth16", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+	// 	}
 
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
+	// })
+	// b.Log("groth16", ccsBench.GetNbConstraints())
 	b.Run("plonk", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
 		}
 
 	})

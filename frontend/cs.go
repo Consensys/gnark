@@ -20,7 +20,6 @@ import (
 	"io"
 	"math/big"
 	"sort"
-	"strconv"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
@@ -242,19 +241,6 @@ func (cs *constraintSystem) coeffID(b *big.Int) int {
 			return compiled.CoeffIdOne
 		case 2:
 			return compiled.CoeffIdTwo
-		default:
-			key := strconv.FormatInt(v, 16)
-			if idx, ok := cs.coeffsIDs[key]; ok {
-				return idx
-			}
-
-			// else add it in the cs.coeffs map and update the cs.coeffsIDs map
-			var bCopy big.Int
-			bCopy.SetInt64(v)
-			resID := len(cs.coeffs)
-			cs.coeffs = append(cs.coeffs, bCopy)
-			cs.coeffsIDs[key] = resID
-			return resID
 		}
 	}
 
@@ -262,7 +248,8 @@ func (cs *constraintSystem) coeffID(b *big.Int) int {
 
 	// GobEncode is 3x faster than b.Text(16). Slightly slower than Bytes, but Bytes return the same
 	// thing for -x and x . However, we keep b.Text(16) for now as it enables a fast path for int64 above.
-	key := b.Text(16)
+	bKey, _ := b.GobEncode()
+	key := string(bKey)
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		return idx
 	}
