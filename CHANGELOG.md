@@ -38,6 +38,12 @@
 - use ecc.Info() where possible to get modulus or field size
 
 
+### Pull Requests
+- Merge pull request [#151](https://github.com/consensys/gnark/issues/151) from ConsenSys/testable-circuits
+- Merge pull request [#153](https://github.com/consensys/gnark/issues/153) from ConsenSys/fix/plonk_constraints_blowup
+- Merge pull request [#146](https://github.com/consensys/gnark/issues/146) from ConsenSys/feat/ml-snark-pairing
+- Merge pull request [#148](https://github.com/consensys/gnark/issues/148) from ConsenSys/perf-range-check
+
 <a name="v0.5.1"></a>
 ## [v0.5.1] - 2021-09-20
 
