@@ -212,8 +212,8 @@ func TestDouble(t *testing.T) {
 }
 
 type scalarMulFixed struct {
-	P, E Point
-	S    frontend.Variable
+	E Point
+	S frontend.Variable
 }
 
 func (circuit *scalarMulFixed) Define(curveID ecc.ID, api frontend.API) error {
@@ -224,7 +224,8 @@ func (circuit *scalarMulFixed) Define(curveID ecc.ID, api frontend.API) error {
 		return err
 	}
 
-	resFixed := circuit.P.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
+	var resFixed Point
+	resFixed.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
 
 	api.AssertIsEqual(resFixed.X, circuit.E.X)
 	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
@@ -250,8 +251,6 @@ func TestScalarMulFixed(t *testing.T) {
 	expected.ScalarMul(&base, r)
 
 	// populate witness
-	witness.P.X.Assign(0)
-	witness.P.Y.Assign(0)
 	witness.E.X.Assign(expected.X.String())
 	witness.E.Y.Assign(expected.Y.String())
 	witness.S.Assign(r)
@@ -296,8 +295,9 @@ func TestScalarMulGeneric(t *testing.T) {
 	var base, point, expected twistededwards.PointAffine
 	base.X.SetBigInt(&params.BaseX)
 	base.Y.SetBigInt(&params.BaseY)
+	s := big.NewInt(902)
+	point.ScalarMul(&base, s) // random point
 	r := big.NewInt(230928302)
-	point.Double(&base)
 	expected.ScalarMul(&point, r)
 
 	// populate witness
