@@ -32,8 +32,8 @@ import (
 // EdCurve stores the info on the chosen edwards curve
 // note that all curves implemented in gnark-crypto have A = -1
 type EdCurve struct {
-	D, Cofactor, Order, BaseX, BaseY big.Int
-	ID                               ecc.ID
+	A, D, Cofactor, Order, BaseX, BaseY big.Int
+	ID                                  ecc.ID
 }
 
 var constructors map[ecc.ID]func() EdCurve
@@ -65,6 +65,7 @@ func newEdBN254() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -81,6 +82,7 @@ func newEdBLS381() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -97,6 +99,7 @@ func newEdBLS377() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -113,6 +116,7 @@ func newEdBW761() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),
@@ -129,6 +133,7 @@ func newEdBLS315() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
 		D:        frontend.FromInterface(edcurve.D),
 		Cofactor: frontend.FromInterface(edcurve.Cofactor),
 		Order:    frontend.FromInterface(edcurve.Order),

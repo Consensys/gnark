@@ -28,14 +28,15 @@ type Point struct {
 }
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
-// -x^2 + y^2 = 1 + d*x^2*y^2.
+// a*x^2 + y^2 = 1 + d*x^2*y^2.
 func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 
 	one := big.NewInt(1)
 
 	xx := api.Mul(p.X, p.X)
 	yy := api.Mul(p.Y, p.Y)
-	lhs := api.Sub(yy, xx)
+	axx := api.Mul(xx, &curve.A)
+	lhs := api.Add(axx, yy)
 
 	dxx := api.Mul(xx, &curve.D)
 	dxxyy := api.Mul(dxx, yy)
@@ -57,7 +58,8 @@ func (p *Point) AddFixedPoint(api frontend.API, p1 *Point /*basex*/, x /*basey*/
 
 	n21 := api.Mul(p1.Y, y)
 	n22 := api.Mul(p1.X, x)
-	n2 := api.Add(n21, n22) // y**2-a*x**2, here we use a=-1
+	an22 := api.Mul(n22, &curve.A)
+	n2 := api.Sub(n21, an22)
 
 	d11 := api.Mul(curve.D, x, y, p1.X, p1.Y)
 	d1 := api.Add(1, d11)
@@ -81,7 +83,8 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 
 	n21 := api.Mul(p1.Y, p2.Y)
 	n22 := api.Mul(p1.X, p2.X)
-	n2 := api.Add(n21, n22) // y**2-a*x**2, here we use a=-1
+	an22 := api.Mul(n22, &curve.A)
+	n2 := api.Sub(n21, an22)
 
 	d11 := api.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
 	d1 := api.Add(1, d11)
@@ -95,16 +98,16 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 }
 
 // Double doubles a points in SNARK coordinates
-// IMPORTANT: it assumes the twisted Edwards is reduced (a=-1)
 func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 
 	u := api.Mul(p1.X, p1.Y)
 	v := api.Mul(p1.X, p1.X)
 	w := api.Mul(p1.Y, p1.Y)
-	z := api.Mul(v, w) // x**2*y**2
+	z := api.Mul(v, w)
 
 	n1 := api.Mul(2, u)
-	n2 := api.Add(v, w)
+	av := api.Mul(v, &curve.A)
+	n2 := api.Sub(w, av)
 	d := api.Mul(z, curve.D)
 	d1 := api.Add(1, d)
 	d2 := api.Sub(1, d)

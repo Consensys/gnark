@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -211,12 +212,12 @@ func TestDouble(t *testing.T) {
 
 }
 
-type scalarMul struct {
+type scalarMulFixed struct {
 	P, E Point
 	S    frontend.Variable
 }
 
-func (circuit *scalarMul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *scalarMulFixed) Define(curveID ecc.ID, api frontend.API) error {
 
 	// get edwards curve params
 	params, err := NewEdCurve(curveID)
@@ -224,23 +225,19 @@ func (circuit *scalarMul) Define(curveID ecc.ID, api frontend.API) error {
 		return err
 	}
 
-	resNonFixed := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
 	resFixed := circuit.P.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
 
 	api.AssertIsEqual(resFixed.X, circuit.E.X)
 	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
 
-	api.AssertIsEqual(resNonFixed.X, circuit.E.X)
-	api.AssertIsEqual(resNonFixed.Y, circuit.E.Y)
-
 	return nil
 }
 
-func TestScalarMul(t *testing.T) {
+func TestScalarMulFixed(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	var circuit, witness scalarMul
+	var circuit, witness scalarMulFixed
 
 	// generate witness data
 	params, err := NewEdCurve(ecc.BN254)
@@ -250,12 +247,63 @@ func TestScalarMul(t *testing.T) {
 	var base, expected twistededwards.PointAffine
 	base.X.SetBigInt(&params.BaseX)
 	base.Y.SetBigInt(&params.BaseY)
-	r := big.NewInt(230928302)
+	r := big.NewInt(928323002)
 	expected.ScalarMul(&base, r)
 
 	// populate witness
-	witness.P.X.Assign("5299619240641551281634865583518297030282874472190772894086521144482721001553")
-	witness.P.Y.Assign("16950150798460657717958625567821834550301663161624707787222815936182638968203")
+	witness.P.X.Assign(0)
+	witness.P.Y.Assign(0)
+	witness.E.X.Assign(expected.X.String())
+	witness.E.Y.Assign(expected.Y.String())
+	witness.S.Assign(r)
+
+	// creates r1cs
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+
+}
+
+type scalarMulGeneric struct {
+	P, E Point
+	S    frontend.Variable
+}
+
+func (circuit *scalarMulGeneric) Define(curveID ecc.ID, api frontend.API) error {
+
+	// get edwards curve params
+	params, err := NewEdCurve(curveID)
+	if err != nil {
+		return err
+	}
+
+	resGeneric := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
+
+	api.AssertIsEqual(resGeneric.X, circuit.E.X)
+	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
+
+	return nil
+}
+
+func TestScalarMulGeneric(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	var circuit, witness scalarMulGeneric
+
+	// generate witness data
+	params, err := NewEdCurve(ecc.BN254)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base, point, expected twistededwards.PointAffine
+	base.X.SetBigInt(&params.BaseX)
+	base.Y.SetBigInt(&params.BaseY)
+	r := big.NewInt(230928302)
+	point.Double(&base)
+	expected.ScalarMul(&point, r)
+
+	// populate witness
+	witness.P.X.Assign(point.X.String())
+	witness.P.Y.Assign(point.Y.String())
 	witness.E.X.Assign(expected.X.String())
 	witness.E.Y.Assign(expected.Y.String())
 	witness.S.Assign(r)
@@ -301,4 +349,142 @@ func TestNeg(t *testing.T) {
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
+}
+
+// ------------------------------------------------------------
+// benches
+
+var ccsBench frontend.CompiledConstraintSystem
+
+func BenchmarkIsOnCurve(b *testing.B) {
+	var c mustBeOnCurve
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkNeg(b *testing.B) {
+	var c neg
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkAddFixedPoint(b *testing.B) {
+	var c add
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkAddGeneric(b *testing.B) {
+	var c addGeneric
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkDouble(b *testing.B) {
+	var c double
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkScalarMulFixed(b *testing.B) {
+	var c scalarMulFixed
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
+}
+
+func BenchmarkScalarMulGeneric(b *testing.B) {
+	var c scalarMulGeneric
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16:", ccsBench.GetNbConstraints(), "constraints")
+
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.PLONK, &c)
+		}
+
+	})
+	b.Log("plonk:", ccsBench.GetNbConstraints(), "constraints")
 }

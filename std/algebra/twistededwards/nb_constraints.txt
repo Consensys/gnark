@@ -1,5 +1,0 @@
-- add fixed point + snark point : 6
-- add snark point + snark point : 11
-- double snark point : 8
-- scalar mul non fixed : 4611
-- scalar mul fixed : 3331 
