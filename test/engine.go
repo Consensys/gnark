@@ -152,9 +152,20 @@ func (e *engine) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
 	}
 
 	b1 := e.toBigInt(i1)
+
+	if b1.BitLen() > nbBits {
+		panic(fmt.Sprintf("[ToBinary] decomposing %s (bitLen == %d) with %d bits", b1.String(), b1.BitLen(), nbBits))
+	}
+
 	r := make([]frontend.Variable, nbBits)
 	for i := 0; i < len(r); i++ {
 		r[i] = frontend.Value(b1.Bit(i))
+	}
+
+	value := e.toBigInt(e.FromBinary(r...))
+	if value.Cmp(&b1) != 0 {
+		// this is a sanitfy check, it should never happen
+		panic(fmt.Sprintf("[ToBinary] decomposing %s (bitLen == %d) with %d bits reconstructs into %s", b1.String(), b1.BitLen(), nbBits, value.String()))
 	}
 	return r
 }
