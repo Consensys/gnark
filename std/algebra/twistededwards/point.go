@@ -61,7 +61,7 @@ func (p *Point) AddFixedPoint(api frontend.API, p1 *Point /*basex*/, x /*basey*/
 	an22 := api.Mul(n22, &curve.A)
 	n2 := api.Sub(n21, an22)
 
-	d11 := api.Mul(curve.D, x, y, p1.X, p1.Y)
+	d11 := api.Mul(curve.D, n11, n12)
 	d1 := api.Add(1, d11)
 	d2 := api.Sub(1, d11)
 
@@ -86,7 +86,7 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 	an22 := api.Mul(n22, &curve.A)
 	n2 := api.Sub(n21, an22)
 
-	d11 := api.Mul(curve.D, p2.X, p2.Y, p1.X, p1.Y)
+	d11 := api.Mul(curve.D, n11, n12)
 	d1 := api.Add(1, d11)
 
 	d2 := api.Sub(1, d11)
