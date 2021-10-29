@@ -57,7 +57,7 @@ func IsZero(curveID ecc.ID, inputs []*big.Int, result *big.Int) error {
 	qMinusOne := inputs[0].SetUint64(1)
 	qMinusOne.Sub(q, qMinusOne)
 
-	// result = input**(q-1) - 1
+	// result =  1 - input**(q-1)
 	result.Exp(result, qMinusOne, q)
 	inputs[0].SetUint64(1)
 	result.Sub(inputs[0], result).Mod(result, q)
