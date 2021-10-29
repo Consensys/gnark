@@ -2,6 +2,7 @@
 import (
 	{{ template "import_curve" . }}
 	{{ template "import_fft" . }}
+	
 
 	"bytes"
 	"math/big"
@@ -265,3 +266,5 @@ func GenG2() gopter.Gen {
 		return genResult
 	}
 }
+
+
