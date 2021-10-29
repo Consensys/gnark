@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -38,6 +40,8 @@ import (
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
 	curveID ecc.ID
+	opt     backend.ProverOption
+	// mHintsFunctions map[hint.ID]hintFunction
 }
 
 // IsSolved returns an error if the test execution engine failed to execute the given circuit
@@ -46,8 +50,20 @@ type engine struct {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID) (err error) {
-	e := &engine{curveID: curveID}
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...func(opt *backend.ProverOption) error) (err error) {
+
+	// apply options
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return err
+	}
+
+	e := &engine{curveID: curveID, opt: opt}
+	if opt.Force {
+		panic("ignoring errors in test.Engine is not supported")
+	}
+
+	// TODO handle opt.LoggerOut ?
 
 	// we clone the circuit, in case the circuit has some attributes it uses in its Define function
 	// set by the user.
@@ -302,6 +318,10 @@ func (e *engine) Println(a ...interface{}) {
 		}
 	}
 	fmt.Println(sbb.String())
+}
+
+func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
+	panic("not implemented")
 }
 
 func (e *engine) toBigInt(i1 interface{}) big.Int {

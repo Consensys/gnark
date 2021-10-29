@@ -20,11 +20,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
+	"reflect"
+	"runtime"
+	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 // ErrUnsatisfiedConstraint can be generated when solving a R1CS
@@ -36,7 +42,7 @@ type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             int
-	mHintsFunctions      map[hint.ID]hintFunction
+	mHintsFunctions      map[hint.ID]hint.Function
 }
 
 func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
@@ -44,22 +50,19 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
-		mHintsFunctions: make(map[hint.ID]hintFunction, len(hintFunctions)+2),
+		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)+2),
 	}
 
-	s.mHintsFunctions = make(map[hint.ID]hintFunction, len(hintFunctions)+2)
-	s.mHintsFunctions[hint.IsZero] = powModulusMinusOne
-	s.mHintsFunctions[hint.IthBit] = ithBit
+	s.mHintsFunctions[hint.UUID(hint.IsZero)] = hint.IsZero
+	s.mHintsFunctions[hint.UUID(hint.IthBit)] = hint.IthBit
 
 	for i := 0; i < len(hintFunctions); i++ {
-		if _, ok := s.mHintsFunctions[hintFunctions[i].ID]; ok {
-			return solution{}, fmt.Errorf("duplicate hint function with id %d", uint32(hintFunctions[i].ID))
+		id := hint.UUID(hintFunctions[i])
+		if _, ok := s.mHintsFunctions[id]; ok {
+			name := runtime.FuncForPC(reflect.ValueOf(hintFunctions[i]).Pointer()).Name()
+			return solution{}, fmt.Errorf("duplicate hint function with id %d - name %s", uint32(id), name)
 		}
-		f, ok := hintFunctions[i].F.(hintFunction)
-		if !ok {
-			return solution{}, fmt.Errorf("invalid hint function signature with id %d", uint32(hintFunctions[i].ID))
-		}
-		s.mHintsFunctions[hintFunctions[i].ID] = f
+		s.mHintsFunctions[id] = hintFunctions[i]
 	}
 
 	return s, nil
@@ -106,8 +109,19 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 
 // solveHint compute solution.values[vID] using provided solver hint
 func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
+	// ensure hint function was provided
+	f, ok := s.mHintsFunctions[h.ID]
+	if !ok {
+		return errors.New("missing hint function")
+	}
+
 	// compute values for all inputs.
-	inputs := make([]fr.Element, len(h.Inputs))
+	inputs := make([]*big.Int, len(h.Inputs))
+	for i := 0; i < len(inputs); i++ {
+		inputs[i] = bigIntPool.Get().(*big.Int)
+		inputs[i].SetUint64(0)
+	}
+	lambda := bigIntPool.Get().(*big.Int)
 
 	for i := 0; i < len(h.Inputs); i++ {
 		// input is a linear expression, we must compute the value
@@ -115,25 +129,50 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 			ciID, viID, visibility := h.Inputs[i][j].Unpack()
 			if visibility == compiled.Virtual {
 				// we have a constant, just take the coefficient value
-				inputs[i].Add(&inputs[i], &s.coefficients[ciID])
+				s.coefficients[ciID].ToBigIntRegular(lambda)
+				inputs[i].Add(inputs[i], lambda)
 				continue
 			}
 			if !s.solved[viID] {
+				// release objects into pool
+				bigIntPool.Put(lambda)
+				for i := 0; i < len(inputs); i++ {
+					bigIntPool.Put(inputs[i])
+				}
 				return errors.New("expected wire to be instantiated while evaluating hint")
 			}
 			v := s.computeTerm(h.Inputs[i][j])
-			inputs[i].Add(&inputs[i], &v)
+			v.ToBigIntRegular(lambda)
+			inputs[i].Add(inputs[i], lambda)
 		}
 	}
 
-	f, ok := s.mHintsFunctions[h.ID]
-	if !ok {
-		return errors.New("missing hint function")
+	// use lambda as the result.
+	lambda.SetUint64(0)
+
+	// ensure our inputs are mod q
+	q := fr.Modulus()
+	for i := 0; i < len(inputs); i++ {
+		// note since we're only doing additions up there, we may want to avoid the use of Mod
+		// here in favor of Cmp & Sub
+		inputs[i].Mod(inputs[i], q)
 	}
-	v, err := f(inputs)
+
+	err := f(curve.ID, inputs, lambda)
+
+	var v fr.Element
+	v.SetBigInt(lambda)
+
+	// release objects into pool
+	bigIntPool.Put(lambda)
+	for i := 0; i < len(inputs); i++ {
+		bigIntPool.Put(inputs[i])
+	}
+
 	if err != nil {
 		return err
 	}
+
 	s.set(vID, v)
 	return nil
 }
@@ -213,4 +252,10 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
+}
+
+var bigIntPool = sync.Pool{
+	New: func() interface{} {
+		return new(big.Int)
+	},
 }
