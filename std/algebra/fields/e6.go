@@ -169,3 +169,45 @@ func (e *E6) MustBeEqual(api frontend.API, other E6) {
 	e.B1.MustBeEqual(api, other.B1)
 	e.B2.MustBeEqual(api, other.B2)
 }
+
+// MulByE2 multiplies an element in E6 by an element in E2
+func (e *E6) MulByE2(api frontend.API, e1 E6, e2 E2, ext Extension) *E6 {
+	e2Copy := E2{}
+	e2Copy = e2
+	e.B0.Mul(api, e1.B0, e2Copy, ext)
+	e.B1.Mul(api, e1.B1, e2Copy, ext)
+	e.B2.Mul(api, e1.B2, e2Copy, ext)
+	return e
+}
+
+// MulBy01 multiplication by sparse element (c0,c1,0)
+func (e *E6) MulBy01(api frontend.API, c0, c1 E2, ext Extension) *E6 {
+
+	var a, b, tmp, t0, t1, t2 E2
+
+	a.Mul(api, e.B0, c0, ext)
+	b.Mul(api, e.B1, c1, ext)
+
+	tmp.Add(api, e.B1, e.B2)
+	t0.Mul(api, c1, tmp, ext)
+	t0.Sub(api, t0, b)
+	t0.MulByIm(api, t0, ext)
+	t0.Add(api, t0, a)
+
+	tmp.Add(api, e.B0, e.B2)
+	t2.Mul(api, c0, tmp, ext)
+	t2.Sub(api, t2, a)
+	t2.Add(api, t2, b)
+
+	t1.Add(api, c0, c1)
+	tmp.Add(api, e.B0, e.B1)
+	t1.Mul(api, t1, tmp, ext)
+	t1.Sub(api, t1, a)
+	t1.Sub(api, t1, b)
+
+	e.B0 = t0
+	e.B1 = t1
+	e.B2 = t2
+
+	return e
+}
