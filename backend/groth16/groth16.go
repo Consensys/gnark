@@ -68,6 +68,7 @@ type Proof interface {
 // it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 type ProvingKey interface {
 	groth16Object
+	gnarkio.UnsafeReaderFrom
 
 	// NbG1 returns the number of G1 elements in the ProvingKey
 	NbG1() int
@@ -85,6 +86,7 @@ type ProvingKey interface {
 // ExportSolidity is implemented for BN254 and will return an error with other curves
 type VerifyingKey interface {
 	groth16Object
+	gnarkio.UnsafeReaderFrom
 
 	// NbPublicWitness returns number of elements expected in the public witness
 	NbPublicWitness() int

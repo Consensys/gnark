@@ -4,14 +4,14 @@ import (
 )
 
 // WriteTo writes binary encoding of the Proof elements to writer
-// points are stored in compressed form Ar | Krs | Bs
+// points are stored in compressed form Ar | Krs | Bs
 // use WriteRawTo(...) to encode the proof without point compression 
 func (proof *Proof) WriteTo(w io.Writer) (n int64, err error) {
 	return proof.writeTo(w, false)
 }
 
 // WriteRawTo writes binary encoding of the Proof elements to writer
-// points are stored in uncompressed form Ar | Krs | Bs
+// points are stored in uncompressed form Ar | Krs | Bs
 // use WriteTo(...) to encode the proof with point compression 
 func (proof *Proof) WriteRawTo(w io.Writer) (n int64, err error) {
 	return proof.writeTo(w, true)
@@ -117,8 +117,17 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 // https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
 // [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
+	return vk.readFrom(r)
+}
 
-	dec := curve.NewDecoder(r)
+// UnsafeReadFrom has the same behavior as ReadFrom, except that it will not check that decode points
+// are on the curve and in the correct subgroup. 
+func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
+	return vk.readFrom(r, curve.NoSubgroupChecks())
+}
+
+func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
 
 	// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2
 	if err := dec.Decode(&vk.G1.Alpha); err != nil {
@@ -220,13 +229,23 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 // ProvingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed) 
 // note that we don't check that the points are on the curve or in the correct subgroup at this point
 func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
+	return pk.readFrom(r)
+}
 
+
+// UnsafeReadFrom behaves like ReadFrom excepts it doesn't check if the decoded points are on the curve
+// or in the correct subgroup
+func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
+	return pk.readFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
 	n, err := pk.Domain.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
 
-	dec := curve.NewDecoder(r)
+	dec := curve.NewDecoder(r, decOptions...)
 
 	var nbWires uint64 
 

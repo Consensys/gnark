@@ -6,7 +6,6 @@ import (
 	{{ template "import_groth16" . }}
 	"bytes"
 	"testing"
-	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -124,7 +123,7 @@ func BenchmarkVerifier(b *testing.B) {
 
 
 
-func BenchmarkSerialization(b *testing.B) {
+func BenchmarkProofSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := {{toLower .CurveID}}witness.Witness{}
 	err := fullWitness.FromFullAssignment(_solution)
@@ -144,7 +143,6 @@ func BenchmarkSerialization(b *testing.B) {
 
 	{{ $base := toLower .CurveID }}
 	
-	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.ProvingKey") "Name" "pk" }}
 	{{ template "benchBinarySerialization" dict "Type" (print $base "groth16.Proof") "Name" "proof" }}
 
 
@@ -199,33 +197,65 @@ func BenchmarkSerialization(b *testing.B) {
 		_, _ = {{$.Name}}.WriteRawTo(&buf)
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// {{$.Type}} binary serialization (cbor)
-	b.Run("{{$.Name}}: binary cbor serialization ({{$.Type}})", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			enc := cbor.NewEncoder(&buf)
-			enc.Encode(&{{- $.Name}})
-		}
-	})
-	b.Run("{{$.Name}}: binary cbor deserialization ({{$.Type}})", func(b *testing.B) {
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&{{- $.Name}})
-		var {{ $.Name}}Reconstructed {{$.Type}}
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			buf := bytes.NewBuffer(buf.Bytes())
-			dec := cbor.NewDecoder(buf)
-			dec.Decode(&{{- $.Name}}Reconstructed)
-		}
-	})
-	{
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&{{- $.Name}})
-	}
-
 {{ end }}
 
+
+
+
+
+func BenchmarkProvingKeySerialization(b *testing.B) {
+	r1cs, _ := referenceCircuit()
+	
+	var pk {{toLower .CurveID}}groth16.ProvingKey
+	{{toLower .CurveID}}groth16.DummySetup(r1cs.(*cs.R1CS), &pk)
+
+	var buf bytes.Buffer 
+	// grow the buffer once
+	pk.WriteTo(&buf)
+
+	b.ResetTimer()
+	b.Run("pk_serialize_compressed", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			buf.Reset()
+			pk.WriteTo(&buf)
+		}
+	})
+
+	compressedBytes := buf.Bytes()
+	b.ResetTimer()
+	b.Run("pk_deserialize_compressed_safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.ReadFrom(bytes.NewReader(compressedBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_deserialize_compressed_unsafe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.UnsafeReadFrom(bytes.NewReader(compressedBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_serialize_raw", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			buf.Reset()
+			pk.WriteRawTo(&buf)
+		}
+	})
+
+	rawBytes := buf.Bytes()
+	b.ResetTimer()
+	b.Run("pk_deserialize_raw_safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.ReadFrom(bytes.NewReader(rawBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_deserialize_raw_unsafe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.UnsafeReadFrom(bytes.NewReader(rawBytes))
+		}
+	})
+}

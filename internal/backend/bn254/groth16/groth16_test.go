@@ -27,7 +27,6 @@ import (
 
 	"bytes"
 	bn254groth16 "github.com/consensys/gnark/internal/backend/bn254/groth16"
-	"github.com/fxamacker/cbor/v2"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -141,7 +140,7 @@ func BenchmarkVerifier(b *testing.B) {
 	})
 }
 
-func BenchmarkSerialization(b *testing.B) {
+func BenchmarkProofSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := bn254witness.Witness{}
 	err := fullWitness.FromFullAssignment(_solution)
@@ -158,82 +157,6 @@ func BenchmarkSerialization(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-
-	// ---------------------------------------------------------------------------------------------
-	// bn254groth16.ProvingKey binary serialization
-	b.Run("pk: binary serialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			_, _ = pk.WriteTo(&buf)
-		}
-	})
-	b.Run("pk: binary deserialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		var buf bytes.Buffer
-		_, _ = pk.WriteTo(&buf)
-		var pkReconstructed bn254groth16.ProvingKey
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			buf := bytes.NewBuffer(buf.Bytes())
-			_, _ = pkReconstructed.ReadFrom(buf)
-		}
-	})
-	{
-		var buf bytes.Buffer
-		_, _ = pk.WriteTo(&buf)
-	}
-
-	// ---------------------------------------------------------------------------------------------
-	// bn254groth16.ProvingKey binary serialization (uncompressed)
-	b.Run("pk: binary raw serialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			_, _ = pk.WriteRawTo(&buf)
-		}
-	})
-	b.Run("pk: binary raw deserialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		var buf bytes.Buffer
-		_, _ = pk.WriteRawTo(&buf)
-		var pkReconstructed bn254groth16.ProvingKey
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			buf := bytes.NewBuffer(buf.Bytes())
-			_, _ = pkReconstructed.ReadFrom(buf)
-		}
-	})
-	{
-		var buf bytes.Buffer
-		_, _ = pk.WriteRawTo(&buf)
-	}
-
-	// ---------------------------------------------------------------------------------------------
-	// bn254groth16.ProvingKey binary serialization (cbor)
-	b.Run("pk: binary cbor serialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			enc := cbor.NewEncoder(&buf)
-			enc.Encode(&pk)
-		}
-	})
-	b.Run("pk: binary cbor deserialization (bn254groth16.ProvingKey)", func(b *testing.B) {
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&pk)
-		var pkReconstructed bn254groth16.ProvingKey
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			buf := bytes.NewBuffer(buf.Bytes())
-			dec := cbor.NewDecoder(buf)
-			dec.Decode(&pkReconstructed)
-		}
-	})
-	{
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&pk)
-	}
 
 	// ---------------------------------------------------------------------------------------------
 	// bn254groth16.Proof binary serialization
@@ -283,32 +206,61 @@ func BenchmarkSerialization(b *testing.B) {
 		_, _ = proof.WriteRawTo(&buf)
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// bn254groth16.Proof binary serialization (cbor)
-	b.Run("proof: binary cbor serialization (bn254groth16.Proof)", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			var buf bytes.Buffer
-			enc := cbor.NewEncoder(&buf)
-			enc.Encode(&proof)
-		}
-	})
-	b.Run("proof: binary cbor deserialization (bn254groth16.Proof)", func(b *testing.B) {
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&proof)
-		var proofReconstructed bn254groth16.Proof
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			buf := bytes.NewBuffer(buf.Bytes())
-			dec := cbor.NewDecoder(buf)
-			dec.Decode(&proofReconstructed)
-		}
-	})
-	{
-		var buf bytes.Buffer
-		enc := cbor.NewEncoder(&buf)
-		enc.Encode(&proof)
-	}
+}
 
+func BenchmarkProvingKeySerialization(b *testing.B) {
+	r1cs, _ := referenceCircuit()
+
+	var pk bn254groth16.ProvingKey
+	bn254groth16.DummySetup(r1cs.(*cs.R1CS), &pk)
+
+	var buf bytes.Buffer
+	// grow the buffer once
+	pk.WriteTo(&buf)
+
+	b.ResetTimer()
+	b.Run("pk_serialize_compressed", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			buf.Reset()
+			pk.WriteTo(&buf)
+		}
+	})
+
+	compressedBytes := buf.Bytes()
+	b.ResetTimer()
+	b.Run("pk_deserialize_compressed_safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.ReadFrom(bytes.NewReader(compressedBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_deserialize_compressed_unsafe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.UnsafeReadFrom(bytes.NewReader(compressedBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_serialize_raw", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			buf.Reset()
+			pk.WriteRawTo(&buf)
+		}
+	})
+
+	rawBytes := buf.Bytes()
+	b.ResetTimer()
+	b.Run("pk_deserialize_raw_safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.ReadFrom(bytes.NewReader(rawBytes))
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("pk_deserialize_raw_unsafe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			pk.UnsafeReadFrom(bytes.NewReader(rawBytes))
+		}
+	})
 }

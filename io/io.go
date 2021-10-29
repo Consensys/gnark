@@ -31,3 +31,11 @@ import (
 type WriterRawTo interface {
 	WriteRawTo(w io.Writer) (n int64, err error)
 }
+
+// UnsafeReaderFrom is the interface that wraps the UnsafeReadFrom method.
+//
+// UnsafeReadFrom reads data from reader but doesn't perform any checks, such as
+// subgroup checks for elliptic curves points for example.
+type UnsafeReaderFrom interface {
+	UnsafeReadFrom(r io.Reader) (int64, error)
+}
