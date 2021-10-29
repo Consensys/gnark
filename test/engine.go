@@ -321,7 +321,21 @@ func (e *engine) Println(a ...interface{}) {
 }
 
 func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
-	panic("not implemented")
+	in := make([]*big.Int, len(inputs))
+
+	for i := 0; i < len(inputs); i++ {
+		v := e.toBigInt(inputs[i])
+		in[i] = &v
+	}
+
+	var result big.Int
+	err := f(e.curveID, in, &result)
+
+	if err != nil {
+		panic("NewHint: " + err.Error())
+	}
+
+	return frontend.Value(result)
 }
 
 func (e *engine) toBigInt(i1 interface{}) big.Int {

@@ -20,6 +20,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
 )
@@ -38,16 +39,16 @@ func TestIntegrationAPI(t *testing.T) {
 		tData := circuits.Circuits[k]
 		t.Log(k)
 		for _, w := range tData.ValidWitnesses {
-			assert.ProverSucceeded(tData.Circuit, w)
+			assert.ProverSucceeded(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
 		}
 
 		for _, w := range tData.InvalidWitnesses {
-			assert.ProverFailed(tData.Circuit, w)
+			assert.ProverFailed(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
 		}
 
 		// we put that here now, but will be into a proper fuzz target with go1.18
 		const fuzzCount = 30
-		assert.Fuzz(tData.Circuit, fuzzCount)
+		assert.Fuzz(tData.Circuit, fuzzCount, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
 
 	}
 
