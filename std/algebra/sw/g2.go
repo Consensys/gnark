@@ -41,7 +41,7 @@ func (p *G2Jac) ToProj(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2Jac
 	p.X.Mul(api, p1.X, p1.Z, ext)
 	p.Y = p1.Y
 	var t fields.E2
-	t.Mul(api, p1.Z, p1.Z, ext)
+	t.Square(api, p1.Z, ext)
 	p.Z.Mul(api, p.Z, t, ext)
 	return p
 }
@@ -67,9 +67,9 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2
 
 	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields.E2
 
-	Z1Z1.Mul(api, p1.Z, p1.Z, ext)
+	Z1Z1.Square(api, p1.Z, ext)
 
-	Z2Z2.Mul(api, p.Z, p.Z, ext)
+	Z2Z2.Square(api, p.Z, ext)
 
 	U1.Mul(api, p1.X, Z2Z2, ext)
 
@@ -84,7 +84,7 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2
 	H.Sub(api, U2, U1)
 
 	I.Add(api, H, H)
-	I.Mul(api, I, I, ext)
+	I.Square(api, I, ext)
 
 	J.Mul(api, H, I, ext)
 
@@ -93,7 +93,7 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2
 
 	V.Mul(api, U1, I, ext)
 
-	p.X.Mul(api, r, r, ext)
+	p.X.Square(api, r, ext)
 	p.X.Sub(api, p.X, J)
 	p.X.Sub(api, p.X, V)
 	p.X.Sub(api, p.X, V)
@@ -107,7 +107,7 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2
 	p.Y.Sub(api, p.Y, S1)
 
 	p.Z.Add(api, p.Z, p1.Z)
-	p.Z.Mul(api, p.Z, p.Z, ext)
+	p.Z.Square(api, p.Z, ext)
 	p.Z.Sub(api, p.Z, Z1Z1)
 	p.Z.Sub(api, p.Z, Z2Z2)
 	p.Z.Mul(api, p.Z, H, ext)
@@ -126,7 +126,7 @@ func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine, ext fields.Extensio
 	l.Inverse(api, d, ext).Mul(api, l, n, ext)
 
 	// xr =lambda**2-p1.x-p.x
-	xr.Mul(api, l, l, ext).
+	xr.Square(api, l, ext).
 		Sub(api, xr, p1.X).
 		Sub(api, xr, p.X)
 
@@ -137,6 +137,7 @@ func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine, ext fields.Extensio
 
 	p.X = xr
 	p.Y = yr
+
 	return p
 }
 
@@ -147,12 +148,12 @@ func (p *G2Affine) Double(api frontend.API, p1 *G2Affine, ext fields.Extension) 
 	var n, d, l, xr, yr fields.E2
 
 	// lambda = 3*p1.x**2/2*p.y
-	n.Mul(api, p1.X, p1.X, ext).MulByFp(api, n, 3)
+	n.Square(api, p1.X, ext).MulByFp(api, n, 3)
 	d.MulByFp(api, p1.Y, 2)
 	l.Inverse(api, d, ext).Mul(api, l, n, ext)
 
 	// xr = lambda**2-2*p1.x
-	xr.Mul(api, l, l, ext).
+	xr.Square(api, l, ext).
 		Sub(api, xr, p1.X).
 		Sub(api, xr, p1.X)
 
@@ -173,21 +174,21 @@ func (p *G2Jac) Double(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2Jac
 
 	var XX, YY, YYYY, ZZ, S, M, T fields.E2
 
-	XX.Mul(api, p.X, p.X, ext)
-	YY.Mul(api, p.Y, p.Y, ext)
-	YYYY.Mul(api, YY, YY, ext)
-	ZZ.Mul(api, p.Z, p.Z, ext)
+	XX.Square(api, p.X, ext)
+	YY.Square(api, p.Y, ext)
+	YYYY.Square(api, YY, ext)
+	ZZ.Square(api, p.Z, ext)
 	S.Add(api, p.X, YY)
-	S.Mul(api, S, S, ext)
+	S.Square(api, S, ext)
 	S.Sub(api, S, XX)
 	S.Sub(api, S, YYYY)
 	S.Add(api, S, S)
 	M.MulByFp(api, XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
 	p.Z.Add(api, p.Z, p.Y)
-	p.Z.Mul(api, p.Z, p.Z, ext)
+	p.Z.Square(api, p.Z, ext)
 	p.Z.Sub(api, p.Z, YY)
 	p.Z.Sub(api, p.Z, ZZ)
-	p.X.Mul(api, M, M, ext)
+	p.X.Square(api, M, ext)
 	T.Add(api, S, S)
 	p.X.Sub(api, p.X, T)
 	p.Y.Sub(api, S, p.X)
