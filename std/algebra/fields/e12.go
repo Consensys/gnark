@@ -135,16 +135,16 @@ func (e *E12) Neg(api frontend.API, e1 E12) *E12 {
 func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
 
 	var u, v, ac, bd E6
-	u.Add(api, e1.C0, e1.C1) // 6C
-	v.Add(api, e2.C0, e2.C1) // 6C
-	v.Mul(api, u, v, ext)    // 61C
+	u.Add(api, e1.C0, e1.C1)
+	v.Add(api, e2.C0, e2.C1)
+	v.Mul(api, u, v, ext)
 
-	ac.Mul(api, e1.C0, e2.C0, ext)          // 61C
-	bd.Mul(api, e1.C1, e2.C1, ext)          // 61C
-	e.C1.Sub(api, v, ac).Sub(api, e.C1, bd) // 12C
+	ac.Mul(api, e1.C0, e2.C0, ext)
+	bd.Mul(api, e1.C1, e2.C1, ext)
+	e.C1.Sub(api, v, ac).Sub(api, e.C1, bd)
 
-	bd.Mul(api, bd, ext.wSquare, ext) // 6C
-	e.C0.Add(api, ac, bd)             // 6C
+	bd.Mul(api, bd, ext.wSquare, ext)
+	e.C0.Add(api, ac, bd)
 
 	return e
 }
@@ -269,7 +269,7 @@ func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
 	// t1 = g2 * g1
 	t[1].Mul(api, x.C0.B2, x.C0.B1, ext)
 	// t2 = 2 * g4^2 - 3 * g2 * g1
-	t[2].Square(api, x.C1.B1, ext).
+	t[2].Square(api, e.C1.B1, ext).
 		Sub(api, t[2], t[1]).
 		Double(api, t[2]).
 		Sub(api, t[2], t[1])
@@ -395,8 +395,8 @@ func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 	var t [2]E6
 	var buf E6
 
-	t[0].Mul(api, e1.C0, e1.C0, ext)
-	t[1].Mul(api, e1.C1, e1.C1, ext)
+	t[0].Square(api, e1.C0, ext)
+	t[1].Square(api, e1.C1, ext)
 
 	buf.MulByNonResidue(api, t[1], ext)
 	t[0].Sub(api, t[0], buf)
