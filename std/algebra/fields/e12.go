@@ -434,13 +434,6 @@ func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 	return e
 }
 
-// nSquare repeated cyclotmic square
-func (e *E12) nSquare(api frontend.API, n int, ext Extension) {
-	for i := 0; i < n; i++ {
-		e.CyclotomicSquare(api, *e, ext)
-	}
-}
-
 // nSquareCompressed repeated compressed cyclotmic square
 func (e *E12) nSquareCompressed(api frontend.API, n int, ext Extension) {
 	for i := 0; i < n; i++ {
