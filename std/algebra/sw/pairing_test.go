@@ -127,3 +127,9 @@ func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
 	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }
+
+func BenchmarkPairing(b *testing.B) {
+	var c pairingBLS377
+	ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}

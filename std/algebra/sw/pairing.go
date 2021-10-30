@@ -81,7 +81,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 	}
 
 	squareStep := func() {
-		res.Mul(api, *res, *res, pairingInfo.Extension)
+		res.Square(api, *res, pairingInfo.Extension)
 		QNext.Double(api, &QCur, pairingInfo.Extension).Neg(api, &QNext)
 		l = computeLineCoef(api, QCur, QNext, pairingInfo.Extension)
 		l.R0.MulByFp(api, l.R0, P.X)

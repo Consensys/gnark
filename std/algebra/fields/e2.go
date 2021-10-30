@@ -28,6 +28,13 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
+// SetOne returns a newly allocated element equal to 1
+func (e *E2) SetOne(api frontend.API) *E2 {
+	e.A0 = api.Constant(1)
+	e.A1 = api.Constant(0)
+	return e
+}
+
 // Neg negates a e2 elmt
 func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 	e.A0 = api.Sub(0, e1.A0)
@@ -39,6 +46,13 @@ func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 func (e *E2) Add(api frontend.API, e1, e2 E2) *E2 {
 	e.A0 = api.Add(e1.A0, e2.A0)
 	e.A1 = api.Add(e1.A1, e2.A1)
+	return e
+}
+
+// Double e2 elmt
+func (e *E2) Double(api frontend.API, e1 E2) *E2 {
+	e.A0 = api.Add(e1.A0, e1.A0)
+	e.A1 = api.Add(e1.A1, e1.A1)
 	return e
 }
 

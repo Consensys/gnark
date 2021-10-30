@@ -166,7 +166,131 @@ func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 	return e
 }
 
-// CyclotomicSquare squares a Fp12 elt in the cyclotomic group
+// Karabina's compressed cyclotomic square
+// https://eprint.iacr.org/2010/542.pdf
+// Th. 3.2 with minor modifications to fit our tower
+func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension) *E12 {
+
+	var t [7]E2
+
+	// t0 = g1^2
+	t[0].Square(api, x.C0.B1, ext)
+	// t1 = g5^2
+	t[1].Square(api, x.C1.B2, ext)
+	// t5 = g1 + g5
+	t[5].Add(api, x.C0.B1, x.C1.B2)
+	// t2 = (g1 + g5)^2
+	t[2].Square(api, t[5], ext)
+
+	// t3 = g1^2 + g5^2
+	t[3].Add(api, t[0], t[1])
+	// t5 = 2 * g1 * g5
+	t[5].Sub(api, t[2], t[3])
+
+	// t6 = g3 + g2
+	t[6].Add(api, x.C1.B0, x.C0.B2)
+	// t3 = (g3 + g2)^2
+	t[3].Square(api, t[6], ext)
+	// t2 = g3^2
+	t[2].Square(api, x.C1.B0, ext)
+
+	// t6 = 2 * nr * g1 * g5
+	t[6].MulByIm(api, t[5], ext)
+	// t5 = 4 * nr * g1 * g5 + 2 * g3
+	t[5].Add(api, t[6], x.C1.B0).
+		Double(api, t[5])
+	// z3 = 6 * nr * g1 * g5 + 2 * g3
+	e.C1.B0.Add(api, t[5], t[6])
+
+	// t4 = nr * g5^2
+	t[4].MulByIm(api, t[1], ext)
+	// t5 = nr * g5^2 + g1^2
+	t[5].Add(api, t[0], t[4])
+	// t6 = nr * g5^2 + g1^2 - g2
+	t[6].Sub(api, t[5], x.C0.B2)
+
+	// t1 = g2^2
+	t[1].Square(api, x.C0.B2, ext)
+
+	// t6 = 2 * nr * g5^2 + 2 * g1^2 - 2*g2
+	t[6].Double(api, t[6])
+	// z2 = 3 * nr * g5^2 + 3 * g1^2 - 2*g2
+	e.C0.B2.Add(api, t[6], t[5])
+
+	// t4 = nr * g2^2
+	t[4].MulByIm(api, t[1], ext)
+	// t5 = g3^2 + nr * g2^2
+	t[5].Add(api, t[2], t[4])
+	// t6 = g3^2 + nr * g2^2 - g1
+	t[6].Sub(api, t[5], x.C0.B1)
+	// t6 = 2 * g3^2 + 2 * nr * g2^2 - 2 * g1
+	t[6].Double(api, t[6])
+	// z1 = 3 * g3^2 + 3 * nr * g2^2 - 2 * g1
+	e.C0.B1.Add(api, t[6], t[5])
+
+	// t0 = g2^2 + g3^2
+	t[0].Add(api, t[2], t[1])
+	// t5 = 2 * g3 * g2
+	t[5].Sub(api, t[3], t[0])
+	// t6 = 2 * g3 * g2 + g5
+	t[6].Add(api, t[5], x.C1.B2)
+	// t6 = 4 * g3 * g2 + 2 * g5
+	t[6].Double(api, t[6])
+	// z5 = 6 * g3 * g2 + 2 * g5
+	e.C1.B2.Add(api, t[5], t[6])
+
+	return e
+}
+
+// Decompress Karabina's cyclotomic square result
+func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
+
+	var t [3]E2
+	var one E2
+	one.SetOne(api)
+
+	// t0 = g1^2
+	t[0].Square(api, x.C0.B1, ext)
+	// t1 = 3 * g1^2 - 2 * g2
+	t[1].Sub(api, t[0], x.C0.B2).
+		Double(api, t[1]).
+		Add(api, t[1], t[0])
+		// t0 = E * g5^2 + t1
+	t[2].Square(api, x.C1.B2, ext)
+	t[0].MulByIm(api, t[2], ext).
+		Add(api, t[0], t[1])
+	// t1 = 1/(4 * g3)
+	t[1].Double(api, x.C1.B0).
+		Double(api, t[1]).
+		Inverse(api, t[1], ext)
+	// z4 = g4
+	e.C1.B1.Mul(api, t[0], t[1], ext)
+
+	// t1 = g2 * g1
+	t[1].Mul(api, x.C0.B2, x.C0.B1, ext)
+	// t2 = 2 * g4^2 - 3 * g2 * g1
+	t[2].Square(api, x.C1.B1, ext).
+		Sub(api, t[2], t[1]).
+		Double(api, t[2]).
+		Sub(api, t[2], t[1])
+	// t1 = g3 * g5
+	t[1].Mul(api, x.C1.B0, x.C1.B2, ext)
+	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
+	t[2].Add(api, t[2], t[1])
+	e.C0.B0.MulByIm(api, t[2], ext).
+		Add(api, e.C0.B0, one)
+
+	e.C0.B1 = x.C0.B1
+	e.C0.B2 = x.C0.B2
+	e.C1.B0 = x.C1.B0
+	e.C1.B2 = x.C1.B2
+
+	return e
+}
+
+// Granger-Scott's cyclotomic square
+// squares a Fp12 elt in the cyclotomic group
+// https://eprint.iacr.org/2009/565.pdf, 3.2
 func (e *E12) CyclotomicSquare(api frontend.API, x E12, ext Extension) *E12 {
 
 	// https://eprint.iacr.org/2009/565.pdf, 3.2
@@ -317,6 +441,13 @@ func (e *E12) nSquare(api frontend.API, n int, ext Extension) {
 	}
 }
 
+// nSquareCompressed repeated compressed cyclotmic square
+func (e *E12) nSquareCompressed(api frontend.API, n int, ext Extension) {
+	for i := 0; i < n; i++ {
+		e.CyclotomicSquareCompressed(api, *e, ext)
+	}
+}
+
 // Expt compute e1**exponent, where the exponent is hardcoded
 // This function is only used for the final expo of the pairing for bls12377, so the exponent is supposed to be hardcoded
 // and on 64 bits.
@@ -326,16 +457,20 @@ func (e *E12) Expt(api frontend.API, e1 E12, exponent uint64, ext Extension) *E1
 	x33 := E12{}
 	res = e1
 
-	res.nSquare(api, 5, ext)
+	res.nSquareCompressed(api, 5, ext)
+	res.Decompress(api, res, ext)
 	res.Mul(api, res, e1, ext)
 	x33 = res
-	res.nSquare(api, 7, ext)
+	res.nSquareCompressed(api, 7, ext)
+	res.Decompress(api, res, ext)
 	res.Mul(api, res, x33, ext)
-	res.nSquare(api, 4, ext)
+	res.nSquareCompressed(api, 4, ext)
+	res.Decompress(api, res, ext)
 	res.Mul(api, res, e1, ext)
 	res.CyclotomicSquare(api, res, ext)
 	res.Mul(api, res, e1, ext)
-	res.nSquare(api, 46, ext)
+	res.nSquareCompressed(api, 46, ext)
+	res.Decompress(api, res, ext)
 	res.Mul(api, res, e1, ext)
 
 	*e = res
