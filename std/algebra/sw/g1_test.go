@@ -267,6 +267,7 @@ var ccsBench frontend.CompiledConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul
+	c.r.SetRandom()
 	// b.Run("groth16", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
 	// 		ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
@@ -275,8 +276,12 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	// })
 	// b.Log("groth16", ccsBench.GetNbConstraints())
 	b.Run("plonk", func(b *testing.B) {
+		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
 
 	})
