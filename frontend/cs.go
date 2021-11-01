@@ -44,8 +44,8 @@ type constraintSystem struct {
 
 	// Coefficients in the constraints
 	coeffs         []big.Int      // list of unique coefficients.
-	coeffsIDs      map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
-	coeffsIDsInt64 map[int64]int  // fast path
+	coeffsIDsLarge map[string]int // map to check existence of a coefficient (key = coeff.Bytes())
+	coeffsIDsInt64 map[int64]int  // map to check existence of a coefficient (key = int64 value)
 
 	// Hints
 	mHints map[int]compiled.Hint // solver hints
@@ -97,7 +97,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 	}
 	cs := constraintSystem{
 		coeffs:         make([]big.Int, 4),
-		coeffsIDs:      make(map[string]int),
+		coeffsIDsLarge: make(map[string]int),
 		coeffsIDsInt64: make(map[int64]int, 4),
 		constraints:    make([]compiled.R1C, 0, capacity),
 		mDebug:         make(map[int]int),
@@ -232,23 +232,26 @@ func (cs *constraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 	return l
 }
 
+func (cs *constraintSystem) coeffID64(v int64) int {
+	if resID, ok := cs.coeffsIDsInt64[v]; ok {
+		return resID
+	} else {
+		var bCopy big.Int
+		bCopy.SetInt64(v)
+		resID := len(cs.coeffs)
+		cs.coeffs = append(cs.coeffs, bCopy)
+		cs.coeffsIDsInt64[v] = resID
+		return resID
+	}
+}
+
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
 func (cs *constraintSystem) coeffID(b *big.Int) int {
 
 	// if the coeff is a int64 we have a fast path.
 	if b.IsInt64() {
-		v := b.Int64()
-		if resID, ok := cs.coeffsIDsInt64[v]; ok {
-			return resID
-		} else {
-			var bCopy big.Int
-			bCopy.Set(b)
-			resID := len(cs.coeffs)
-			cs.coeffs = append(cs.coeffs, bCopy)
-			cs.coeffsIDsInt64[v] = resID
-			return resID
-		}
+		return cs.coeffID64(b.Int64())
 	}
 
 	// GobEncode is 3x faster than b.Text(16). Slightly slower than Bytes, but Bytes return the same
@@ -257,7 +260,7 @@ func (cs *constraintSystem) coeffID(b *big.Int) int {
 	key := string(bKey)
 
 	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
-	if idx, ok := cs.coeffsIDs[key]; ok {
+	if idx, ok := cs.coeffsIDsLarge[key]; ok {
 		return idx
 	}
 
@@ -266,7 +269,7 @@ func (cs *constraintSystem) coeffID(b *big.Int) int {
 	bCopy.Set(b)
 	resID := len(cs.coeffs)
 	cs.coeffs = append(cs.coeffs, bCopy)
-	cs.coeffsIDs[key] = resID
+	cs.coeffsIDsLarge[key] = resID
 	return resID
 }
 

@@ -392,25 +392,48 @@ func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, gcd *
 	// new coeff
 	lambda := bigIntPool.Get().(*big.Int)
 
-	if gcd.IsInt64() && gcd.Int64() == -1 {
-		for i := 0; i < len(r); i++ {
-			cID := r[i].CoeffID()
-			if cID == compiled.CoeffIdZero {
-				continue
+	if gcd.IsInt64() {
+		if gcd.Int64() == -1 {
+			for i := 0; i < len(r); i++ {
+				cID := r[i].CoeffID()
+				if cID == compiled.CoeffIdZero {
+					continue
+				}
+				lambda.Neg(&scs.coeffs[cID])
+				r[i].SetCoeffID(scs.coeffID(lambda))
 			}
-			lambda.Neg(&scs.coeffs[cID])
-			r[i].SetCoeffID(scs.coeffID(lambda))
-		}
-	} else {
-		for i := 0; i < len(r); i++ {
-			cID := r[i].CoeffID()
-			if cID == compiled.CoeffIdZero {
-				continue
+		} else {
+			_gcd := gcd.Int64()
+			for i := 0; i < len(r); i++ {
+				cID := r[i].CoeffID()
+				if cID == compiled.CoeffIdZero {
+					continue
+				}
+				other := scs.coeffs[cID]
+				if other.IsInt64() {
+					// we do int64 division and avoid calling coeffID
+					l := other.Int64() / _gcd
+					r[i].SetCoeffID(scs.coeffID64(l))
+				} else {
+					// we use Quo here instead of Div, as we know there is no remainder
+					lambda.Quo(&scs.coeffs[cID], gcd)
+					r[i].SetCoeffID(scs.coeffID(lambda))
+				}
 			}
-			// we use Quo here instead of Div, as we know there is no remainder
-			lambda.Quo(&scs.coeffs[cID], gcd)
-			r[i].SetCoeffID(scs.coeffID(lambda))
 		}
+
+		bigIntPool.Put(lambda)
+		return r
+	}
+
+	for i := 0; i < len(r); i++ {
+		cID := r[i].CoeffID()
+		if cID == compiled.CoeffIdZero {
+			continue
+		}
+		// we use Quo here instead of Div, as we know there is no remainder
+		lambda.Quo(&scs.coeffs[cID], gcd)
+		r[i].SetCoeffID(scs.coeffID(lambda))
 	}
 
 	bigIntPool.Put(lambda)
