@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
@@ -267,7 +267,8 @@ var ccsBench frontend.CompiledConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul
-	c.r.SetRandom()
+	// this is q - 1
+	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
 	// b.Run("groth16", func(b *testing.B) {
 	// 	for i := 0; i < b.N; i++ {
 	// 		ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
