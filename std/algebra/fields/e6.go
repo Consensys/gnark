@@ -67,25 +67,28 @@ func (e *E6) Neg(api frontend.API, e1 E6) *E6 {
 // icube is the imaginary elmt to the cube
 func (e *E6) Mul(api frontend.API, e1, e2 E6, ext Extension) *E6 {
 
-	// notations: (a+bv+cv2)*(d+ev+fe2)
-	var ad, bf, ce E2
-	ad.Mul(api, e1.B0, e2.B0, ext)                       // 5C
-	bf.Mul(api, e1.B1, e2.B2, ext).MulByIm(api, bf, ext) // 6C
-	ce.Mul(api, e1.B2, e2.B1, ext).MulByIm(api, ce, ext) // 6C
+	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
+	var t0, t1, t2, c0, c1, c2, tmp E2
+	t0.Mul(api, e1.B0, e2.B0, ext)
+	t1.Mul(api, e1.B1, e2.B1, ext)
+	t2.Mul(api, e1.B2, e2.B2, ext)
 
-	var cf, ae, bd E2
-	cf.Mul(api, e1.B2, e2.B2, ext).MulByIm(api, cf, ext) // 6C
-	ae.Mul(api, e1.B0, e2.B1, ext)                       // 5C
-	bd.Mul(api, e1.B1, e2.B0, ext)                       // 5C
+	c0.Add(api, e1.B1, e1.B2)
+	tmp.Add(api, e2.B1, e2.B2)
+	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByIm(api, c0, ext).Add(api, c0, t0)
 
-	var af, be, cd E2
-	af.Mul(api, e1.B0, e2.B2, ext) // 5C
-	be.Mul(api, e1.B1, e2.B1, ext) // 5C
-	cd.Mul(api, e1.B2, e2.B0, ext) // 5C
+	c1.Add(api, e1.B0, e1.B1)
+	tmp.Add(api, e2.B0, e2.B1)
+	c1.Mul(api, c1, tmp, ext).Sub(api, c1, t0).Sub(api, c1, t1)
+	tmp.MulByIm(api, t2, ext)
+	c1.Add(api, c1, tmp)
 
-	e.B0.Add(api, ad, bf).Add(api, e.B0, ce) // 4C
-	e.B1.Add(api, cf, ae).Add(api, e.B1, bd) // 4C
-	e.B2.Add(api, af, be).Add(api, e.B2, cd) // 4C
+	tmp.Add(api, e1.B0, e1.B2)
+	c2.Add(api, e2.B0, e2.B2).Mul(api, c2, tmp, ext).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
+
+	e.B0 = c0
+	e.B1 = c1
+	e.B2 = c2
 
 	return e
 }
@@ -116,16 +119,37 @@ func (e *E6) MulByNonResidue(api frontend.API, e1 E6, ext Extension) *E6 {
 	return e
 }
 
-// Inverse inverses an Fp2 elmt
+// Square sets z to the E6 product of x,x, returns e
+func (e *E6) Square(api frontend.API, x E6, ext Extension) *E6 {
+
+	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
+	var c4, c5, c1, c2, c3, c0 E2
+	c4.Mul(api, x.B0, x.B1, ext).Double(api, c4)
+	c5.Square(api, x.B2, ext)
+	c1.MulByIm(api, c5, ext).Add(api, c1, c4)
+	c2.Sub(api, c4, c5)
+	c3.Square(api, x.B0, ext)
+	c4.Sub(api, x.B0, x.B1).Add(api, c4, x.B2)
+	c5.Mul(api, x.B1, x.B2, ext).Double(api, c5)
+	c4.Square(api, c4, ext)
+	c0.MulByIm(api, c5, ext).Add(api, c0, c3)
+	e.B2.Add(api, c2, c4).Add(api, e.B2, c5).Sub(api, e.B2, c3)
+	e.B0 = c0
+	e.B1 = c1
+
+	return e
+}
+
+// Inverse inverses an Fp6 elmt
 func (e *E6) Inverse(api frontend.API, e1 E6, ext Extension) *E6 {
 
 	var t [7]E2
 	var c [3]E2
 	var buf E2
 
-	t[0].Mul(api, e1.B0, e1.B0, ext)
-	t[1].Mul(api, e1.B1, e1.B1, ext)
-	t[2].Mul(api, e1.B2, e1.B2, ext)
+	t[0].Square(api, e1.B0, ext)
+	t[1].Square(api, e1.B1, ext)
+	t[2].Square(api, e1.B2, ext)
 	t[3].Mul(api, e1.B0, e1.B1, ext)
 	t[4].Mul(api, e1.B0, e1.B2, ext)
 	t[5].Mul(api, e1.B1, e1.B2, ext)
@@ -168,4 +192,46 @@ func (e *E6) MustBeEqual(api frontend.API, other E6) {
 	e.B0.MustBeEqual(api, other.B0)
 	e.B1.MustBeEqual(api, other.B1)
 	e.B2.MustBeEqual(api, other.B2)
+}
+
+// MulByE2 multiplies an element in E6 by an element in E2
+func (e *E6) MulByE2(api frontend.API, e1 E6, e2 E2, ext Extension) *E6 {
+	e2Copy := E2{}
+	e2Copy = e2
+	e.B0.Mul(api, e1.B0, e2Copy, ext)
+	e.B1.Mul(api, e1.B1, e2Copy, ext)
+	e.B2.Mul(api, e1.B2, e2Copy, ext)
+	return e
+}
+
+// MulBy01 multiplication by sparse element (c0,c1,0)
+func (e *E6) MulBy01(api frontend.API, c0, c1 E2, ext Extension) *E6 {
+
+	var a, b, tmp, t0, t1, t2 E2
+
+	a.Mul(api, e.B0, c0, ext)
+	b.Mul(api, e.B1, c1, ext)
+
+	tmp.Add(api, e.B1, e.B2)
+	t0.Mul(api, c1, tmp, ext)
+	t0.Sub(api, t0, b)
+	t0.MulByIm(api, t0, ext)
+	t0.Add(api, t0, a)
+
+	tmp.Add(api, e.B0, e.B2)
+	t2.Mul(api, c0, tmp, ext)
+	t2.Sub(api, t2, a)
+	t2.Add(api, t2, b)
+
+	t1.Add(api, c0, c1)
+	tmp.Add(api, e.B0, e.B1)
+	t1.Mul(api, t1, tmp, ext)
+	t1.Sub(api, t1, a)
+	t1.Sub(api, t1, b)
+
+	e.B0 = t0
+	e.B1 = t1
+	e.B2 = t2
+
+	return e
 }

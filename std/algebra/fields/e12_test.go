@@ -303,7 +303,7 @@ func (circuit *fp12FixedExpo) Define(curveID ecc.ID, api frontend.API) error {
 	expected := E12{}
 	ext := GetBLS377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
-	expected.FixedExponentiation(api, circuit.A, expo, ext)
+	expected.Expt(api, circuit.A, expo, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -312,10 +312,16 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	var circuit, witness fp12FixedExpo
 
 	// witness values
-	var a, c bls12377.E12
+	var a, b, c bls12377.E12
 	expo := uint64(9586122913090633729)
 
+	// put a in the cyclotomic subgroup (we assume the group is Fp12, field of definition of bls277)
 	a.SetRandom()
+	b.Conjugate(&a)
+	a.Inverse(&a)
+	b.Mul(&b, &a)
+	a.FrobeniusSquare(&b).Mul(&a, &b)
+
 	c.Exp(&a, *new(big.Int).SetUint64(expo))
 
 	witness.A.Assign(&a)

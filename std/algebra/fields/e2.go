@@ -28,6 +28,13 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
+// SetOne returns a newly allocated element equal to 1
+func (e *E2) SetOne(api frontend.API) *E2 {
+	e.A0 = api.Constant(1)
+	e.A1 = api.Constant(0)
+	return e
+}
+
 // Neg negates a e2 elmt
 func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 	e.A0 = api.Sub(0, e1.A0)
@@ -39,6 +46,13 @@ func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 func (e *E2) Add(api frontend.API, e1, e2 E2) *E2 {
 	e.A0 = api.Add(e1.A0, e2.A0)
 	e.A1 = api.Add(e1.A1, e2.A1)
+	return e
+}
+
+// Double e2 elmt
+func (e *E2) Double(api frontend.API, e1 E2) *E2 {
+	e.A0 = api.Add(e1.A0, e1.A0)
+	e.A1 = api.Add(e1.A1, e1.A1)
 	return e
 }
 
@@ -64,15 +78,12 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 
 	// 1C
 	l31 := api.Add(ac, bd)
-	l3 := api.Sub(u, l31)
-
-	e.A1 = api.Mul(l3, 1)
+	e.A1 = api.Sub(u, l31)
 
 	// 1C
 	buSquare := frontend.FromInterface(ext.uSquare)
 	l41 := api.Mul(bd, buSquare)
-	l4 := api.Add(ac, l41)
-	e.A0 = api.Mul(l4, 1)
+	e.A0 = api.Add(ac, l41)
 
 	return e
 }
@@ -131,10 +142,9 @@ func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
 
 	t1beta = api.Mul(t1, ext.uSquare)
 	t0 = api.Sub(t0, t1beta)
-	t1 = api.Inverse(t0)
-	e.A0 = api.Mul(a0, t1)
-	e.A1 = api.Sub(0, a1)
-	e.A1 = api.Mul(e.A1, t1)
+	e.A0 = api.DivUnchecked(a0, t0)
+	e.A1 = api.DivUnchecked(a1, t0)
+	e.A1 = api.Sub(0, e.A1)
 
 	return e
 }
