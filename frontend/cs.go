@@ -43,8 +43,9 @@ type constraintSystem struct {
 	constraints []compiled.R1C
 
 	// Coefficients in the constraints
-	coeffs    []big.Int      // list of unique coefficients.
-	coeffsIDs map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
+	coeffs         []big.Int      // list of unique coefficients.
+	coeffsIDs      map[string]int // map to fast check existence of a coefficient (key = coeff.Text(16))
+	coeffsIDsInt64 map[int64]int  // fast path
 
 	// Hints
 	mHints map[int]compiled.Hint // solver hints
@@ -95,17 +96,23 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 		capacity = initialCapacity[0]
 	}
 	cs := constraintSystem{
-		coeffs:      make([]big.Int, 4),
-		coeffsIDs:   make(map[string]int),
-		constraints: make([]compiled.R1C, 0, capacity),
-		mDebug:      make(map[int]int),
-		mHints:      make(map[int]compiled.Hint),
+		coeffs:         make([]big.Int, 4),
+		coeffsIDs:      make(map[string]int),
+		coeffsIDsInt64: make(map[int64]int, 4),
+		constraints:    make([]compiled.R1C, 0, capacity),
+		mDebug:         make(map[int]int),
+		mHints:         make(map[int]compiled.Hint),
 	}
 
 	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)
 	cs.coeffs[compiled.CoeffIdOne].SetInt64(1)
 	cs.coeffs[compiled.CoeffIdTwo].SetInt64(2)
 	cs.coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+
+	cs.coeffsIDsInt64[0] = compiled.CoeffIdZero
+	cs.coeffsIDsInt64[1] = compiled.CoeffIdOne
+	cs.coeffsIDsInt64[2] = compiled.CoeffIdTwo
+	cs.coeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
 	cs.public.variables = make([]Variable, 0)
 	cs.public.booleans = make(map[int]struct{})
@@ -229,27 +236,27 @@ func (cs *constraintSystem) reduce(l compiled.LinearExpression) compiled.LinearE
 // the list of coeffs and returns the corresponding entry
 func (cs *constraintSystem) coeffID(b *big.Int) int {
 
-	// if the coeff is a int64, and has value -1, 0, 1 or 2, we have a fast path.
+	// if the coeff is a int64 we have a fast path.
 	if b.IsInt64() {
 		v := b.Int64()
-		switch v {
-		case -1:
-			return compiled.CoeffIdMinusOne
-		case 0:
-			return compiled.CoeffIdZero
-		case 1:
-			return compiled.CoeffIdOne
-		case 2:
-			return compiled.CoeffIdTwo
+		if resID, ok := cs.coeffsIDsInt64[v]; ok {
+			return resID
+		} else {
+			var bCopy big.Int
+			bCopy.Set(b)
+			resID := len(cs.coeffs)
+			cs.coeffs = append(cs.coeffs, bCopy)
+			cs.coeffsIDsInt64[v] = resID
+			return resID
 		}
 	}
 
-	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
-
 	// GobEncode is 3x faster than b.Text(16). Slightly slower than Bytes, but Bytes return the same
-	// thing for -x and x . However, we keep b.Text(16) for now as it enables a fast path for int64 above.
+	// thing for -x and x .
 	bKey, _ := b.GobEncode()
 	key := string(bKey)
+
+	// if the coeff is already stored, fetch its ID from the cs.coeffsIDs map
 	if idx, ok := cs.coeffsIDs[key]; ok {
 		return idx
 	}

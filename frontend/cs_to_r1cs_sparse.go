@@ -18,6 +18,7 @@ package frontend
 
 import (
 	"math/big"
+	"math/bits"
 	"sort"
 	"sync"
 
@@ -260,16 +261,77 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 	return _l, t
 }
 
+func gcdInt64(_u, _v int64) uint64 {
+	var u, v uint64
+	if _u < 0 {
+		u = uint64(-_u)
+	} else {
+		u = uint64(_u)
+	}
+	if _v < 0 {
+		v = uint64(-_v)
+	} else {
+		v = uint64(_v)
+	}
+
+	if u == 0 {
+		return v
+	}
+	if v == 0 {
+		return u
+	}
+	if u == v {
+		return u
+	}
+
+	tu := bits.TrailingZeros64(u)
+	tv := bits.TrailingZeros64(v)
+	u >>= tu
+	v >>= tv
+
+	for {
+		if u > v {
+			v, u = u, v
+		}
+		v = v - u
+		if v == 0 {
+			break
+		}
+		v >>= bits.TrailingZeros64(v)
+	}
+
+	if tu < tv {
+		return u << tu
+	}
+	return u << tv
+}
+
 // returns ( b/computeGCD(b...), computeGCD(b...) )
 // if gcd is != 0 and gcd != 1, returns true
 func (scs *sparseR1CS) computeGCD(l compiled.LinearExpression, gcd *big.Int) {
 	gcd.SetUint64(0)
-	for i := 0; i < len(l); i++ {
+	var i int
+	for i = 0; i < len(l); i++ {
 		cID := l[i].CoeffID()
 		if cID == compiled.CoeffIdZero {
 			continue
 		}
-		gcd.GCD(nil, nil, gcd, &scs.coeffs[cID])
+		gcd.Set(&scs.coeffs[cID])
+		break
+	}
+
+	for ; i < len(l); i++ {
+		cID := l[i].CoeffID()
+		if cID == compiled.CoeffIdZero {
+			continue
+		}
+		other := &scs.coeffs[cID]
+
+		if gcd.IsInt64() && other.IsInt64() {
+			gcd.SetUint64(gcdInt64(gcd.Int64(), other.Int64()))
+		} else {
+			gcd.GCD(nil, nil, gcd, other)
+		}
 
 		if gcd.IsUint64() && gcd.Uint64() == 1 {
 			break
@@ -321,7 +383,8 @@ func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compile
 
 }
 
-func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, d *big.Int) compiled.LinearExpression {
+// pre-conditions: d != 0 && d != 1 && d divides all the coefficients in l
+func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
 	// copy linear expression
 	r := make(compiled.LinearExpression, len(l))
 	copy(r, l)
@@ -329,7 +392,7 @@ func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, d *bi
 	// new coeff
 	lambda := bigIntPool.Get().(*big.Int)
 
-	if d.IsInt64() && d.Int64() == -1 {
+	if gcd.IsInt64() && gcd.Int64() == -1 {
 		for i := 0; i < len(r); i++ {
 			cID := r[i].CoeffID()
 			if cID == compiled.CoeffIdZero {
@@ -344,7 +407,8 @@ func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, d *bi
 			if cID == compiled.CoeffIdZero {
 				continue
 			}
-			lambda.Div(&scs.coeffs[cID], d)
+			// we use Quo here instead of Div, as we know there is no remainder
+			lambda.Quo(&scs.coeffs[cID], gcd)
 			r[i].SetCoeffID(scs.coeffID(lambda))
 		}
 	}
