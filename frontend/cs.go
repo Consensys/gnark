@@ -362,11 +362,12 @@ func (cs *constraintSystem) checkVariables() error {
 	// TODO @gbotrel add unit test for that.
 
 	cptSecret := len(cs.secret.variables.variables)
-	cptPublic := len(cs.public.variables.variables)
+	cptPublic := len(cs.public.variables.variables) - 1
 	cptHints := len(cs.mHintsConstrained)
 
 	secretConstrained := make([]bool, cptSecret)
-	publicConstrained := make([]bool, cptPublic)
+	publicConstrained := make([]bool, cptPublic+1)
+	publicConstrained[0] = true
 
 	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
 	processLinearExpression := func(l compiled.LinearExpression) {
@@ -381,7 +382,7 @@ func (cs *constraintSystem) checkVariables() error {
 
 			switch visibility {
 			case compiled.Public:
-				if !publicConstrained[vID] {
+				if vID != 0 && !publicConstrained[vID] {
 					publicConstrained[vID] = true
 					cptPublic--
 				}
