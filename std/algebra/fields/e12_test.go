@@ -131,7 +131,7 @@ type fp12Square struct {
 func (circuit *fp12Square) Define(curveID ecc.ID, api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
 	s := circuit.A.Square(api, circuit.A, ext)
-	s.MustBeEqual(api, *s)
+	s.MustBeEqual(api, circuit.B)
 	return nil
 }
 
