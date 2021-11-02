@@ -72,8 +72,8 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		ccs: compiled.SparseR1CS{
 			CS: compiled.CS{
 				NbInternalVariables: len(cs.internal.variables),
-				NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded in PlonK
-				NbSecretVariables:   len(cs.secret.variables),
+				NbPublicVariables:   len(cs.public.variables.variables) - 1, // the ONE_WIRE is discarded in PlonK
+				NbSecretVariables:   len(cs.secret.variables.variables),
 				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 				Logs:                make([]compiled.LogEntry, len(cs.logs)),
 				MDebug:              make(map[int]int),

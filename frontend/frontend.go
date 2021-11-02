@@ -57,6 +57,11 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 		return nil, err
 	}
 
+	// ensure all inputs and hints are constrained
+	if err := cs.checkVariables(); err != nil {
+		return nil, err
+	}
+
 	switch zkpID {
 	case backend.GROTH16:
 		ccs, err = cs.toR1CS(curveID)
@@ -101,9 +106,9 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 			}
 			switch visibility {
 			case compiled.Secret:
-				tInput.Set(reflect.ValueOf(cs.newSecretVariable()))
+				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
 			case compiled.Public:
-				tInput.Set(reflect.ValueOf(cs.newPublicVariable()))
+				tInput.Set(reflect.ValueOf(cs.newPublicVariable(name)))
 			case compiled.Unset:
 				return errors.New("can't set val " + name + " visibility is unset")
 			}

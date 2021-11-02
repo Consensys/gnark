@@ -27,7 +27,7 @@ import (
 func TestPrintln(t *testing.T) {
 	// must not panic.
 	cs := newConstraintSystem(ecc.BN254)
-	one := cs.newPublicVariable()
+	one := cs.newPublicVariable("one")
 
 	cs.Println(nil)
 	cs.Println(1)
