@@ -368,8 +368,14 @@ func (cs *constraintSystem) checkVariables() error {
 	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
 	processLinearExpression := func(l compiled.LinearExpression) {
 		for _, t := range l {
+			if t.CoeffID() == compiled.CoeffIdZero {
+				// ignore zero coefficient, as it does not constraint the variable
+				// though, we may want to flag that IF the variable doesn't appear else where
+				continue
+			}
 			visibility := t.VariableVisibility()
 			vID := t.VariableID()
+
 			switch visibility {
 			case compiled.Public:
 				if !publicConstrained[vID] {
