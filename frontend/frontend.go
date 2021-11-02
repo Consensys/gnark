@@ -49,17 +49,27 @@ var errInputNotSet = errors.New("variable is not allocated")
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity ...int) (ccs CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *option) error) (ccs CompiledConstraintSystem, err error) {
+
+	// setup option
+	opt := option{}
+	for _, o := range opts {
+		if err := o(&opt); err != nil {
+			return nil, err
+		}
+	}
 
 	// build the constraint system (see Circuit.Define)
-	cs, err := buildCS(curveID, circuit, initialCapacity...)
+	cs, err := buildCS(curveID, circuit, opt.capacity)
 	if err != nil {
 		return nil, err
 	}
 
 	// ensure all inputs and hints are constrained
-	if err := cs.checkVariables(); err != nil {
-		return nil, err
+	if !opt.ignoreUnconstrainedInputs {
+		if err := cs.checkVariables(); err != nil {
+			return nil, err
+		}
 	}
 
 	switch zkpID {
@@ -138,4 +148,23 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 // This is syntatic sugar for: frontend.Variable{WitnessValue: value}
 func Value(value interface{}) Variable {
 	return Variable{WitnessValue: value}
+}
+
+type option struct {
+	capacity                  int
+	ignoreUnconstrainedInputs bool
+}
+
+// WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
+func WithCapacity(capacity int) func(opt *option) error {
+	return func(opt *option) error {
+		opt.capacity = capacity
+		return nil
+	}
+}
+
+// IgnoreUnconstrainedInputs when set, the Compile function doesn't check for unconstrained inputs
+func IgnoreUnconstrainedInputs(opt *option) error {
+	opt.ignoreUnconstrainedInputs = true
+	return nil
 }

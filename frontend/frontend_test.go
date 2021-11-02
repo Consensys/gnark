@@ -29,7 +29,7 @@ func BenchmarkCompileReferenceGroth16(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Compile(ecc.BN254, backend.GROTH16, &c, benchSize)
+		Compile(ecc.BN254, backend.GROTH16, &c, WithCapacity(benchSize))
 	}
 }
 
@@ -38,7 +38,7 @@ func BenchmarkCompileReferencePlonk(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Compile(ecc.BN254, backend.PLONK, &c, benchSize)
+		Compile(ecc.BN254, backend.PLONK, &c, WithCapacity(benchSize))
 	}
 }
 

@@ -358,6 +358,9 @@ func (cs *constraintSystem) markBoolean(v Variable) bool {
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
 func (cs *constraintSystem) checkVariables() error {
+
+	// TODO @gbotrel add unit test for that.
+
 	cptSecret := len(cs.secret.variables.variables)
 	cptPublic := len(cs.public.variables.variables)
 	cptHints := len(cs.mHintsConstrained)
