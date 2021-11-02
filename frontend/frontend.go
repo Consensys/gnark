@@ -49,10 +49,10 @@ var errInputNotSet = errors.New("variable is not allocated")
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *option) error) (ccs CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs CompiledConstraintSystem, err error) {
 
 	// setup option
-	opt := option{}
+	opt := CompileOption{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			return nil, err
@@ -150,21 +150,22 @@ func Value(value interface{}) Variable {
 	return Variable{WitnessValue: value}
 }
 
-type option struct {
+// CompileOption enables to set optional argument to call of frontend.Compile()
+type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
 }
 
 // WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
-func WithCapacity(capacity int) func(opt *option) error {
-	return func(opt *option) error {
+func WithCapacity(capacity int) func(opt *CompileOption) error {
+	return func(opt *CompileOption) error {
 		opt.capacity = capacity
 		return nil
 	}
 }
 
 // IgnoreUnconstrainedInputs when set, the Compile function doesn't check for unconstrained inputs
-func IgnoreUnconstrainedInputs(opt *option) error {
+func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	opt.ignoreUnconstrainedInputs = true
 	return nil
 }
