@@ -1,6 +1,6 @@
 <a name="v0.5.2"></a>
 
-## [v0.5.2] - 2021-10-26
+## [v0.5.2] - 2021-11-03
 
 
 ### Breaking changes
@@ -9,7 +9,7 @@
 - assert helper is now under `backend/` (instead of `backend/groth16` and `backend/plonk`)
 
 ### Build
-- updated to gnark-crypto v0.5.2
+- updated to gnark-crypto v0.5.3
 
 ### Feat
 - added `api.DivUnchecked` and `api.Div`. `DivUnchecked` will accept 0 / 0 == 0 as valid.
@@ -18,6 +18,9 @@
 - removed hardcoded bit size in ToBinary, which now depends by default on `fr.Element` bit size
 - api.ToBinary: constraint unsatisfied now has debugInfo
 - unset variables: error message comes with a stack trace
+- added bandersnatch circuit component under `std/`
+- `frontend.Compile` now check that all secret and public inputs are constrained. Check can be ignore through compile option (`frontend.IgnoreUnconstrainedInputs`)
+- added UnsafeReadFrom for groth16 Proving and Verifying keys, which doesn't perform subgroup checks on the decoded points
 
 ### Fix
 - incorrect formula in api.Select when parameters are constant
@@ -39,6 +42,12 @@
 
 
 ### Pull Requests
+- Merge pull request [#159](https://github.com/consensys/gnark/issues/159) from ConsenSys/std/bandersnatch
+- Merge pull request [#164](https://github.com/consensys/gnark/issues/164) from ConsenSys/perf-scs-compile
+- Merge pull request [#161](https://github.com/consensys/gnark/issues/161) from ConsenSys/test-engine-with-hints
+- Merge pull request [#162](https://github.com/consensys/gnark/issues/162) from ConsenSys/std/pairing
+- Merge pull request [#160](https://github.com/consensys/gnark/issues/160) from ConsenSys/perf-unsafe-decoding
+- Merge pull request [#156](https://github.com/consensys/gnark/issues/156) from ConsenSys/std/twistedEdwards
 - Merge pull request [#151](https://github.com/consensys/gnark/issues/151) from ConsenSys/testable-circuits
 - Merge pull request [#153](https://github.com/consensys/gnark/issues/153) from ConsenSys/fix/plonk_constraints_blowup
 - Merge pull request [#146](https://github.com/consensys/gnark/issues/146) from ConsenSys/feat/ml-snark-pairing
