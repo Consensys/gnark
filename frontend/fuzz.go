@@ -43,10 +43,10 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 			panic(fmt.Sprintf("reading byte from reader errored: %v", err))
 		}
 		if b&0b00000001 == 1 {
-			cs.newPublicVariable()
+			cs.newPublicVariable("x")
 		}
 		if b&0b00000010 == 0b00000010 {
-			cs.newSecretVariable()
+			cs.newSecretVariable("y")
 		}
 		if b&0b00000100 == 0b00000100 {
 			// multiplication
