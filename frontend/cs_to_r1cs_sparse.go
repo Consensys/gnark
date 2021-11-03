@@ -18,7 +18,6 @@ package frontend
 
 import (
 	"math/big"
-	"math/bits"
 	"sort"
 	"sync"
 
@@ -55,7 +54,14 @@ type sparseR1CS struct {
 
 	// map LinearExpression -> Term. The goal is to not reduce
 	// the same linear expression twice.
-	record map[uint64][]innerRecord
+	// key == hashCode(linearExpression) (with collisions)
+	// value == list of tuples {LinearExpression; reduced resulting Term}
+	reducedLE map[uint64][]innerRecord
+
+	// similarly to reducedLE, excepts, the key is the hashCodeNC() which doesn't take
+	// into account the coefficient value of the terms
+	// this is used to detect if a "similar" linear expression was already recorded when splitting
+	reducedLE_ map[uint64]struct{}
 }
 
 type innerRecord struct {
@@ -84,7 +90,8 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
 		scsInternalVariables: len(cs.internal.variables),
 		currentR1CDebugID:    -1,
-		record:               make(map[uint64][]innerRecord, len(cs.internal.variables)),
+		reducedLE:            make(map[uint64][]innerRecord, len(cs.internal.variables)),
+		reducedLE_:           make(map[uint64]struct{}, len(cs.internal.variables)),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -261,54 +268,70 @@ func popInternalVariable(l compiled.LinearExpression, id int) (compiled.LinearEx
 	return _l, t
 }
 
-func gcdInt64(_u, _v int64) uint64 {
-	var u, v uint64
-	if _u < 0 {
-		u = uint64(-_u)
-	} else {
-		u = uint64(_u)
-	}
-	if _v < 0 {
-		v = uint64(-_v)
-	} else {
-		v = uint64(_v)
+// as computeGCD, except, it fills the intermediate values such that gcds[i] == gcd(l[:i])
+func (scs *sparseR1CS) computeGCDs(l compiled.LinearExpression, gcds []*big.Int) {
+	mustNeg := scs.coeffs[l[0].CoeffID()].Sign() == -1
+
+	gcds[0].Set(&scs.coeffs[l[0].CoeffID()])
+	if mustNeg {
+		gcds[0].Neg(gcds[0])
 	}
 
-	if u == 0 {
-		return v
-	}
-	if v == 0 {
-		return u
-	}
-	if u == v {
-		return u
-	}
+	for i := 1; i < len(l); i++ {
+		cID := l[i].CoeffID()
 
-	tu := bits.TrailingZeros64(u)
-	tv := bits.TrailingZeros64(v)
-	u >>= tu
-	v >>= tv
-
-	for {
-		if u > v {
-			v, u = u, v
+		if gcds[i-1].IsUint64() {
+			// can be 0 or 1
+			prev := gcds[i-1].Uint64()
+			if prev == 0 {
+				gcds[i].Abs(&scs.coeffs[cID])
+				continue
+			} else if prev == 1 {
+				// set the rest to 1.
+				for ; i < len(l); i++ {
+					gcds[i].SetUint64(1)
+				}
+				continue
+			}
 		}
-		v = v - u
-		if v == 0 {
-			break
+
+		// we  check coeffID here for 1 or minus 1
+		if cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne {
+			gcds[i].SetUint64(1)
+			continue
 		}
-		v >>= bits.TrailingZeros64(v)
+
+		if cID == compiled.CoeffIdZero {
+			gcds[i].Set(gcds[i-1])
+			continue
+		}
+
+		// we compute the gcd.
+		gcds[i].GCD(nil, nil, gcds[i-1], &scs.coeffs[cID])
+	}
+	if mustNeg {
+		for i := 1; i < len(l); i++ {
+			gcds[i].Neg(gcds[i])
+		}
 	}
 
-	if tu < tv {
-		return u << tu
-	}
-	return u << tv
 }
 
 // returns ( b/computeGCD(b...), computeGCD(b...) )
 // if gcd is != 0 and gcd != 1, returns true
 func (scs *sparseR1CS) computeGCD(l compiled.LinearExpression, gcd *big.Int) {
+	mustNeg := scs.coeffs[l[0].CoeffID()].Sign() == -1
+
+	// fast path: if any of the coeffs is 1 or -1, no need to compute the GCD
+	if hasOnes(l) {
+		if mustNeg {
+			gcd.SetInt64(-1)
+			return
+		}
+		gcd.SetUint64(1)
+		return
+	}
+
 	gcd.SetUint64(0)
 	var i int
 	for i = 0; i < len(l); i++ {
@@ -327,15 +350,15 @@ func (scs *sparseR1CS) computeGCD(l compiled.LinearExpression, gcd *big.Int) {
 		}
 		other := &scs.coeffs[cID]
 
-		if gcd.IsInt64() && other.IsInt64() {
-			gcd.SetUint64(gcdInt64(gcd.Int64(), other.Int64()))
-		} else {
-			gcd.GCD(nil, nil, gcd, other)
-		}
-
+		gcd.GCD(nil, nil, gcd, other)
 		if gcd.IsUint64() && gcd.Uint64() == 1 {
 			break
 		}
+	}
+
+	if mustNeg {
+		// ensure the gcd doesn't depend on the sign
+		gcd.Neg(gcd)
 	}
 
 }
@@ -351,77 +374,31 @@ func hasOnes(l compiled.LinearExpression) bool {
 	return false
 }
 
-// reduce sets gcd = gcd(l.coefs) and returns l/gcd(l.coefs)
-// if gcd == 1, this returns l
-func (scs *sparseR1CS) reduce(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
-	mustNeg := scs.coeffs[l[0].CoeffID()].Sign() == -1
-
-	// fast path: if any of the coeffs is 1 or -1, no need to compute the GCD
-	if hasOnes(l) {
-		if !mustNeg {
-			gcd.SetUint64(1)
-			return l
-		}
-		gcd.SetInt64(-1)
-		return scs.divideLinearExpression(l, gcd)
-	}
-
-	// compute gcd
-	scs.computeGCD(l, gcd)
-
-	if mustNeg {
-		// ensure the gcd doesn't depend on the sign
-		gcd.Neg(gcd)
-	}
-
-	if gcd.IsUint64() && (gcd.Uint64() == 0 || gcd.Uint64() == 1) {
-		// no need to create a new linear expression
+// divides all coefficients in l by divisor
+// if divisor == 0 or divisor == 1, returns l
+func (scs *sparseR1CS) divideLinearExpression(l, r compiled.LinearExpression, divisor *big.Int) compiled.LinearExpression {
+	if divisor.IsUint64() && (divisor.Uint64() == 0 || divisor.Uint64() == 1) {
 		return l
 	}
 
-	return scs.divideLinearExpression(l, gcd)
-
-}
-
-// pre-conditions: d != 0 && d != 1 && d divides all the coefficients in l
-func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, gcd *big.Int) compiled.LinearExpression {
 	// copy linear expression
-	r := make(compiled.LinearExpression, len(l))
+	if r == nil {
+		r = make(compiled.LinearExpression, len(l))
+	}
 	copy(r, l)
 
 	// new coeff
 	lambda := bigIntPool.Get().(*big.Int)
 
-	if gcd.IsInt64() {
-		if gcd.Int64() == -1 {
-			for i := 0; i < len(r); i++ {
-				cID := r[i].CoeffID()
-				if cID == compiled.CoeffIdZero {
-					continue
-				}
-				lambda.Neg(&scs.coeffs[cID])
-				r[i].SetCoeffID(scs.coeffID(lambda))
+	if divisor.IsInt64() && divisor.Int64() == -1 {
+		for i := 0; i < len(r); i++ {
+			cID := r[i].CoeffID()
+			if cID == compiled.CoeffIdZero {
+				continue
 			}
-		} else {
-			_gcd := gcd.Int64()
-			for i := 0; i < len(r); i++ {
-				cID := r[i].CoeffID()
-				if cID == compiled.CoeffIdZero {
-					continue
-				}
-				other := scs.coeffs[cID]
-				if other.IsInt64() {
-					// we do int64 division and avoid calling coeffID
-					l := other.Int64() / _gcd
-					r[i].SetCoeffID(scs.coeffID64(l))
-				} else {
-					// we use Quo here instead of Div, as we know there is no remainder
-					lambda.Quo(&scs.coeffs[cID], gcd)
-					r[i].SetCoeffID(scs.coeffID(lambda))
-				}
-			}
+			lambda.Neg(&scs.coeffs[cID])
+			r[i].SetCoeffID(scs.coeffID(lambda))
 		}
-
 		bigIntPool.Put(lambda)
 		return r
 	}
@@ -432,7 +409,7 @@ func (scs *sparseR1CS) divideLinearExpression(l compiled.LinearExpression, gcd *
 			continue
 		}
 		// we use Quo here instead of Div, as we know there is no remainder
-		lambda.Quo(&scs.coeffs[cID], gcd)
+		lambda.Quo(&scs.coeffs[cID], divisor)
 		r[i].SetCoeffID(scs.coeffID(lambda))
 	}
 
@@ -565,8 +542,10 @@ func (scs *sparseR1CS) multiply(t compiled.Term, c *big.Int) compiled.Term {
 	return t
 }
 
-func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bool) {
-	list, ok := scs.record[l.Hash()]
+// l is primitive
+// that is, it has been factorized and we can't divide the coefficients further
+func (scs *sparseR1CS) wasReduced(l compiled.LinearExpression) (compiled.Term, bool) {
+	list, ok := scs.reducedLE[hashCode(l)]
 	if !ok {
 		return 0, false
 	}
@@ -580,56 +559,117 @@ func (scs *sparseR1CS) getRecord(l compiled.LinearExpression) (compiled.Term, bo
 	return 0, false
 }
 
-func (scs *sparseR1CS) putRecord(l compiled.LinearExpression, t compiled.Term) {
-	id := l.Hash()
-	list := scs.record[id]
+// l is primitive
+// that is, it has been factorized and we can't divide the coefficients further
+func (scs *sparseR1CS) markReduced(l compiled.LinearExpression, t compiled.Term, ncHashCode uint64) {
+	id := hashCode(l)
+	list := scs.reducedLE[id]
+	// here we know l is not already in the list, since the call to wasReduced returned false
 	list = append(list, innerRecord{t: t, l: l})
-	scs.record[id] = list
+	scs.reducedLE[id] = list
+	scs.reducedLE_[ncHashCode] = struct{}{}
 }
 
+// split decomposes the linear expression into a single term
+// for example 2a + 3b + c will be decomposed in
+// v0 := 2a + 3b
+// v1 := v0 + c
+// return v1
+//
+// for optimal output, one need to check if we can't reuse previous decompositions to avoid duplicate constraints
 func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
-
 	// floor case
 	if len(l) == 1 {
 		return l[0]
 	}
 
-	lGCD := bigIntPool.Get().(*big.Int)
-	// check if l is recorded, if so we get it from the record
-	lReduced := scs.reduce(l, lGCD)
-	if t, ok := scs.getRecord(lReduced); ok {
-		t.SetCoeffID(scs.coeffID(lGCD))
-		bigIntPool.Put(lGCD)
+	gcd := bigIntPool.Get().(*big.Int)
+
+	// lf = gcd * l
+	// compute the GCD
+	scs.computeGCD(l, gcd)
+
+	// divide if needed l by gcd
+	lf := scs.divideLinearExpression(l, nil, gcd)
+	// if we already recorded lf, the resulting term is gcd * t
+	if t, ok := scs.wasReduced(lf); ok {
+		t.SetCoeffID(scs.coeffID(gcd))
+		bigIntPool.Put(gcd)
 		return t
 	}
 
-	// find if in the left side the constraint is recorded
-	gcd := bigIntPool.Get().(*big.Int)
+	// we create a new resulting term for this linear expression
+	// o correspond to the factorized linear expression lf =  l / gcd
+	// r correspond to the initial linear expression l
+	// we record the factorized linear expression for potential later use
+	o := scs.newTerm(bOne)
+	r := scs.multiply(o, gcd)
+	scs.markReduced(lf, o, hashCodeNC(lf))
+	bigIntPool.Put(gcd)
 
-	for i := len(l) - 1; i > 0; i-- {
-		ll := scs.reduce(lReduced[:i], gcd)
-		if t, ok := scs.getRecord(ll); ok {
-			t = scs.multiply(t, gcd)
-			o := scs.newTerm(bOne)
-			b := scs.split(lReduced[i:])
-			scs.addConstraint(compiled.SparseR1C{L: t, R: b, O: scs.negate(o)})
-			scs.putRecord(lReduced, o)
-			r := scs.multiply(o, lGCD)
-			bigIntPool.Put(lGCD)
-			bigIntPool.Put(gcd)
+	var gcds []*big.Int
+	var scratch compiled.LinearExpression
+
+	// idea: find an existing reduction that partially matches l
+
+	// we compute a hash code of the sub expression that takes into account variables id and visibility
+	// but not the coeffID. Since this is computed recursively, we store the result up for each lf[:i]
+	hcs := hashCodeNC_(lf)
+
+	for i := len(lf) - 1; i > 0; i-- {
+
+		// first, we probabilistically check if it's worth it to factorize the sub expression
+		if _, ok := scs.reducedLE_[hcs[i-1]]; !ok {
+			// no need to factorize, no linear expression with same variables exist.
+			continue
+		}
+
+		// we need to factorize, so since gcd (a,b,c) == gcd ( gcd (a,b), c)
+		// we compute all gcds up to lf[:i] to use in future iterations
+		if gcds == nil {
+			gcds = make([]*big.Int, i)
+			for i := 0; i < len(gcds); i++ {
+				gcds[i] = bigIntPool.Get().(*big.Int)
+			}
+			scs.computeGCDs(lf[:i], gcds)
+			scratch = make(compiled.LinearExpression, i)
+		}
+
+		// we divide the linear expression by the gcd, same idea as above
+		// note that lff here reuses scratch space, but we never store it, we just compute
+		// a hash code on it so we're fine
+		lff := scs.divideLinearExpression(lf[:i], scratch[:i], gcds[i-1])
+
+		if t, ok := scs.wasReduced(lff); ok {
+			// the lff was already reduced
+			// so we return r such that
+			// r = (gcd * lff) + reduce(lf[i:])
+			scs.addConstraint(compiled.SparseR1C{
+				L: scs.multiply(t, gcds[i-1]),
+				R: scs.split(lf[i:]),
+				O: scs.negate(o),
+			})
+
+			for i := 0; i < len(gcds); i++ {
+				bigIntPool.Put(gcds[i])
+			}
+
 			return r
 		}
 	}
-	bigIntPool.Put(gcd)
+
+	for i := 0; i < len(gcds); i++ {
+		bigIntPool.Put(gcds[i])
+	}
 
 	// else we build the reduction starting from l[0]
-	o := scs.newTerm(bOne)
-	a := lReduced[0]
-	b := scs.split(lReduced[1:])
-	scs.addConstraint(compiled.SparseR1C{L: a, R: b, O: scs.negate(o)})
-	scs.putRecord(lReduced, o)
-	r := scs.multiply(o, lGCD)
-	bigIntPool.Put(lGCD)
+	// that is we return a term r such that
+	// r = l[0] + reduced(lf[1:])
+	scs.addConstraint(compiled.SparseR1C{
+		L: lf[0],
+		R: scs.split(lf[1:]),
+		O: scs.negate(o)},
+	)
 
 	return r
 }
@@ -1206,4 +1246,40 @@ var bigIntPool = sync.Pool{
 	New: func() interface{} {
 		return new(big.Int)
 	},
+}
+
+// hashCode returns a fast hash of the linear expression; this is not collision resistant
+// but two SORTED equal linear expressions will have equal hashes.
+//
+// pre conditions: l is sorted
+func hashCode(l compiled.LinearExpression) uint64 {
+	hashcode := uint64(1)
+	for i := 0; i < len(l); i++ {
+		hashcode = hashcode*31 + uint64(l[i])
+	}
+	return hashcode
+}
+
+// same as hashCode but ignore the coeffID
+func hashCodeNC(l compiled.LinearExpression) uint64 {
+	hashcode := uint64(1)
+	for i := 0; i < len(l); i++ {
+		t := l[i]
+		t.SetCoeffID(0)
+		hashcode = hashcode*31 + uint64(t)
+	}
+	return hashcode
+}
+
+// same as hashCodeNC but return all the intermediate hash codes
+func hashCodeNC_(l compiled.LinearExpression) []uint64 {
+	r := make([]uint64, len(l))
+	hashcode := uint64(1)
+	for i := 0; i < len(l); i++ {
+		t := l[i]
+		t.SetCoeffID(0)
+		hashcode = hashcode*31 + uint64(t)
+		r[i] = hashcode
+	}
+	return r
 }
