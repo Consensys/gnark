@@ -75,7 +75,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 			checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
+			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
 			// must not error with big int test engine
@@ -175,7 +175,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 			mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
 			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
+			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
 			// must error with big int test engine
@@ -230,7 +230,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness fr
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b)
+	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	checkError(err)
 
 	// must not error with big int test engine
@@ -266,7 +266,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b)
+	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	if err != nil {
 		fmt.Println(reflect.TypeOf(circuit).String())
 	}
@@ -309,7 +309,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 			// this puts the compiled circuit in the cache
 			// we do this here in case our fuzzWitness method mutates some references in the circuit
 			// (like []frontend.Variable) before cleaning up
-			_, err := assert.compile(circuit, curve, b)
+			_, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			assert.NoError(err)
 			valid := 0
 			// "fuzz" with zeros
@@ -350,20 +350,21 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID) (frontend.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (frontend.CompiledConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it
 	if ccs, ok := assert.compiled[key]; ok {
+		// TODO we may want to check that it was compiled with the same compile options here
 		return ccs, nil
 	}
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit)
+	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit)
+	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}

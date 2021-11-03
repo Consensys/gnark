@@ -79,7 +79,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
+	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -145,7 +145,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	var inclusionProofCircuit circuitInclusionProof
 
-	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
+	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -202,7 +202,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	var updateAccountCircuit circuitUpdateAccount
 
-	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
+	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -246,6 +246,7 @@ func TestCircuitFull(t *testing.T) {
 
 	var rollupCircuit Circuit
 
-	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254))
+	// TODO full circuit has some unconstrained inputs, that's odd.
+	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }

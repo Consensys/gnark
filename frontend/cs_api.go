@@ -441,13 +441,14 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 	// ensures that b is boolean
 	cs.AssertIsBoolean(b)
 
-	if b.isConstant() {
-		c := b.constantValue(cs)
-		if c.Uint64() == 0 {
-			return vars[2]
-		}
-		return vars[1]
-	}
+	// this doesn't work.
+	// if b.isConstant() {
+	// 	c := b.constantValue(cs)
+	// 	if c.Uint64() == 0 {
+	// 		return vars[2]
+	// 	}
+	// 	return vars[1]
+	// }
 
 	if vars[1].isConstant() && vars[2].isConstant() {
 		n1 := vars[1].constantValue(cs)

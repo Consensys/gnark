@@ -137,7 +137,7 @@ func TestTraceNotEqual(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not boolean
 type notBooleanTrace struct {
-	A, B, C frontend.Variable
+	B, C frontend.Variable
 }
 
 func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
@@ -150,7 +150,7 @@ func TestTraceNotBoolean(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notBooleanTrace
-	witness.A.Assign(1)
+	// witness.A.Assign(1)
 	witness.B.Assign(24)
 	witness.C.Assign(42)
 

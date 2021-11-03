@@ -81,11 +81,10 @@ jobs:
     - name: Test
       run: |
         go test -v -timeout=30m ./...
-        go test -v -timeout=30m -tags=noadx -short
     - name: Test (race)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        go test -v -timeout=30m -race -short ./...
+        go test -v -timeout=50m -race -short ./...
     # - name: Test (32bits)
     #   if: matrix.os == 'ubuntu-latest'
     #   run: |

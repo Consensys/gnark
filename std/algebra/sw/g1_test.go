@@ -231,19 +231,14 @@ func TestScalarMulG1(t *testing.T) {
 	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
-	// random scalar
-	var r fr.Element
-	r.SetRandom()
-
 	// create the cs
 	var circuit, witness g1ScalarMul
-	circuit.r = r
-
+	circuit.r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, circuit.r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -269,13 +264,13 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul
 	// this is q - 1
 	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
-	// b.Run("groth16", func(b *testing.B) {
-	// 	for i := 0; i < b.N; i++ {
-	// 		ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	// 	}
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
 
-	// })
-	// b.Log("groth16", ccsBench.GetNbConstraints())
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {

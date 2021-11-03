@@ -43,10 +43,10 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 			panic(fmt.Sprintf("reading byte from reader errored: %v", err))
 		}
 		if b&0b00000001 == 1 {
-			cs.newPublicVariable()
+			cs.newPublicVariable("x")
 		}
 		if b&0b00000010 == 0b00000010 {
-			cs.newSecretVariable()
+			cs.newSecretVariable("y")
 		}
 		if b&0b00000100 == 0b00000100 {
 			// multiplication
@@ -133,18 +133,18 @@ compile:
 
 func (cs *constraintSystem) shuffleVariables(seed int64, withConstant bool) []interface{} {
 	var v []interface{}
-	n := len(cs.public.variables) + len(cs.secret.variables) + len(cs.internal.variables)
+	n := len(cs.public.variables.variables) + len(cs.secret.variables.variables) + len(cs.internal.variables)
 	if withConstant {
 		v = make([]interface{}, 0, n*2+4*3)
 	} else {
 		v = make([]interface{}, 0, n)
 	}
 
-	for i := 0; i < len(cs.public.variables); i++ {
-		v = append(v, cs.public.variables[i])
+	for i := 0; i < len(cs.public.variables.variables); i++ {
+		v = append(v, cs.public.variables.variables[i])
 	}
-	for i := 0; i < len(cs.secret.variables); i++ {
-		v = append(v, cs.secret.variables[i])
+	for i := 0; i < len(cs.secret.variables.variables); i++ {
+		v = append(v, cs.secret.variables.variables[i])
 	}
 	for i := 0; i < len(cs.internal.variables); i++ {
 		v = append(v, cs.internal.variables[i])
