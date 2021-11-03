@@ -16,6 +16,8 @@ limitations under the License.
 
 package frontend
 
+import "github.com/consensys/gnark/backend/hint"
+
 // API represents the available functions to circuit developers
 type API interface {
 	// ---------------------------------------------------------------------------------------------
@@ -97,4 +99,14 @@ type API interface {
 
 	// Constant returns a frontend.Variable representing a known value at compile time
 	Constant(input interface{}) Variable
+
+	// NewHint initialize a variable whose value will be evaluated using the provided hint function at run time
+	//
+	// hint function is provided at proof creation time and must match the hintID
+	// inputs must be either variables or convertible to big int
+	// /!\ warning /!\
+	// this doesn't add any constraint to the newly created wire
+	// from the backend point of view, it's equivalent to a user-supplied witness
+	// except, the solver is going to assign it a value, not the caller
+	NewHint(f hint.Function, inputs ...interface{}) Variable
 }

@@ -2,6 +2,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,6 +10,7 @@ import (
 type TestCircuit struct {
 	Circuit                          frontend.Circuit
 	ValidWitnesses, InvalidWitnesses []frontend.Circuit // good and bad witness for the prover + public verifier data
+	HintFunctions                    []hint.Function
 }
 
 // Circuits are used for test purposes (backend.Groth16 and gnark/integration_test.go)
@@ -22,10 +24,10 @@ func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit) {
 		panic("name " + name + "already taken by another test circuit ")
 	}
 
-	Circuits[name] = TestCircuit{circuit, []frontend.Circuit{proverGood}, []frontend.Circuit{proverBad}}
+	Circuits[name] = TestCircuit{circuit, []frontend.Circuit{proverGood}, []frontend.Circuit{proverBad}, nil}
 }
 
-func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []frontend.Circuit) {
+func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []frontend.Circuit, hintFunctions ...hint.Function) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
 	}
@@ -33,5 +35,5 @@ func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []
 		panic("name " + name + "already taken by another test circuit ")
 	}
 
-	Circuits[name] = TestCircuit{circuit, proverGood, proverBad}
+	Circuits[name] = TestCircuit{circuit, proverGood, proverBad, hintFunctions}
 }

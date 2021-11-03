@@ -88,7 +88,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				checkError(err)
 
 				// ensure prove / verify works well with valid witnesses
-				proof, err := groth16.Prove(ccs, pk, validWitness)
+				proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
 				checkError(err)
 
 				err = groth16.Verify(proof, vk, validWitness)
@@ -101,7 +101,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					_, err = witness.WriteFullTo(&buf, curve, validWitness)
 					checkError(err)
 
-					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
+					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
 					checkError(err)
 
 					buf.Reset()
@@ -120,7 +120,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				pk, vk, err := plonk.Setup(ccs, srs)
 				checkError(err)
 
-				correctProof, err := plonk.Prove(ccs, pk, validWitness)
+				correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 				checkError(err)
 
 				err = plonk.Verify(correctProof, vk, validWitness)
@@ -133,7 +133,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					_, err := witness.WriteFullTo(&buf, curve, validWitness)
 					checkError(err)
 
-					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
+					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
 					checkError(err)
 
 					buf.Reset()
@@ -166,6 +166,8 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
+	popts := append(opt.proverOpts, backend.IgnoreSolverError)
+
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
 
@@ -188,7 +190,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				err = groth16.IsSolved(ccs, invalidWitness)
 				mustError(err)
 
-				proof, _ := groth16.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
+				proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
 				err = groth16.Verify(proof, vk, invalidWitness)
 				mustError(err)
@@ -203,7 +205,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				err = plonk.IsSolved(ccs, invalidWitness)
 				mustError(err)
 
-				incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
+				incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
 				err = plonk.Verify(incorrectProof, vk, invalidWitness)
 				mustError(err)
 
