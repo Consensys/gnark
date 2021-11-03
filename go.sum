@@ -10,6 +10,8 @@ github.com/consensys/gnark-crypto v0.5.3-0.20211028185609-f6e368b138ae h1:NpvESZ
 github.com/consensys/gnark-crypto v0.5.3-0.20211028185609-f6e368b138ae/go.mod h1:hOdPlWQV1gDLp7faZVeg8Y0iEPFaOUnCc4XeCCk96p0=
 github.com/consensys/gnark-crypto v0.5.3-0.20211029065312-13f1880ac997 h1:UDL2RdFvkzhLoK9Qy1cIsifiBrR2E7p3UdEaJS71Mmg=
 github.com/consensys/gnark-crypto v0.5.3-0.20211029065312-13f1880ac997/go.mod h1:hOdPlWQV1gDLp7faZVeg8Y0iEPFaOUnCc4XeCCk96p0=
+github.com/consensys/gnark-crypto v0.5.3 h1:4xLFGZR3NWEH2zy+YzvzHicpToQR8FXFbfLNvpGB+rE=
+github.com/consensys/gnark-crypto v0.5.3/go.mod h1:hOdPlWQV1gDLp7faZVeg8Y0iEPFaOUnCc4XeCCk96p0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
