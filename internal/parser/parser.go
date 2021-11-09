@@ -49,11 +49,6 @@ type LeafHandler func(visibility compiled.Visibility, name string, tValue reflec
 
 // Visit using reflect, browse through exposed addressable fields from input, and calls handler() if leaf.type == target
 func Visit(input interface{}, baseName string, parentVisibility compiled.Visibility, handler LeafHandler, target reflect.Type) error {
-
-	// types we are lOoutputoking for
-	// tVariable := reflect.TypeOf(frontend.Variable{})
-	// tConstraintSytem := reflect.TypeOf(frontend.ConstraintSystem{})
-
 	tValue := reflect.ValueOf(input)
 	if tValue.Kind() == reflect.Ptr {
 		tValue = tValue.Elem()
@@ -111,11 +106,17 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 						return err
 					}
 				} else {
+					// we have a field in the struct that we can't address
+
 					if f.Kind() == reflect.Ptr {
-						f = f.Elem()
+						// since it was not addressable / interfaceable, it's an unexported field
+						continue
 					}
-					if (f.Kind() == reflect.Struct) && (f.Type() == target) {
-						fmt.Println("warning: Variable is unexported or unadressable", fullName)
+
+					// we have to determine if it's un-exported, or if it's simply a value that's not addressable
+					// TODO @gbotrel once go1.18 is out, use new reflect APIs introduced in go1.17 (since we support 2 latest versions of Go)
+					if f.Kind() == reflect.Struct {
+						fmt.Printf("%s: ignoring unexported or unadressable struct field\n", fullName)
 					}
 				}
 			}
