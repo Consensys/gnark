@@ -19,7 +19,6 @@ package frontend
 import (
 	"fmt"
 	"math/big"
-	"runtime/debug"
 
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -52,7 +51,7 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 	if v.isConstant() {
 		c := v.constantValue(cs)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
-			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)\n%s", c.String(), string(debug.Stack())))
+			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 	}
 

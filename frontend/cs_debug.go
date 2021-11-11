@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
@@ -111,7 +112,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 }
 
 func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
-	var debug compiled.LogEntry
+	var l compiled.LogEntry
 
 	const minLogSize = 500
 	var sbb strings.Builder
@@ -126,7 +127,7 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 			if len(v.linExp) > 1 {
 				sbb.WriteString("(")
 			}
-			debug.WriteLinearExpression(v.linExp, &sbb)
+			l.WriteLinearExpression(v.linExp, &sbb)
 			if len(v.linExp) > 1 {
 				sbb.WriteString(")")
 			}
@@ -136,15 +137,15 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 		case int:
 			sbb.WriteString(strconv.Itoa(v))
 		case compiled.Term:
-			debug.WriteTerm(v, &sbb)
+			l.WriteTerm(v, &sbb)
 		default:
 			panic("unsupported log type")
 		}
 	}
 	sbb.WriteByte('\n')
 	debug.WriteStack(&sbb)
-	debug.Format = sbb.String()
+	l.Format = sbb.String()
 
-	cs.debugInfo = append(cs.debugInfo, debug)
+	cs.debugInfo = append(cs.debugInfo, l)
 	return len(cs.debugInfo) - 1
 }

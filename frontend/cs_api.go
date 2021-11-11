@@ -17,9 +17,7 @@ limitations under the License.
 package frontend
 
 import (
-	"fmt"
 	"math/big"
-	"runtime/debug"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -152,8 +150,7 @@ func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
 	if vars[0].isConstant() {
 		c := vars[0].constantValue(cs)
 		if c.IsUint64() && c.Uint64() == 0 {
-			stack := string(debug.Stack())
-			panic(fmt.Sprintf("inverse by constant(0):\n%s", stack))
+			panic("inverse by constant(0)")
 		}
 
 		c.ModInverse(c, cs.curveID.Info().Fr.Modulus())
@@ -189,8 +186,7 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	// v2 is constant
 	b2 := v2.constantValue(cs)
 	if b2.IsUint64() && b2.Uint64() == 0 {
-		stack := string(debug.Stack())
-		panic(fmt.Sprintf("div by constant(0):\n%s", stack))
+		panic("div by constant(0)")
 	}
 	q := cs.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
@@ -221,8 +217,7 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 	// v2 is constant
 	b2 := v2.constantValue(cs)
 	if b2.IsUint64() && b2.Uint64() == 0 {
-		stack := string(debug.Stack())
-		panic(fmt.Sprintf("div by constant(0):\n%s", stack))
+		panic("div by constant(0)")
 	}
 	q := cs.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
