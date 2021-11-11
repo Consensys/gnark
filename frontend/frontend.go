@@ -128,7 +128,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	// recover from panics to print user-friendlier messages
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v\n%s\n", r, debug.Stack())
+			err = fmt.Errorf("%v\n%s", r, debug.Stack())
 		}
 	}()
 
