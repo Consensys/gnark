@@ -102,6 +102,13 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 				f := tValue.FieldByName(field.Name)
 				if f.CanAddr() && f.Addr().CanInterface() {
 					value := f.Addr().Interface()
+
+					// Handle the case where "f" is already an interface
+					// object. Then, we need to dereference.
+					if f.Kind() == reflect.Interface {
+						value = f.Interface()
+					}
+
 					if err := Visit(value, fullName, visibility, handler, target); err != nil {
 						return err
 					}
