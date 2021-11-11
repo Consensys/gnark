@@ -21,9 +21,10 @@ import (
 	"math/big"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"strings"
+
+	"github.com/consensys/gnark/debug"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -51,7 +52,6 @@ type engine struct {
 //
 // This is an experimental feature.
 func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...func(opt *backend.ProverOption) error) (err error) {
-
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
 	if err != nil {

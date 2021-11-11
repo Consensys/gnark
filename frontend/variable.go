@@ -14,9 +14,12 @@ limitations under the License.
 package frontend
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/consensys/gnark/debug"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -27,6 +30,9 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
+
+// errNoValue triggered when trying to access a variable that was not allocated
+var errNoValue = errors.New("can't determine API input value")
 
 // Variable of a circuit
 // represents a Variable to a circuit, plus the  linear combination leading to it.
@@ -46,16 +52,12 @@ type Variable struct {
 // since a was not in the circuit struct it is not a secret variable
 func (v *Variable) assertIsSet(cs *constraintSystem) {
 	if v.WitnessValue != nil {
-		var l compiled.LogEntry
-		var sbb strings.Builder
-		l.WriteStack(&sbb)
-		panic(fmt.Errorf("variable.WitnessValue is set. this is illegal in Define.\n%s", sbb.String()))
+		// note the compile already checks that, but, if inside a Define, a user mistakingly writes
+		// a.Assign(...) then this will detect it
+		panic("variable.WitnessValue is set. this is illegal in Define")
 	}
 	if len(v.linExp) == 0 {
-		var l compiled.LogEntry
-		var sbb strings.Builder
-		l.WriteStack(&sbb)
-		panic(fmt.Errorf("%w\n%s", errInputNotSet, sbb.String()))
+		panic(errNoValue)
 	}
 
 }
@@ -84,10 +86,9 @@ func (v *Variable) constantValue(cs *constraintSystem) *big.Int {
 // if it is not set this panics
 func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 	if v.WitnessValue == nil {
-		var l compiled.LogEntry
 		var sbb strings.Builder
-		l.WriteStack(&sbb)
-		panic(fmt.Errorf("%w\n%s", errInputNotSet, sbb.String()))
+		debug.WriteStack(&sbb)
+		panic(fmt.Errorf("%w\n%s", errNoValue, sbb.String()))
 	}
 
 	b := FromInterface(v.WitnessValue)

@@ -22,14 +22,13 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/consensys/gnark/debug"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
-
-// errInputNotSet triggered when trying to access a variable that was not allocated
-var errInputNotSet = errors.New("variable is not allocated")
 
 // Compile will generate a CompiledConstraintSystem from the given circuit
 //
@@ -91,14 +90,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
 func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
-	// recover from panics to print user-friendlier messages
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-			// TODO @gbotrel with debug buiild tag
-			// fmt.Println(string(debug.Stack()))
-		}
-	}()
+
 	// instantiate our constraint system
 	cs = newConstraintSystem(curveID, initialCapacity...)
 
@@ -132,6 +124,13 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	if err := parser.Visit(circuit, "", compiled.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
 		return cs, err
 	}
+
+	// recover from panics to print user-friendlier messages
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v\n%s\n", r, debug.Stack())
+		}
+	}()
 
 	// call Define() to fill in the Constraints
 	if err := circuit.Define(curveID, &cs); err != nil {

@@ -1,8 +1,6 @@
 package compiled
 
 import (
-	"runtime"
-	"strconv"
 	"strings"
 )
 
@@ -44,45 +42,4 @@ func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	}
 
 	l.ToResolve = append(l.ToResolve, t)
-}
-
-func (l *LogEntry) WriteStack(sbb *strings.Builder) {
-	// TODO @gbotrel should be a package level function somewhere (internal), not a method on log.
-	// derived from: https://golang.org/pkg/runtime/#example_Frames
-	// we stop when func name == Define as it is where the gnark circuit code should start
-
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(3, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-		if strings.Contains(function, "frontend.(*ConstraintSystem)") {
-			continue
-		}
-
-		sbb.WriteString(function)
-		sbb.WriteByte('\n')
-		sbb.WriteByte('\t')
-		sbb.WriteString(frame.File)
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(frame.Line))
-		sbb.WriteByte('\n')
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
 }
