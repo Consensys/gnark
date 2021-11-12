@@ -17,6 +17,9 @@ func (circuit *hintCircuit) Define(curveID ecc.ID, api frontend.API) error {
 
 	api.AssertIsEqual(a7, _a7)
 	api.AssertIsEqual(a7, circuit.B)
+	c := api.NewHint(make3)
+	c = api.Mul(c, c)
+	api.AssertIsEqual(c, 9)
 	return nil
 }
 
@@ -36,10 +39,15 @@ func init() {
 		},
 	}
 
-	addNewEntry("hint", &hintCircuit{}, good, bad, mulBy7)
+	addNewEntry("hint", &hintCircuit{}, good, bad, mulBy7, make3)
 }
 
 func mulBy7(curveID ecc.ID, inputs []*big.Int, result *big.Int) error {
 	result.Mul(inputs[0], big.NewInt(7)).Mod(result, curveID.Info().Fr.Modulus())
+	return nil
+}
+
+func make3(curveID ecc.ID, inputs []*big.Int, result *big.Int) error {
+	result.SetUint64(3)
 	return nil
 }
