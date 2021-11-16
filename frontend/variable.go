@@ -15,20 +15,9 @@ package frontend
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
-	"strings"
 
-	"github.com/consensys/gnark/debug"
-
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/backend/compiled"
-
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // errNoValue triggered when trying to access a variable that was not allocated
@@ -75,43 +64,4 @@ func (v *variable) constantValue(cs *constraintSystem) *big.Int {
 		panic("can't get constantCoeffID on a non-constant variable")
 	}
 	return new(big.Int).Set(&cs.coeffs[v.linExp[0].CoeffID()])
-}
-
-// GetWitnessValue returns the assigned value to the variable
-// the value is converted to a field element (mod curveID base field modulus)
-// then converted to a big.Int
-// if it is not set this panics
-func GetWitnessValue(v Variable, curveID ecc.ID) big.Int {
-	if v == nil {
-		var sbb strings.Builder
-		debug.WriteStack(&sbb)
-		panic(fmt.Errorf("%w\n%s", errNoValue, sbb.String()))
-	}
-
-	b := FromInterface(v)
-	switch curveID {
-	case ecc.BLS12_377:
-		var e fr_bls12377.Element
-		e.SetBigInt(&b)
-		e.ToBigIntRegular(&b)
-	case ecc.BLS12_381:
-		var e fr_bls12381.Element
-		e.SetBigInt(&b)
-		e.ToBigIntRegular(&b)
-	case ecc.BN254:
-		var e fr_bn254.Element
-		e.SetBigInt(&b)
-		e.ToBigIntRegular(&b)
-	case ecc.BLS24_315:
-		var e fr_bls24315.Element
-		e.SetBigInt(&b)
-		e.ToBigIntRegular(&b)
-	case ecc.BW6_761:
-		var e fr_bw6761.Element
-		e.SetBigInt(&b)
-		e.ToBigIntRegular(&b)
-	default:
-		panic("curve not implemented")
-	}
-	return b
 }

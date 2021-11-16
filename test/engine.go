@@ -31,6 +31,12 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // engine implements frontend.API
@@ -335,7 +341,7 @@ func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variab
 
 func (e *engine) toBigInt(i1 interface{}) big.Int {
 	if v1, ok := i1.(frontend.Variable); ok {
-		return frontend.GetWitnessValue(v1, e.curveID)
+		return witnessValue(v1, e.curveID)
 	}
 	return frontend.FromInterface(i1)
 }
@@ -353,4 +359,38 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 
 func (e *engine) modulus() *big.Int {
 	return e.curveID.Info().Fr.Modulus()
+}
+
+// witnessValue returns the assigned value to the variable
+// the value is converted to a field element (mod curveID base field modulus)
+// then converted to a big.Int
+// if it is not set this panics
+func witnessValue(v frontend.Variable, curveID ecc.ID) big.Int {
+
+	b := frontend.FromInterface(v)
+	switch curveID {
+	case ecc.BLS12_377:
+		var e fr_bls12377.Element
+		e.SetBigInt(&b)
+		e.ToBigIntRegular(&b)
+	case ecc.BLS12_381:
+		var e fr_bls12381.Element
+		e.SetBigInt(&b)
+		e.ToBigIntRegular(&b)
+	case ecc.BN254:
+		var e fr_bn254.Element
+		e.SetBigInt(&b)
+		e.ToBigIntRegular(&b)
+	case ecc.BLS24_315:
+		var e fr_bls24315.Element
+		e.SetBigInt(&b)
+		e.ToBigIntRegular(&b)
+	case ecc.BW6_761:
+		var e fr_bw6761.Element
+		e.SetBigInt(&b)
+		e.ToBigIntRegular(&b)
+	default:
+		panic("curve not implemented")
+	}
+	return b
 }
