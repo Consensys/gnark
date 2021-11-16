@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 )
@@ -228,18 +227,11 @@ func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Af
 
 }
 
-func bls12377FpTobw6761fr(a *fp.Element) (r fr.Element) {
-	for i, v := range a {
-		r[i] = v
-	}
-	return
-}
-
 // Assign a value to self (witness assignment)
 func (p *G1Jac) Assign(p1 *bls12377.G1Jac) {
-	p.X = (bls12377FpTobw6761fr(&p1.X))
-	p.Y = (bls12377FpTobw6761fr(&p1.Y))
-	p.Z = (bls12377FpTobw6761fr(&p1.Z))
+	p.X = (fr.Element)(p1.X)
+	p.Y = (fr.Element)(p1.Y)
+	p.Z = (fr.Element)(p1.Z)
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
@@ -251,8 +243,8 @@ func (p *G1Jac) MustBeEqual(api frontend.API, other G1Jac) {
 
 // Assign a value to self (witness assignment)
 func (p *G1Affine) Assign(p1 *bls12377.G1Affine) {
-	p.X = (bls12377FpTobw6761fr(&p1.X))
-	p.Y = (bls12377FpTobw6761fr(&p1.Y))
+	p.X = (fr.Element)(p1.X)
+	p.Y = (fr.Element)(p1.Y)
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
