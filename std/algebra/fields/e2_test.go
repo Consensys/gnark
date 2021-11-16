@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -140,7 +141,7 @@ func TestMulByFpFp2(t *testing.T) {
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
-	witness.B = (bls12377FpTobw6761fr(&b))
+	witness.B = (fr.Element)(b)
 
 	witness.C.Assign(&c)
 
