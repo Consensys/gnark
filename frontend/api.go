@@ -109,4 +109,11 @@ type API interface {
 	// from the backend point of view, it's equivalent to a user-supplied witness
 	// except, the solver is going to assign it a value, not the caller
 	NewHint(f hint.Function, inputs ...interface{}) Variable
+
+	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
+	// measure constraints, variables and coefficients creations through AddCounter
+	Tag(name string) Tag
+
+	// AddCounter measures the number of constraints, variables and coefficients created between two tags
+	AddCounter(from, to Tag)
 }

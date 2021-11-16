@@ -60,6 +60,8 @@ type constraintSystem struct {
 
 	mDebug map[int]int // maps constraint ID to debugInfo id
 
+	counters []Counter // statistic counters
+
 	curveID ecc.ID
 }
 
@@ -118,6 +120,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 		mDebug:            make(map[int]int),
 		mHints:            make(map[int]compiled.Hint),
 		mHintsConstrained: make(map[int]bool),
+		counters:          make([]Counter, 0),
 	}
 
 	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)

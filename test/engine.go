@@ -338,6 +338,15 @@ func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variab
 	return frontend.Value(result)
 }
 
+func (e *engine) Tag(name string) frontend.Tag {
+	// do nothing, we don't measure constraints with the test engine
+	return frontend.Tag{Name: name}
+}
+
+func (e *engine) AddCounter(from, to frontend.Tag) {
+	// do nothing, we don't measure constraints with the test engine
+}
+
 func (e *engine) toBigInt(i1 interface{}) big.Int {
 	if v1, ok := i1.(frontend.Variable); ok {
 		return v1.GetWitnessValue(e.curveID)

@@ -149,3 +149,25 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 	cs.debugInfo = append(cs.debugInfo, l)
 	return len(cs.debugInfo) - 1
 }
+
+// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
+// measure constraints, variables and coefficients creations through AddCounter
+func (cs *constraintSystem) Tag(name string) Tag {
+	_, file, line, _ := runtime.Caller(1)
+
+	return Tag{
+		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
+		vID:  len(cs.internal.variables),
+		cID:  len(cs.constraints),
+	}
+}
+
+// AddCounter measures the number of constraints, variables and coefficients created between two tags
+func (cs *constraintSystem) AddCounter(from, to Tag) {
+	cs.counters = append(cs.counters, Counter{
+		From:          from,
+		To:            to,
+		NbVariables:   to.vID - from.vID,
+		NbConstraints: to.cID - from.cID,
+	})
+}

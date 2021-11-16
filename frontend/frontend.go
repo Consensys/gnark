@@ -75,10 +75,22 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	case backend.GROTH16:
 		ccs, err = cs.toR1CS(curveID)
 	case backend.PLONK:
+		// TODO update cs.counters
 		ccs, err = cs.toSparseR1CS(curveID)
 	default:
 		panic("not implemented")
 	}
+
+	// print counters
+	// TODO we need a way to access these through APIs, printing is not great.
+	if opt.displayCounters && len(cs.counters) > 0 {
+		fmt.Printf("counters [%s - %s]:\n", zkpID, curveID)
+		for _, c := range cs.counters {
+			fmt.Printf("\t%s\n", c)
+		}
+		fmt.Println()
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +165,7 @@ func Value(value interface{}) Variable {
 type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
+	displayCounters           bool
 }
 
 // WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
@@ -166,5 +179,12 @@ func WithCapacity(capacity int) func(opt *CompileOption) error {
 // IgnoreUnconstrainedInputs when set, the Compile function doesn't check for unconstrained inputs
 func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	opt.ignoreUnconstrainedInputs = true
+	return nil
+}
+
+// DisplayCounters when set, the Compile function will display counters added through api.AddCounter
+// after the post-compile phase ran
+func DisplayCounters(opt *CompileOption) error {
+	opt.displayCounters = true
 	return nil
 }
