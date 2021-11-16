@@ -66,68 +66,27 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 	}
 
 	res.SetOne(api)
+
 	var l LineEvaluation
+	var Qacc G2Affine
+	Qacc = Q
 
-	var QCur, QNext G2Affine
-	QCur = Q
-
-	fsquareStep := func() {
-		QNext, l = DoubleStep(api, &QCur, pairingInfo.Extension)
-		QNext.Neg(api, &QNext)
-		l.R0.MulByFp(api, l.R0, P.X)
-		l.R1.MulByFp(api, l.R1, P.Y)
-		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
-		QCur.Neg(api, &QNext)
-	}
-
-	squareStep := func() {
+	for i := len(ateLoopBin) - 2; i >= 0; i-- {
 		res.Square(api, *res, pairingInfo.Extension)
-		QNext, l = DoubleStep(api, &QCur, pairingInfo.Extension)
-		QNext.Neg(api, &QNext)
+		Qacc, l = DoubleStep(api, &Qacc, pairingInfo.Extension)
 		l.R0.MulByFp(api, l.R0, P.X)
 		l.R1.MulByFp(api, l.R1, P.Y)
 		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
-		QCur.Neg(api, &QNext)
-	}
 
-	mulStep := func() {
-		QNext.Neg(api, &QNext)
-		QNext, l = AddStep(api, &QNext, &Q, pairingInfo.Extension)
-		l.R0.MulByFp(api, l.R0, P.X)
-		l.R1.MulByFp(api, l.R1, P.Y)
-		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
-		QCur = QNext
-	}
-
-	nSquare := func(n int) {
-		for i := 0; i < n; i++ {
-			squareStep()
+		if ateLoopBin[i] == 0 {
+			continue
 		}
+
+		Qacc, l = AddStep(api, &Qacc, &Q, pairingInfo.Extension)
+		l.R0.MulByFp(api, l.R0, P.X)
+		l.R1.MulByFp(api, l.R1, P.Y)
+		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
 	}
-
-	var ml33 mlStep
-	fsquareStep()
-	nSquare(4)
-	mulStep()
-	ml33.f = *res
-	ml33.q = QCur
-	nSquare(7)
-
-	res.Mul(api, *res, ml33.f, pairingInfo.Extension)
-	l = computeLineCoef(api, QCur, ml33.q, pairingInfo.Extension)
-	l.R0.MulByFp(api, l.R0, P.X)
-	l.R1.MulByFp(api, l.R1, P.Y)
-	res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
-	QCur.AddAssign(api, &ml33.q, pairingInfo.Extension)
-
-	nSquare(4)
-	mulStep()
-	squareStep()
-	mulStep()
-
-	// remaining 46 bits
-	nSquare(46)
-	mulStep()
 
 	return res
 }
