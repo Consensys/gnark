@@ -67,25 +67,28 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 
 	res.SetOne(api)
 
-	var l LineEvaluation
+	var l1, l2 LineEvaluation
 	var Qacc G2Affine
+	var lacc fields.E12
+	lacc.SetOne(api)
 	Qacc = Q
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
 		res.Square(api, *res, pairingInfo.Extension)
-		Qacc, l = DoubleStep(api, &Qacc, pairingInfo.Extension)
-		l.R0.MulByFp(api, l.R0, P.X)
-		l.R1.MulByFp(api, l.R1, P.Y)
-		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
+		Qacc, l1 = DoubleStep(api, &Qacc, pairingInfo.Extension)
+		l1.R0.MulByFp(api, l1.R0, P.X)
+		l1.R1.MulByFp(api, l1.R1, P.Y)
 
 		if ateLoopBin[i] == 0 {
+			res.MulBy034(api, l1.R1, l1.R0, l1.R2, pairingInfo.Extension)
 			continue
 		}
 
-		Qacc, l = AddStep(api, &Qacc, &Q, pairingInfo.Extension)
-		l.R0.MulByFp(api, l.R0, P.X)
-		l.R1.MulByFp(api, l.R1, P.Y)
-		res.MulBy034(api, l.R1, l.R0, l.R2, pairingInfo.Extension)
+		Qacc, l2 = AddStep(api, &Qacc, &Q, pairingInfo.Extension)
+		l2.R0.MulByFp(api, l2.R0, P.X)
+		l2.R1.MulByFp(api, l2.R1, P.Y)
+		lacc.Mul034by034(api, l1.R1, l1.R0, l1.R2, l2.R1, l2.R0, l2.R2, pairingInfo.Extension)
+		res.Mul(api, *res, lacc, pairingInfo.Extension)
 	}
 
 	return res
