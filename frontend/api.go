@@ -97,9 +97,6 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...interface{})
 
-	// Constant returns a frontend.Variable representing a known value at compile time
-	Constant(input interface{}) Variable
-
 	// NewHint initialize a Variable whose value will be evaluated using the provided hint function at run time
 	//
 	// hint function is provided at proof creation time and must match the hintID

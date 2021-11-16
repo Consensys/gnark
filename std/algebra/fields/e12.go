@@ -64,12 +64,12 @@ func GetBLS377ExtensionFp12(api frontend.API) Extension {
 
 	res.uSquare = -5
 
-	res.vCube = E2{A0: api.Constant(0), A1: api.Constant(1)}
+	res.vCube = E2{A0: 0, A1: 1}
 
 	res.wSquare = E6{
-		B0: E2{api.Constant(0), api.Constant(0)},
-		B1: E2{api.Constant(1), api.Constant(0)},
-		B2: E2{api.Constant(0), api.Constant(0)},
+		B0: E2{0, 0},
+		B1: E2{1, 0},
+		B2: E2{0, 0},
 	}
 
 	res.frobv = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
@@ -95,18 +95,18 @@ func GetBLS377ExtensionFp12(api frontend.API) Extension {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E12) SetOne(api frontend.API) *E12 {
-	e.C0.B0.A0 = api.Constant(1)
-	e.C0.B0.A1 = api.Constant(0)
-	e.C0.B1.A0 = api.Constant(0)
-	e.C0.B1.A1 = api.Constant(0)
-	e.C0.B2.A0 = api.Constant(0)
-	e.C0.B2.A1 = api.Constant(0)
-	e.C1.B0.A0 = api.Constant(0)
-	e.C1.B0.A1 = api.Constant(0)
-	e.C1.B1.A0 = api.Constant(0)
-	e.C1.B1.A1 = api.Constant(0)
-	e.C1.B2.A0 = api.Constant(0)
-	e.C1.B2.A1 = api.Constant(0)
+	e.C0.B0.A0 = 1
+	e.C0.B0.A1 = 0
+	e.C0.B1.A0 = 0
+	e.C0.B1.A1 = 0
+	e.C0.B2.A0 = 0
+	e.C0.B2.A1 = 0
+	e.C1.B0.A0 = 0
+	e.C1.B0.A1 = 0
+	e.C1.B1.A0 = 0
+	e.C1.B1.A1 = 0
+	e.C1.B2.A0 = 0
+	e.C1.B2.A1 = 0
 	return e
 }
 

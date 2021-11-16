@@ -50,7 +50,7 @@ func (h *MiMC) Write(data ...frontend.Variable) {
 // Reset resets the Hash to its initial state.
 func (h *MiMC) Reset() {
 	h.data = nil
-	h.h = h.api.Constant(0)
+	h.h = 0
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:

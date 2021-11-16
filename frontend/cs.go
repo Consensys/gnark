@@ -171,7 +171,7 @@ func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Vari
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		t := cs.Constant(in).(variable)
+		t := cs.constant(in).(variable)
 		hintInputs[i] = t.linExp.Clone() // TODO @gbotrel check that we need to clone here ?
 	}
 

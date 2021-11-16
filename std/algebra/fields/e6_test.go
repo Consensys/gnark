@@ -28,7 +28,7 @@ import (
 func getBLS377ExtensionFp6(api frontend.API) Extension {
 	res := Extension{}
 	res.uSquare = -5
-	res.vCube = E2{A0: api.Constant(0), A1: api.Constant(1)}
+	res.vCube = E2{A0: 0, A1: 1}
 	return res
 }
 

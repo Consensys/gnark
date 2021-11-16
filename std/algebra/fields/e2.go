@@ -29,8 +29,8 @@ type E2 struct {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E2) SetOne(api frontend.API) *E2 {
-	e.A0 = api.Constant(1)
-	e.A1 = api.Constant(0)
+	e.A0 = 1
+	e.A1 = 0
 	return e
 }
 

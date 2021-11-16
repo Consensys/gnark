@@ -174,8 +174,7 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := api.Constant(1)
-	nonceUpdated := api.Add(from.Nonce, one)
+	nonceUpdated := api.Add(from.Nonce, 1)
 	api.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// ensures that the amount is less than the balance

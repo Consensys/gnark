@@ -252,10 +252,6 @@ func (e *engine) IsZero(i1 interface{}) frontend.Variable {
 	return (0)
 }
 
-func (e *engine) Constant(input interface{}) frontend.Variable {
-	return (e.toBigInt(input))
-}
-
 func (e *engine) AssertIsEqual(i1, i2 interface{}) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) != 0 {

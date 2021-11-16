@@ -27,8 +27,8 @@ import (
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
 
-	l := cs.Constant(i1).(variable)
-	o := cs.Constant(i2).(variable)
+	l := cs.constant(i1).(variable)
+	o := cs.constant(i2).(variable)
 
 	if len(l.linExp) > len(o.linExp) {
 		l, o = o, l // maximize number of zeroes in r1cs.A
@@ -69,7 +69,7 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 
 	// ensure v * (1 - v) == 0
 	_v := cs.Sub(1, v)
-	o := cs.Constant(0)
+	o := cs.constant(0)
 	cs.addConstraint(newR1C(v, _v, o), debug)
 }
 
@@ -101,9 +101,9 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
 	boundBits := cs.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
-	p[nbBits] = cs.Constant(1)
+	p[nbBits] = cs.constant(1)
 
-	zero := cs.Constant(0)
+	zero := cs.constant(0)
 
 	for i := nbBits - 1; i >= 0; i-- {
 
@@ -146,7 +146,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 	}
 
 	// debug info
-	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.Constant(bound))
+	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.constant(bound))
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)
@@ -163,7 +163,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 
 	p := make([]Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
-	p[nbBits] = cs.Constant(1)
+	p[nbBits] = cs.constant(1)
 
 	for i := nbBits - 1; i >= t; i-- {
 		if bound.Bit(i) == 0 {
@@ -181,7 +181,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 			l = cs.Sub(l, p[i+1])
 			l = cs.Sub(l, aBits[i])
 
-			cs.addConstraint(newR1C(l, aBits[i], cs.Constant(0)), debug)
+			cs.addConstraint(newR1C(l, aBits[i], cs.constant(0)), debug)
 			cs.markBoolean(aBits[i].(variable))
 		} else {
 			cs.AssertIsBoolean(aBits[i])

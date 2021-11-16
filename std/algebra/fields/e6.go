@@ -39,9 +39,9 @@ func (e *E6) Add(api frontend.API, e1, e2 E6) *E6 {
 // NewFp6Zero creates a new
 func NewFp6Zero(api frontend.API) *E6 {
 	return &E6{
-		B0: E2{api.Constant(0), api.Constant(0)},
-		B1: E2{api.Constant(0), api.Constant(0)},
-		B2: E2{api.Constant(0), api.Constant(0)},
+		B0: E2{0, 0},
+		B1: E2{0, 0},
+		B2: E2{0, 0},
 	}
 }
 

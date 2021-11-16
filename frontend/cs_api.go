@@ -48,7 +48,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 	if vars[0].isConstant() {
 		n := vars[0].constantValue(cs)
 		n.Neg(n)
-		return cs.Constant(n)
+		return cs.constant(n)
 	}
 
 	return variable{linExp: cs.negateLinExp(vars[0].linExp)}
@@ -96,7 +96,7 @@ func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 			b2 := v2.constantValue(cs)
 
 			b1.Mul(b1, b2).Mod(b1, cs.curveID.Info().Fr.Modulus())
-			return cs.Constant(b1).(variable)
+			return cs.constant(b1).(variable)
 		}
 
 		// ensure v2 is the constant
@@ -154,7 +154,7 @@ func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
 		}
 
 		c.ModInverse(c, cs.curveID.Info().Fr.Modulus())
-		return cs.Constant(c)
+		return cs.constant(c)
 	}
 
 	// allocate resulting Variable
@@ -193,11 +193,11 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 
 	if v1.isConstant() {
 		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
-		return cs.Constant(b2)
+		return cs.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.Constant(b2).(variable))
+	return cs.mulConstant(v1, cs.constant(b2).(variable))
 }
 
 func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
@@ -224,11 +224,11 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 
 	if v1.isConstant() {
 		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
-		return cs.Constant(b2)
+		return cs.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.Constant(b2).(variable))
+	return cs.mulConstant(v1, cs.constant(b2).(variable))
 }
 
 // Xor compute the XOR between two variables
@@ -293,9 +293,9 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 	if a.isConstant() {
 		c := a.constantValue(cs)
 		if c.IsUint64() && c.Uint64() == 0 {
-			return cs.Constant(1)
+			return cs.constant(1)
 		}
-		return cs.Constant(0)
+		return cs.constant(0)
 	}
 
 	debug := cs.addDebugInfo("isZero", a)
@@ -306,7 +306,7 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 	m := cs.NewHint(hint.IsZero, a)
-	cs.addConstraint(newR1C(a, m, cs.Constant(0)), debug)
+	cs.addConstraint(newR1C(a, m, cs.constant(0)), debug)
 
 	cs.AssertIsBoolean(m)
 	ma := cs.Add(m, a)
@@ -338,7 +338,7 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 		c := a.constantValue(cs)
 		b := make([]variable, nbBits)
 		for i := 0; i < len(b); i++ {
-			b[i] = cs.Constant(c.Bit(i)).(variable)
+			b[i] = cs.constant(c.Bit(i)).(variable)
 		}
 		return toSliceOfVariables(b)
 	}
@@ -427,7 +427,7 @@ func (cs *constraintSystem) FromBinary(_b ...interface{}) Variable {
 	// res = Σ (2**i * b[i])
 
 	var res, v Variable
-	res = cs.Constant(0) // no constraint is recorded
+	res = cs.constant(0) // no constraint is recorded
 
 	var c big.Int
 	c.SetUint64(1)
@@ -477,14 +477,14 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 
 }
 
-// Constant will return (and allocate if neccesary) a Variable from given value
+// constant will return (and allocate if neccesary) a Variable from given value
 //
 // if input is already a Variable, does nothing
-// else, attempts to convert input to a big.Int (see FromInterface) and returns a Constant Variable
+// else, attempts to convert input to a big.Int (see FromInterface) and returns a constant Variable
 //
-// a Constant Variable does NOT necessary allocate a Variable in the ConstraintSystem
+// a constant Variable does NOT necessary allocate a Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (cs *constraintSystem) Constant(input interface{}) Variable {
+func (cs *constraintSystem) constant(input interface{}) Variable {
 
 	switch t := input.(type) {
 	case variable:
@@ -506,7 +506,7 @@ func (cs *constraintSystem) toVariables(in ...interface{}) ([]variable, int) {
 	r := make([]variable, 0, len(in))
 	s := 0
 	e := func(i interface{}) {
-		v := cs.Constant(i).(variable)
+		v := cs.constant(i).(variable)
 		r = append(r, v)
 		s += len(v.linExp)
 	}

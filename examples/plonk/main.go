@@ -49,7 +49,7 @@ func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
 	const bitSize = 2
 
 	// specify constraints
-	output := api.Constant(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {

@@ -11,7 +11,7 @@ type expCircuit struct {
 }
 
 func (circuit *expCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	o := cs.Constant(1)
+	o := frontend.Variable(1)
 	b := cs.ToBinary(circuit.E, 4)
 
 	var i int

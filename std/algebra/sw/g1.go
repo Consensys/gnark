@@ -198,7 +198,7 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 // TODO s is an interface, but treated as a variable (ToBinary), there is no specific path for constants
 func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Affine {
 	// scalar bits
-	scalar := api.Constant(s)
+	scalar := s
 	bits := api.ToBinary(scalar)
 
 	var base G1Affine

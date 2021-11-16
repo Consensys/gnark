@@ -109,7 +109,7 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	t.h.Reset()
 
 	// write the challenge name, the purpose is to have a domain separator
-	cChallenge := t.api.Constant([]byte(challengeID))
+	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
 	t.h.Write(cChallenge)
 
 	// write the previous challenge if it's not the first challenge
