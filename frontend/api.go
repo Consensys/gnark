@@ -115,5 +115,7 @@ type API interface {
 	Tag(name string) Tag
 
 	// AddCounter measures the number of constraints, variables and coefficients created between two tags
+	// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
+	// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
 	AddCounter(from, to Tag)
 }

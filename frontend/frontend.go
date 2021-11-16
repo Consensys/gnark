@@ -75,7 +75,6 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	case backend.GROTH16:
 		ccs, err = cs.toR1CS(curveID)
 	case backend.PLONK:
-		// TODO update cs.counters
 		ccs, err = cs.toSparseR1CS(curveID)
 	default:
 		panic("not implemented")

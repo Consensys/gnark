@@ -117,7 +117,17 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		} else {
 			res.currentR1CDebugID = -1
 		}
+		// mesure delta in what the convertion adds as new contraints and new variables
+		Δc := len(res.ccs.Constraints)
+		Δv := res.scsInternalVariables
+
 		res.r1cToSparseR1C(cs.constraints[i])
+
+		Δc = len(res.ccs.Constraints) - Δc - 1 // interested in newly added constraints only
+		Δv = res.scsInternalVariables - Δv
+
+		// shift the counters. should maybe be done only when -debug is set?
+		res.shiftCounters(cs.counters, i, Δc, Δv)
 	}
 
 	// shift variable ID
@@ -672,6 +682,20 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 	)
 
 	return r
+}
+
+func (scs *sparseR1CS) shiftCounters(counters []Counter, cID, Δc, Δv int) {
+	// what we do here is see what's our resulting current constraintID vs the processID
+	// for all counters, if the
+
+	for i := 0; i < len(counters); i++ {
+		if (counters[i].From.cID <= cID) && (counters[i].To.cID > cID) {
+			// we are processing a constraint in the range of this counter.
+			// so we should increment the counter new constraints and nw variables
+			counters[i].NbConstraints += Δc
+			counters[i].NbVariables += Δv
+		}
+	}
 }
 
 // r1cToSparseR1C splits a r1c constraint
