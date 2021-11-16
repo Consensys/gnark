@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/test"
@@ -143,6 +144,47 @@ func TestDoubleAssignG2(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// DoubleAndAdd affine
+
+type g2DoubleAndAddAffine struct {
+	A, B G2Affine
+	C    G2Affine `gnark:",public"`
+}
+
+func (circuit *g2DoubleAndAddAffine) Define(curveID ecc.ID, api frontend.API) error {
+	expected := circuit.A
+	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDoubleAndAddAffineG2(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG2()
+	_b := randomPointG2()
+	var a, b, c bls12377.G2Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g2DoubleAndAddAffine
+
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// compute the result
+	_a.Double(&_a).AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
+// -------------------------------------------------------------------------------------------------
 // Double affine
 
 type g2DoubleAffine struct {
@@ -223,4 +265,38 @@ func randomPointG2() bls12377.G2Jac {
 	r1.SetRandom()
 	p2.ScalarMultiplication(&p2, r1.ToBigIntRegular(&b))
 	return p2
+}
+
+// benches
+func BenchmarkDoubleAffineG2(b *testing.B) {
+	var c g2DoubleAffine
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkAddAssignAffineG2(b *testing.B) {
+	var c g2AddAssignAffine
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkAddAndAddAffineG2(b *testing.B) {
+	var c g2DoubleAndAddAffine
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
 }
