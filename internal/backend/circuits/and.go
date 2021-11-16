@@ -20,57 +20,57 @@ func init() {
 
 	good := []frontend.Circuit{
 		&andCircuit{
-			Op1: frontend.Value(1),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(1),
+			Op1: (1),
+			Op2: (1),
+			Res: (1),
 		},
 		&andCircuit{
-			Op1: frontend.Value(1),
-			Op2: frontend.Value(0),
-			Res: frontend.Value(0),
+			Op1: (1),
+			Op2: (0),
+			Res: (0),
 		},
 		&andCircuit{
-			Op1: frontend.Value(0),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(0),
+			Op1: (0),
+			Op2: (1),
+			Res: (0),
 		},
 		&andCircuit{
-			Op1: frontend.Value(0),
-			Op2: frontend.Value(0),
-			Res: frontend.Value(0),
+			Op1: (0),
+			Op2: (0),
+			Res: (0),
 		},
 	}
 
 	bad := []frontend.Circuit{
 		&andCircuit{
-			Op1: frontend.Value(1),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(0),
+			Op1: (1),
+			Op2: (1),
+			Res: (0),
 		},
 		&andCircuit{
-			Op1: frontend.Value(1),
-			Op2: frontend.Value(0),
-			Res: frontend.Value(1),
+			Op1: (1),
+			Op2: (0),
+			Res: (1),
 		},
 		&andCircuit{
-			Op1: frontend.Value(0),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(1),
+			Op1: (0),
+			Op2: (1),
+			Res: (1),
 		},
 		&andCircuit{
-			Op1: frontend.Value(0),
-			Op2: frontend.Value(0),
-			Res: frontend.Value(1),
+			Op1: (0),
+			Op2: (0),
+			Res: (1),
 		},
 		&andCircuit{
-			Op1: frontend.Value(42),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(1),
+			Op1: (42),
+			Op2: (1),
+			Res: (1),
 		},
 		&andCircuit{
-			Op1: frontend.Value(1),
-			Op2: frontend.Value(1),
-			Res: frontend.Value(42),
+			Op1: (1),
+			Op2: (1),
+			Res: (42),
 		},
 	}
 

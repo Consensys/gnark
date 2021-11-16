@@ -64,7 +64,7 @@ type constraintSystem struct {
 }
 
 type variables struct {
-	variables []Variable
+	variables []variable
 	booleans  map[int]struct{} // keep track of boolean variables (we constrain them once)
 }
 
@@ -73,14 +73,14 @@ type inputs struct {
 	names []string
 }
 
-func (v *inputs) new(cs *constraintSystem, visibility compiled.Visibility, name string) Variable {
+func (v *inputs) new(cs *constraintSystem, visibility compiled.Visibility, name string) variable {
 	v.names = append(v.names, name)
 	return v.variables.new(cs, visibility)
 }
 
-func (v *variables) new(cs *constraintSystem, visibility compiled.Visibility) Variable {
+func (v *variables) new(cs *constraintSystem, visibility compiled.Visibility) variable {
 	idx := len(v.variables)
-	variable := Variable{visibility: visibility, id: idx, linExp: cs.LinearExpression(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}
+	variable := variable{visibility: visibility, id: idx, linExp: cs.LinearExpression(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}
 
 	v.variables = append(v.variables, variable)
 	return variable
@@ -130,16 +130,16 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 	cs.coeffsIDsInt64[2] = compiled.CoeffIdTwo
 	cs.coeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	cs.public.variables.variables = make([]Variable, 0)
+	cs.public.variables.variables = make([]variable, 0)
 	cs.public.booleans = make(map[int]struct{})
 
-	cs.secret.variables.variables = make([]Variable, 0)
+	cs.secret.variables.variables = make([]variable, 0)
 	cs.secret.booleans = make(map[int]struct{})
 
-	cs.internal.variables = make([]Variable, 0, capacity)
+	cs.internal.variables = make([]variable, 0, capacity)
 	cs.internal.booleans = make(map[int]struct{})
 
-	cs.virtual.variables = make([]Variable, 0)
+	cs.virtual.variables = make([]variable, 0)
 	cs.virtual.booleans = make(map[int]struct{})
 
 	// by default the circuit is given on public wire equal to 1
@@ -171,7 +171,7 @@ func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Vari
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		t := cs.Constant(in)
+		t := cs.Constant(in).(variable)
 		hintInputs[i] = t.linExp.Clone() // TODO @gbotrel check that we need to clone here ?
 	}
 
@@ -186,18 +186,22 @@ func (cs *constraintSystem) bitLen() int {
 	return cs.curveID.Info().Fr.Bits
 }
 
-func (cs *constraintSystem) one() Variable {
+func (cs *constraintSystem) one() variable {
 	return cs.public.variables.variables[0]
 }
 
 // Term packs a variable and a coeff in a compiled.Term and returns it.
-func (cs *constraintSystem) makeTerm(v Variable, coeff *big.Int) compiled.Term {
+func (cs *constraintSystem) makeTerm(v variable, coeff *big.Int) compiled.Term {
 	return compiled.Pack(v.id, cs.coeffID(coeff), v.visibility)
 }
 
 // newR1C clones the linear expression associated with the variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func newR1C(l, r, o Variable) compiled.R1C {
+func newR1C(_l, _r, _o Variable) compiled.R1C {
+	l := _l.(variable)
+	r := _r.(variable)
+	o := _o.(variable)
+
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
 	// but the "l" linear expression is going to end up in the A matrix
@@ -301,31 +305,31 @@ func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *constraintSystem) newInternalVariable() Variable {
+func (cs *constraintSystem) newInternalVariable() variable {
 	return cs.internal.new(cs, compiled.Internal)
 }
 
 // newPublicVariable creates a new public variable
-func (cs *constraintSystem) newPublicVariable(name string) Variable {
+func (cs *constraintSystem) newPublicVariable(name string) variable {
 	return cs.public.new(cs, compiled.Public, name)
 }
 
 // newSecretVariable creates a new secret variable
-func (cs *constraintSystem) newSecretVariable(name string) Variable {
+func (cs *constraintSystem) newSecretVariable(name string) variable {
 	return cs.secret.new(cs, compiled.Secret, name)
 }
 
 // newVirtualVariable creates a new virtual variable
 // this will not result in a new wire in the constraint system
 // and just represents a linear expression
-func (cs *constraintSystem) newVirtualVariable() Variable {
+func (cs *constraintSystem) newVirtualVariable() variable {
 	return cs.virtual.new(cs, compiled.Virtual)
 }
 
 // markBoolean marks the variable as boolean and return true
 // if a constraint was added, false if the variable was already
 // constrained as a boolean
-func (cs *constraintSystem) markBoolean(v Variable) bool {
+func (cs *constraintSystem) markBoolean(v variable) bool {
 	switch v.visibility {
 	case compiled.Internal:
 		if _, ok := cs.internal.booleans[v.id]; ok {

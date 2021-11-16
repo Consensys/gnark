@@ -34,28 +34,25 @@ import (
 // errNoValue triggered when trying to access a variable that was not allocated
 var errNoValue = errors.New("can't determine API input value")
 
-// Variable of a circuit
-// represents a Variable to a circuit, plus the  linear combination leading to it.
+type Variable interface{}
+
+// variable of a circuit
+// represents a variable to a circuit, plus the  linear combination leading to it.
 // the linExp is always non empty, the PartialVariabl can be unset. It is set and allocated in the
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
-type Variable struct {
-	WitnessValue interface{} // witness usage only
-	visibility   compiled.Visibility
-	id           int // index of the wire in the corresponding list of wires (private, public or intermediate)
-	linExp       compiled.LinearExpression
+type variable struct {
+	visibility compiled.Visibility
+	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
+	linExp     compiled.LinearExpression
 }
 
 // assertIsSet panics if the variable is unset
 // this may happen if inside a Define we have
-// var a Variable
+// var a variable
 // cs.Mul(a, 1)
 // since a was not in the circuit struct it is not a secret variable
-func (v *Variable) assertIsSet(cs *constraintSystem) {
-	if v.WitnessValue != nil {
-		// note the compile already checks that, but, if inside a Define, a user mistakingly writes
-		// a.Assign(...) then this will detect it
-		panic("variable.WitnessValue is set. this is illegal in Define")
-	}
+func (v *variable) assertIsSet(cs *constraintSystem) {
+
 	if len(v.linExp) == 0 {
 		panic(errNoValue)
 	}
@@ -63,7 +60,7 @@ func (v *Variable) assertIsSet(cs *constraintSystem) {
 }
 
 // isConstant returns true if the variable is ONE_WIRE * coeff
-func (v *Variable) isConstant() bool {
+func (v *variable) isConstant() bool {
 	if len(v.linExp) != 1 {
 		return false
 	}
@@ -71,7 +68,7 @@ func (v *Variable) isConstant() bool {
 	return vID == 0 && visibility == compiled.Public
 }
 
-func (v *Variable) constantValue(cs *constraintSystem) *big.Int {
+func (v *variable) constantValue(cs *constraintSystem) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.isConstant() {
@@ -84,14 +81,14 @@ func (v *Variable) constantValue(cs *constraintSystem) *big.Int {
 // the value is converted to a field element (mod curveID base field modulus)
 // then converted to a big.Int
 // if it is not set this panics
-func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
-	if v.WitnessValue == nil {
+func GetWitnessValue(v Variable, curveID ecc.ID) big.Int {
+	if v == nil {
 		var sbb strings.Builder
 		debug.WriteStack(&sbb)
 		panic(fmt.Errorf("%w\n%s", errNoValue, sbb.String()))
 	}
 
-	b := FromInterface(v.WitnessValue)
+	b := FromInterface(v)
 	switch curveID {
 	case ecc.BLS12_377:
 		var e fr_bls12377.Element
@@ -117,14 +114,4 @@ func (v *Variable) GetWitnessValue(curveID ecc.ID) big.Int {
 		panic("curve not implemented")
 	}
 	return b
-}
-
-// Assign v = value . This must called when using a Circuit as a witness data structure
-//
-// Prefer the use of variable.WitnessValue = value
-func (v *Variable) Assign(value interface{}) {
-	if v.WitnessValue != nil {
-		panic("variable already assigned")
-	}
-	v.WitnessValue = value
 }

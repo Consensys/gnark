@@ -63,7 +63,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	}
 
 	var good refCircuit
-	good.X.Assign(2)
+	good.X = 2
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -73,7 +73,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 
 	return r1cs, &good
 }

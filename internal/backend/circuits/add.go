@@ -20,17 +20,17 @@ func init() {
 
 	good := []frontend.Circuit{
 		&addCircuit{
-			Op1: frontend.Value(2),
-			Op2: frontend.Value(3),
-			Res: frontend.Value(7),
+			Op1: (2),
+			Op2: (3),
+			Res: (7),
 		},
 	}
 
 	bad := []frontend.Circuit{
 		&addCircuit{
-			Op1: frontend.Value(2),
-			Op2: frontend.Value(3),
-			Res: frontend.Value(5),
+			Op1: (2),
+			Op2: (3),
+			Res: (5),
 		},
 	}
 

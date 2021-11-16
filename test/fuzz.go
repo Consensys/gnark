@@ -116,10 +116,16 @@ func fill(w frontend.Circuit, nextValue func() interface{}) {
 	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Secret || visibility == compiled.Public {
 			v := nextValue()
-			tInput.Set(reflect.ValueOf(frontend.Value(v)))
+			tInput.Set(reflect.ValueOf((v)))
 		}
 		return nil
 	}
 	// this can't error.
-	_ = parser.Visit(w, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(w, "", compiled.Unset, setHandler, tVariable)
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

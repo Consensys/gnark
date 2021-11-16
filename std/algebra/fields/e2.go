@@ -151,8 +151,8 @@ func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
 
 // Assign a value to self (witness assignment)
 func (e *E2) Assign(a *bls12377.E2) {
-	e.A0.Assign(bls12377FpTobw6761fr(&a.A0))
-	e.A1.Assign(bls12377FpTobw6761fr(&a.A1))
+	e.A0 = (bls12377FpTobw6761fr(&a.A0))
+	e.A1 = (bls12377FpTobw6761fr(&a.A1))
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system

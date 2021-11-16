@@ -23,11 +23,11 @@ func init() {
 
 	var circuit, good, bad isZero
 
-	good.X.Assign(0)
-	good.Y.Assign(203028)
+	good.X = (0)
+	good.Y = (203028)
 
-	bad.X.Assign(23)
-	bad.Y.Assign(0)
+	bad.X = (23)
+	bad.Y = (0)
 
 	addEntry("isZero", &circuit, &good, &bad)
 }

@@ -30,19 +30,19 @@ func (circuit *determinism) Define(curveID ecc.ID, cs frontend.API) error {
 func init() {
 	var circuit, good, bad determinism
 
-	good.X[0].Assign(1)
-	good.X[1].Assign(2)
-	good.X[2].Assign(3)
-	good.X[3].Assign(4)
-	good.X[4].Assign(5)
-	good.Z.Assign(900)
+	good.X[0] = (1)
+	good.X[1] = (2)
+	good.X[2] = (3)
+	good.X[3] = (4)
+	good.X[4] = (5)
+	good.Z = (900)
 
-	bad.X[0].Assign(1)
-	bad.X[1].Assign(1)
-	bad.X[2].Assign(1)
-	bad.X[3].Assign(1)
-	bad.X[4].Assign(1)
-	bad.Z.Assign(900)
+	bad.X[0] = (1)
+	bad.X[1] = (1)
+	bad.X[2] = (1)
+	bad.X[3] = (1)
+	bad.X[4] = (1)
+	bad.Z = (900)
 
 	addEntry("determinism", &circuit, &good, &bad)
 }

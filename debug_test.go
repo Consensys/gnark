@@ -39,8 +39,8 @@ func TestPrintln(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness printlnCircuit
-	witness.A.Assign(2)
-	witness.B.Assign(11)
+	witness.A = (2)
+	witness.B = (11)
 
 	var expected bytes.Buffer
 	expected.WriteString("debug_test.go:25 13 is the addition\n")
@@ -76,9 +76,9 @@ func TestTraceDivBy0(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness divBy0Trace
-	witness.A.Assign(2)
-	witness.B.Assign(-2)
-	witness.C.Assign(2)
+	witness.A = (2)
+	witness.B = (-2)
+	witness.C = (2)
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
@@ -113,9 +113,9 @@ func TestTraceNotEqual(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notEqualTrace
-	witness.A.Assign(1)
-	witness.B.Assign(24)
-	witness.C.Assign(42)
+	witness.A = (1)
+	witness.B = (24)
+	witness.C = (42)
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
@@ -150,9 +150,9 @@ func TestTraceNotBoolean(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notBooleanTrace
-	// witness.A.Assign(1)
-	witness.B.Assign(24)
-	witness.C.Assign(42)
+	// witness.A = (1)
+	witness.B = (24)
+	witness.C = (42)
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)

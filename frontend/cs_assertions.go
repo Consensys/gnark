@@ -27,8 +27,8 @@ import (
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
 
-	l := cs.Constant(i1)
-	o := cs.Constant(i2)
+	l := cs.Constant(i1).(variable)
+	o := cs.Constant(i2).(variable)
 
 	if len(l.linExp) > len(o.linExp) {
 		l, o = o, l // maximize number of zeroes in r1cs.A
@@ -75,25 +75,24 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 
 // AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
 //
-// bound can be a constant or a Variable
+// bound can be a constant or a variable
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (cs *constraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
-
-	v.assertIsSet(cs)
+func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) {
+	v, _ := cs.toVariables(_v)
 
 	switch b := bound.(type) {
-	case Variable:
+	case variable:
 		b.assertIsSet(cs)
-		cs.mustBeLessOrEqVar(v, b)
+		cs.mustBeLessOrEqVar(v[0], b)
 	default:
-		cs.mustBeLessOrEqCst(v, FromInterface(b))
+		cs.mustBeLessOrEqCst(v[0], FromInterface(b))
 	}
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqVar(a, bound Variable) {
+func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
@@ -120,21 +119,22 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound Variable) {
 		t := cs.Select(boundBits[i], zero, p[i+1])
 
 		// (1 - t - ai) * ai == 0
-		l := cs.one()
+		var l Variable
+		l = cs.one()
 		l = cs.Sub(l, t)
 		l = cs.Sub(l, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		cs.markBoolean(aBits[i]) // this does not create a constraint
+		cs.markBoolean(aBits[i].(variable)) // this does not create a constraint
 
 		cs.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
+func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
@@ -176,12 +176,13 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a Variable, bound big.Int) {
 	for i := nbBits - 1; i >= 0; i-- {
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := cs.one()
+			var l Variable
+			l = cs.one()
 			l = cs.Sub(l, p[i+1])
 			l = cs.Sub(l, aBits[i])
 
 			cs.addConstraint(newR1C(l, aBits[i], cs.Constant(0)), debug)
-			cs.markBoolean(aBits[i])
+			cs.markBoolean(aBits[i].(variable))
 		} else {
 			cs.AssertIsBoolean(aBits[i])
 		}

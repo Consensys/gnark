@@ -22,11 +22,11 @@ func (circuit *rangeCheckConstantCircuit) Define(curveID ecc.ID, cs frontend.API
 func rangeCheckConstant() {
 	var circuit, good, bad rangeCheckConstantCircuit
 
-	good.X.Assign(10)
-	good.Y.Assign(4)
+	good.X = (10)
+	good.Y = (4)
 
-	bad.X.Assign(11)
-	bad.Y.Assign(4)
+	bad.X = (11)
+	bad.Y = (4)
 
 	addEntry("range_constant", &circuit, &good, &bad)
 }
@@ -50,13 +50,13 @@ func rangeCheck() {
 
 	var circuit, good, bad rangeCheckCircuit
 
-	good.X.Assign(10)
-	good.Y.Assign(4)
-	good.Bound.Assign(161)
+	good.X = (10)
+	good.Y = (4)
+	good.Bound = (161)
 
-	bad.X.Assign(11)
-	bad.Y.Assign(4)
-	bad.Bound.Assign(161)
+	bad.X = (11)
+	bad.Y = (4)
+	bad.Bound = (161)
 
 	addEntry("range", &circuit, &good, &bad)
 }

@@ -17,7 +17,6 @@ package exponentiate
 import (
 	"testing"
 
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
 
@@ -28,15 +27,15 @@ func TestExponentiateGroth16(t *testing.T) {
 	var expCircuit Circuit
 
 	assert.ProverFailed(&expCircuit, &Circuit{
-		X: frontend.Value(2),
-		E: frontend.Value(12),
-		Y: frontend.Value(4095),
+		X: (2),
+		E: (12),
+		Y: (4095),
 	})
 
 	assert.ProverSucceeded(&expCircuit, &Circuit{
-		X: frontend.Value(2),
-		E: frontend.Value(12),
-		Y: frontend.Value(4096),
+		X: (2),
+		E: (12),
+		Y: (4096),
 	})
 
 }

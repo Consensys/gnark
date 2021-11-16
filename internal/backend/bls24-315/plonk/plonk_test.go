@@ -66,7 +66,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 	}
 
 	var good refCircuit
-	good.X.Assign(2)
+	good.X = (2)
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -76,7 +76,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 	srs, err := kzg.NewSRS(ecc.NextPowerOfTwo(nbConstraints)+3, new(big.Int).SetUint64(42))
 	if err != nil {
 		panic(err)

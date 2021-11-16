@@ -47,7 +47,7 @@ type API interface {
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
 
-	// ToBinary unpacks a variable in binary,
+	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
@@ -55,7 +55,7 @@ type API interface {
 	ToBinary(i1 interface{}, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	FromBinary(b ...Variable) Variable
+	FromBinary(b ...interface{}) Variable
 
 	// Xor returns a ^ b
 	// a and b must be 0 or 1
@@ -100,7 +100,7 @@ type API interface {
 	// Constant returns a frontend.Variable representing a known value at compile time
 	Constant(input interface{}) Variable
 
-	// NewHint initialize a variable whose value will be evaluated using the provided hint function at run time
+	// NewHint initialize a Variable whose value will be evaluated using the provided hint function at run time
 	//
 	// hint function is provided at proof creation time and must match the hintID
 	// inputs must be either variables or convertible to big int

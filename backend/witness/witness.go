@@ -151,7 +151,7 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 		}
 		return nil
 	}
-	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, tVariable); err != nil {
 		return err
 	}
 
@@ -196,7 +196,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
 
 	if nbPublic == 0 {
 		return 0, nil
@@ -227,14 +227,12 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 			if err != nil {
 				return err
 			}
-			v := tInput.Interface().(frontend.Variable)
-			v.Assign(new(big.Int).SetBytes(bufElement))
-			tInput.Set(reflect.ValueOf(v))
+			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
 		}
 		return nil
 	}
 
-	if err := parser.Visit(witness, "", compiled.Unset, reader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, reader, tVariable); err != nil {
 		return int64(read), err
 	}
 
@@ -258,7 +256,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
 
 	if nbPublic == 0 && nbSecrets == 0 {
 		return 0, nil
@@ -289,9 +287,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 			if err != nil {
 				return err
 			}
-			v := tInput.Interface().(frontend.Variable)
-			v.Assign(new(big.Int).SetBytes(bufElement))
-			tInput.Set(reflect.ValueOf(v))
+			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
 		}
 		return nil
 	}
@@ -305,12 +301,12 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 	}
 
 	// public
-	if err := parser.Visit(witness, "", compiled.Unset, publicReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, publicReader, tVariable); err != nil {
 		return int64(read), err
 	}
 
 	// secret
-	if err := parser.Visit(witness, "", compiled.Unset, secretReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, secretReader, tVariable); err != nil {
 		return int64(read), err
 	}
 
@@ -354,4 +350,10 @@ func ToJSON(witness frontend.Circuit, curveID ecc.ID) (string, error) {
 	default:
 		panic("not implemented")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

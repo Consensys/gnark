@@ -18,13 +18,13 @@ func (circuit *divCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 func init() {
 	var good, bad divCircuit
 
-	good.X.Assign(12)
-	good.Y.Assign(6)
-	good.Z.Assign(2)
+	good.X = (12)
+	good.Y = (6)
+	good.Z = (2)
 
-	bad.X.Assign(12)
-	bad.Y.Assign(6)
-	bad.Z.Assign(3)
+	bad.X = (12)
+	bad.Y = (6)
+	bad.Z = (3)
 
 	addEntry("div", &divCircuit{}, &good, &bad)
 }

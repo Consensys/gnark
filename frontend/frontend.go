@@ -35,7 +35,7 @@ import (
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
 // 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"exponent,public"`
+// 			Y frontend.variable `gnark:"exponent,public"`
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
@@ -98,14 +98,6 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
-			v := tInput.Interface().(Variable)
-			if v.id != 0 {
-				v.id = 0
-				// return errors.New("circuit was already compiled")
-			}
-			if v.WitnessValue != nil {
-				return fmt.Errorf("circuit has %s illegaly assigned, can't compile", name)
-			}
 			switch visibility {
 			case compiled.Secret:
 				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
@@ -121,7 +113,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", compiled.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
 		return cs, err
 	}
 
@@ -139,14 +131,6 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 
 	return
 
-}
-
-// Value returned a Variable with an assigned value
-// This is to be used in the context of witness creation only and
-// will triger an error if used inside a circuit Define(...) method
-// This is syntatic sugar for: frontend.Variable{WitnessValue: value}
-func Value(value interface{}) Variable {
-	return Variable{WitnessValue: value}
 }
 
 // CompileOption enables to set optional argument to call of frontend.Compile()
@@ -167,4 +151,10 @@ func WithCapacity(capacity int) func(opt *CompileOption) error {
 func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	opt.ignoreUnconstrainedInputs = true
 	return nil
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
 }

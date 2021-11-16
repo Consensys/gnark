@@ -19,11 +19,11 @@ func init() {
 
 	var circuit, good, bad checkAssertEqualCircuit
 
-	good.X.Assign(3)
-	good.Y.Assign(3)
+	good.X = (3)
+	good.Y = (3)
 
-	bad.X.Assign(5)
-	bad.Y.Assign(2)
+	bad.X = (5)
+	bad.Y = (2)
 
 	addEntry("assert_equal", &circuit, &good, &bad)
 }

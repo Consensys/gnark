@@ -19,15 +19,15 @@ func init() {
 
 	good := []frontend.Circuit{
 		&assertIsDifferentCircuit{
-			X: frontend.Value(6),
-			Y: frontend.Value(37),
+			X: (6),
+			Y: (37),
 		},
 	}
 
 	bad := []frontend.Circuit{
 		&assertIsDifferentCircuit{
-			X: frontend.Value(6),
-			Y: frontend.Value(6),
+			X: (6),
+			Y: (6),
 		},
 	}
 

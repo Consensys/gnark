@@ -27,15 +27,15 @@ func init() {
 
 	good := []frontend.Circuit{
 		&hintCircuit{
-			A: frontend.Value(42),
-			B: frontend.Value(42 * 7),
+			A: (42),
+			B: (42 * 7),
 		},
 	}
 
 	bad := []frontend.Circuit{
 		&hintCircuit{
-			A: frontend.Value(42),
-			B: frontend.Value(42),
+			A: (42),
+			B: (42),
 		},
 	}
 
