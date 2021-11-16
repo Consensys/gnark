@@ -87,10 +87,10 @@ func TestVerify(t *testing.T) {
 	}
 
 	for i := 0; i < len(proof); i++ {
-		witness.Path[i].Assign(proof[i])
+		witness.Path[i] = (proof[i])
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		witness.Helper[i].Assign(proofHelper[i])
+		witness.Helper[i] = (proofHelper[i])
 	}
 
 	assert := test.NewAssert(t)

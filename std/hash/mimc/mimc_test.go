@@ -70,13 +70,13 @@ func TestMimcAll(t *testing.T) {
 		b := goMimc.Sum(nil)
 
 		// assert correctness against correct witness
-		witness.Data.Assign(data)
-		witness.ExpectedResult.Assign(b)
+		witness.Data = (data)
+		witness.ExpectedResult = (b)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(curve))
 
 		// assert failure against wrong witness
-		wrongWitness.Data.Assign(tamperedData)
-		wrongWitness.ExpectedResult.Assign(b)
+		wrongWitness.Data = (tamperedData)
+		wrongWitness.ExpectedResult = (b)
 		assert.ProverFailed(&circuit, &wrongWitness, test.WithCurves(curve))
 	}
 

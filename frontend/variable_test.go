@@ -37,14 +37,14 @@ func TestStructTags(t *testing.T) {
 			delete(collected, k)
 		}
 		if len(collected) != 0 {
-			t.Fatal("collected more variable than expected")
+			t.Fatal("collected more Variable than expected")
 		}
 
 	}
 
 	{
 		s := struct {
-			A, B variable
+			A, B Variable
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["A"] = compiled.Secret
@@ -54,8 +54,8 @@ func TestStructTags(t *testing.T) {
 
 	{
 		s := struct {
-			A variable `gnark:"a, public"`
-			B variable
+			A Variable `gnark:"a, public"`
+			B Variable
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["a"] = compiled.Public
@@ -65,8 +65,8 @@ func TestStructTags(t *testing.T) {
 
 	{
 		s := struct {
-			A variable `gnark:",public"`
-			B variable
+			A Variable `gnark:",public"`
+			B Variable
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["A"] = compiled.Public
@@ -76,8 +76,8 @@ func TestStructTags(t *testing.T) {
 
 	{
 		s := struct {
-			A variable `gnark:"-"`
-			B variable
+			A Variable `gnark:"-"`
+			B Variable
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["B"] = compiled.Secret
@@ -86,10 +86,10 @@ func TestStructTags(t *testing.T) {
 
 	{
 		s := struct {
-			A variable `gnark:",public"`
-			B variable
+			A Variable `gnark:",public"`
+			B Variable
 			C struct {
-				D variable
+				D Variable
 			}
 		}{}
 		expected := make(map[string]compiled.Visibility)
@@ -102,15 +102,15 @@ func TestStructTags(t *testing.T) {
 	// hierarchy of structs
 	{
 		type grandchild struct {
-			D variable `gnark:"grandchild"`
+			D Variable `gnark:"grandchild"`
 		}
 		type child struct {
-			D variable `gnark:",public"` // parent visibility is secret so public here is ignored
+			D Variable `gnark:",public"` // parent visibility is secret so public here is ignored
 			G grandchild
 		}
 		s := struct {
-			A variable `gnark:",public"`
-			B variable
+			A Variable `gnark:",public"`
+			B Variable
 			C child
 		}{}
 		expected := make(map[string]compiled.Visibility)
@@ -124,7 +124,7 @@ func TestStructTags(t *testing.T) {
 	// ignore embedded structs (not exported)
 	{
 		type embedded struct {
-			D variable
+			D Variable
 		}
 		type child struct {
 			embedded // this is not exported and ignored
@@ -132,8 +132,8 @@ func TestStructTags(t *testing.T) {
 
 		s := struct {
 			C child
-			A variable `gnark:",public"`
-			B variable
+			A Variable `gnark:",public"`
+			B Variable
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["A"] = compiled.Public
@@ -144,7 +144,7 @@ func TestStructTags(t *testing.T) {
 	// array
 	{
 		s := struct {
-			A [2]variable `gnark:",public"`
+			A [2]Variable `gnark:",public"`
 		}{}
 		expected := make(map[string]compiled.Visibility)
 		expected["A_0"] = compiled.Public
@@ -155,8 +155,8 @@ func TestStructTags(t *testing.T) {
 	// slice
 	{
 		s := struct {
-			A []variable `gnark:",public"`
-		}{A: make([]variable, 2)}
+			A []Variable `gnark:",public"`
+		}{A: make([]Variable, 2)}
 		expected := make(map[string]compiled.Visibility)
 		expected["A_0"] = compiled.Public
 		expected["A_1"] = compiled.Public

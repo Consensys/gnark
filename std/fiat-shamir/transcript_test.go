@@ -138,9 +138,9 @@ func TestFiatShamir(t *testing.T) {
 
 		for i := 0; i < 3; i++ {
 			for j := 0; j < 4; j++ {
-				witness.Bindings[i][j].WitnessValue = bindings[i][j]
+				witness.Bindings[i][j] = bindings[i][j]
 			}
-			witness.Challenges[i].WitnessValue = expectedChallenges[i]
+			witness.Challenges[i] = expectedChallenges[i]
 		}
 
 		assert.SolvingSucceeded(&FiatShamirCircuit{}, &witness, test.WithCurves(curveID))

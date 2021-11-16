@@ -66,8 +66,8 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey, p
 		t.Fatal(err)
 	}
 
-	w.Data.Assign(preimage)
-	w.Hash.Assign(publicHash)
+	w.Data = preimage
+	w.Hash = publicHash
 
 	correctAssignment := witness.Witness{}
 
@@ -155,7 +155,7 @@ func TestVerifier(t *testing.T) {
 	gammaNeg.Neg(&innerVk.G2.Gamma)
 	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
 	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
-	witness.Hash.Assign(publicHash)
+	witness.Hash = publicHash
 
 	// verifies the cs
 	assert := test.NewAssert(t)

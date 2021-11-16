@@ -237,11 +237,11 @@ func TestMulByImFp2(t *testing.T) {
 	// api.Tag(fp2c.Y, "c1")
 
 	//
-	// witness.A.A0.Assign(a.A0)
-	// witness.A.A1.Assign(a.A1)
+	// witness.A.A0 = (a.A0)
+	// witness.A.A1 = (a.A1)
 
 	//
-	// witness.C.A0.Assign(c.A0)
-	// witness.C.A1.Assign(c.A1)
+	// witness.C.A0 = (c.A0)
+	// witness.C.A1 = (c.A1)
 
 }

@@ -146,6 +146,7 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 		if tValue.Type() == target {
 			return handler(parentVisibility, baseName, tValue)
 		}
+		// TODO @gbotrel if it's not target, we may still want to visit it. just ensure it is NOT a frontend.API
 	}
 
 	return nil

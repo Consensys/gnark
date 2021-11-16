@@ -55,8 +55,8 @@ func TestIsOnCurve(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	witness.P.X.Assign(params.BaseX)
-	witness.P.Y.Assign(params.BaseY)
+	witness.P.X = (params.BaseX)
+	witness.P.Y = (params.BaseY)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
 
@@ -102,10 +102,10 @@ func TestAddFixedPoint(t *testing.T) {
 	expected.Add(&base, &point)
 
 	// populate witness
-	witness.P.X.Assign(point.X.String())
-	witness.P.Y.Assign(point.Y.String())
-	witness.E.X.Assign(expected.X.String())
-	witness.E.Y.Assign(expected.Y.String())
+	witness.P.X = (point.X.String())
+	witness.P.Y = (point.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
@@ -153,12 +153,12 @@ func TestAddGeneric(t *testing.T) {
 	expected.Add(&point1, &point2)
 
 	// populate witness
-	witness.P1.X.Assign(point1.X.String())
-	witness.P1.Y.Assign(point1.Y.String())
-	witness.P2.X.Assign(point2.X.String())
-	witness.P2.Y.Assign(point2.Y.String())
-	witness.E.X.Assign(expected.X.String())
-	witness.E.Y.Assign(expected.Y.String())
+	witness.P1.X = (point1.X.String())
+	witness.P1.Y = (point1.Y.String())
+	witness.P2.X = (point2.X.String())
+	witness.P2.Y = (point2.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
@@ -202,10 +202,10 @@ func TestDouble(t *testing.T) {
 	expected.Double(&base)
 
 	// populate witness
-	witness.P.X.Assign(base.X.String())
-	witness.P.Y.Assign(base.Y.String())
-	witness.E.X.Assign(expected.X.String())
-	witness.E.Y.Assign(expected.Y.String())
+	witness.P.X = (base.X.String())
+	witness.P.Y = (base.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
 
 	// creates r1cs
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
@@ -252,9 +252,9 @@ func TestScalarMulFixed(t *testing.T) {
 	expected.ScalarMul(&base, r)
 
 	// populate witness
-	witness.E.X.Assign(expected.X.String())
-	witness.E.Y.Assign(expected.Y.String())
-	witness.S.Assign(r)
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
+	witness.S = (r)
 
 	// creates r1cs
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
@@ -302,11 +302,11 @@ func TestScalarMulGeneric(t *testing.T) {
 	expected.ScalarMul(&point, r)
 
 	// populate witness
-	witness.P.X.Assign(point.X.String())
-	witness.P.Y.Assign(point.Y.String())
-	witness.E.X.Assign(expected.X.String())
-	witness.E.Y.Assign(expected.Y.String())
-	witness.S.Assign(r)
+	witness.P.X = (point.X.String())
+	witness.P.Y = (point.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
+	witness.S = (r)
 
 	// creates r1cs
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
@@ -342,10 +342,10 @@ func TestNeg(t *testing.T) {
 
 	// generate witness
 	var circuit, witness neg
-	witness.P.X.Assign(base.X)
-	witness.P.Y.Assign(base.Y)
-	witness.E.X.Assign(expected.X)
-	witness.E.Y.Assign(expected.Y)
+	witness.P.X = (base.X)
+	witness.P.Y = (base.Y)
+	witness.E.X = (expected.X)
+	witness.E.Y = (expected.Y)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
 
