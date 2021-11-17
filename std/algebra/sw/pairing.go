@@ -48,7 +48,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
-	var Qacc, QNext G2Affine
+	var Qacc G2Affine
 	var lacc fields.E12
 	lacc.SetOne(api)
 	Qacc = Q
@@ -64,9 +64,8 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 			continue
 		}
 
-		QNext, l1 = AddStep(api, &Qacc, &Q, pairingInfo.Extension)
+		Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q, pairingInfo.Extension)
 		l1.R0.MulByFp(api, l1.R0, P.X)
-		Qacc, l2 = AddStep(api, &Qacc, &QNext, pairingInfo.Extension)
 		l2.R0.MulByFp(api, l2.R0, P.X)
 		lacc.Mul034By034(api, fields.E2{A0: yy, A1: api.Constant(0)}, l1.R0, l1.R1, fields.E2{A0: P.Y, A1: api.Constant(0)}, l2.R0, l2.R1, pairingInfo.Extension)
 		res.Mul(api, *res, lacc, pairingInfo.Extension)
@@ -75,35 +74,53 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 	return res
 }
 
-// AddStep
-func AddStep(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) (G2Affine, LineEvaluation) {
+// DoubleAndAddStep
+func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) (G2Affine, LineEvaluation, LineEvaluation) {
 
-	var n, d, l, xr, yr fields.E2
-	var line LineEvaluation
+	var n, d, l1, l2, x3, x4, y4 fields.E2
+	var line1, line2 LineEvaluation
 	var p G2Affine
 
-	// compute lambda = (p1.y-p2.y)/(p1.x-p2.x)
+	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
 	d.Sub(api, p1.X, p2.X)
-	l.Inverse(api, d, ext).Mul(api, l, n, ext)
+	l1.Inverse(api, d, ext).Mul(api, l1, n, ext)
 
-	// xr =lambda**2-p1.x-p2.x
-	xr.Square(api, l, ext).
-		Sub(api, xr, p1.X).
-		Sub(api, xr, p2.X)
+	// x3 =lambda1**2-p1.x-p2.x
+	x3.Square(api, l1, ext).
+		Sub(api, x3, p1.X).
+		Sub(api, x3, p2.X)
 
-	// yr = lambda(p2.x - xr)-p2.y
-	yr.Sub(api, p2.X, xr).
-		Mul(api, l, yr, ext).
-		Sub(api, yr, p2.Y)
+		// omit y3 computation
 
-	p.X = xr
-	p.Y = yr
+		// compute line1
+	line1.R0.Neg(api, l1)
+	line1.R1.Mul(api, l1, p1.X, ext).Sub(api, line1.R1, p1.Y)
 
-	line.R0.Neg(api, l)
-	line.R1.Mul(api, l, p1.X, ext).Sub(api, line.R1, p1.Y)
+	// compute lambda2 = -lambda1-2*y1/(x3-x1)
+	n.Double(api, p1.Y)
+	d.Sub(api, x3, p1.X)
+	l2.Inverse(api, d, ext).Mul(api, l2, n, ext)
+	l2.Add(api, l2, l1).Neg(api, l2)
 
-	return p, line
+	// compute x4 = lambda2**2-x1-x3
+	x4.Square(api, l2, ext).
+		Sub(api, x4, p1.X).
+		Sub(api, x4, x3)
+
+	// compute y4 = lambda2*(x1 - x4)-y1
+	y4.Sub(api, p1.X, x4).
+		Mul(api, l2, y4, ext).
+		Sub(api, y4, p1.Y)
+
+	p.X = x4
+	p.Y = y4
+
+	// compute line2
+	line2.R0.Neg(api, l2)
+	line2.R1.Mul(api, l2, p1.X, ext).Sub(api, line2.R1, p1.Y)
+
+	return p, line1, line2
 }
 
 func DoubleStep(api frontend.API, p1 *G2Affine, ext fields.Extension) (G2Affine, LineEvaluation) {
