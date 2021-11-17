@@ -19,6 +19,7 @@ package frontend
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 )
 
@@ -117,4 +118,7 @@ type API interface {
 	// ConstantValue returns the big.Int value of v
 	// will panic if v.IsConstant() == false
 	ConstantValue(v Variable) *big.Int
+
+	// CurveID returns the ecc.ID injected by the compiler
+	CurveID() ecc.ID
 }

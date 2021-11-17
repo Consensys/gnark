@@ -454,3 +454,7 @@ func (cs *constraintSystem) checkVariables() error {
 	return errors.New(sbb.String())
 
 }
+
+func (cs *constraintSystem) CurveID() ecc.ID {
+	return cs.curveID
+}

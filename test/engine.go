@@ -373,3 +373,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 func (e *engine) modulus() *big.Int {
 	return e.curveID.Info().Fr.Modulus()
 }
+
+func (e *engine) CurveID() ecc.ID {
+	return e.curveID
+}
