@@ -107,12 +107,12 @@ func main() {
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
-		witness.X = (2)
-		witness.E = (2)
-		witness.Y = (4)
+		witness.X = 2
+		witness.E = 2
+		witness.Y = 4
 
-		publicWitness.X = (2)
-		publicWitness.Y = (4)
+		publicWitness.X = 2
+		publicWitness.Y = 4
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
@@ -141,12 +141,12 @@ func main() {
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
-		witness.X = (3)
-		witness.E = (12)
-		witness.Y = (4096)
+		witness.X = 3
+		witness.E = 12
+		witness.Y = 4096
 
-		publicWitness.X = (2)
-		publicWitness.Y = (4096)
+		publicWitness.X = 2
+		publicWitness.Y = 4096
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand

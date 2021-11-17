@@ -26,13 +26,13 @@ func TestCubicEquation(t *testing.T) {
 	var cubicCircuit Circuit
 
 	assert.ProverFailed(&cubicCircuit, &Circuit{
-		X: (42),
-		Y: (42),
+		X: 42,
+		Y: 42,
 	})
 
 	assert.ProverSucceeded(&cubicCircuit, &Circuit{
-		X: (3),
-		Y: (35),
+		X: 3,
+		Y: 35,
 	})
 
 }

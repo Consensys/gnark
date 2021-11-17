@@ -227,9 +227,9 @@ func TestEddsa(t *testing.T) {
 
 			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
 			sigRx, sigRy, sigS := parseSignature(id, signature)
-			witness.Signature.R.X = (sigRx)
-			witness.Signature.R.Y = (sigRy)
-			witness.Signature.S = (sigS)
+			witness.Signature.R.X = sigRx
+			witness.Signature.R.Y = sigRy
+			witness.Signature.S = sigS
 
 			assert.SolvingFailed(&circuit, &witness, test.WithCurves(id))
 		}

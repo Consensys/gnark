@@ -123,19 +123,19 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 
 	// set witnesses for the public keys
-	o.witnesses.PublicKeysSender[numTransfer].A.X = (senderAccount.pubKey.A.X)
-	o.witnesses.PublicKeysSender[numTransfer].A.Y = (senderAccount.pubKey.A.Y)
-	o.witnesses.PublicKeysReceiver[numTransfer].A.X = (receiverAccount.pubKey.A.X)
-	o.witnesses.PublicKeysReceiver[numTransfer].A.Y = (receiverAccount.pubKey.A.Y)
+	o.witnesses.PublicKeysSender[numTransfer].A.X = senderAccount.pubKey.A.X
+	o.witnesses.PublicKeysSender[numTransfer].A.Y = senderAccount.pubKey.A.Y
+	o.witnesses.PublicKeysReceiver[numTransfer].A.X = receiverAccount.pubKey.A.X
+	o.witnesses.PublicKeysReceiver[numTransfer].A.Y = receiverAccount.pubKey.A.Y
 
 	// set witnesses for the accounts before update
-	o.witnesses.SenderAccountsBefore[numTransfer].Index = (senderAccount.index)
-	o.witnesses.SenderAccountsBefore[numTransfer].Nonce = (senderAccount.nonce)
-	o.witnesses.SenderAccountsBefore[numTransfer].Balance = (senderAccount.balance)
+	o.witnesses.SenderAccountsBefore[numTransfer].Index = senderAccount.index
+	o.witnesses.SenderAccountsBefore[numTransfer].Nonce = senderAccount.nonce
+	o.witnesses.SenderAccountsBefore[numTransfer].Balance = senderAccount.balance
 
-	o.witnesses.ReceiverAccountsBefore[numTransfer].Index = (receiverAccount.index)
-	o.witnesses.ReceiverAccountsBefore[numTransfer].Nonce = (receiverAccount.nonce)
-	o.witnesses.ReceiverAccountsBefore[numTransfer].Balance = (receiverAccount.balance)
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Index = receiverAccount.index
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Nonce = receiverAccount.nonce
+	o.witnesses.ReceiverAccountsBefore[numTransfer].Balance = receiverAccount.balance
 
 	//  Set witnesses for the proof of inclusion of sender and receivers account before update
 	var buf bytes.Buffer
@@ -160,7 +160,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return err
 	}
 	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
-	o.witnesses.RootHashesBefore[numTransfer] = (merkleRootBefore)
+	o.witnesses.RootHashesBefore[numTransfer] = merkleRootBefore
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
 		o.witnesses.MerkleProofsSenderBefore[numTransfer][i] = (proofInclusionSenderBefore[i])
 		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i] = (proofInclusionReceiverBefore[i])

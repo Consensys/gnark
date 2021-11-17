@@ -27,15 +27,15 @@ func TestExponentiateGroth16(t *testing.T) {
 	var expCircuit Circuit
 
 	assert.ProverFailed(&expCircuit, &Circuit{
-		X: (2),
-		E: (12),
-		Y: (4095),
+		X: 2,
+		E: 12,
+		Y: 4095,
 	})
 
 	assert.ProverSucceeded(&expCircuit, &Circuit{
-		X: (2),
-		E: (12),
-		Y: (4096),
+		X: 2,
+		E: 12,
+		Y: 4096,
 	})
 
 }
