@@ -33,7 +33,7 @@ import (
 //
 // the print will be done once the R1CS.Solve() method is executed
 //
-// if one of the input is a Variable, its value will be resolved avec R1CS.Solve() method is called
+// if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
 func (cs *constraintSystem) Println(a ...interface{}) {
 	var sbb strings.Builder
 
@@ -51,7 +51,7 @@ func (cs *constraintSystem) Println(a ...interface{}) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(Variable); ok {
+		if v, ok := arg.(variable); ok {
 			v.assertIsSet(cs)
 
 			sbb.WriteString("%s")
@@ -80,7 +80,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 		return nil
 	}
 	// ignoring error, counter() always return nil
-	_ = parser.Visit(a, "", compiled.Unset, counter, reflect.TypeOf(Variable{}))
+	_ = parser.Visit(a, "", compiled.Unset, counter, tVariable)
 
 	// no variables in nested struct, we use fmt std print function
 	if count == 0 {
@@ -98,7 +98,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(Variable)
+		v := tValue.Interface().(variable)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
@@ -107,7 +107,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_ = parser.Visit(a, "", compiled.Unset, printer, reflect.TypeOf(Variable{}))
+	_ = parser.Visit(a, "", compiled.Unset, printer, tVariable)
 	sbb.WriteByte('}')
 }
 
@@ -123,7 +123,7 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 
 	for _, _i := range i {
 		switch v := _i.(type) {
-		case Variable:
+		case variable:
 			if len(v.linExp) > 1 {
 				sbb.WriteString("(")
 			}

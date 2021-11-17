@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
@@ -30,7 +31,7 @@ type e2Add struct {
 	A, B, C E2
 }
 
-func (circuit *e2Add) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Add) Define(api frontend.API) error {
 	var expected E2
 	expected.Add(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -59,7 +60,7 @@ type e2Sub struct {
 	A, B, C E2
 }
 
-func (circuit *e2Sub) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Sub) Define(api frontend.API) error {
 	var expected E2
 	expected.Sub(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -88,7 +89,7 @@ type e2Mul struct {
 	A, B, C E2
 }
 
-func (circuit *e2Mul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Mul) Define(api frontend.API) error {
 	var expected E2
 	ext := Extension{uSquare: -5}
 	expected.Mul(api, circuit.A, circuit.B, ext)
@@ -120,7 +121,7 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2MulByFp) Define(api frontend.API) error {
 	expected := E2{}
 	expected.MulByFp(api, circuit.A, circuit.B)
 
@@ -140,7 +141,7 @@ func TestMulByFpFp2(t *testing.T) {
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
-	witness.B.Assign(bls12377FpTobw6761fr(&b))
+	witness.B = (fr.Element)(b)
 
 	witness.C.Assign(&c)
 
@@ -154,7 +155,7 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2Conjugate) Define(api frontend.API) error {
 	expected := E2{}
 	expected.Conjugate(api, circuit.A)
 
@@ -184,7 +185,7 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2Inverse) Define(api frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
 	expected.Inverse(api, circuit.A, ext)
@@ -237,11 +238,11 @@ func TestMulByImFp2(t *testing.T) {
 	// api.Tag(fp2c.Y, "c1")
 
 	//
-	// witness.A.A0.Assign(a.A0)
-	// witness.A.A1.Assign(a.A1)
+	// witness.A.A0 = (a.A0)
+	// witness.A.A1 = (a.A1)
 
 	//
-	// witness.C.A0.Assign(c.A0)
-	// witness.C.A1.Assign(c.A1)
+	// witness.C.A0 = (c.A0)
+	// witness.C.A1 = (c.A1)
 
 }

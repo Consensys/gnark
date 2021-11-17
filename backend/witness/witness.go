@@ -48,11 +48,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
@@ -151,7 +146,7 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 		}
 		return nil
 	}
-	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, tVariable); err != nil {
 		return err
 	}
 
@@ -196,7 +191,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
 
 	if nbPublic == 0 {
 		return 0, nil
@@ -212,7 +207,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		return 4, errors.New("invalid witness size")
 	}
 
-	elementSize := getElementSize(curveID)
+	elementSize := curveID.Info().Fr.Bytes
 
 	expectedSize := elementSize * nbPublic
 
@@ -227,14 +222,12 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 			if err != nil {
 				return err
 			}
-			v := tInput.Interface().(frontend.Variable)
-			v.Assign(new(big.Int).SetBytes(bufElement))
-			tInput.Set(reflect.ValueOf(v))
+			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
 		}
 		return nil
 	}
 
-	if err := parser.Visit(witness, "", compiled.Unset, reader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, reader, tVariable); err != nil {
 		return int64(read), err
 	}
 
@@ -258,7 +251,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
 
 	if nbPublic == 0 && nbSecrets == 0 {
 		return 0, nil
@@ -274,7 +267,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 		return 4, errors.New("invalid witness size")
 	}
 
-	elementSize := getElementSize(curveID)
+	elementSize := curveID.Info().Fr.Bytes
 	expectedSize := elementSize * (nbPublic + nbSecrets)
 
 	lr := io.LimitReader(r, int64(expectedSize*elementSize))
@@ -289,9 +282,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 			if err != nil {
 				return err
 			}
-			v := tInput.Interface().(frontend.Variable)
-			v.Assign(new(big.Int).SetBytes(bufElement))
-			tInput.Set(reflect.ValueOf(v))
+			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
 		}
 		return nil
 	}
@@ -305,36 +296,16 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 	}
 
 	// public
-	if err := parser.Visit(witness, "", compiled.Unset, publicReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, publicReader, tVariable); err != nil {
 		return int64(read), err
 	}
 
 	// secret
-	if err := parser.Visit(witness, "", compiled.Unset, secretReader, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(witness, "", compiled.Unset, secretReader, tVariable); err != nil {
 		return int64(read), err
 	}
 
 	return int64(read), nil
-}
-
-func getElementSize(curve ecc.ID) int {
-	// now compute expected size from field element size.
-	var elementSize int
-	switch curve {
-	case ecc.BLS12_377:
-		elementSize = fr_bls12377.Bytes
-	case ecc.BLS12_381:
-		elementSize = fr_bls12381.Bytes
-	case ecc.BLS24_315:
-		elementSize = fr_bls24315.Bytes
-	case ecc.BN254:
-		elementSize = fr_bn254.Bytes
-	case ecc.BW6_761:
-		elementSize = fr_bw6761.Bytes
-	default:
-		panic("not implemented")
-	}
-	return elementSize
 }
 
 // ToJSON outputs a JSON string with variableName: value
@@ -354,4 +325,10 @@ func ToJSON(witness frontend.Circuit, curveID ecc.ID) (string, error) {
 	default:
 		panic("not implemented")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

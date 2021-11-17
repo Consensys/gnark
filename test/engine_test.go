@@ -12,7 +12,7 @@ type hintCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *hintCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *hintCircuit) Define(api frontend.API) error {
 	a3b := api.NewHint(hint.IthBit, circuit.A, 3)
 	a25b := api.NewHint(hint.IthBit, circuit.A, 25)
 	aisZero := api.NewHint(hint.IsZero, circuit.A)
@@ -29,15 +29,15 @@ func (circuit *hintCircuit) Define(curveID ecc.ID, api frontend.API) error {
 func TestBuiltinHints(t *testing.T) {
 	for _, curve := range ecc.Implemented() {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
-			A: frontend.Value(0b1000),
-			B: frontend.Value(0),
+			A: (0b1000),
+			B: (0),
 		}, curve); err != nil {
 			t.Fatal(err)
 		}
 
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
-			A: frontend.Value(0b10),
-			B: frontend.Value(1),
+			A: (0b10),
+			B: (1),
 		}, curve); err == nil {
 			t.Fatal("witness shouldn't solve circuit")
 		}

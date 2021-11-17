@@ -88,19 +88,19 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 			// inv
 			vv := cs.shuffleVariables(int64(b), false)
 			if len(vv) >= 1 {
-				cs.Inverse(vv[0].(Variable))
+				cs.Inverse(vv[0].(variable))
 			}
 		}
 		if b&0b01000000 == 0b01000000 {
 			v := cs.shuffleVariables(int64(b), false)
 			if len(v) >= 1 {
 				vc := cs.shuffleVariables(int64(b), true)
-				cs.AssertIsLessOrEqual(v[0].(Variable), vc[0])
+				cs.AssertIsLessOrEqual(v[0].(variable), vc[0])
 				if len(vc) >= 2 {
 					cs.AssertIsEqual(vc[0], vc[1])
 				}
 				if len(v) >= 2 {
-					cs.AssertIsBoolean(v[1].(Variable))
+					cs.AssertIsBoolean(v[1].(variable))
 				}
 			}
 		}
@@ -108,9 +108,9 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 		if b&0b10000000 == 0b10000000 {
 			v := cs.shuffleVariables(int64(b), false)
 			if len(v) >= 2 {
-				x1 := cs.Xor(v[0].(Variable), v[1].(Variable))
-				x2 := cs.And(x1, v[0].(Variable))
-				cs.Or(v[0].(Variable), v[1].(Variable))
+				x1 := cs.Xor(v[0].(variable), v[1].(variable))
+				x2 := cs.And(x1, v[0].(variable))
+				cs.Or(v[0].(variable), v[1].(variable))
 				cs.Or(x1, x2)
 			}
 		}
