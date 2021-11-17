@@ -338,6 +338,7 @@ func (e *engine) toBigInt(i1 interface{}) big.Int {
 	b := frontend.FromInterface(i1)
 	if _, ok := i1.(frontend.Variable); ok {
 		// we reduce mod q
+		// TODO @gbotrel that seems unnecessary; should be done by FromInterface()
 		b.Mod(&b, e.modulus())
 	}
 	return b
