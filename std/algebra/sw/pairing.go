@@ -32,27 +32,7 @@ type PairingContext struct {
 
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvaluation struct {
-	R0, R1, R2 fields.E2
-}
-
-// mlStep the i-th ml step contains (f,q) where q=[i]Q, f=f_{i,Q}(P) where (f_{i,Q})=i(Q)-([i]Q)-(i-1)O
-type mlStep struct {
-	f fields.E12
-	q G2Affine
-}
-
-// computeLineCoef computes the coefficients of the line passing through Q, R of equation
-// x*LineCoeff.R0 +  y*LineCoeff.R1 + LineCoeff.R2
-func computeLineCoef(api frontend.API, Q, R G2Affine, ext fields.Extension) LineEvaluation {
-
-	var res LineEvaluation
-	res.R0.Sub(api, Q.Y, R.Y)
-	res.R1.Sub(api, R.X, Q.X)
-	var tmp fields.E2
-	res.R2.Mul(api, Q.X, R.Y, ext)
-	tmp.Mul(api, R.X, Q.Y, ext)
-	res.R2.Sub(api, res.R2, tmp)
-	return res
+	R0, R1 fields.E2
 }
 
 // MillerLoop computes the miller loop
@@ -77,17 +57,15 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 		res.Square(api, *res, pairingInfo.Extension)
 		Qacc, l1 = DoubleStep(api, &Qacc, pairingInfo.Extension)
 		l1.R0.MulByFp(api, l1.R0, P.X)
-		l1.R1.MulByFp(api, l1.R1, P.Y)
 
 		if ateLoopBin[i] == 0 {
-			res.MulBy034(api, l1.R1, l1.R0, l1.R2, pairingInfo.Extension)
+			res.MulBy034(api, fields.E2{A0: P.Y, A1: api.Constant(0)}, l1.R0, l1.R1, pairingInfo.Extension)
 			continue
 		}
 
 		Qacc, l2 = AddStep(api, &Qacc, &Q, pairingInfo.Extension)
 		l2.R0.MulByFp(api, l2.R0, P.X)
-		l2.R1.MulByFp(api, l2.R1, P.Y)
-		lacc.Mul034by034(api, l1.R1, l1.R0, l1.R2, l2.R1, l2.R0, l2.R2, pairingInfo.Extension)
+		lacc.Mul034by034(api, fields.E2{A0: P.Y, A1: api.Constant(0)}, l1.R0, l1.R1, fields.E2{A0: P.Y, A1: api.Constant(0)}, l2.R0, l2.R1, pairingInfo.Extension)
 		res.Mul(api, *res, lacc, pairingInfo.Extension)
 	}
 
@@ -120,8 +98,7 @@ func AddStep(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) (G2Affine
 	p.Y = yr
 
 	line.R0.Neg(api, l)
-	line.R1.SetOne(api)
-	line.R2.Mul(api, l, p1.X, ext).Sub(api, line.R2, p1.Y)
+	line.R1.Mul(api, l, p1.X, ext).Sub(api, line.R1, p1.Y)
 
 	return p, line
 }
@@ -151,8 +128,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine, ext fields.Extension) (G2Affine,
 	p.Y = yr
 
 	line.R0.Neg(api, l)
-	line.R1.SetOne(api)
-	line.R2.Mul(api, l, p1.X, ext).Sub(api, line.R2, p1.Y)
+	line.R1.Mul(api, l, p1.X, ext).Sub(api, line.R1, p1.Y)
 
 	return p, line
 
