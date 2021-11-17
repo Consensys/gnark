@@ -35,7 +35,7 @@ import (
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
 // 		type MyCircuit struct {
-// 			Y frontend.variable `gnark:"exponent,public"`
+// 			Y frontend.Variable `gnark:"exponent,public"`
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //

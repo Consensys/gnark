@@ -196,22 +196,22 @@ func TestEddsa(t *testing.T) {
 		// verification with the correct Message
 		{
 			var witness eddsaCircuit
-			witness.Message = (frMsg)
+			witness.Message = frMsg
 
 			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
 			var pbAx, pbAy big.Int
 			pbAx.SetBytes(pubkeyAx)
 			pbAy.SetBytes(pubkeyAy)
-			witness.PublicKey.A.X = (pubkeyAx)
-			witness.PublicKey.A.Y = (pubkeyAy)
+			witness.PublicKey.A.X = pubkeyAx
+			witness.PublicKey.A.Y = pubkeyAy
 
 			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
 			sigRx, sigRy, sigS := parseSignature(id, signature)
-			witness.Signature.R.X = (sigRx)
-			witness.Signature.R.Y = (sigRy)
-			// witness.Signature.S1 = (sigS1)
-			// witness.Signature.S2 = (sigS2)
-			witness.Signature.S = (sigS)
+			witness.Signature.R.X = sigRx
+			witness.Signature.R.Y = sigRy
+			// witness.Signature.S1 = sigS1
+			// witness.Signature.S2 = sigS2
+			witness.Signature.S = sigS
 
 			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 		}
@@ -219,11 +219,11 @@ func TestEddsa(t *testing.T) {
 		// verification with incorrect Message
 		{
 			var witness eddsaCircuit
-			witness.Message = ("44717650746155748460101257525078853138837311576962212923649547644148297035979")
+			witness.Message = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
 
 			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
-			witness.PublicKey.A.X = (pubkeyAx)
-			witness.PublicKey.A.Y = (pubkeyAy)
+			witness.PublicKey.A.X = pubkeyAx
+			witness.PublicKey.A.Y = pubkeyAy
 
 			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
 			sigRx, sigRy, sigS := parseSignature(id, signature)

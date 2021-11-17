@@ -162,20 +162,20 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
 	o.witnesses.RootHashesBefore[numTransfer] = merkleRootBefore
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
-		o.witnesses.MerkleProofsSenderBefore[numTransfer][i] = (proofInclusionSenderBefore[i])
-		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i] = (proofInclusionReceiverBefore[i])
+		o.witnesses.MerkleProofsSenderBefore[numTransfer][i] = proofInclusionSenderBefore[i]
+		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i] = proofInclusionReceiverBefore[i]
 
 		if i < len(proofInclusionReceiverBefore)-1 {
-			o.witnesses.MerkleProofHelperSenderBefore[numTransfer][i] = (merkleProofHelperSenderBefore[i])
-			o.witnesses.MerkleProofHelperReceiverBefore[numTransfer][i] = (merkleProofHelperReceiverBefore[i])
+			o.witnesses.MerkleProofHelperSenderBefore[numTransfer][i] = merkleProofHelperSenderBefore[i]
+			o.witnesses.MerkleProofHelperReceiverBefore[numTransfer][i] = merkleProofHelperReceiverBefore[i]
 		}
 	}
 
 	// set witnesses for the transfer
-	o.witnesses.Transfers[numTransfer].Amount = (t.amount)
-	o.witnesses.Transfers[numTransfer].Signature.R.X = (t.signature.R.X)
-	o.witnesses.Transfers[numTransfer].Signature.R.Y = (t.signature.R.Y)
-	o.witnesses.Transfers[numTransfer].Signature.S = (t.signature.S[:])
+	o.witnesses.Transfers[numTransfer].Amount = t.amount
+	o.witnesses.Transfers[numTransfer].Signature.R.X = t.signature.R.X
+	o.witnesses.Transfers[numTransfer].Signature.R.Y = t.signature.R.Y
+	o.witnesses.Transfers[numTransfer].Signature.S = t.signature.S[:]
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
 	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)
@@ -210,13 +210,13 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	senderAccount.nonce++
 
 	// set the witnesses for the account after update
-	o.witnesses.SenderAccountsAfter[numTransfer].Index = (senderAccount.index)
-	o.witnesses.SenderAccountsAfter[numTransfer].Nonce = (senderAccount.nonce)
-	o.witnesses.SenderAccountsAfter[numTransfer].Balance = (senderAccount.balance)
+	o.witnesses.SenderAccountsAfter[numTransfer].Index = senderAccount.index
+	o.witnesses.SenderAccountsAfter[numTransfer].Nonce = senderAccount.nonce
+	o.witnesses.SenderAccountsAfter[numTransfer].Balance = senderAccount.balance
 
-	o.witnesses.ReceiverAccountsAfter[numTransfer].Index = (receiverAccount.index)
-	o.witnesses.ReceiverAccountsAfter[numTransfer].Nonce = (receiverAccount.nonce)
-	o.witnesses.ReceiverAccountsAfter[numTransfer].Balance = (receiverAccount.balance)
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Index = receiverAccount.index
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Nonce = receiverAccount.nonce
+	o.witnesses.ReceiverAccountsAfter[numTransfer].Balance = receiverAccount.balance
 
 	// update the state of the operator
 	copy(o.State[int(posSender)*SizeAccount:], senderAccount.Serialize())
@@ -254,14 +254,14 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 	merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
-	o.witnesses.RootHashesAfter[numTransfer] = (merkleRootAfer)
+	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfer
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {
-		o.witnesses.MerkleProofsSenderAfter[numTransfer][i] = (proofInclusionSenderAfter[i])
-		o.witnesses.MerkleProofsReceiverAfter[numTransfer][i] = (proofInclusionReceiverAfter[i])
+		o.witnesses.MerkleProofsSenderAfter[numTransfer][i] = proofInclusionSenderAfter[i]
+		o.witnesses.MerkleProofsReceiverAfter[numTransfer][i] = proofInclusionReceiverAfter[i]
 
 		if i < len(proofInclusionReceiverAfter)-1 {
-			o.witnesses.MerkleProofHelperSenderAfter[numTransfer][i] = (merkleProofHelperSenderAfter[i])
-			o.witnesses.MerkleProofHelperReceiverAfter[numTransfer][i] = (merkleProofHelperReceiverAfter[i])
+			o.witnesses.MerkleProofHelperSenderAfter[numTransfer][i] = merkleProofHelperSenderAfter[i]
+			o.witnesses.MerkleProofHelperReceiverAfter[numTransfer][i] = merkleProofHelperReceiverAfter[i]
 		}
 	}
 

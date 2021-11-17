@@ -94,7 +94,7 @@ func (e *engine) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		b1.Add(&b1, &bn)
 	}
 	b1.Mod(&b1, e.modulus())
-	return (b1)
+	return b1
 }
 
 func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
@@ -105,14 +105,14 @@ func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		b1.Sub(&b1, &bn)
 	}
 	b1.Mod(&b1, e.modulus())
-	return (b1)
+	return b1
 }
 
 func (e *engine) Neg(i1 interface{}) frontend.Variable {
 	b1 := e.toBigInt(i1)
 	b1.Neg(&b1)
 	b1.Mod(&b1, e.modulus())
-	return (b1)
+	return b1
 }
 
 func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
@@ -122,7 +122,7 @@ func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		bn := e.toBigInt(in[i])
 		b1.Mul(&b1, &bn).Mod(&b1, e.modulus())
 	}
-	return (b1)
+	return b1
 }
 
 func (e *engine) Div(i1, i2 interface{}) frontend.Variable {
@@ -131,19 +131,19 @@ func (e *engine) Div(i1, i2 interface{}) frontend.Variable {
 		panic("no inverse")
 	}
 	b2.Mul(&b1, &b2).Mod(&b2, e.modulus())
-	return (b2)
+	return b2
 }
 
 func (e *engine) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.IsUint64() && b2.IsUint64() && b1.Uint64() == 0 && b2.Uint64() == 0 {
-		return (0)
+		return 0
 	}
 	if b2.ModInverse(&b2, e.modulus()) == nil {
 		panic("no inverse")
 	}
 	b2.Mul(&b1, &b2).Mod(&b2, e.modulus())
-	return (b2)
+	return b2
 }
 
 func (e *engine) Inverse(i1 interface{}) frontend.Variable {
@@ -151,7 +151,7 @@ func (e *engine) Inverse(i1 interface{}) frontend.Variable {
 	if b1.ModInverse(&b1, e.modulus()) == nil {
 		panic("no inverse")
 	}
-	return (b1)
+	return b1
 }
 
 func (e *engine) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
@@ -203,7 +203,7 @@ func (e *engine) FromBinary(v ...interface{}) frontend.Variable {
 	}
 	r.Mod(&r, e.modulus())
 
-	return (r)
+	return r
 }
 
 func (e *engine) Xor(i1, i2 frontend.Variable) frontend.Variable {
@@ -211,7 +211,7 @@ func (e *engine) Xor(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.Xor(&b1, &b2)
-	return (b1)
+	return b1
 }
 
 func (e *engine) Or(i1, i2 frontend.Variable) frontend.Variable {
@@ -219,7 +219,7 @@ func (e *engine) Or(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.Or(&b1, &b2)
-	return (b1)
+	return b1
 }
 
 func (e *engine) And(i1, i2 frontend.Variable) frontend.Variable {
@@ -227,7 +227,7 @@ func (e *engine) And(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.And(&b1, &b2)
-	return (b1)
+	return b1
 }
 
 // Select if b is true, yields i1 else yields i2
@@ -236,7 +236,7 @@ func (e *engine) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 	e.mustBeBoolean(&b1)
 
 	if b1.Uint64() == 1 {
-		return (e.toBigInt(i1))
+		return e.toBigInt(i1)
 	}
 	return (e.toBigInt(i2))
 }
@@ -246,7 +246,7 @@ func (e *engine) IsZero(i1 interface{}) frontend.Variable {
 	b1 := e.toBigInt(i1)
 
 	if b1.IsUint64() && b1.Uint64() == 0 {
-		return (1)
+		return 1
 	}
 
 	return (0)

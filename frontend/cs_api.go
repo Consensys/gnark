@@ -488,8 +488,8 @@ func (cs *constraintSystem) IsConstant(v Variable) bool {
 	return true
 }
 
-// ConstantValue returns the big.Int value of v
-// will panic if v.IsConstant() == false
+// ConstantValue returns the big.Int value of v.
+// Will panic if v.IsConstant() == false
 func (cs *constraintSystem) ConstantValue(v Variable) *big.Int {
 	if _v, ok := v.(variable); ok {
 		return _v.constantValue(cs)

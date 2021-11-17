@@ -115,8 +115,8 @@ type API interface {
 	// IsConstant returns true if v is a constant known at compile time
 	IsConstant(v Variable) bool
 
-	// ConstantValue returns the big.Int value of v
-	// will panic if v.IsConstant() == false
+	// ConstantValue returns the big.Int value of v. It
+	// panics if v.IsConstant() == false
 	ConstantValue(v Variable) *big.Int
 
 	// CurveID returns the ecc.ID injected by the compiler
