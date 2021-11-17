@@ -29,7 +29,6 @@ import (
 	bn254groth16 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
@@ -44,7 +43,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *refCircuit) Define(api frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = api.Mul(circuit.X, circuit.X)
 	}

@@ -11,7 +11,7 @@ type hintCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *hintCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *hintCircuit) Define(api frontend.API) error {
 	a7 := api.NewHint(mulBy7, circuit.A)
 	_a7 := api.Mul(circuit.A, 7)
 

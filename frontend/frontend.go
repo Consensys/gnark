@@ -125,7 +125,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	}()
 
 	// call Define() to fill in the Constraints
-	if err := circuit.Define(curveID, &cs); err != nil {
+	if err := circuit.Define(&cs); err != nil {
 		return cs, err
 	}
 

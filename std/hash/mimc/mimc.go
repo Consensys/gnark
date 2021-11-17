@@ -35,8 +35,8 @@ type MiMC struct {
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID, api frontend.API) (MiMC, error) {
-	if constructor, ok := newMimc[id]; ok {
+func NewMiMC(seed string, api frontend.API) (MiMC, error) {
+	if constructor, ok := newMimc[api.CurveID()]; ok {
 		return constructor(seed, api), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")

@@ -16,8 +16,6 @@ limitations under the License.
 
 package frontend
 
-import "github.com/consensys/gnark-crypto/ecc"
-
 // Circuit must be implemented by user-defined circuits
 //
 // the tag format is as follow:
@@ -36,5 +34,5 @@ import "github.com/consensys/gnark-crypto/ecc"
 // it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
 type Circuit interface {
 	// Define declares the circuit's Constraints
-	Define(curveID ecc.ID, api API) error
+	Define(api API) error
 }

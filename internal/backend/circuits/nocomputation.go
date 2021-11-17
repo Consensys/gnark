@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -11,7 +10,7 @@ type noComputationCircuit struct {
 	B frontend.Variable
 }
 
-func (c *noComputationCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (c *noComputationCircuit) Define(cs frontend.API) error {
 	cs.AssertIsEqual(c.A, c.B)
 	return nil
 }

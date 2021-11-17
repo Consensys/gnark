@@ -34,7 +34,7 @@ type pairingBLS377 struct {
 	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *pairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(api)
@@ -78,7 +78,7 @@ type ml struct {
 	Q G2Affine
 }
 
-func (circuit *ml) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *ml) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(api)

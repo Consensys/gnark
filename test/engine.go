@@ -81,7 +81,7 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...func(op
 		}
 	}()
 
-	err = c.Define(curveID, e)
+	err = c.Define(e)
 
 	return
 }

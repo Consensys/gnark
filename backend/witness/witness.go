@@ -48,11 +48,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
@@ -212,7 +207,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		return 4, errors.New("invalid witness size")
 	}
 
-	elementSize := getElementSize(curveID)
+	elementSize := curveID.Info().Fr.Bytes
 
 	expectedSize := elementSize * nbPublic
 
@@ -272,7 +267,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 		return 4, errors.New("invalid witness size")
 	}
 
-	elementSize := getElementSize(curveID)
+	elementSize := curveID.Info().Fr.Bytes
 	expectedSize := elementSize * (nbPublic + nbSecrets)
 
 	lr := io.LimitReader(r, int64(expectedSize*elementSize))
@@ -311,26 +306,6 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 	}
 
 	return int64(read), nil
-}
-
-func getElementSize(curve ecc.ID) int {
-	// now compute expected size from field element size.
-	var elementSize int
-	switch curve {
-	case ecc.BLS12_377:
-		elementSize = fr_bls12377.Bytes
-	case ecc.BLS12_381:
-		elementSize = fr_bls12381.Bytes
-	case ecc.BLS24_315:
-		elementSize = fr_bls24315.Bytes
-	case ecc.BN254:
-		elementSize = fr_bn254.Bytes
-	case ecc.BW6_761:
-		elementSize = fr_bw6761.Bytes
-	default:
-		panic("not implemented")
-	}
-	return elementSize
 }
 
 // ToJSON outputs a JSON string with variableName: value

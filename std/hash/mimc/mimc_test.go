@@ -31,8 +31,8 @@ type mimcCircuit struct {
 	Data           frontend.Variable
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	mimc, err := NewMiMC("seed", curveID, api)
+func (circuit *mimcCircuit) Define(api frontend.API) error {
+	mimc, err := NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}

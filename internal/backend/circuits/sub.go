@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,7 +8,7 @@ type subCircuit struct {
 	Op1, Op2, Res frontend.Variable
 }
 
-func (circuit *subCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *subCircuit) Define(cs frontend.API) error {
 	d := cs.Sub(circuit.Op1, circuit.Op2, circuit.Op2)
 
 	cs.AssertIsEqual(d, circuit.Res)

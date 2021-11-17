@@ -73,21 +73,21 @@ func TestIsBool3(t *testing.T) {
 	}
 }
 
-func (c *IsBool1) Define(curve ecc.ID, cs API) error {
+func (c *IsBool1) Define(cs API) error {
 
 	cs.AssertIsBoolean(0)
 	cs.AssertIsBoolean(1)
 	return nil
 }
 
-func (c *IsBool2) Define(curve ecc.ID, cs API) error {
+func (c *IsBool2) Define(cs API) error {
 
 	sum := cs.Add(0, 1)
 	cs.AssertIsBoolean(sum)
 	return nil
 }
 
-func (c *IsBool3) Define(curve ecc.ID, cs API) error {
+func (c *IsBool3) Define(cs API) error {
 
 	prod := cs.Mul(0, 1)
 	cs.AssertIsBoolean(prod)

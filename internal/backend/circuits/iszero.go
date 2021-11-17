@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,7 +8,7 @@ type isZero struct {
 	X, Y frontend.Variable
 }
 
-func (circuit *isZero) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *isZero) Define(cs frontend.API) error {
 
 	a := cs.IsZero(circuit.X)
 	b := cs.IsZero(circuit.Y)

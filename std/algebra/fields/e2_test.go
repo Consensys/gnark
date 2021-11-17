@@ -31,7 +31,7 @@ type e2Add struct {
 	A, B, C E2
 }
 
-func (circuit *e2Add) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Add) Define(api frontend.API) error {
 	var expected E2
 	expected.Add(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -60,7 +60,7 @@ type e2Sub struct {
 	A, B, C E2
 }
 
-func (circuit *e2Sub) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Sub) Define(api frontend.API) error {
 	var expected E2
 	expected.Sub(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -89,7 +89,7 @@ type e2Mul struct {
 	A, B, C E2
 }
 
-func (circuit *e2Mul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *e2Mul) Define(api frontend.API) error {
 	var expected E2
 	ext := Extension{uSquare: -5}
 	expected.Mul(api, circuit.A, circuit.B, ext)
@@ -121,7 +121,7 @@ type fp2MulByFp struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2MulByFp) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2MulByFp) Define(api frontend.API) error {
 	expected := E2{}
 	expected.MulByFp(api, circuit.A, circuit.B)
 
@@ -155,7 +155,7 @@ type fp2Conjugate struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Conjugate) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2Conjugate) Define(api frontend.API) error {
 	expected := E2{}
 	expected.Conjugate(api, circuit.A)
 
@@ -185,7 +185,7 @@ type fp2Inverse struct {
 	C E2 `gnark:",public"`
 }
 
-func (circuit *fp2Inverse) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *fp2Inverse) Define(api frontend.API) error {
 	ext := Extension{uSquare: -5}
 	expected := E2{}
 	expected.Inverse(api, circuit.A, ext)

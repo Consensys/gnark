@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type checkAssertEqualCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *checkAssertEqualCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *checkAssertEqualCircuit) Define(cs frontend.API) error {
 	cs.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
 }

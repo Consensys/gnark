@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type determinism struct {
 	Z frontend.Variable `gnark:",public"`
 }
 
-func (circuit *determinism) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *determinism) Define(cs frontend.API) error {
 	a := cs.Add(circuit.X[0],
 		circuit.X[0],
 		circuit.X[1],

@@ -20,7 +20,7 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *printlnCircuit) Define(api frontend.API) error {
 	c := api.Add(circuit.A, circuit.B)
 	api.Println(c, "is the addition")
 	d := api.Mul(circuit.A, c)
@@ -66,7 +66,7 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *divBy0Trace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.Div(circuit.A, d)
 	return nil
@@ -103,7 +103,7 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *notEqualTrace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.AssertIsEqual(circuit.A, d)
 	return nil
@@ -140,7 +140,7 @@ type notBooleanTrace struct {
 	B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *notBooleanTrace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.AssertIsBoolean(d)
 	return nil

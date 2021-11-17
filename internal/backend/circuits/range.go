@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type rangeCheckConstantCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckConstantCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *rangeCheckConstantCircuit) Define(cs frontend.API) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 	c3 := cs.Add(circuit.X, circuit.Y)
@@ -36,7 +35,7 @@ type rangeCheckCircuit struct {
 	Y, Bound frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *rangeCheckCircuit) Define(cs frontend.API) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 	c3 := cs.Add(circuit.X, circuit.Y)

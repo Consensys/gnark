@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *expCircuit) Define(cs frontend.API) error {
 	o := frontend.Variable(1)
 	b := cs.ToBinary(circuit.E, 4)
 

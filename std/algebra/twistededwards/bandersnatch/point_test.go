@@ -31,10 +31,10 @@ type mustBeOnCurve struct {
 	P Point
 }
 
-func (circuit *mustBeOnCurve) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *mustBeOnCurve) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -66,10 +66,10 @@ type add struct {
 	P, E Point
 }
 
-func (circuit *add) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *add) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -116,10 +116,10 @@ type addGeneric struct {
 	P1, P2, E Point
 }
 
-func (circuit *addGeneric) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *addGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -169,10 +169,10 @@ type double struct {
 	P, E Point
 }
 
-func (circuit *double) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *double) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -217,10 +217,10 @@ type scalarMulFixed struct {
 	S frontend.Variable
 }
 
-func (circuit *scalarMulFixed) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *scalarMulFixed) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -266,10 +266,10 @@ type scalarMulGeneric struct {
 	S    frontend.Variable
 }
 
-func (circuit *scalarMulGeneric) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *scalarMulGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(curveID)
+	params, err := NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ type neg struct {
 	P, E Point
 }
 
-func (circuit *neg) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *neg) Define(api frontend.API) error {
 
 	circuit.P.Neg(api, &circuit.P)
 	api.AssertIsEqual(circuit.P.X, circuit.E.X)

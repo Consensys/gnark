@@ -12,7 +12,7 @@ type hintCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *hintCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *hintCircuit) Define(api frontend.API) error {
 	a3b := api.NewHint(hint.IthBit, circuit.A, 3)
 	a25b := api.NewHint(hint.IthBit, circuit.A, 25)
 	aisZero := api.NewHint(hint.IsZero, circuit.A)

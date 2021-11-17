@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type divCircuit struct {
 	Z    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *divCircuit) Define(cs frontend.API) error {
 	cs.AssertIsEqual(cs.DivUnchecked(circuit.X, circuit.Y), circuit.Z)
 	return nil
 }
