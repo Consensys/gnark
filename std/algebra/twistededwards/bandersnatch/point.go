@@ -129,8 +129,8 @@ func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar fronte
 	b := api.ToBinary(scalar)
 
 	res := Point{
-		api.Constant(0),
-		api.Constant(1),
+		0,
+		1,
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
@@ -157,8 +157,8 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 	b := api.ToBinary(scalar)
 
 	res := Point{
-		api.Constant(0),
-		api.Constant(1),
+		0,
+		1,
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {

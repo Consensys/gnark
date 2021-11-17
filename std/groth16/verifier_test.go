@@ -43,8 +43,8 @@ type mimcCircuit struct {
 	Hash frontend.Variable `gnark:",public"`
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	mimc, err := mimc.NewMiMC("seed", curveID, api)
+func (circuit *mimcCircuit) Define(api frontend.API) error {
+	mimc, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -66,8 +66,8 @@ func generateBls377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey, p
 		t.Fatal(err)
 	}
 
-	w.Data.Assign(preimage)
-	w.Hash.Assign(publicHash)
+	w.Data = preimage
+	w.Hash = publicHash
 
 	correctAssignment := witness.Witness{}
 
@@ -105,14 +105,14 @@ type verifierCircuit struct {
 	Hash       frontend.Variable
 }
 
-func (circuit *verifierCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *verifierCircuit) Define(api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := sw.PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = 0
+	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	// create the verifier cs
 	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
@@ -155,7 +155,7 @@ func TestVerifier(t *testing.T) {
 	gammaNeg.Neg(&innerVk.G2.Gamma)
 	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
 	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
-	witness.Hash.Assign(publicHash)
+	witness.Hash = publicHash
 
 	// verifies the cs
 	assert := test.NewAssert(t)

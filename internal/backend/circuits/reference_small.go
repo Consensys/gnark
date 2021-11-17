@@ -3,7 +3,6 @@ package circuits
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -14,7 +13,7 @@ type referenceSmallCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *referenceSmallCircuit) Define(cs frontend.API) error {
 	for i := 0; i < nbConstraintsRefSmall; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
@@ -25,7 +24,7 @@ func (circuit *referenceSmallCircuit) Define(curveID ecc.ID, cs frontend.API) er
 func init() {
 	var circuit, good, bad referenceSmallCircuit
 
-	good.X.Assign(2)
+	good.X = (2)
 
 	// compute expected Y
 	var expectedY big.Int
@@ -35,10 +34,10 @@ func init() {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 
-	bad.X.Assign(3)
-	bad.Y.Assign(expectedY)
+	bad.X = (3)
+	bad.Y = (expectedY)
 
 	addEntry("reference_small", &circuit, &good, &bad)
 }

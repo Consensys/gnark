@@ -109,14 +109,6 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
-			v := tInput.Interface().(Variable)
-			if v.id != 0 {
-				v.id = 0
-				// return errors.New("circuit was already compiled")
-			}
-			if v.WitnessValue != nil {
-				return fmt.Errorf("circuit has %s illegaly assigned, can't compile", name)
-			}
 			switch visibility {
 			case compiled.Secret:
 				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
@@ -132,7 +124,7 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
 	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", compiled.Unset, handler, reflect.TypeOf(Variable{})); err != nil {
+	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
 		return cs, err
 	}
 
@@ -144,20 +136,12 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 	}()
 
 	// call Define() to fill in the Constraints
-	if err := circuit.Define(curveID, &cs); err != nil {
+	if err := circuit.Define(&cs); err != nil {
 		return cs, err
 	}
 
 	return
 
-}
-
-// Value returned a Variable with an assigned value
-// This is to be used in the context of witness creation only and
-// will triger an error if used inside a circuit Define(...) method
-// This is syntatic sugar for: frontend.Variable{WitnessValue: value}
-func Value(value interface{}) Variable {
-	return Variable{WitnessValue: value}
 }
 
 // CompileOption enables to set optional argument to call of frontend.Compile()
@@ -186,4 +170,10 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 func DisplayCounters(opt *CompileOption) error {
 	opt.displayCounters = true
 	return nil
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
 }

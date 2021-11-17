@@ -98,7 +98,7 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	challenge, ok := t.challenges[challengeID]
 
 	if !ok {
-		return frontend.Variable{}, errChallengeNotFound
+		return nil, errChallengeNotFound
 	}
 
 	// if the challenge was already computed we return it
@@ -109,13 +109,13 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	t.h.Reset()
 
 	// write the challenge name, the purpose is to have a domain separator
-	cChallenge := t.api.Constant([]byte(challengeID))
+	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
 	t.h.Write(cChallenge)
 
 	// write the previous challenge if it's not the first challenge
 	if challenge.position != 0 {
 		if t.previous == nil || (t.previous.position != challenge.position-1) {
-			return frontend.Variable{}, errPreviousChallengeNotComputed
+			return nil, errPreviousChallengeNotComputed
 		}
 		t.h.Write(t.previous.value)
 	}

@@ -81,11 +81,7 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...func(op
 		}
 	}()
 
-	err = c.Define(curveID, e)
-
-	// we clear the frontend.Variable values, in case we accidentally mutated the circuit
-	// (our clone earlier copied somes slices or pointers)
-	utils.ResetWitness(c)
+	err = c.Define(e)
 
 	return
 }
@@ -98,7 +94,7 @@ func (e *engine) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		b1.Add(&b1, &bn)
 	}
 	b1.Mod(&b1, e.modulus())
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
@@ -109,14 +105,14 @@ func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		b1.Sub(&b1, &bn)
 	}
 	b1.Mod(&b1, e.modulus())
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) Neg(i1 interface{}) frontend.Variable {
 	b1 := e.toBigInt(i1)
 	b1.Neg(&b1)
 	b1.Mod(&b1, e.modulus())
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
@@ -126,7 +122,7 @@ func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 		bn := e.toBigInt(in[i])
 		b1.Mul(&b1, &bn).Mod(&b1, e.modulus())
 	}
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) Div(i1, i2 interface{}) frontend.Variable {
@@ -135,19 +131,19 @@ func (e *engine) Div(i1, i2 interface{}) frontend.Variable {
 		panic("no inverse")
 	}
 	b2.Mul(&b1, &b2).Mod(&b2, e.modulus())
-	return frontend.Value(b2)
+	return b2
 }
 
 func (e *engine) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.IsUint64() && b2.IsUint64() && b1.Uint64() == 0 && b2.Uint64() == 0 {
-		return frontend.Value(0)
+		return 0
 	}
 	if b2.ModInverse(&b2, e.modulus()) == nil {
 		panic("no inverse")
 	}
 	b2.Mul(&b1, &b2).Mod(&b2, e.modulus())
-	return frontend.Value(b2)
+	return b2
 }
 
 func (e *engine) Inverse(i1 interface{}) frontend.Variable {
@@ -155,7 +151,7 @@ func (e *engine) Inverse(i1 interface{}) frontend.Variable {
 	if b1.ModInverse(&b1, e.modulus()) == nil {
 		panic("no inverse")
 	}
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
@@ -174,19 +170,22 @@ func (e *engine) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
 	}
 
 	r := make([]frontend.Variable, nbBits)
+	ri := make([]interface{}, nbBits)
 	for i := 0; i < len(r); i++ {
-		r[i] = frontend.Value(b1.Bit(i))
+		r[i] = (b1.Bit(i))
+		ri[i] = r[i]
 	}
 
-	value := e.toBigInt(e.FromBinary(r...))
+	// this is a sanity check, it should never happen
+	value := e.toBigInt(e.FromBinary(ri...))
 	if value.Cmp(&b1) != 0 {
-		// this is a sanitfy check, it should never happen
+
 		panic(fmt.Sprintf("[ToBinary] decomposing %s (bitLen == %d) with %d bits reconstructs into %s", b1.String(), b1.BitLen(), nbBits, value.String()))
 	}
 	return r
 }
 
-func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
+func (e *engine) FromBinary(v ...interface{}) frontend.Variable {
 	bits := make([]big.Int, len(v))
 	for i := 0; i < len(v); i++ {
 		bits[i] = e.toBigInt(v[i])
@@ -204,7 +203,7 @@ func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
 	}
 	r.Mod(&r, e.modulus())
 
-	return frontend.Value(r)
+	return r
 }
 
 func (e *engine) Xor(i1, i2 frontend.Variable) frontend.Variable {
@@ -212,7 +211,7 @@ func (e *engine) Xor(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.Xor(&b1, &b2)
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) Or(i1, i2 frontend.Variable) frontend.Variable {
@@ -220,7 +219,7 @@ func (e *engine) Or(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.Or(&b1, &b2)
-	return frontend.Value(b1)
+	return b1
 }
 
 func (e *engine) And(i1, i2 frontend.Variable) frontend.Variable {
@@ -228,7 +227,7 @@ func (e *engine) And(i1, i2 frontend.Variable) frontend.Variable {
 	e.mustBeBoolean(&b1)
 	e.mustBeBoolean(&b2)
 	b1.And(&b1, &b2)
-	return frontend.Value(b1)
+	return b1
 }
 
 // Select if b is true, yields i1 else yields i2
@@ -237,9 +236,9 @@ func (e *engine) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 	e.mustBeBoolean(&b1)
 
 	if b1.Uint64() == 1 {
-		return frontend.Value(e.toBigInt(i1))
+		return e.toBigInt(i1)
 	}
-	return frontend.Value(e.toBigInt(i2))
+	return (e.toBigInt(i2))
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
@@ -247,14 +246,10 @@ func (e *engine) IsZero(i1 interface{}) frontend.Variable {
 	b1 := e.toBigInt(i1)
 
 	if b1.IsUint64() && b1.Uint64() == 0 {
-		return frontend.Value(1)
+		return 1
 	}
 
-	return frontend.Value(0)
-}
-
-func (e *engine) Constant(input interface{}) frontend.Variable {
-	return frontend.Value(e.toBigInt(input))
+	return (0)
 }
 
 func (e *engine) AssertIsEqual(i1, i2 interface{}) {
@@ -280,7 +275,7 @@ func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound interface{}) {
 
 	var bValue big.Int
 	if v, ok := bound.(frontend.Variable); ok {
-		bValue = frontend.FromInterface(v.WitnessValue)
+		bValue = frontend.FromInterface(v)
 		bValue.Mod(&bValue, e.modulus())
 	} else {
 		// note: here we don't do a mod reduce on the bound.
@@ -335,7 +330,22 @@ func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variab
 		panic("NewHint: " + err.Error())
 	}
 
-	return frontend.Value(result)
+	return (result)
+}
+
+// IsConstant returns true if v is a constant known at compile time
+func (e *engine) IsConstant(v frontend.Variable) bool {
+	// TODO @gbotrel this is a problem. if a circuit component has 2 code path depending
+	// on constant parameter, it will never be tested in the test engine
+	// we may want to call IsSolved twice, and return false to all IsConstant on one of the runs
+	return true
+}
+
+// ConstantValue returns the big.Int value of v
+// will panic if v.IsConstant() == false
+func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
+	r := e.toBigInt(v)
+	return &r
 }
 
 func (e *engine) Tag(name string) frontend.Tag {
@@ -348,10 +358,14 @@ func (e *engine) AddCounter(from, to frontend.Tag) {
 }
 
 func (e *engine) toBigInt(i1 interface{}) big.Int {
-	if v1, ok := i1.(frontend.Variable); ok {
-		return v1.GetWitnessValue(e.curveID)
+
+	b := frontend.FromInterface(i1)
+	if _, ok := i1.(frontend.Variable); ok {
+		// we reduce mod q
+		// TODO @gbotrel that seems unnecessary; should be done by FromInterface()
+		b.Mod(&b, e.modulus())
 	}
-	return frontend.FromInterface(i1)
+	return b
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
@@ -367,4 +381,8 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 
 func (e *engine) modulus() *big.Int {
 	return e.curveID.Info().Fr.Modulus()
+}
+
+func (e *engine) CurveID() ecc.ID {
+	return e.curveID
 }

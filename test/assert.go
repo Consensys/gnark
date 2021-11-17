@@ -321,12 +321,6 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 					valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
 				}
 			}
-			utils.ResetWitness(w)
-
-			// ensure we're clean for next users.
-			// if we reached that point; compiled work so the circuit was clean and this does nothing
-			// except ensuring the witness cloning / fuzzing didn't mutate circuit
-			utils.ResetWitness(circuit)
 
 			// fmt.Println(reflect.TypeOf(circuit).String(), valid)
 		}

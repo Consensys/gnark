@@ -16,7 +16,12 @@ limitations under the License.
 
 package frontend
 
-import "github.com/consensys/gnark/backend/hint"
+import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/hint"
+)
 
 // API represents the available functions to circuit developers
 type API interface {
@@ -47,7 +52,7 @@ type API interface {
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
 
-	// ToBinary unpacks a variable in binary,
+	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
@@ -55,7 +60,7 @@ type API interface {
 	ToBinary(i1 interface{}, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	FromBinary(b ...Variable) Variable
+	FromBinary(b ...interface{}) Variable
 
 	// Xor returns a ^ b
 	// a and b must be 0 or 1
@@ -97,10 +102,7 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...interface{})
 
-	// Constant returns a frontend.Variable representing a known value at compile time
-	Constant(input interface{}) Variable
-
-	// NewHint initialize a variable whose value will be evaluated using the provided hint function at run time
+	// NewHint initialize a Variable whose value will be evaluated using the provided hint function at run time
 	//
 	// hint function is provided at proof creation time and must match the hintID
 	// inputs must be either variables or convertible to big int
@@ -118,4 +120,14 @@ type API interface {
 	// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 	// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
 	AddCounter(from, to Tag)
+
+	// IsConstant returns true if v is a constant known at compile time
+	IsConstant(v Variable) bool
+
+	// ConstantValue returns the big.Int value of v. It
+	// panics if v.IsConstant() == false
+	ConstantValue(v Variable) *big.Int
+
+	// CurveID returns the ecc.ID injected by the compiler
+	CurveID() ecc.ID
 }

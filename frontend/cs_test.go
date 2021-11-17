@@ -61,7 +61,7 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := cs.Add(a, b, c, d, e, f)
+	toTest := (cs.Add(a, b, c, d, e, f)).(variable)
 
 	// check sizes
 	if len(toTest.linExp) != 3 {

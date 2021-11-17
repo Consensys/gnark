@@ -17,7 +17,6 @@ limitations under the License.
 package rollup
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
@@ -87,9 +86,9 @@ type TransferConstraints struct {
 	Signature      eddsa.Signature
 }
 
-func (circuit *Circuit) postInit(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) postInit(api frontend.API) error {
 	// edward curve params
-	params, err := twistededwards.NewEdCurve(curveID)
+	params, err := twistededwards.NewEdCurve(api.CurveID())
 	if err != nil {
 		return err
 	}
@@ -123,12 +122,12 @@ func (circuit *Circuit) postInit(curveID ecc.ID, api frontend.API) error {
 }
 
 // Define declares the circuit's constraints
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
-	if err := circuit.postInit(curveID, api); err != nil {
+func (circuit *Circuit) Define(api frontend.API) error {
+	if err := circuit.postInit(api); err != nil {
 		return err
 	}
 	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", curveID, api)
+	hFunc, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -174,8 +173,7 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
 
 	// ensure that nonce is correctly updated
-	one := api.Constant(1)
-	nonceUpdated := api.Add(from.Nonce, one)
+	nonceUpdated := api.Add(from.Nonce, 1)
 	api.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
 
 	// ensures that the amount is less than the balance

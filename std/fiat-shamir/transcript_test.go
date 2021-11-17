@@ -34,16 +34,16 @@ type FiatShamirCircuit struct {
 	Challenges [3]frontend.Variable    `gnark:",secret"`
 }
 
-func (circuit *FiatShamirCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 
 	// create the hash function
-	hSnark, err := mimc.NewMiMC("seed", curveID, api)
+	hSnark, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
 
 	// get the challenges
-	alpha, beta, gamma := getChallenges(curveID)
+	alpha, beta, gamma := getChallenges(api.CurveID())
 
 	// New transcript with 3 challenges to be derived
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
@@ -138,9 +138,9 @@ func TestFiatShamir(t *testing.T) {
 
 		for i := 0; i < 3; i++ {
 			for j := 0; j < 4; j++ {
-				witness.Bindings[i][j].WitnessValue = bindings[i][j]
+				witness.Bindings[i][j] = bindings[i][j]
 			}
-			witness.Challenges[i].WitnessValue = expectedChallenges[i]
+			witness.Challenges[i] = expectedChallenges[i]
 		}
 
 		assert.SolvingSucceeded(&FiatShamirCircuit{}, &witness, test.WithCurves(curveID))

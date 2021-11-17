@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,8 +9,8 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	o := cs.Constant(1)
+func (circuit *expCircuit) Define(cs frontend.API) error {
+	o := frontend.Variable(1)
 	b := cs.ToBinary(circuit.E, 4)
 
 	var i int
@@ -28,13 +27,13 @@ func (circuit *expCircuit) Define(curveID ecc.ID, cs frontend.API) error {
 func init() {
 	var circuit, good, bad expCircuit
 
-	good.X.Assign(2)
-	good.E.Assign(12)
-	good.Y.Assign(4096)
+	good.X = (2)
+	good.E = (12)
+	good.Y = (4096)
 
-	bad.X.Assign(2)
-	bad.E.Assign(11)
-	bad.Y.Assign(4096)
+	bad.X = (2)
+	bad.E = (11)
+	bad.Y = (4096)
 
 	addEntry("expo", &circuit, &good, &bad)
 }

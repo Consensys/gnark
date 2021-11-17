@@ -60,7 +60,7 @@ func newMimcBLS377(seed string, api frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_377
-	res.h = api.Constant(0)
+	res.h = 0
 	res.api = api
 	return res
 }
@@ -74,7 +74,7 @@ func newMimcBLS381(seed string, api frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS12_381
-	res.h = api.Constant(0)
+	res.h = 0
 	res.api = api
 	return res
 }
@@ -88,7 +88,7 @@ func newMimcBN254(seed string, api frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BN254
-	res.h = api.Constant(0)
+	res.h = 0
 	res.api = api
 	return res
 }
@@ -102,7 +102,7 @@ func newMimcBW761(seed string, api frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BW6_761
-	res.h = api.Constant(0)
+	res.h = 0
 	res.api = api
 	return res
 }
@@ -116,7 +116,7 @@ func newMimcBLS315(seed string, api frontend.API) MiMC {
 		res.params = append(res.params, cpy)
 	}
 	res.id = ecc.BLS24_315
-	res.h = api.Constant(0)
+	res.h = 0
 	res.api = api
 	return res
 }

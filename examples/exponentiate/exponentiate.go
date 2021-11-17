@@ -15,7 +15,6 @@
 package exponentiate
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -32,13 +31,13 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) Define(api frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 8
 
 	// specify constraints
-	output := api.Constant(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 	api.ToBinary(circuit.E, bitSize)
 

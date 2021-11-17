@@ -34,13 +34,13 @@ type pairingBLS377 struct {
 	pairingRes bls12377.GT
 }
 
-func (circuit *pairingBLS377) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *pairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = 0
+	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	milRes := fields.E12{}
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
@@ -78,13 +78,13 @@ type ml struct {
 	Q G2Affine
 }
 
-func (circuit *ml) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *ml) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields.GetBLS377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = api.Constant(0)
-	pairingInfo.BTwistCoeff.A1 = api.Constant("155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906")
+	pairingInfo.BTwistCoeff.A0 = 0
+	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	milRes := fields.E12{}
 	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
