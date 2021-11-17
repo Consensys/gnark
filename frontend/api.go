@@ -16,7 +16,11 @@ limitations under the License.
 
 package frontend
 
-import "github.com/consensys/gnark/backend/hint"
+import (
+	"math/big"
+
+	"github.com/consensys/gnark/backend/hint"
+)
 
 // API represents the available functions to circuit developers
 type API interface {
@@ -106,4 +110,11 @@ type API interface {
 	// from the backend point of view, it's equivalent to a user-supplied witness
 	// except, the solver is going to assign it a value, not the caller
 	NewHint(f hint.Function, inputs ...interface{}) Variable
+
+	// IsConstant returns true if v is a constant known at compile time
+	IsConstant(v Variable) bool
+
+	// ConstantValue returns the big.Int value of v
+	// will panic if v.IsConstant() == false
+	ConstantValue(v Variable) *big.Int
 }

@@ -477,6 +477,27 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 
 }
 
+// IsConstant returns true if v is a constant known at compile time
+func (cs *constraintSystem) IsConstant(v Variable) bool {
+	if _v, ok := v.(variable); ok {
+		return _v.isConstant()
+	}
+	// it's not a wire, it's another golang type, we consider it constant.
+	// TODO we may want to use the struct parser to ensure this Variable interface doesn't contain fields which are
+	// variable
+	return true
+}
+
+// ConstantValue returns the big.Int value of v
+// will panic if v.IsConstant() == false
+func (cs *constraintSystem) ConstantValue(v Variable) *big.Int {
+	if _v, ok := v.(variable); ok {
+		return _v.constantValue(cs)
+	}
+	r := FromInterface(v)
+	return &r
+}
+
 // constant will return (and allocate if neccesary) a Variable from given value
 //
 // if input is already a Variable, does nothing

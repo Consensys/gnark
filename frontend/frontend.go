@@ -20,7 +20,6 @@ package frontend
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark/debug"
@@ -85,25 +84,6 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	}
 
 	return
-}
-
-// IsConstant returns true if v is a constant known at compile time
-func IsConstant(v Variable) bool {
-	if _v, ok := v.(variable); ok {
-		return _v.isConstant()
-	}
-	// if v is not of of type variable, then we consider it constant (it's not a wire)
-	return true
-}
-
-// ConstantValue returns the big.Int value of v
-// will panic if v.IsConstant() == false
-func ConstantValue(v Variable, api API) *big.Int {
-	if _v, ok := v.(variable); ok {
-		return _v.constantValue(api.(*constraintSystem))
-	}
-	r := FromInterface(v)
-	return &r
 }
 
 // buildCS builds the constraint system. It bootstraps the inputs

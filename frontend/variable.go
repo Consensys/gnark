@@ -61,7 +61,7 @@ func (v *variable) constantValue(cs *constraintSystem) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.isConstant() {
-		panic("can't get constantCoeffID on a non-constant variable")
+		panic("can't get big.Int value on a non-constant variable")
 	}
 	return new(big.Int).Set(&cs.coeffs[v.linExp[0].CoeffID()])
 }

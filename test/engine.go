@@ -333,6 +333,21 @@ func (e *engine) NewHint(f hint.Function, inputs ...interface{}) frontend.Variab
 	return (result)
 }
 
+// IsConstant returns true if v is a constant known at compile time
+func (e *engine) IsConstant(v frontend.Variable) bool {
+	// TODO @gbotrel this is a problem. if a circuit component has 2 code path depending
+	// on constant parameter, it will never be tested in the test engine
+	// we may want to call IsSolved twice, and return false to all IsConstant on one of the runs
+	return true
+}
+
+// ConstantValue returns the big.Int value of v
+// will panic if v.IsConstant() == false
+func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
+	r := e.toBigInt(v)
+	return &r
+}
+
 func (e *engine) toBigInt(i1 interface{}) big.Int {
 
 	b := frontend.FromInterface(i1)
