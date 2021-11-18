@@ -79,6 +79,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	default:
 		panic("not implemented")
 	}
+
 	if err != nil {
 		return nil, err
 	}

@@ -7,15 +7,13 @@ import (
 	"strings"
 )
 
-var light = true
-
 func Stack() string {
 	var sbb strings.Builder
 	WriteStack(&sbb)
 	return sbb.String()
 }
 
-func WriteStack(sbb *strings.Builder) {
+func WriteStack(sbb *strings.Builder, forceClean ...bool) {
 	// derived from: https://golang.org/pkg/runtime/#example_Frames
 	// we stop when func name == Define as it is where the gnark circuit code should start
 
@@ -37,7 +35,7 @@ func WriteStack(sbb *strings.Builder) {
 		function := fe[len(fe)-1]
 		file := frame.File
 
-		if light {
+		if !Debug || (len(forceClean) > 1 && forceClean[0]) {
 			if strings.Contains(function, "runtime.gopanic") {
 				continue
 			}

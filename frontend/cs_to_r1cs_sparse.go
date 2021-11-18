@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -83,7 +84,8 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 				Logs:                make([]compiled.LogEntry, len(cs.logs)),
 				MDebug:              make(map[int]int),
-				MHints:              make(map[int]compiled.Hint),
+				MHints:              make(map[int]compiled.Hint, len(cs.mHints)),
+				Counters:            make([]compiled.Counter, len(cs.counters)),
 			},
 			Constraints: make([]compiled.SparseR1C, 0, len(cs.constraints)),
 		},
@@ -106,6 +108,10 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		res.solvedVariables[vID] = true
 	}
 
+	// clone the counters
+	counters := make([]Counter, len(cs.counters))
+	copy(counters, cs.counters)
+
 	// convert the R1C to SparseR1C
 	// in particular, all linear expressions that appear in the R1C
 	// will be split in multiple constraints in the SparseR1C
@@ -117,7 +123,17 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		} else {
 			res.currentR1CDebugID = -1
 		}
+		// mesure delta in what the convertion adds as new contraints and new variables
+		Δc := len(res.ccs.Constraints)
+		Δv := res.scsInternalVariables
+
 		res.r1cToSparseR1C(cs.constraints[i])
+
+		Δc = len(res.ccs.Constraints) - Δc - 1 // interested in newly added constraints only
+		Δv = res.scsInternalVariables - Δv
+
+		// shift the counters. should maybe be done only when -debug is set?
+		res.shiftCounters(counters, i, Δc, Δv)
 	}
 
 	// shift variable ID
@@ -206,6 +222,18 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// update number of internal variables with new wires created
 	// while processing R1C -> SparseR1C
 	res.ccs.NbInternalVariables = res.scsInternalVariables
+
+	// set the counters
+	for i, c := range counters {
+		res.ccs.Counters[i] = compiled.Counter{
+			From:          c.From.Name,
+			To:            c.To.Name,
+			NbVariables:   c.NbVariables,
+			NbConstraints: c.NbConstraints,
+			CurveID:       curveID,
+			BackendID:     backend.PLONK,
+		}
+	}
 
 	switch curveID {
 	case ecc.BLS12_377:
@@ -672,6 +700,20 @@ func (scs *sparseR1CS) split(l compiled.LinearExpression) compiled.Term {
 	)
 
 	return r
+}
+
+func (scs *sparseR1CS) shiftCounters(counters []Counter, cID, Δc, Δv int) {
+	// what we do here is see what's our resulting current constraintID vs the processID
+	// for all counters, if the
+
+	for i := 0; i < len(counters); i++ {
+		if (counters[i].From.cID <= cID) && (counters[i].To.cID > cID) {
+			// we are processing a constraint in the range of this counter.
+			// so we should increment the counter new constraints and nw variables
+			counters[i].NbConstraints += Δc
+			counters[i].NbVariables += Δv
+		}
+	}
 }
 
 // r1cToSparseR1C splits a r1c constraint

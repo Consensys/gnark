@@ -18,6 +18,7 @@ package frontend
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -42,6 +43,7 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 			Logs:                make([]compiled.LogEntry, len(cs.logs)),
 			MHints:              make(map[int]compiled.Hint, len(cs.mHints)),
 			MDebug:              make(map[int]int),
+			Counters:            make([]compiled.Counter, len(cs.counters)),
 		},
 		Constraints: make([]compiled.R1C, len(cs.constraints)),
 	}
@@ -62,6 +64,18 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// for a R1CS, the correspondance between constraint and debug info won't change, we just copy
 	for k, v := range cs.mDebug {
 		res.MDebug[k] = v
+	}
+
+	// same fore counters
+	for i, c := range cs.counters {
+		res.Counters[i] = compiled.Counter{
+			From:          c.From.Name,
+			To:            c.To.Name,
+			NbVariables:   c.NbVariables,
+			NbConstraints: c.NbConstraints,
+			CurveID:       curveID,
+			BackendID:     backend.GROTH16,
+		}
 	}
 
 	// offset variable ID depeneding on visibility
