@@ -290,7 +290,7 @@ func BenchmarkAddAssignAffineG2(b *testing.B) {
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
-func BenchmarkAddAndAddAffineG2(b *testing.B) {
+func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 	var c g2DoubleAndAddAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
