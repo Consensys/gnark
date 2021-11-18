@@ -28,7 +28,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
@@ -378,16 +377,7 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return nil, err
 	}
 
-	// if debug flag is set, add frontend.DisplayCounters
-	var cOpts []func(opt *frontend.CompileOption) error
-	if debug.Debug {
-		cOpts = make([]func(opt *frontend.CompileOption) error, len(compileOpts)+1)
-		copy(cOpts, compileOpts)
-		cOpts[len(cOpts)-1] = frontend.DisplayCounters // it's ok if we have a duplicate
-	} else {
-		cOpts = compileOpts
-	}
-	_ccs, err := frontend.Compile(curveID, backendID, circuit, cOpts...)
+	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}

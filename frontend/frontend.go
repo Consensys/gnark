@@ -155,13 +155,6 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	return nil
 }
 
-// DisplayCounters when set, the Compile function will display counters added through api.AddCounter
-// after the post-compile phase ran
-func DisplayCounters(opt *CompileOption) error {
-	opt.displayCounters = true
-	return nil
-}
-
 var tVariable reflect.Type
 
 func init() {
