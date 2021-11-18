@@ -207,7 +207,6 @@ func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Af
 
 	// start from 1 and use right-to-left scalar multiplication to avoid bugs due to incomplete addition law
 	// (I don't see how to avoid that)
-	t := api.Tag("start")
 	for i := 1; i < len(bits); i++ {
 		tmp := r1
 		tmp.AddAssign(api, base)
@@ -217,7 +216,6 @@ func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Af
 
 		base.Double(api, base)
 	}
-	api.AddCounter(t, api.Tag("end"))
 
 	// now check the lsb, if it's one, leave the result as is, otherwise substract P
 	var r2 G1Affine

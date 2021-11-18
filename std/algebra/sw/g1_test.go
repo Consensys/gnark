@@ -244,11 +244,6 @@ func TestScalarMulG1(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-	counters := assert.GetCounters(&circuit)
-
-	for _, c := range counters {
-		t.Log(c)
-	}
 }
 
 func randomPointG1() bls12377.G1Jac {
