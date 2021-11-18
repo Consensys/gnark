@@ -80,16 +80,6 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 		panic("not implemented")
 	}
 
-	// print counters
-	// TODO we need a way to access these through APIs, printing is not great.
-	if opt.displayCounters && len(cs.counters) > 0 {
-		fmt.Printf("counters [%s - %s]:\n", zkpID, curveID)
-		for _, c := range cs.counters {
-			fmt.Printf("\t%s\n", c)
-		}
-		fmt.Println()
-	}
-
 	if err != nil {
 		return nil, err
 	}

@@ -103,6 +103,9 @@ type CompiledConstraintSystem interface {
 
 	// ToHTML generates a human readable representation of the constraint system
 	ToHTML(w io.Writer) error
+
+	// GetCounters return the collected constraint counters, if any
+	GetCounters() []compiled.Counter
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
