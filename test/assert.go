@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -287,6 +288,24 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 		panic("not implemented")
 	}
 
+}
+
+// GetCounters compiles (or fetch from the compiled circuit cache) the circuit with set backends and curves
+// and returns measured counters
+func (assert *Assert) GetCounters(circuit frontend.Circuit, opts ...func(opt *TestingOption) error) []compiled.Counter {
+	opt := assert.options(opts...)
+
+	var r []compiled.Counter
+
+	for _, curve := range opt.curves {
+		for _, b := range opt.backends {
+			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
+			assert.NoError(err)
+			r = append(r, ccs.GetCounters()...)
+		}
+	}
+
+	return r
 }
 
 // Fuzz fuzzes the given circuit by instantiating "randomized" witnesses and cross checking

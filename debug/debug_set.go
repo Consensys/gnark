@@ -3,6 +3,4 @@
 
 package debug
 
-func init() {
-	light = false
-}
+const Debug = true

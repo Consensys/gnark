@@ -60,6 +60,8 @@ type constraintSystem struct {
 
 	mDebug map[int]int // maps constraint ID to debugInfo id
 
+	counters []Counter // statistic counters
+
 	curveID ecc.ID
 }
 
@@ -101,6 +103,9 @@ type CompiledConstraintSystem interface {
 
 	// ToHTML generates a human readable representation of the constraint system
 	ToHTML(w io.Writer) error
+
+	// GetCounters return the collected constraint counters, if any
+	GetCounters() []compiled.Counter
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -118,6 +123,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 		mDebug:            make(map[int]int),
 		mHints:            make(map[int]compiled.Hint),
 		mHintsConstrained: make(map[int]bool),
+		counters:          make([]Counter, 0),
 	}
 
 	cs.coeffs[compiled.CoeffIdZero].SetInt64(0)

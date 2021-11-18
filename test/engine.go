@@ -348,6 +348,15 @@ func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
 	return &r
 }
 
+func (e *engine) Tag(name string) frontend.Tag {
+	// do nothing, we don't measure constraints with the test engine
+	return frontend.Tag{Name: name}
+}
+
+func (e *engine) AddCounter(from, to frontend.Tag) {
+	// do nothing, we don't measure constraints with the test engine
+}
+
 func (e *engine) toBigInt(i1 interface{}) big.Int {
 
 	b := frontend.FromInterface(i1)

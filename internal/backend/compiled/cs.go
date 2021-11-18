@@ -1,9 +1,11 @@
 package compiled
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 )
 
@@ -28,6 +30,8 @@ type CS struct {
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
+
+	Counters []Counter // TODO @gbotrel no point in serializing these
 }
 
 // Visibility encodes a Variable (or wire) visibility
@@ -72,3 +76,19 @@ func (cs *CS) ReadFrom(r io.Reader) (n int64, err error) { panic("not implemente
 
 // ToHTML panics
 func (cs *CS) ToHTML(w io.Writer) error { panic("not implemtened") }
+
+// GetCounters return the collected constraint counters, if any
+func (cs *CS) GetCounters() []Counter { return cs.Counters }
+
+// Counter contains measurements of useful statistics between two Tag
+type Counter struct {
+	From, To      string
+	NbVariables   int
+	NbConstraints int
+	CurveID       ecc.ID
+	BackendID     backend.ID
+}
+
+func (c Counter) String() string {
+	return fmt.Sprintf("%s[%s] %s - %s: %d variables, %d constraints", c.BackendID, c.CurveID, c.From, c.To, c.NbVariables, c.NbConstraints)
+}
