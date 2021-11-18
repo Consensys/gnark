@@ -202,7 +202,12 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 
 		// first we check if this is a hint wire
 		if hint, ok := cs.MHints[vID]; ok {
-			return solution.solveWithHint(vID, hint)
+			if err := solution.solveWithHint(vID, hint); err != nil {
+				return err
+			}
+			v := solution.computeTerm(t)
+			val.Add(val, &v)
+			return nil
 		}
 
 		if loc != 0 {
@@ -383,7 +388,11 @@ func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
-	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	dm, err := cbor.DecOptions{
+		MaxArrayElements: 134217728,
+		MaxMapPairs:      134217728,
+	}.DecMode()
+	
 	if err != nil {
 		return 0, err
 	}

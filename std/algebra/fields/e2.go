@@ -18,7 +18,6 @@ package fields
 
 import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 )
@@ -30,8 +29,8 @@ type E2 struct {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E2) SetOne(api frontend.API) *E2 {
-	e.A0 = api.Constant(1)
-	e.A1 = api.Constant(0)
+	e.A0 = 1
+	e.A1 = 0
 	return e
 }
 
@@ -151,19 +150,12 @@ func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
 
 // Assign a value to self (witness assignment)
 func (e *E2) Assign(a *bls12377.E2) {
-	e.A0.Assign(bls12377FpTobw6761fr(&a.A0))
-	e.A1.Assign(bls12377FpTobw6761fr(&a.A1))
+	e.A0 = (fr.Element)(a.A0)
+	e.A1 = (fr.Element)(a.A1)
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
 func (e *E2) MustBeEqual(api frontend.API, other E2) {
 	api.AssertIsEqual(e.A0, other.A0)
 	api.AssertIsEqual(e.A1, other.A1)
-}
-
-func bls12377FpTobw6761fr(a *fp.Element) (r fr.Element) {
-	for i, v := range a {
-		r[i] = v
-	}
-	return
 }

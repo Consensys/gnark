@@ -22,7 +22,7 @@ func TestStructTags(t *testing.T) {
 			collected[name] = visibility
 			return nil
 		}
-		if err := parser.Visit(input, "", compiled.Unset, collectHandler, reflect.TypeOf(Variable{})); err != nil {
+		if err := parser.Visit(input, "", compiled.Unset, collectHandler, tVariable); err != nil {
 			t.Log(string(debug.Stack()))
 			t.Fatal(err)
 		}
@@ -37,7 +37,7 @@ func TestStructTags(t *testing.T) {
 			delete(collected, k)
 		}
 		if len(collected) != 0 {
-			t.Fatal("collected more variable than expected")
+			t.Fatal("collected more Variable than expected")
 		}
 
 	}

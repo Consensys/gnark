@@ -43,10 +43,10 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 			panic(fmt.Sprintf("reading byte from reader errored: %v", err))
 		}
 		if b&0b00000001 == 1 {
-			cs.newPublicVariable()
+			cs.newPublicVariable("x")
 		}
 		if b&0b00000010 == 0b00000010 {
-			cs.newSecretVariable()
+			cs.newSecretVariable("y")
 		}
 		if b&0b00000100 == 0b00000100 {
 			// multiplication
@@ -88,19 +88,19 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 			// inv
 			vv := cs.shuffleVariables(int64(b), false)
 			if len(vv) >= 1 {
-				cs.Inverse(vv[0].(Variable))
+				cs.Inverse(vv[0].(variable))
 			}
 		}
 		if b&0b01000000 == 0b01000000 {
 			v := cs.shuffleVariables(int64(b), false)
 			if len(v) >= 1 {
 				vc := cs.shuffleVariables(int64(b), true)
-				cs.AssertIsLessOrEqual(v[0].(Variable), vc[0])
+				cs.AssertIsLessOrEqual(v[0].(variable), vc[0])
 				if len(vc) >= 2 {
 					cs.AssertIsEqual(vc[0], vc[1])
 				}
 				if len(v) >= 2 {
-					cs.AssertIsBoolean(v[1].(Variable))
+					cs.AssertIsBoolean(v[1].(variable))
 				}
 			}
 		}
@@ -108,9 +108,9 @@ func CsFuzzed(data []byte, curveID ecc.ID) (ccs CompiledConstraintSystem) {
 		if b&0b10000000 == 0b10000000 {
 			v := cs.shuffleVariables(int64(b), false)
 			if len(v) >= 2 {
-				x1 := cs.Xor(v[0].(Variable), v[1].(Variable))
-				x2 := cs.And(x1, v[0].(Variable))
-				cs.Or(v[0].(Variable), v[1].(Variable))
+				x1 := cs.Xor(v[0].(variable), v[1].(variable))
+				x2 := cs.And(x1, v[0].(variable))
+				cs.Or(v[0].(variable), v[1].(variable))
 				cs.Or(x1, x2)
 			}
 		}
@@ -133,18 +133,18 @@ compile:
 
 func (cs *constraintSystem) shuffleVariables(seed int64, withConstant bool) []interface{} {
 	var v []interface{}
-	n := len(cs.public.variables) + len(cs.secret.variables) + len(cs.internal.variables)
+	n := len(cs.public.variables.variables) + len(cs.secret.variables.variables) + len(cs.internal.variables)
 	if withConstant {
 		v = make([]interface{}, 0, n*2+4*3)
 	} else {
 		v = make([]interface{}, 0, n)
 	}
 
-	for i := 0; i < len(cs.public.variables); i++ {
-		v = append(v, cs.public.variables[i])
+	for i := 0; i < len(cs.public.variables.variables); i++ {
+		v = append(v, cs.public.variables.variables[i])
 	}
-	for i := 0; i < len(cs.secret.variables); i++ {
-		v = append(v, cs.secret.variables[i])
+	for i := 0; i < len(cs.secret.variables.variables); i++ {
+		v = append(v, cs.secret.variables.variables[i])
 	}
 	for i := 0; i < len(cs.internal.variables); i++ {
 		v = append(v, cs.internal.variables[i])

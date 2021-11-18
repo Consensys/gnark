@@ -43,13 +43,13 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) Define(api frontend.API) error {
 
 	// number of bits of exponent
 	const bitSize = 2
 
 	// specify constraints
-	output := api.Constant(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
@@ -107,12 +107,12 @@ func main() {
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
-		witness.X.Assign(2)
-		witness.E.Assign(2)
-		witness.Y.Assign(4)
+		witness.X = 2
+		witness.E = 2
+		witness.Y = 4
 
-		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(4)
+		publicWitness.X = 2
+		publicWitness.Y = 4
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
@@ -141,12 +141,12 @@ func main() {
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
-		witness.X.Assign(3)
-		witness.E.Assign(12)
-		witness.Y.Assign(4096)
+		witness.X = 3
+		witness.E = 12
+		witness.Y = 4096
 
-		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(4096)
+		publicWitness.X = 2
+		publicWitness.Y = 4096
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand

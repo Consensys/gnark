@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -10,7 +9,7 @@ type rangeCheckConstantCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckConstantCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *rangeCheckConstantCircuit) Define(cs frontend.API) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 	c3 := cs.Add(circuit.X, circuit.Y)
@@ -22,11 +21,11 @@ func (circuit *rangeCheckConstantCircuit) Define(curveID ecc.ID, cs frontend.API
 func rangeCheckConstant() {
 	var circuit, good, bad rangeCheckConstantCircuit
 
-	good.X.Assign(10)
-	good.Y.Assign(4)
+	good.X = (10)
+	good.Y = (4)
 
-	bad.X.Assign(11)
-	bad.Y.Assign(4)
+	bad.X = (11)
+	bad.Y = (4)
 
 	addEntry("range_constant", &circuit, &good, &bad)
 }
@@ -36,7 +35,7 @@ type rangeCheckCircuit struct {
 	Y, Bound frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckCircuit) Define(curveID ecc.ID, cs frontend.API) error {
+func (circuit *rangeCheckCircuit) Define(cs frontend.API) error {
 	c1 := cs.Mul(circuit.X, circuit.Y)
 	c2 := cs.Mul(c1, circuit.Y)
 	c3 := cs.Add(circuit.X, circuit.Y)
@@ -50,13 +49,13 @@ func rangeCheck() {
 
 	var circuit, good, bad rangeCheckCircuit
 
-	good.X.Assign(10)
-	good.Y.Assign(4)
-	good.Bound.Assign(161)
+	good.X = (10)
+	good.Y = (4)
+	good.Bound = (161)
 
-	bad.X.Assign(11)
-	bad.Y.Assign(4)
-	bad.Bound.Assign(161)
+	bad.X = (11)
+	bad.Y = (4)
+	bad.Bound = (161)
 
 	addEntry("range", &circuit, &good, &bad)
 }

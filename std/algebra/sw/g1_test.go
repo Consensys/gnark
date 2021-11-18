@@ -37,7 +37,7 @@ type g1AddAssign struct {
 	C    G1Jac `gnark:",public"`
 }
 
-func (circuit *g1AddAssign) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1AddAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -74,7 +74,7 @@ type g1AddAssignAffine struct {
 	C    G1Affine `gnark:",public"`
 }
 
-func (circuit *g1AddAssignAffine) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
@@ -115,7 +115,7 @@ type g1DoubleAssign struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1DoubleAssign) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.DoubleAssign(api)
 	expected.MustBeEqual(api, circuit.C)
@@ -150,7 +150,7 @@ type g1DoubleAffine struct {
 	C G1Affine `gnark:",public"`
 }
 
-func (circuit *g1DoubleAffine) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.Double(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
@@ -185,7 +185,7 @@ type g1Neg struct {
 	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g1Neg) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1Neg) Define(api frontend.API) error {
 	expected := G1Jac{}
 	expected.Neg(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
@@ -217,7 +217,7 @@ type g1ScalarMul struct {
 	r fr.Element
 }
 
-func (circuit *g1ScalarMul) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g1ScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
 	expected.ScalarMul(api, circuit.A, circuit.r)
 	expected.MustBeEqual(api, circuit.C)
@@ -231,19 +231,14 @@ func TestScalarMulG1(t *testing.T) {
 	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
-	// random scalar
-	var r fr.Element
-	r.SetRandom()
-
 	// create the cs
 	var circuit, witness g1ScalarMul
-	circuit.r = r
-
+	circuit.r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, circuit.r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -269,13 +264,13 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul
 	// this is q - 1
 	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
-	// b.Run("groth16", func(b *testing.B) {
-	// 	for i := 0; i < b.N; i++ {
-	// 		ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	// 	}
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+		}
 
-	// })
-	// b.Log("groth16", ccsBench.GetNbConstraints())
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {

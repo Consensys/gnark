@@ -75,7 +75,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 			checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
+			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
 			// must not error with big int test engine
@@ -88,7 +88,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				checkError(err)
 
 				// ensure prove / verify works well with valid witnesses
-				proof, err := groth16.Prove(ccs, pk, validWitness)
+				proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
 				checkError(err)
 
 				err = groth16.Verify(proof, vk, validWitness)
@@ -101,7 +101,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					_, err = witness.WriteFullTo(&buf, curve, validWitness)
 					checkError(err)
 
-					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf)
+					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
 					checkError(err)
 
 					buf.Reset()
@@ -120,7 +120,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				pk, vk, err := plonk.Setup(ccs, srs)
 				checkError(err)
 
-				correctProof, err := plonk.Prove(ccs, pk, validWitness)
+				correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 				checkError(err)
 
 				err = plonk.Verify(correctProof, vk, validWitness)
@@ -133,7 +133,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					_, err := witness.WriteFullTo(&buf, curve, validWitness)
 					checkError(err)
 
-					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf)
+					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
 					checkError(err)
 
 					buf.Reset()
@@ -166,6 +166,8 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
+	popts := append(opt.proverOpts, backend.IgnoreSolverError)
+
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
 
@@ -173,7 +175,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 			mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
 			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b)
+			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
 			// must error with big int test engine
@@ -188,7 +190,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				err = groth16.IsSolved(ccs, invalidWitness)
 				mustError(err)
 
-				proof, _ := groth16.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
+				proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
 				err = groth16.Verify(proof, vk, invalidWitness)
 				mustError(err)
@@ -203,7 +205,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				err = plonk.IsSolved(ccs, invalidWitness)
 				mustError(err)
 
-				incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, backend.IgnoreSolverError)
+				incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
 				err = plonk.Verify(incorrectProof, vk, invalidWitness)
 				mustError(err)
 
@@ -228,7 +230,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness fr
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b)
+	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	checkError(err)
 
 	// must not error with big int test engine
@@ -264,7 +266,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
 	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b)
+	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	if err != nil {
 		fmt.Println(reflect.TypeOf(circuit).String())
 	}
@@ -307,7 +309,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 			// this puts the compiled circuit in the cache
 			// we do this here in case our fuzzWitness method mutates some references in the circuit
 			// (like []frontend.Variable) before cleaning up
-			_, err := assert.compile(circuit, curve, b)
+			_, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			assert.NoError(err)
 			valid := 0
 			// "fuzz" with zeros
@@ -318,12 +320,6 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 					valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
 				}
 			}
-			utils.ResetWitness(w)
-
-			// ensure we're clean for next users.
-			// if we reached that point; compiled work so the circuit was clean and this does nothing
-			// except ensuring the witness cloning / fuzzing didn't mutate circuit
-			utils.ResetWitness(circuit)
 
 			// fmt.Println(reflect.TypeOf(circuit).String(), valid)
 		}
@@ -348,22 +344,23 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID) (frontend.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (frontend.CompiledConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it
 	if ccs, ok := assert.compiled[key]; ok {
+		// TODO we may want to check that it was compiled with the same compile options here
 		return ccs, nil
 	}
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit)
+	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit)
+	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}
 
 	if !reflect.DeepEqual(ccs, _ccs) {

@@ -17,9 +17,7 @@ limitations under the License.
 package frontend
 
 import (
-	"fmt"
 	"math/big"
-	"runtime/debug"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -31,8 +29,8 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	// extract variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	// allocate resulting variable
-	res := Variable{linExp: make(compiled.LinearExpression, 0, s)}
+	// allocate resulting Variable
+	res := variable{linExp: make(compiled.LinearExpression, 0, s)}
 
 	for _, v := range vars {
 		res.linExp = append(res.linExp, v.linExp.Clone()...)
@@ -50,10 +48,10 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 	if vars[0].isConstant() {
 		n := vars[0].constantValue(cs)
 		n.Neg(n)
-		return cs.Constant(n)
+		return cs.constant(n)
 	}
 
-	return Variable{linExp: cs.negateLinExp(vars[0].linExp)}
+	return variable{linExp: cs.negateLinExp(vars[0].linExp)}
 }
 
 // Sub returns res = i1 - i2
@@ -62,8 +60,8 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	// extract variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	// allocate resulting variable
-	res := Variable{
+	// allocate resulting Variable
+	res := variable{
 		linExp: make(compiled.LinearExpression, 0, s),
 	}
 
@@ -83,7 +81,7 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 	vars, _ := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	mul := func(v1, v2 Variable) Variable {
+	mul := func(v1, v2 variable) variable {
 
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1.isConstant() && !v2.isConstant() {
@@ -98,7 +96,7 @@ func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 			b2 := v2.constantValue(cs)
 
 			b1.Mul(b1, b2).Mod(b1, cs.curveID.Info().Fr.Modulus())
-			return cs.Constant(b1)
+			return cs.constant(b1).(variable)
 		}
 
 		// ensure v2 is the constant
@@ -118,9 +116,9 @@ func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-func (cs *constraintSystem) mulConstant(v1, constant Variable) Variable {
-	// multiplying a variable by a constant -> we updated the coefficients in the linear expression
-	// leading to that variable
+func (cs *constraintSystem) mulConstant(v1, constant variable) variable {
+	// multiplying a Variable by a constant -> we updated the coefficients in the linear expression
+	// leading to that Variable
 	linExp := v1.linExp.Clone()
 	lambda := constant.constantValue(cs)
 
@@ -140,9 +138,9 @@ func (cs *constraintSystem) mulConstant(v1, constant Variable) Variable {
 			coeff := cs.coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		linExp[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, &newCoeff)
+		linExp[i] = cs.makeTerm(variable{visibility: visibility, id: vID}, &newCoeff)
 	}
-	return Variable{linExp: linExp}
+	return variable{linExp: linExp}
 }
 
 // Inverse returns res = inverse(v)
@@ -152,15 +150,14 @@ func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
 	if vars[0].isConstant() {
 		c := vars[0].constantValue(cs)
 		if c.IsUint64() && c.Uint64() == 0 {
-			stack := string(debug.Stack())
-			panic(fmt.Sprintf("inverse by constant(0):\n%s", stack))
+			panic("inverse by constant(0)")
 		}
 
 		c.ModInverse(c, cs.curveID.Info().Fr.Modulus())
-		return cs.Constant(c)
+		return cs.constant(c)
 	}
 
-	// allocate resulting variable
+	// allocate resulting Variable
 	res := cs.newInternalVariable()
 
 	debug := cs.addDebugInfo("inverse", vars[0], "*", res, " == 1")
@@ -189,19 +186,18 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	// v2 is constant
 	b2 := v2.constantValue(cs)
 	if b2.IsUint64() && b2.Uint64() == 0 {
-		stack := string(debug.Stack())
-		panic(fmt.Sprintf("div by constant(0):\n%s", stack))
+		panic("div by constant(0)")
 	}
 	q := cs.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.isConstant() {
 		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
-		return cs.Constant(b2)
+		return cs.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.Constant(b2))
+	return cs.mulConstant(v1, cs.constant(b2).(variable))
 }
 
 func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
@@ -221,26 +217,27 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 	// v2 is constant
 	b2 := v2.constantValue(cs)
 	if b2.IsUint64() && b2.Uint64() == 0 {
-		stack := string(debug.Stack())
-		panic(fmt.Sprintf("div by constant(0):\n%s", stack))
+		panic("div by constant(0)")
 	}
 	q := cs.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.isConstant() {
 		b2.Mul(b2, v1.constantValue(cs)).Mod(b2, q)
-		return cs.Constant(b2)
+		return cs.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.Constant(b2))
+	return cs.mulConstant(v1, cs.constant(b2).(variable))
 }
 
 // Xor compute the XOR between two variables
-func (cs *constraintSystem) Xor(a, b Variable) Variable {
+func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 
-	a.assertIsSet(cs)
-	b.assertIsSet(cs)
+	vars, _ := cs.toVariables(_a, _b)
+
+	a := vars[0]
+	b := vars[1]
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -256,10 +253,11 @@ func (cs *constraintSystem) Xor(a, b Variable) Variable {
 }
 
 // Or compute the OR between two variables
-func (cs *constraintSystem) Or(a, b Variable) Variable {
+func (cs *constraintSystem) Or(_a, _b Variable) Variable {
+	vars, _ := cs.toVariables(_a, _b)
 
-	a.assertIsSet(cs)
-	b.assertIsSet(cs)
+	a := vars[0]
+	b := vars[1]
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -274,10 +272,11 @@ func (cs *constraintSystem) Or(a, b Variable) Variable {
 }
 
 // And compute the AND between two variables
-func (cs *constraintSystem) And(a, b Variable) Variable {
+func (cs *constraintSystem) And(_a, _b Variable) Variable {
+	vars, _ := cs.toVariables(_a, _b)
 
-	a.assertIsSet(cs)
-	b.assertIsSet(cs)
+	a := vars[0]
+	b := vars[1]
 
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
@@ -294,9 +293,9 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 	if a.isConstant() {
 		c := a.constantValue(cs)
 		if c.IsUint64() && c.Uint64() == 0 {
-			return cs.Constant(1)
+			return cs.constant(1)
 		}
-		return cs.Constant(0)
+		return cs.constant(0)
 	}
 
 	debug := cs.addDebugInfo("isZero", a)
@@ -307,7 +306,7 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
 	m := cs.NewHint(hint.IsZero, a)
-	cs.addConstraint(newR1C(a, m, cs.Constant(0)), debug)
+	cs.addConstraint(newR1C(a, m, cs.constant(0)), debug)
 
 	cs.AssertIsBoolean(m)
 	ma := cs.Add(m, a)
@@ -316,7 +315,7 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 
 }
 
-// ToBinary unpacks a variable in binary,
+// ToBinary unpacks a Variable in binary,
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
@@ -337,17 +336,17 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 	// if a is a constant, work with the big int value.
 	if a.isConstant() {
 		c := a.constantValue(cs)
-		b := make([]Variable, nbBits)
+		b := make([]variable, nbBits)
 		for i := 0; i < len(b); i++ {
-			b[i] = cs.Constant(c.Bit(i))
+			b[i] = cs.constant(c.Bit(i)).(variable)
 		}
-		return b
+		return toSliceOfVariables(b)
 	}
 
 	// allocate the resulting variables and bit-constraint them
-	b := make([]Variable, nbBits)
+	b := make([]variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, i)
+		b[i] = cs.NewHint(hint.IthBit, a, i).(variable)
 		cs.AssertIsBoolean(b[i])
 	}
 
@@ -356,11 +355,11 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 	var c big.Int
 	c.SetUint64(1)
 
-	var Σbi Variable
+	var Σbi variable
 	Σbi.linExp = make(compiled.LinearExpression, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		Σbi.linExp[i] = cs.makeTerm(Variable{visibility: compiled.Internal, id: b[i].id}, &c)
+		Σbi.linExp[i] = cs.makeTerm(variable{visibility: compiled.Internal, id: b[i].id}, &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -368,12 +367,12 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	// record the constraint Σ (2**i * b[i]) == a
 	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
-	return b
+	return toSliceOfVariables(b)
 
 }
 
 // toBinaryUnsafe is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (cs *constraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
+func (cs *constraintSystem) toBinaryUnsafe(a variable, nbBits int) []Variable {
 	if a.isConstant() {
 		return cs.ToBinary(a, nbBits)
 	}
@@ -381,9 +380,9 @@ func (cs *constraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 	a.assertIsSet(cs)
 
 	// allocate the resulting variables and bit-constraint them
-	b := make([]Variable, nbBits)
+	b := make([]variable, nbBits)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, i)
+		b[i] = cs.NewHint(hint.IthBit, a, i).(variable)
 	}
 
 	// here what we do is we add a single constraint where
@@ -391,11 +390,11 @@ func (cs *constraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 	var c big.Int
 	c.SetUint64(1)
 
-	var Σbi Variable
+	var Σbi variable
 	Σbi.linExp = make(compiled.LinearExpression, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		Σbi.linExp[i] = cs.makeTerm(Variable{visibility: compiled.Internal, id: b[i].id}, &c)
+		Σbi.linExp[i] = cs.makeTerm(variable{visibility: compiled.Internal, id: b[i].id}, &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -403,12 +402,23 @@ func (cs *constraintSystem) toBinaryUnsafe(a Variable, nbBits int) []Variable {
 
 	// record the constraint Σ (2**i * b[i]) == a
 	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
-	return b
+	return toSliceOfVariables(b)
 
 }
 
+func toSliceOfVariables(v []variable) []Variable {
+	// TODO this is ugly.
+	r := make([]Variable, len(v))
+	for i := 0; i < len(v); i++ {
+		r[i] = v[i]
+	}
+	return r
+}
+
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *constraintSystem) FromBinary(b ...Variable) Variable {
+func (cs *constraintSystem) FromBinary(_b ...interface{}) Variable {
+	b, _ := cs.toVariables(_b...)
+
 	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
 		b[i].assertIsSet(cs)
@@ -417,7 +427,7 @@ func (cs *constraintSystem) FromBinary(b ...Variable) Variable {
 	// res = Σ (2**i * b[i])
 
 	var res, v Variable
-	res = cs.Constant(0) // no constraint is recorded
+	res = cs.constant(0) // no constraint is recorded
 
 	var c big.Int
 	c.SetUint64(1)
@@ -441,13 +451,14 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 	// ensures that b is boolean
 	cs.AssertIsBoolean(b)
 
-	if b.isConstant() {
-		c := b.constantValue(cs)
-		if c.Uint64() == 0 {
-			return vars[2]
-		}
-		return vars[1]
-	}
+	// this doesn't work.
+	// if b.isConstant() {
+	// 	c := b.constantValue(cs)
+	// 	if c.Uint64() == 0 {
+	// 		return vars[2]
+	// 	}
+	// 	return vars[1]
+	// }
 
 	if vars[1].isConstant() && vars[2].isConstant() {
 		n1 := vars[1].constantValue(cs)
@@ -466,17 +477,38 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 
 }
 
-// Constant will return (and allocate if neccesary) a Variable from given value
+// IsConstant returns true if v is a constant known at compile time
+func (cs *constraintSystem) IsConstant(v Variable) bool {
+	if _v, ok := v.(variable); ok {
+		return _v.isConstant()
+	}
+	// it's not a wire, it's another golang type, we consider it constant.
+	// TODO we may want to use the struct parser to ensure this Variable interface doesn't contain fields which are
+	// variable
+	return true
+}
+
+// ConstantValue returns the big.Int value of v.
+// Will panic if v.IsConstant() == false
+func (cs *constraintSystem) ConstantValue(v Variable) *big.Int {
+	if _v, ok := v.(variable); ok {
+		return _v.constantValue(cs)
+	}
+	r := FromInterface(v)
+	return &r
+}
+
+// constant will return (and allocate if neccesary) a Variable from given value
 //
 // if input is already a Variable, does nothing
-// else, attempts to convert input to a big.Int (see FromInterface) and returns a Constant Variable
+// else, attempts to convert input to a big.Int (see FromInterface) and returns a constant Variable
 //
-// a Constant variable does NOT necessary allocate a Variable in the ConstraintSystem
+// a constant Variable does NOT necessary allocate a Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (cs *constraintSystem) Constant(input interface{}) Variable {
+func (cs *constraintSystem) constant(input interface{}) Variable {
 
 	switch t := input.(type) {
-	case Variable:
+	case variable:
 		t.assertIsSet(cs)
 		return t
 	default:
@@ -484,18 +516,18 @@ func (cs *constraintSystem) Constant(input interface{}) Variable {
 		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
-		return Variable{linExp: compiled.LinearExpression{
-			cs.makeTerm(Variable{visibility: compiled.Public, id: 0}, &n),
+		return variable{linExp: compiled.LinearExpression{
+			cs.makeTerm(variable{visibility: compiled.Public, id: 0}, &n),
 		}}
 	}
 }
 
 // toVariables return Variable corresponding to inputs and the total size of the linear expressions
-func (cs *constraintSystem) toVariables(in ...interface{}) ([]Variable, int) {
-	r := make([]Variable, 0, len(in))
+func (cs *constraintSystem) toVariables(in ...interface{}) ([]variable, int) {
+	r := make([]variable, 0, len(in))
 	s := 0
 	e := func(i interface{}) {
-		v := cs.Constant(i)
+		v := cs.constant(i).(variable)
 		r = append(r, v)
 		s += len(v.linExp)
 	}
@@ -514,7 +546,7 @@ func (cs *constraintSystem) negateLinExp(l compiled.LinearExpression) compiled.L
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
 		lambda.Neg(&cs.coeffs[cID])
-		res[i] = cs.makeTerm(Variable{visibility: visibility, id: vID}, &lambda)
+		res[i] = cs.makeTerm(variable{visibility: visibility, id: vID}, &lambda)
 	}
 	return res
 }

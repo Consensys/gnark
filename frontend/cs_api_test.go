@@ -27,7 +27,7 @@ import (
 func TestPrintln(t *testing.T) {
 	// must not panic.
 	cs := newConstraintSystem(ecc.BN254)
-	one := cs.newPublicVariable()
+	one := cs.newPublicVariable("one")
 
 	cs.Println(nil)
 	cs.Println(1)
@@ -73,29 +73,23 @@ func TestIsBool3(t *testing.T) {
 	}
 }
 
-func (c *IsBool1) Define(curve ecc.ID, cs API) error {
+func (c *IsBool1) Define(cs API) error {
 
-	zero := cs.Constant(0)
-	one := cs.Constant(1)
-	cs.AssertIsBoolean(zero)
-	cs.AssertIsBoolean(one)
+	cs.AssertIsBoolean(0)
+	cs.AssertIsBoolean(1)
 	return nil
 }
 
-func (c *IsBool2) Define(curve ecc.ID, cs API) error {
+func (c *IsBool2) Define(cs API) error {
 
-	zero := cs.Constant(0)
-	one := cs.Constant(1)
-	sum := cs.Add(zero, one)
+	sum := cs.Add(0, 1)
 	cs.AssertIsBoolean(sum)
 	return nil
 }
 
-func (c *IsBool3) Define(curve ecc.ID, cs API) error {
+func (c *IsBool3) Define(cs API) error {
 
-	zero := cs.Constant(0)
-	one := cs.Constant(1)
-	prod := cs.Mul(zero, one)
+	prod := cs.Mul(0, 1)
 	cs.AssertIsBoolean(prod)
 
 	return nil

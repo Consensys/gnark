@@ -35,8 +35,8 @@ type MiMC struct {
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, id ecc.ID, api frontend.API) (MiMC, error) {
-	if constructor, ok := newMimc[id]; ok {
+func NewMiMC(seed string, api frontend.API) (MiMC, error) {
+	if constructor, ok := newMimc[api.CurveID()]; ok {
 		return constructor(seed, api), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
@@ -50,7 +50,7 @@ func (h *MiMC) Write(data ...frontend.Variable) {
 // Reset resets the Hash to its initial state.
 func (h *MiMC) Reset() {
 	h.data = nil
-	h.h = h.api.Constant(0)
+	h.h = 0
 }
 
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:

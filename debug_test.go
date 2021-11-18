@@ -20,7 +20,7 @@ type printlnCircuit struct {
 	A, B frontend.Variable
 }
 
-func (circuit *printlnCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *printlnCircuit) Define(api frontend.API) error {
 	c := api.Add(circuit.A, circuit.B)
 	api.Println(c, "is the addition")
 	d := api.Mul(circuit.A, c)
@@ -39,8 +39,8 @@ func TestPrintln(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness printlnCircuit
-	witness.A.Assign(2)
-	witness.B.Assign(11)
+	witness.A = 2
+	witness.B = 11
 
 	var expected bytes.Buffer
 	expected.WriteString("debug_test.go:25 13 is the addition\n")
@@ -66,7 +66,7 @@ type divBy0Trace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *divBy0Trace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *divBy0Trace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.Div(circuit.A, d)
 	return nil
@@ -76,9 +76,9 @@ func TestTraceDivBy0(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness divBy0Trace
-	witness.A.Assign(2)
-	witness.B.Assign(-2)
-	witness.C.Assign(2)
+	witness.A = 2
+	witness.B = -2
+	witness.C = 2
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
@@ -103,7 +103,7 @@ type notEqualTrace struct {
 	A, B, C frontend.Variable
 }
 
-func (circuit *notEqualTrace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *notEqualTrace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.AssertIsEqual(circuit.A, d)
 	return nil
@@ -113,9 +113,9 @@ func TestTraceNotEqual(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notEqualTrace
-	witness.A.Assign(1)
-	witness.B.Assign(24)
-	witness.C.Assign(42)
+	witness.A = 1
+	witness.B = 24
+	witness.C = 42
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
@@ -137,10 +137,10 @@ func TestTraceNotEqual(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not boolean
 type notBooleanTrace struct {
-	A, B, C frontend.Variable
+	B, C frontend.Variable
 }
 
-func (circuit *notBooleanTrace) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *notBooleanTrace) Define(api frontend.API) error {
 	d := api.Add(circuit.B, circuit.C)
 	api.AssertIsBoolean(d)
 	return nil
@@ -150,9 +150,9 @@ func TestTraceNotBoolean(t *testing.T) {
 	assert := require.New(t)
 
 	var circuit, witness notBooleanTrace
-	witness.A.Assign(1)
-	witness.B.Assign(24)
-	witness.C.Assign(42)
+	// witness.A = 1
+	witness.B = 24
+	witness.C = 42
 
 	{
 		_, err := getGroth16Trace(&circuit, &witness)

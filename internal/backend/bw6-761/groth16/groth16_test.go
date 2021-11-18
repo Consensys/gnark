@@ -29,7 +29,6 @@ import (
 	bw6_761groth16 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
@@ -44,7 +43,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *refCircuit) Define(api frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = api.Mul(circuit.X, circuit.X)
 	}
@@ -63,7 +62,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	}
 
 	var good refCircuit
-	good.X.Assign(2)
+	good.X = 2
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -73,7 +72,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 
 	return r1cs, &good
 }

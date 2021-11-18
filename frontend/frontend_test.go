@@ -29,7 +29,7 @@ func BenchmarkCompileReferenceGroth16(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Compile(ecc.BN254, backend.GROTH16, &c, benchSize)
+		Compile(ecc.BN254, backend.GROTH16, &c, WithCapacity(benchSize))
 	}
 }
 
@@ -38,7 +38,7 @@ func BenchmarkCompileReferencePlonk(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Compile(ecc.BN254, backend.PLONK, &c, benchSize)
+		Compile(ecc.BN254, backend.PLONK, &c, WithCapacity(benchSize))
 	}
 }
 
@@ -48,7 +48,7 @@ type benchCircuit struct {
 	Y Variable `gnark:",public"`
 }
 
-func (circuit *benchCircuit) Define(curveID ecc.ID, cs API) error {
+func (circuit *benchCircuit) Define(cs API) error {
 	for i := 0; i < benchSize; i++ {
 		circuit.X = cs.Mul(circuit.X, circuit.X)
 	}
