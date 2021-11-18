@@ -138,7 +138,6 @@ func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constr
 type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
-	displayCounters           bool
 }
 
 // WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
