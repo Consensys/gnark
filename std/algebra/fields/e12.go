@@ -339,7 +339,7 @@ func (e *E12) MulBy034(api frontend.API, c3, c4 E2, ext Extension) *E12 {
 
 	b.MulBy01(api, c3, c4, ext)
 
-	c3.Add(api, E2{A0: api.Constant(1), A1: api.Constant(0)}, c3)
+	c3.Add(api, E2{A0: 1, A1: 0}, c3)
 	d.Add(api, e.C0, e.C1)
 	d.MulBy01(api, c3, c4, ext)
 
@@ -353,7 +353,7 @@ func (e *E12) MulBy034(api frontend.API, c3, c4 E2, ext Extension) *E12 {
 func (e *E12) Mul034By034(api frontend.API, yy, d3, d4, y, c3, c4 E2, ext Extension) *E12 {
 
 	var tmp, x3, x4, x04, x03, x34 E2
-	zero := E2{A0: api.Constant(0), A1: api.Constant(0)}
+	zero := E2{A0: 0, A1: 0}
 
 	x3.Mul(api, c3, d3, ext)
 	x4.Mul(api, c4, d4, ext)

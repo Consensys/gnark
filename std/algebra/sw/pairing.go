@@ -69,7 +69,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 		Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q, pairingInfo.Extension)
 		l1.R0.MulByFp(api, l1.R0, P.X)
 		l2.R0.MulByFp(api, l2.R0, P.X)
-		lacc.Mul034By034(api, fields.E2{A0: yy, A1: api.Constant(0)}, l1.R0, l1.R1, fields.E2{A0: P.Y, A1: api.Constant(0)}, l2.R0, l2.R1, pairingInfo.Extension)
+		lacc.Mul034By034(api, fields.E2{A0: yy, A1: 0}, l1.R0, l1.R1, fields.E2{A0: P.Y, A1: 0}, l2.R0, l2.R1, pairingInfo.Extension)
 		res.Mul(api, *res, lacc, pairingInfo.Extension)
 	}
 

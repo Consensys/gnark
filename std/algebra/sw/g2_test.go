@@ -151,7 +151,7 @@ type g2DoubleAndAddAffine struct {
 	C    G2Affine `gnark:",public"`
 }
 
-func (circuit *g2DoubleAndAddAffine) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, fields.GetBLS377ExtensionFp12(api))
 	expected.MustBeEqual(api, circuit.C)
