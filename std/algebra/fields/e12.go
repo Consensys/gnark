@@ -349,41 +349,6 @@ func (e *E12) MulBy034(api frontend.API, c3, c4 E2, ext Extension) *E12 {
 	return e
 }
 
-// Mul034By034 multiplication of sparse element (y,0,0,c3,c4,0) by sparse element (y,0,0,d3,d4,0)
-func (e *E12) Mul034By034(api frontend.API, yy, d3, d4, y, c3, c4 E2, ext Extension) *E12 {
-
-	var tmp, x3, x4, x04, x03, x34 E2
-	zero := E2{A0: 0, A1: 0}
-
-	x3.Mul(api, c3, d3, ext)
-	x4.Mul(api, c4, d4, ext)
-	tmp.Add(api, y, c4)
-	x04.Add(api, y, d4).
-		Mul(api, x04, tmp, ext).
-		Sub(api, x04, yy).
-		Sub(api, x04, x4)
-	tmp.Add(api, y, c3)
-	x03.Add(api, y, d3).
-		Mul(api, x03, tmp, ext).
-		Sub(api, x03, yy).
-		Sub(api, x03, x3)
-	tmp.Add(api, c3, c4)
-	x34.Add(api, d3, d4).
-		Mul(api, x34, tmp, ext).
-		Sub(api, x34, x3).
-		Sub(api, x34, x4)
-
-	e.C0.B0.MulByIm(api, x4, ext).
-		Add(api, e.C0.B0, yy)
-	e.C0.B1 = x3
-	e.C0.B2 = x34
-	e.C1.B0 = x03
-	e.C1.B1 = x04
-	e.C1.B2 = zero
-
-	return e
-}
-
 // Frobenius applies frob to an fp12 elmt
 func (e *E12) Frobenius(api frontend.API, e1 E12, ext Extension) *E12 {
 
