@@ -113,6 +113,13 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls1237
 	return
 }
 
+func triplePairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls12377.GT) {
+	_, _, P, Q = bls12377.Generators()
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P, P, P}, []bls12377.G2Affine{Q, Q, Q})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
+	return
+}
+
 func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
@@ -126,6 +133,53 @@ func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
 	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
 	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
+}
+
+type triplePairingBLS377 struct {
+	P1, P2, P3 G1Affine `gnark:",public"`
+	Q1, Q2, Q3 G2Affine
+	pairingRes bls12377.GT
+}
+
+func (circuit *triplePairingBLS377) Define(api frontend.API) error {
+
+	ateLoop := uint64(9586122913090633729)
+	ext := fields.GetBLS377ExtensionFp12(api)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.A0 = 0
+	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
+
+	milRes := fields.E12{}
+	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)
+
+	pairingRes := fields.E12{}
+	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
+
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
+
+	return nil
+}
+
+func TestTriplePairingBLS377(t *testing.T) {
+
+	// pairing test data
+	P, Q, pairingRes := triplePairingData()
+
+	// create cs
+	var circuit, witness triplePairingBLS377
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	witness.P1.Assign(&P)
+	witness.P2.Assign(&P)
+	witness.P3.Assign(&P)
+	witness.Q1.Assign(&Q)
+	witness.Q2.Assign(&Q)
+	witness.Q3.Assign(&Q)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
 }
 
 func BenchmarkPairing(b *testing.B) {

@@ -155,3 +155,52 @@ func DoubleStep(api frontend.API, p1 *G2Affine, ext fields.Extension) (G2Affine,
 	return p, line
 
 }
+
+// TripleMillerLoop computes the product of three miller loops
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+
+	var ateLoopBin [64]uint
+	var ateLoopBigInt big.Int
+	ateLoopBigInt.SetUint64(pairingInfo.AteLoop)
+	for i := 0; i < 64; i++ {
+		ateLoopBin[i] = ateLoopBigInt.Bit(i)
+	}
+
+	res.SetOne(api)
+
+	var l1, l2 LineEvaluation
+	Qacc := make([]G2Affine, 3)
+	yInv := make([]frontend.Variable, 3)
+	xOverY := make([]frontend.Variable, 3)
+	for k := 0; k < 3; k++ {
+		Qacc[k] = Q[k]
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
+	}
+
+	for i := len(ateLoopBin) - 2; i >= 0; i-- {
+		res.Square(api, *res, pairingInfo.Extension)
+
+		if ateLoopBin[i] == 0 {
+			for k := 0; k < 3; k++ {
+				Qacc[k], l1 = DoubleStep(api, &Qacc[k], pairingInfo.Extension)
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+			}
+			continue
+		}
+
+		for k := 0; k < 3; k++ {
+			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k], pairingInfo.Extension)
+			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R1.MulByFp(api, l1.R1, yInv[k])
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+			l2.R0.MulByFp(api, l2.R0, xOverY[k])
+			l2.R1.MulByFp(api, l2.R1, yInv[k])
+			res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
+		}
+	}
+
+	return res
+}

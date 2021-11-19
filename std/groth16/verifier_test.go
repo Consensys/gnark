@@ -198,7 +198,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+		ccs, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }
