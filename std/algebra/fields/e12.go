@@ -330,18 +330,18 @@ func (e *E12) Conjugate(api frontend.API, e1 E12) *E12 {
 }
 
 // MulBy034 multiplication by sparse element
-func (e *E12) MulBy034(api frontend.API, c0, c3, c4 E2, ext Extension) *E12 {
+func (e *E12) MulBy034(api frontend.API, c3, c4 E2, ext Extension) *E12 {
 
-	var a, b, d E6
+	var d E6
 
-	a.MulByE2(api, e.C0, c0, ext)
+	a := e.C0
+	b := e.C1
 
-	b = e.C1
 	b.MulBy01(api, c3, c4, ext)
 
-	c0.Add(api, c0, c3)
+	c3.Add(api, E2{A0: 1, A1: 0}, c3)
 	d.Add(api, e.C0, e.C1)
-	d.MulBy01(api, c0, c4, ext)
+	d.MulBy01(api, c3, c4, ext)
 
 	e.C1.Add(api, a, b).Neg(api, e.C1).Add(api, e.C1, d)
 	e.C0.MulByNonResidue(api, b, ext).Add(api, e.C0, a)

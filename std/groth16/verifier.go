@@ -50,14 +50,6 @@ type VerifyingKey struct {
 // Notations and naming are from https://eprint.iacr.org/2020/278.
 func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
-	var eπCdelta, eπAπB, epsigamma fields.E12
-
-	// e(-πC, -δ)
-	sw.MillerLoop(api, innerProof.Krs, innerVk.G2.DeltaNeg, &eπCdelta, pairingInfo)
-
-	// e(πA, πB)
-	sw.MillerLoop(api, innerProof.Ar, innerProof.Bs, &eπAπB, pairingInfo)
-
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
 	var psi0, tmp sw.G1Affine
@@ -72,17 +64,13 @@ func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKe
 		psi0.AddAssign(api, tmp)
 	}
 
-	// e(psi0, -gamma)
-	sw.MillerLoop(api, psi0, innerVk.G2.GammaNeg, &epsigamma, pairingInfo)
-
-	// combine the results before performing the final expo
-	var preFinalExpo fields.E12
-	preFinalExpo.Mul(api, eπCdelta, eπAπB, pairingInfo.Extension).
-		Mul(api, preFinalExpo, epsigamma, pairingInfo.Extension)
+	var resMillerLoop fields.E12
+	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
+	sw.TripleMillerLoop(api, [3]sw.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
 
 	// performs the final expo
 	var resPairing fields.E12
-	resPairing.FinalExponentiation(api, preFinalExpo, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MustBeEqual(api, resPairing)

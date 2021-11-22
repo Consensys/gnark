@@ -364,14 +364,14 @@ func TestExpFinalExpoFp12(t *testing.T) {
 }
 
 type fp12MulBy034 struct {
-	A       E12 `gnark:",public"`
-	W       E12
-	B, C, D E2
+	A    E12 `gnark:",public"`
+	W    E12
+	B, C E2
 }
 
 func (circuit *fp12MulBy034) Define(api frontend.API) error {
 	ext := GetBLS377ExtensionFp12(api)
-	circuit.A.MulBy034(api, circuit.B, circuit.C, circuit.D, ext)
+	circuit.A.MulBy034(api, circuit.B, circuit.C, ext)
 	circuit.A.MustBeEqual(api, circuit.W)
 	return nil
 }
@@ -381,7 +381,8 @@ func TestFp12MulBy034(t *testing.T) {
 	var circuit, witness fp12MulBy034
 
 	var a bls12377.E12
-	var b, c, d bls12377.E2
+	var b, c, one bls12377.E2
+	one.SetOne()
 	a.SetRandom()
 	witness.A.Assign(&a)
 
@@ -391,10 +392,7 @@ func TestFp12MulBy034(t *testing.T) {
 	c.SetRandom()
 	witness.C.Assign(&c)
 
-	d.SetRandom()
-	witness.D.Assign(&d)
-
-	a.MulBy034(&b, &c, &d)
+	a.MulBy034(&one, &b, &c)
 
 	witness.W.Assign(&a)
 

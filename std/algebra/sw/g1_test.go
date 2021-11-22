@@ -178,6 +178,47 @@ func TestDoubleAffineG1(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// DoubleAndAdd affine
+
+type g1DoubleAndAddAffine struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+}
+
+func (circuit *g1DoubleAndAddAffine) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.DoubleAndAdd(api, &circuit.A, &circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDoubleAndAddAffineG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1DoubleAndAddAffine
+
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// compute the result
+	_a.Double(&_a).AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
+// -------------------------------------------------------------------------------------------------
 // Neg
 
 type g1Neg struct {

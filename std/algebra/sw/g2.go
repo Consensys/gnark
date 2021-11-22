@@ -224,3 +224,41 @@ func (p *G2Affine) MustBeEqual(api frontend.API, other G2Affine) {
 	p.X.MustBeEqual(api, other.X)
 	p.Y.MustBeEqual(api, other.Y)
 }
+
+// DoubleAndAdd computes 2*p1+p2 in affine coords
+func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) *G2Affine {
+
+	var n, d, l1, l2, x3, x4, y4 fields.E2
+
+	// compute lambda1 = (y2-y1)/(x2-x1)
+	n.Sub(api, p1.Y, p2.Y)
+	d.Sub(api, p1.X, p2.X)
+	l1.Inverse(api, d, ext).Mul(api, l1, n, ext)
+
+	// compute x3 = lambda1**2-x1-x2
+	x3.Square(api, l1, ext).
+		Sub(api, x3, p1.X).
+		Sub(api, x3, p2.X)
+
+	// omit y3 computation
+	// compute lambda2 = -lambda1-2*y1/(x3-x1)
+	n.Double(api, p1.Y)
+	d.Sub(api, x3, p1.X)
+	l2.Inverse(api, d, ext).Mul(api, l2, n, ext)
+	l2.Add(api, l2, l1).Neg(api, l2)
+
+	// compute x4 =lambda2**2-x1-x3
+	x4.Square(api, l2, ext).
+		Sub(api, x4, p1.X).
+		Sub(api, x4, x3)
+
+	// compute y4 = lambda2*(x1 - x4)-y1
+	y4.Sub(api, p1.X, x4).
+		Mul(api, l2, y4, ext).
+		Sub(api, y4, p1.Y)
+
+	p.X = x4
+	p.Y = y4
+
+	return p
+}
