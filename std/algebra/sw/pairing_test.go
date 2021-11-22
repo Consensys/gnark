@@ -17,10 +17,12 @@ limitations under the License.
 package sw
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields"
@@ -79,10 +81,21 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls1237
 	return
 }
 
-func triplePairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls12377.GT) {
-	_, _, P, Q = bls12377.Generators()
-	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P, P, P}, []bls12377.G2Affine{Q, Q, Q})
+func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairingRes bls12377.GT) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	var u, v fr.Element
+	var _u, _v big.Int
+	for i := 1; i < 3; i++ {
+		u.SetRandom()
+		v.SetRandom()
+		u.ToBigIntRegular(&_u)
+		v.ToBigIntRegular(&_v)
+		P[i].ScalarMultiplication(&P[0], &_u)
+		Q[i].ScalarMultiplication(&Q[0], &_v)
+	}
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1], P[2]}, []bls12377.G2Affine{Q[0], Q[1], Q[2]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
+
 	return
 }
 
@@ -136,12 +149,12 @@ func TestTriplePairingBLS377(t *testing.T) {
 	circuit.pairingRes = pairingRes
 
 	// assign values to witness
-	witness.P1.Assign(&P)
-	witness.P2.Assign(&P)
-	witness.P3.Assign(&P)
-	witness.Q1.Assign(&Q)
-	witness.Q2.Assign(&Q)
-	witness.Q3.Assign(&Q)
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.P3.Assign(&P[2])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
