@@ -122,8 +122,8 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 
 	for i := 0; i < len(h.Inputs); i++ {
 		// input is a linear expression, we must compute the value
-		for j := 0; j < len(h.Inputs[i]); j++ {
-			ciID, viID, visibility := h.Inputs[i][j].Unpack()
+		for j := 0; j < len(h.Inputs[i].V); j++ {
+			ciID, viID, visibility := h.Inputs[i].V[j].Unpack()
 			if visibility == compiled.Virtual {
 				// we have a constant, just take the coefficient value
 				s.coefficients[ciID].ToBigIntRegular(lambda)
@@ -138,7 +138,7 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 				}
 				return errors.New("expected wire to be instantiated while evaluating hint")
 			}
-			v := s.computeTerm(h.Inputs[i][j])
+			v := s.computeTerm(h.Inputs[i].V[j])
 			v.ToBigIntRegular(lambda)
 			inputs[i].Add(inputs[i], lambda)
 		}
