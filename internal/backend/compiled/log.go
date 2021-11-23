@@ -12,7 +12,7 @@ type LogEntry struct {
 	ToResolve []Term
 }
 
-func (l *LogEntry) WriteLinearExpression(le LinearExpression, sbb *strings.Builder) {
+func (l *LogEntry) WriteLinearExpression(le Variable, sbb *strings.Builder) {
 	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
 
 	for i := 0; i < len(le); i++ {
