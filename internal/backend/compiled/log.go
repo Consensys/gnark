@@ -12,14 +12,14 @@ type LogEntry struct {
 	ToResolve []Term
 }
 
-func (l *LogEntry) WriteLinearExpression(le Variable, sbb *strings.Builder) {
-	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
+func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
+	sbb.Grow(len(le.V) * len(" + (xx + xxxxxxxxxxxx"))
 
-	for i := 0; i < len(le); i++ {
+	for i := 0; i < len(le.V); i++ {
 		if i > 0 {
 			sbb.WriteString(" + ")
 		}
-		l.WriteTerm(le[i], sbb)
+		l.WriteTerm(le.V[i], sbb)
 	}
 }
 
