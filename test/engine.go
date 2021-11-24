@@ -386,3 +386,7 @@ func (e *engine) modulus() *big.Int {
 func (e *engine) CurveID() ecc.ID {
 	return e.curveID
 }
+
+func (e *engine) Backend() backend.ID {
+	return backend.UNKNOWN
+}

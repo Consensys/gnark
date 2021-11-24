@@ -19,6 +19,7 @@ package frontend
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -39,6 +40,12 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 
 	res = cs.reduce(res)
 
+	if cs.Backend() == backend.PLONK {
+		_res := cs.newInternalVariable()
+		cs.constraints = append(cs.constraints, newR1C(res, cs.one(), _res))
+		return _res
+	}
+
 	return res
 }
 
@@ -53,7 +60,9 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 		return cs.constant(n)
 	}
 
-	return compiled.Variable{LinExp: cs.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
+	res := compiled.Variable{LinExp: cs.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
+
+	return res
 }
 
 // Sub returns res = i1 - i2

@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -62,7 +63,8 @@ type constraintSystem struct {
 
 	counters []Counter // statistic counters
 
-	curveID ecc.ID
+	curveID   ecc.ID
+	backendID backend.ID
 }
 
 // type compiled.Variables struct {
@@ -112,7 +114,7 @@ type CompiledConstraintSystem interface {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSystem {
+func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) constraintSystem {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
@@ -154,6 +156,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 	cs.public.variables[0] = cs.newPublicVariable("one")
 
 	cs.curveID = curveID
+	cs.backendID = backendID
 
 	return cs
 }
@@ -481,4 +484,8 @@ func (cs *constraintSystem) checkVariables() error {
 
 func (cs *constraintSystem) CurveID() ecc.ID {
 	return cs.curveID
+}
+
+func (cs *constraintSystem) Backend() backend.ID {
+	return cs.backendID
 }
