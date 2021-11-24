@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 )
 
@@ -138,4 +139,7 @@ type API interface {
 
 	// CurveID returns the ecc.ID injected by the compiler
 	CurveID() ecc.ID
+
+	// Backend returns the backend.ID injected by the compiler
+	Backend() backend.ID
 }

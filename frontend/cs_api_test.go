@@ -26,16 +26,30 @@ import (
 
 func TestPrintln(t *testing.T) {
 	// must not panic.
-	cs := newConstraintSystem(ecc.BN254)
-	one := cs.newPublicVariable("one")
+	{
+		cs := newConstraintSystem(ecc.BN254, backend.GROTH16)
+		one := cs.newPublicVariable("one")
 
-	cs.Println(nil)
-	cs.Println(1)
-	cs.Println("a")
-	cs.Println(new(big.Int).SetInt64(2))
-	cs.Println(one)
+		cs.Println(nil)
+		cs.Println(1)
+		cs.Println("a")
+		cs.Println(new(big.Int).SetInt64(2))
+		cs.Println(one)
 
-	cs.Println(nil, 1, "a", new(big.Int), one)
+		cs.Println(nil, 1, "a", new(big.Int), one)
+	}
+	{
+		cs := newConstraintSystem(ecc.BN254, backend.PLONK)
+		one := cs.newPublicVariable("one")
+
+		cs.Println(nil)
+		cs.Println(1)
+		cs.Println("a")
+		cs.Println(new(big.Int).SetInt64(2))
+		cs.Println(one)
+
+		cs.Println(nil, 1, "a", new(big.Int), one)
+	}
 }
 
 // empty circuits

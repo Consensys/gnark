@@ -59,7 +59,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	}
 
 	// build the constraint system (see Circuit.Define)
-	cs, err := buildCS(curveID, circuit, opt.capacity)
+	cs, err := buildCS(curveID, zkpID, circuit, opt.capacity)
 	if err != nil {
 		return nil, err
 	}
@@ -90,10 +90,10 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
+func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
 
 	// instantiate our constraint system
-	cs = newConstraintSystem(curveID, initialCapacity...)
+	cs = newConstraintSystem(curveID, zkpID, initialCapacity...)
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
