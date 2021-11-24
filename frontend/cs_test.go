@@ -61,10 +61,10 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(variable)
+	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.Variable)
 
 	// check sizes
-	if len(toTest.linExp) != 3 {
+	if len(toTest.LinExp) != 3 {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
@@ -127,7 +127,7 @@ func TestFindUnsolvedVariable(t *testing.T) {
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = true
 	}
-	r1c := compiled.R1C{L: l, R: r, O: o}
+	r1c := compiled.R1C{L: compiled.Variable{LinExp: l}, R: compiled.Variable{LinExp: r}, O: compiled.Variable{LinExp: o}}
 
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = false

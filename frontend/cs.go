@@ -84,7 +84,7 @@ func (i *inputs) newVariable(cs *constraintSystem, visibility compiled.Visibilit
 	idx := len(i.variables)
 	//v := compiled.Variable{V: []compiled.Variable{(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}, IsBoolean: false}
 	var res compiled.Variable
-	res.V = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, visibility)}
+	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, visibility)}
 
 	i.variables = append(i.variables, res)
 	return res
@@ -169,7 +169,7 @@ func newConstraintSystem(curveID ecc.ID, initialCapacity ...int) constraintSyste
 func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
-	_, vID, _ := r.V[0].Unpack()
+	_, vID, _ := r.LinExp[0].Unpack()
 
 	// mark hint as unconstrained, for now
 	cs.mHintsConstrained[vID] = false
@@ -202,7 +202,7 @@ func (cs *constraintSystem) one() compiled.Variable {
 // Term packs a compiled.Variable and a coeff in a compiled.Term and returns it.
 // func (cs *constraintSystem) makeTerm(v compiled.Variable, coeff *big.Int) compiled.Term {
 func (cs *constraintSystem) makeTerm(v compiled.Variable, coeff *big.Int) compiled.Term {
-	_, vID, vVis := v.V[0].Unpack()
+	_, vID, vVis := v.LinExp[0].Unpack()
 	return compiled.Pack(vID, cs.coeffID(coeff), vVis)
 }
 
@@ -219,7 +219,7 @@ func newR1C(_l, _r, _o Variable) compiled.R1C {
 	// the "r" linear expression is going to end up in the B matrix
 	// the less compiled.Variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(l.V) > len(r.V) {
+	if len(l.LinExp) > len(r.LinExp) {
 		l, r = r, l
 	}
 
@@ -235,9 +235,9 @@ func (cs *constraintSystem) NbConstraints() int {
 // LinearExpression packs a list of compiled.Term in a compiled.LinearExpression and returns it.
 func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Variable {
 	var res compiled.Variable
-	res.V = make([]compiled.Term, len(terms))
+	res.LinExp = make([]compiled.Term, len(terms))
 	for i, args := range terms {
-		res.V[i] = args
+		res.LinExp[i] = args
 	}
 	return res
 }
@@ -248,19 +248,19 @@ func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Va
 // for each visibility, the compiled.Variables are sorted from lowest ID to highest ID
 func (cs *constraintSystem) reduce(l compiled.Variable) compiled.Variable {
 	// ensure our linear expression is sorted, by visibility and by compiled.Variable ID
-	if !sort.IsSorted(l) { // may not help
-		sort.Sort(l)
+	if !sort.IsSorted(l.LinExp) { // may not help
+		sort.Sort(l.LinExp)
 	}
 
 	var c big.Int
-	for i := 1; i < len(l.V); i++ {
-		pcID, pvID, pVis := l.V[i-1].Unpack()
-		ccID, cvID, cVis := l.V[i].Unpack()
+	for i := 1; i < len(l.LinExp); i++ {
+		pcID, pvID, pVis := l.LinExp[i-1].Unpack()
+		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&cs.coeffs[pcID], &cs.coeffs[ccID])
-			l.V[i-1].SetCoeffID(cs.coeffID(&c))
-			l.V = append(l.V[:i], l.V[i+1:]...)
+			l.LinExp[i-1].SetCoeffID(cs.coeffID(&c))
+			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
 	}
@@ -320,7 +320,7 @@ func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 func (cs *constraintSystem) newInternalVariable() compiled.Variable {
 	idx := len(cs.internal)
 	var res compiled.Variable
-	res.V = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)}
+	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)}
 	cs.internal = append(cs.internal, res)
 	return res
 }
@@ -338,13 +338,13 @@ func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 // newVirtualVariable creates a new virtual compiled.Variable
 // this will not result in a new wire in the constraint system
 // and just represents a linear expression
-func (cs *constraintSystem) newVirtualVariable() compiled.Variable {
-	idx := len(cs.virtual)
-	var res compiled.Variable
-	res.V = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Virtual)}
-	cs.virtual = append(cs.virtual, res)
-	return res
-}
+// func (cs *constraintSystem) newVirtualVariable() compiled.Variable {
+// 	idx := len(cs.virtual)
+// 	var res compiled.Variable
+// 	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Virtual)}
+// 	cs.virtual = append(cs.virtual, res)
+// 	return res
+// }
 
 // markBoolean marks the compiled.Variable as boolean and return true
 // if a constraint was added, false if the compiled.Variable was already
@@ -399,7 +399,7 @@ func (cs *constraintSystem) checkVariables() error {
 
 	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
 	processLinearExpression := func(l compiled.Variable) {
-		for _, t := range l.V {
+		for _, t := range l.LinExp {
 			if t.CoeffID() == compiled.CoeffIdZero {
 				// ignore zero coefficient, as it does not constraint the compiled.Variable
 				// though, we may want to flag that IF the compiled.Variable doesn't appear else where

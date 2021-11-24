@@ -78,9 +78,9 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		constraintSystem: cs,
 		ccs: compiled.SparseR1CS{
 			CS: compiled.CS{
-				NbInternalVariables: len(cs.internal.variables),
-				NbPublicVariables:   len(cs.public.variables.variables) - 1, // the ONE_WIRE is discarded in PlonK
-				NbSecretVariables:   len(cs.secret.variables.variables),
+				NbInternalVariables: len(cs.internal),
+				NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded in PlonK
+				NbSecretVariables:   len(cs.secret.variables),
 				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 				Logs:                make([]compiled.LogEntry, len(cs.logs)),
 				MDebug:              make(map[int]int),
@@ -89,11 +89,11 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			},
 			Constraints: make([]compiled.SparseR1C, 0, len(cs.constraints)),
 		},
-		solvedVariables:      make([]bool, len(cs.internal.variables), len(cs.internal.variables)*2),
-		scsInternalVariables: len(cs.internal.variables),
+		solvedVariables:      make([]bool, len(cs.internal), len(cs.internal)*2),
+		scsInternalVariables: len(cs.internal),
 		currentR1CDebugID:    -1,
-		reducedLE:            make(map[uint64][]innerRecord, len(cs.internal.variables)),
-		reducedLE_:           make(map[uint64]struct{}, len(cs.internal.variables)),
+		reducedLE:            make(map[uint64][]innerRecord, len(cs.internal)),
+		reducedLE_:           make(map[uint64]struct{}, len(cs.internal)),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
@@ -209,11 +209,11 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// we need to offset the ids in the hints
 	for vID, hint := range cs.mHints {
 		k := shiftVID(vID, compiled.Internal)
-		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
+		inputs := make([]compiled.Variable, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
-			for k := 0; k < len(inputs[j]); k++ {
-				offsetTermID(&inputs[j][k])
+			for k := 0; k < len(inputs[j].LinExp); k++ {
+				offsetTermID(&inputs[j].LinExp[k])
 			}
 		}
 		res.ccs.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
@@ -257,20 +257,20 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 // slice hold the record of which variables have been solved.
 func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (int, int) {
 	// find the variable to solve among L,R,O. pos=0,1,2 corresponds to left,right,o.
-	for i := 0; i < len(r1c.L); i++ {
-		_, vID, visibility := r1c.L[i].Unpack()
+	for i := 0; i < len(r1c.L.LinExp); i++ {
+		_, vID, visibility := r1c.L.LinExp[i].Unpack()
 		if visibility == compiled.Internal && !solvedVariables[vID] {
 			return 0, vID
 		}
 	}
-	for i := 0; i < len(r1c.R); i++ {
-		_, vID, visibility := r1c.R[i].Unpack()
+	for i := 0; i < len(r1c.R.LinExp); i++ {
+		_, vID, visibility := r1c.R.LinExp[i].Unpack()
 		if visibility == compiled.Internal && !solvedVariables[vID] {
 			return 1, vID
 		}
 	}
-	for i := 0; i < len(r1c.O); i++ {
-		_, vID, visibility := r1c.O[i].Unpack()
+	for i := 0; i < len(r1c.O.LinExp); i++ {
+		_, vID, visibility := r1c.O.LinExp[i].Unpack()
 		if visibility == compiled.Internal && !solvedVariables[vID] {
 			return 2, vID
 		}
@@ -731,9 +731,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	l := r1c.L
 	r := r1c.R
 	o := r1c.O
-	sort.Sort(l)
-	sort.Sort(r)
-	sort.Sort(o)
+	sort.Sort(l.LinExp)
+	sort.Sort(r.LinExp)
+	sort.Sort(o.LinExp)
 
 	// if the unsolved variable in not in o,
 	// ensure that it is in r1c.L
@@ -748,15 +748,16 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	)
 	var toSolve compiled.Term
 
-	l, cL := scs.popConstantTerm(l)
-	r, cR := scs.popConstantTerm(r)
-	o, cO := scs.popConstantTerm(o)
+	var cL, cR, cO big.Int
+	l.LinExp, cL = scs.popConstantTerm(l.LinExp)
+	r.LinExp, cR = scs.popConstantTerm(r.LinExp)
+	o.LinExp, cO = scs.popConstantTerm(o.LinExp)
 
 	// pop the unsolved wire from the linearexpression
 	if lro == 0 { // unsolved is in L
-		l, toSolve = popInternalVariable(l, idCS)
+		l.LinExp, toSolve = popInternalVariable(l.LinExp, idCS)
 	} else { // unsolved is in O
-		o, toSolve = popInternalVariable(o, idCS)
+		o.LinExp, toSolve = popInternalVariable(o.LinExp, idCS)
 	}
 
 	// set cS to toSolve coeff
@@ -775,7 +776,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + cO
 	f2 := func() {
-		rt := scs.split(r)
+		rt := scs.split(r.LinExp)
 
 		cRT := scs.multiply(rt, &cL)
 		cK.Mul(&cL, &cR)
@@ -791,7 +792,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + cO
 	f3 := func() {
-		lt := scs.split(l)
+		lt := scs.split(l.LinExp)
 
 		cRLT := scs.multiply(lt, &cR)
 		cK.Mul(&cL, &cR)
@@ -806,8 +807,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*(r + cR) = toSolve + cO
 	f4 := func() {
-		lt := scs.split(l)
-		rt := scs.split(r)
+		lt := scs.split(l.LinExp)
+		rt := scs.split(r.LinExp)
 
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
@@ -825,7 +826,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*cR = toSolve + o + cO
 	f5 := func() {
-		ot := scs.split(o)
+		ot := scs.split(o.LinExp)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -840,8 +841,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// cL*(r + cR) = toSolve + o + cO
 	f6 := func() {
-		rt := scs.split(r)
-		ot := scs.split(o)
+		rt := scs.split(r.LinExp)
+		ot := scs.split(o.LinExp)
 
 		cRT := scs.multiply(rt, &cL)
 		cK.Mul(&cL, &cR)
@@ -858,8 +859,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (l + cL)*cR = toSolve + o + cO
 	f7 := func() {
-		lt := scs.split(l)
-		ot := scs.split(o)
+		lt := scs.split(l.LinExp)
+		ot := scs.split(o.LinExp)
 
 		cRLT := scs.multiply(lt, &cR)
 		cK.Mul(&cL, &cR)
@@ -877,9 +878,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (l + cL)*(r + cR) = toSolve + o + cO
 	f8 := func() {
 
-		lt := scs.split(l)
-		rt := scs.split(r)
-		ot := scs.split(o)
+		lt := scs.split(l.LinExp)
+		rt := scs.split(r.LinExp)
+		ot := scs.split(o.LinExp)
 
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
@@ -920,7 +921,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f10 := func() {
 		res := scs.newTerm(&cS, idCS)
 
-		rt := scs.split(r)
+		rt := scs.split(r.LinExp)
 		cRT := scs.multiply(rt, &cL)
 		cRes := scs.multiply(res, &cR)
 
@@ -938,7 +939,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + l + cL)*cR = cO
 	f11 := func() {
 
-		lt := scs.split(l)
+		lt := scs.split(l.LinExp)
 		lt = scs.multiply(lt, &cR)
 
 		cK.Mul(&cL, &cR)
@@ -958,8 +959,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	f12 := func() {
 		u := scs.newTerm(bOne)
 
-		lt := scs.split(l)
-		rt := scs.split(r)
+		lt := scs.split(l.LinExp)
+		rt := scs.split(r.LinExp)
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
 
@@ -986,7 +987,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	// (toSolve + cL)*cR = o + cO
 	f13 := func() {
-		ot := scs.split(o)
+		ot := scs.split(o.LinExp)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -1003,10 +1004,10 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// (toSolve + cL)*(r + cR) = o + cO
 	// toSolve*r + toSolve*cR+cL*r+cL*cR-cO-o=0
 	f14 := func() {
-		ot := scs.split(o)
+		ot := scs.split(o.LinExp)
 		res := scs.newTerm(&cS, idCS)
 
-		rt := scs.split(r)
+		rt := scs.split(r.LinExp)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -1024,8 +1025,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// toSolve*cR + l*cR + cL*cR-cO-o=0
 	f15 := func() {
 
-		ot := scs.split(o)
-		lt := scs.split(l)
+		ot := scs.split(o.LinExp)
+		lt := scs.split(l.LinExp)
 
 		cK.Mul(&cL, &cR)
 		cK.Sub(&cK, &cO)
@@ -1046,8 +1047,8 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		// [l*r + l*cR +cL*r+cL*cR-cO] + u = 0
 		u := scs.newTerm(bOne)
 
-		lt := scs.split(l)
-		rt := scs.split(r)
+		lt := scs.split(l.LinExp)
+		rt := scs.split(r.LinExp)
 		cRLT := scs.multiply(lt, &cR)
 		cRT := scs.multiply(rt, &cL)
 
@@ -1064,7 +1065,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 		// u+o+v = 0 (v = -u - o = [l*r + l*cR +cL*r+cL*cR-cO] -  o)
 		v := scs.newTerm(bOne)
-		ot := scs.split(o)
+		ot := scs.split(o.LinExp)
 		scs.addConstraint(compiled.SparseR1C{
 			L: u,
 			R: ot,
@@ -1087,13 +1088,13 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	if lro != 0 {
 		s |= 0b1000
 	}
-	if len(o) != 0 {
+	if len(o.LinExp) != 0 {
 		s |= 0b0100
 	}
-	if len(l) != 0 {
+	if len(l.LinExp) != 0 {
 		s |= 0b0010
 	}
-	if len(r) != 0 {
+	if len(r.LinExp) != 0 {
 		s |= 0b0001
 	}
 
@@ -1144,21 +1145,22 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 	r := r1c.R
 	o := r1c.O
 
-	sort.Sort(l)
-	sort.Sort(r)
-	sort.Sort(o)
+	sort.Sort(l.LinExp)
+	sort.Sort(r.LinExp)
+	sort.Sort(o.LinExp)
 
-	l, cL := scs.popConstantTerm(l)
-	r, cR := scs.popConstantTerm(r)
-	o, cO := scs.popConstantTerm(o)
+	var cL, cR, cO big.Int
+	l.LinExp, cL = scs.popConstantTerm(l.LinExp)
+	r.LinExp, cR = scs.popConstantTerm(r.LinExp)
+	o.LinExp, cO = scs.popConstantTerm(o.LinExp)
 
 	var cK big.Int
 
-	if len(o) == 0 {
+	if len(o.LinExp) == 0 {
 
-		if len(l) == 0 {
+		if len(l.LinExp) == 0 {
 
-			if len(r) == 0 { // cL*cR = cO (should never happen...)
+			if len(r.LinExp) == 0 { // cL*cR = cO (should never happen...)
 
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
@@ -1168,7 +1170,7 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 			} else { // cL*(r + cR) = cO
 
 				//rt := scs.split(0, r)
-				rt := scs.split(r)
+				rt := scs.split(r.LinExp)
 
 				cRLT := scs.multiply(rt, &cL)
 				cK.Mul(&cL, &cR)
@@ -1179,9 +1181,9 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 		} else {
 
-			if len(r) == 0 { // (l + cL)*cR = cO
+			if len(r.LinExp) == 0 { // (l + cL)*cR = cO
 				//lt := scs.split(0, l)
-				lt := scs.split(l)
+				lt := scs.split(l.LinExp)
 
 				cRLT := scs.multiply(lt, &cR)
 				cK.Mul(&cL, &cR)
@@ -1193,8 +1195,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 				// lt := scs.split(0, l)
 				// rt := scs.split(0, r)
-				lt := scs.split(l)
-				rt := scs.split(r)
+				lt := scs.split(l.LinExp)
+				rt := scs.split(r.LinExp)
 
 				cRLT := scs.multiply(lt, &cR)
 				cRT := scs.multiply(rt, &cL)
@@ -1211,12 +1213,12 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 		}
 
 	} else {
-		if len(l) == 0 {
+		if len(l.LinExp) == 0 {
 
-			if len(r) == 0 { // cL*cR = o + cO
+			if len(r.LinExp) == 0 { // cL*cR = o + cO
 
 				//ot := scs.split(0, o)
-				ot := scs.split(o)
+				ot := scs.split(o.LinExp)
 
 				cK.Mul(&cL, &cR)
 				cK.Sub(&cK, &cO)
@@ -1227,8 +1229,8 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 
 				// rt := scs.split(0, r)
 				// ot := scs.split(0, o)
-				rt := scs.split(r)
-				ot := scs.split(o)
+				rt := scs.split(r.LinExp)
+				ot := scs.split(o.LinExp)
 
 				cRT := scs.multiply(rt, &cL)
 				cK.Mul(&cL, &cR)
@@ -1242,12 +1244,12 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 			}
 
 		} else {
-			if len(r) == 0 { // (l + cL) * cR = o + cO
+			if len(r.LinExp) == 0 { // (l + cL) * cR = o + cO
 
 				// lt := scs.split(0, l)
 				// ot := scs.split(0, o)
-				lt := scs.split(l)
-				ot := scs.split(o)
+				lt := scs.split(l.LinExp)
+				ot := scs.split(o.LinExp)
 
 				cRLT := scs.multiply(lt, &cR)
 				cK.Mul(&cL, &cR)
@@ -1263,9 +1265,9 @@ func (scs *sparseR1CS) splitR1C(r1c compiled.R1C) {
 				// lt := scs.split(0, l)
 				// rt := scs.split(0, r)
 				// ot := scs.split(0, o)
-				lt := scs.split(l)
-				rt := scs.split(r)
-				ot := scs.split(o)
+				lt := scs.split(l.LinExp)
+				rt := scs.split(r.LinExp)
+				ot := scs.split(o.LinExp)
 
 				cRT := scs.multiply(rt, &cL)
 				cRLT := scs.multiply(lt, &cR)

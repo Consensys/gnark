@@ -51,14 +51,14 @@ func (cs *constraintSystem) Println(a ...interface{}) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(variable); ok {
-			v.assertIsSet(cs)
+		if v, ok := arg.(compiled.Variable); ok {
+			v.AssertIsSet()
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v.linExp...)
+			log.ToResolve = append(log.ToResolve, v.LinExp...)
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		} else {
 			printArg(&log, &sbb, arg)
@@ -98,11 +98,11 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(variable)
+		v := tValue.Interface().(compiled.Variable)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		log.ToResolve = append(log.ToResolve, v.linExp...)
+		log.ToResolve = append(log.ToResolve, v.LinExp...)
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		return nil
 	}
@@ -123,12 +123,12 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 
 	for _, _i := range i {
 		switch v := _i.(type) {
-		case variable:
-			if len(v.linExp) > 1 {
+		case compiled.Variable:
+			if len(v.LinExp) > 1 {
 				sbb.WriteString("(")
 			}
-			l.WriteLinearExpression(v.linExp, &sbb)
-			if len(v.linExp) > 1 {
+			l.WriteVariable(v, &sbb)
+			if len(v.LinExp) > 1 {
 				sbb.WriteString(")")
 			}
 
@@ -157,7 +157,7 @@ func (cs *constraintSystem) Tag(name string) Tag {
 
 	return Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		vID:  len(cs.internal.variables),
+		vID:  len(cs.internal),
 		cID:  len(cs.constraints),
 	}
 }
