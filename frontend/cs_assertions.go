@@ -55,11 +55,11 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 		}
 	}
 
-	if v.IsBoolean {
+	if *v.IsBoolean {
 		return // compiled.Variable is already constrained
 	}
 
-	v.IsBoolean = true
+	*v.IsBoolean = true
 	debug := cs.addDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	// ensure v * (1 - v) == 0

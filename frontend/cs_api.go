@@ -41,6 +41,9 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	res = cs.reduce(res)
 
 	if cs.Backend() == backend.PLONK {
+		if len(res.LinExp) == 1 {
+			return res
+		}
 		_res := cs.newInternalVariable()
 		cs.constraints = append(cs.constraints, newR1C(res, cs.one(), _res))
 		return _res
@@ -54,7 +57,6 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 	vars, _ := cs.toVariables(i)
 
 	if vars[0].IsConstant() {
-		// n := vars[0].constantValue(cs)
 		n := cs.constantValue(vars[0])
 		n.Neg(n)
 		return cs.constant(n)
@@ -72,9 +74,10 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting Variable
+	t := false
 	res := compiled.Variable{
 		LinExp:    make([]compiled.Term, 0, s),
-		IsBoolean: false,
+		IsBoolean: &t,
 	}
 
 	c := vars[0].Clone()
@@ -86,6 +89,15 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 
 	// reduce linear expression
 	res = cs.reduce(res)
+
+	if cs.Backend() == backend.PLONK {
+		if len(res.LinExp) == 1 {
+			return res
+		}
+		_res := cs.newInternalVariable()
+		cs.constraints = append(cs.constraints, newR1C(res, cs.one(), _res))
+		return _res
+	}
 
 	return res
 }
@@ -151,10 +163,10 @@ func (cs *constraintSystem) mulConstant(v1, constant compiled.Variable) compiled
 			coeff := cs.coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		// res.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: visibility, id: vID}, &newCoeff)
 		res.LinExp[i] = compiled.Pack(vID, cs.coeffID(&newCoeff), visibility)
 	}
-	res.IsBoolean = false
+	t := false
+	res.IsBoolean = &t
 	return res
 }
 
@@ -352,7 +364,6 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	// if a is a constant, work with the big int value.
 	if a.IsConstant() {
-		// c := a.constantValue(cs)
 		c := cs.constantValue(a)
 		b := make([]compiled.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
@@ -378,8 +389,7 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 	Σbi.LinExp = make([]compiled.Term, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		//Σbi.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
-		Σbi.LinExp[i] = cs.makeTerm(b[i], &c)
+		Σbi.LinExp[i] = cs.setCoeff(b[i].LinExp[0], &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -415,7 +425,7 @@ func (cs *constraintSystem) toBinaryUnsafe(a compiled.Variable, nbBits int) []Va
 
 	for i := 0; i < nbBits; i++ {
 		// Σbi.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
-		Σbi.LinExp[i] = cs.makeTerm(b[i], &c)
+		Σbi.LinExp[i] = cs.setCoeff(b[i].LinExp[0], &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -466,20 +476,12 @@ func (cs *constraintSystem) FromBinary(_b ...interface{}) Variable {
 
 // Select if i0 is true, yields i1 else yields i2
 func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
+
 	vars, _ := cs.toVariables(i0, i1, i2)
 	b := vars[0]
 
 	// ensures that b is boolean
 	cs.AssertIsBoolean(b)
-
-	// this doesn't work.
-	// if b.IsConstant() {
-	// 	c := b.constantValue(cs)
-	// 	if c.Uint64() == 0 {
-	// 		return vars[2]
-	// 	}
-	// 	return vars[1]
-	// }
 
 	if vars[1].IsConstant() && vars[2].IsConstant() {
 		n1 := cs.constantValue(vars[1])
@@ -490,11 +492,9 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 		return res
 	}
 
-	res := cs.newInternalVariable()
 	v := cs.Sub(vars[1], vars[2]) // no constraint is recorded
-	w := cs.Sub(res, vars[2])     // no constraint is recorded
-	cs.constraints = append(cs.constraints, newR1C(v, b, w))
-	return res
+	w := cs.Mul(b, v)
+	return cs.Add(w, vars[2])
 
 }
 
@@ -570,8 +570,9 @@ func (cs *constraintSystem) constant(input interface{}) Variable {
 		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
-		// return cs.makeTerm(cs.one(), &n)
-		return compiled.Variable{LinExp: []compiled.Term{cs.makeTerm(cs.one(), &n)}, IsBoolean: false}
+		r := cs.one()
+		r.LinExp[0] = cs.setCoeff(r.LinExp[0], &n)
+		return r
 	}
 }
 
