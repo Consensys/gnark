@@ -50,11 +50,8 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
-		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)+2),
+		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
 	}
-
-	s.mHintsFunctions[hint.UUID(hint.IsZero)] = hint.IsZero
-	s.mHintsFunctions[hint.UUID(hint.IthBit)] = hint.IthBit
 
 	for i := 0; i < len(hintFunctions); i++ {
 		id := hint.UUID(hintFunctions[i])
