@@ -30,11 +30,11 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting Variable
-	res := compiled.Variable{V: make([]compiled.Term, 0, s)}
+	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s)}
 
 	for _, v := range vars {
 		l := v.Clone()
-		res.V = append(res.V, l.V...)
+		res.LinExp = append(res.LinExp, l.LinExp...)
 	}
 
 	res = cs.reduce(res)
@@ -53,7 +53,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 		return cs.constant(n)
 	}
 
-	return compiled.Variable{V: cs.negateLinExp(vars[0].V), IsBoolean: vars[0].IsBoolean}
+	return compiled.Variable{LinExp: cs.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
 }
 
 // Sub returns res = i1 - i2
@@ -64,15 +64,15 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 
 	// allocate resulting Variable
 	res := compiled.Variable{
-		V:         make([]compiled.Term, 0, s),
+		LinExp:    make([]compiled.Term, 0, s),
 		IsBoolean: false,
 	}
 
 	c := vars[0].Clone()
-	res.V = append(res.V, c.V...)
+	res.LinExp = append(res.LinExp, c.LinExp...)
 	for i := 1; i < len(vars); i++ {
-		negLinExp := cs.negateLinExp(vars[i].V)
-		res.V = append(res.V, negLinExp...)
+		negLinExp := cs.negateLinExp(vars[i].LinExp)
+		res.LinExp = append(res.LinExp, negLinExp...)
 	}
 
 	// reduce linear expression
@@ -126,7 +126,7 @@ func (cs *constraintSystem) mulConstant(v1, constant compiled.Variable) compiled
 	res := v1.Clone()
 	lambda := cs.constantValue(constant)
 
-	for i, t := range v1.V {
+	for i, t := range v1.LinExp {
 		cID, vID, visibility := t.Unpack()
 		var newCoeff big.Int
 		switch cID {
@@ -142,8 +142,8 @@ func (cs *constraintSystem) mulConstant(v1, constant compiled.Variable) compiled
 			coeff := cs.coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		// res.V[i] = cs.makeTerm(compiled.Variable{visibility: visibility, id: vID}, &newCoeff)
-		res.V[i] = compiled.Pack(vID, cs.coeffID(&newCoeff), visibility)
+		// res.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: visibility, id: vID}, &newCoeff)
+		res.LinExp[i] = compiled.Pack(vID, cs.coeffID(&newCoeff), visibility)
 	}
 	res.IsBoolean = false
 	return res
@@ -366,11 +366,11 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	var Σbi compiled.Variable
 	// Σbi.linExp = make(compiled.LinearExpression, nbBits)
-	Σbi.V = make([]compiled.Term, nbBits)
+	Σbi.LinExp = make([]compiled.Term, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		//Σbi.V[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
-		Σbi.V[i] = cs.makeTerm(b[i], &c)
+		//Σbi.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
+		Σbi.LinExp[i] = cs.makeTerm(b[i], &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -402,11 +402,11 @@ func (cs *constraintSystem) toBinaryUnsafe(a compiled.Variable, nbBits int) []Va
 	c.SetUint64(1)
 
 	var Σbi compiled.Variable
-	Σbi.V = make([]compiled.Term, nbBits)
+	Σbi.LinExp = make([]compiled.Term, nbBits)
 
 	for i := 0; i < nbBits; i++ {
-		// Σbi.V[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
-		Σbi.V[i] = cs.makeTerm(b[i], &c)
+		// Σbi.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
+		Σbi.LinExp[i] = cs.makeTerm(b[i], &c)
 		c.Lsh(&c, 1)
 	}
 
@@ -561,7 +561,8 @@ func (cs *constraintSystem) constant(input interface{}) Variable {
 		if n.IsUint64() && n.Uint64() == 1 {
 			return cs.one()
 		}
-		return cs.makeTerm(cs.one(), &n)
+		// return cs.makeTerm(cs.one(), &n)
+		return compiled.Variable{LinExp: []compiled.Term{cs.makeTerm(cs.one(), &n)}, IsBoolean: false}
 	}
 }
 
@@ -572,7 +573,7 @@ func (cs *constraintSystem) toVariables(in ...interface{}) ([]compiled.Variable,
 	e := func(i interface{}) {
 		v := cs.constant(i).(compiled.Variable)
 		r = append(r, v)
-		s += len(v.V)
+		s += len(v.LinExp)
 	}
 	// e(i1)
 	// e(i2)

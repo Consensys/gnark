@@ -13,13 +13,13 @@ type LogEntry struct {
 }
 
 func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
-	sbb.Grow(len(le.V) * len(" + (xx + xxxxxxxxxxxx"))
+	sbb.Grow(len(le.LinExp) * len(" + (xx + xxxxxxxxxxxx"))
 
-	for i := 0; i < len(le.V); i++ {
+	for i := 0; i < len(le.LinExp); i++ {
 		if i > 0 {
 			sbb.WriteString(" + ")
 		}
-		l.WriteTerm(le.V[i], sbb)
+		l.WriteTerm(le.LinExp[i], sbb)
 	}
 }
 

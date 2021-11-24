@@ -27,10 +27,10 @@ import (
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded i1 * 1 == i2
 
-	l := cs.constant(i1).(variable)
-	o := cs.constant(i2).(variable)
+	l := cs.constant(i1).(compiled.Variable)
+	o := cs.constant(i2).(compiled.Variable)
 
-	if len(l.linExp) > len(o.linExp) {
+	if len(l.LinExp) > len(o.LinExp) {
 		l, o = o, l // maximize number of zeroes in r1cs.A
 	}
 
@@ -48,23 +48,18 @@ func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 	vars, _ := cs.toVariables(i1)
 	v := vars[0]
-	if v.isConstant() {
-		c := v.constantValue(cs)
+	if v.IsConstant() {
+		c := cs.constantValue(v)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 	}
 
-	if v.visibility == compiled.Unset {
-		// we need to create a new wire here.
-		vv := cs.newVirtualVariable()
-		vv.linExp = v.linExp
-		v = vv
+	if v.IsBoolean {
+		return // compiled.Variable is already constrained
 	}
 
-	if !cs.markBoolean(v) {
-		return // variable is already constrained
-	}
+	v.IsBoolean = true
 	debug := cs.addDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	// ensure v * (1 - v) == 0
@@ -75,7 +70,7 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 
 // AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
 //
-// bound can be a constant or a variable
+// bound can be a constant or a compiled.Variable
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
@@ -83,8 +78,8 @@ func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) 
 	v, _ := cs.toVariables(_v)
 
 	switch b := bound.(type) {
-	case variable:
-		b.assertIsSet(cs)
+	case compiled.Variable:
+		b.AssertIsSet()
 		cs.mustBeLessOrEqVar(v[0], b)
 	default:
 		cs.mustBeLessOrEqCst(v[0], FromInterface(b))
@@ -92,7 +87,7 @@ func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) 
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
+func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
@@ -127,14 +122,14 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		cs.markBoolean(aBits[i].(variable)) // this does not create a constraint
+		cs.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
 
 		cs.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
+func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
@@ -148,7 +143,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 	// debug info
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.constant(bound))
 
-	// note that at this stage, we didn't boolean-constraint these new variables yet
+	// note that at this stage, we didn't boolean-constraint these new compiled.Variables yet
 	// (as opposed to ToBinary)
 	aBits := cs.toBinaryUnsafe(a, nbBits)
 
@@ -182,7 +177,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 			l = cs.Sub(l, aBits[i])
 
 			cs.addConstraint(newR1C(l, aBits[i], cs.constant(0)), debug)
-			cs.markBoolean(aBits[i].(variable))
+			cs.markBoolean(aBits[i].(compiled.Variable))
 		} else {
 			cs.AssertIsBoolean(aBits[i])
 		}

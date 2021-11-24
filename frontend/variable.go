@@ -40,5 +40,5 @@ func (cs *constraintSystem) constantValue(v compiled.Variable) *big.Int {
 	if !v.IsConstant() {
 		panic("can't get big.Int value on a non-constant variable")
 	}
-	return new(big.Int).Set(&cs.coeffs[v.V[0].CoeffID()])
+	return new(big.Int).Set(&cs.coeffs[v.LinExp[0].CoeffID()])
 }
