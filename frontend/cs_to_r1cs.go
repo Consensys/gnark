@@ -36,9 +36,9 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// setting up the result
 	res := compiled.R1CS{
 		CS: compiled.CS{
-			NbInternalVariables: len(cs.internal),
-			NbPublicVariables:   len(cs.public.variables),
-			NbSecretVariables:   len(cs.secret.variables),
+			NbInternalVariables: cs.internal,
+			NbPublicVariables:   len(cs.public),
+			NbSecretVariables:   len(cs.secret),
 			DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 			Logs:                make([]compiled.LogEntry, len(cs.logs)),
 			MHints:              make(map[int]compiled.Hint, len(cs.mHints)),
@@ -82,11 +82,11 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	shiftVID := func(oldID int, visibility compiled.Visibility) int {
 		switch visibility {
 		case compiled.Internal:
-			return oldID + len(cs.public.variables) + len(cs.secret.variables)
+			return oldID + len(cs.public) + len(cs.secret)
 		case compiled.Public:
 			return oldID
 		case compiled.Secret:
-			return oldID + len(cs.public.variables)
+			return oldID + len(cs.public)
 		}
 		return oldID
 	}

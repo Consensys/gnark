@@ -78,9 +78,9 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 		constraintSystem: cs,
 		ccs: compiled.SparseR1CS{
 			CS: compiled.CS{
-				NbInternalVariables: len(cs.internal),
-				NbPublicVariables:   len(cs.public.variables) - 1, // the ONE_WIRE is discarded in PlonK
-				NbSecretVariables:   len(cs.secret.variables),
+				NbInternalVariables: cs.internal,
+				NbPublicVariables:   len(cs.public) - 1, // the ONE_WIRE is discarded in PlonK
+				NbSecretVariables:   len(cs.secret),
 				DebugInfo:           make([]compiled.LogEntry, len(cs.debugInfo)),
 				Logs:                make([]compiled.LogEntry, len(cs.logs)),
 				MDebug:              make(map[int]int),
@@ -89,11 +89,11 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			},
 			Constraints: make([]compiled.SparseR1C, 0, len(cs.constraints)),
 		},
-		solvedVariables:      make([]bool, len(cs.internal), len(cs.internal)*2),
-		scsInternalVariables: len(cs.internal),
+		solvedVariables:      make([]bool, cs.internal, cs.internal*2),
+		scsInternalVariables: cs.internal,
 		currentR1CDebugID:    -1,
-		reducedLE:            make(map[uint64][]innerRecord, len(cs.internal)),
-		reducedLE_:           make(map[uint64]struct{}, len(cs.internal)),
+		reducedLE:            make(map[uint64][]innerRecord, cs.internal),
+		reducedLE_:           make(map[uint64]struct{}, cs.internal),
 	}
 
 	// logs, debugInfo and hints are copied, the only thing that will change
