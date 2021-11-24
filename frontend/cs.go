@@ -170,16 +170,17 @@ func (cs *constraintSystem) bitLen() int {
 }
 
 func (cs *constraintSystem) one() compiled.Variable {
+	t := false
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
-		IsBoolean: true,
+		IsBoolean: &t,
 	}
 }
 
 // Term packs a compiled.Variable and a coeff in a compiled.Term and returns it.
-// func (cs *constraintSystem) makeTerm(v compiled.Variable, coeff *big.Int) compiled.Term {
-func (cs *constraintSystem) makeTerm(v compiled.Variable, coeff *big.Int) compiled.Term {
-	_, vID, vVis := v.LinExp[0].Unpack()
+// func (cs *constraintSystem) setCoeff(v compiled.Variable, coeff *big.Int) compiled.Term {
+func (cs *constraintSystem) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
+	_, vID, vVis := v.Unpack()
 	return compiled.Pack(vID, cs.coeffID(coeff), vVis)
 }
 
@@ -295,32 +296,35 @@ func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *constraintSystem) newInternalVariable() compiled.Variable {
+	t := false
 	idx := cs.internal
 	cs.internal++
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)},
-		IsBoolean: false,
+		IsBoolean: &t,
 	}
 }
 
 // newPublicVariable creates a new public compiled.Variable
 func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
+	t := false
 	idx := len(cs.public)
 	cs.public = append(cs.public, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
-		IsBoolean: false,
+		IsBoolean: &t,
 	}
 	return res
 }
 
 // newSecretVariable creates a new secret compiled.Variable
 func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
+	t := false
 	idx := len(cs.secret)
 	cs.secret = append(cs.secret, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
-		IsBoolean: false,
+		IsBoolean: &t,
 	}
 	return res
 }
@@ -329,10 +333,10 @@ func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 // if a constraint was added, false if the compiled.Variable was already
 // constrained as a boolean
 func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
-	if v.IsBoolean {
+	if *v.IsBoolean {
 		return false
 	}
-	v.IsBoolean = true
+	*v.IsBoolean = true
 	return true
 }
 
