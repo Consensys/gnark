@@ -157,7 +157,7 @@ func (cs *constraintSystem) Tag(name string) Tag {
 
 	return Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		vID:  len(cs.internal),
+		vID:  cs.internal,
 		cID:  len(cs.constraints),
 	}
 }

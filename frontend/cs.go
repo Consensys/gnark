@@ -37,11 +37,12 @@ import (
 //
 // these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
 type constraintSystem struct {
-	// Variables (aka wires)
-	// virtual compiled.Variables do not result in a new circuit wire
-	// they may only contain a linear expression
-	public, secret    inputs
-	internal, virtual []compiled.Variable
+
+	// input wires
+	public, secret []string
+
+	// internal wires
+	internal int
 
 	// list of constraints in the form a * b == c
 	// a,b and c being linear expressions
@@ -65,31 +66,6 @@ type constraintSystem struct {
 
 	curveID   ecc.ID
 	backendID backend.ID
-}
-
-// type compiled.Variables struct {
-// 	compiled.Variables []compiled.Variable
-// 	booleans  map[int]struct{} // keep track of boolean compiled.Variables (we constrain them once)
-// }
-
-type inputs struct {
-	variables []compiled.Variable
-	names     []string
-}
-
-func (i *inputs) new(cs *constraintSystem, visibility compiled.Visibility, name string) compiled.Variable {
-	i.names = append(i.names, name)
-	return i.newVariable(cs, visibility)
-}
-
-func (i *inputs) newVariable(cs *constraintSystem, visibility compiled.Visibility) compiled.Variable {
-	idx := len(i.variables)
-	//v := compiled.Variable{V: []compiled.Variable{(compiled.Pack(idx, compiled.CoeffIdOne, visibility))}, IsBoolean: false}
-	var res compiled.Variable
-	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, visibility)}
-
-	i.variables = append(i.variables, res)
-	return res
 }
 
 // CompiledConstraintSystem ...
@@ -140,20 +116,15 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 	cs.coeffsIDsInt64[2] = compiled.CoeffIdTwo
 	cs.coeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	cs.public.variables = make([]compiled.Variable, 0)
-	// cs.public.booleans = make(map[int]struct{})
+	// cs.public.variables = make([]compiled.Variable, 0)
+	// cs.secret.variables = make([]compiled.Variable, 0)
+	// cs.internal = make([]compiled.Variable, 0, capacity)
+	cs.public = make([]string, 1)
+	cs.secret = make([]string, 0)
 
-	cs.secret.variables = make([]compiled.Variable, 0)
-	// cs.secret.booleans = make(map[int]struct{})
-
-	cs.internal = make([]compiled.Variable, 0, capacity)
-	// cs.internal.booleans = make(map[int]struct{})
-
-	cs.virtual = make([]compiled.Variable, 0)
-	// cs.virtual.booleans = make(map[int]struct{})
-
-	// by default the circuit is given on public wire equal to 1
-	cs.public.variables[0] = cs.newPublicVariable("one")
+	// by default the circuit is given a public wire equal to 1
+	// cs.public.variables[0] = cs.newPublicVariable("one")
+	cs.public[0] = "one"
 
 	cs.curveID = curveID
 	cs.backendID = backendID
@@ -199,7 +170,10 @@ func (cs *constraintSystem) bitLen() int {
 }
 
 func (cs *constraintSystem) one() compiled.Variable {
-	return cs.public.variables[0]
+	return compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
+		IsBoolean: true,
+	}
 }
 
 // Term packs a compiled.Variable and a coeff in a compiled.Term and returns it.
@@ -321,62 +295,40 @@ func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (cs *constraintSystem) newInternalVariable() compiled.Variable {
-	idx := len(cs.internal)
-	var res compiled.Variable
-	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)}
-	cs.internal = append(cs.internal, res)
-	return res
+	idx := cs.internal
+	cs.internal++
+	return compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)},
+		IsBoolean: false,
+	}
 }
 
 // newPublicVariable creates a new public compiled.Variable
 func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
-	return cs.public.new(cs, compiled.Public, name)
+	idx := len(cs.public)
+	cs.public = append(cs.public, name)
+	res := compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
+		IsBoolean: false,
+	}
+	return res
 }
 
 // newSecretVariable creates a new secret compiled.Variable
 func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
-	return cs.secret.new(cs, compiled.Secret, name)
+	idx := len(cs.secret)
+	cs.secret = append(cs.secret, name)
+	res := compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
+		IsBoolean: false,
+	}
+	return res
 }
-
-// newVirtualVariable creates a new virtual compiled.Variable
-// this will not result in a new wire in the constraint system
-// and just represents a linear expression
-// func (cs *constraintSystem) newVirtualVariable() compiled.Variable {
-// 	idx := len(cs.virtual)
-// 	var res compiled.Variable
-// 	res.LinExp = []compiled.Term{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Virtual)}
-// 	cs.virtual = append(cs.virtual, res)
-// 	return res
-// }
 
 // markBoolean marks the compiled.Variable as boolean and return true
 // if a constraint was added, false if the compiled.Variable was already
 // constrained as a boolean
 func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
-	// switch v.visibility {
-	// case compiled.Internal:
-	// 	if _, ok := cs.internal.booleans[v.id]; ok {
-	// 		return false
-	// 	}
-	// 	cs.internal.booleans[v.id] = struct{}{}
-	// case compiled.Secret:
-	// 	if _, ok := cs.secret.booleans[v.id]; ok {
-	// 		return false
-	// 	}
-	// 	cs.secret.booleans[v.id] = struct{}{}
-	// case compiled.Public:
-	// 	if _, ok := cs.public.booleans[v.id]; ok {
-	// 		return false
-	// 	}
-	// 	cs.public.booleans[v.id] = struct{}{}
-	// case compiled.Virtual:
-	// 	if _, ok := cs.virtual.booleans[v.id]; ok {
-	// 		return false
-	// 	}
-	// 	cs.virtual.booleans[v.id] = struct{}{}
-	// default:
-	// 	panic("not implemented")
-	// }
 	if v.IsBoolean {
 		return false
 	}
@@ -392,8 +344,8 @@ func (cs *constraintSystem) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 
-	cptSecret := len(cs.secret.variables)
-	cptPublic := len(cs.public.variables) - 1
+	cptSecret := len(cs.secret)
+	cptPublic := len(cs.public) - 1
 	cptHints := len(cs.mHintsConstrained)
 
 	secretConstrained := make([]bool, cptSecret)
@@ -449,7 +401,7 @@ func (cs *constraintSystem) checkVariables() error {
 		sbb.WriteByte('\n')
 		for i := 0; i < len(secretConstrained) && cptSecret != 0; i++ {
 			if !secretConstrained[i] {
-				sbb.WriteString(cs.secret.names[i])
+				sbb.WriteString(cs.secret[i])
 				sbb.WriteByte('\n')
 				cptSecret--
 			}
@@ -463,7 +415,7 @@ func (cs *constraintSystem) checkVariables() error {
 		sbb.WriteByte('\n')
 		for i := 0; i < len(publicConstrained) && cptPublic != 0; i++ {
 			if !publicConstrained[i] {
-				sbb.WriteString(cs.public.names[i])
+				sbb.WriteString(cs.public[i])
 				sbb.WriteByte('\n')
 				cptPublic--
 			}
