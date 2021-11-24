@@ -50,7 +50,7 @@ func (id ID) String() string {
 
 // NewProverOption returns a default ProverOption with given options applied
 func NewProverOption(opts ...func(opt *ProverOption) error) (ProverOption, error) {
-	opt := ProverOption{LoggerOut: os.Stdout}
+	opt := ProverOption{LoggerOut: os.Stdout, HintFunctions: hint.GetAll()}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
 			return ProverOption{}, err
