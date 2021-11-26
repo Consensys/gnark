@@ -28,7 +28,7 @@ type LinearExpression []Term
 // Variable represent a linear expression of wires
 type Variable struct {
 	LinExp    LinearExpression
-	IsBoolean bool
+	IsBoolean *bool
 }
 
 // Clone returns a copy of the underlying slice

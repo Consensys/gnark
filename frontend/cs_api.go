@@ -40,12 +40,13 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 
 	res = cs.reduce(res)
 
+	// if cs.Backend() == backend.GROTH16 {
 	if cs.Backend() == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
 		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(res, cs.one(), _res))
+		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
 		return _res
 	}
 
@@ -90,12 +91,13 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	// reduce linear expression
 	res = cs.reduce(res)
 
+	// if cs.Backend() == backend.GROTH16 {
 	if cs.Backend() == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
 		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(res, cs.one(), _res))
+		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
 		return _res
 	}
 
@@ -189,7 +191,7 @@ func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
 	res := cs.newInternalVariable()
 
 	debug := cs.addDebugInfo("inverse", vars[0], "*", res, " == 1")
-	cs.addConstraint(newR1C(vars[0], res, cs.one()), debug)
+	cs.addConstraint(newR1C(res, vars[0], cs.one()), debug)
 
 	return res
 }
@@ -206,7 +208,7 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 		debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := cs.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
+		cs.addConstraint(newR1C(cs.one(), v2, v2Inv), debug)
 		cs.addConstraint(newR1C(v1, v2Inv, res), debug)
 		return res
 	}
@@ -396,7 +398,7 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
 
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
+	cs.addConstraint(newR1C(cs.one(), Σbi, a), debug)
 	return toSliceOfVariables(b)
 
 }
@@ -432,7 +434,7 @@ func (cs *constraintSystem) toBinaryUnsafe(a compiled.Variable, nbBits int) []Va
 	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
 
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.addConstraint(newR1C(Σbi, cs.one(), a), debug)
+	cs.addConstraint(newR1C(cs.one(), Σbi, a), debug)
 	return toSliceOfVariables(b)
 
 }

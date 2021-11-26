@@ -119,9 +119,9 @@ func Visit(input interface{}, baseName string, parentVisibility compiled.Visibil
 
 				// we have to determine if it's un-exported, or if it's simply a value that's not addressable
 				// TODO @gbotrel once go1.18 is out, use new reflect APIs introduced in go1.17 (since we support 2 latest versions of Go)
-				if f.Kind() == reflect.Struct {
-					fmt.Printf("%s: ignoring unexported or unadressable struct field\n", fullName)
-				}
+				// if f.Kind() == reflect.Struct {
+				// 	fmt.Printf("%s: ignoring unexported or unadressable struct field\n", fullName)
+				// }
 			}
 		}
 
