@@ -25,18 +25,14 @@ import (
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
-	// encoded i1 * 1 == i2
+	// encoded 1 * i1 == i2
 
-	l := cs.constant(i1).(compiled.Variable)
+	r := cs.constant(i1).(compiled.Variable)
 	o := cs.constant(i2).(compiled.Variable)
 
-	if len(l.LinExp) > len(o.LinExp) {
-		l, o = o, l // maximize number of zeroes in r1cs.A
-	}
+	debug := cs.addDebugInfo("assertIsEqual", r, " == ", o)
 
-	debug := cs.addDebugInfo("assertIsEqual", l, " == ", o)
-
-	cs.addConstraint(newR1C(l, cs.one(), o), debug)
+	cs.addConstraint(newR1C(cs.one(), r, o), debug)
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different

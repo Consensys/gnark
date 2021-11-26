@@ -70,39 +70,6 @@ func TestReduce(t *testing.T) {
 	}
 
 }
-
-func TestPopVariable(t *testing.T) {
-
-	sizeAfterPoped := 29
-	nbInternalVars := 10
-
-	le := make([]compiled.Term, 30)
-	for i := 0; i < 10; i++ {
-		le[i] = compiled.Pack(i, 2*i, compiled.Internal)
-		le[10+i] = compiled.Pack(i, 2*(i+10), compiled.Public)
-		le[20+i] = compiled.Pack(i, 2*(i+20), compiled.Secret)
-	}
-
-	for i := 0; i < nbInternalVars; i++ {
-		l, v := popInternalVariable(le, i)
-		_v := le[i]
-		_l := make(compiled.LinearExpression, len(le)-1)
-		copy(_l, le[:i])
-		copy(_l[i:], le[i+1:])
-		if len(l) != sizeAfterPoped {
-			t.Fatal("wrong length")
-		}
-		if _v != v {
-			t.Fatal("wrong variable")
-		}
-		for j := 0; j < sizeAfterPoped; j++ {
-			if _l[j] != l[j] {
-				t.Fatal("wrong lin exp")
-			}
-		}
-	}
-}
-
 func TestFindUnsolvedVariable(t *testing.T) {
 
 	sizeLe := 10
