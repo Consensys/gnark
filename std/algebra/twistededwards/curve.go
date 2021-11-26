@@ -25,6 +25,7 @@ import (
 	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	"github.com/consensys/gnark/frontend"
 )
@@ -45,6 +46,7 @@ func init() {
 		ecc.BLS12_377: newEdBLS377,
 		ecc.BW6_761:   newEdBW761,
 		ecc.BLS24_315: newEdBLS315,
+		ecc.BW6_633:   newEdBW633,
 	}
 }
 
@@ -106,6 +108,23 @@ func newEdBLS377() EdCurve {
 		BaseX:    frontend.FromInterface(edcurve.Base.X),
 		BaseY:    frontend.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_377,
+	}
+
+}
+
+func newEdBW633() EdCurve {
+
+	edcurve := edbw6633.GetEdwardsCurve()
+	edcurve.Cofactor.FromMont()
+
+	return EdCurve{
+		A:        frontend.FromInterface(edcurve.A),
+		D:        frontend.FromInterface(edcurve.D),
+		Cofactor: frontend.FromInterface(edcurve.Cofactor),
+		Order:    frontend.FromInterface(edcurve.Order),
+		BaseX:    frontend.FromInterface(edcurve.Base.X),
+		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		ID:       ecc.BW6_633,
 	}
 
 }
