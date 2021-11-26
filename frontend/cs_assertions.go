@@ -26,7 +26,6 @@ import (
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 	// encoded 1 * i1 == i2
-
 	r := cs.constant(i1).(compiled.Variable)
 	o := cs.constant(i2).(compiled.Variable)
 
@@ -88,7 +87,7 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 
 	nbBits := cs.bitLen()
 
-	aBits := cs.toBinaryUnsafe(a, nbBits)
+	aBits := cs.toBinary(a, nbBits, true)
 	boundBits := cs.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
@@ -141,7 +140,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 
 	// note that at this stage, we didn't boolean-constraint these new compiled.Variables yet
 	// (as opposed to ToBinary)
-	aBits := cs.toBinaryUnsafe(a, nbBits)
+	aBits := cs.toBinary(a, nbBits, false)
 
 	// t trailing bits in the bound
 	t := 0

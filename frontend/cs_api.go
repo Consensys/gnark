@@ -19,7 +19,6 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -41,16 +40,16 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	res = cs.reduce(res)
 
 	// if cs.Backend() == backend.GROTH16 {
-	if cs.Backend() == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
-		return _res
+	// if cs.Backend() == backend.PLONK {
+	if len(res.LinExp) == 1 {
+		return res
 	}
+	_res := cs.newInternalVariable()
+	cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+	return _res
+	// }
 
-	return res
+	// return res
 }
 
 // Neg returns -i
@@ -92,16 +91,16 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	res = cs.reduce(res)
 
 	// if cs.Backend() == backend.GROTH16 {
-	if cs.Backend() == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
-		return _res
+	// if cs.Backend() == backend.PLONK {
+	if len(res.LinExp) == 1 {
+		return res
 	}
+	_res := cs.newInternalVariable()
+	cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+	return _res
+	// }
 
-	return res
+	// return res
 }
 
 // Mul returns res = i1 * i2 * ... in
@@ -352,6 +351,7 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 //
 // The result in in little endian (first bit= lsb)
 func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
+
 	// nbBits
 	nbBits := cs.bitLen()
 	if len(n) == 1 {
@@ -374,68 +374,44 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 		return toSliceOfVariables(b)
 	}
 
-	// allocate the resulting compiled.Variables and bit-constraint them
-	b := make([]compiled.Variable, nbBits)
-	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, i).(compiled.Variable)
-		cs.AssertIsBoolean(b[i])
-	}
-
-	// here what we do is we add a single constraint where
-	// Σ (2**i * b[i]) == a
-	var c big.Int
-	c.SetUint64(1)
-
-	var Σbi compiled.Variable
-	// Σbi.linExp = make(compiled.LinearExpression, nbBits)
-	Σbi.LinExp = make([]compiled.Term, nbBits)
-
-	for i := 0; i < nbBits; i++ {
-		Σbi.LinExp[i] = cs.setCoeff(b[i].LinExp[0], &c)
-		c.Lsh(&c, 1)
-	}
-
-	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
-
-	// record the constraint Σ (2**i * b[i]) == a
-	cs.addConstraint(newR1C(cs.one(), Σbi, a), debug)
-	return toSliceOfVariables(b)
-
+	return cs.toBinary(a, nbBits, false)
 }
 
-// toBinaryUnsafe is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (cs *constraintSystem) toBinaryUnsafe(a compiled.Variable, nbBits int) []Variable {
+// toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
+func (cs *constraintSystem) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
+
 	if a.IsConstant() {
 		return cs.ToBinary(a, nbBits)
 	}
+
 	// ensure a is set
 	a.AssertIsSet()
 
 	// allocate the resulting compiled.Variables and bit-constraint them
-	b := make([]compiled.Variable, nbBits)
-	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, i).(compiled.Variable)
-	}
-
-	// here what we do is we add a single constraint where
-	// Σ (2**i * b[i]) == a
+	b := make([]Variable, nbBits)
+	sb := make([]interface{}, nbBits)
 	var c big.Int
 	c.SetUint64(1)
-
-	var Σbi compiled.Variable
-	Σbi.LinExp = make([]compiled.Term, nbBits)
-
 	for i := 0; i < nbBits; i++ {
-		// Σbi.LinExp[i] = cs.makeTerm(compiled.Variable{visibility: compiled.Internal, id: b[i].id}, &c)
-		Σbi.LinExp[i] = cs.setCoeff(b[i].LinExp[0], &c)
+		b[i] = cs.NewHint(hint.IthBit, a, i)
+		sb[i] = cs.Mul(b[i], c)
 		c.Lsh(&c, 1)
+		if !unsafe {
+			cs.AssertIsBoolean(b[i])
+		}
 	}
 
-	debug := cs.addDebugInfo("toBinary", Σbi, " == ", a)
+	//var Σbi compiled.Variable
+	var Σbi Variable
+	if nbBits == 2 {
+		Σbi = cs.Add(sb[0], sb[1])
+	} else {
+		Σbi = cs.Add(sb[0], sb[1], sb[2:]...)
+	}
+	cs.AssertIsEqual(Σbi, a)
 
 	// record the constraint Σ (2**i * b[i]) == a
-	cs.addConstraint(newR1C(cs.one(), Σbi, a), debug)
-	return toSliceOfVariables(b)
+	return b
 
 }
 
