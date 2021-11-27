@@ -19,7 +19,6 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -31,7 +30,8 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting Variable
-	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s)}
+	t := false
+	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s), IsBoolean: &t}
 
 	for _, v := range vars {
 		l := v.Clone()
@@ -41,16 +41,16 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 	res = cs.reduce(res)
 
 	// if cs.Backend() == backend.GROTH16 {
-	if cs.Backend() == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
-		return _res
+	// if cs.Backend() == backend.PLONK {
+	if len(res.LinExp) == 1 {
+		return res
 	}
+	_res := cs.newInternalVariable()
+	cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+	return _res
+	// }
 
-	return res
+	// return res
 }
 
 // Neg returns -i
@@ -63,6 +63,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 		return cs.constant(n)
 	}
 
+	// ok to pass pointer since if i is boolean constrained later, so must be res
 	res := compiled.Variable{LinExp: cs.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
 
 	return res
@@ -92,16 +93,16 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 	res = cs.reduce(res)
 
 	// if cs.Backend() == backend.GROTH16 {
-	if cs.Backend() == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
-		return _res
+	// if cs.Backend() == backend.PLONK {
+	if len(res.LinExp) == 1 {
+		return res
 	}
+	_res := cs.newInternalVariable()
+	cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+	return _res
+	// }
 
-	return res
+	// return res
 }
 
 // Mul returns res = i1 * i2 * ... in

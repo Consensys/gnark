@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -41,25 +42,38 @@ func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
 func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
+
 	vars, _ := cs.toVariables(i1)
 	v := vars[0]
+
+	if *v.IsBoolean {
+		return // compiled.Variable is already constrained
+	}
+	*v.IsBoolean = true
+
 	if v.IsConstant() {
 		c := cs.constantValue(v)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
+		return
 	}
 
-	if *v.IsBoolean {
-		return // compiled.Variable is already constrained
-	}
-
-	*v.IsBoolean = true
 	debug := cs.addDebugInfo("assertIsBoolean", v, " == (0|1)")
+
+	o := cs.constant(0)
+
+	if len(v.LinExp) == 1 && cs.backendID == backend.PLONK {
+		one := cs.one()
+		_v := cs.Neg(v).(compiled.Variable)
+		r := compiled.Variable{LinExp: []compiled.Term{one.LinExp[0], _v.LinExp[0]}}
+
+		cs.addConstraint(newR1C(v, r, o), debug)
+		return
+	}
 
 	// ensure v * (1 - v) == 0
 	_v := cs.Sub(1, v)
-	o := cs.constant(0)
 	cs.addConstraint(newR1C(v, _v, o), debug)
 }
 

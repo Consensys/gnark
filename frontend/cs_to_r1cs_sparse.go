@@ -98,7 +98,8 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// convert the R1C to SparseR1C
 	// in particular, all linear expressions that appear in the R1C
 	// will be split in multiple constraints in the SparseR1C
-	for i := 0; i < len(cs.constraints); i++ {
+	var i int
+	for i = 0; i < len(cs.constraints); i++ {
 		// we set currentR1CDebugID to the debugInfo ID corresponding to the R1C we're processing
 		// if present. All constraints created throuh addConstraint will add a new mapping
 		if dID, ok := cs.mDebug[i]; ok {
@@ -411,6 +412,23 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
 
 	s := len(r1c.R.LinExp)
+
+	// check if the constraint is boolean
+	if *r1c.L.IsBoolean && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
+		lz := r1c.L.LinExp[0]
+		lz.SetCoeffID(compiled.CoeffIdZero)
+		var oz compiled.Term
+		oz.SetCoeffID(compiled.CoeffIdZero)
+		scs.addConstraint(compiled.SparseR1C{
+			L: r1c.L.LinExp[0],
+			R: lz,
+			M: [2]compiled.Term{r1c.L.LinExp[0], scs.negate(r1c.L.LinExp[0])},
+			O: oz,
+			K: compiled.CoeffIdZero,
+		})
+		*r1c.L.IsBoolean = false //-> so next time there's a constraint with the same pattern (L*(a+b)=c), we don't go there
+		return
+	}
 
 	// this may happen if a constraint contained hint wires, that are marked as solved.
 	// or if we r1c is an assertion (ie it does not yield any output)
