@@ -14,33 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls12377
 
 import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 )
 
 // G2Jac point in Jacobian coords
 type G2Jac struct {
-	X, Y, Z fields.E2
+	X, Y, Z fields_bls12377.E2
 }
 
 type G2Proj struct {
-	X, Y, Z fields.E2
+	X, Y, Z fields_bls12377.E2
 }
 
 // G2Affine point in affine coords
 type G2Affine struct {
-	X, Y fields.E2
+	X, Y fields_bls12377.E2
 }
 
 // ToProj sets p to p1 in projective coords and return it
-func (p *G2Jac) ToProj(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2Jac {
+func (p *G2Jac) ToProj(api frontend.API, p1 *G2Jac, ext fields_bls12377.Extension) *G2Jac {
 	p.X.Mul(api, p1.X, p1.Z, ext)
 	p.Y = p1.Y
-	var t fields.E2
+	var t fields_bls12377.E2
 	t.Square(api, p1.Z, ext)
 	p.Z.Mul(api, p.Z, t, ext)
 	return p
@@ -63,9 +63,9 @@ func (p *G2Affine) Neg(api frontend.API, p1 *G2Affine) *G2Affine {
 
 // AddAssign adds 2 point in Jacobian coordinates
 // p=p, a=p1
-func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2Jac {
+func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields_bls12377.Extension) *G2Jac {
 
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields.E2
+	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields_bls12377.E2
 
 	Z1Z1.Square(api, p1.Z, ext)
 
@@ -116,9 +116,9 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2
 }
 
 // AddAssign add p1 to p and return p
-func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine, ext fields.Extension) *G2Affine {
+func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine, ext fields_bls12377.Extension) *G2Affine {
 
-	var n, d, l, xr, yr fields.E2
+	var n, d, l, xr, yr fields_bls12377.E2
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 	n.Sub(api, p1.Y, p.Y)
@@ -143,9 +143,9 @@ func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine, ext fields.Extensio
 
 // Double compute 2*p1, assign the result to p and return it
 // Only for curve with j invariant 0 (a=0).
-func (p *G2Affine) Double(api frontend.API, p1 *G2Affine, ext fields.Extension) *G2Affine {
+func (p *G2Affine) Double(api frontend.API, p1 *G2Affine, ext fields_bls12377.Extension) *G2Affine {
 
-	var n, d, l, xr, yr fields.E2
+	var n, d, l, xr, yr fields_bls12377.E2
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X, ext).MulByFp(api, n, 3)
@@ -170,9 +170,9 @@ func (p *G2Affine) Double(api frontend.API, p1 *G2Affine, ext fields.Extension) 
 }
 
 // Double doubles a point in jacobian coords
-func (p *G2Jac) Double(api frontend.API, p1 *G2Jac, ext fields.Extension) *G2Jac {
+func (p *G2Jac) Double(api frontend.API, p1 *G2Jac, ext fields_bls12377.Extension) *G2Jac {
 
-	var XX, YY, YYYY, ZZ, S, M, T fields.E2
+	var XX, YY, YYYY, ZZ, S, M, T fields_bls12377.E2
 
 	XX.Square(api, p.X, ext)
 	YY.Square(api, p.Y, ext)
@@ -226,9 +226,9 @@ func (p *G2Affine) MustBeEqual(api frontend.API, other G2Affine) {
 }
 
 // DoubleAndAdd computes 2*p1+p2 in affine coords
-func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) *G2Affine {
+func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine, ext fields_bls12377.Extension) *G2Affine {
 
-	var n, d, l1, l2, x3, x4, y4 fields.E2
+	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)

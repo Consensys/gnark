@@ -14,29 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls12377
 
 import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 )
 
 // PairingContext contains useful info about the pairing
 type PairingContext struct {
 	AteLoop     uint64 // stores the ate loop
-	Extension   fields.Extension
-	BTwistCoeff fields.E2
+	Extension   fields_bls12377.Extension
+	BTwistCoeff fields_bls12377.E2
 }
 
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvaluation struct {
-	R0, R1 fields.E2
+	R0, R1 fields_bls12377.E2
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E12, pairingInfo PairingContext) *fields_bls12377.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -77,9 +77,9 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields.E12, pairi
 }
 
 // DoubleAndAddStep
-func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) (G2Affine, LineEvaluation, LineEvaluation) {
+func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields_bls12377.Extension) (G2Affine, LineEvaluation, LineEvaluation) {
 
-	var n, d, l1, l2, x3, x4, y4 fields.E2
+	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
 	var line1, line2 LineEvaluation
 	var p G2Affine
 
@@ -125,9 +125,9 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields.Extension) 
 	return p, line1, line2
 }
 
-func DoubleStep(api frontend.API, p1 *G2Affine, ext fields.Extension) (G2Affine, LineEvaluation) {
+func DoubleStep(api frontend.API, p1 *G2Affine, ext fields_bls12377.Extension) (G2Affine, LineEvaluation) {
 
-	var n, d, l, xr, yr fields.E2
+	var n, d, l, xr, yr fields_bls12377.E2
 	var p G2Affine
 	var line LineEvaluation
 
@@ -157,7 +157,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine, ext fields.Extension) (G2Affine,
 }
 
 // TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields.E12, pairingInfo PairingContext) *fields.E12 {
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields_bls12377.E12, pairingInfo PairingContext) *fields_bls12377.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int

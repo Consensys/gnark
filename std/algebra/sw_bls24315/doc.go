@@ -15,4 +15,4 @@ limitations under the License.
 */
 
 // Package sw (short weierstrass)
-package sw
+package sw_bls24315

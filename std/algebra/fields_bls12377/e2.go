@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields
+package fields_bls12377
 
 import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"

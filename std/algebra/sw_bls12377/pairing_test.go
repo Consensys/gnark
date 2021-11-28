@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls12377
 
 import (
 	"math/big"
@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/test"
 )
 
@@ -38,17 +38,17 @@ type pairingBLS377 struct {
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(api)
+	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
-	milRes := fields.E12{}
+	milRes := fields_bls12377.E12{}
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
 
-	pairingRes := fields.E12{}
+	pairingRes := fields_bls12377.E12{}
 	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
@@ -99,7 +99,7 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	return
 }
 
-func mustbeEq(api frontend.API, fp12 fields.E12, e12 *bls12377.GT) {
+func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
@@ -123,15 +123,15 @@ type triplePairingBLS377 struct {
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(api)
+	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
-	milRes := fields.E12{}
+	milRes := fields_bls12377.E12{}
 	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)
 
-	pairingRes := fields.E12{}
+	pairingRes := fields_bls12377.E12{}
 	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)

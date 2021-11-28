@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields
+package fields_bls12377
 
 import (
 	"math/big"
@@ -98,7 +98,7 @@ type fp12Mul struct {
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	expected.Mul(api, circuit.A, circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -129,7 +129,7 @@ type fp12Square struct {
 }
 
 func (circuit *fp12Square) Define(api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	s := circuit.A.Square(api, circuit.A, ext)
 	s.MustBeEqual(api, circuit.B)
 	return nil
@@ -159,7 +159,7 @@ type fp12CycloSquare struct {
 }
 
 func (circuit *fp12CycloSquare) Define(api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	var u, v E12
 	u.Square(api, circuit.A, ext)
 	v.CyclotomicSquare(api, circuit.A, ext)
@@ -228,7 +228,7 @@ type fp12Frobenius struct {
 }
 
 func (circuit *fp12Frobenius) Define(api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	fb := E12{}
 	fb.Frobenius(api, circuit.A, ext)
 	fb.MustBeEqual(api, circuit.C)
@@ -271,7 +271,7 @@ type fp12Inverse struct {
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	expected.Inverse(api, circuit.A, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -301,7 +301,7 @@ type fp12FixedExpo struct {
 
 func (circuit *fp12FixedExpo) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
 	expected.Expt(api, circuit.A, expo, ext)
 	expected.MustBeEqual(api, circuit.C)
@@ -339,7 +339,7 @@ type fp12FinalExpo struct {
 
 func (circuit *fp12FinalExpo) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	expo := uint64(9586122913090633729)
 	expected.FinalExponentiation(api, circuit.A, expo, ext)
 	expected.MustBeEqual(api, circuit.C)
@@ -370,7 +370,7 @@ type fp12MulBy034 struct {
 }
 
 func (circuit *fp12MulBy034) Define(api frontend.API) error {
-	ext := GetBLS377ExtensionFp12(api)
+	ext := GetBLS12377ExtensionFp12(api)
 	circuit.A.MulBy034(api, circuit.B, circuit.C, ext)
 	circuit.A.MustBeEqual(api, circuit.W)
 	return nil

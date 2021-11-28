@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields
+package fields_bls12377
 
 import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -57,8 +57,8 @@ type E12 struct {
 	C0, C1 E6
 }
 
-// GetBLS377ExtensionFp12 get extension field parameters for bls12377
-func GetBLS377ExtensionFp12(api frontend.API) Extension {
+// GetBLS12377ExtensionFp12 get extension field parameters for bls12377
+func GetBLS12377ExtensionFp12(api frontend.API) Extension {
 
 	res := Extension{}
 
@@ -156,7 +156,7 @@ func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 	var c0, c2, c3 E6
 	c0.Sub(api, x.C0, x.C1)
 	c3.Mul(api, x.C1, ext.wSquare, ext)
-	c3.Neg(api, c3).Add(api, x.C0, c3)
+	c3.Sub(api, x.C0, c3)
 	c2.Mul(api, x.C0, x.C1, ext)
 	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
 	e.C1.Add(api, c2, c2)
@@ -323,9 +323,8 @@ func (e *E12) CyclotomicSquare(api frontend.API, x E12, ext Extension) *E12 {
 
 // Conjugate applies Frob**6 (conjugation over Fp6)
 func (e *E12) Conjugate(api frontend.API, e1 E12) *E12 {
-	zero := NewFp6Zero(api)
-	e.C1.Sub(api, *zero, e1.C1)
 	e.C0 = e1.C0
+	e.C1.Neg(api, e1.C1)
 	return e
 }
 
@@ -405,13 +404,6 @@ func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 	e.C0.Mul(api, e1.C0, t[1], ext)
 	e.C1.Mul(api, e1.C1, t[1], ext).Neg(api, e.C1)
 
-	return e
-}
-
-// ConjugateFp12 conjugates an Fp12 elmt (applies Frob**6)
-func (e *E12) ConjugateFp12(api frontend.API, e1 E12) *E12 {
-	e.C0 = e1.C0
-	e.C1.Neg(api, e1.C1)
 	return e
 }
 

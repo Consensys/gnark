@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls12377
 
 import (
 	"math/big"

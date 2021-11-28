@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls24315
 
 import (
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ func TestAddAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -86,7 +86,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	// sample 2 random points
 	_a := randomPointG1()
 	_b := randomPointG1()
-	var a, b, c bls12377.G1Affine
+	var a, b, c bls24315.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
@@ -103,7 +103,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -138,7 +138,7 @@ func TestDoubleAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -160,8 +160,8 @@ func (circuit *g1DoubleAffine) Define(api frontend.API) error {
 func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
-	_a, _, a, _ := bls12377.Generators()
-	var c bls12377.G1Affine
+	_a, _, a, _ := bls24315.Generators()
+	var c bls24315.G1Affine
 
 	// create the cs
 	var circuit, witness g1DoubleAffine
@@ -173,7 +173,7 @@ func TestDoubleAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -197,7 +197,7 @@ func TestDoubleAndAddAffineG1(t *testing.T) {
 	// sample 2 random points
 	_a := randomPointG1()
 	_b := randomPointG1()
-	var a, b, c bls12377.G1Affine
+	var a, b, c bls24315.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
@@ -214,7 +214,7 @@ func TestDoubleAndAddAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -245,7 +245,7 @@ func TestNegG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -269,7 +269,7 @@ func TestScalarMulG1(t *testing.T) {
 
 	// sample 2 random points
 	_a := randomPointG1()
-	var a, c bls12377.G1Affine
+	var a, c bls24315.G1Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
@@ -284,12 +284,12 @@ func TestScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
-func randomPointG1() bls12377.G1Jac {
+func randomPointG1() bls24315.G1Jac {
 
-	p1, _, _, _ := bls12377.Generators()
+	p1, _, _, _ := bls24315.Generators()
 
 	var r1 fr.Element
 	var b big.Int
@@ -315,7 +315,7 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633, backend.PLONK, &c)
 			if err != nil {
 				b.Fatal(err)
 			}

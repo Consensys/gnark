@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw
+package sw_bls12377
 
 import (
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields"
 	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -33,26 +32,26 @@ import (
 // -------------------------------------------------------------------------------------------------
 // Add jacobian
 
-type g2AddAssign struct {
-	A, B G2Jac
-	C    G2Jac `gnark:",public"`
+type g1AddAssign struct {
+	A, B G1Jac
+	C    G1Jac `gnark:",public"`
 }
 
-func (circuit *g2AddAssign) Define(api frontend.API) error {
+func (circuit *g1AddAssign) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestAddAssignG2(t *testing.T) {
+func TestAddAssignG1(t *testing.T) {
 
 	// sample 2 random points
-	a := randomPointG2()
-	b := randomPointG2()
+	a := randomPointG1()
+	b := randomPointG1()
 
 	// create the cs
-	var circuit, witness g2AddAssign
+	var circuit, witness g1AddAssign
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -70,29 +69,29 @@ func TestAddAssignG2(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Add affine
 
-type g2AddAssignAffine struct {
-	A, B G2Affine
-	C    G2Affine `gnark:",public"`
+type g1AddAssignAffine struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
 }
 
-func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
+func (circuit *g1AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.AddAssign(api, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestAddAssignAffineG2(t *testing.T) {
+func TestAddAssignAffineG1(t *testing.T) {
 
 	// sample 2 random points
-	_a := randomPointG2()
-	_b := randomPointG2()
-	var a, b, c bls12377.G2Affine
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
 	// create the cs
-	var circuit, witness g2AddAssignAffine
+	var circuit, witness g1AddAssignAffine
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -111,25 +110,25 @@ func TestAddAssignAffineG2(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Double Jacobian
 
-type g2DoubleAssign struct {
-	A G2Jac
-	C G2Jac `gnark:",public"`
+type g1DoubleAssign struct {
+	A G1Jac
+	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g2DoubleAssign) Define(api frontend.API) error {
+func (circuit *g1DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
+	expected.DoubleAssign(api)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestDoubleAssignG2(t *testing.T) {
+func TestDoubleAssignG1(t *testing.T) {
 
 	// sample 2 random points
-	a := randomPointG2()
+	a := randomPointG1()
 
 	// create the cs
-	var circuit, witness g2DoubleAssign
+	var circuit, witness g1DoubleAssign
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -144,31 +143,66 @@ func TestDoubleAssignG2(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// DoubleAndAdd affine
+// Double affine
 
-type g2DoubleAndAddAffine struct {
-	A, B G2Affine
-	C    G2Affine `gnark:",public"`
+type g1DoubleAffine struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
 }
 
-func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
+func (circuit *g1DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, fields.GetBLS377ExtensionFp12(api))
+	expected.Double(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestDoubleAndAddAffineG2(t *testing.T) {
+func TestDoubleAffineG1(t *testing.T) {
 
 	// sample 2 random points
-	_a := randomPointG2()
-	_b := randomPointG2()
-	var a, b, c bls12377.G2Affine
+	_a, _, a, _ := bls12377.Generators()
+	var c bls12377.G1Affine
+
+	// create the cs
+	var circuit, witness g1DoubleAffine
+
+	// assign the inputs and compute the result
+	witness.A.Assign(&a)
+	_a.DoubleAssign()
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// DoubleAndAdd affine
+
+type g1DoubleAndAddAffine struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+}
+
+func (circuit *g1DoubleAndAddAffine) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.DoubleAndAdd(api, &circuit.A, &circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDoubleAndAddAffineG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 	b.FromJacobian(&_b)
 
 	// create the cs
-	var circuit, witness g2DoubleAndAddAffine
+	var circuit, witness g1DoubleAndAddAffine
 
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -185,118 +219,109 @@ func TestDoubleAndAddAffineG2(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Double affine
+// Neg
 
-type g2DoubleAffine struct {
-	A G2Affine
-	C G2Affine `gnark:",public"`
+type g1Neg struct {
+	A G1Jac
+	C G1Jac `gnark:",public"`
 }
 
-func (circuit *g2DoubleAffine) Define(api frontend.API) error {
-	expected := circuit.A
-	expected.Double(api, &circuit.A, fields.GetBLS377ExtensionFp12(api))
+func (circuit *g1Neg) Define(api frontend.API) error {
+	expected := G1Jac{}
+	expected.Neg(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestDoubleAffineG2(t *testing.T) {
+func TestNegG1(t *testing.T) {
 
 	// sample 2 random points
-	_a := randomPointG2()
-	var a, c bls12377.G2Affine
+	a := randomPointG1()
+
+	// assign the inputs
+	var witness g1Neg
+	witness.A.Assign(&a)
+	a.Neg(&a)
+	witness.C.Assign(&a)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
+// -------------------------------------------------------------------------------------------------
+// Scalar multiplication
+
+type g1ScalarMul struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	r fr.Element
+}
+
+func (circuit *g1ScalarMul) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.ScalarMul(api, circuit.A, circuit.r)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG1(t *testing.T) {
+
+	// sample 2 random points
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
-	var circuit, witness g2DoubleAffine
-
+	var circuit, witness g1ScalarMul
+	circuit.r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
-
 	// compute the result
-	_a.DoubleAssign()
+	var br big.Int
+	_a.ScalarMultiplication(&_a, circuit.r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-
 }
 
-// -------------------------------------------------------------------------------------------------
-// Neg
+func randomPointG1() bls12377.G1Jac {
 
-type g2Neg struct {
-	A G2Jac
-	C G2Jac `gnark:",public"`
-}
-
-func (circuit *g2Neg) Define(api frontend.API) error {
-	expected := G2Jac{}
-	expected.Neg(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
-}
-
-func TestNegG2(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG2()
-
-	// create the cs
-	var circuit, witness g2Neg
-
-	// assign the inputs
-	witness.A.Assign(&a)
-
-	// compute the result
-	a.Neg(&a)
-	witness.C.Assign(&a)
-
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-
-}
-
-func randomPointG2() bls12377.G2Jac {
-	_, p2, _, _ := bls12377.Generators()
+	p1, _, _, _ := bls12377.Generators()
 
 	var r1 fr.Element
 	var b big.Int
 	r1.SetRandom()
-	p2.ScalarMultiplication(&p2, r1.ToBigIntRegular(&b))
-	return p2
+	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
+
+	return p1
 }
 
-// benches
-func BenchmarkDoubleAffineG2(b *testing.B) {
-	var c g2DoubleAffine
+var ccsBench frontend.CompiledConstraintSystem
+
+func BenchmarkScalarMulG1(b *testing.B) {
+	var c g1ScalarMul
+	// this is q - 1
+	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
 		}
 
 	})
 	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkAddAssignAffineG2(b *testing.B) {
-	var c g2AddAssignAffine
-	b.Run("groth16", func(b *testing.B) {
+	b.Run("plonk", func(b *testing.B) {
+		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
 
 	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
+	b.Log("plonk", ccsBench.GetNbConstraints())
 
-func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
-	var c g2DoubleAndAddAffine
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }

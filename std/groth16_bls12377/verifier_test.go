@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package groth16
+package groth16_bls12377
 
 import (
 	"testing"
@@ -26,8 +26,8 @@ import (
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gnark/std/algebra/sw"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -57,7 +57,7 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 
 // Prepare the data for the inner proof.
 // Returns the public inputs string of the inner proof
-func generateBls377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey, proof *groth16_bls12377.Proof) {
+func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey, proof *groth16_bls12377.Proof) {
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
@@ -109,8 +109,8 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)
-	ext := fields.GetBLS377ExtensionFp12(api)
-	pairingInfo := sw.PairingContext{AteLoop: ateLoop, Extension: ext}
+	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	pairingInfo := sw_bls12377.PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
@@ -125,11 +125,11 @@ func TestVerifier(t *testing.T) {
 	// get the data
 	var innerVk groth16_bls12377.VerifyingKey
 	var innerProof groth16_bls12377.Proof
-	generateBls377InnerProof(t, &innerVk, &innerProof) // get public inputs of the inner proof
+	generateBls12377InnerProof(t, &innerVk, &innerProof) // get public inputs of the inner proof
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -146,7 +146,7 @@ func TestVerifier(t *testing.T) {
 	}
 	witness.InnerVk.E.Assign(&e)
 
-	witness.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
+	witness.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {
 		witness.InnerVk.G1[i].Assign(&vkg)
 	}
@@ -189,11 +189,11 @@ func BenchmarkCompile(b *testing.B) {
 	// get the data
 	var innerVk groth16_bls12377.VerifyingKey
 	var innerProof groth16_bls12377.Proof
-	generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
+	generateBls12377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
@@ -212,7 +212,7 @@ func BenchmarkCompile(b *testing.B) {
 // 	// get the data
 // 	var innerVk groth16_bls12377.VerifyingKey
 // 	var innerProof groth16_bls12377.Proof
-// 	inputNamesInnerProof := generateBls377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
+// 	inputNamesInnerProof := generateBls12377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
 
 // 	// create an empty cs
 // 	var circuit XXXX
@@ -222,8 +222,8 @@ func BenchmarkCompile(b *testing.B) {
 // 	}
 
 // 	// pairing data
-// 	var pairingInfo sw.PairingContext
-// 	pairingInfo.Extension = fields.GetBLS377ExtensionFp12(&gnark)
+// 	var pairingInfo sw_bls12377.PairingContext
+// 	pairingInfo.Extension = fields_bls12377.GetBLS12377ExtensionFp12(&gnark)
 // 	pairingInfo.AteLoop = 9586122913090633729
 
 // 	// allocate the verifying key

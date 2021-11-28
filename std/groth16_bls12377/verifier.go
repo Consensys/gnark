@@ -14,45 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package groth16 provides a ZKP-circuit function to verify BLS12_377 Groth16 inside a BW6_761 circuit.
-package groth16
+// Package groth16_bls12377 provides a ZKP-circuit function to verify BLS12_377 Groth16 inside a BW6_761 circuit.
+package groth16_bls12377
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields"
-	"github.com/consensys/gnark/std/algebra/sw"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 )
 
 // Proof represents a groth16 proof in a r1cs
 type Proof struct {
-	Ar, Krs sw.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
-	Bs      sw.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
+	Ar, Krs sw_bls12377.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
+	Bs      sw_bls12377.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
 }
 
 // VerifyingKey represents the groth16 verifying key in a r1cs
 type VerifyingKey struct {
 
 	// e(α, β)
-	E fields.E12
+	E fields_bls12377.E12
 
 	// -[γ]2, -[δ]2
 	G2 struct {
-		GammaNeg, DeltaNeg sw.G2Affine
+		GammaNeg, DeltaNeg sw_bls12377.G2Affine
 	}
 
 	// [Kvk]1 (part of the verifying key yielding psi0, cf https://eprint.iacr.org/2020/278.pdf)
-	G1 []sw.G1Affine // The indexes correspond to the public wires
+	G1 []sw_bls12377.G1Affine // The indexes correspond to the public wires
 }
 
 // Verify implements the verification function of groth16.
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
-	var psi0, tmp sw.G1Affine
+	var psi0, tmp sw_bls12377.G1Affine
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	// note this assumes ONE_WIRE is at position 0
@@ -64,12 +64,12 @@ func Verify(api frontend.API, pairingInfo sw.PairingContext, innerVk VerifyingKe
 		psi0.AddAssign(api, tmp)
 	}
 
-	var resMillerLoop fields.E12
+	var resMillerLoop fields_bls12377.E12
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-	sw.TripleMillerLoop(api, [3]sw.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
+	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
 
 	// performs the final expo
-	var resPairing fields.E12
+	var resPairing fields_bls12377.E12
 	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing
