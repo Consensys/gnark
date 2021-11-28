@@ -80,6 +80,11 @@ type API interface {
 	// Select if b is true, yields i1 else yields i2
 	Select(b interface{}, i1, i2 interface{}) Variable
 
+	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
+	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+	// and i3 if b0=b1=1.
+	Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable
+
 	// IsZero returns 1 if a is zero, 0 otherwise
 	IsZero(i1 interface{}) Variable
 
