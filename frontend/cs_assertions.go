@@ -140,6 +140,7 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 }
 
 func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
@@ -168,19 +169,27 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 
 	p := make([]Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
-	p[nbBits] = cs.constant(1)
 
-	for i := nbBits - 1; i >= t; i-- {
-		if bound.Bit(i) == 0 {
+	// The loop "for i := nbBits - 1; i >= t; i--" is split in 2. First, loop while if bound.Bit(i) == 0
+	// to isolate the p[i] constants. Then, populate p.
+	var counterConstant int
+	for counterConstant = nbBits - 1; counterConstant >= t && bound.Bit(counterConstant) == 0; counterConstant-- {
+	}
+	p[counterConstant+1] = cs.constant(1)
+	for i := counterConstant; i >= t; i-- {
+		if bound.Bit(i) == 0 { // at i=counterConstant, this statement is always false
 			p[i] = p[i+1]
 		} else {
 			p[i] = cs.Mul(p[i+1], aBits[i])
 		}
 	}
 
-	for i := nbBits - 1; i >= 0; i-- {
+	for i := nbBits - 1; i > counterConstant; i-- {
+		cs.AssertIsEqual(aBits[i].(compiled.Variable), 0)
+	}
+	for i := counterConstant; i >= 0; i-- {
 		if bound.Bit(i) == 0 {
-			// (1 - p(i+1) - ai) * ai == 0
+			// (1-p(i+1)-ai)*ai == 0
 			var l Variable
 			l = cs.one()
 			l = cs.Sub(l, p[i+1], aBits[i])

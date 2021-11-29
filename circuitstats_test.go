@@ -39,6 +39,7 @@ func TestCircuitStatistics(t *testing.T) {
 			check(backend.GROTH16)
 			check(backend.PLONK)
 		}
+
 	}
 
 	// serialize newStats
