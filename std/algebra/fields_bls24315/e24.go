@@ -426,6 +426,13 @@ func (e *E24) MulBy012(api frontend.API, c1, c2 E4, ext Extension) *E24 {
 	return e
 }
 
+// nSquare repeated compressed cyclotmic square
+func (e *E24) nSquare(api frontend.API, n int, ext Extension) {
+	for i := 0; i < n; i++ {
+		e.CyclotomicSquare(api, *e, ext)
+	}
+}
+
 // nSquareCompressed repeated compressed cyclotmic square
 func (e *E24) nSquareCompressed(api frontend.API, n int, ext Extension) {
 	for i := 0; i < n; i++ {
@@ -444,14 +451,12 @@ func (e *E24) Expt(api frontend.API, x E24, exponent uint64, ext Extension) *E24
 	res = x
 	xInv.Conjugate(api, &x, ext)
 
-	res.nSquareCompressed(api, 2, ext)
-	res.Decompress(api, res, ext)
+	res.nSquare(api, 2, ext)
 	res.Mul(api, res, xInv, ext)
 	res.nSquareCompressed(api, 8, ext)
 	res.Decompress(api, res, ext)
 	res.Mul(api, res, xInv, ext)
-	res.nSquareCompressed(api, 2, ext)
-	res.Decompress(api, res, ext)
+	res.nSquare(api, 2, ext)
 	res.Mul(api, res, x, ext)
 	res.nSquareCompressed(api, 20, ext)
 	res.Decompress(api, res, ext)
