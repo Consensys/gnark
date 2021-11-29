@@ -272,12 +272,16 @@ func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
 
+	// the formulation used is for easing up the conversion to sparse r1cs
 	res := cs.newInternalVariable()
-	v1 := cs.Mul(2, a)   // no constraint recorded
-	v2 := cs.Add(a, b)   // no constraint recorded
-	v2 = cs.Sub(v2, res) // no constraint recorded
-
-	cs.constraints = append(cs.constraints, newR1C(v1, b, v2))
+	res.IsBoolean = new(bool)
+	*res.IsBoolean = true
+	c := cs.Neg(res).(compiled.Variable)
+	c.IsBoolean = new(bool)
+	*c.IsBoolean = false
+	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	aa := cs.Mul(a, 2)
+	cs.constraints = append(cs.constraints, newR1C(aa, b, c))
 
 	return res
 }
@@ -292,11 +296,15 @@ func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 	cs.AssertIsBoolean(a)
 	cs.AssertIsBoolean(b)
 
+	// the formulation used is for easing up the conversion to sparse r1cs
 	res := cs.newInternalVariable()
-	v1 := cs.Sub(1, a)
-	v2 := cs.Sub(res, a)
-
-	cs.constraints = append(cs.constraints, newR1C(b, v1, v2))
+	res.IsBoolean = new(bool)
+	*res.IsBoolean = true
+	c := cs.Neg(res).(compiled.Variable)
+	c.IsBoolean = new(bool)
+	*c.IsBoolean = false
+	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	cs.constraints = append(cs.constraints, newR1C(a, b, c))
 
 	return res
 }
@@ -469,6 +477,15 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 		res := cs.Mul(b, diff)     // no constraint is recorded
 		res = cs.Add(res, vars[2]) // no constraint is recorded
 		return res
+	}
+
+	// special case appearing in AssertIsLessOrEq
+	if vars[1].IsConstant() {
+		n1 := cs.constantValue(vars[1])
+		if n1.Cmp(big.NewInt(0)) == 0 {
+			v := cs.Sub(1, vars[0])
+			return cs.Mul(v, vars[2])
+		}
 	}
 
 	v := cs.Sub(vars[1], vars[2]) // no constraint is recorded

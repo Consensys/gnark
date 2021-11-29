@@ -413,7 +413,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 
 	s := len(r1c.R.LinExp)
 
-	// check if the constraint is boolean
+	// special case: boolean constraint
 	if *r1c.L.IsBoolean { //} && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
 		lz := r1c.L.LinExp[0]
 		lz.SetCoeffID(compiled.CoeffIdZero)
@@ -430,7 +430,40 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		return
 	}
 
-	// a*b=c case, where a, b, o are of lenght 1
+	// special cases: OR (XY=X+Y-res) and XOR (2XY = X+Y-res)
+	if len(r1c.O.LinExp) == 3 {
+
+		cl, _, _ := r1c.L.LinExp[0].Unpack()
+		cr, _, _ := r1c.R.LinExp[0].Unpack()
+
+		// OR
+		if cl == cr {
+			coeffID := compiled.CoeffIdZero
+			scs.addConstraint(compiled.SparseR1C{
+				L: scs.negate(r1c.L.LinExp[0]),
+				R: scs.negate(r1c.R.LinExp[0]),
+				M: [2]compiled.Term{r1c.L.LinExp[0], r1c.R.LinExp[0]},
+				O: scs.negate(r1c.O.LinExp[0]),
+				K: coeffID,
+			})
+		} else { //XOR (the only remaining possible case)
+			coeffID := compiled.CoeffIdZero
+			_l := r1c.L.LinExp[0]
+			_l.SetCoeffID(cr)
+			_l = scs.negate(_l)
+			scs.addConstraint(compiled.SparseR1C{
+				L: _l,
+				R: scs.negate(r1c.R.LinExp[0]),
+				M: [2]compiled.Term{r1c.L.LinExp[0], r1c.R.LinExp[0]},
+				O: scs.negate(r1c.O.LinExp[0]),
+				K: coeffID,
+			})
+		}
+		return
+	}
+
+	// a*b=c case, where a, b, o are of length 1. It's either an assertion
+	// or a operation of type Mul, Div, Inv.
 	if lro == -1 || s == 1 {
 
 		// l, r, o := r1c.L.LinExp[0], r1c.R.LinExp[0], r1c.O.LinExp[0]
@@ -571,15 +604,15 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		return
 	}
 
-	// case 1*(a+b+c...) = alpha. This case happens to simplify linear expression
+	// Add, Sub cases, used in PLONK to factorize the linear expressions.
 	scs.solvedVariables[idCS] = true
+
+	var t compiled.Term
 
 	sort.Sort(r1c.R.LinExp)
 
 	// pop the constant term if it exists
 	coeffID, vID, visID := r1c.R.LinExp[0].Unpack()
-
-	var t compiled.Term
 
 	firstTermIsPublic := (visID == compiled.Public) && vID == 0
 	if !firstTermIsPublic {
