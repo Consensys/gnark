@@ -208,7 +208,7 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 		debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := cs.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		cs.addConstraint(newR1C(cs.one(), v2, v2Inv), debug)
+		cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
 		cs.addConstraint(newR1C(v1, v2Inv, res), debug)
 		return res
 	}
