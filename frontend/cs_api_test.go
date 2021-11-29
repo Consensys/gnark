@@ -61,9 +61,17 @@ func TestIsBool1(t *testing.T) {
 
 	var circuit IsBool1
 
-	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal("compilation failed", err)
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
+		if err == nil {
+			t.Fatal("compilation should have failed", err)
+		}
+	}
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit, IgnoreUnconstrainedInputs)
+		if err != nil {
+			t.Fatal("compilation failed", err)
+		}
 	}
 }
 
@@ -71,9 +79,17 @@ func TestIsBool2(t *testing.T) {
 
 	var circuit IsBool2
 
-	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal("compilation failed", err)
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
+		if err == nil {
+			t.Fatal("compilation should have failed", err)
+		}
+	}
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit, IgnoreUnconstrainedInputs)
+		if err != nil {
+			t.Fatal("compilation failed", err)
+		}
 	}
 }
 
@@ -81,9 +97,17 @@ func TestIsBool3(t *testing.T) {
 
 	var circuit IsBool3
 
-	_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
-	if err != nil {
-		t.Fatal("compilation failed", err)
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit)
+		if err == nil {
+			t.Fatal("compilation should have failed", err)
+		}
+	}
+	{
+		_, err := Compile(ecc.BN254, backend.GROTH16, &circuit, IgnoreUnconstrainedInputs)
+		if err != nil {
+			t.Fatal("compilation failed", err)
+		}
 	}
 }
 
