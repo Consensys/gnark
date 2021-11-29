@@ -414,7 +414,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	s := len(r1c.R.LinExp)
 
 	// check if the constraint is boolean
-	if *r1c.L.IsBoolean && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
+	if *r1c.L.IsBoolean { //} && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
 		lz := r1c.L.LinExp[0]
 		lz.SetCoeffID(compiled.CoeffIdZero)
 		var oz compiled.Term
@@ -430,8 +430,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		return
 	}
 
-	// this may happen if a constraint contained hint wires, that are marked as solved.
-	// or if we r1c is an assertion (ie it does not yield any output)
+	// a*b=c case, where a, b, o are of lenght 1
 	if lro == -1 || s == 1 {
 
 		// l, r, o := r1c.L.LinExp[0], r1c.R.LinExp[0], r1c.O.LinExp[0]
@@ -572,6 +571,7 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		return
 	}
 
+	// case 1*(a+b+c...) = alpha. This case happens to simplify linear expression
 	scs.solvedVariables[idCS] = true
 
 	sort.Sort(r1c.R.LinExp)

@@ -63,7 +63,9 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 
 	o := cs.constant(0)
 
-	if len(v.LinExp) == 1 && cs.backendID == backend.PLONK {
+	// We always have len(v.LinExp) == 1 when the backend is plonk, so it simplifies the conversion
+	// to sparse r1cs.
+	if cs.backendID == backend.PLONK {
 		one := cs.one()
 		_v := cs.Neg(v).(compiled.Variable)
 		r := compiled.Variable{LinExp: []compiled.Term{one.LinExp[0], _v.LinExp[0]}}
@@ -125,8 +127,7 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 		// (1 - t - ai) * ai == 0
 		var l Variable
 		l = cs.one()
-		l = cs.Sub(l, t)
-		l = cs.Sub(l, aBits[i])
+		l = cs.Sub(l, t, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
@@ -154,7 +155,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 
 	// note that at this stage, we didn't boolean-constraint these new compiled.Variables yet
 	// (as opposed to ToBinary)
-	aBits := cs.toBinary(a, nbBits, false)
+	aBits := cs.toBinary(a, nbBits, true)
 
 	// t trailing bits in the bound
 	t := 0
@@ -182,8 +183,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 			// (1 - p(i+1) - ai) * ai == 0
 			var l Variable
 			l = cs.one()
-			l = cs.Sub(l, p[i+1])
-			l = cs.Sub(l, aBits[i])
+			l = cs.Sub(l, p[i+1], aBits[i])
 
 			cs.addConstraint(newR1C(l, aBits[i], cs.constant(0)), debug)
 			cs.markBoolean(aBits[i].(compiled.Variable))
