@@ -274,11 +274,9 @@ func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := cs.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
+	cs.markBoolean(res)
 	c := cs.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
+	cs.markBoolean(c)
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
 	aa := cs.Mul(a, 2)
 	cs.constraints = append(cs.constraints, newR1C(aa, b, c))
@@ -298,11 +296,9 @@ func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := cs.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
+	cs.markBoolean(res)
 	c := cs.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
+	cs.markBoolean(c)
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
 	cs.constraints = append(cs.constraints, newR1C(a, b, c))
 
@@ -321,7 +317,7 @@ func (cs *constraintSystem) And(_a, _b Variable) Variable {
 
 	res := cs.Mul(a, b)
 
-	cs.markBoolean(res.(variable))
+	cs.markBoolean(res.(compiled.Variable))
 
 	return res
 }
