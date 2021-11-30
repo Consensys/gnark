@@ -35,6 +35,14 @@ func (e *E4) SetOne(api frontend.API) *E4 {
 	return e
 }
 
+// NewFp4Zero creates a new
+func NewFp4Zero(api frontend.API) *E4 {
+	return &E4{
+		B0: E2{0, 0},
+		B1: E2{0, 0},
+	}
+}
+
 // Neg negates a e4 elmt
 func (e *E4) Neg(api frontend.API, e1 E4) *E4 {
 	e.B0.Neg(api, e1.B0)
