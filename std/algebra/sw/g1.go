@@ -17,10 +17,13 @@ limitations under the License.
 package sw
 
 import (
+	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -191,40 +194,206 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
-// ScalarMul computes scalar*p1, affect the result to p, and returns it.
-// n is the number of bits used for the scalar mul.
-// TODO it doesn't work if the scalar if 1, because it ends up doing P-P at the end, involving division by 0
-// TODO add a panic if scalar == 1
-// TODO s is an interface, but treated as a variable (ToBinary), there is no specific path for constants
-func (p *G1Affine) ScalarMul(api frontend.API, p1 G1Affine, s interface{}) *G1Affine {
-	// scalar bits
-	scalar := s
-	bits := api.ToBinary(scalar)
+// ScalarMul sets P = [s] Q and returns P.
+//
+// The method chooses an implementation based on scalar s. If it is constant,
+// then the compiled circuit depends on s. If it is variable type, then
+// the circuit is independent of the inputs.
+func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Affine {
+	if api.IsConstant(s) {
+		return P.constScalarMul(api, Q, api.ConstantValue(s))
+	} else {
+		return P.varScalarMul(api, Q, s)
+	}
+}
 
-	var base G1Affine
-	base.Double(api, p1)
-	r1 := p1
+func scalarDecompositionHint(curve ecc.ID, inputs []*big.Int, res *big.Int, id int) error {
+	if len(inputs) != 1 {
+		return fmt.Errorf("hint takes 1 input, got %d", len(inputs))
+	}
+	cc := companionCurve(curve)
+	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
+	res.Set(&(sp[id]))
 
-	// start from 1 and use right-to-left scalar multiplication to avoid bugs due to incomplete addition law
-	// (I don't see how to avoid that)
-	for i := 1; i < len(bits); i++ {
-		tmp := r1
-		tmp.AddAssign(api, base)
+	// add (lambda+1, lambda) to decomposition to set high bits
+	res.Add(res, cc.lambda)
+	if id == 0 {
+		res.Add(res, big.NewInt(1))
+	}
+	return nil
+}
 
-		// if bits[i] == 0, do nothing, if bits[i] == 1, res += 2**p1
-		r1.Select(api, bits[i], tmp, r1)
+func scalarHintFree(curve ecc.ID, inputs []*big.Int, res *big.Int) error {
+	return scalarDecompositionHint(curve, inputs, res, 0)
+}
 
-		base.Double(api, base)
+func scalarHintLambda(curve ecc.ID, inputs []*big.Int, res *big.Int) error {
+	return scalarDecompositionHint(curve, inputs, res, 1)
+}
+
+func init() {
+	hint.Register(scalarHintFree)
+	hint.Register(scalarHintLambda)
+}
+
+// varScalarMul sets P = [s] Q and returns P.
+func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable) *G1Affine {
+	// This method computes [s] Q. We use several methods to reduce the number
+	// of added constraints - first, instead of classical double-and-add, we use
+	// the optimized version from https://github.com/zcash/zcash/issues/3924
+	// which allows to omit computation of several intermediate values.
+	// Secondly, we use the GLV scalar multiplication to reduce the number
+	// iterations in the main loop. There is a small difference though - as
+	// two-bit select takes three constraints, then it takes as many constraints
+	// to compute ± Q ± Φ(Q) every iteration instead of selecting the value
+	// from a precomputed table. However, precomputing the table adds 12
+	// additional constraints and thus table-version is more expensive than
+	// addition-version.
+
+	// The context we are working is based on the `main` curve. However, the
+	// points and the operations on the points are performed on the `companion`
+	// curve of the main curve. We require some parameters from the companion
+	// curve.
+	cc := companionCurve(api.CurveID())
+
+	// the hints allow to decompose the scalar s into s1 and s2 such that
+	//     s1 + λ * s2 == s mod r,
+	// where λ is third root of one in 𝔽_r.
+	s1 := api.NewHint(scalarHintFree, s)
+	s2 := api.NewHint(scalarHintLambda, s)
+
+	// when we split scalar, then s1, s2 < lambda by default. However, to have
+	// the high 1-2 bits of s1, s2 set, the hint functions compute the
+	// decomposition for
+	//     s + r
+	// instead and omits the last reduction. Thus, to constrain s1 and s2, we
+	// have to assert that
+	//     s1 + λ * s2 == s + r
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, cc.fr))
+
+	// As the decomposed scalars are not fully reduced, then in addition of
+	// having the high bit set, an overflow bit may also be set. Thus, the total
+	// number of bits may be one more than the bitlength of λ.
+	nbits := cc.lambda.BitLen() + 1
+
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+
+	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G1Affine
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// We now initialize the accumulator. Due to the way the scalar is
+	// decomposed, either the high bits of s1 or s2 are set and we can use the
+	// incomplete addition laws.
+
+	//     Acc = Q + Φ(Q)
+	Acc = tableQ[1]
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// first bit However, we can not directly add step value conditionally as we
+	// may get to incomplete path of the addition formula. We either add or
+	// subtract step value from [2] Acc (instead of conditionally adding step
+	// value to Acc):
+	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
+	Acc.Double(api, Acc)
+	// only y coordinate differs for negation, select on that instead.
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
+	Acc.AddAssign(api, B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	// second bit
+	Acc.Double(api, Acc)
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
+	Acc.AddAssign(api, B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	B2.X = tablePhiQ[0].X
+	for i := nbits - 3; i > 0; i-- {
+		B.X = Q.X
+		B.Y = api.Select(s1bits[i], tableQ[1].Y, tableQ[0].Y)
+		B2.Y = api.Select(s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
+		B.AddAssign(api, B2)
+		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
-	// now check the lsb, if it's one, leave the result as is, otherwise substract P
-	var r2 G1Affine
-	r2.Neg(api, p1).AddAssign(api, r1)
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 
-	p.Select(api, bits[0], r1, r2)
+	P.X = Acc.X
+	P.Y = Acc.Y
 
-	return p
+	return P
+}
 
+// constScalarMul sets P = [s] Q and returns P.
+func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1Affine {
+	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
+	// bits are constant and here it makes sense to use the table in the main
+	// loop.
+	var Acc, B, negQ, negPhiQ, phiQ G1Affine
+	cc := companionCurve(api.CurveID())
+	s.Mod(s, cc.fr)
+	cc.phi(api, &phiQ, &Q)
+
+	k := ecc.SplitScalar(s, cc.glvBasis)
+	if k[0].Sign() == -1 {
+		k[0].Neg(&k[0])
+		Q.Neg(api, Q)
+	}
+	if k[1].Sign() == -1 {
+		k[1].Neg(&k[1])
+		phiQ.Neg(api, phiQ)
+	}
+	nbits := k[0].BitLen()
+	if k[1].BitLen() > nbits {
+		nbits = k[1].BitLen()
+	}
+	negQ.Neg(api, Q)
+	negPhiQ.Neg(api, phiQ)
+	var table [4]G1Affine
+	table[0] = negQ
+	table[0].AddAssign(api, negPhiQ)
+	table[1] = Q
+	table[1].AddAssign(api, negPhiQ)
+	table[2] = negQ
+	table[2].AddAssign(api, phiQ)
+	table[3] = Q
+	table[3].AddAssign(api, phiQ)
+
+	Acc = table[3]
+	// if both high bits are set, then we would get to the incomplete part,
+	// handle it separately.
+	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
+		Acc.Double(api, Acc)
+		Acc.AddAssign(api, table[3])
+		nbits = nbits - 1
+	}
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].X, table[1].X, table[2].X, table[3].X)
+		B.Y = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].Y, table[1].Y, table[2].Y, table[3].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	negQ.AddAssign(api, Acc)
+	Acc.Select(api, k[0].Bit(0), Acc, negQ)
+	negPhiQ.AddAssign(api, Acc)
+	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
+	P.X, P.Y = Acc.X, Acc.Y
+
+	return P
 }
 
 // Assign a value to self (witness assignment)
