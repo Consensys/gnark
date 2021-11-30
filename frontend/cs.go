@@ -336,6 +336,9 @@ func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 // if a constraint was added, false if the compiled.Variable was already
 // constrained as a boolean
 func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
+	if v.IsBoolean == nil {
+		v.IsBoolean = new(bool)
+	}
 	if *v.IsBoolean {
 		return false
 	}
