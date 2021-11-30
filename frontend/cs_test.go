@@ -31,7 +31,7 @@ func TestQuickSort(t *testing.T) {
 	rand := 3
 	for i := 0; i < 12; i++ {
 		toSort[i].SetVariableVisibility(compiled.Secret)
-		toSort[i].SetVariableID(rand)
+		toSort[i].SetWireID(rand)
 		rand += 3
 		rand = rand % 13
 	}

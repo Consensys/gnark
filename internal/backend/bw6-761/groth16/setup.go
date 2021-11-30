@@ -337,13 +337,13 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L.LinExp {
-			accumulate(&A[t.VariableID()], t, &L)
+			accumulate(&A[t.WireID()], t, &L)
 		}
 		for _, t := range c.R.LinExp {
-			accumulate(&B[t.VariableID()], t, &L)
+			accumulate(&B[t.WireID()], t, &L)
 		}
 		for _, t := range c.O.LinExp {
-			accumulate(&C[t.VariableID()], t, &L)
+			accumulate(&C[t.WireID()], t, &L)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
@@ -492,10 +492,10 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	B := make([]bool, nbWires)
 	for _, c := range r1cs.Constraints {
 		for _, t := range c.L.LinExp {
-			A[t.VariableID()] = true
+			A[t.WireID()] = true
 		}
 		for _, t := range c.R.LinExp {
-			B[t.VariableID()] = true
+			B[t.WireID()] = true
 		}
 	}
 	for i := 0; i < nbWires; i++ {

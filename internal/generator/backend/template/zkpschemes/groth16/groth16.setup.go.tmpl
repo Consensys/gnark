@@ -315,14 +315,14 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
-		for _, t := range c.L.V {
-			accumulate(&A[t.VariableID()], t, &L)
+		for _, t := range c.L.LinExp {
+			accumulate(&A[t.WireID()], t, &L)
 		}
-		for _, t := range c.R.V {
-			accumulate(&B[t.VariableID()], t, &L)
+		for _, t := range c.R.LinExp {
+			accumulate(&B[t.WireID()], t, &L)
 		}
-		for _, t := range c.O.V {
-			accumulate(&C[t.VariableID()], t, &L)
+		for _, t := range c.O.LinExp {
+			accumulate(&C[t.WireID()], t, &L)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
@@ -470,11 +470,11 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
 	for _, c := range r1cs.Constraints {
-		for _, t := range c.L.V {
-			A[t.VariableID()] = true
+		for _, t := range c.L.LinExp {
+			A[t.WireID()] = true
 		}
-		for _, t := range c.R.V {
-			B[t.VariableID()] = true
+		for _, t := range c.R.LinExp {
+			B[t.WireID()] = true
 		}
 	}
 	for i := 0; i < nbWires; i++ {

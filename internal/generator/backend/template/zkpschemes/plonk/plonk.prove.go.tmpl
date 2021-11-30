@@ -458,9 +458,9 @@ func computeLRO(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) (poly
 	}
 	offset := spr.NbPublicVariables
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
-		l[offset+i] = solution[spr.Constraints[i].L.VariableID()]
-		r[offset+i] = solution[spr.Constraints[i].R.VariableID()]
-		o[offset+i] = solution[spr.Constraints[i].O.VariableID()]
+		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
+		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
+		o[offset+i] = solution[spr.Constraints[i].O.WireID()]
 	}
 	offset += len(spr.Constraints)
 

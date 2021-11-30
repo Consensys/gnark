@@ -101,7 +101,6 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		// fmt.Printf("%d\n", i)
 		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
@@ -198,7 +197,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	var termToCompute compiled.Term
 
 	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
-		vID := t.VariableID()
+		vID := t.WireID()
 
 		// wire is already computed, we just accumulate in val
 		if solution.solved[vID] {
@@ -251,7 +250,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	}
 
 	// we compute the wire value and instantiate it
-	vID := termToCompute.VariableID()
+	vID := termToCompute.WireID()
 
 	// solver result
 	var wire fr.Element
@@ -331,7 +330,7 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHin
 		sbb.WriteString("</span>*")
 	}
 
-	vID := t.VariableID()
+	vID := t.WireID()
 	class := ""
 	switch t.VariableVisibility() {
 	case compiled.Internal:
@@ -364,7 +363,7 @@ func (cs *R1CS) GetNbCoefficients() int {
 
 // CurveID returns curve ID as defined in gnark-crypto (ecc.BW6-761)
 func (cs *R1CS) CurveID() ecc.ID {
-	return ecc.BW6_761
+	return ecc.BN254
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
