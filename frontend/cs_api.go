@@ -247,6 +247,8 @@ func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 	v2 := cs.Add(a, b)   // no constraint recorded
 	v2 = cs.Sub(v2, res) // no constraint recorded
 
+	cs.markBoolean(res)
+
 	cs.constraints = append(cs.constraints, newR1C(v1, b, v2))
 
 	return res
@@ -266,6 +268,8 @@ func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 	v1 := cs.Sub(1, a)
 	v2 := cs.Sub(res, a)
 
+	cs.markBoolean(res)
+
 	cs.constraints = append(cs.constraints, newR1C(b, v1, v2))
 
 	return res
@@ -282,6 +286,8 @@ func (cs *constraintSystem) And(_a, _b Variable) Variable {
 	cs.AssertIsBoolean(b)
 
 	res := cs.Mul(a, b)
+
+	cs.markBoolean(res.(variable))
 
 	return res
 }
