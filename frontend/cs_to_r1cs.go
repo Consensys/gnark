@@ -95,7 +95,7 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	offsetIDs := func(l compiled.LinearExpression) {
 		for j := 0; j < len(l); j++ {
 			_, vID, visibility := l[j].Unpack()
-			l[j].SetVariableID(shiftVID(vID, visibility))
+			l[j].SetWireID(shiftVID(vID, visibility))
 		}
 	}
 
@@ -126,7 +126,7 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
 			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
-			res.Logs[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))
+			res.Logs[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
 		}
 	}
 	for i := 0; i < len(cs.debugInfo); i++ {
@@ -138,7 +138,7 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
-			res.DebugInfo[i].ToResolve[j].SetVariableID(shiftVID(vID, visibility))
+			res.DebugInfo[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
 		}
 	}
 

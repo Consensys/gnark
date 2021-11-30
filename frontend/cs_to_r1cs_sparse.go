@@ -152,7 +152,7 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 			t.SetVariableVisibility(compiled.Virtual)
 			return
 		}
-		t.SetVariableID(shiftVID(vID, visibility))
+		t.SetWireID(shiftVID(vID, visibility))
 	}
 
 	// offset the IDs of all constraints so that the variables are
@@ -288,16 +288,16 @@ func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
 func (scs *sparseR1CS) addConstraint(c compiled.SparseR1C) {
 	// ensure wire(L) == wire(M[0]) && wire(R) == wire(M[1])
 	if c.L == 0 {
-		c.L.SetVariableID(c.M[0].VariableID())
+		c.L.SetWireID(c.M[0].WireID())
 	}
 	if c.R == 0 {
-		c.R.SetVariableID(c.M[1].VariableID())
+		c.R.SetWireID(c.M[1].WireID())
 	}
 	if c.M[0] == 0 {
-		c.M[0].SetVariableID(c.L.VariableID())
+		c.M[0].SetWireID(c.L.WireID())
 	}
 	if c.M[1] == 0 {
-		c.M[1].SetVariableID(c.R.VariableID())
+		c.M[1].SetWireID(c.R.WireID())
 	}
 	if scs.currentR1CDebugID != -1 {
 		scs.ccs.MDebug[len(scs.ccs.Constraints)] = scs.currentR1CDebugID

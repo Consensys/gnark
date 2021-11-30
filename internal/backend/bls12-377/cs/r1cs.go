@@ -197,7 +197,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	var termToCompute compiled.Term
 
 	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
-		vID := t.VariableID()
+		vID := t.WireID()
 
 		// wire is already computed, we just accumulate in val
 		if solution.solved[vID] {
@@ -250,7 +250,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	}
 
 	// we compute the wire value and instantiate it
-	vID := termToCompute.VariableID()
+	vID := termToCompute.WireID()
 
 	// solver result
 	var wire fr.Element
@@ -330,7 +330,7 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHin
 		sbb.WriteString("</span>*")
 	}
 
-	vID := t.VariableID()
+	vID := t.WireID()
 	class := ""
 	switch t.VariableVisibility() {
 	case compiled.Internal:
@@ -361,9 +361,9 @@ func (cs *R1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gnark-crypto (ecc.BLS12-377)
+// CurveID returns curve ID as defined in gnark-crypto (ecc.BW6-761)
 func (cs *R1CS) CurveID() ecc.ID {
-	return ecc.BLS12_377
+	return ecc.BN254
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element

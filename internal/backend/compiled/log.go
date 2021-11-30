@@ -25,7 +25,7 @@ func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
 
 func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	// virtual == only a coeff, we discard the wire
-	if t.VariableVisibility() == Public && t.VariableID() == 0 {
+	if t.VariableVisibility() == Public && t.WireID() == 0 {
 		sbb.WriteString("%s")
 		t.SetVariableVisibility(Virtual)
 		l.ToResolve = append(l.ToResolve, t)

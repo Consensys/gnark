@@ -365,7 +365,7 @@ func (cs *constraintSystem) checkVariables() error {
 				continue
 			}
 			visibility := t.VariableVisibility()
-			vID := t.VariableID()
+			vID := t.WireID()
 
 			switch visibility {
 			case compiled.Public:
