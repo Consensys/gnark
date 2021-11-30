@@ -20,23 +20,19 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
-	// encoded i1 * 1 == i2
+	// encoded 1 * i1 == i2
+	r := cs.constant(i1).(compiled.Variable)
+	o := cs.constant(i2).(compiled.Variable)
 
-	l := cs.constant(i1).(variable)
-	o := cs.constant(i2).(variable)
+	debug := cs.addDebugInfo("assertIsEqual", r, " == ", o)
 
-	if len(l.linExp) > len(o.linExp) {
-		l, o = o, l // maximize number of zeroes in r1cs.A
-	}
-
-	debug := cs.addDebugInfo("assertIsEqual", l, " == ", o)
-
-	cs.addConstraint(newR1C(l, cs.one(), o), debug)
+	cs.addConstraint(newR1C(cs.one(), r, o), debug)
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
@@ -46,36 +42,46 @@ func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
 func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
+
 	vars, _ := cs.toVariables(i1)
 	v := vars[0]
-	if v.isConstant() {
-		c := v.constantValue(cs)
+
+	if *v.IsBoolean {
+		return // compiled.Variable is already constrained
+	}
+	*v.IsBoolean = true
+
+	if v.IsConstant() {
+		c := cs.constantValue(v)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
+		return
 	}
 
-	if v.visibility == compiled.Unset {
-		// we need to create a new wire here.
-		vv := cs.newVirtualVariable()
-		vv.linExp = v.linExp
-		v = vv
-	}
-
-	if !cs.markBoolean(v) {
-		return // variable is already constrained
-	}
 	debug := cs.addDebugInfo("assertIsBoolean", v, " == (0|1)")
+
+	o := cs.constant(0)
+
+	// We always have len(v.LinExp) == 1 when the backend is plonk, so it simplifies the conversion
+	// to sparse r1cs.
+	if cs.backendID == backend.PLONK {
+		one := cs.one()
+		_v := cs.Neg(v).(compiled.Variable)
+		r := compiled.Variable{LinExp: []compiled.Term{one.LinExp[0], _v.LinExp[0]}}
+
+		cs.addConstraint(newR1C(v, r, o), debug)
+		return
+	}
 
 	// ensure v * (1 - v) == 0
 	_v := cs.Sub(1, v)
-	o := cs.constant(0)
 	cs.addConstraint(newR1C(v, _v, o), debug)
 }
 
 // AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
 //
-// bound can be a constant or a variable
+// bound can be a constant or a compiled.Variable
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
@@ -83,8 +89,8 @@ func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) 
 	v, _ := cs.toVariables(_v)
 
 	switch b := bound.(type) {
-	case variable:
-		b.assertIsSet(cs)
+	case compiled.Variable:
+		b.AssertIsSet()
 		cs.mustBeLessOrEqVar(v[0], b)
 	default:
 		cs.mustBeLessOrEqCst(v[0], FromInterface(b))
@@ -92,12 +98,12 @@ func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) 
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
+func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
 
-	aBits := cs.toBinaryUnsafe(a, nbBits)
+	aBits := cs.toBinary(a, nbBits, true)
 	boundBits := cs.ToBinary(bound, nbBits)
 
 	p := make([]Variable, nbBits+1)
@@ -121,20 +127,20 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound variable) {
 		// (1 - t - ai) * ai == 0
 		var l Variable
 		l = cs.one()
-		l = cs.Sub(l, t)
-		l = cs.Sub(l, aBits[i])
+		l = cs.Sub(l, t, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		cs.markBoolean(aBits[i].(variable)) // this does not create a constraint
+		cs.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
 
 		cs.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
+func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+
 	nbBits := cs.bitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
@@ -148,9 +154,9 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 	// debug info
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.constant(bound))
 
-	// note that at this stage, we didn't boolean-constraint these new variables yet
+	// note that at this stage, we didn't boolean-constraint these new compiled.Variables yet
 	// (as opposed to ToBinary)
-	aBits := cs.toBinaryUnsafe(a, nbBits)
+	aBits := cs.toBinary(a, nbBits, true)
 
 	// t trailing bits in the bound
 	t := 0
@@ -163,26 +169,33 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a variable, bound big.Int) {
 
 	p := make([]Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
-	p[nbBits] = cs.constant(1)
 
-	for i := nbBits - 1; i >= t; i-- {
-		if bound.Bit(i) == 0 {
+	// The loop "for i := nbBits - 1; i >= t; i--" is split in 2. First, loop while if bound.Bit(i) == 0
+	// to isolate the p[i] constants. Then, populate p.
+	var counterConstant int
+	for counterConstant = nbBits - 1; counterConstant >= t && bound.Bit(counterConstant) == 0; counterConstant-- {
+	}
+	p[counterConstant+1] = cs.constant(1)
+	for i := counterConstant; i >= t; i-- {
+		if bound.Bit(i) == 0 { // at i=counterConstant, this statement is always false
 			p[i] = p[i+1]
 		} else {
 			p[i] = cs.Mul(p[i+1], aBits[i])
 		}
 	}
 
-	for i := nbBits - 1; i >= 0; i-- {
+	for i := nbBits - 1; i > counterConstant; i-- {
+		cs.AssertIsEqual(aBits[i].(compiled.Variable), 0)
+	}
+	for i := counterConstant; i >= 0; i-- {
 		if bound.Bit(i) == 0 {
-			// (1 - p(i+1) - ai) * ai == 0
+			// (1-p(i+1)-ai)*ai == 0
 			var l Variable
 			l = cs.one()
-			l = cs.Sub(l, p[i+1])
-			l = cs.Sub(l, aBits[i])
+			l = cs.Sub(l, p[i+1], aBits[i])
 
 			cs.addConstraint(newR1C(l, aBits[i], cs.constant(0)), debug)
-			cs.markBoolean(aBits[i].(variable))
+			cs.markBoolean(aBits[i].(compiled.Variable))
 		} else {
 			cs.AssertIsBoolean(aBits[i])
 		}

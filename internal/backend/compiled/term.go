@@ -44,7 +44,7 @@ const (
 )
 
 const (
-	nbBitsVariableID         = 29
+	nbBitsWireID             = 29
 	nbBitsCoeffID            = 30
 	nbBitsDelimitor          = 1
 	nbBitsFutureUse          = 1
@@ -56,15 +56,15 @@ const (
 const TermDelimitor Term = Term(maskDelimitor)
 
 const (
-	shiftVariableID         = 0
-	shiftCoeffID            = nbBitsVariableID
+	shiftWireID             = 0
+	shiftCoeffID            = nbBitsWireID
 	shiftDelimitor          = shiftCoeffID + nbBitsCoeffID
 	shiftFutureUse          = shiftDelimitor + nbBitsDelimitor
 	shiftVariableVisibility = shiftFutureUse + nbBitsFutureUse
 )
 
 const (
-	maskVariableID         = uint64((1 << nbBitsVariableID) - 1)
+	maskWireID             = uint64((1 << nbBitsWireID) - 1)
 	maskCoeffID            = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
 	maskDelimitor          = uint64((1<<nbBitsDelimitor)-1) << shiftDelimitor
 	maskFutureUse          = uint64((1<<nbBitsFutureUse)-1) << shiftFutureUse
@@ -78,7 +78,7 @@ const (
 // if we support more than 500 millions constraints, this breaks (not so soon.)
 func Pack(variableID, coeffID int, variableVisiblity Visibility) Term {
 	var t Term
-	t.SetVariableID(variableID)
+	t.SetWireID(variableID)
 	t.SetCoeffID(coeffID)
 	t.SetVariableVisibility(variableVisiblity)
 	return t
@@ -87,7 +87,7 @@ func Pack(variableID, coeffID int, variableVisiblity Visibility) Term {
 // Unpack returns coeffID, variableID and visibility
 func (t Term) Unpack() (coeffID, variableID int, variableVisiblity Visibility) {
 	coeffID = t.CoeffID()
-	variableID = t.VariableID()
+	variableID = t.WireID()
 	variableVisiblity = t.VariableVisibility()
 	return
 }
@@ -138,18 +138,18 @@ func (t *Term) SetCoeffID(cID int) {
 	*t = Term((uint64(*t) & (^maskCoeffID)) | _coeffID)
 }
 
-// SetVariableID update the bits correponding to the variableID with cID
-func (t *Term) SetVariableID(cID int) {
+// SetWireID update the bits correponding to the variableID with cID
+func (t *Term) SetWireID(cID int) {
 	_variableID := uint64(cID)
-	if (_variableID & maskVariableID) != uint64(cID) {
+	if (_variableID & maskWireID) != uint64(cID) {
 		panic("variableID is too large, unsupported")
 	}
-	*t = Term((uint64(*t) & (^maskVariableID)) | _variableID)
+	*t = Term((uint64(*t) & (^maskWireID)) | _variableID)
 }
 
-// VariableID returns the variableID (see R1CS data structure)
-func (t Term) VariableID() int {
-	return int((uint64(t) & maskVariableID))
+// WireID returns the variableID (see R1CS data structure)
+func (t Term) WireID() int {
+	return int((uint64(t) & maskWireID))
 }
 
 // CoeffID returns the coefficient id (see R1CS data structure)
@@ -174,5 +174,5 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 	default:
 		panic("not implemented")
 	}
-	sbb.WriteString(strconv.Itoa(t.VariableID()))
+	sbb.WriteString(strconv.Itoa(t.WireID()))
 }
