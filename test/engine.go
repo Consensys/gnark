@@ -241,6 +241,19 @@ func (e *engine) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 	return (e.toBigInt(i2))
 }
 
+// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
+// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+// and i3 if b0=b1=1.
+func (e *engine) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) frontend.Variable {
+	s0 := e.toBigInt(b0)
+	s1 := e.toBigInt(b1)
+	e.mustBeBoolean(&s0)
+	e.mustBeBoolean(&s1)
+	lookup := new(big.Int).Lsh(&s1, 1)
+	lookup.Or(lookup, &s0)
+	return e.toBigInt([]interface{}{i0, i1, i2, i3}[lookup.Uint64()])
+}
+
 // IsZero returns 1 if a is zero, 0 otherwise
 func (e *engine) IsZero(i1 interface{}) frontend.Variable {
 	b1 := e.toBigInt(i1)
