@@ -412,7 +412,9 @@ func (cs *constraintSystem) toBinary(a compiled.Variable, nbBits int, unsafe boo
 
 	//var Σbi compiled.Variable
 	var Σbi Variable
-	if nbBits == 2 {
+	if nbBits == 1 {
+		cs.AssertIsEqual(sb[0], a)
+	} else if nbBits == 2 {
 		Σbi = cs.Add(sb[0], sb[1])
 	} else {
 		Σbi = cs.Add(sb[0], sb[1], sb[2:]...)
