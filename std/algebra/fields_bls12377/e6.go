@@ -75,12 +75,12 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6, ext Extension) *E6 {
 
 	c0.Add(api, e1.B1, e1.B2)
 	tmp.Add(api, e2.B1, e2.B2)
-	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByIm(api, c0, ext).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0, ext).Add(api, c0, t0)
 
 	c1.Add(api, e1.B0, e1.B1)
 	tmp.Add(api, e2.B0, e2.B1)
 	c1.Mul(api, c1, tmp, ext).Sub(api, c1, t0).Sub(api, c1, t1)
-	tmp.MulByIm(api, t2, ext)
+	tmp.MulByNonResidue(api, t2, ext)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.B0, e1.B2)
@@ -112,7 +112,7 @@ func (e *E6) MulByFp2(api frontend.API, e1 E6, e2 E2, ext Extension) *E6 {
 // MulByNonResidue multiplies e by the imaginary elmt of Fp6 (noted a+bV+cV where V**3 in F^2)
 func (e *E6) MulByNonResidue(api frontend.API, e1 E6, ext Extension) *E6 {
 	res := E6{}
-	res.B0.Mul(api, e1.B2, ext.vCube, ext)
+	res.B0.MulByNonResidue(api, e1.B2, ext)
 	e.B1 = e1.B0
 	e.B2 = e1.B1
 	e.B0 = res.B0
@@ -126,13 +126,13 @@ func (e *E6) Square(api frontend.API, x E6, ext Extension) *E6 {
 	var c4, c5, c1, c2, c3, c0 E2
 	c4.Mul(api, x.B0, x.B1, ext).Double(api, c4)
 	c5.Square(api, x.B2, ext)
-	c1.MulByIm(api, c5, ext).Add(api, c1, c4)
+	c1.MulByNonResidue(api, c5, ext).Add(api, c1, c4)
 	c2.Sub(api, c4, c5)
 	c3.Square(api, x.B0, ext)
 	c4.Sub(api, x.B0, x.B1).Add(api, c4, x.B2)
 	c5.Mul(api, x.B1, x.B2, ext).Double(api, c5)
 	c4.Square(api, c4, ext)
-	c0.MulByIm(api, c5, ext).Add(api, c0, c3)
+	c0.MulByNonResidue(api, c5, ext).Add(api, c0, c3)
 	e.B2.Add(api, c2, c4).Add(api, e.B2, c5).Sub(api, e.B2, c3)
 	e.B0 = c0
 	e.B1 = c1
@@ -154,11 +154,11 @@ func (e *E6) Inverse(api frontend.API, e1 E6, ext Extension) *E6 {
 	t[4].Mul(api, e1.B0, e1.B2, ext)
 	t[5].Mul(api, e1.B1, e1.B2, ext)
 
-	c[0].MulByIm(api, t[5], ext)
+	c[0].MulByNonResidue(api, t[5], ext)
 
 	c[0].Neg(api, c[0]).Add(api, c[0], t[0])
 
-	c[1].MulByIm(api, t[2], ext)
+	c[1].MulByNonResidue(api, t[2], ext)
 
 	c[1].Sub(api, c[1], t[3])
 	c[2].Sub(api, t[1], t[4])
@@ -166,7 +166,7 @@ func (e *E6) Inverse(api frontend.API, e1 E6, ext Extension) *E6 {
 	buf.Mul(api, e1.B1, c[2], ext)
 	t[6].Add(api, t[6], buf)
 
-	t[6].MulByIm(api, t[6], ext)
+	t[6].MulByNonResidue(api, t[6], ext)
 
 	buf.Mul(api, e1.B0, c[0], ext)
 	t[6].Add(api, t[6], buf)
@@ -215,7 +215,7 @@ func (e *E6) MulBy01(api frontend.API, c0, c1 E2, ext Extension) *E6 {
 	tmp.Add(api, e.B1, e.B2)
 	t0.Mul(api, c1, tmp, ext)
 	t0.Sub(api, t0, b)
-	t0.MulByIm(api, t0, ext)
+	t0.MulByNonResidue(api, t0, ext)
 	t0.Add(api, t0, a)
 
 	tmp.Add(api, e.B0, e.B2)

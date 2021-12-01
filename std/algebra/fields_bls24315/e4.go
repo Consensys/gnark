@@ -82,7 +82,7 @@ func (e *E4) Mul(api frontend.API, e1, e2 E4, ext Extension) *E4 {
 	b.Mul(api, e1.B0, e2.B0, ext)
 	c.Mul(api, e1.B1, e2.B1, ext)
 	e.B1.Sub(api, a, b).Sub(api, e.B1, c)
-	e.B0.MulByIm(api, c, ext).Add(api, e.B0, b)
+	e.B0.MulByNonResidue(api, c, ext).Add(api, e.B0, b)
 
 	return e
 }
@@ -95,11 +95,11 @@ func (e *E4) Square(api frontend.API, x E4, ext Extension) *E4 {
 	var c0, c2, c3 E2
 
 	c0.Sub(api, x.B0, x.B1)
-	c3.MulByIm(api, x.B1, ext).Sub(api, x.B0, c3)
+	c3.MulByNonResidue(api, x.B1, ext).Sub(api, x.B0, c3)
 	c2.Mul(api, x.B0, x.B1, ext)
 	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
 	e.B1.Double(api, c2)
-	c2.MulByIm(api, c2, ext)
+	c2.MulByNonResidue(api, c2, ext)
 	e.B0.Add(api, c0, c2)
 
 	return e
@@ -112,11 +112,11 @@ func (e *E4) MulByFp(api frontend.API, e1 E4, c interface{}) *E4 {
 	return e
 }
 
-// MulByIm multiplies an e4 elmt by the imaginary elmt
+// MulByNonResidue multiplies an e4 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E4) MulByIm(api frontend.API, e1 E4, ext Extension) *E4 {
+func (e *E4) MulByNonResidue(api frontend.API, e1 E4, ext Extension) *E4 {
 	e.B1, e.B0 = e1.B0, e1.B1
-	e.B0.MulByIm(api, e.B0, ext)
+	e.B0.MulByNonResidue(api, e.B0, ext)
 	return e
 }
 
@@ -136,7 +136,7 @@ func (e *E4) Inverse(api frontend.API, e1 E4, ext Extension) *E4 {
 
 	t0.Square(api, e1.B0, ext)
 	t1.Square(api, e1.B1, ext)
-	tmp.MulByIm(api, t1, ext)
+	tmp.MulByNonResidue(api, t1, ext)
 	t0.Sub(api, t0, tmp)
 	t1.Inverse(api, t0, ext)
 	e.B0.Mul(api, e1.B0, t1, ext)

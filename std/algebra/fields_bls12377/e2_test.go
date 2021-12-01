@@ -212,7 +212,7 @@ func TestInverseFp2(t *testing.T) {
 
 }
 
-func TestMulByImFp2(t *testing.T) {
+func TestMulByNonResidueFp2(t *testing.T) {
 	// TODO fixme
 	t.Skip("missing e2.MulByNonSquare")
 	// ext := Extension{uSquare: 5}
@@ -232,7 +232,7 @@ func TestMulByImFp2(t *testing.T) {
 	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
 
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
-	// fp2c.MulByIm(&cs, &fp2a, ext)
+	// fp2c.MulByNonResidue(&cs, &fp2a, ext)
 
 	// api.Tag(fp2c.X, "c0")
 	// api.Tag(fp2c.Y, "c1")

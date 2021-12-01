@@ -128,23 +128,23 @@ func TestMulFp12(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
-type fp12MulByIm struct {
+type fp12MulByNonResidue struct {
 	A E12
 	C E12 `gnark:",public"`
 }
 
-func (circuit *fp12MulByIm) Define(api frontend.API) error {
+func (circuit *fp12MulByNonResidue) Define(api frontend.API) error {
 	expected := E12{}
 	ext := getBLS24315ExtensionFp12(api)
-	expected.MulByIm(api, circuit.A, ext)
+	expected.MulByNonResidue(api, circuit.A, ext)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestMulByImFp12(t *testing.T) {
+func TestMulByNonResidueFp12(t *testing.T) {
 
-	var circuit, witness fp12MulByIm
+	var circuit, witness fp12MulByNonResidue
 
 	// witness values
 	var a, c bls24315.E12

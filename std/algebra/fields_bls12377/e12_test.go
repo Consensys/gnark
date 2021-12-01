@@ -193,6 +193,48 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 
 }
 
+type fp12CycloSquareCompressed struct {
+	A E12
+	B E12 `gnark:",public"`
+}
+
+func (circuit *fp12CycloSquareCompressed) Define(api frontend.API) error {
+	ext := GetBLS12377ExtensionFp12(api)
+	var u, v E12
+	u.Square(api, circuit.A, ext)
+	v.CyclotomicSquareCompressed(api, circuit.A, ext)
+	v.Decompress(api, v, ext)
+	u.MustBeEqual(api, v)
+	u.MustBeEqual(api, circuit.B)
+	return nil
+}
+
+func TestFp12CyclotomicSquareCompressed(t *testing.T) {
+
+	var circuit, witness fp12CycloSquareCompressed
+
+	// witness values
+	var a, b bls12377.E12
+	a.SetRandom()
+
+	// put a in the cyclotomic subgroup (we assume the group is Fp12, field of definition of bls277)
+	var tmp bls12377.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+
+	b.CyclotomicSquareCompressed(&a)
+	b.Decompress(&b)
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp12Conjugate struct {
 	A E12
 	C E12 `gnark:",public"`

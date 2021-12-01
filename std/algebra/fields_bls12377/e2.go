@@ -112,9 +112,9 @@ func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 	return e
 }
 
-// MulByIm multiplies an fp2 elmt by the imaginary elmt
+// MulByNonResidue multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByIm(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) MulByNonResidue(api frontend.API, e1 E2, ext Extension) *E2 {
 	x := e1.A0
 	e.A0 = api.Mul(e1.A1, ext.uSquare)
 	e.A1 = x

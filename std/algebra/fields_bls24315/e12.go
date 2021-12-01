@@ -75,12 +75,12 @@ func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
 
 	c0.Add(api, e1.C1, e1.C2)
 	tmp.Add(api, e2.C1, e2.C2)
-	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByIm(api, c0, ext).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0, ext).Add(api, c0, t0)
 
 	c1.Add(api, e1.C0, e1.C1)
 	tmp.Add(api, e2.C0, e2.C1)
 	c1.Mul(api, c1, tmp, ext).Sub(api, c1, t0).Sub(api, c1, t1)
-	tmp.MulByIm(api, t2, ext)
+	tmp.MulByNonResidue(api, t2, ext)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.C0, e1.C2)
@@ -109,10 +109,10 @@ func (e *E12) MulByFp2(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
 	return e
 }
 
-// MulByIm multiplies e by the imaginary elmt of Fp12 (noted a+bV+cV where V**3 in F^2)
-func (e *E12) MulByIm(api frontend.API, e1 E12, ext Extension) *E12 {
+// MulByNonResidue multiplies e by the imaginary elmt of Fp12 (noted a+bV+cV where V**3 in F^2)
+func (e *E12) MulByNonResidue(api frontend.API, e1 E12, ext Extension) *E12 {
 	res := E12{}
-	res.C0.MulByIm(api, e1.C2, ext)
+	res.C0.MulByNonResidue(api, e1.C2, ext)
 	e.C1 = e1.C0
 	e.C2 = e1.C1
 	e.C0 = res.C0
@@ -126,13 +126,13 @@ func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 	var c4, c5, c1, c2, c3, c0 E4
 	c4.Mul(api, x.C0, x.C1, ext).Double(api, c4)
 	c5.Square(api, x.C2, ext)
-	c1.MulByIm(api, c5, ext).Add(api, c1, c4)
+	c1.MulByNonResidue(api, c5, ext).Add(api, c1, c4)
 	c2.Sub(api, c4, c5)
 	c3.Square(api, x.C0, ext)
 	c4.Sub(api, x.C0, x.C1).Add(api, c4, x.C2)
 	c5.Mul(api, x.C1, x.C2, ext).Double(api, c5)
 	c4.Square(api, c4, ext)
-	c0.MulByIm(api, c5, ext).Add(api, c0, c3)
+	c0.MulByNonResidue(api, c5, ext).Add(api, c0, c3)
 	e.C2.Add(api, c2, c4).Add(api, e.C2, c5).Sub(api, e.C2, c3)
 	e.C0 = c0
 	e.C1 = c1
@@ -154,11 +154,11 @@ func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 	t[4].Mul(api, e1.C0, e1.C2, ext)
 	t[5].Mul(api, e1.C1, e1.C2, ext)
 
-	c[0].MulByIm(api, t[5], ext)
+	c[0].MulByNonResidue(api, t[5], ext)
 
 	c[0].Neg(api, c[0]).Add(api, c[0], t[0])
 
-	c[1].MulByIm(api, t[2], ext)
+	c[1].MulByNonResidue(api, t[2], ext)
 
 	c[1].Sub(api, c[1], t[3])
 	c[2].Sub(api, t[1], t[4])
@@ -166,7 +166,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 	buf.Mul(api, e1.C1, c[2], ext)
 	t[6].Add(api, t[6], buf)
 
-	t[6].MulByIm(api, t[6], ext)
+	t[6].MulByNonResidue(api, t[6], ext)
 
 	buf.Mul(api, e1.C0, c[0], ext)
 	t[6].Add(api, t[6], buf)
@@ -208,7 +208,7 @@ func (e *E12) MulBy01(api frontend.API, c0, c1 E4, ext Extension) *E12 {
 	tmp.Add(api, e.C1, e.C2)
 	t0.Mul(api, c1, tmp, ext)
 	t0.Sub(api, t0, b)
-	t0.MulByIm(api, t0, ext)
+	t0.MulByNonResidue(api, t0, ext)
 	t0.Add(api, t0, a)
 
 	tmp.Add(api, e.C0, e.C2)

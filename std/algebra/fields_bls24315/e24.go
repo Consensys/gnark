@@ -26,6 +26,21 @@ type Extension struct {
 
 	// generators of each sub field
 	uSquare interface{}
+
+	// Frobenius coefficients
+	frobCoeff0  interface{}
+	frobCoeff1  interface{}
+	frobCoeff2  interface{}
+	frobCoeff3  interface{}
+	frobCoeff4  interface{}
+	frobCoeff5  interface{}
+	frobCoeff6  interface{}
+	frobCoeff7  interface{}
+	frobCoeff8  interface{}
+	frobCoeff9  interface{}
+	frobCoeff10 interface{}
+	frobCoeff11 interface{}
+	frobCoeff12 interface{}
 }
 
 // E24 element in a quadratic extension
@@ -39,6 +54,20 @@ func GetBLS24315ExtensionFp24(api frontend.API) Extension {
 	res := Extension{}
 
 	res.uSquare = 13
+
+	res.frobCoeff0 = "14265754707630841383590096931465005402246260064523506653409458152869013672931584279153351926943"
+	res.frobCoeff1 = "17432737665785421589107433512831558061649422754130449334965277047994983947893909429238815314776"
+	res.frobCoeff2 = "39705142672498995661671850106945620852186608752525090699191017895721506694646055668218723303426"
+	res.frobCoeff3 = "39705142672498995661671850106945620852186608752525090699191017895721506694646055668218723303427"
+	res.frobCoeff4 = "36538159751358858129508353309042417085530339727307806653508466610511913818164017196988153745736"
+	res.frobCoeff5 = "37719635718874797449167165011304104204868932892052995456614707782168504515295626008356825673023"
+	res.frobCoeff6 = "33342866563749162527758572927163102293238492708847648721152723115703639794013692274261201232097"
+	res.frobCoeff7 = "13266452002786802757645810648664867986567631927642464177452792960815113608167203350720036682455"
+	res.frobCoeff8 = "29019463919452620058839222695754364428302059305947724697987901631588253225470374568267230540725"
+	res.frobCoeff9 = "27033956928813979172980697816649498888237489781085970819538323908118873647639658229550439080179"
+	res.frobCoeff10 = "20076414560962359770112762278498234306670860781205184543699930154888526185846488923541164549642"
+	res.frobCoeff11 = "37014442673353839783463348892746893664389658635873267609916377398480286678854893830142"
+	res.frobCoeff12 = "37014442673353839783463348892746893664389658635873267609916377398480286678854893830143"
 
 	return res
 }
@@ -106,7 +135,7 @@ func (e *E24) Mul(api frontend.API, e1, e2 E24, ext Extension) *E24 {
 	bd.Mul(api, e1.D1, e2.D1, ext)
 	e.D1.Sub(api, v, ac).Sub(api, e.D1, bd)
 
-	bd.MulByIm(api, bd, ext)
+	bd.MulByNonResidue(api, bd, ext)
 	e.D0.Add(api, ac, bd)
 
 	return e
@@ -118,12 +147,12 @@ func (e *E24) Square(api frontend.API, x E24, ext Extension) *E24 {
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 	var c0, c2, c3 E12
 	c0.Sub(api, x.D0, x.D1)
-	c3.MulByIm(api, x.D1, ext)
+	c3.MulByNonResidue(api, x.D1, ext)
 	c3.Sub(api, x.D0, c3)
 	c2.Mul(api, x.D0, x.D1, ext)
 	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
 	e.D1.Add(api, c2, c2)
-	c2.MulByIm(api, c2, ext)
+	c2.MulByNonResidue(api, c2, ext)
 	e.D0.Add(api, c0, c2)
 
 	return e
@@ -131,9 +160,7 @@ func (e *E24) Square(api frontend.API, x E24, ext Extension) *E24 {
 
 // Karabina's compressed cyclotomic square
 // https://eprint.iacr.org/2010/542.pdf
-// Th. 3.2 with minor modifications to fit our tower
 func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24, ext Extension) *E24 {
-
 	var t [7]E4
 
 	// t0 = g1^2
@@ -151,22 +178,22 @@ func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24, ext Extension)
 	t[5].Sub(api, t[2], t[3])
 
 	// t6 = g3 + g2
-	t[6].Add(api, x.D1.C1, x.D0.C2)
+	t[6].Add(api, x.D1.C0, x.D0.C2)
 	// t3 = (g3 + g2)^2
 	t[3].Square(api, t[6], ext)
 	// t2 = g3^2
-	t[2].Square(api, x.D1.C1, ext)
+	t[2].Square(api, x.D1.C0, ext)
 
 	// t6 = 2 * nr * g1 * g5
-	t[6].MulByIm(api, t[5], ext)
+	t[6].MulByNonResidue(api, t[5], ext)
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
-	t[5].Add(api, t[6], x.D1.C1).
+	t[5].Add(api, t[6], x.D1.C0).
 		Double(api, t[5])
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
-	e.D1.C1.Add(api, t[5], t[6])
+	e.D1.C0.Add(api, t[5], t[6])
 
 	// t4 = nr * g5^2
-	t[4].MulByIm(api, t[1], ext)
+	t[4].MulByNonResidue(api, t[1], ext)
 	// t5 = nr * g5^2 + g1^2
 	t[5].Add(api, t[0], t[4])
 	// t6 = nr * g5^2 + g1^2 - g2
@@ -181,7 +208,7 @@ func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24, ext Extension)
 	e.D0.C2.Add(api, t[6], t[5])
 
 	// t4 = nr * g2^2
-	t[4].MulByIm(api, t[1], ext)
+	t[4].MulByNonResidue(api, t[1], ext)
 	// t5 = g3^2 + nr * g2^2
 	t[5].Add(api, t[2], t[4])
 	// t6 = g3^2 + nr * g2^2 - g1
@@ -220,10 +247,10 @@ func (e *E24) Decompress(api frontend.API, x E24, ext Extension) *E24 {
 		Add(api, t[1], t[0])
 		// t0 = E * g5^2 + t1
 	t[2].Square(api, x.D1.C2, ext)
-	t[0].MulByIm(api, t[2], ext).
+	t[0].MulByNonResidue(api, t[2], ext).
 		Add(api, t[0], t[1])
 	// t1 = 1/(4 * g3)
-	t[1].Double(api, x.D1.C1).
+	t[1].Double(api, x.D1.C0).
 		Double(api, t[1]).
 		Inverse(api, t[1], ext)
 	// z4 = g4
@@ -237,15 +264,15 @@ func (e *E24) Decompress(api frontend.API, x E24, ext Extension) *E24 {
 		Double(api, t[2]).
 		Sub(api, t[2], t[1])
 	// t1 = g3 * g5
-	t[1].Mul(api, x.D1.C1, x.D1.C2, ext)
+	t[1].Mul(api, x.D1.C0, x.D1.C2, ext)
 	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
 	t[2].Add(api, t[2], t[1])
-	e.D0.C1.MulByIm(api, t[2], ext).
-		Add(api, e.D0.C1, one)
+	e.D0.C0.MulByNonResidue(api, t[2], ext).
+		Add(api, e.D0.C0, one)
 
 	e.D0.C1 = x.D0.C1
 	e.D0.C2 = x.D0.C2
-	e.D1.C1 = x.D1.C1
+	e.D1.C0 = x.D1.C0
 	e.D1.C2 = x.D1.C2
 
 	return e
@@ -256,28 +283,27 @@ func (e *E24) Decompress(api frontend.API, x E24, ext Extension) *E24 {
 // https://eprint.iacr.org/2009/565.pdf, 3.2
 func (e *E24) CyclotomicSquare(api frontend.API, x E24, ext Extension) *E24 {
 
-	// https://eprint.iacr.org/2009/565.pdf, 3.2
 	var t [9]E4
 
 	t[0].Square(api, x.D1.C1, ext)
-	t[1].Square(api, x.D0.C1, ext)
-	t[6].Add(api, x.D1.C1, x.D0.C1).Square(api, t[6], ext).Sub(api, t[6], t[0]).Sub(api, t[6], t[1]) // 2*x4*x0
+	t[1].Square(api, x.D0.C0, ext)
+	t[6].Add(api, x.D1.C1, x.D0.C0).Square(api, t[6], ext).Sub(api, t[6], t[0]).Sub(api, t[6], t[1]) // 2*x4*x0
 	t[2].Square(api, x.D0.C2, ext)
-	t[3].Square(api, x.D1.C1, ext)
-	t[7].Add(api, x.D0.C2, x.D1.C1).Square(api, t[7], ext).Sub(api, t[7], t[2]).Sub(api, t[7], t[3]) // 2*x2*x3
+	t[3].Square(api, x.D1.C0, ext)
+	t[7].Add(api, x.D0.C2, x.D1.C0).Square(api, t[7], ext).Sub(api, t[7], t[2]).Sub(api, t[7], t[3]) // 2*x2*x3
 	t[4].Square(api, x.D1.C2, ext)
 	t[5].Square(api, x.D0.C1, ext)
-	t[8].Add(api, x.D1.C2, x.D0.C1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).MulByIm(api, t[8], ext) // 2*x5*x1*u
+	t[8].Add(api, x.D1.C2, x.D0.C1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).MulByNonResidue(api, t[8], ext)
 
-	t[0].MulByIm(api, t[0], ext).Add(api, t[0], t[1]) // x4^2*u + x0^2
-	t[2].MulByIm(api, t[2], ext).Add(api, t[2], t[3]) // x2^2*u + x3^2
-	t[4].MulByIm(api, t[4], ext).Add(api, t[4], t[5]) // x5^2*u + x1^2
+	t[0].MulByNonResidue(api, t[0], ext).Add(api, t[0], t[1])
+	t[2].MulByNonResidue(api, t[2], ext).Add(api, t[2], t[3])
+	t[4].MulByNonResidue(api, t[4], ext).Add(api, t[4], t[5])
 
-	e.D0.C1.Sub(api, t[0], x.D0.C1).Add(api, e.D0.C1, e.D0.C1).Add(api, e.D0.C1, t[0])
+	e.D0.C0.Sub(api, t[0], x.D0.C0).Add(api, e.D0.C0, e.D0.C0).Add(api, e.D0.C0, t[0])
 	e.D0.C1.Sub(api, t[2], x.D0.C1).Add(api, e.D0.C1, e.D0.C1).Add(api, e.D0.C1, t[2])
 	e.D0.C2.Sub(api, t[4], x.D0.C2).Add(api, e.D0.C2, e.D0.C2).Add(api, e.D0.C2, t[4])
 
-	e.D1.C1.Add(api, t[8], x.D1.C1).Add(api, e.D1.C1, e.D1.C1).Add(api, e.D1.C1, t[8])
+	e.D1.C0.Add(api, t[8], x.D1.C0).Add(api, e.D1.C0, e.D1.C0).Add(api, e.D1.C0, t[8])
 	e.D1.C1.Add(api, t[6], x.D1.C1).Add(api, e.D1.C1, e.D1.C1).Add(api, e.D1.C1, t[6])
 	e.D1.C2.Add(api, t[7], x.D1.C2).Add(api, e.D1.C2, e.D1.C2).Add(api, e.D1.C2, t[7])
 
@@ -308,7 +334,7 @@ func (e *E24) MulBy034(api frontend.API, c3, c4 E4, ext Extension) *E24 {
 	d.MulBy01(api, c3, c4, ext)
 
 	e.D1.Add(api, a, b).Neg(api, e.D1).Add(api, e.D1, d)
-	e.D0.MulByIm(api, b, ext).Add(api, e.D0, a)
+	e.D0.MulByNonResidue(api, b, ext).Add(api, e.D0, a)
 
 	return e
 }
@@ -322,7 +348,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24, ext Extension) *E24 {
 	t[0].Square(api, e1.D0, ext)
 	t[1].Square(api, e1.D1, ext)
 
-	buf.MulByIm(api, t[1], ext)
+	buf.MulByNonResidue(api, t[1], ext)
 	t[0].Sub(api, t[0], buf)
 
 	t[1].Inverse(api, t[0], ext)
@@ -339,35 +365,37 @@ func (e *E24) nSquareCompressed(api frontend.API, n int, ext Extension) {
 	}
 }
 
+// nSquare repeated compressed cyclotmic square
+func (e *E24) nSquare(api frontend.API, n int, ext Extension) {
+	for i := 0; i < n; i++ {
+		e.CyclotomicSquare(api, *e, ext)
+	}
+}
+
 // Expt compute e1**exponent, where the exponent is hardcoded
-// This function is only used for the final expo of the pairing for bls24315, so the exponent is supposed to be hardcoded
-// and on 64 bits.
-func (e *E24) Expt(api frontend.API, e1 E24, exponent uint64, ext Extension) *E24 {
+// This function is only used for the final expo of the pairing for bls24315, so the exponent is supposed to be hardcoded and on 32 bits.
+func (e *E24) Expt(api frontend.API, x E24, exponent uint64, ext Extension) *E24 {
 
 	res := E24{}
-	x33 := E24{}
-	res = e1
+	xInv := E24{}
+	res = x
+	xInv.Conjugate(api, x)
 
-	res.nSquareCompressed(api, 5, ext)
+	res.nSquare(api, 2, ext)
+	res.Mul(api, res, xInv, ext)
+	res.nSquareCompressed(api, 8, ext)
 	res.Decompress(api, res, ext)
-	res.Mul(api, res, e1, ext)
-	x33 = res
-	res.nSquareCompressed(api, 7, ext)
+	res.Mul(api, res, xInv, ext)
+	res.nSquare(api, 2, ext)
+	res.Mul(api, res, x, ext)
+	res.nSquareCompressed(api, 20, ext)
 	res.Decompress(api, res, ext)
-	res.Mul(api, res, x33, ext)
-	res.nSquareCompressed(api, 4, ext)
-	res.Decompress(api, res, ext)
-	res.Mul(api, res, e1, ext)
-	res.CyclotomicSquare(api, res, ext)
-	res.Mul(api, res, e1, ext)
-	res.nSquareCompressed(api, 46, ext)
-	res.Decompress(api, res, ext)
-	res.Mul(api, res, e1, ext)
+	res.Mul(api, res, xInv, ext)
+	res.Conjugate(api, res)
 
 	*e = res
 
 	return e
-
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system
@@ -380,4 +408,99 @@ func (e *E24) MustBeEqual(api frontend.API, other E24) {
 func (e *E24) Assign(a *bls24315.E24) {
 	e.D0.Assign(&a.D0)
 	e.D1.Assign(&a.D1)
+}
+
+// Frobenius applies frob to an fp24 elmt
+func (e *E24) Frobenius(api frontend.API, x E24, ext Extension) *E24 {
+
+	e.D0.C0.B0.Conjugate(api, x.D0.C0.B0)
+	e.D0.C0.B1.Conjugate(api, x.D0.C0.B1).MulByFp(api, e.D0.C0.B1, ext.frobCoeff0)
+	e.D0.C1.B0.Conjugate(api, x.D0.C1.B0).MulByFp(api, e.D0.C1.B0, ext.frobCoeff1)
+	e.D0.C1.B1.Conjugate(api, x.D0.C1.B1).MulByFp(api, e.D0.C1.B1, ext.frobCoeff2)
+	e.D0.C2.B0.Conjugate(api, x.D0.C2.B0).MulByFp(api, e.D0.C2.B0, ext.frobCoeff3)
+	e.D0.C2.B1.Conjugate(api, x.D0.C2.B1).MulByFp(api, e.D0.C2.B1, ext.frobCoeff4)
+	e.D1.C0.B0.Conjugate(api, x.D1.C0.B0).MulByFp(api, e.D1.C0.B0, ext.frobCoeff5)
+	e.D1.C0.B1.Conjugate(api, x.D1.C0.B1).MulByFp(api, e.D1.C0.B1, ext.frobCoeff6)
+	e.D1.C1.B0.Conjugate(api, x.D1.C1.B0).MulByFp(api, e.D1.C1.B0, ext.frobCoeff7)
+	e.D1.C1.B1.Conjugate(api, x.D1.C1.B1).MulByFp(api, e.D1.C1.B1, ext.frobCoeff8)
+	e.D1.C2.B0.Conjugate(api, x.D1.C2.B0).MulByFp(api, e.D1.C2.B0, ext.frobCoeff9)
+	e.D1.C2.B1.Conjugate(api, x.D1.C2.B1).MulByFp(api, e.D1.C2.B1, ext.frobCoeff10)
+
+	return e
+}
+
+// FrobeniusSquare applies frob**2 to an fp24 elmt
+func (e *E24) FrobeniusSquare(api frontend.API, x E24, ext Extension) *E24 {
+
+	e.D0.C0.Conjugate(api, x.D0.C0)
+	e.D0.C1.Conjugate(api, x.D0.C1).MulByFp(api, e.D0.C1, ext.frobCoeff3)
+	e.D0.C2.Conjugate(api, x.D0.C2).MulByFp(api, e.D0.C2, ext.frobCoeff2)
+	e.D1.C0.Conjugate(api, x.D1.C0).MulByFp(api, e.D1.C0, ext.frobCoeff1)
+	e.D1.C1.Conjugate(api, x.D1.C1).MulByFp(api, e.D1.C1, ext.frobCoeff0)
+	e.D1.C2.Conjugate(api, x.D1.C2).MulByFp(api, e.D1.C2, ext.frobCoeff4)
+
+	return e
+}
+
+// FrobeniusQuad applies frob**4 to an fp24 elmt
+func (e *E24) FrobeniusQuad(api frontend.API, x E24, ext Extension) *E24 {
+
+	e.D0.C0 = x.D0.C0
+	e.D0.C1.MulByFp(api, x.D0.C1, ext.frobCoeff2)
+	e.D0.C2.MulByFp(api, x.D0.C2, ext.frobCoeff11)
+	e.D1.C0.MulByFp(api, x.D1.C0, ext.frobCoeff3)
+	e.D1.C1.Neg(api, x.D1.C1)
+	e.D1.C2.MulByFp(api, x.D1.C2, ext.frobCoeff12)
+
+	return e
+}
+
+// FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
+func (e *E24) FinalExponentiation(api frontend.API, e1 E24, genT uint64, ext Extension) *E24 {
+
+	result := e1
+
+	// https://eprint.iacr.org/2012/232.pdf, section 7
+	var t [9]E24
+
+	// easy part
+	t[0].Conjugate(api, result)
+	result.Inverse(api, result, ext)
+	t[0].Mul(api, t[0], result, ext)
+	result.FrobeniusQuad(api, t[0], ext).
+		Mul(api, result, t[0], ext)
+
+	// hard part (api, up to permutation)
+	// Daiki Hayashida and Kenichiro Hayasaka
+	// and Tadanori Teruya
+	// https://eprint.iacr.org/2020/875.pdf
+	// 3*Phi_24(api, p)/r = (api, u-1)^2 * (api, u+p) * (api, u^2+p^2) * (api, u^4+p^4-1) + 3
+	t[0].CyclotomicSquare(api, result, ext)
+	t[1].Expt(api, result, genT, ext)
+	t[2].Conjugate(api, result)
+	t[1].Mul(api, t[1], t[2], ext)
+	t[2].Expt(api, t[1], genT, ext)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2], ext)
+	t[2].Expt(api, t[1], genT, ext)
+	t[1].Frobenius(api, t[1], ext)
+	t[1].Mul(api, t[1], t[2], ext)
+	result.Mul(api, result, t[0], ext)
+	t[0].Expt(api, t[1], genT, ext)
+	t[2].Expt(api, t[0], genT, ext)
+	t[0].FrobeniusSquare(api, t[1], ext)
+	t[2].Mul(api, t[0], t[2], ext)
+	t[1].Expt(api, t[2], genT, ext)
+	t[1].Expt(api, t[1], genT, ext)
+	t[1].Expt(api, t[1], genT, ext)
+	t[1].Expt(api, t[1], genT, ext)
+	t[0].FrobeniusQuad(api, t[2], ext)
+	t[0].Mul(api, t[0], t[1], ext)
+	t[2].Conjugate(api, t[2])
+	t[0].Mul(api, t[0], t[2], ext)
+	result.Mul(api, result, t[0], ext)
+
+	*e = result
+
+	return e
 }

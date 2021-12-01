@@ -37,7 +37,6 @@ type LineEvaluation struct {
 }
 
 // MillerLoop computes the miller loop
-// todo: MulBy012 (Fp2-4-8-24) or MulBy034 (Fp2-4-12-24) R1CS-wise?
 func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls24315.E24, pairingInfo PairingContext) *fields_bls24315.E24 {
 
 	var ateLoop2NAF [33]int8
@@ -60,27 +59,27 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls24315.E
 			Qacc, l1 = DoubleStep(api, &Qacc, pairingInfo.Extension)
 			l1.R0.MulByFp(api, l1.R0, xOverY)
 			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 		} else if ateLoop2NAF[i] == 1 {
 			Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q, pairingInfo.Extension)
 			l1.R0.MulByFp(api, l1.R0, xOverY)
 			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 			l2.R0.MulByFp(api, l2.R0, xOverY)
 			l2.R1.MulByFp(api, l2.R1, yInv)
-			res.MulBy012(api, l2.R1, l2.R0, pairingInfo.Extension)
+			res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
 		} else {
 			Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Qneg, pairingInfo.Extension)
 			l1.R0.MulByFp(api, l1.R0, xOverY)
 			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 			l2.R0.MulByFp(api, l2.R0, xOverY)
 			l2.R1.MulByFp(api, l2.R1, yInv)
-			res.MulBy012(api, l2.R1, l2.R0, pairingInfo.Extension)
+			res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
 		}
 	}
 
-	res.Conjugate(api, res, pairingInfo.Extension)
+	res.Conjugate(api, *res)
 
 	return res
 }
@@ -194,32 +193,32 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 				Qacc[k], l1 = DoubleStep(api, &Qacc[k], pairingInfo.Extension)
 				l1.R0.MulByFp(api, l1.R0, xOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 			}
 		} else if ateLoop2NAF[i] == 1 {
 			for k := 0; k < 3; k++ {
 				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k], pairingInfo.Extension)
 				l1.R0.MulByFp(api, l1.R0, xOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 				l2.R0.MulByFp(api, l2.R0, xOverY[k])
 				l2.R1.MulByFp(api, l2.R1, yInv[k])
-				res.MulBy012(api, l2.R1, l2.R0, pairingInfo.Extension)
+				res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
 			}
 		} else {
 			for k := 0; k < 3; k++ {
 				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Qneg[k], pairingInfo.Extension)
 				l1.R0.MulByFp(api, l1.R0, xOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy012(api, l1.R1, l1.R0, pairingInfo.Extension)
+				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
 				l2.R0.MulByFp(api, l2.R0, xOverY[k])
 				l2.R1.MulByFp(api, l2.R1, yInv[k])
-				res.MulBy012(api, l2.R1, l2.R0, pairingInfo.Extension)
+				res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
 			}
 		}
 	}
 
-	res.Conjugate(api, res, pairingInfo.Extension)
+	res.Conjugate(api, *res)
 
 	return res
 }

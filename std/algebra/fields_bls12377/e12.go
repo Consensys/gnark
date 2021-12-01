@@ -26,8 +26,6 @@ type Extension struct {
 
 	// generators of each sub field
 	uSquare interface{}
-	vCube   E2
-	wSquare E6
 
 	// frobenius applied to generators
 	frobv   interface{} // v**p  = (v**6)**(p-1/6)*v, frobv=(v**6)**(p-1/6), belongs to Fp)
@@ -63,14 +61,6 @@ func GetBLS12377ExtensionFp12(api frontend.API) Extension {
 	res := Extension{}
 
 	res.uSquare = -5
-
-	res.vCube = E2{A0: 0, A1: 1}
-
-	res.wSquare = E6{
-		B0: E2{0, 0},
-		B1: E2{1, 0},
-		B2: E2{0, 0},
-	}
 
 	res.frobv = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946"
 	res.frobv2 = "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"
@@ -143,7 +133,7 @@ func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
 	bd.Mul(api, e1.C1, e2.C1, ext)
 	e.C1.Sub(api, v, ac).Sub(api, e.C1, bd)
 
-	bd.Mul(api, bd, ext.wSquare, ext)
+	bd.MulByNonResidue(api, bd, ext)
 	e.C0.Add(api, ac, bd)
 
 	return e
@@ -155,12 +145,12 @@ func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 	var c0, c2, c3 E6
 	c0.Sub(api, x.C0, x.C1)
-	c3.Mul(api, x.C1, ext.wSquare, ext)
+	c3.MulByNonResidue(api, x.C1, ext)
 	c3.Sub(api, x.C0, c3)
 	c2.Mul(api, x.C0, x.C1, ext)
 	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
 	e.C1.Add(api, c2, c2)
-	c2.Mul(api, c2, ext.wSquare, ext)
+	c2.MulByNonResidue(api, c2, ext)
 	e.C0.Add(api, c0, c2)
 
 	return e
@@ -195,7 +185,7 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension)
 	t[2].Square(api, x.C1.B0, ext)
 
 	// t6 = 2 * nr * g1 * g5
-	t[6].MulByIm(api, t[5], ext)
+	t[6].MulByNonResidue(api, t[5], ext)
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
 	t[5].Add(api, t[6], x.C1.B0).
 		Double(api, t[5])
@@ -203,7 +193,7 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension)
 	e.C1.B0.Add(api, t[5], t[6])
 
 	// t4 = nr * g5^2
-	t[4].MulByIm(api, t[1], ext)
+	t[4].MulByNonResidue(api, t[1], ext)
 	// t5 = nr * g5^2 + g1^2
 	t[5].Add(api, t[0], t[4])
 	// t6 = nr * g5^2 + g1^2 - g2
@@ -218,7 +208,7 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension)
 	e.C0.B2.Add(api, t[6], t[5])
 
 	// t4 = nr * g2^2
-	t[4].MulByIm(api, t[1], ext)
+	t[4].MulByNonResidue(api, t[1], ext)
 	// t5 = g3^2 + nr * g2^2
 	t[5].Add(api, t[2], t[4])
 	// t6 = g3^2 + nr * g2^2 - g1
@@ -257,7 +247,7 @@ func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
 		Add(api, t[1], t[0])
 		// t0 = E * g5^2 + t1
 	t[2].Square(api, x.C1.B2, ext)
-	t[0].MulByIm(api, t[2], ext).
+	t[0].MulByNonResidue(api, t[2], ext).
 		Add(api, t[0], t[1])
 	// t1 = 1/(4 * g3)
 	t[1].Double(api, x.C1.B0).
@@ -277,7 +267,7 @@ func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
 	t[1].Mul(api, x.C1.B0, x.C1.B2, ext)
 	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
 	t[2].Add(api, t[2], t[1])
-	e.C0.B0.MulByIm(api, t[2], ext).
+	e.C0.B0.MulByNonResidue(api, t[2], ext).
 		Add(api, e.C0.B0, one)
 
 	e.C0.B1 = x.C0.B1
@@ -304,11 +294,11 @@ func (e *E12) CyclotomicSquare(api frontend.API, x E12, ext Extension) *E12 {
 	t[7].Add(api, x.C0.B2, x.C1.B0).Square(api, t[7], ext).Sub(api, t[7], t[2]).Sub(api, t[7], t[3]) // 2*x2*x3
 	t[4].Square(api, x.C1.B2, ext)
 	t[5].Square(api, x.C0.B1, ext)
-	t[8].Add(api, x.C1.B2, x.C0.B1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).Mul(api, t[8], ext.vCube, ext) // 2*x5*x1*u
+	t[8].Add(api, x.C1.B2, x.C0.B1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).MulByNonResidue(api, t[8], ext) // 2*x5*x1*u
 
-	t[0].Mul(api, t[0], ext.vCube, ext).Add(api, t[0], t[1]) // x4^2*u + x0^2
-	t[2].Mul(api, t[2], ext.vCube, ext).Add(api, t[2], t[3]) // x2^2*u + x3^2
-	t[4].Mul(api, t[4], ext.vCube, ext).Add(api, t[4], t[5]) // x5^2*u + x1^2
+	t[0].MulByNonResidue(api, t[0], ext).Add(api, t[0], t[1]) // x4^2*u + x0^2
+	t[2].MulByNonResidue(api, t[2], ext).Add(api, t[2], t[3]) // x2^2*u + x3^2
+	t[4].MulByNonResidue(api, t[4], ext).Add(api, t[4], t[5]) // x5^2*u + x1^2
 
 	e.C0.B0.Sub(api, t[0], x.C0.B0).Add(api, e.C0.B0, e.C0.B0).Add(api, e.C0.B0, t[0])
 	e.C0.B1.Sub(api, t[2], x.C0.B1).Add(api, e.C0.B1, e.C0.B1).Add(api, e.C0.B1, t[2])
