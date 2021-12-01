@@ -132,7 +132,6 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 	return cs
 }
 
-
 // NewHint initializes an internal variable whose value will be evaluated using
 // the provided hint function at run time from the inputs. Inputs must be either
 // variables or convertible to *big.Int.
