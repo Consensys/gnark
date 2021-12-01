@@ -411,10 +411,15 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	// find if the variable to solve is in the left, right, or o linear expression
 	lro, idCS := findUnsolvedVariable(r1c, scs.solvedVariables)
 
+	// sets the variable as solved if the constraint is not an assertion
+	if lro != -1 {
+		scs.solvedVariables[idCS] = true
+	}
+
 	s := len(r1c.R.LinExp)
 
 	// special case: boolean constraint
-	if *r1c.L.IsBoolean { //} && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
+	if *r1c.L.IsBoolean && lro == -1 { //} && len(r1c.L.LinExp) == 1 && scs.IsConstant(r1c.L) {
 		lz := r1c.L.LinExp[0]
 		lz.SetCoeffID(compiled.CoeffIdZero)
 		var oz compiled.Term
@@ -474,7 +479,6 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 		// if the unsolved variable in not in o,
 		// ensure that it is in r1c.L
 		if lro != -1 {
-			scs.solvedVariables[idCS] = true
 			if lro == 1 {
 				l, r = r, l
 				lro = 0
