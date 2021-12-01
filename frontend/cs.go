@@ -73,7 +73,7 @@ type CompiledConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
-	// GetNbVariables return number of internal, secret and public compiled.Variables
+	// GetNbVariables return number of internal, secret and public Variables
 	GetNbVariables() (internal, secret, public int)
 	GetNbConstraints() int
 	GetNbCoefficients() int
@@ -116,9 +116,9 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 	cs.coeffsIDsInt64[2] = compiled.CoeffIdTwo
 	cs.coeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	// cs.public.variables = make([]compiled.Variable, 0)
-	// cs.secret.variables = make([]compiled.Variable, 0)
-	// cs.internal = make([]compiled.Variable, 0, capacity)
+	// cs.public.variables = make([]Variable, 0)
+	// cs.secret.variables = make([]Variable, 0)
+	// cs.internal = make([]Variable, 0, capacity)
 	cs.public = make([]string, 1)
 	cs.secret = make([]string, 0)
 
@@ -132,10 +132,10 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 	return cs
 }
 
-// NewHint initialize a compiled.Variable whose value will be evaluated in the Prover by the constraint
+// NewHint initialize a Variable whose value will be evaluated in the Prover by the constraint
 // solver using the provided hint function
 // hint function is provided at proof creation time and must match the hintID
-// inputs must be either compiled.Variables or convertible to big int
+// inputs must be either Variables or convertible to big int
 // /!\ warning /!\
 // this doesn't add any constraint to the newly created wire
 // from the backend point of view, it's equivalent to a user-supplied witness
@@ -177,14 +177,14 @@ func (cs *constraintSystem) one() compiled.Variable {
 	}
 }
 
-// Term packs a compiled.Variable and a coeff in a compiled.Term and returns it.
-// func (cs *constraintSystem) setCoeff(v compiled.Variable, coeff *big.Int) compiled.Term {
+// Term packs a Variable and a coeff in a Term and returns it.
+// func (cs *constraintSystem) setCoeff(v Variable, coeff *big.Int) Term {
 func (cs *constraintSystem) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
 	return compiled.Pack(vID, cs.coeffID(coeff), vVis)
 }
 
-// newR1C clones the linear expression associated with the compiled.Variables (to avoid offseting the ID multiple time)
+// newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
 func newR1C(_l, _r, _o Variable) compiled.R1C {
 	l := _l.(compiled.Variable)
@@ -195,7 +195,7 @@ func newR1C(_l, _r, _o Variable) compiled.R1C {
 	// l * r == r * l == o
 	// but the "l" linear expression is going to end up in the A matrix
 	// the "r" linear expression is going to end up in the B matrix
-	// the less compiled.Variable we have appearing in the B matrix, the more likely groth16.Setup
+	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
 	if len(l.LinExp) > len(r.LinExp) {
 		l, r = r, l
@@ -210,7 +210,7 @@ func (cs *constraintSystem) NbConstraints() int {
 	return len(cs.constraints)
 }
 
-// LinearExpression packs a list of compiled.Term in a compiled.LinearExpression and returns it.
+// LinearExpression packs a list of Term in a LinearExpression and returns it.
 func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Variable {
 	var res compiled.Variable
 	res.LinExp = make([]compiled.Term, len(terms))
@@ -221,11 +221,11 @@ func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Va
 }
 
 // reduces redundancy in linear expression
-// It factorizes compiled.Variable that appears multiple times with != coeff Ids
-// To ensure the determinism in the compile process, compiled.Variables are stored as public||secret||internal||unset
-// for each visibility, the compiled.Variables are sorted from lowest ID to highest ID
+// It factorizes Variable that appears multiple times with != coeff Ids
+// To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
+// for each visibility, the Variables are sorted from lowest ID to highest ID
 func (cs *constraintSystem) reduce(l compiled.Variable) compiled.Variable {
-	// ensure our linear expression is sorted, by visibility and by compiled.Variable ID
+	// ensure our linear expression is sorted, by visibility and by Variable ID
 	if !sort.IsSorted(l.LinExp) { // may not help
 		sort.Sort(l.LinExp)
 	}
@@ -305,7 +305,7 @@ func (cs *constraintSystem) newInternalVariable() compiled.Variable {
 	}
 }
 
-// newPublicVariable creates a new public compiled.Variable
+// newPublicVariable creates a new public Variable
 func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
 	t := false
 	idx := len(cs.public)
@@ -317,7 +317,7 @@ func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
 	return res
 }
 
-// newSecretVariable creates a new secret compiled.Variable
+// newSecretVariable creates a new secret Variable
 func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 	t := false
 	idx := len(cs.secret)
@@ -329,8 +329,8 @@ func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 	return res
 }
 
-// markBoolean marks the compiled.Variable as boolean and return true
-// if a constraint was added, false if the compiled.Variable was already
+// markBoolean marks the Variable as boolean and return true
+// if a constraint was added, false if the Variable was already
 // constrained as a boolean
 func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
 	if *v.IsBoolean {
@@ -340,7 +340,7 @@ func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
 	return true
 }
 
-// checkVariables perform post compilation checks on the compiled.Variables
+// checkVariables perform post compilation checks on the Variables
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
@@ -360,8 +360,8 @@ func (cs *constraintSystem) checkVariables() error {
 	processLinearExpression := func(l compiled.Variable) {
 		for _, t := range l.LinExp {
 			if t.CoeffID() == compiled.CoeffIdZero {
-				// ignore zero coefficient, as it does not constraint the compiled.Variable
-				// though, we may want to flag that IF the compiled.Variable doesn't appear else where
+				// ignore zero coefficient, as it does not constraint the Variable
+				// though, we may want to flag that IF the Variable doesn't appear else where
 				continue
 			}
 			visibility := t.VariableVisibility()

@@ -81,7 +81,7 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 
 // AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
 //
-// bound can be a constant or a compiled.Variable
+// bound can be a constant or a Variable
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
@@ -154,7 +154,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 	// debug info
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.constant(bound))
 
-	// note that at this stage, we didn't boolean-constraint these new compiled.Variables yet
+	// note that at this stage, we didn't boolean-constraint these new Variables yet
 	// (as opposed to ToBinary)
 	aBits := cs.toBinary(a, nbBits, true)
 

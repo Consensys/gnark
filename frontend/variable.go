@@ -28,9 +28,9 @@ type Variable interface{}
 // the linExp is always non empty, the PartialVariabl can be unset. It is set and allocated in the
 // circuit when there is no other choice (to avoid wasting wires doing only linear expressions)
 // type variable struct {
-// 	visibility compiled.Visibility
+// 	visibility Visibility
 // 	id         int // index of the wire in the corresponding list of wires (private, public or intermediate)
-// 	linExp     compiled.LinearExpression
+// 	linExp     LinearExpression
 // }
 
 // func (v *variable) constantValue(cs *constraintSystem) *big.Int {

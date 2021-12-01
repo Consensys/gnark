@@ -27,7 +27,7 @@ import (
 // Add returns res = i1+i2+...in
 func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
-	// extract compiled.Variables from input
+	// extract Variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting Variable
@@ -72,7 +72,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 // Sub returns res = i1 - i2
 func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 
-	// extract compiled.Variables from input
+	// extract Variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	// allocate resulting Variable
@@ -261,7 +261,7 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 	return cs.mulConstant(v1, cs.constant(b2).(compiled.Variable))
 }
 
-// Xor compute the XOR between two compiled.Variables
+// Xor compute the XOR between two Variables
 func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 
 	vars, _ := cs.toVariables(_a, _b)
@@ -286,7 +286,7 @@ func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 	return res
 }
 
-// Or compute the OR between two compiled.Variables
+// Or compute the OR between two Variables
 func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 	vars, _ := cs.toVariables(_a, _b)
 
@@ -309,7 +309,7 @@ func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 	return res
 }
 
-// And compute the AND between two compiled.Variables
+// And compute the AND between two Variables
 func (cs *constraintSystem) And(_a, _b Variable) Variable {
 	vars, _ := cs.toVariables(_a, _b)
 
@@ -396,7 +396,7 @@ func (cs *constraintSystem) toBinary(a compiled.Variable, nbBits int, unsafe boo
 	// ensure a is set
 	a.AssertIsSet()
 
-	// allocate the resulting compiled.Variables and bit-constraint them
+	// allocate the resulting Variables and bit-constraint them
 	b := make([]Variable, nbBits)
 	sb := make([]interface{}, nbBits)
 	var c big.Int
@@ -501,7 +501,7 @@ func (cs *constraintSystem) IsConstant(v Variable) bool {
 	}
 	// it's not a wire, it's another golang type, we consider it constant.
 	// TODO we may want to use the struct parser to ensure this Variable interface doesn't contain fields which are
-	// compiled.Variable
+	// Variable
 	return true
 }
 
