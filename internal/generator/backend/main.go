@@ -106,9 +106,6 @@ func main() {
 			if err := bgen.Generate(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
 				panic(err) // TODO handle
 			}
-			if err := bgen.Generate(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
-				panic(err)
-			}
 
 			entries = []bavard.Entry{
 				{File: filepath.Join(groth16Dir, "groth16_test.go"), Templates: []string{"groth16/tests/groth16.go.tmpl", importCurve}},

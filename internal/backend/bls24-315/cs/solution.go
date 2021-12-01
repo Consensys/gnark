@@ -46,6 +46,7 @@ type solution struct {
 }
 
 func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+
 	s := solution{
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
@@ -54,6 +55,7 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 	}
 
 	for i := 0; i < len(hintFunctions); i++ {
+
 		id := hint.UUID(hintFunctions[i])
 		if _, ok := s.mHintsFunctions[id]; ok {
 			name := runtime.FuncForPC(reflect.ValueOf(hintFunctions[i]).Pointer()).Name()
