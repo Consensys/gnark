@@ -361,7 +361,7 @@ func (cs *R1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gnark-crypto (ecc.BW6-761)
+// CurveID returns curve ID as defined in gnark-crypto
 func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.BN254
 }

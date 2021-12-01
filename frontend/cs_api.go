@@ -482,7 +482,7 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 	// special case appearing in AssertIsLessOrEq
 	if vars[1].IsConstant() {
 		n1 := cs.constantValue(vars[1])
-		if n1.Cmp(big.NewInt(0)) == 0 {
+		if n1.IsUint64() && n1.Uint64() == 0 {
 			v := cs.Sub(1, vars[0])
 			return cs.Mul(v, vars[2])
 		}
