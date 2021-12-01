@@ -496,6 +496,39 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 
 }
 
+// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
+// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+// and i3 if b0=b1=1.
+func (cs *constraintSystem) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable {
+	vars, _ := cs.toVariables(b0, b1, i0, i1, i2, i3)
+	s0, s1 := vars[0], vars[1]
+	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
+
+	// ensure that bits are actually bits. Adds no constraints if the variables
+	// are already constrained.
+	cs.AssertIsBoolean(s0)
+	cs.AssertIsBoolean(s1)
+
+	// two-bit lookup for the general case can be done with three constraints as
+	// following:
+	//    (1) (in3 - in2 - in1 + in0) * s1 = tmp1 - in1 + in0
+	//    (2) tmp1 * s0 = tmp2
+	//    (3) (in2 - in0) * s1 = RES - tmp2 - in0
+	// the variables tmp1 and tmp2 are new internal variables and the variables
+	// RES will be the returned result
+
+	tmp1 := cs.Add(in3, in0)
+	tmp1 = cs.Sub(tmp1, in2, in1)
+	tmp1 = cs.Mul(tmp1, s1)
+	tmp1 = cs.Add(tmp1, in1)
+	tmp1 = cs.Sub(tmp1, in0) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp2 := cs.Mul(tmp1, s0) // (2) tmp2 = tmp1 * s0
+	res := cs.Sub(in2, in0)
+	res = cs.Mul(res, s1)
+	res = cs.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
+	return res
+}
+
 // IsConstant returns true if v is a constant known at compile time
 func (cs *constraintSystem) IsConstant(v Variable) bool {
 	if _v, ok := v.(compiled.Variable); ok {

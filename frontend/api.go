@@ -81,6 +81,11 @@ type API interface {
 	// Select if b is true, yields i1 else yields i2
 	Select(b interface{}, i1, i2 interface{}) Variable
 
+	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
+	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+	// and i3 if b0=b1=1.
+	Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable
+
 	// IsZero returns 1 if a is zero, 0 otherwise
 	IsZero(i1 interface{}) Variable
 
@@ -103,14 +108,17 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...interface{})
 
-	// NewHint initialize a Variable whose value will be evaluated using the provided hint function at run time
+	// NewHint initializes an internal variable whose value will be evaluated
+	// using the provided hint function at run time from the inputs. Inputs must
+	// be either variables or convertible to *big.Int.
 	//
-	// hint function is provided at proof creation time and must match the hintID
-	// inputs must be either variables or convertible to big int
-	// /!\ warning /!\
-	// this doesn't add any constraint to the newly created wire
-	// from the backend point of view, it's equivalent to a user-supplied witness
-	// except, the solver is going to assign it a value, not the caller
+	// The hint function is provided at the proof creation time and is not
+	// embedded into the circuit. From the backend point of view, the variable
+	// returned by the hint function is equivalent to the user-supplied witness,
+	// but its actual value is assigned by the solver, not the caller.
+	//
+	// No new constraints are added to the newly created wire and must be added
+	// manually in the circuit. Failing to do so leads to solver failure.
 	NewHint(f hint.Function, inputs ...interface{}) Variable
 
 	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
