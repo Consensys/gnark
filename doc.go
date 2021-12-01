@@ -10,6 +10,7 @@
 // 	- BLS12_381
 // 	- BW6_761
 // 	- BLS24_315
+// 	- BW6_633
 //
 // User documentation
 // https://docs.gnark.consensys.net
