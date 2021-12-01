@@ -27,6 +27,7 @@ import (
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 )
 
@@ -87,6 +88,8 @@ func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
 		return kzg_bw6761.NewSRS(kzgSize, alpha)
 	case ecc.BLS24_315:
 		return kzg_bls24315.NewSRS(kzgSize, alpha)
+	case ecc.BW6_633:
+		return kzg_bw6633.NewSRS(kzgSize, alpha)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

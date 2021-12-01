@@ -100,6 +100,7 @@ func TestFiatShamir(t *testing.T) {
 		ecc.BLS12_381: hash.MIMC_BLS12_381,
 		ecc.BLS24_315: hash.MIMC_BLS24_315,
 		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
 	}
 
 	// compute the witness for each curve
