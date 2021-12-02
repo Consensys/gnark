@@ -2,9 +2,12 @@ package frontend
 
 import (
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -46,8 +49,12 @@ type plonkConstraintSystem struct {
 	backendID backend.ID
 }
 
-// newPlonkConstraint creates a constraint of the for al+br+clr+k=0
-func (cs *plonkConstraintSystem) newPlonkConstraint(l, r, o Variable, cidl, cidr, cidm, cido, k int) {
+// addPlonkConstraint creates a constraint of the for al+br+clr+k=0
+func (cs *plonkConstraintSystem) addPlonkConstraint(l, r, o Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+
+	if len(debugID) > 0 {
+		cs.mDebug[len(cs.constraints)-1] = debugID[0]
+	}
 
 	_l := l.(compiled.Term)
 	_r := r.(compiled.Term)
@@ -58,8 +65,8 @@ func (cs *plonkConstraintSystem) newPlonkConstraint(l, r, o Variable, cidl, cidr
 
 	u := _l
 	v := _r
-	u.SetCoeffID(cidm)
-	v.SetCoeffID(compiled.CoeffIdZero)
+	u.SetCoeffID(cidm1)
+	v.SetCoeffID(cidm2)
 
 	cs.constraints = append(cs.constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
 }
@@ -125,4 +132,34 @@ func (cs *plonkConstraintSystem) newSecretVariable(name string) compiled.Term {
 	idx := len(cs.secret)
 	cs.public = append(cs.secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
+}
+
+func (cs *plonkConstraintSystem) addDebugInfo(errName string, i ...interface{}) int {
+	var l compiled.LogEntry
+
+	const minLogSize = 500
+	var sbb strings.Builder
+	sbb.Grow(minLogSize)
+	sbb.WriteString("[")
+	sbb.WriteString(errName)
+	sbb.WriteString("] ")
+
+	for _, _i := range i {
+		switch v := _i.(type) {
+		case string:
+			sbb.WriteString(v)
+		case int:
+			sbb.WriteString(strconv.Itoa(v))
+		case compiled.Term:
+			l.WriteTerm(v, &sbb)
+		default:
+			panic("unsupported log type")
+		}
+	}
+	sbb.WriteByte('\n')
+	debug.WriteStack(&sbb)
+	l.Format = sbb.String()
+
+	cs.debugInfo = append(cs.debugInfo, l)
+	return len(cs.debugInfo) - 1
 }
