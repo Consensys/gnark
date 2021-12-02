@@ -40,8 +40,9 @@ import (
 //
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
-	curveID ecc.ID
-	opt     backend.ProverOption
+	backendID backend.ID
+	curveID   ecc.ID
+	opt       backend.ProverOption
 	// mHintsFunctions map[hint.ID]hintFunction
 }
 
@@ -51,14 +52,14 @@ type engine struct {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...func(opt *backend.ProverOption) error) (err error) {
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, opts ...func(opt *backend.ProverOption) error) (err error) {
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
 	if err != nil {
 		return err
 	}
 
-	e := &engine{curveID: curveID, opt: opt}
+	e := &engine{backendID: b, curveID: curveID, opt: opt}
 	if opt.Force {
 		panic("ignoring errors in test.Engine is not supported")
 	}
@@ -398,4 +399,8 @@ func (e *engine) modulus() *big.Int {
 
 func (e *engine) CurveID() ecc.ID {
 	return e.curveID
+}
+
+func (e *engine) Backend() backend.ID {
+	return e.backendID
 }

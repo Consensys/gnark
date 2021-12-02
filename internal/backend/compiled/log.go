@@ -12,20 +12,20 @@ type LogEntry struct {
 	ToResolve []Term
 }
 
-func (l *LogEntry) WriteLinearExpression(le LinearExpression, sbb *strings.Builder) {
-	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
+func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
+	sbb.Grow(len(le.LinExp) * len(" + (xx + xxxxxxxxxxxx"))
 
-	for i := 0; i < len(le); i++ {
+	for i := 0; i < len(le.LinExp); i++ {
 		if i > 0 {
 			sbb.WriteString(" + ")
 		}
-		l.WriteTerm(le[i], sbb)
+		l.WriteTerm(le.LinExp[i], sbb)
 	}
 }
 
 func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	// virtual == only a coeff, we discard the wire
-	if t.VariableVisibility() == Public && t.VariableID() == 0 {
+	if t.VariableVisibility() == Public && t.WireID() == 0 {
 		sbb.WriteString("%s")
 		t.SetVariableVisibility(Virtual)
 		l.ToResolve = append(l.ToResolve, t)

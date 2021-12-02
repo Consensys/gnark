@@ -209,9 +209,9 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	offset := spr.NbPublicVariables
 	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
-		lro[offset+i] = spr.Constraints[i].L.VariableID()
-		lro[sizeSolution+offset+i] = spr.Constraints[i].R.VariableID()
-		lro[2*sizeSolution+offset+i] = spr.Constraints[i].O.VariableID()
+		lro[offset+i] = spr.Constraints[i].L.WireID()
+		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()
+		lro[2*sizeSolution+offset+i] = spr.Constraints[i].O.WireID()
 	}
 
 	// init cycle:

@@ -36,6 +36,7 @@ func TestIntegrationAPI(t *testing.T) {
 	sort.Strings(keys)
 
 	for _, k := range keys {
+
 		tData := circuits.Circuits[k]
 		t.Log(k)
 		for _, w := range tData.ValidWitnesses {

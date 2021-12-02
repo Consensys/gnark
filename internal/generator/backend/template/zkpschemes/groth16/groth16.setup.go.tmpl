@@ -30,7 +30,7 @@ type ProvingKey struct {
 	}
 
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
-	InfinityA, InfinityB []bool
+	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
 }
 
@@ -159,25 +159,24 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	for i, e := range A {
 		if e.IsZero() {
 			pk.InfinityA[i] = true
-			continue 
+			continue
 		}
 		A[n] = A[i]
 		n++
 	}
 	A = A[:n]
-	pk.NbInfinityA = uint64(nbWires - n )
+	pk.NbInfinityA = uint64(nbWires - n)
 	n = 0
 	for i, e := range B {
 		if e.IsZero() {
 			pk.InfinityB[i] = true
-			continue 
+			continue
 		}
 		B[n] = B[i]
 		n++
 	}
 	B = B[:n]
-	pk.NbInfinityB = uint64(nbWires - n )
-	
+	pk.NbInfinityB = uint64(nbWires - n)
 
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
@@ -253,8 +252,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// set domain
 	pk.Domain = *domain
 
-
-
 	return nil
 }
 
@@ -268,13 +265,12 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 
 	one := fr.One()
 
-
 	// first we compute [t-w^i] and its inverse
 	var w fr.Element
 	w.Set(&domain.Generator)
 	wi := fr.One()
-	t := make([]fr.Element, len(r1cs.Constraints) +1 )
-	for i:=0; i < len(t);i++ {
+	t := make([]fr.Element, len(r1cs.Constraints)+1)
+	for i := 0; i < len(t); i++ {
 		t[i].Sub(&toxicWaste.t, &wi)
 		wi.Mul(&wi, &w) // TODO this is already pre computed in fft.Domain
 	}
@@ -291,9 +287,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
-
-
-	accumulate := func (res *fr.Element, t compiled.Term, value *fr.Element)  {
+	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
 		cID := t.CoeffID()
 		switch cID {
 		case compiled.CoeffIdZero:
@@ -313,23 +307,22 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 		}
 	}
 
-
-	// each constraint is in the form 
+	// each constraint is in the form
 	// L * R == O
 	// L, R and O being linear expressions
-	// for each term appearing in the linear expression, 
+	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
 	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
-		for _, t := range c.L {
-			accumulate(&A[t.VariableID()], t, &L)
+		for _, t := range c.L.LinExp {
+			accumulate(&A[t.WireID()], t, &L)
 		}
-		for _, t := range c.R {
-			accumulate(&B[t.VariableID()], t, &L)
+		for _, t := range c.R.LinExp {
+			accumulate(&B[t.WireID()], t, &L)
 		}
-		for _, t := range c.O {
-			accumulate(&C[t.VariableID()], t, &L)
+		for _, t := range c.O.LinExp {
+			accumulate(&C[t.WireID()], t, &L)
 		}
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
@@ -341,15 +334,12 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 
 }
 
-
-
-
 // toxicWaste toxic waste
 type toxicWaste struct {
 
 	// Montgomery form of params
 	t, alpha, beta, gamma, delta fr.Element
-	gammaInv, deltaInv fr.Element 
+	gammaInv, deltaInv           fr.Element
 
 	// Non Montgomery form of params
 	alphaReg, betaReg, gammaReg, deltaReg fr.Element
@@ -422,11 +412,11 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.InfinityB = make([]bool, nbWires)
 	pk.NbInfinityA = uint64(nbZeroesA)
 	pk.NbInfinityB = uint64(nbZeroesB)
-	for i:=0; i <nbZeroesA;i++ {
-		pk.InfinityA[i] = true 
+	for i := 0; i < nbZeroesA; i++ {
+		pk.InfinityA[i] = true
 	}
-	for i:=0; i <nbZeroesB;i++ {
-		pk.InfinityB[i] = true 
+	for i := 0; i < nbZeroesB; i++ {
+		pk.InfinityB[i] = true
 	}
 
 	// samples toxic waste
@@ -445,13 +435,13 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r2Aff curve.G2Affine
 	r2Jac.ScalarMultiplication(&g2, &b)
 	r2Aff.FromJacobian(&r2Jac)
-	for i:=0; i < len(pk.G1.A); i++ {
+	for i := 0; i < len(pk.G1.A); i++ {
 		pk.G1.A[i] = r1Aff
 	}
-	for i:=0; i < len(pk.G1.B); i++ {
+	for i := 0; i < len(pk.G1.B); i++ {
 		pk.G1.B[i] = r1Aff
 	}
-	for i:=0; i < len(pk.G2.B); i++ {
+	for i := 0; i < len(pk.G2.B); i++ {
 		pk.G2.B[i] = r2Aff
 	}
 	for i := 0; i < len(pk.G1.Z); i++ {
@@ -480,14 +470,14 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
 	for _, c := range r1cs.Constraints {
-		for _, t := range c.L {
-			A[t.VariableID()] = true 
+		for _, t := range c.L.LinExp {
+			A[t.WireID()] = true
 		}
-		for _, t := range c.R {
-			B[t.VariableID()] = true 
+		for _, t := range c.R.LinExp {
+			B[t.WireID()] = true
 		}
 	}
-	for i:=0; i < nbWires;i++ {
+	for i := 0; i < nbWires; i++ {
 		if !A[i] {
 			nbZeroesA++
 		}
@@ -563,7 +553,7 @@ func (vk *VerifyingKey) NbG2() int {
 
 // NbG1 returns the number of G1 elements in the ProvingKey
 func (pk *ProvingKey) NbG1() int {
-	return 3 + len(pk.G1.A)+ len(pk.G1.B) + len(pk.G1.Z) + len(pk.G1.K)
+	return 3 + len(pk.G1.A) + len(pk.G1.B) + len(pk.G1.Z) + len(pk.G1.K)
 }
 
 // NbG2 returns the number of G2 elements in the ProvingKey

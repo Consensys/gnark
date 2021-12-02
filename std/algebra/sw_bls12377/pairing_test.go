@@ -163,6 +163,10 @@ func TestTriplePairingBLS377(t *testing.T) {
 
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
-	ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+	}
+	// ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+	// b.Log("groth16", ccsBench.GetNbConstraints())
 }

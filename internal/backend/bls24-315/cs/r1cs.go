@@ -163,15 +163,15 @@ func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term) {
 // it instantiates the l, r o part of a R1C
 func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.Element) {
 	var v fr.Element
-	for _, t := range r.L {
+	for _, t := range r.L.LinExp {
 		v = solution.computeTerm(t)
 		a.Add(&a, &v)
 	}
-	for _, t := range r.R {
+	for _, t := range r.R.LinExp {
 		v = solution.computeTerm(t)
 		b.Add(&b, &v)
 	}
-	for _, t := range r.O {
+	for _, t := range r.O.LinExp {
 		v = solution.computeTerm(t)
 		c.Add(&c, &v)
 	}
@@ -197,7 +197,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	var termToCompute compiled.Term
 
 	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
-		vID := t.VariableID()
+		vID := t.WireID()
 
 		// wire is already computed, we just accumulate in val
 		if solution.solved[vID] {
@@ -224,19 +224,19 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 		return nil
 	}
 
-	for _, t := range r.L {
+	for _, t := range r.L.LinExp {
 		if err := processTerm(t, &a, 1); err != nil {
 			return err
 		}
 	}
 
-	for _, t := range r.R {
+	for _, t := range r.R.LinExp {
 		if err := processTerm(t, &b, 2); err != nil {
 			return err
 		}
 	}
 
-	for _, t := range r.O {
+	for _, t := range r.O.LinExp {
 		if err := processTerm(t, &c, 3); err != nil {
 			return err
 		}
@@ -250,7 +250,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	}
 
 	// we compute the wire value and instantiate it
-	vID := termToCompute.VariableID()
+	vID := termToCompute.WireID()
 
 	// solver result
 	var wire fr.Element
@@ -303,11 +303,11 @@ func sub(a, b int) int {
 	return a - b
 }
 
-func toHTML(l compiled.LinearExpression, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
+func toHTML(l compiled.Variable, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
 	var sbb strings.Builder
-	for i := 0; i < len(l); i++ {
-		termToHTML(l[i], &sbb, coeffs, MHints, false)
-		if i+1 < len(l) {
+	for i := 0; i < len(l.LinExp); i++ {
+		termToHTML(l.LinExp[i], &sbb, coeffs, MHints, false)
+		if i+1 < len(l.LinExp) {
 			sbb.WriteString(" + ")
 		}
 	}
@@ -330,7 +330,7 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHin
 		sbb.WriteString("</span>*")
 	}
 
-	vID := t.VariableID()
+	vID := t.WireID()
 	class := ""
 	switch t.VariableVisibility() {
 	case compiled.Internal:
@@ -361,7 +361,7 @@ func (cs *R1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
 }
 
-// CurveID returns curve ID as defined in gnark-crypto (ecc.BLS24-315)
+// CurveID returns curve ID as defined in gnark-crypto
 func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.BLS24_315
 }

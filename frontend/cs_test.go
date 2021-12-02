@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -30,7 +31,7 @@ func TestQuickSort(t *testing.T) {
 	rand := 3
 	for i := 0; i < 12; i++ {
 		toSort[i].SetVariableVisibility(compiled.Secret)
-		toSort[i].SetVariableID(rand)
+		toSort[i].SetWireID(rand)
 		rand += 3
 		rand = rand % 13
 	}
@@ -49,7 +50,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newConstraintSystem(ecc.BN254)
+	cs := newConstraintSystem(ecc.BN254, backend.GROTH16)
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
@@ -61,47 +62,14 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(variable)
+	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.Variable)
 
 	// check sizes
-	if len(toTest.linExp) != 3 {
+	if len(toTest.LinExp) != 3 {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
 }
-
-func TestPopVariable(t *testing.T) {
-
-	sizeAfterPoped := 29
-	nbInternalVars := 10
-
-	le := make([]compiled.Term, 30)
-	for i := 0; i < 10; i++ {
-		le[i] = compiled.Pack(i, 2*i, compiled.Internal)
-		le[10+i] = compiled.Pack(i, 2*(i+10), compiled.Public)
-		le[20+i] = compiled.Pack(i, 2*(i+20), compiled.Secret)
-	}
-
-	for i := 0; i < nbInternalVars; i++ {
-		l, v := popInternalVariable(le, i)
-		_v := le[i]
-		_l := make(compiled.LinearExpression, len(le)-1)
-		copy(_l, le[:i])
-		copy(_l[i:], le[i+1:])
-		if len(l) != sizeAfterPoped {
-			t.Fatal("wrong length")
-		}
-		if _v != v {
-			t.Fatal("wrong variable")
-		}
-		for j := 0; j < sizeAfterPoped; j++ {
-			if _l[j] != l[j] {
-				t.Fatal("wrong lin exp")
-			}
-		}
-	}
-}
-
 func TestFindUnsolvedVariable(t *testing.T) {
 
 	sizeLe := 10
@@ -127,7 +95,7 @@ func TestFindUnsolvedVariable(t *testing.T) {
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = true
 	}
-	r1c := compiled.R1C{L: l, R: r, O: o}
+	r1c := compiled.R1C{L: compiled.Variable{LinExp: l}, R: compiled.Variable{LinExp: r}, O: compiled.Variable{LinExp: o}}
 
 	for i := 0; i < totalInternalVariables; i++ {
 		solvedVariables[i] = false

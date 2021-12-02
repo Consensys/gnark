@@ -79,8 +79,8 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
-			// must not error with big int test engine
-			err = IsSolved(circuit, validWitness, curve)
+			// must not error with big int test engine (only the curveID is needed for this test)
+			err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
 			checkError(err)
 
 			switch b {
@@ -179,8 +179,8 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			checkError(err)
 
-			// must error with big int test engine
-			err = IsSolved(circuit, invalidWitness, curve)
+			// must error with big int test engine (only the curveID is needed here)
+			err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
 			mustError(err)
 
 			switch b {
@@ -235,7 +235,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness fr
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validWitness, curve)
+	err = IsSolved(circuit, validWitness, curve, b)
 	checkError(err)
 
 	switch b {
@@ -274,7 +274,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidWitness, curve)
+	err = IsSolved(circuit, invalidWitness, curve, b)
 	mustError(err)
 
 	switch b {
@@ -349,7 +349,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	// fuzz a witness
 	fuzzer(w, curve)
 
-	err := IsSolved(circuit, w, curve)
+	err := IsSolved(circuit, w, curve, b)
 
 	if err == nil {
 		// valid witness

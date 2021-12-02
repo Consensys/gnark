@@ -21,55 +21,7 @@ import (
 
 // R1C used to compute the wires
 type R1C struct {
-	L, R, O LinearExpression
-}
-
-// LinearExpression represent a linear expression of variables
-type LinearExpression []Term
-
-// Clone returns a copy of the underlying slice
-func (l LinearExpression) Clone() LinearExpression {
-	res := make(LinearExpression, len(l))
-	copy(res, l)
-	return res
-}
-
-// Len return the lenght of the LinearExpression (implements Sort interface)
-func (l LinearExpression) Len() int {
-	return len(l)
-}
-
-// Equals returns true if both SORTED expressions are the same
-//
-// pre conditions: l and o are sorted
-func (l LinearExpression) Equal(o LinearExpression) bool {
-	if len(l) != len(o) {
-		return false
-	}
-	if (l == nil) != (o == nil) {
-		return false
-	}
-	for i := 0; i < len(l); i++ {
-		if l[i] != o[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// Swap swaps terms in the LinearExpression (implements Sort interface)
-func (l LinearExpression) Swap(i, j int) {
-	l[i], l[j] = l[j], l[i]
-}
-
-// Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
-func (l LinearExpression) Less(i, j int) bool {
-	_, iID, iVis := l[i].Unpack()
-	_, jID, jVis := l[j].Unpack()
-	if iVis == jVis {
-		return iID < jID
-	}
-	return iVis > jVis
+	L, R, O Variable
 }
 
 func (r1c *R1C) String(coeffs []big.Int) string {
@@ -83,13 +35,4 @@ func (r1c *R1C) String(coeffs []big.Int) string {
 	sbb.WriteString("]")
 
 	return sbb.String()
-}
-
-func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
-	for i := 0; i < len(l); i++ {
-		l[i].string(sbb, coeffs)
-		if i+1 < len(l) {
-			sbb.WriteString(" + ")
-		}
-	}
 }

@@ -128,7 +128,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverOption) ([]f
 // else returns the wire position (L -> 0, R -> 1, O -> 2)
 func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (int, error) {
 	r := -1
-	lID, rID, oID := c.L.VariableID(), c.R.VariableID(), c.O.VariableID()
+	lID, rID, oID := c.L.WireID(), c.R.WireID(), c.O.WireID()
 
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
@@ -185,14 +185,14 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 	}
 
 	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-		if !solution.solved[c.R.VariableID()] {
+		if !solution.solved[c.R.WireID()] {
 			panic("R wire should be instantiated when we solve L")
 		}
 		var u1, u2, u3, den, num, v1, v2 fr.Element
 		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
 		u1.Set(&cs.Coefficients[c.L.CoeffID()])
 		u2.Set(&cs.Coefficients[c.R.CoeffID()])
-		den.Mul(&u3, &solution.values[c.R.VariableID()]).Add(&den, &u1)
+		den.Mul(&u3, &solution.values[c.R.WireID()]).Add(&den, &u1)
 
 		v1 = solution.computeTerm(c.R)
 		v2 = solution.computeTerm(c.O)
@@ -200,7 +200,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 		// TODO find a way to do lazy div (/ batch inversion)
 		num.Div(&num, &den).Neg(&num)
-		solution.set(c.L.VariableID(), num)
+		solution.set(c.L.WireID(), num)
 		return nil
 
 	}
