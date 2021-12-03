@@ -24,14 +24,14 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-type SparseR1CRefactor struct {
+type SparseR1CS struct {
 	frontend.ConstraintSystem
 
 	Constraints []compiled.SparseR1C
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-func (cs *SparseR1CRefactor) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (cs *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
 		cs.MDebug[len(cs.Constraints)-1] = debugID[0]
@@ -54,14 +54,14 @@ func (cs *SparseR1CRefactor) addPlonkConstraint(l, r, o frontend.Variable, cidl,
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *SparseR1CRefactor) newInternalVariable() compiled.Term {
+func (cs *SparseR1CS) newInternalVariable() compiled.Term {
 	idx := cs.NbInternalVariables
 	cs.NbInternalVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)
 }
 
 // NewPublicVariable creates a new Public Variable
-func (cs *SparseR1CRefactor) NewPublicVariable(name string) compiled.Term {
+func (cs *SparseR1CS) NewPublicVariable(name string) compiled.Term {
 	idx := cs.NbPublicVariables
 	cs.Public = append(cs.Public, name)
 	cs.NbPublicVariables++
@@ -69,14 +69,14 @@ func (cs *SparseR1CRefactor) NewPublicVariable(name string) compiled.Term {
 }
 
 // NewPublicVariable creates a new Secret Variable
-func (cs *SparseR1CRefactor) NewSecretVariable(name string) compiled.Term {
+func (cs *SparseR1CS) NewSecretVariable(name string) compiled.Term {
 	idx := len(cs.Secret)
 	cs.Public = append(cs.Secret, name)
 	cs.NbSecretVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
 }
 
-func (cs *SparseR1CRefactor) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
+func (cs *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
 	_, vID, _ := r.Unpack()

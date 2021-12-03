@@ -18,6 +18,7 @@ package r1cs
 
 import (
 	"math/big"
+	"reflect"
 	"sort"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -189,4 +190,10 @@ func (cs *R1CSRefactor) markBoolean(v compiled.Variable) bool {
 	}
 	*v.IsBoolean = true
 	return true
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

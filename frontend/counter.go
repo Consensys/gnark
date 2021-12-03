@@ -3,7 +3,7 @@ package frontend
 // Tag contains informations needed to measure and display statistics of a delimited piece of circuit
 type Tag struct {
 	Name     string
-	vID, cID int
+	VID, CID int
 }
 
 // Counter contains measurements of useful statistics between two Tag

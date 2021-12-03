@@ -32,10 +32,8 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// API represents the available functions to circuit developers
-
 // Add returns res = i1+i2+...in
-func (cs *SparseR1CRefactor) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
+func (cs *SparseR1CS) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 
 	zero := big.NewInt(0)
 	vars, k := cs.filterConstantSum(append([]interface{}{i1, i2}, in...))
@@ -54,7 +52,7 @@ func (cs *SparseR1CRefactor) Add(i1, i2 interface{}, in ...interface{}) frontend
 }
 
 // neg returns -in...
-func (cs *SparseR1CRefactor) neg(in ...interface{}) []frontend.Variable {
+func (cs *SparseR1CS) neg(in ...interface{}) []frontend.Variable {
 
 	res := make([]frontend.Variable, len(in))
 
@@ -65,13 +63,13 @@ func (cs *SparseR1CRefactor) neg(in ...interface{}) []frontend.Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (cs *SparseR1CRefactor) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
+func (cs *SparseR1CS) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 	r := cs.neg(append([]interface{}{i2}, in...))
 	return cs.Add(i1, r[0], r[1:])
 }
 
 // Neg returns -i
-func (cs *SparseR1CRefactor) Neg(i1 interface{}) frontend.Variable {
+func (cs *SparseR1CS) Neg(i1 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) {
 		k := cs.ConstantValue(i1)
 		k.Neg(k)
@@ -88,7 +86,7 @@ func (cs *SparseR1CRefactor) Neg(i1 interface{}) frontend.Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (cs *SparseR1CRefactor) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
+func (cs *SparseR1CS) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 
 	zero := big.NewInt(0)
 
@@ -105,7 +103,7 @@ func (cs *SparseR1CRefactor) Mul(i1, i2 interface{}, in ...interface{}) frontend
 }
 
 // returns t*m
-func (cs *SparseR1CRefactor) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (cs *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
 	coef := cs.Coeffs[cid]
 	coef.Mul(m, &coef).Mod(&coef, cs.CurveID().Info().Fr.Modulus())
@@ -115,7 +113,7 @@ func (cs *SparseR1CRefactor) mulConstant(t compiled.Term, m *big.Int) compiled.T
 }
 
 // returns t/m
-func (cs *SparseR1CRefactor) divConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (cs *SparseR1CS) divConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
 	coef := cs.Coeffs[cid]
 	var _m big.Int
@@ -130,7 +128,7 @@ func (cs *SparseR1CRefactor) divConstant(t compiled.Term, m *big.Int) compiled.T
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (cs *SparseR1CRefactor) DivUnchecked(i1, i2 interface{}) frontend.Variable {
+func (cs *SparseR1CS) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) && cs.IsConstant(i2) {
 		l := frontend.FromInterface(i1)
 		r := frontend.FromInterface(i2)
@@ -163,13 +161,13 @@ func (cs *SparseR1CRefactor) DivUnchecked(i1, i2 interface{}) frontend.Variable 
 }
 
 // Div returns i1 / i2
-func (cs *SparseR1CRefactor) Div(i1, i2 interface{}) frontend.Variable {
+func (cs *SparseR1CS) Div(i1, i2 interface{}) frontend.Variable {
 	// TODO check that later
 	return cs.DivUnchecked(i1, i2)
 }
 
 // Inverse returns res = 1 / i1
-func (cs *SparseR1CRefactor) Inverse(i1 interface{}) frontend.Variable {
+func (cs *SparseR1CS) Inverse(i1 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) {
 		c := frontend.FromInterface(i1)
 		c.ModInverse(&c, cs.CurveID().Info().Fr.Modulus())
@@ -190,7 +188,7 @@ func (cs *SparseR1CRefactor) Inverse(i1 interface{}) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *SparseR1CRefactor) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
+func (cs *SparseR1CS) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := cs.BitLen()
@@ -215,7 +213,7 @@ func (cs *SparseR1CRefactor) ToBinary(i1 interface{}, n ...int) []frontend.Varia
 	return cs.toBinary(a, nbBits, false)
 }
 
-func (cs *SparseR1CRefactor) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
+func (cs *SparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
 
 	// allocate the resulting frontend.Variables and bit-constraint them
 	b := make([]frontend.Variable, nbBits)
@@ -248,7 +246,7 @@ func (cs *SparseR1CRefactor) toBinary(a compiled.Term, nbBits int, unsafe bool) 
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *SparseR1CRefactor) FromBinary(b ...interface{}) frontend.Variable {
+func (cs *SparseR1CS) FromBinary(b ...interface{}) frontend.Variable {
 	_b := make([]frontend.Variable, len(b))
 	var c big.Int
 	c.SetUint64(1)
@@ -267,7 +265,7 @@ func (cs *SparseR1CRefactor) FromBinary(b ...interface{}) frontend.Variable {
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (cs *SparseR1CRefactor) Xor(a, b frontend.Variable) frontend.Variable {
+func (cs *SparseR1CS) Xor(a, b frontend.Variable) frontend.Variable {
 	if cs.IsConstant(a) && cs.IsConstant(b) {
 		_a := frontend.FromInterface(a)
 		_b := frontend.FromInterface(b)
@@ -296,7 +294,7 @@ func (cs *SparseR1CRefactor) Xor(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (cs *SparseR1CRefactor) Or(a, b frontend.Variable) frontend.Variable {
+func (cs *SparseR1CS) Or(a, b frontend.Variable) frontend.Variable {
 	if cs.IsConstant(a) && cs.IsConstant(b) {
 		_a := frontend.FromInterface(a)
 		_b := frontend.FromInterface(b)
@@ -325,7 +323,7 @@ func (cs *SparseR1CRefactor) Or(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (cs *SparseR1CRefactor) And(a, b frontend.Variable) frontend.Variable {
+func (cs *SparseR1CS) And(a, b frontend.Variable) frontend.Variable {
 	return cs.Mul(a, b)
 }
 
@@ -333,7 +331,7 @@ func (cs *SparseR1CRefactor) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (cs *SparseR1CRefactor) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
+func (cs *SparseR1CS) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 
 	if cs.IsConstant(b) {
 		_b := frontend.FromInterface(b)
@@ -365,12 +363,12 @@ func (cs *SparseR1CRefactor) Select(b interface{}, i1, i2 interface{}) frontend.
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (cs *SparseR1CRefactor) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) frontend.Variable {
+func (cs *SparseR1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) frontend.Variable {
 	return 0
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *SparseR1CRefactor) IsZero(i1 interface{}) frontend.Variable {
+func (cs *SparseR1CS) IsZero(i1 interface{}) frontend.Variable {
 
 	if cs.IsConstant(i1) {
 		a := frontend.FromInterface(i1)
@@ -397,7 +395,7 @@ func (cs *SparseR1CRefactor) IsZero(i1 interface{}) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *SparseR1CRefactor) Println(a ...interface{}) {
+func (cs *SparseR1CS) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -475,7 +473,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (cs *SparseR1CRefactor) Tag(name string) frontend.Tag {
+func (cs *SparseR1CS) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
 	return frontend.Tag{
@@ -488,7 +486,7 @@ func (cs *SparseR1CRefactor) Tag(name string) frontend.Tag {
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
 // note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 // are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (cs *SparseR1CRefactor) AddCounter(from, to frontend.Tag) {
+func (cs *SparseR1CS) AddCounter(from, to frontend.Tag) {
 	cs.Counters = append(cs.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,
@@ -500,7 +498,7 @@ func (cs *SparseR1CRefactor) AddCounter(from, to frontend.Tag) {
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (cs *SparseR1CRefactor) IsConstant(v frontend.Variable) bool {
+func (cs *SparseR1CS) IsConstant(v frontend.Variable) bool {
 	switch t := v.(type) {
 	case compiled.Term:
 		return false
@@ -512,7 +510,7 @@ func (cs *SparseR1CRefactor) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (cs *SparseR1CRefactor) ConstantValue(v frontend.Variable) *big.Int {
+func (cs *SparseR1CS) ConstantValue(v frontend.Variable) *big.Int {
 	if !cs.IsConstant(v) {
 		panic("v should be a constant")
 	}
@@ -521,7 +519,7 @@ func (cs *SparseR1CRefactor) ConstantValue(v frontend.Variable) *big.Int {
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (cs *SparseR1CRefactor) filterConstantSum(in ...interface{}) ([]compiled.Term, big.Int) {
+func (cs *SparseR1CS) filterConstantSum(in ...interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
@@ -537,7 +535,7 @@ func (cs *SparseR1CRefactor) filterConstantSum(in ...interface{}) ([]compiled.Te
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (cs *SparseR1CRefactor) filterConstantProd(in ...interface{}) ([]compiled.Term, big.Int) {
+func (cs *SparseR1CS) filterConstantProd(in ...interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
@@ -553,7 +551,7 @@ func (cs *SparseR1CRefactor) filterConstantProd(in ...interface{}) ([]compiled.T
 	return res, b
 }
 
-func (cs *SparseR1CRefactor) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (cs *SparseR1CS) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -567,7 +565,7 @@ func (cs *SparseR1CRefactor) splitSum(acc compiled.Term, r []compiled.Term) comp
 	return cs.splitSum(o, r[1:])
 }
 
-func (cs *SparseR1CRefactor) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (cs *SparseR1CS) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {

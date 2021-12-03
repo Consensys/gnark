@@ -17,12 +17,19 @@ limitations under the License.
 package r1cs
 
 import (
+	"fmt"
 	"math/big"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/parser"
 )
 
 // Add returns res = i1+i2+...in
@@ -549,6 +556,112 @@ func (cs *R1CSRefactor) ConstantValue(v frontend.Variable) *big.Int {
 	}
 	r := frontend.FromInterface(v)
 	return &r
+}
+
+// Println enables circuit debugging and behaves almost like fmt.Println()
+//
+// the print will be done once the R1CS.Solve() method is executed
+//
+// if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
+func (cs *R1CSRefactor) Println(a ...interface{}) {
+	var sbb strings.Builder
+
+	// prefix log line with file.go:line
+	if _, file, line, ok := runtime.Caller(1); ok {
+		sbb.WriteString(filepath.Base(file))
+		sbb.WriteByte(':')
+		sbb.WriteString(strconv.Itoa(line))
+		sbb.WriteByte(' ')
+	}
+
+	var log compiled.LogEntry
+
+	for i, arg := range a {
+		if i > 0 {
+			sbb.WriteByte(' ')
+		}
+		if v, ok := arg.(compiled.Variable); ok {
+			v.AssertIsSet()
+
+			sbb.WriteString("%s")
+			// we set limits to the linear expression, so that the log printer
+			// can evaluate it before printing it
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, v.LinExp...)
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		} else {
+			printArg(&log, &sbb, arg)
+		}
+	}
+	sbb.WriteByte('\n')
+
+	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
+	log.Format = sbb.String()
+
+	cs.Logs = append(cs.Logs, log)
+}
+
+func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
+
+	count := 0
+	counter := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
+		count++
+		return nil
+	}
+	// ignoring error, counter() always return nil
+	_ = parser.Visit(a, "", compiled.Unset, counter, tVariable)
+
+	// no variables in nested struct, we use fmt std print function
+	if count == 0 {
+		sbb.WriteString(fmt.Sprint(a))
+		return
+	}
+
+	sbb.WriteByte('{')
+	printer := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
+		count--
+		sbb.WriteString(name)
+		sbb.WriteString(": ")
+		sbb.WriteString("%s")
+		if count != 0 {
+			sbb.WriteString(", ")
+		}
+
+		v := tValue.Interface().(compiled.Variable)
+		// we set limits to the linear expression, so that the log printer
+		// can evaluate it before printing it
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, v.LinExp...)
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		return nil
+	}
+	// ignoring error, printer() doesn't return errors
+	_ = parser.Visit(a, "", compiled.Unset, printer, tVariable)
+	sbb.WriteByte('}')
+}
+
+// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
+// measure constraints, variables and coefficients creations through AddCounter
+func (cs *R1CSRefactor) Tag(name string) frontend.Tag {
+	_, file, line, _ := runtime.Caller(1)
+
+	return frontend.Tag{
+		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
+		VID:  cs.NbInternalVariables,
+		CID:  len(cs.Constraints),
+	}
+}
+
+// AddCounter measures the number of constraints, variables and coefficients created between two tags
+func (cs *R1CSRefactor) AddCounter(from, to frontend.Tag) {
+	cs.Counters = append(cs.Counters, compiled.Counter{
+		From:          from.Name,
+		To:            to.Name,
+		NbVariables:   to.VID - from.VID,
+		NbConstraints: to.CID - from.CID,
+		CurveID:       cs.CurveID(),
+		BackendID:     backend.PLONK,
+	})
 }
 
 // constant will return (and allocate if neccesary) a frontend.Variable from given value

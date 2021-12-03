@@ -88,8 +88,8 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 	// each R1C from the frontend.ConstraintSystem is allowed to have at most one unsolved wire
 	// excluding hints. We mark hint wires as "solved" to ensure spliting R1C to SparseR1C
 	// won't create invalid SparseR1C constraint with more than one wire to solve for the solver
-	for vID := range cs.mHints {
-		res.solvedVariables[vID] = true
+	for VID := range cs.mHints {
+		res.solvedVariables[VID] = true
 	}
 
 	// clone the counters
@@ -144,8 +144,8 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 			// need to skip them.
 			return
 		}
-		_, vID, visibility := t.Unpack()
-		if vID == 0 && visibility == compiled.Public {
+		_, VID, visibility := t.Unpack()
+		if VID == 0 && visibility == compiled.Public {
 			// this would not happen in a plonk constraint as the constant term has been popped out
 			// however it may happen in the logs or the hints that contains
 			// terms associated with the ONE wire
@@ -153,7 +153,7 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 			t.SetVariableVisibility(compiled.Virtual)
 			return
 		}
-		t.SetWireID(shiftVID(vID, visibility))
+		t.SetWireID(shiftVID(VID, visibility))
 	}
 
 	// offset the IDs of all constraints so that the variables are
@@ -193,8 +193,8 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 	}
 
 	// we need to offset the ids in the hints
-	for vID, hint := range cs.mHints {
-		k := shiftVID(vID, compiled.Internal)
+	for VID, hint := range cs.mHints {
+		k := shiftVID(VID, compiled.Internal)
 		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
@@ -246,21 +246,21 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (int, int) {
 	// find the variable to solve among L,R,O. pos=0,1,2 corresponds to left,right,o.
 	for i := 0; i < len(r1c.L.LinExp); i++ {
-		_, vID, visibility := r1c.L.LinExp[i].Unpack()
-		if visibility == compiled.Internal && !solvedVariables[vID] {
-			return 0, vID
+		_, VID, visibility := r1c.L.LinExp[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[VID] {
+			return 0, VID
 		}
 	}
 	for i := 0; i < len(r1c.R.LinExp); i++ {
-		_, vID, visibility := r1c.R.LinExp[i].Unpack()
-		if visibility == compiled.Internal && !solvedVariables[vID] {
-			return 1, vID
+		_, VID, visibility := r1c.R.LinExp[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[VID] {
+			return 1, VID
 		}
 	}
 	for i := 0; i < len(r1c.O.LinExp); i++ {
-		_, vID, visibility := r1c.O.LinExp[i].Unpack()
-		if visibility == compiled.Internal && !solvedVariables[vID] {
-			return 2, vID
+		_, VID, visibility := r1c.O.LinExp[i].Unpack()
+		if visibility == compiled.Internal && !solvedVariables[VID] {
+			return 2, VID
 		}
 	}
 	return -1, -1
@@ -270,17 +270,17 @@ func findUnsolvedVariable(r1c compiled.R1C, solvedVariables []bool) (int, int) {
 // if idCS is set, uses it as variable id and does not increment the number
 // of new internal variables created
 func (scs *sparseR1CS) newTerm(coeff *big.Int, idCS ...int) compiled.Term {
-	var vID int
+	var VID int
 	if len(idCS) > 0 {
-		vID = idCS[0]
-		scs.solvedVariables[vID] = true
+		VID = idCS[0]
+		scs.solvedVariables[VID] = true
 	} else {
-		vID = scs.scsInternalVariables
+		VID = scs.scsInternalVariables
 		scs.scsInternalVariables++
 		scs.solvedVariables = append(scs.solvedVariables, true)
 	}
 
-	return compiled.Pack(vID, scs.coeffID(coeff), compiled.Internal)
+	return compiled.Pack(VID, scs.coeffID(coeff), compiled.Internal)
 }
 
 // addConstraint records a plonk constraint in the ccs
@@ -318,8 +318,8 @@ func (scs *sparseR1CS) negate(t compiled.Term) compiled.Term {
 	if t == 0 {
 		return t
 	}
-	cID := t.CoeffID()
-	switch cID {
+	CID := t.CoeffID()
+	switch CID {
 	case compiled.CoeffIdMinusOne:
 		t.SetCoeffID(compiled.CoeffIdOne)
 	case compiled.CoeffIdZero:
@@ -395,12 +395,12 @@ func (scs *sparseR1CS) split(acc compiled.Term, l compiled.LinearExpression) com
 	return scs.split(scs.negate(o), l[1:])
 }
 
-func (scs *sparseR1CS) shiftCounters(counters []Counter, cID, Δc, Δv int) {
+func (scs *sparseR1CS) shiftCounters(counters []Counter, CID, Δc, Δv int) {
 	// what we do here is see what's our resulting current constraintID vs the processID
 	// for all counters, if the
 
 	for i := 0; i < len(counters); i++ {
-		if (counters[i].From.cID <= cID) && (counters[i].To.cID > cID) {
+		if (counters[i].From.CID <= CID) && (counters[i].To.CID > CID) {
 			// we are processing a constraint in the range of this counter.
 			// so we should increment the counter new constraints and nw variables
 			counters[i].NbConstraints += Δc
@@ -619,9 +619,9 @@ func (scs *sparseR1CS) r1cToSparseR1C(r1c compiled.R1C) {
 	sort.Sort(r1c.R.LinExp)
 
 	// pop the constant term if it exists
-	coeffID, vID, visID := r1c.R.LinExp[0].Unpack()
+	coeffID, VID, visID := r1c.R.LinExp[0].Unpack()
 
-	firstTermIsPublic := (visID == compiled.Public) && vID == 0
+	firstTermIsPublic := (visID == compiled.Public) && VID == 0
 	if !firstTermIsPublic {
 		coeffID = compiled.CoeffIdZero
 		t = scs.split(r1c.R.LinExp[0], r1c.R.LinExp[1:s-1])

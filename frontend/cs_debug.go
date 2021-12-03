@@ -157,8 +157,8 @@ func (cs *R1CS) Tag(name string) Tag {
 
 	return Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		vID:  cs.internal,
-		cID:  len(cs.constraints),
+		VID:  cs.internal,
+		CID:  len(cs.constraints),
 	}
 }
 
@@ -167,7 +167,7 @@ func (cs *R1CS) AddCounter(from, to Tag) {
 	cs.counters = append(cs.counters, Counter{
 		From:          from,
 		To:            to,
-		NbVariables:   to.vID - from.vID,
-		NbConstraints: to.cID - from.cID,
+		NbVariables:   to.VID - from.VID,
+		NbConstraints: to.CID - from.CID,
 	})
 }
