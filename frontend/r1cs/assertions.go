@@ -66,7 +66,7 @@ func (cs *R1CSRefactor) AssertIsBoolean(i1 interface{}) {
 
 	// We always have len(v.LinExp) == 1 when the backend is plonk, so it simplifies the conversion
 	// to sparse r1cs.
-	if cs.BackendID() == backend.PLONK {
+	if cs.BackendID == backend.PLONK {
 		one := cs.one()
 		_v := cs.Neg(v).(compiled.Variable)
 		r := compiled.Variable{LinExp: []compiled.Term{one.LinExp[0], _v.LinExp[0]}}

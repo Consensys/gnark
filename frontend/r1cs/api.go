@@ -49,7 +49,7 @@ func (cs *R1CSRefactor) Add(i1, i2 interface{}, in ...interface{}) frontend.Vari
 
 	res = cs.reduce(res)
 
-	if cs.BackendID() == backend.PLONK {
+	if cs.BackendID == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
@@ -100,7 +100,7 @@ func (cs *R1CSRefactor) Sub(i1, i2 interface{}, in ...interface{}) frontend.Vari
 	// reduce linear expression
 	res = cs.reduce(res)
 
-	if cs.BackendID() == backend.PLONK {
+	if cs.BackendID == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
@@ -130,7 +130,7 @@ func (cs *R1CSRefactor) Mul(i1, i2 interface{}, in ...interface{}) frontend.Vari
 			b1 := cs.constantValue(v1)
 			b2 := cs.constantValue(v2)
 
-			b1.Mul(b1, b2).Mod(b1, cs.CurveID().Info().Fr.Modulus())
+			b1.Mul(b1, b2).Mod(b1, cs.CurveID.Info().Fr.Modulus())
 			return cs.constant(b1).(compiled.Variable)
 		}
 
@@ -191,7 +191,7 @@ func (cs *R1CSRefactor) Inverse(i1 interface{}) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, cs.CurveID().Info().Fr.Modulus())
+		c.ModInverse(c, cs.CurveID.Info().Fr.Modulus())
 		return cs.constant(c)
 	}
 
@@ -226,7 +226,7 @@ func (cs *R1CSRefactor) Div(i1, i2 interface{}) frontend.Variable {
 	if b2.IsUint64() && b2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := cs.CurveID().Info().Fr.Modulus()
+	q := cs.CurveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.IsConstant() {
@@ -257,7 +257,7 @@ func (cs *R1CSRefactor) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	if b2.IsUint64() && b2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := cs.CurveID().Info().Fr.Modulus()
+	q := cs.CurveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.IsConstant() {
@@ -659,7 +659,7 @@ func (cs *R1CSRefactor) AddCounter(from, to frontend.Tag) {
 		To:            to.Name,
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
-		CurveID:       cs.CurveID(),
+		CurveID:       cs.CurveID,
 		BackendID:     backend.PLONK,
 	})
 }

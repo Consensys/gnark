@@ -18,8 +18,8 @@ type ConstraintSystem struct {
 	// input wires
 	Public, Secret []string
 
-	curveID   ecc.ID
-	backendID backend.ID
+	CurveID   ecc.ID
+	BackendID backend.ID
 
 	// Coefficients in the constraints
 	Coeffs         []big.Int      // list of unique coefficients.
@@ -100,15 +100,5 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) BitLen() int {
-	return cs.curveID.Info().Fr.Bits
-}
-
-// CurveID returns the ecc.ID injected by the compiler
-func (cs *ConstraintSystem) CurveID() ecc.ID {
-	return cs.curveID
-}
-
-// Backend returns the backend.ID injected by the compiler
-func (cs *ConstraintSystem) BackendID() backend.ID {
-	return cs.backendID
+	return cs.CurveID.Info().Fr.Bits
 }

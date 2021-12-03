@@ -17,8 +17,11 @@ limitations under the License.
 package plonk
 
 import (
+	"math/big"
 	"reflect"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -28,6 +31,52 @@ type SparseR1CS struct {
 	frontend.ConstraintSystem
 
 	Constraints []compiled.SparseR1C
+}
+
+// initialCapacity has quite some impact on frontend performance, especially on large circuits size
+// we may want to add build tags to tune that
+func NewSparseR1CS(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) *SparseR1CS {
+	capacity := 0
+	if len(initialCapacity) > 0 {
+		capacity = initialCapacity[0]
+	}
+	cs := SparseR1CS{
+		ConstraintSystem: frontend.ConstraintSystem{
+
+			CS: compiled.CS{
+				MDebug: make(map[int]int),
+				MHints: make(map[int]compiled.Hint),
+			},
+
+			Coeffs:         make([]big.Int, 4),
+			CoeffsIDsLarge: make(map[string]int),
+			CoeffsIDsInt64: make(map[int64]int, 4),
+		},
+		Constraints: make([]compiled.SparseR1C, 0, capacity),
+
+		// Counters:          make([]Counter, 0),
+	}
+
+	cs.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	cs.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	cs.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	cs.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+
+	cs.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	cs.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	cs.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	cs.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+
+	// cs.public.variables = make([]Variable, 0)
+	// cs.secret.variables = make([]Variable, 0)
+	// cs.internal = make([]Variable, 0, capacity)
+	cs.Public = make([]string, 0)
+	cs.Secret = make([]string, 0)
+
+	cs.CurveID = curveID
+	cs.BackendID = backendID
+
+	return &cs
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
@@ -61,7 +110,7 @@ func (cs *SparseR1CS) newInternalVariable() compiled.Term {
 }
 
 // NewPublicVariable creates a new Public Variable
-func (cs *SparseR1CS) NewPublicVariable(name string) compiled.Term {
+func (cs *SparseR1CS) NewPublicVariable(name string) frontend.Variable {
 	idx := cs.NbPublicVariables
 	cs.Public = append(cs.Public, name)
 	cs.NbPublicVariables++
@@ -69,7 +118,7 @@ func (cs *SparseR1CS) NewPublicVariable(name string) compiled.Term {
 }
 
 // NewPublicVariable creates a new Secret Variable
-func (cs *SparseR1CS) NewSecretVariable(name string) compiled.Term {
+func (cs *SparseR1CS) NewSecretVariable(name string) frontend.Variable {
 	idx := len(cs.Secret)
 	cs.Public = append(cs.Secret, name)
 	cs.NbSecretVariables++

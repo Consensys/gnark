@@ -24,6 +24,13 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 )
 
+// system represents a constraint system that can be loaded using the bootloader
+type System interface {
+	API
+	NewPublicVariable(name string) Variable
+	NewSecretVariable(name string) Variable
+}
+
 // API represents the available functions to circuit developers
 type API interface {
 	// ---------------------------------------------------------------------------------------------

@@ -106,7 +106,7 @@ func (cs *SparseR1CS) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variab
 func (cs *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
 	coef := cs.Coeffs[cid]
-	coef.Mul(m, &coef).Mod(&coef, cs.CurveID().Info().Fr.Modulus())
+	coef.Mul(m, &coef).Mod(&coef, cs.CurveID.Info().Fr.Modulus())
 	cid = cs.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
@@ -117,7 +117,7 @@ func (cs *SparseR1CS) divConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
 	coef := cs.Coeffs[cid]
 	var _m big.Int
-	q := cs.CurveID().Info().Fr.Modulus()
+	q := cs.CurveID.Info().Fr.Modulus()
 	_m.Set(m).
 		ModInverse(&_m, q).
 		Mul(&_m, &coef).
@@ -132,7 +132,7 @@ func (cs *SparseR1CS) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) && cs.IsConstant(i2) {
 		l := frontend.FromInterface(i1)
 		r := frontend.FromInterface(i2)
-		q := cs.CurveID().Info().Fr.Modulus()
+		q := cs.CurveID.Info().Fr.Modulus()
 		return r.ModInverse(&r, q).
 			Mul(&l, &r).
 			Mod(&l, q)
@@ -170,7 +170,7 @@ func (cs *SparseR1CS) Div(i1, i2 interface{}) frontend.Variable {
 func (cs *SparseR1CS) Inverse(i1 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) {
 		c := frontend.FromInterface(i1)
-		c.ModInverse(&c, cs.CurveID().Info().Fr.Modulus())
+		c.ModInverse(&c, cs.CurveID.Info().Fr.Modulus())
 		return c
 	}
 	t := i1.(compiled.Term)
@@ -492,7 +492,7 @@ func (cs *SparseR1CS) AddCounter(from, to frontend.Tag) {
 		To:            to.Name,
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
-		CurveID:       cs.CurveID(),
+		CurveID:       cs.CurveID,
 		BackendID:     backend.PLONK,
 	})
 }

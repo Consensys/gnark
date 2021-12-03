@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -30,6 +32,56 @@ type R1CSRefactor struct {
 	frontend.ConstraintSystem
 
 	Constraints []compiled.R1C
+}
+
+// initialCapacity has quite some impact on frontend performance, especially on large circuits size
+// we may want to add build tags to tune that
+func NewR1CSRefactor(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) *R1CSRefactor {
+	capacity := 0
+	if len(initialCapacity) > 0 {
+		capacity = initialCapacity[0]
+	}
+	cs := R1CSRefactor{
+		ConstraintSystem: frontend.ConstraintSystem{
+
+			CS: compiled.CS{
+				MDebug: make(map[int]int),
+				MHints: make(map[int]compiled.Hint),
+			},
+
+			Coeffs:         make([]big.Int, 4),
+			CoeffsIDsLarge: make(map[string]int),
+			CoeffsIDsInt64: make(map[int64]int, 4),
+		},
+		Constraints: make([]compiled.R1C, 0, capacity),
+
+		// Counters:          make([]Counter, 0),
+	}
+
+	cs.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	cs.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	cs.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	cs.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+
+	cs.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	cs.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	cs.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	cs.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+
+	// cs.public.variables = make([]Variable, 0)
+	// cs.secret.variables = make([]Variable, 0)
+	// cs.internal = make([]Variable, 0, capacity)
+	cs.Public = make([]string, 1)
+	cs.Secret = make([]string, 0)
+
+	// by default the circuit is given a public wire equal to 1
+	// cs.public.variables[0] = cs.newPublicVariable("one")
+	cs.Public[0] = "one"
+
+	cs.CurveID = curveID
+	cs.BackendID = backendID
+
+	return &cs
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -45,9 +97,10 @@ func (cs *R1CSRefactor) newInternalVariable() compiled.Variable {
 }
 
 // NewPublicVariable creates a new public Variable
-func (cs *R1CSRefactor) NewPublicVariable(name string) compiled.Variable {
+func (cs *R1CSRefactor) NewPublicVariable(name string) frontend.Variable {
 	t := false
 	idx := cs.NbPublicVariables
+	cs.NbPublicVariables++
 	cs.Public = append(cs.Public, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
@@ -57,9 +110,10 @@ func (cs *R1CSRefactor) NewPublicVariable(name string) compiled.Variable {
 }
 
 // NewSecretVariable creates a new secret Variable
-func (cs *R1CSRefactor) NewSecretVariable(name string) compiled.Variable {
+func (cs *R1CSRefactor) NewSecretVariable(name string) frontend.Variable {
 	t := false
 	idx := cs.NbSecretVariables
+	cs.NbSecretVariables++
 	cs.Secret = append(cs.Secret, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
