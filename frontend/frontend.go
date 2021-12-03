@@ -39,7 +39,7 @@ import (
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
-// 2. it then calls circuit.Define(curveID, constraintSystem) to build the internal constraint system
+// 2. it then calls circuit.Define(curveID, R1CS) to build the internal constraint system
 // from the declarative code
 //
 // 3. finally, it converts that to a CompiledConstraintSystem.
@@ -90,7 +90,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
+func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity ...int) (cs R1CS, err error) {
 
 	// instantiate our constraint system
 	cs = newConstraintSystem(curveID, zkpID, initialCapacity...)

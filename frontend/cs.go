@@ -30,13 +30,13 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-// constraintSystem represents a Groth16 like circuit
+// R1CS represents a Groth16 like circuit
 //
 // All the APIs to define a circuit (see Circuit.Define) like Add, Sub, Mul, ...
 // may take as input interface{}
 //
 // these interfaces are either Variables (/LinearExpressions) or constants (big.Int, strings, uint, fr.Element)
-type constraintSystem struct {
+type R1CS struct {
 
 	// input wires
 	public, secret []string
@@ -90,12 +90,12 @@ type CompiledConstraintSystem interface {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) constraintSystem {
+func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) R1CS {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	cs := constraintSystem{
+	cs := R1CS{
 		coeffs:            make([]big.Int, 4),
 		coeffsIDsLarge:    make(map[string]int),
 		coeffsIDsInt64:    make(map[int64]int, 4),
@@ -143,7 +143,7 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Variable {
+func (cs *R1CS) NewHint(f hint.Function, inputs ...interface{}) Variable {
 	// create resulting wire
 	r := cs.newInternalVariable()
 	_, vID, _ := r.LinExp[0].Unpack()
@@ -169,11 +169,11 @@ func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Vari
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *constraintSystem) bitLen() int {
+func (cs *R1CS) bitLen() int {
 	return cs.curveID.Info().Fr.Bits
 }
 
-func (cs *constraintSystem) one() compiled.Variable {
+func (cs *R1CS) one() compiled.Variable {
 	t := false
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
@@ -182,8 +182,8 @@ func (cs *constraintSystem) one() compiled.Variable {
 }
 
 // Term packs a Variable and a coeff in a Term and returns it.
-// func (cs *constraintSystem) setCoeff(v Variable, coeff *big.Int) Term {
-func (cs *constraintSystem) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
+// func (cs *R1CS) setCoeff(v Variable, coeff *big.Int) Term {
+func (cs *R1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
 	return compiled.Pack(vID, cs.coeffID(coeff), vVis)
 }
@@ -210,12 +210,12 @@ func newR1C(_l, _r, _o Variable) compiled.R1C {
 
 // NbConstraints enables circuit profiling and helps debugging
 // It returns the number of constraints created at the current stage of the circuit construction.
-func (cs *constraintSystem) NbConstraints() int {
+func (cs *R1CS) NbConstraints() int {
 	return len(cs.constraints)
 }
 
 // LinearExpression packs a list of Term in a LinearExpression and returns it.
-func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Variable {
+func (cs *R1CS) LinearExpression(terms ...compiled.Term) compiled.Variable {
 	var res compiled.Variable
 	res.LinExp = make([]compiled.Term, len(terms))
 	for i, args := range terms {
@@ -228,7 +228,7 @@ func (cs *constraintSystem) LinearExpression(terms ...compiled.Term) compiled.Va
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (cs *constraintSystem) reduce(l compiled.Variable) compiled.Variable {
+func (cs *R1CS) reduce(l compiled.Variable) compiled.Variable {
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	if !sort.IsSorted(l.LinExp) { // may not help
 		sort.Sort(l.LinExp)
@@ -251,7 +251,7 @@ func (cs *constraintSystem) reduce(l compiled.Variable) compiled.Variable {
 	return l
 }
 
-func (cs *constraintSystem) coeffID64(v int64) int {
+func (cs *R1CS) coeffID64(v int64) int {
 	if resID, ok := cs.coeffsIDsInt64[v]; ok {
 		return resID
 	} else {
@@ -266,7 +266,7 @@ func (cs *constraintSystem) coeffID64(v int64) int {
 
 // coeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of coeffs and returns the corresponding entry
-func (cs *constraintSystem) coeffID(b *big.Int) int {
+func (cs *R1CS) coeffID(b *big.Int) int {
 
 	// if the coeff is a int64 we have a fast path.
 	if b.IsInt64() {
@@ -292,7 +292,7 @@ func (cs *constraintSystem) coeffID(b *big.Int) int {
 	return resID
 }
 
-func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
+func (cs *R1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
 	cs.constraints = append(cs.constraints, r1c)
 	if len(debugID) > 0 {
 		cs.mDebug[len(cs.constraints)-1] = debugID[0]
@@ -301,7 +301,7 @@ func (cs *constraintSystem) addConstraint(r1c compiled.R1C, debugID ...int) {
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *constraintSystem) newInternalVariable() compiled.Variable {
+func (cs *R1CS) newInternalVariable() compiled.Variable {
 	t := false
 	idx := cs.internal
 	cs.internal++
@@ -312,7 +312,7 @@ func (cs *constraintSystem) newInternalVariable() compiled.Variable {
 }
 
 // newPublicVariable creates a new public Variable
-func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
+func (cs *R1CS) newPublicVariable(name string) compiled.Variable {
 	t := false
 	idx := len(cs.public)
 	cs.public = append(cs.public, name)
@@ -324,7 +324,7 @@ func (cs *constraintSystem) newPublicVariable(name string) compiled.Variable {
 }
 
 // newSecretVariable creates a new secret Variable
-func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
+func (cs *R1CS) newSecretVariable(name string) compiled.Variable {
 	t := false
 	idx := len(cs.secret)
 	cs.secret = append(cs.secret, name)
@@ -338,7 +338,7 @@ func (cs *constraintSystem) newSecretVariable(name string) compiled.Variable {
 // markBoolean marks the Variable as boolean and return true
 // if a constraint was added, false if the Variable was already
 // constrained as a boolean
-func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
+func (cs *R1CS) markBoolean(v compiled.Variable) bool {
 	if *v.IsBoolean {
 		return false
 	}
@@ -350,7 +350,7 @@ func (cs *constraintSystem) markBoolean(v compiled.Variable) bool {
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (cs *constraintSystem) checkVariables() error {
+func (cs *R1CS) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 
@@ -444,10 +444,10 @@ func (cs *constraintSystem) checkVariables() error {
 
 }
 
-func (cs *constraintSystem) CurveID() ecc.ID {
+func (cs *R1CS) CurveID() ecc.ID {
 	return cs.curveID
 }
 
-func (cs *constraintSystem) Backend() backend.ID {
+func (cs *R1CS) Backend() backend.ID {
 	return cs.backendID
 }

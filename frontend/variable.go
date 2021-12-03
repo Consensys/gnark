@@ -33,8 +33,8 @@ type Variable interface{}
 // 	linExp     LinearExpression
 // }
 
-// func (v *variable) constantValue(cs *constraintSystem) *big.Int {
-func (cs *constraintSystem) constantValue(v compiled.Variable) *big.Int {
+// func (v *variable) constantValue(cs *R1CS) *big.Int {
+func (cs *R1CS) constantValue(v compiled.Variable) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.IsConstant() {

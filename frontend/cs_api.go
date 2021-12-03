@@ -25,7 +25,7 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *R1CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// extract Variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
@@ -54,7 +54,7 @@ func (cs *constraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // Neg returns -i
-func (cs *constraintSystem) Neg(i interface{}) Variable {
+func (cs *R1CS) Neg(i interface{}) Variable {
 	vars, _ := cs.toVariables(i)
 
 	if vars[0].IsConstant() {
@@ -70,7 +70,7 @@ func (cs *constraintSystem) Neg(i interface{}) Variable {
 }
 
 // Sub returns res = i1 - i2
-func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *R1CS) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 
 	// extract Variables from input
 	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
@@ -105,7 +105,7 @@ func (cs *constraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable 
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *R1CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 	vars, _ := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
@@ -143,7 +143,7 @@ func (cs *constraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable 
 	return res
 }
 
-func (cs *constraintSystem) mulConstant(v1, constant compiled.Variable) compiled.Variable {
+func (cs *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
 	// multiplying a Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that Variable
 	res := v1.Clone()
@@ -173,7 +173,7 @@ func (cs *constraintSystem) mulConstant(v1, constant compiled.Variable) compiled
 }
 
 // Inverse returns res = inverse(v)
-func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
+func (cs *R1CS) Inverse(i1 interface{}) Variable {
 	vars, _ := cs.toVariables(i1)
 
 	if vars[0].IsConstant() {
@@ -197,7 +197,7 @@ func (cs *constraintSystem) Inverse(i1 interface{}) Variable {
 }
 
 // Div returns res = i1 / i2
-func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
+func (cs *R1CS) Div(i1, i2 interface{}) Variable {
 	vars, _ := cs.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -230,7 +230,7 @@ func (cs *constraintSystem) Div(i1, i2 interface{}) Variable {
 	return cs.mulConstant(v1, cs.constant(b2).(compiled.Variable))
 }
 
-func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
+func (cs *R1CS) DivUnchecked(i1, i2 interface{}) Variable {
 	vars, _ := cs.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -262,7 +262,7 @@ func (cs *constraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 }
 
 // Xor compute the XOR between two Variables
-func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
+func (cs *R1CS) Xor(_a, _b Variable) Variable {
 
 	vars, _ := cs.toVariables(_a, _b)
 
@@ -287,7 +287,7 @@ func (cs *constraintSystem) Xor(_a, _b Variable) Variable {
 }
 
 // Or compute the OR between two Variables
-func (cs *constraintSystem) Or(_a, _b Variable) Variable {
+func (cs *R1CS) Or(_a, _b Variable) Variable {
 	vars, _ := cs.toVariables(_a, _b)
 
 	a := vars[0]
@@ -310,7 +310,7 @@ func (cs *constraintSystem) Or(_a, _b Variable) Variable {
 }
 
 // And compute the AND between two Variables
-func (cs *constraintSystem) And(_a, _b Variable) Variable {
+func (cs *R1CS) And(_a, _b Variable) Variable {
 	vars, _ := cs.toVariables(_a, _b)
 
 	a := vars[0]
@@ -325,7 +325,7 @@ func (cs *constraintSystem) And(_a, _b Variable) Variable {
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
+func (cs *R1CS) IsZero(i1 interface{}) Variable {
 	vars, _ := cs.toVariables(i1)
 	a := vars[0]
 	if a.IsConstant() {
@@ -359,7 +359,7 @@ func (cs *constraintSystem) IsZero(i1 interface{}) Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
+func (cs *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	// nbBits
 	nbBits := cs.bitLen()
@@ -387,7 +387,7 @@ func (cs *constraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (cs *constraintSystem) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
+func (cs *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
 
 	if a.IsConstant() {
 		return cs.ToBinary(a, nbBits)
@@ -436,7 +436,7 @@ func toSliceOfVariables(v []compiled.Variable) []Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *constraintSystem) FromBinary(_b ...interface{}) Variable {
+func (cs *R1CS) FromBinary(_b ...interface{}) Variable {
 	b, _ := cs.toVariables(_b...)
 
 	// ensure inputs are set
@@ -464,7 +464,7 @@ func (cs *constraintSystem) FromBinary(_b ...interface{}) Variable {
 }
 
 // Select if i0 is true, yields i1 else yields i2
-func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
+func (cs *R1CS) Select(i0, i1, i2 interface{}) Variable {
 
 	vars, _ := cs.toVariables(i0, i1, i2)
 	b := vars[0]
@@ -499,7 +499,7 @@ func (cs *constraintSystem) Select(i0, i1, i2 interface{}) Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (cs *constraintSystem) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable {
+func (cs *R1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable {
 	vars, _ := cs.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
@@ -530,7 +530,7 @@ func (cs *constraintSystem) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (cs *constraintSystem) IsConstant(v Variable) bool {
+func (cs *R1CS) IsConstant(v Variable) bool {
 	if _v, ok := v.(compiled.Variable); ok {
 		return _v.IsConstant()
 	}
@@ -542,7 +542,7 @@ func (cs *constraintSystem) IsConstant(v Variable) bool {
 
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
-func (cs *constraintSystem) ConstantValue(v Variable) *big.Int {
+func (cs *R1CS) ConstantValue(v Variable) *big.Int {
 	if _v, ok := v.(compiled.Variable); ok {
 		return cs.constantValue(_v)
 	}
@@ -557,7 +557,7 @@ func (cs *constraintSystem) ConstantValue(v Variable) *big.Int {
 //
 // a constant Variable does NOT necessary allocate a Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (cs *constraintSystem) constant(input interface{}) Variable {
+func (cs *R1CS) constant(input interface{}) Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -575,7 +575,7 @@ func (cs *constraintSystem) constant(input interface{}) Variable {
 }
 
 // toVariables return Variable corresponding to inputs and the total size of the linear expressions
-func (cs *constraintSystem) toVariables(in ...interface{}) ([]compiled.Variable, int) {
+func (cs *R1CS) toVariables(in ...interface{}) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
 	e := func(i interface{}) {
@@ -592,7 +592,7 @@ func (cs *constraintSystem) toVariables(in ...interface{}) ([]compiled.Variable,
 }
 
 // returns -le, the result is a copy
-func (cs *constraintSystem) negateLinExp(l []compiled.Term) []compiled.Term {
+func (cs *R1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 	res := make([]compiled.Term, len(l))
 	var lambda big.Int
 	for i, t := range l {

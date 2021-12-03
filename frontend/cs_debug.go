@@ -34,7 +34,7 @@ import (
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *constraintSystem) Println(a ...interface{}) {
+func (cs *R1CS) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -111,7 +111,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 	sbb.WriteByte('}')
 }
 
-func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
+func (cs *R1CS) addDebugInfo(errName string, i ...interface{}) int {
 	var l compiled.LogEntry
 
 	const minLogSize = 500
@@ -152,7 +152,7 @@ func (cs *constraintSystem) addDebugInfo(errName string, i ...interface{}) int {
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (cs *constraintSystem) Tag(name string) Tag {
+func (cs *R1CS) Tag(name string) Tag {
 	_, file, line, _ := runtime.Caller(1)
 
 	return Tag{
@@ -163,7 +163,7 @@ func (cs *constraintSystem) Tag(name string) Tag {
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (cs *constraintSystem) AddCounter(from, to Tag) {
+func (cs *R1CS) AddCounter(from, to Tag) {
 	cs.counters = append(cs.counters, Counter{
 		From:          from,
 		To:            to,

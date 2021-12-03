@@ -25,7 +25,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
+func (cs *R1CS) AssertIsEqual(i1, i2 interface{}) {
 	// encoded 1 * i1 == i2
 	r := cs.constant(i1).(compiled.Variable)
 	o := cs.constant(i2).(compiled.Variable)
@@ -36,12 +36,12 @@ func (cs *constraintSystem) AssertIsEqual(i1, i2 interface{}) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (cs *constraintSystem) AssertIsDifferent(i1, i2 interface{}) {
+func (cs *R1CS) AssertIsDifferent(i1, i2 interface{}) {
 	cs.Inverse(cs.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
+func (cs *R1CS) AssertIsBoolean(i1 interface{}) {
 
 	vars, _ := cs.toVariables(i1)
 	v := vars[0]
@@ -85,7 +85,7 @@ func (cs *constraintSystem) AssertIsBoolean(i1 interface{}) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) {
+func (cs *R1CS) AssertIsLessOrEqual(_v Variable, bound interface{}) {
 	v, _ := cs.toVariables(_v)
 
 	switch b := bound.(type) {
@@ -98,7 +98,7 @@ func (cs *constraintSystem) AssertIsLessOrEqual(_v Variable, bound interface{}) 
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
+func (cs *R1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := cs.bitLen()
@@ -139,7 +139,7 @@ func (cs *constraintSystem) mustBeLessOrEqVar(a, bound compiled.Variable) {
 
 }
 
-func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+func (cs *R1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 
 	nbBits := cs.bitLen()
 

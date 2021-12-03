@@ -37,7 +37,7 @@ import (
 // alongside with some intermediate data structures needed to convert from
 // ConstraintSystem representataion to SparseR1CS
 type sparseR1CS struct {
-	*constraintSystem
+	*R1CS
 
 	ccs compiled.SparseR1CS
 
@@ -58,10 +58,10 @@ type sparseR1CS struct {
 
 var bOne = new(big.Int).SetInt64(1)
 
-func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
+func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 
 	res := sparseR1CS{
-		constraintSystem: cs,
+		R1CS: cs,
 		ccs: compiled.SparseR1CS{
 			CS: compiled.CS{
 				NbInternalVariables: cs.internal,
