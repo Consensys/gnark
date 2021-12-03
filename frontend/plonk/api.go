@@ -14,26 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package frontend
+package plonk
 
 import (
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/parser"
 )
 
 // API represents the available functions to circuit developers
 
 // Add returns res = i1+i2+...in
-func (cs *plonkConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *SparseR1CRefactor) Add(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 
 	zero := big.NewInt(0)
 	vars, k := cs.filterConstantSum(append([]interface{}{i1, i2}, in...))
@@ -44,7 +46,7 @@ func (cs *plonkConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Vari
 		return cs.splitSum(vars[0], vars[1:])
 	}
 	cl, _, _ := vars[0].Unpack()
-	kID := cs.coeffID(&k)
+	kID := cs.CoeffID(&k)
 	o := cs.newInternalVariable()
 	cs.addPlonkConstraint(vars[0], 0, o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
 	return cs.splitSum(o, vars[1:])
@@ -52,9 +54,9 @@ func (cs *plonkConstraintSystem) Add(i1, i2 interface{}, in ...interface{}) Vari
 }
 
 // neg returns -in...
-func (cs *plonkConstraintSystem) neg(in ...interface{}) []Variable {
+func (cs *SparseR1CRefactor) neg(in ...interface{}) []frontend.Variable {
 
-	res := make([]Variable, len(in))
+	res := make([]frontend.Variable, len(in))
 
 	for i := 0; i < len(in); i++ {
 		res[i] = cs.Neg(in[i])
@@ -63,13 +65,13 @@ func (cs *plonkConstraintSystem) neg(in ...interface{}) []Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (cs *plonkConstraintSystem) Sub(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *SparseR1CRefactor) Sub(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 	r := cs.neg(append([]interface{}{i2}, in...))
 	return cs.Add(i1, r[0], r[1:])
 }
 
 // Neg returns -i
-func (cs *plonkConstraintSystem) Neg(i1 interface{}) Variable {
+func (cs *SparseR1CRefactor) Neg(i1 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) {
 		k := cs.ConstantValue(i1)
 		k.Neg(k)
@@ -77,16 +79,16 @@ func (cs *plonkConstraintSystem) Neg(i1 interface{}) Variable {
 	} else {
 		v := i1.(compiled.Term)
 		c, _, _ := v.Unpack()
-		coef := cs.coeffs[c]
+		coef := cs.Coeffs[c]
 		coef.Neg(&coef)
-		c = cs.coeffID(&coef)
+		c = cs.CoeffID(&coef)
 		v.SetCoeffID(c)
 		return v
 	}
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (cs *plonkConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Variable {
+func (cs *SparseR1CRefactor) Mul(i1, i2 interface{}, in ...interface{}) frontend.Variable {
 
 	zero := big.NewInt(0)
 
@@ -103,42 +105,42 @@ func (cs *plonkConstraintSystem) Mul(i1, i2 interface{}, in ...interface{}) Vari
 }
 
 // returns t*m
-func (cs *plonkConstraintSystem) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (cs *SparseR1CRefactor) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
-	coef := cs.coeffs[cid]
-	coef.Mul(m, &coef).Mod(&coef, cs.curveID.Info().Fr.Modulus())
-	cid = cs.coeffID(&coef)
+	coef := cs.Coeffs[cid]
+	coef.Mul(m, &coef).Mod(&coef, cs.CurveID().Info().Fr.Modulus())
+	cid = cs.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
 }
 
 // returns t/m
-func (cs *plonkConstraintSystem) divConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (cs *SparseR1CRefactor) divConstant(t compiled.Term, m *big.Int) compiled.Term {
 	cid, _, _ := t.Unpack()
-	coef := cs.coeffs[cid]
+	coef := cs.Coeffs[cid]
 	var _m big.Int
-	q := cs.curveID.Info().Fr.Modulus()
+	q := cs.CurveID().Info().Fr.Modulus()
 	_m.Set(m).
 		ModInverse(&_m, q).
 		Mul(&_m, &coef).
 		Mod(&_m, q)
-	cid = cs.coeffID(&coef)
+	cid = cs.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (cs *plonkConstraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
+func (cs *SparseR1CRefactor) DivUnchecked(i1, i2 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) && cs.IsConstant(i2) {
-		l := FromInterface(i1)
-		r := FromInterface(i2)
-		q := cs.curveID.Info().Fr.Modulus()
+		l := frontend.FromInterface(i1)
+		r := frontend.FromInterface(i2)
+		q := cs.CurveID().Info().Fr.Modulus()
 		return r.ModInverse(&r, q).
 			Mul(&l, &r).
 			Mod(&l, q)
 	}
 	if cs.IsConstant(i2) {
-		c := FromInterface(i2)
+		c := frontend.FromInterface(i2)
 		t := i1.(compiled.Term)
 		return cs.divConstant(t, &c)
 	}
@@ -146,8 +148,8 @@ func (cs *plonkConstraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 		t := i2.(compiled.Term)
 		cidr, _, _ := t.Unpack()
 		res := cs.newInternalVariable()
-		c := FromInterface(i1)
-		cidl := cs.coeffID(&c)
+		c := frontend.FromInterface(i1)
+		cidl := cs.CoeffID(&c)
 		cs.addPlonkConstraint(res, t, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 		return res
 	}
@@ -161,15 +163,15 @@ func (cs *plonkConstraintSystem) DivUnchecked(i1, i2 interface{}) Variable {
 }
 
 // Div returns i1 / i2
-func (cs *plonkConstraintSystem) Div(i1, i2 interface{}) Variable {
+func (cs *SparseR1CRefactor) Div(i1, i2 interface{}) frontend.Variable {
 	// TODO check that later
 	return cs.DivUnchecked(i1, i2)
 }
 
 // Inverse returns res = 1 / i1
-func (cs *plonkConstraintSystem) Inverse(i1 interface{}) Variable {
+func (cs *SparseR1CRefactor) Inverse(i1 interface{}) frontend.Variable {
 	if cs.IsConstant(i1) {
-		c := FromInterface(i1)
+		c := frontend.FromInterface(i1)
 		c.ModInverse(&c, cs.CurveID().Info().Fr.Modulus())
 		return c
 	}
@@ -183,15 +185,15 @@ func (cs *plonkConstraintSystem) Inverse(i1 interface{}) Variable {
 // ---------------------------------------------------------------------------------------------
 // Bit operations
 
-// ToBinary unpacks a Variable in binary,
+// ToBinary unpacks a frontend.Variable in binary,
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *plonkConstraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
+func (cs *SparseR1CRefactor) ToBinary(i1 interface{}, n ...int) []frontend.Variable {
 
 	// nbBits
-	nbBits := cs.bitLen()
+	nbBits := cs.BitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -201,8 +203,8 @@ func (cs *plonkConstraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	// if a is a constant, work with the big int value.
 	if cs.IsConstant(i1) {
-		c := FromInterface(i1)
-		b := make([]Variable, nbBits)
+		c := frontend.FromInterface(i1)
+		b := make([]frontend.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
 			b[i] = c.Bit(i)
 		}
@@ -213,10 +215,10 @@ func (cs *plonkConstraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
 	return cs.toBinary(a, nbBits, false)
 }
 
-func (cs *plonkConstraintSystem) toBinary(a compiled.Term, nbBits int, unsafe bool) []Variable {
+func (cs *SparseR1CRefactor) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
 
-	// allocate the resulting Variables and bit-constraint them
-	b := make([]Variable, nbBits)
+	// allocate the resulting frontend.Variables and bit-constraint them
+	b := make([]frontend.Variable, nbBits)
 	sb := make([]interface{}, nbBits)
 	var c big.Int
 	c.SetUint64(1)
@@ -229,8 +231,8 @@ func (cs *plonkConstraintSystem) toBinary(a compiled.Term, nbBits int, unsafe bo
 		}
 	}
 
-	//var Σbi compiled.Variable
-	var Σbi Variable
+	//var Σbi compiled.Term
+	var Σbi frontend.Variable
 	if nbBits == 1 {
 		cs.AssertIsEqual(sb[0], a)
 	} else if nbBits == 2 {
@@ -246,8 +248,8 @@ func (cs *plonkConstraintSystem) toBinary(a compiled.Term, nbBits int, unsafe bo
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *plonkConstraintSystem) FromBinary(b ...interface{}) Variable {
-	_b := make([]Variable, len(b))
+func (cs *SparseR1CRefactor) FromBinary(b ...interface{}) frontend.Variable {
+	_b := make([]frontend.Variable, len(b))
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < len(b); i++ {
@@ -265,10 +267,10 @@ func (cs *plonkConstraintSystem) FromBinary(b ...interface{}) Variable {
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (cs *plonkConstraintSystem) Xor(a, b Variable) Variable {
+func (cs *SparseR1CRefactor) Xor(a, b frontend.Variable) frontend.Variable {
 	if cs.IsConstant(a) && cs.IsConstant(b) {
-		_a := FromInterface(a)
-		_b := FromInterface(b)
+		_a := frontend.FromInterface(a)
+		_b := frontend.FromInterface(b)
 		_a.Xor(&_a, &_b)
 		return _a
 	}
@@ -279,10 +281,10 @@ func (cs *plonkConstraintSystem) Xor(a, b Variable) Variable {
 	if cs.IsConstant(b) {
 		l := a.(compiled.Term)
 		r := l
-		_b := FromInterface(b)
+		_b := frontend.FromInterface(b)
 		one := big.NewInt(1)
 		_b.Lsh(&_b, 1).Sub(&_b, one)
-		idl := cs.coeffID(&_b)
+		idl := cs.CoeffID(&_b)
 		cs.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}
@@ -294,10 +296,10 @@ func (cs *plonkConstraintSystem) Xor(a, b Variable) Variable {
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (cs *plonkConstraintSystem) Or(a, b Variable) Variable {
+func (cs *SparseR1CRefactor) Or(a, b frontend.Variable) frontend.Variable {
 	if cs.IsConstant(a) && cs.IsConstant(b) {
-		_a := FromInterface(a)
-		_b := FromInterface(b)
+		_a := frontend.FromInterface(a)
+		_b := frontend.FromInterface(b)
 		_a.Or(&_a, &_b)
 		return _a
 	}
@@ -308,10 +310,10 @@ func (cs *plonkConstraintSystem) Or(a, b Variable) Variable {
 	if cs.IsConstant(b) {
 		l := a.(compiled.Term)
 		r := l
-		_b := FromInterface(b)
+		_b := frontend.FromInterface(b)
 		one := big.NewInt(1)
 		_b.Sub(&_b, one)
-		idl := cs.coeffID(&_b)
+		idl := cs.CoeffID(&_b)
 		cs.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}
@@ -323,7 +325,7 @@ func (cs *plonkConstraintSystem) Or(a, b Variable) Variable {
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (cs *plonkConstraintSystem) And(a, b Variable) Variable {
+func (cs *SparseR1CRefactor) And(a, b frontend.Variable) frontend.Variable {
 	return cs.Mul(a, b)
 }
 
@@ -331,10 +333,10 @@ func (cs *plonkConstraintSystem) And(a, b Variable) Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (cs *plonkConstraintSystem) Select(b interface{}, i1, i2 interface{}) Variable {
+func (cs *SparseR1CRefactor) Select(b interface{}, i1, i2 interface{}) frontend.Variable {
 
 	if cs.IsConstant(b) {
-		_b := FromInterface(b)
+		_b := frontend.FromInterface(b)
 		var t big.Int
 		one := big.NewInt(1)
 		if _b.Cmp(&t) != 0 && _b.Cmp(one) != 0 {
@@ -350,8 +352,8 @@ func (cs *plonkConstraintSystem) Select(b interface{}, i1, i2 interface{}) Varia
 	l := cs.Mul(u, b)
 	res := cs.newInternalVariable()
 	if cs.IsConstant(i2) {
-		k := FromInterface(i2)
-		_k := cs.coeffID(&k)
+		k := frontend.FromInterface(i2)
+		_k := cs.CoeffID(&k)
 		cs.addPlonkConstraint(l, 0, res, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k)
 	} else {
 		_r := i2.(compiled.Term)
@@ -363,15 +365,15 @@ func (cs *plonkConstraintSystem) Select(b interface{}, i1, i2 interface{}) Varia
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (cs *plonkConstraintSystem) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable {
+func (cs *SparseR1CRefactor) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) frontend.Variable {
 	return 0
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (cs *plonkConstraintSystem) IsZero(i1 interface{}) Variable {
+func (cs *SparseR1CRefactor) IsZero(i1 interface{}) frontend.Variable {
 
 	if cs.IsConstant(i1) {
-		a := FromInterface(i1)
+		a := frontend.FromInterface(i1)
 		var zero big.Int
 		if a.Cmp(&zero) != 0 {
 			panic("input should be zero")
@@ -388,166 +390,14 @@ func (cs *plonkConstraintSystem) IsZero(i1 interface{}) Variable {
 	return m
 }
 
-// ---------------------------------------------------------------------------------------------
-// Assertions
-
-// AssertIsEqual fails if i1 != i2
-func (cs *plonkConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
-
-	if cs.IsConstant(i1) && cs.IsConstant(i2) {
-		a := FromInterface(i1)
-		b := FromInterface(i2)
-		if a.Cmp(&b) != 0 {
-			panic("i1, i2 should be equal")
-		}
-	}
-	if cs.IsConstant(i1) {
-		i1, i2 = i2, i1
-	}
-	if cs.IsConstant(i2) {
-		l := i1.(compiled.Term)
-		k := FromInterface(i2)
-		debug := cs.addDebugInfo("assertIsEqual", l, " == ", k)
-		k.Neg(&k)
-		_k := cs.coeffID(&k)
-		cs.addPlonkConstraint(l, 0, 0, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
-	}
-	l := i1.(compiled.Term)
-	r := i1.(compiled.Term)
-	debug := cs.addDebugInfo("assertIsEqual", l, " == ", r)
-	cs.addPlonkConstraint(l, 0, r, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero, debug)
-}
-
-// AssertIsDifferent fails if i1 == i2
-func (cs *plonkConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
-	cs.Inverse(cs.Sub(i1, i2))
-}
-
-// AssertIsBoolean fails if v != 0 || v != 1
-func (cs *plonkConstraintSystem) AssertIsBoolean(i1 interface{}) {
-	if cs.IsConstant(i1) {
-		c := FromInterface(i1)
-		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
-			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
-		}
-		return
-	}
-	t := i1.(compiled.Term)
-	debug := cs.addDebugInfo("assertIsBoolean", t, " == (0|1)")
-	cs.addPlonkConstraint(t, t, 0, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
-}
-
-// AssertIsLessOrEqual fails if  v > bound
-func (cs *plonkConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
-	switch b := bound.(type) {
-	case compiled.Term:
-		cs.mustBeLessOrEqVar(v.(compiled.Term), b)
-	default:
-		cs.mustBeLessOrEqCst(v.(compiled.Term), FromInterface(b))
-	}
-}
-
-func (cs *plonkConstraintSystem) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
-
-	nbBits := cs.bitLen()
-
-	// ensure the bound is positive, it's bit-len doesn't matter
-	if bound.Sign() == -1 {
-		panic("AssertIsLessOrEqual: bound must be positive")
-	}
-	if bound.BitLen() > nbBits {
-		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
-	}
-
-	// debug info
-	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
-
-	// note that at this stage, we didn't boolean-constraint these new variables yet
-	// (as opposed to ToBinary)
-	aBits := cs.toBinary(a, nbBits, true)
-
-	// t trailing bits in the bound
-	t := 0
-	for i := 0; i < nbBits; i++ {
-		if bound.Bit(i) == 0 {
-			break
-		}
-		t++
-	}
-
-	p := make([]Variable, nbBits+1)
-	// p[i] == 1 --> a[j] == c[j] for all j >= i
-	p[nbBits] = 1
-
-	for i := nbBits - 1; i >= t; i-- {
-		if bound.Bit(i) == 0 {
-			p[i] = p[i+1]
-		} else {
-			p[i] = cs.Mul(p[i+1], aBits[i])
-		}
-	}
-
-	for i := nbBits - 1; i >= 0; i-- {
-		if bound.Bit(i) == 0 {
-			// (1 - p(i+1) - ai) * ai == 0
-			l := cs.Sub(1, p[i+1]).(compiled.Variable)
-			l = cs.Sub(l, aBits[i]).(compiled.Variable)
-
-			cs.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
-			// cs.markBoolean(aBits[i].(compiled.Variable))
-		} else {
-			cs.AssertIsBoolean(aBits[i])
-		}
-	}
-
-}
-
-func (cs *plonkConstraintSystem) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
-
-	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
-
-	nbBits := cs.bitLen()
-
-	aBits := cs.toBinary(a, nbBits, true)
-	boundBits := cs.ToBinary(bound, nbBits)
-
-	p := make([]Variable, nbBits+1)
-	p[nbBits] = 1
-
-	for i := nbBits - 1; i >= 0; i-- {
-
-		// if bound[i] == 0
-		// 		p[i] = p[i+1]
-		//		t = p[i+1]
-		// else
-		// 		p[i] = p[i+1] * a[i]
-		//		t = 0
-		v := cs.Mul(p[i+1], aBits[i])
-		p[i] = cs.Select(boundBits[i], v, p[i+1])
-
-		t := cs.Select(boundBits[i], 0, p[i+1])
-
-		// (1 - t - ai) * ai == 0
-		l := cs.Sub(1, t, aBits[i])
-
-		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
-		// --> this is a boolean constraint
-		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		// cs.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
-
-		cs.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
-	}
-
-}
-
-// Println behaves like fmt.Println but accepts frontend.Variable as parameter
+// Println behaves like fmt.Println but accepts frontend.frontend.Variable as parameter
 // whose value will be resolved at runtime when computed by the solver
 // Println enables circuit debugging and behaves almost like fmt.Println()
 //
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *plonkConstraintSystem) Println(a ...interface{}) {
+func (cs *SparseR1CRefactor) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -564,14 +414,13 @@ func (cs *plonkConstraintSystem) Println(a ...interface{}) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(compiled.Variable); ok {
-			v.AssertIsSet()
+		if v, ok := arg.(compiled.Term); ok {
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v.LinExp...)
+			log.ToResolve = append(log.ToResolve, v)
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		} else {
 			printArg(&log, &sbb, arg)
@@ -582,66 +431,97 @@ func (cs *plonkConstraintSystem) Println(a ...interface{}) {
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()
 
-	cs.logs = append(cs.logs, log)
+	cs.Logs = append(cs.Logs, log)
+}
+
+func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
+
+	count := 0
+	counter := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
+		count++
+		return nil
+	}
+	// ignoring error, counter() always return nil
+	_ = parser.Visit(a, "", compiled.Unset, counter, tVariable)
+
+	// no variables in nested struct, we use fmt std print function
+	if count == 0 {
+		sbb.WriteString(fmt.Sprint(a))
+		return
+	}
+
+	sbb.WriteByte('{')
+	printer := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
+		count--
+		sbb.WriteString(name)
+		sbb.WriteString(": ")
+		sbb.WriteString("%s")
+		if count != 0 {
+			sbb.WriteString(", ")
+		}
+
+		v := tValue.Interface().(compiled.Variable)
+		// we set limits to the linear expression, so that the log printer
+		// can evaluate it before printing it
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, v.LinExp...)
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		return nil
+	}
+	// ignoring error, printer() doesn't return errors
+	_ = parser.Visit(a, "", compiled.Unset, printer, tVariable)
+	sbb.WriteByte('}')
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (cs *plonkConstraintSystem) Tag(name string) Tag {
+func (cs *SparseR1CRefactor) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
-	return Tag{
+	return frontend.Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		vID:  cs.internal,
-		cID:  len(cs.constraints),
+		VID:  cs.NbInternalVariables,
+		CID:  len(cs.Constraints),
 	}
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
 // note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 // are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (cs *plonkConstraintSystem) AddCounter(from, to Tag) {
-	cs.counters = append(cs.counters, Counter{
-		From:          from,
-		To:            to,
-		NbVariables:   to.vID - from.vID,
-		NbConstraints: to.cID - from.cID,
+func (cs *SparseR1CRefactor) AddCounter(from, to frontend.Tag) {
+	cs.Counters = append(cs.Counters, compiled.Counter{
+		From:          from.Name,
+		To:            to.Name,
+		NbVariables:   to.VID - from.VID,
+		NbConstraints: to.CID - from.CID,
+		CurveID:       cs.CurveID(),
+		BackendID:     backend.PLONK,
 	})
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (cs *plonkConstraintSystem) IsConstant(v Variable) bool {
+func (cs *SparseR1CRefactor) IsConstant(v frontend.Variable) bool {
 	switch t := v.(type) {
 	case compiled.Term:
 		return false
 	default:
-		FromInterface(t)
+		frontend.FromInterface(t)
 		return true
 	}
 }
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (cs *plonkConstraintSystem) ConstantValue(v Variable) *big.Int {
+func (cs *SparseR1CRefactor) ConstantValue(v frontend.Variable) *big.Int {
 	if !cs.IsConstant(v) {
 		panic("v should be a constant")
 	}
-	res := FromInterface(v)
+	res := frontend.FromInterface(v)
 	return &res
 }
 
-// CurveID returns the ecc.ID injected by the compiler
-func (cs *plonkConstraintSystem) CurveID() ecc.ID {
-	return cs.curveID
-}
-
-// Backend returns the backend.ID injected by the compiler
-func (cs *plonkConstraintSystem) Backend() backend.ID {
-	return cs.backendID
-}
-
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (cs *plonkConstraintSystem) filterConstantSum(in ...interface{}) ([]compiled.Term, big.Int) {
+func (cs *SparseR1CRefactor) filterConstantSum(in ...interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
@@ -649,7 +529,7 @@ func (cs *plonkConstraintSystem) filterConstantSum(in ...interface{}) ([]compile
 		case compiled.Term:
 			res = append(res, t)
 		default:
-			n := FromInterface(t)
+			n := frontend.FromInterface(t)
 			b.Add(&b, &n)
 		}
 	}
@@ -657,7 +537,7 @@ func (cs *plonkConstraintSystem) filterConstantSum(in ...interface{}) ([]compile
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (cs *plonkConstraintSystem) filterConstantProd(in ...interface{}) ([]compiled.Term, big.Int) {
+func (cs *SparseR1CRefactor) filterConstantProd(in ...interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
@@ -666,29 +546,14 @@ func (cs *plonkConstraintSystem) filterConstantProd(in ...interface{}) ([]compil
 		case compiled.Term:
 			res = append(res, t)
 		default:
-			n := FromInterface(t)
+			n := frontend.FromInterface(t)
 			b.Mul(&b, &n)
 		}
 	}
 	return res, b
 }
 
-// computes the sum of the constant in in... and returns it as a bigInt
-func (cs *plonkConstraintSystem) sum(in ...interface{}) big.Int {
-	var res big.Int
-	for i := 0; i < len(in); i++ {
-		switch t := in[i].(type) {
-		case compiled.Term:
-			continue
-		default:
-			n := FromInterface(t)
-			res.Add(&res, &n)
-		}
-	}
-	return res
-}
-
-func (cs *plonkConstraintSystem) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (cs *SparseR1CRefactor) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -702,7 +567,7 @@ func (cs *plonkConstraintSystem) splitSum(acc compiled.Term, r []compiled.Term) 
 	return cs.splitSum(o, r[1:])
 }
 
-func (cs *plonkConstraintSystem) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (cs *SparseR1CRefactor) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {

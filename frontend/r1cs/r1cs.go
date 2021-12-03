@@ -1,0 +1,192 @@
+/*
+Copyright © 2021 ConsenSys Software Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package r1cs
+
+import (
+	"math/big"
+	"sort"
+
+	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/compiled"
+)
+
+type R1CSRefactor struct {
+	frontend.ConstraintSystem
+
+	Constraints []compiled.R1C
+}
+
+// newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
+// the wire's id to the number of wires, and returns it
+func (cs *R1CSRefactor) newInternalVariable() compiled.Variable {
+	t := false
+	idx := cs.NbInternalVariables
+	cs.NbInternalVariables++
+	return compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)},
+		IsBoolean: &t,
+	}
+}
+
+// NewPublicVariable creates a new public Variable
+func (cs *R1CSRefactor) NewPublicVariable(name string) compiled.Variable {
+	t := false
+	idx := cs.NbPublicVariables
+	cs.Public = append(cs.Public, name)
+	res := compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
+		IsBoolean: &t,
+	}
+	return res
+}
+
+// NewSecretVariable creates a new secret Variable
+func (cs *R1CSRefactor) NewSecretVariable(name string) compiled.Variable {
+	t := false
+	idx := cs.NbSecretVariables
+	cs.Secret = append(cs.Secret, name)
+	res := compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
+		IsBoolean: &t,
+	}
+	return res
+}
+
+// func (v *variable) constantValue(cs *R1CS) *big.Int {
+func (cs *R1CSRefactor) constantValue(v compiled.Variable) *big.Int {
+	// TODO this might be a good place to start hunting useless allocations.
+	// maybe through a big.Int pool.
+	if !v.IsConstant() {
+		panic("can't get big.Int value on a non-constant variable")
+	}
+	return new(big.Int).Set(&cs.Coeffs[v.LinExp[0].CoeffID()])
+}
+
+func (cs *R1CSRefactor) one() compiled.Variable {
+	t := false
+	return compiled.Variable{
+		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
+		IsBoolean: &t,
+	}
+}
+
+// reduces redundancy in linear expression
+// It factorizes Variable that appears multiple times with != coeff Ids
+// To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
+// for each visibility, the Variables are sorted from lowest ID to highest ID
+func (cs *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
+	// ensure our linear expression is sorted, by visibility and by Variable ID
+	if !sort.IsSorted(l.LinExp) { // may not help
+		sort.Sort(l.LinExp)
+	}
+
+	var c big.Int
+	for i := 1; i < len(l.LinExp); i++ {
+		pcID, pvID, pVis := l.LinExp[i-1].Unpack()
+		ccID, cvID, cVis := l.LinExp[i].Unpack()
+		if pVis == cVis && pvID == cvID {
+			// we have redundancy
+			c.Add(&cs.Coeffs[pcID], &cs.Coeffs[ccID])
+			l.LinExp[i-1].SetCoeffID(cs.CoeffID(&c))
+			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
+			i--
+		}
+	}
+	return l
+}
+
+// newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
+// and return a R1C
+func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
+	l := _l.(compiled.Variable)
+	r := _r.(compiled.Variable)
+	o := _o.(compiled.Variable)
+
+	// interestingly, this is key to groth16 performance.
+	// l * r == r * l == o
+	// but the "l" linear expression is going to end up in the A matrix
+	// the "r" linear expression is going to end up in the B matrix
+	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
+	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
+	if len(l.LinExp) > len(r.LinExp) {
+		l, r = r, l
+	}
+
+	return compiled.R1C{L: l.Clone(), R: r.Clone(), O: o.Clone()}
+}
+
+func (cs *R1CSRefactor) addConstraint(r1c compiled.R1C, debugID ...int) {
+	cs.Constraints = append(cs.Constraints, r1c)
+	if len(debugID) > 0 {
+		cs.MDebug[len(cs.Constraints)-1] = debugID[0]
+	}
+}
+
+// NewHint initializes an internal variable whose value will be evaluated using
+// the provided hint function at run time from the inputs. Inputs must be either
+// variables or convertible to *big.Int.
+//
+// The hint function is provided at the proof creation time and is not embedded
+// into the circuit. From the backend point of view, the variable returned by
+// the hint function is equivalent to the user-supplied witness, but its actual
+// value is assigned by the solver, not the caller.
+//
+// No new constraints are added to the newly created wire and must be added
+// manually in the circuit. Failing to do so leads to solver failure.
+func (cs *R1CSRefactor) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
+	// create resulting wire
+	r := cs.newInternalVariable()
+	_, vID, _ := r.LinExp[0].Unpack()
+
+	// mark hint as unconstrained, for now
+	//cs.mHintsConstrained[vID] = false
+
+	// now we need to store the linear expressions of the expected input
+	// that will be resolved in the solver
+	hintInputs := make([]compiled.LinearExpression, len(inputs))
+
+	// ensure inputs are set and pack them in a []uint64
+	for i, in := range inputs {
+		t := cs.constant(in).(compiled.Variable)
+		tmp := t.Clone()
+		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
+	}
+
+	// add the hint to the constraint system
+	cs.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+
+	return r
+}
+
+// Term packs a Variable and a coeff in a Term and returns it.
+// func (cs *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
+func (cs *R1CSRefactor) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
+	_, vID, vVis := v.Unpack()
+	return compiled.Pack(vID, cs.CoeffID(coeff), vVis)
+}
+
+// markBoolean marks the Variable as boolean and return true
+// if a constraint was added, false if the Variable was already
+// constrained as a boolean
+func (cs *R1CSRefactor) markBoolean(v compiled.Variable) bool {
+	if *v.IsBoolean {
+		return false
+	}
+	*v.IsBoolean = true
+	return true
+}
