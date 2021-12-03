@@ -195,11 +195,11 @@ func (cs *constraintSystem) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSyst
 	// we need to offset the ids in the hints
 	for vID, hint := range cs.mHints {
 		k := shiftVID(vID, compiled.Internal)
-		inputs := make([]compiled.Variable, len(hint.Inputs))
+		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
-			for k := 0; k < len(inputs[j].LinExp); k++ {
-				offsetTermID(&inputs[j].LinExp[k])
+			for k := 0; k < len(inputs[j]); k++ {
+				offsetTermID(&inputs[j][k])
 			}
 		}
 		res.ccs.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}

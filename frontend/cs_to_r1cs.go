@@ -109,10 +109,10 @@ func (cs *constraintSystem) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, er
 	// we need to offset the ids in the hints
 	for vID, hint := range cs.mHints {
 		k := shiftVID(vID, compiled.Internal)
-		inputs := make([]compiled.Variable, len(hint.Inputs))
+		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
-			offsetIDs(inputs[j].LinExp)
+			offsetIDs(inputs[j])
 		}
 		res.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}

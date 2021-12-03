@@ -153,12 +153,13 @@ func (cs *constraintSystem) NewHint(f hint.Function, inputs ...interface{}) Vari
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
-	hintInputs := make([]compiled.Variable, len(inputs))
+	hintInputs := make([]compiled.LinearExpression, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		t := cs.constant(in).(compiled.Variable)
-		hintInputs[i] = t.Clone() // TODO @gbotrel check that we need to clone here ?
+		tmp := t.Clone()
+		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system
