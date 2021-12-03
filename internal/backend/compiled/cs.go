@@ -11,6 +11,7 @@ import (
 
 // CS contains common element between R1CS and CS
 type CS struct {
+
 	// number of wires
 	NbInternalVariables int
 	NbPublicVariables   int
@@ -18,20 +19,19 @@ type CS struct {
 
 	// logs (added with cs.Println, resolved when solver sets a value to a wire)
 	Logs []LogEntry
-
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
 	DebugInfo []LogEntry
-
-	// maps wire id to hint
-	// a wire may point to at most one hint
-	MHints map[int]Hint
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
 	Counters []Counter // TODO @gbotrel no point in serializing these
+	// maps wire id to hint
+
+	// a wire may point to at most one hint
+	MHints map[int]Hint
 }
 
 // Visibility encodes a Variable (or wire) visibility

@@ -189,7 +189,60 @@ func (cs *plonkConstraintSystem) Inverse(i1 interface{}) Variable {
 //
 // The result in in little endian (first bit= lsb)
 func (cs *plonkConstraintSystem) ToBinary(i1 interface{}, n ...int) []Variable {
-	return []Variable{}
+
+	// nbBits
+	nbBits := cs.bitLen()
+	if len(n) == 1 {
+		nbBits = n[0]
+		if nbBits < 0 {
+			panic("invalid n")
+		}
+	}
+
+	// if a is a constant, work with the big int value.
+	if cs.IsConstant(i1) {
+		c := FromInterface(i1)
+		b := make([]Variable, nbBits)
+		for i := 0; i < len(b); i++ {
+			b[i] = c.Bit(i)
+		}
+		return b
+	}
+
+	a := i1.(compiled.Term)
+	return cs.toBinary(a, nbBits, false)
+}
+
+func (cs *plonkConstraintSystem) toBinary(a compiled.Term, nbBits int, unsafe bool) []Variable {
+
+	// allocate the resulting Variables and bit-constraint them
+	b := make([]Variable, nbBits)
+	sb := make([]interface{}, nbBits)
+	var c big.Int
+	c.SetUint64(1)
+	for i := 0; i < nbBits; i++ {
+		b[i] = cs.NewHint(hint.IthBit, a, i)
+		sb[i] = cs.Mul(b[i], c)
+		c.Lsh(&c, 1)
+		if !unsafe {
+			cs.AssertIsBoolean(b[i])
+		}
+	}
+
+	//var Σbi compiled.Variable
+	var Σbi Variable
+	if nbBits == 1 {
+		cs.AssertIsEqual(sb[0], a)
+	} else if nbBits == 2 {
+		Σbi = cs.Add(sb[0], sb[1])
+	} else {
+		Σbi = cs.Add(sb[0], sb[1], sb[2:]...)
+	}
+	cs.AssertIsEqual(Σbi, a)
+
+	// record the constraint Σ (2**i * b[i]) == a
+	return b
+
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
@@ -316,7 +369,23 @@ func (cs *plonkConstraintSystem) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 inte
 
 // IsZero returns 1 if a is zero, 0 otherwise
 func (cs *plonkConstraintSystem) IsZero(i1 interface{}) Variable {
-	return 0
+
+	if cs.IsConstant(i1) {
+		a := FromInterface(i1)
+		var zero big.Int
+		if a.Cmp(&zero) != 0 {
+			panic("input should be zero")
+		}
+		return 1
+	}
+
+	a := i1.(compiled.Term)
+	m := cs.NewHint(hint.IsZero, a)
+	cs.AssertIsBoolean(i1)
+	cs.addPlonkConstraint(a, m, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+	ma := cs.Add(m, a)
+	cs.Inverse(ma)
+	return m
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -351,6 +420,7 @@ func (cs *plonkConstraintSystem) AssertIsEqual(i1, i2 interface{}) {
 
 // AssertIsDifferent fails if i1 == i2
 func (cs *plonkConstraintSystem) AssertIsDifferent(i1, i2 interface{}) {
+	cs.Inverse(cs.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 || v != 1
@@ -369,6 +439,105 @@ func (cs *plonkConstraintSystem) AssertIsBoolean(i1 interface{}) {
 
 // AssertIsLessOrEqual fails if  v > bound
 func (cs *plonkConstraintSystem) AssertIsLessOrEqual(v Variable, bound interface{}) {
+	switch b := bound.(type) {
+	case compiled.Term:
+		cs.mustBeLessOrEqVar(v.(compiled.Term), b)
+	default:
+		cs.mustBeLessOrEqCst(v.(compiled.Term), FromInterface(b))
+	}
+}
+
+func (cs *plonkConstraintSystem) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+
+	nbBits := cs.bitLen()
+
+	// ensure the bound is positive, it's bit-len doesn't matter
+	if bound.Sign() == -1 {
+		panic("AssertIsLessOrEqual: bound must be positive")
+	}
+	if bound.BitLen() > nbBits {
+		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
+	}
+
+	// debug info
+	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+
+	// note that at this stage, we didn't boolean-constraint these new variables yet
+	// (as opposed to ToBinary)
+	aBits := cs.toBinary(a, nbBits, true)
+
+	// t trailing bits in the bound
+	t := 0
+	for i := 0; i < nbBits; i++ {
+		if bound.Bit(i) == 0 {
+			break
+		}
+		t++
+	}
+
+	p := make([]Variable, nbBits+1)
+	// p[i] == 1 --> a[j] == c[j] for all j >= i
+	p[nbBits] = 1
+
+	for i := nbBits - 1; i >= t; i-- {
+		if bound.Bit(i) == 0 {
+			p[i] = p[i+1]
+		} else {
+			p[i] = cs.Mul(p[i+1], aBits[i])
+		}
+	}
+
+	for i := nbBits - 1; i >= 0; i-- {
+		if bound.Bit(i) == 0 {
+			// (1 - p(i+1) - ai) * ai == 0
+			l := cs.Sub(1, p[i+1]).(compiled.Variable)
+			l = cs.Sub(l, aBits[i]).(compiled.Variable)
+
+			cs.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+			// cs.markBoolean(aBits[i].(compiled.Variable))
+		} else {
+			cs.AssertIsBoolean(aBits[i])
+		}
+	}
+
+}
+
+func (cs *plonkConstraintSystem) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+
+	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+
+	nbBits := cs.bitLen()
+
+	aBits := cs.toBinary(a, nbBits, true)
+	boundBits := cs.ToBinary(bound, nbBits)
+
+	p := make([]Variable, nbBits+1)
+	p[nbBits] = 1
+
+	for i := nbBits - 1; i >= 0; i-- {
+
+		// if bound[i] == 0
+		// 		p[i] = p[i+1]
+		//		t = p[i+1]
+		// else
+		// 		p[i] = p[i+1] * a[i]
+		//		t = 0
+		v := cs.Mul(p[i+1], aBits[i])
+		p[i] = cs.Select(boundBits[i], v, p[i+1])
+
+		t := cs.Select(boundBits[i], 0, p[i+1])
+
+		// (1 - t - ai) * ai == 0
+		l := cs.Sub(1, t, aBits[i])
+
+		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
+		// --> this is a boolean constraint
+		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
+		// cs.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
+
+		cs.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	}
+
 }
 
 // Println behaves like fmt.Println but accepts frontend.Variable as parameter
@@ -414,21 +583,6 @@ func (cs *plonkConstraintSystem) Println(a ...interface{}) {
 	log.Format = sbb.String()
 
 	cs.logs = append(cs.logs, log)
-}
-
-// NewHint initializes an internal variable whose value will be evaluated
-// using the provided hint function at run time from the inputs. Inputs must
-// be either variables or convertible to *big.Int.
-//
-// The hint function is provided at the proof creation time and is not
-// embedded into the circuit. From the backend point of view, the variable
-// returned by the hint function is equivalent to the user-supplied witness,
-// but its actual value is assigned by the solver, not the caller.
-//
-// No new constraints are added to the newly created wire and must be added
-// manually in the circuit. Failing to do so leads to solver failure.
-func (cs *plonkConstraintSystem) NewHint(f hint.Function, inputs ...interface{}) Variable {
-	return 0
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to

@@ -154,7 +154,7 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 	// debug info
 	debug := cs.addDebugInfo("mustBeLessOrEq", a, " <= ", cs.constant(bound))
 
-	// note that at this stage, we didn't boolean-constraint these new Variables yet
+	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)
 	aBits := cs.toBinary(a, nbBits, true)
 
@@ -169,30 +169,22 @@ func (cs *constraintSystem) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 
 	p := make([]Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
+	p[nbBits] = cs.constant(1)
 
-	// The loop "for i := nbBits - 1; i >= t; i--" is split in 2. First, loop while if bound.Bit(i) == 0
-	// to isolate the p[i] constants. Then, populate p.
-	var counterConstant int
-	for counterConstant = nbBits - 1; counterConstant >= t && bound.Bit(counterConstant) == 0; counterConstant-- {
-	}
-	p[counterConstant+1] = cs.constant(1)
-	for i := counterConstant; i >= t; i-- {
-		if bound.Bit(i) == 0 { // at i=counterConstant, this statement is always false
+	for i := nbBits - 1; i >= t; i-- {
+		if bound.Bit(i) == 0 {
 			p[i] = p[i+1]
 		} else {
 			p[i] = cs.Mul(p[i+1], aBits[i])
 		}
 	}
 
-	for i := nbBits - 1; i > counterConstant; i-- {
-		cs.AssertIsEqual(aBits[i].(compiled.Variable), 0)
-	}
-	for i := counterConstant; i >= 0; i-- {
+	for i := nbBits - 1; i >= 0; i-- {
 		if bound.Bit(i) == 0 {
-			// (1-p(i+1)-ai)*ai == 0
-			var l Variable
-			l = cs.one()
-			l = cs.Sub(l, p[i+1], aBits[i])
+			// (1 - p(i+1) - ai) * ai == 0
+			l := cs.one()
+			l = cs.Sub(l, p[i+1]).(compiled.Variable)
+			l = cs.Sub(l, aBits[i]).(compiled.Variable)
 
 			cs.addConstraint(newR1C(l, aBits[i], cs.constant(0)), debug)
 			cs.markBoolean(aBits[i].(compiled.Variable))

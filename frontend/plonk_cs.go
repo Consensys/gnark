@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -162,4 +163,41 @@ func (cs *plonkConstraintSystem) addDebugInfo(errName string, i ...interface{}) 
 
 	cs.debugInfo = append(cs.debugInfo, l)
 	return len(cs.debugInfo) - 1
+}
+
+func (cs *plonkConstraintSystem) NewHint(f hint.Function, inputs ...interface{}) Variable {
+	// create resulting wire
+	r := cs.newInternalVariable()
+	_, vID, _ := r.Unpack()
+
+	// mark hint as unconstrained, for now
+	cs.mHintsConstrained[vID] = false
+
+	// now we need to store the linear expressions of the expected input
+	// that will be resolved in the solver
+	hintInputs := make([]compiled.LinearExpression, len(inputs))
+
+	// ensure inputs are set and pack them in a []uint64
+	for i, in := range inputs {
+		switch t := in.(type) {
+		case compiled.Term:
+			hintInputs[i] = []compiled.Term{t}
+		default:
+			n := FromInterface(in)
+			id := cs.coeffID(&n)
+			var u compiled.Term
+			u.SetCoeffID(id)
+			u.SetWireID(-1) // -1 so it is recognized as a constant
+		}
+	}
+
+	// add the hint to the constraint system
+	cs.mHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+
+	return r
+}
+
+// bitLen returns the number of bits needed to represent a fr.Element
+func (cs *plonkConstraintSystem) bitLen() int {
+	return cs.curveID.Info().Fr.Bits
 }
