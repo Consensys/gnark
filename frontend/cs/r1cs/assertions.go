@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -64,17 +63,6 @@ func (system *R1CSRefactor) AssertIsBoolean(i1 interface{}) {
 	debug := system.AddDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	o := system.constant(0)
-
-	// We always have len(v.LinExp) == 1 when the backend is plonk, so it simplifies the conversion
-	// to sparse r1system.
-	if system.BackendID == backend.PLONK {
-		one := system.one()
-		_v := system.Neg(v).(compiled.Variable)
-		r := compiled.Variable{LinExp: []compiled.Term{one.LinExp[0], _v.LinExp[0]}}
-
-		system.addConstraint(newR1C(v, r, o), debug)
-		return
-	}
 
 	// ensure v * (1 - v) == 0
 	_v := system.Sub(1, v)

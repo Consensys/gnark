@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
@@ -34,7 +35,7 @@ import (
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (cs *R1CS) Println(a ...interface{}) {
+func (system *R1CS) Println(a ...interface{}) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -69,7 +70,7 @@ func (cs *R1CS) Println(a ...interface{}) {
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()
 
-	cs.logs = append(cs.logs, log)
+	system.logs = append(system.logs, log)
 }
 
 func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
@@ -111,7 +112,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 	sbb.WriteByte('}')
 }
 
-func (cs *R1CS) addDebugInfo(errName string, i ...interface{}) int {
+func (system *R1CS) addDebugInfo(errName string, i ...interface{}) int {
 	var l compiled.LogEntry
 
 	const minLogSize = 500
@@ -146,25 +147,25 @@ func (cs *R1CS) addDebugInfo(errName string, i ...interface{}) int {
 	debug.WriteStack(&sbb)
 	l.Format = sbb.String()
 
-	cs.debugInfo = append(cs.debugInfo, l)
-	return len(cs.debugInfo) - 1
+	system.debugInfo = append(system.debugInfo, l)
+	return len(system.debugInfo) - 1
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (cs *R1CS) Tag(name string) Tag {
+func (system *R1CS) Tag(name string) cs.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
-	return Tag{
+	return cs.Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		VID:  cs.internal,
-		CID:  len(cs.constraints),
+		VID:  system.internal,
+		CID:  len(system.constraints),
 	}
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (cs *R1CS) AddCounter(from, to Tag) {
-	cs.counters = append(cs.counters, Counter{
+func (system *R1CS) AddCounter(from, to Tag) {
+	system.counters = append(system.counters, Counter{
 		From:          from,
 		To:            to,
 		NbVariables:   to.VID - from.VID,

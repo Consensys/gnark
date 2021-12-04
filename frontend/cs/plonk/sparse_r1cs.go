@@ -75,7 +75,6 @@ func NewSparseR1CS(curveID ecc.ID, backendID backend.ID, initialCapacity ...int)
 	system.Secret = make([]string, 0)
 
 	system.CurveID = curveID
-	system.BackendID = backendID
 
 	return &system
 }

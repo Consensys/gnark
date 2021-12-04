@@ -27,7 +27,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend/counter"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -475,10 +474,10 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *SparseR1CS) Tag(name string) counter.Tag {
+func (system *SparseR1CS) Tag(name string) cs.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
-	return counter.Tag{
+	return cs.Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
 		VID:  system.NbInternalVariables,
 		CID:  len(system.Constraints),
@@ -488,7 +487,7 @@ func (system *SparseR1CS) Tag(name string) counter.Tag {
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
 // note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 // are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (system *SparseR1CS) AddCounter(from, to counter.Tag) {
+func (system *SparseR1CS) AddCounter(from, to cs.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,
@@ -518,6 +517,10 @@ func (system *SparseR1CS) ConstantValue(v cs.Variable) *big.Int {
 	}
 	res := utils.FromInterface(v)
 	return &res
+}
+
+func (system *SparseR1CS) Backend() backend.ID {
+	return backend.PLONK
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt

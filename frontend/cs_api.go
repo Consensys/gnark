@@ -21,16 +21,17 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // Add returns res = i1+i2+...in
-func (cs *R1CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
+func (system *R1CS) Add(i1, i2 interface{}, in ...interface{}) cs.Variable {
 
-	// extract Variables from input
-	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
+	// extract cs.Variables from input
+	vars, s := system.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	// allocate resulting Variable
+	// allocate resulting cs.Variable
 	t := false
 	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s), IsBoolean: &t}
 
@@ -39,14 +40,14 @@ func (cs *R1CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 		res.LinExp = append(res.LinExp, l.LinExp...)
 	}
 
-	res = cs.reduce(res)
+	res = system.reduce(res)
 
-	if cs.Backend() == backend.PLONK {
+	if system.Backend() == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+		_res := system.newInternalVariable()
+		system.constraints = append(system.constraints, newR1C(system.one(), res, _res))
 		return _res
 	}
 
@@ -54,28 +55,28 @@ func (cs *R1CS) Add(i1, i2 interface{}, in ...interface{}) Variable {
 }
 
 // Neg returns -i
-func (cs *R1CS) Neg(i interface{}) Variable {
-	vars, _ := cs.toVariables(i)
+func (system *R1CS) Neg(i interface{}) cs.Variable {
+	vars, _ := system.toVariables(i)
 
 	if vars[0].IsConstant() {
-		n := cs.constantValue(vars[0])
+		n := system.constantValue(vars[0])
 		n.Neg(n)
-		return cs.constant(n)
+		return system.constant(n)
 	}
 
 	// ok to pass pointer since if i is boolean constrained later, so must be res
-	res := compiled.Variable{LinExp: cs.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
+	res := compiled.Variable{LinExp: system.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
 
 	return res
 }
 
 // Sub returns res = i1 - i2
-func (cs *R1CS) Sub(i1, i2 interface{}, in ...interface{}) Variable {
+func (system *R1CS) Sub(i1, i2 interface{}, in ...interface{}) cs.Variable {
 
-	// extract Variables from input
-	vars, s := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
+	// extract cs.Variables from input
+	vars, s := system.toVariables(append([]interface{}{i1, i2}, in...)...)
 
-	// allocate resulting Variable
+	// allocate resulting cs.Variable
 	t := false
 	res := compiled.Variable{
 		LinExp:    make([]compiled.Term, 0, s),
@@ -85,19 +86,19 @@ func (cs *R1CS) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 	c := vars[0].Clone()
 	res.LinExp = append(res.LinExp, c.LinExp...)
 	for i := 1; i < len(vars); i++ {
-		negLinExp := cs.negateLinExp(vars[i].LinExp)
+		negLinExp := system.negateLinExp(vars[i].LinExp)
 		res.LinExp = append(res.LinExp, negLinExp...)
 	}
 
 	// reduce linear expression
-	res = cs.reduce(res)
+	res = system.reduce(res)
 
-	if cs.Backend() == backend.PLONK {
+	if system.Backend() == backend.PLONK {
 		if len(res.LinExp) == 1 {
 			return res
 		}
-		_res := cs.newInternalVariable()
-		cs.constraints = append(cs.constraints, newR1C(cs.one(), res, _res))
+		_res := system.newInternalVariable()
+		system.constraints = append(system.constraints, newR1C(system.one(), res, _res))
 		return _res
 	}
 
@@ -105,25 +106,25 @@ func (cs *R1CS) Sub(i1, i2 interface{}, in ...interface{}) Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (cs *R1CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
-	vars, _ := cs.toVariables(append([]interface{}{i1, i2}, in...)...)
+func (system *R1CS) Mul(i1, i2 interface{}, in ...interface{}) cs.Variable {
+	vars, _ := system.toVariables(append([]interface{}{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
 
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1.IsConstant() && !v2.IsConstant() {
-			res := cs.newInternalVariable()
-			cs.constraints = append(cs.constraints, newR1C(v1, v2, res))
+			res := system.newInternalVariable()
+			system.constraints = append(system.constraints, newR1C(v1, v2, res))
 			return res
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1.IsConstant() && v2.IsConstant() {
-			b1 := cs.constantValue(v1)
-			b2 := cs.constantValue(v2)
+			b1 := system.constantValue(v1)
+			b2 := system.constantValue(v2)
 
-			b1.Mul(b1, b2).Mod(b1, cs.curveID.Info().Fr.Modulus())
-			return cs.constant(b1).(compiled.Variable)
+			b1.Mul(b1, b2).Mod(b1, system.curveID.Info().Fr.Modulus())
+			return system.constant(b1).(compiled.Variable)
 		}
 
 		// ensure v2 is the constant
@@ -131,7 +132,7 @@ func (cs *R1CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 			v1, v2 = v2, v1
 		}
 
-		return cs.mulConstant(v1, v2)
+		return system.mulConstant(v1, v2)
 	}
 
 	res := mul(vars[0], vars[1])
@@ -143,11 +144,11 @@ func (cs *R1CS) Mul(i1, i2 interface{}, in ...interface{}) Variable {
 	return res
 }
 
-func (cs *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
-	// multiplying a Variable by a constant -> we updated the coefficients in the linear expression
-	// leading to that Variable
+func (system *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
+	// multiplying a cs.Variable by a constant -> we updated the coefficients in the linear expression
+	// leading to that cs.Variable
 	res := v1.Clone()
-	lambda := cs.constantValue(constant)
+	lambda := system.constantValue(constant)
 
 	for i, t := range v1.LinExp {
 		cID, vID, visibility := t.Unpack()
@@ -162,10 +163,10 @@ func (cs *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
 		case compiled.CoeffIdTwo:
 			newCoeff.Add(lambda, lambda)
 		default:
-			coeff := cs.coeffs[cID]
+			coeff := system.coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		res.LinExp[i] = compiled.Pack(vID, cs.coeffID(&newCoeff), visibility)
+		res.LinExp[i] = compiled.Pack(vID, system.coeffID(&newCoeff), visibility)
 	}
 	t := false
 	res.IsBoolean = &t
@@ -173,196 +174,196 @@ func (cs *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
 }
 
 // Inverse returns res = inverse(v)
-func (cs *R1CS) Inverse(i1 interface{}) Variable {
-	vars, _ := cs.toVariables(i1)
+func (system *R1CS) Inverse(i1 interface{}) cs.Variable {
+	vars, _ := system.toVariables(i1)
 
 	if vars[0].IsConstant() {
 		// c := vars[0].constantValue(cs)
-		c := cs.constantValue(vars[0])
+		c := system.constantValue(vars[0])
 		if c.IsUint64() && c.Uint64() == 0 {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, cs.curveID.Info().Fr.Modulus())
-		return cs.constant(c)
+		c.ModInverse(c, system.curveID.Info().Fr.Modulus())
+		return system.constant(c)
 	}
 
-	// allocate resulting Variable
-	res := cs.newInternalVariable()
+	// allocate resulting cs.Variable
+	res := system.newInternalVariable()
 
-	debug := cs.addDebugInfo("inverse", vars[0], "*", res, " == 1")
-	cs.addConstraint(newR1C(res, vars[0], cs.one()), debug)
+	debug := system.addDebugInfo("inverse", vars[0], "*", res, " == 1")
+	system.addConstraint(newR1C(res, vars[0], system.one()), debug)
 
 	return res
 }
 
 // Div returns res = i1 / i2
-func (cs *R1CS) Div(i1, i2 interface{}) Variable {
-	vars, _ := cs.toVariables(i1, i2)
+func (system *R1CS) Div(i1, i2 interface{}) cs.Variable {
+	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
 
 	if !v2.IsConstant() {
-		res := cs.newInternalVariable()
-		debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
-		v2Inv := cs.newInternalVariable()
+		res := system.newInternalVariable()
+		debug := system.addDebugInfo("div", v1, "/", v2, " == ", res)
+		v2Inv := system.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		cs.addConstraint(newR1C(v2, v2Inv, cs.one()), debug)
-		cs.addConstraint(newR1C(v1, v2Inv, res), debug)
+		system.addConstraint(newR1C(v2, v2Inv, system.one()), debug)
+		system.addConstraint(newR1C(v1, v2Inv, res), debug)
 		return res
 	}
 
 	// v2 is constant
-	b2 := cs.constantValue(v2)
+	b2 := system.constantValue(v2)
 	if b2.IsUint64() && b2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := cs.curveID.Info().Fr.Modulus()
+	q := system.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.IsConstant() {
-		b2.Mul(b2, cs.constantValue(v1)).Mod(b2, q)
-		return cs.constant(b2)
+		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
+		return system.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.constant(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-func (cs *R1CS) DivUnchecked(i1, i2 interface{}) Variable {
-	vars, _ := cs.toVariables(i1, i2)
+func (system *R1CS) DivUnchecked(i1, i2 interface{}) cs.Variable {
+	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
 
 	if !v2.IsConstant() {
-		res := cs.newInternalVariable()
-		debug := cs.addDebugInfo("div", v1, "/", v2, " == ", res)
+		res := system.newInternalVariable()
+		debug := system.addDebugInfo("div", v1, "/", v2, " == ", res)
 		// note that here we don't ensure that divisor is != 0
-		cs.addConstraint(newR1C(v2, res, v1), debug)
+		system.addConstraint(newR1C(v2, res, v1), debug)
 		return res
 	}
 
 	// v2 is constant
-	b2 := cs.constantValue(v2)
+	b2 := system.constantValue(v2)
 	if b2.IsUint64() && b2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := cs.curveID.Info().Fr.Modulus()
+	q := system.curveID.Info().Fr.Modulus()
 	b2.ModInverse(b2, q)
 
 	if v1.IsConstant() {
-		b2.Mul(b2, cs.constantValue(v1)).Mod(b2, q)
-		return cs.constant(b2)
+		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
+		return system.constant(b2)
 	}
 
 	// v1 is not constant
-	return cs.mulConstant(v1, cs.constant(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-// Xor compute the XOR between two Variables
-func (cs *R1CS) Xor(_a, _b Variable) Variable {
+// Xor compute the XOR between two cs.Variables
+func (system *R1CS) Xor(_a, _b cs.Variable) cs.Variable {
 
-	vars, _ := cs.toVariables(_a, _b)
+	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	cs.AssertIsBoolean(a)
-	cs.AssertIsBoolean(b)
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 
 	// the formulation used is for easing up the conversion to sparse r1cs
-	res := cs.newInternalVariable()
+	res := system.newInternalVariable()
 	res.IsBoolean = new(bool)
 	*res.IsBoolean = true
-	c := cs.Neg(res).(compiled.Variable)
+	c := system.Neg(res).(compiled.Variable)
 	c.IsBoolean = new(bool)
 	*c.IsBoolean = false
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
-	aa := cs.Mul(a, 2)
-	cs.constraints = append(cs.constraints, newR1C(aa, b, c))
+	aa := system.Mul(a, 2)
+	system.constraints = append(system.constraints, newR1C(aa, b, c))
 
 	return res
 }
 
-// Or compute the OR between two Variables
-func (cs *R1CS) Or(_a, _b Variable) Variable {
-	vars, _ := cs.toVariables(_a, _b)
+// Or compute the OR between two cs.Variables
+func (system *R1CS) Or(_a, _b cs.Variable) cs.Variable {
+	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	cs.AssertIsBoolean(a)
-	cs.AssertIsBoolean(b)
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 
 	// the formulation used is for easing up the conversion to sparse r1cs
-	res := cs.newInternalVariable()
+	res := system.newInternalVariable()
 	res.IsBoolean = new(bool)
 	*res.IsBoolean = true
-	c := cs.Neg(res).(compiled.Variable)
+	c := system.Neg(res).(compiled.Variable)
 	c.IsBoolean = new(bool)
 	*c.IsBoolean = false
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
-	cs.constraints = append(cs.constraints, newR1C(a, b, c))
+	system.constraints = append(system.constraints, newR1C(a, b, c))
 
 	return res
 }
 
-// And compute the AND between two Variables
-func (cs *R1CS) And(_a, _b Variable) Variable {
-	vars, _ := cs.toVariables(_a, _b)
+// And compute the AND between two cs.Variables
+func (system *R1CS) And(_a, _b cs.Variable) cs.Variable {
+	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	cs.AssertIsBoolean(a)
-	cs.AssertIsBoolean(b)
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 
-	res := cs.Mul(a, b)
+	res := system.Mul(a, b)
 
 	return res
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (cs *R1CS) IsZero(i1 interface{}) Variable {
-	vars, _ := cs.toVariables(i1)
+func (system *R1CS) IsZero(i1 interface{}) cs.Variable {
+	vars, _ := system.toVariables(i1)
 	a := vars[0]
 	if a.IsConstant() {
 		// c := a.constantValue(cs)
-		c := cs.constantValue(a)
+		c := system.constantValue(a)
 		if c.IsUint64() && c.Uint64() == 0 {
-			return cs.constant(1)
+			return system.constant(1)
 		}
-		return cs.constant(0)
+		return system.constant(0)
 	}
 
-	debug := cs.addDebugInfo("isZero", a)
+	debug := system.addDebugInfo("isZero", a)
 
 	//m * (1 - m) = 0       // constrain m to be 0 or 1
 	// a * m = 0            // constrain m to be 0 if a != 0
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	m := cs.NewHint(hint.IsZero, a)
-	cs.addConstraint(newR1C(a, m, cs.constant(0)), debug)
+	m := system.NewHint(hint.IsZero, a)
+	system.addConstraint(newR1C(a, m, system.constant(0)), debug)
 
-	cs.AssertIsBoolean(m)
-	ma := cs.Add(m, a)
-	_ = cs.Inverse(ma)
+	system.AssertIsBoolean(m)
+	ma := system.Add(m, a)
+	_ = system.Inverse(ma)
 	return m
 
 }
 
-// ToBinary unpacks a Variable in binary,
+// ToBinary unpacks a cs.Variable in binary,
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (cs *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
+func (system *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
 
 	// nbBits
-	nbBits := cs.bitLen()
+	nbBits := system.bitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -370,56 +371,56 @@ func (cs *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
 		}
 	}
 
-	vars, _ := cs.toVariables(i1)
+	vars, _ := system.toVariables(i1)
 	a := vars[0]
 
 	// if a is a constant, work with the big int value.
 	if a.IsConstant() {
-		c := cs.constantValue(a)
+		c := system.constantValue(a)
 		b := make([]compiled.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
-			b[i] = cs.constant(c.Bit(i)).(compiled.Variable)
+			b[i] = system.constant(c.Bit(i)).(compiled.Variable)
 		}
 		return toSliceOfVariables(b)
 	}
 
-	return cs.toBinary(a, nbBits, false)
+	return system.toBinary(a, nbBits, false)
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (cs *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
+func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
 
 	if a.IsConstant() {
-		return cs.ToBinary(a, nbBits)
+		return system.ToBinary(a, nbBits)
 	}
 
 	// ensure a is set
 	a.AssertIsSet()
 
-	// allocate the resulting Variables and bit-constraint them
+	// allocate the resulting cs.Variables and bit-constraint them
 	b := make([]Variable, nbBits)
 	sb := make([]interface{}, nbBits)
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
-		b[i] = cs.NewHint(hint.IthBit, a, i)
-		sb[i] = cs.Mul(b[i], c)
+		b[i] = system.NewHint(hint.IthBit, a, i)
+		sb[i] = system.Mul(b[i], c)
 		c.Lsh(&c, 1)
 		if !unsafe {
-			cs.AssertIsBoolean(b[i])
+			system.AssertIsBoolean(b[i])
 		}
 	}
 
 	//var Σbi compiled.Variable
-	var Σbi Variable
+	var Σbi cs.Variable
 	if nbBits == 1 {
-		cs.AssertIsEqual(sb[0], a)
+		system.AssertIsEqual(sb[0], a)
 	} else if nbBits == 2 {
-		Σbi = cs.Add(sb[0], sb[1])
+		Σbi = system.Add(sb[0], sb[1])
 	} else {
-		Σbi = cs.Add(sb[0], sb[1], sb[2:]...)
+		Σbi = system.Add(sb[0], sb[1], sb[2:]...)
 	}
-	cs.AssertIsEqual(Σbi, a)
+	system.AssertIsEqual(Σbi, a)
 
 	// record the constraint Σ (2**i * b[i]) == a
 	return b
@@ -436,8 +437,8 @@ func toSliceOfVariables(v []compiled.Variable) []Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (cs *R1CS) FromBinary(_b ...interface{}) Variable {
-	b, _ := cs.toVariables(_b...)
+func (system *R1CS) FromBinary(_b ...interface{}) cs.Variable {
+	b, _ := system.toVariables(_b...)
 
 	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
@@ -446,17 +447,17 @@ func (cs *R1CS) FromBinary(_b ...interface{}) Variable {
 
 	// res = Σ (2**i * b[i])
 
-	var res, v Variable
-	res = cs.constant(0) // no constraint is recorded
+	var res, v cs.Variable
+	res = system.constant(0) // no constraint is recorded
 
 	var c big.Int
 	c.SetUint64(1)
 
 	L := make([]compiled.Term, len(b))
 	for i := 0; i < len(L); i++ {
-		v = cs.Mul(c, b[i])      // no constraint is recorded
-		res = cs.Add(v, res)     // no constraint is recorded
-		cs.AssertIsBoolean(b[i]) // ensures the b[i]'s are boolean
+		v = system.Mul(c, b[i])      // no constraint is recorded
+		res = system.Add(v, res)     // no constraint is recorded
+		system.AssertIsBoolean(b[i]) // ensures the b[i]'s are boolean
 		c.Lsh(&c, 1)
 	}
 
@@ -464,50 +465,50 @@ func (cs *R1CS) FromBinary(_b ...interface{}) Variable {
 }
 
 // Select if i0 is true, yields i1 else yields i2
-func (cs *R1CS) Select(i0, i1, i2 interface{}) Variable {
+func (system *R1CS) Select(i0, i1, i2 interface{}) cs.Variable {
 
-	vars, _ := cs.toVariables(i0, i1, i2)
+	vars, _ := system.toVariables(i0, i1, i2)
 	b := vars[0]
 
 	// ensures that b is boolean
-	cs.AssertIsBoolean(b)
+	system.AssertIsBoolean(b)
 
 	if vars[1].IsConstant() && vars[2].IsConstant() {
-		n1 := cs.constantValue(vars[1])
-		n2 := cs.constantValue(vars[2])
+		n1 := system.constantValue(vars[1])
+		n2 := system.constantValue(vars[2])
 		diff := n1.Sub(n1, n2)
-		res := cs.Mul(b, diff)     // no constraint is recorded
-		res = cs.Add(res, vars[2]) // no constraint is recorded
+		res := system.Mul(b, diff)     // no constraint is recorded
+		res = system.Add(res, vars[2]) // no constraint is recorded
 		return res
 	}
 
 	// special case appearing in AssertIsLessOrEq
 	if vars[1].IsConstant() {
-		n1 := cs.constantValue(vars[1])
+		n1 := system.constantValue(vars[1])
 		if n1.IsUint64() && n1.Uint64() == 0 {
-			v := cs.Sub(1, vars[0])
-			return cs.Mul(v, vars[2])
+			v := system.Sub(1, vars[0])
+			return system.Mul(v, vars[2])
 		}
 	}
 
-	v := cs.Sub(vars[1], vars[2]) // no constraint is recorded
-	w := cs.Mul(b, v)
-	return cs.Add(w, vars[2])
+	v := system.Sub(vars[1], vars[2]) // no constraint is recorded
+	w := system.Mul(b, v)
+	return system.Add(w, vars[2])
 
 }
 
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (cs *R1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable {
-	vars, _ := cs.toVariables(b0, b1, i0, i1, i2, i3)
+func (system *R1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) cs.Variable {
+	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
 
 	// ensure that bits are actually bits. Adds no constraints if the variables
 	// are already constrained.
-	cs.AssertIsBoolean(s0)
-	cs.AssertIsBoolean(s1)
+	system.AssertIsBoolean(s0)
+	system.AssertIsBoolean(s1)
 
 	// two-bit lookup for the general case can be done with three constraints as
 	// following:
@@ -517,47 +518,47 @@ func (cs *R1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) Variable
 	// the variables tmp1 and tmp2 are new internal variables and the variables
 	// RES will be the returned result
 
-	tmp1 := cs.Add(in3, in0)
-	tmp1 = cs.Sub(tmp1, in2, in1)
-	tmp1 = cs.Mul(tmp1, s1)
-	tmp1 = cs.Add(tmp1, in1)
-	tmp1 = cs.Sub(tmp1, in0) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
-	tmp2 := cs.Mul(tmp1, s0) // (2) tmp2 = tmp1 * s0
-	res := cs.Sub(in2, in0)
-	res = cs.Mul(res, s1)
-	res = cs.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
+	tmp1 := system.Add(in3, in0)
+	tmp1 = system.Sub(tmp1, in2, in1)
+	tmp1 = system.Mul(tmp1, s1)
+	tmp1 = system.Add(tmp1, in1)
+	tmp1 = system.Sub(tmp1, in0) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp2 := system.Mul(tmp1, s0) // (2) tmp2 = tmp1 * s0
+	res := system.Sub(in2, in0)
+	res = system.Mul(res, s1)
+	res = system.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
 	return res
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (cs *R1CS) IsConstant(v Variable) bool {
+func (system *R1CS) IsConstant(v cs.Variable) bool {
 	if _v, ok := v.(compiled.Variable); ok {
 		return _v.IsConstant()
 	}
 	// it's not a wire, it's another golang type, we consider it constant.
-	// TODO we may want to use the struct parser to ensure this Variable interface doesn't contain fields which are
-	// Variable
+	// TODO we may want to use the struct parser to ensure this cs.Variable interface doesn't contain fields which are
+	// cs.Variable
 	return true
 }
 
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
-func (cs *R1CS) ConstantValue(v Variable) *big.Int {
+func (system *R1CS) ConstantValue(v cs.Variable) *big.Int {
 	if _v, ok := v.(compiled.Variable); ok {
-		return cs.constantValue(_v)
+		return system.constantValue(_v)
 	}
 	r := FromInterface(v)
 	return &r
 }
 
-// constant will return (and allocate if neccesary) a Variable from given value
+// constant will return (and allocate if neccesary) a cs.Variable from given value
 //
-// if input is already a Variable, does nothing
-// else, attempts to convert input to a big.Int (see FromInterface) and returns a constant Variable
+// if input is already a cs.Variable, does nothing
+// else, attempts to convert input to a big.Int (see FromInterface) and returns a constant cs.Variable
 //
-// a constant Variable does NOT necessary allocate a Variable in the ConstraintSystem
+// a constant cs.Variable does NOT necessary allocate a cs.Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (cs *R1CS) constant(input interface{}) Variable {
+func (system *R1CS) constant(input interface{}) cs.Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -566,20 +567,20 @@ func (cs *R1CS) constant(input interface{}) Variable {
 	default:
 		n := FromInterface(t)
 		if n.IsUint64() && n.Uint64() == 1 {
-			return cs.one()
+			return system.one()
 		}
-		r := cs.one()
-		r.LinExp[0] = cs.setCoeff(r.LinExp[0], &n)
+		r := system.one()
+		r.LinExp[0] = system.setCoeff(r.LinExp[0], &n)
 		return r
 	}
 }
 
-// toVariables return Variable corresponding to inputs and the total size of the linear expressions
-func (cs *R1CS) toVariables(in ...interface{}) ([]compiled.Variable, int) {
+// toVariables return cs.Variable corresponding to inputs and the total size of the linear expressions
+func (system *R1CS) toVariables(in ...interface{}) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
 	e := func(i interface{}) {
-		v := cs.constant(i).(compiled.Variable)
+		v := system.constant(i).(compiled.Variable)
 		r = append(r, v)
 		s += len(v.LinExp)
 	}
@@ -592,13 +593,13 @@ func (cs *R1CS) toVariables(in ...interface{}) ([]compiled.Variable, int) {
 }
 
 // returns -le, the result is a copy
-func (cs *R1CS) negateLinExp(l []compiled.Term) []compiled.Term {
+func (system *R1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 	res := make([]compiled.Term, len(l))
 	var lambda big.Int
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
-		lambda.Neg(&cs.coeffs[cID])
-		cID = cs.coeffID(&lambda)
+		lambda.Neg(&system.coeffs[cID])
+		cID = system.coeffID(&lambda)
 		res[i] = compiled.Pack(vID, cID, visibility)
 	}
 	return res

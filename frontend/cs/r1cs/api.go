@@ -27,7 +27,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend/counter"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -50,15 +49,6 @@ func (system *R1CSRefactor) Add(i1, i2 interface{}, in ...interface{}) cs.Variab
 	}
 
 	res = system.reduce(res)
-
-	if system.BackendID == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := system.newInternalVariable()
-		system.Constraints = append(system.Constraints, newR1C(system.one(), res, _res))
-		return _res
-	}
 
 	return res
 }
@@ -101,15 +91,6 @@ func (system *R1CSRefactor) Sub(i1, i2 interface{}, in ...interface{}) cs.Variab
 
 	// reduce linear expression
 	res = system.reduce(res)
-
-	if system.BackendID == backend.PLONK {
-		if len(res.LinExp) == 1 {
-			return res
-		}
-		_res := system.newInternalVariable()
-		system.Constraints = append(system.Constraints, newR1C(system.one(), res, _res))
-		return _res
-	}
 
 	return res
 }
@@ -560,6 +541,10 @@ func (system *R1CSRefactor) ConstantValue(v cs.Variable) *big.Int {
 	return &r
 }
 
+func (system *R1CSRefactor) Backend() backend.ID {
+	return backend.GROTH16
+}
+
 // Println enables circuit debugging and behaves almost like fmt.Println()
 //
 // the print will be done once the R1CS.Solve() method is executed
@@ -644,10 +629,10 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *R1CSRefactor) Tag(name string) counter.Tag {
+func (system *R1CSRefactor) Tag(name string) cs.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
-	return counter.Tag{
+	return cs.Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
 		VID:  system.NbInternalVariables,
 		CID:  len(system.Constraints),
@@ -655,7 +640,7 @@ func (system *R1CSRefactor) Tag(name string) counter.Tag {
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (system *R1CSRefactor) AddCounter(from, to counter.Tag) {
+func (system *R1CSRefactor) AddCounter(from, to cs.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,

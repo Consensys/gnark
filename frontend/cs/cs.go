@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -34,13 +33,17 @@ type ConstraintSystem struct {
 	// input wires
 	Public, Secret []string
 
-	CurveID   ecc.ID
-	BackendID backend.ID
+	CurveID ecc.ID
+	// BackendID backend.ID
 
 	// Coefficients in the constraints
 	Coeffs         []big.Int      // list of unique coefficients.
 	CoeffsIDsLarge map[string]int // map to check existence of a coefficient (key = coeff.Bytes())
 	CoeffsIDsInt64 map[int64]int  // map to check existence of a coefficient (key = int64 value)
+}
+
+func (cs *ConstraintSystem) Curve() ecc.ID {
+	return cs.CurveID
 }
 
 func (cs *ConstraintSystem) CoeffID64(v int64) int {

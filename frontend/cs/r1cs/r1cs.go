@@ -79,7 +79,7 @@ func NewR1CSRefactor(curveID ecc.ID, backendID backend.ID, initialCapacity ...in
 	system.Public[0] = "one"
 
 	system.CurveID = curveID
-	system.BackendID = backendID
+	// system.BackendID = backendID
 
 	return &system
 }
