@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -28,7 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *SparseR1CS) toSparseR1CS(curveID ecc.ID) (frontend.CompiledConstraintSystem, error) {
+func (cs *SparseR1CS) toSparseR1CS(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,
@@ -123,10 +122,6 @@ func (cs *SparseR1CS) toSparseR1CS(curveID ecc.ID) (frontend.CompiledConstraintS
 		}
 		res.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}
-
-	// update number of internal variables with new wires created
-	// while processing R1C -> SparseR1C
-	res.NbInternalVariables = res.NbInternalVariables
 
 	switch curveID {
 	case ecc.BLS12_377:

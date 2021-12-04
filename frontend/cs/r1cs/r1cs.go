@@ -24,12 +24,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 type R1CSRefactor struct {
-	frontend.ConstraintSystem
+	cs.ConstraintSystem
 
 	Constraints []compiled.R1C
 }
@@ -41,8 +41,8 @@ func NewR1CSRefactor(curveID ecc.ID, backendID backend.ID, initialCapacity ...in
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	cs := R1CSRefactor{
-		ConstraintSystem: frontend.ConstraintSystem{
+	system := R1CSRefactor{
+		ConstraintSystem: cs.ConstraintSystem{
 
 			CS: compiled.CS{
 				MDebug: make(map[int]int),
@@ -58,38 +58,38 @@ func NewR1CSRefactor(curveID ecc.ID, backendID backend.ID, initialCapacity ...in
 		// Counters:          make([]Counter, 0),
 	}
 
-	cs.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	cs.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	cs.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	cs.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	cs.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	cs.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	cs.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	cs.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	// cs.public.variables = make([]Variable, 0)
-	// cs.secret.variables = make([]Variable, 0)
-	// cs.internal = make([]Variable, 0, capacity)
-	cs.Public = make([]string, 1)
-	cs.Secret = make([]string, 0)
+	// system.public.variables = make([]Variable, 0)
+	// system.secret.variables = make([]Variable, 0)
+	// system.internal = make([]Variable, 0, capacity)
+	system.Public = make([]string, 1)
+	system.Secret = make([]string, 0)
 
 	// by default the circuit is given a public wire equal to 1
-	// cs.public.variables[0] = cs.newPublicVariable("one")
-	cs.Public[0] = "one"
+	// system.public.variables[0] = system.newPublicVariable("one")
+	system.Public[0] = "one"
 
-	cs.CurveID = curveID
-	cs.BackendID = backendID
+	system.CurveID = curveID
+	system.BackendID = backendID
 
-	return &cs
+	return &system
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *R1CSRefactor) newInternalVariable() compiled.Variable {
+func (system *R1CSRefactor) newInternalVariable() compiled.Variable {
 	t := false
-	idx := cs.NbInternalVariables
-	cs.NbInternalVariables++
+	idx := system.NbInternalVariables
+	system.NbInternalVariables++
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)},
 		IsBoolean: &t,
@@ -97,11 +97,11 @@ func (cs *R1CSRefactor) newInternalVariable() compiled.Variable {
 }
 
 // NewPublicVariable creates a new public Variable
-func (cs *R1CSRefactor) NewPublicVariable(name string) frontend.Variable {
+func (system *R1CSRefactor) NewPublicVariable(name string) cs.Variable {
 	t := false
-	idx := cs.NbPublicVariables
-	cs.NbPublicVariables++
-	cs.Public = append(cs.Public, name)
+	idx := system.NbPublicVariables
+	system.NbPublicVariables++
+	system.Public = append(system.Public, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
 		IsBoolean: &t,
@@ -110,11 +110,11 @@ func (cs *R1CSRefactor) NewPublicVariable(name string) frontend.Variable {
 }
 
 // NewSecretVariable creates a new secret Variable
-func (cs *R1CSRefactor) NewSecretVariable(name string) frontend.Variable {
+func (system *R1CSRefactor) NewSecretVariable(name string) cs.Variable {
 	t := false
-	idx := cs.NbSecretVariables
-	cs.NbSecretVariables++
-	cs.Secret = append(cs.Secret, name)
+	idx := system.NbSecretVariables
+	system.NbSecretVariables++
+	system.Secret = append(system.Secret, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
 		IsBoolean: &t,
@@ -122,17 +122,17 @@ func (cs *R1CSRefactor) NewSecretVariable(name string) frontend.Variable {
 	return res
 }
 
-// func (v *variable) constantValue(cs *R1CS) *big.Int {
-func (cs *R1CSRefactor) constantValue(v compiled.Variable) *big.Int {
+// func (v *variable) constantValue(system *R1CS) *big.Int {
+func (system *R1CSRefactor) constantValue(v compiled.Variable) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.IsConstant() {
 		panic("can't get big.Int value on a non-constant variable")
 	}
-	return new(big.Int).Set(&cs.Coeffs[v.LinExp[0].CoeffID()])
+	return new(big.Int).Set(&system.Coeffs[v.LinExp[0].CoeffID()])
 }
 
-func (cs *R1CSRefactor) one() compiled.Variable {
+func (system *R1CSRefactor) one() compiled.Variable {
 	t := false
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
@@ -144,7 +144,7 @@ func (cs *R1CSRefactor) one() compiled.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (cs *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
+func (system *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	if !sort.IsSorted(l.LinExp) { // may not help
 		sort.Sort(l.LinExp)
@@ -156,8 +156,8 @@ func (cs *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
 		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&cs.Coeffs[pcID], &cs.Coeffs[ccID])
-			l.LinExp[i-1].SetCoeffID(cs.CoeffID(&c))
+			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
+			l.LinExp[i-1].SetCoeffID(system.CoeffID(&c))
 			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
@@ -167,7 +167,7 @@ func (cs *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
 
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
+func newR1C(_l, _r, _o cs.Variable) compiled.R1C {
 	l := _l.(compiled.Variable)
 	r := _r.(compiled.Variable)
 	o := _o.(compiled.Variable)
@@ -185,10 +185,10 @@ func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 	return compiled.R1C{L: l.Clone(), R: r.Clone(), O: o.Clone()}
 }
 
-func (cs *R1CSRefactor) addConstraint(r1c compiled.R1C, debugID ...int) {
-	cs.Constraints = append(cs.Constraints, r1c)
+func (system *R1CSRefactor) addConstraint(r1c compiled.R1C, debugID ...int) {
+	system.Constraints = append(system.Constraints, r1c)
 	if len(debugID) > 0 {
-		cs.MDebug[len(cs.Constraints)-1] = debugID[0]
+		system.MDebug[len(system.Constraints)-1] = debugID[0]
 	}
 }
 
@@ -203,13 +203,13 @@ func (cs *R1CSRefactor) addConstraint(r1c compiled.R1C, debugID ...int) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (cs *R1CSRefactor) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
+func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
 	// create resulting wire
-	r := cs.newInternalVariable()
+	r := system.newInternalVariable()
 	_, vID, _ := r.LinExp[0].Unpack()
 
 	// mark hint as unconstrained, for now
-	//cs.mHintsConstrained[vID] = false
+	//system.mHintsConstrained[vID] = false
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
@@ -217,28 +217,28 @@ func (cs *R1CSRefactor) NewHint(f hint.Function, inputs ...interface{}) frontend
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		t := cs.constant(in).(compiled.Variable)
+		t := system.constant(in).(compiled.Variable)
 		tmp := t.Clone()
 		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system
-	cs.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
 
 	return r
 }
 
 // Term packs a Variable and a coeff in a Term and returns it.
-// func (cs *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
-func (cs *R1CSRefactor) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
+// func (system *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
+func (system *R1CSRefactor) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
-	return compiled.Pack(vID, cs.CoeffID(coeff), vVis)
+	return compiled.Pack(vID, system.CoeffID(coeff), vVis)
 }
 
 // markBoolean marks the Variable as boolean and return true
 // if a constraint was added, false if the Variable was already
 // constrained as a boolean
-func (cs *R1CSRefactor) markBoolean(v compiled.Variable) bool {
+func (system *R1CSRefactor) markBoolean(v compiled.Variable) bool {
 	if *v.IsBoolean {
 		return false
 	}
@@ -249,5 +249,5 @@ func (cs *R1CSRefactor) markBoolean(v compiled.Variable) bool {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
 }

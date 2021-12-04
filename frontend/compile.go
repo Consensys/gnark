@@ -17,13 +17,10 @@ limitations under the License.
 package frontend
 
 import (
-	// "plonk"
-	// "r1cs"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend/plonk"
-	"github.com/consensys/gnark/frontend/r1cs"
+	"github.com/consensys/gnark/frontend/cs/plonk"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
 // Compile will generate a CompiledConstraintSystem from the given circuit

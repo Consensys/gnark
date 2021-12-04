@@ -18,7 +18,6 @@ package r1cs
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -29,7 +28,7 @@ import (
 )
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *R1CSRefactor) Compile(curveID ecc.ID) (frontend.CompiledConstraintSystem, error) {
+func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
 
 	// wires = public wires  | secret wires | internal wires
 

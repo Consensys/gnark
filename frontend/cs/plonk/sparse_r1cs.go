@@ -23,12 +23,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 type SparseR1CS struct {
-	frontend.ConstraintSystem
+	cs.ConstraintSystem
 
 	Constraints []compiled.SparseR1C
 }
@@ -40,8 +41,8 @@ func NewSparseR1CS(curveID ecc.ID, backendID backend.ID, initialCapacity ...int)
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	cs := SparseR1CS{
-		ConstraintSystem: frontend.ConstraintSystem{
+	system := SparseR1CS{
+		ConstraintSystem: cs.ConstraintSystem{
 
 			CS: compiled.CS{
 				MDebug: make(map[int]int),
@@ -57,33 +58,33 @@ func NewSparseR1CS(curveID ecc.ID, backendID backend.ID, initialCapacity ...int)
 		// Counters:          make([]Counter, 0),
 	}
 
-	cs.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	cs.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	cs.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	cs.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	cs.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	cs.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	cs.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	cs.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	// cs.public.variables = make([]Variable, 0)
-	// cs.secret.variables = make([]Variable, 0)
-	// cs.internal = make([]Variable, 0, capacity)
-	cs.Public = make([]string, 0)
-	cs.Secret = make([]string, 0)
+	// system.public.variables = make([]Variable, 0)
+	// system.secret.variables = make([]Variable, 0)
+	// system.internal = make([]Variable, 0, capacity)
+	system.Public = make([]string, 0)
+	system.Secret = make([]string, 0)
 
-	cs.CurveID = curveID
-	cs.BackendID = backendID
+	system.CurveID = curveID
+	system.BackendID = backendID
 
-	return &cs
+	return &system
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-func (cs *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (system *SparseR1CS) addPlonkConstraint(l, r, o cs.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
-		cs.MDebug[len(cs.Constraints)-1] = debugID[0]
+		system.MDebug[len(system.Constraints)-1] = debugID[0]
 	}
 
 	_l := l.(compiled.Term)
@@ -98,40 +99,40 @@ func (cs *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, 
 	u.SetCoeffID(cidm1)
 	v.SetCoeffID(cidm2)
 
-	cs.Constraints = append(cs.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
+	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (cs *SparseR1CS) newInternalVariable() compiled.Term {
-	idx := cs.NbInternalVariables
-	cs.NbInternalVariables++
+func (system *SparseR1CS) newInternalVariable() compiled.Term {
+	idx := system.NbInternalVariables
+	system.NbInternalVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)
 }
 
 // NewPublicVariable creates a new Public Variable
-func (cs *SparseR1CS) NewPublicVariable(name string) frontend.Variable {
-	idx := cs.NbPublicVariables
-	cs.Public = append(cs.Public, name)
-	cs.NbPublicVariables++
+func (system *SparseR1CS) NewPublicVariable(name string) cs.Variable {
+	idx := system.NbPublicVariables
+	system.Public = append(system.Public, name)
+	system.NbPublicVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)
 }
 
 // NewPublicVariable creates a new Secret Variable
-func (cs *SparseR1CS) NewSecretVariable(name string) frontend.Variable {
-	idx := len(cs.Secret)
-	cs.Public = append(cs.Secret, name)
-	cs.NbSecretVariables++
+func (system *SparseR1CS) NewSecretVariable(name string) cs.Variable {
+	idx := len(system.Secret)
+	system.Public = append(system.Secret, name)
+	system.NbSecretVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
 }
 
-func (cs *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) frontend.Variable {
+func (system *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
 	// create resulting wire
-	r := cs.newInternalVariable()
+	r := system.newInternalVariable()
 	_, vID, _ := r.Unpack()
 
 	// mark hint as unconstrained, for now
-	//cs.mHintsConstrained[vID] = false
+	//system.mHintsConstrained[vID] = false
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
@@ -143,8 +144,8 @@ func (cs *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) frontend.V
 		case compiled.Term:
 			hintInputs[i] = []compiled.Term{t}
 		default:
-			n := frontend.FromInterface(in)
-			id := cs.CoeffID(&n)
+			n := utils.FromInterface(in)
+			id := system.CoeffID(&n)
 			var u compiled.Term
 			u.SetCoeffID(id)
 			u.SetWireID(-1) // -1 so it is recognized as a constant
@@ -152,7 +153,7 @@ func (cs *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) frontend.V
 	}
 
 	// add the hint to the constraint system
-	cs.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
 
 	return r
 }
@@ -160,5 +161,5 @@ func (cs *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) frontend.V
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
 }
