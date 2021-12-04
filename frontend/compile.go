@@ -17,10 +17,17 @@ limitations under the License.
 package frontend
 
 import (
+	"errors"
+	"fmt"
+	"reflect"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/parser"
 )
 
 // Compile will generate a CompiledConstraintSystem from the given circuit
@@ -41,7 +48,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs CompiledConstraintSystem, err error) {
+func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
 
 	// setup option
 	opt := CompileOption{}
@@ -55,9 +62,9 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 
 	switch zkpID {
 	case backend.GROTH16:
-		system = r1cs.NewR1CSRefactor(curveID, zkpID)
+		system = r1cs.NewR1CSRefactor(curveID)
 	case backend.PLONK:
-		system = plonk.NewSparseR1CS(curveID, zkpID)
+		system = plonk.NewSparseR1CS(curveID)
 	default:
 		panic("not implemented")
 	}
@@ -75,7 +82,7 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 	// 	}
 	// }
 
-	system.Compile(curveID)
+	ccs, err = system.Compile(curveID)
 
 	if err != nil {
 		return nil, err
@@ -87,43 +94,43 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func bootLoad(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, initialCapacity ...int) error {
+func bootLoad(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, initialCapacity ...int) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	// var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-	// 	if tInput.CanSet() {
-	// 		switch visibility {
-	// 		case compiled.Secret:
-	// 			tInput.Set(reflect.ValueOf(system.NewSecretVariable(name)))
-	// 		case compiled.Public:
-	// 			tInput.Set(reflect.ValueOf(system.NewPublicVariable(name)))
-	// 		case compiled.Unset:
-	// 			return errors.New("can't set val " + name + " visibility is unset")
-	// 		}
+	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if tInput.CanSet() {
+			switch visibility {
+			case compiled.Secret:
+				tInput.Set(reflect.ValueOf(system.NewSecretVariable(name)))
+			case compiled.Public:
+				tInput.Set(reflect.ValueOf(system.NewPublicVariable(name)))
+			case compiled.Unset:
+				return errors.New("can't set val " + name + " visibility is unset")
+			}
 
-	// 		return nil
-	// 	}
-	// 	return errors.New("can't set val " + name)
-	// }
-	// // recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
-	// // (secret or public inputs)
-	// if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
-	// 	return cs, err
-	// }
+			return nil
+		}
+		return errors.New("can't set val " + name)
+	}
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
+	// (secret or public inputs)
+	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
+		return err
+	}
 
-	// // recover from panics to print user-friendlier messages
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		err = fmt.Errorf("%v\n%s", r, debug.Stack())
-	// 	}
-	// }()
+	// recover from panics to print user-friendlier messages
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v\n%s", r, debug.Stack())
+		}
+	}()
 
-	// // call Define() to fill in the Constraints
-	// if err := circuit.Define(&cs); err != nil {
-	// 	return cs, err
-	// }
+	// call Define() to fill in the Constraints
+	if err := circuit.Define(system); err != nil {
+		return err
+	}
 
-	return nil
+	return
 
 }
