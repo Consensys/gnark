@@ -75,18 +75,11 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 	// 	}
 	// }
 
-	// switch zkpID {
-	// case backend.GROTH16:
-	// 	ccs, err = cs.toR1CS(curveID)
-	// case backend.PLONK:
-	// 	ccs, err = cs.toSparseR1CS(curveID)
-	// default:
-	// 	panic("not implemented")
-	// }
+	system.Compile(curveID)
 
-	// if err != nil {
-	// 	return nil, err
-	// }
+	if err != nil {
+		return nil, err
+	}
 
 	return
 }

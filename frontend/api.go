@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // system represents a constraint system that can be loaded using the bootloader
@@ -150,4 +151,6 @@ type API interface {
 
 	// Backend returns the backend.ID injected by the compiler
 	Backend() backend.ID
+
+	Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error)
 }

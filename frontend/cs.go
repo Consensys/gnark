@@ -170,6 +170,10 @@ func (system *R1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Variable 
 	return r
 }
 
+func (system *R1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
+	return nil, nil
+}
+
 // bitLen returns the number of bits needed to represent a fr.Element
 func (system *R1CS) bitLen() int {
 	return system.curveID.Info().Fr.Bits

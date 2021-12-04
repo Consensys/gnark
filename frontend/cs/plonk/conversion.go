@@ -27,7 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *SparseR1CS) toSparseR1CS(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
+func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,
@@ -47,7 +47,7 @@ func (cs *SparseR1CS) toSparseR1CS(curveID ecc.ID) (compiled.CompiledConstraintS
 		case compiled.Internal:
 			return oldID + res.NbPublicVariables + res.NbSecretVariables
 		case compiled.Public:
-			return oldID - 1
+			return oldID
 		case compiled.Secret:
 			return oldID + res.NbPublicVariables
 		default:
