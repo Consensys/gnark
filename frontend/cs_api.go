@@ -360,7 +360,7 @@ func (system *R1CS) IsZero(i1 interface{}) cs.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
+func (system *R1CS) ToBinary(i1 interface{}, n ...int) []cs.Variable {
 
 	// nbBits
 	nbBits := system.bitLen()
@@ -388,7 +388,7 @@ func (system *R1CS) ToBinary(i1 interface{}, n ...int) []Variable {
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Variable {
+func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []cs.Variable {
 
 	if a.IsConstant() {
 		return system.ToBinary(a, nbBits)
@@ -398,7 +398,7 @@ func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Var
 	a.AssertIsSet()
 
 	// allocate the resulting cs.Variables and bit-constraint them
-	b := make([]Variable, nbBits)
+	b := make([]cs.Variable, nbBits)
 	sb := make([]interface{}, nbBits)
 	var c big.Int
 	c.SetUint64(1)
@@ -427,9 +427,9 @@ func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []Var
 
 }
 
-func toSliceOfVariables(v []compiled.Variable) []Variable {
+func toSliceOfVariables(v []compiled.Variable) []cs.Variable {
 	// TODO this is ugly.
-	r := make([]Variable, len(v))
+	r := make([]cs.Variable, len(v))
 	for i := 0; i < len(v); i++ {
 		r[i] = v[i]
 	}

@@ -363,12 +363,12 @@ func (e *engine) ConstantValue(v cs.Variable) *big.Int {
 	return &r
 }
 
-func (e *engine) Tag(name string) frontend.Tag {
+func (e *engine) Tag(name string) cs.Tag {
 	// do nothing, we don't measure constraints with the test engine
-	return frontend.Tag{Name: name}
+	return cs.Tag{Name: name}
 }
 
-func (e *engine) AddCounter(from, to frontend.Tag) {
+func (e *engine) AddCounter(from, to cs.Tag) {
 	// do nothing, we don't measure constraints with the test engine
 }
 
@@ -398,7 +398,7 @@ func (e *engine) modulus() *big.Int {
 	return e.curveID.Info().Fr.Modulus()
 }
 
-func (e *engine) CurveID() ecc.ID {
+func (e *engine) Curve() ecc.ID {
 	return e.curveID
 }
 

@@ -63,8 +63,8 @@ type R1CS struct {
 
 	mDebug map[int]int // maps constraint ID to debugInfo id
 
-	counters []Counter // statistic counters
-	todelete []compiled.Counter
+	// counters []Counter // statistic counters
+	counters []compiled.Counter // statistic counters
 
 	curveID   ecc.ID
 	backendID backend.ID
@@ -105,7 +105,7 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 		mDebug:            make(map[int]int),
 		mHints:            make(map[int]compiled.Hint),
 		mHintsConstrained: make(map[int]bool),
-		counters:          make([]Counter, 0),
+		counters:          make([]compiled.Counter, 0),
 	}
 
 	system.coeffs[compiled.CoeffIdZero].SetInt64(0)

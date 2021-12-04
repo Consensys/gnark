@@ -138,7 +138,7 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 
 func (circuit *eddsaCircuit) Define(api frontend.API) error {
 
-	params, err := twistededwards.NewEdCurve(api.CurveID())
+	params, err := twistededwards.NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}

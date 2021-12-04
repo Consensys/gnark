@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -93,8 +92,9 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 	}
 
 	// clone the counters
-	counters := make([]Counter, len(cs.counters))
-	copy(counters, cs.counters)
+	res.counters = cs.counters
+	// counters := make([]Counter, len(cs.counters))
+	// copy(counters, cs.counters)
 
 	// convert the R1C to SparseR1C
 	// in particular, all linear expressions that appear in the R1C
@@ -119,7 +119,7 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 		Δv = res.scsInternalVariables - Δv
 
 		// shift the counters. should maybe be done only when -debug is set?
-		res.shiftCounters(counters, i, Δc, Δv)
+		// res.shiftCounters(counters, i, Δc, Δv)
 	}
 
 	// shift variable ID
@@ -210,16 +210,16 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 	res.ccs.NbInternalVariables = res.scsInternalVariables
 
 	// set the counters
-	for i, c := range counters {
-		res.ccs.Counters[i] = compiled.Counter{
-			From:          c.From.Name,
-			To:            c.To.Name,
-			NbVariables:   c.NbVariables,
-			NbConstraints: c.NbConstraints,
-			CurveID:       curveID,
-			BackendID:     backend.PLONK,
-		}
-	}
+	// for i, c := range counters {
+	// 	res.ccs.Counters[i] = compiled.Counter{
+	// 		From:          c.From.Name,
+	// 		To:            c.To.Name,
+	// 		NbVariables:   c.NbVariables,
+	// 		NbConstraints: c.NbConstraints,
+	// 		CurveID:       curveID,
+	// 		BackendID:     backend.PLONK,
+	// 	}
+	// }
 
 	switch curveID {
 	case ecc.BLS12_377:

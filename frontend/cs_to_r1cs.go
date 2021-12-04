@@ -18,7 +18,6 @@ package frontend
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -68,16 +67,17 @@ func (cs *R1CS) toR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
 	}
 
 	// same fore counters
-	for i, c := range cs.counters {
-		res.Counters[i] = compiled.Counter{
-			From:          c.From.Name,
-			To:            c.To.Name,
-			NbVariables:   c.NbVariables,
-			NbConstraints: c.NbConstraints,
-			CurveID:       curveID,
-			BackendID:     backend.GROTH16,
-		}
-	}
+	// for i, c := range cs.counters {
+	// 	res.Counters[i] = compiled.Counter{
+	// 		From:          c.From.Name,
+	// 		To:            c.To.Name,
+	// 		NbVariables:   c.NbVariables,
+	// 		NbConstraints: c.NbConstraints,
+	// 		CurveID:       curveID,
+	// 		BackendID:     backend.GROTH16,
+	// 	}
+	// }
+	res.Counters = cs.counters
 
 	// offset variable ID depeneding on visibility
 	shiftVID := func(oldID int, visibility compiled.Visibility) int {

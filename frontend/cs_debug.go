@@ -164,10 +164,10 @@ func (system *R1CS) Tag(name string) cs.Tag {
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (system *R1CS) AddCounter(from, to Tag) {
-	system.counters = append(system.counters, Counter{
-		From:          from,
-		To:            to,
+func (system *R1CS) AddCounter(from, to cs.Tag) {
+	system.counters = append(system.counters, compiled.Counter{
+		From:          from.Name,
+		To:            to.Name,
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
 	})

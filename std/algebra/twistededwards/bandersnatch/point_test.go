@@ -34,7 +34,7 @@ type mustBeOnCurve struct {
 func (circuit *mustBeOnCurve) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ type add struct {
 func (circuit *add) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ type addGeneric struct {
 func (circuit *addGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ type double struct {
 func (circuit *double) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ type scalarMulFixed struct {
 func (circuit *scalarMulFixed) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ type scalarMulGeneric struct {
 func (circuit *scalarMulGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.CurveID())
+	params, err := NewEdCurve(api.Curve())
 	if err != nil {
 		return err
 	}
