@@ -31,7 +31,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -371,10 +370,6 @@ func (e *engine) Tag(name string) cs.Tag {
 
 func (e *engine) AddCounter(from, to cs.Tag) {
 	// do nothing, we don't measure constraints with the test engine
-}
-
-func (e *engine) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
-	return nil, nil
 }
 
 func (e *engine) toBigInt(i1 interface{}) big.Int {

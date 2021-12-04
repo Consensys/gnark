@@ -31,6 +31,7 @@ type System interface {
 	API
 	NewPublicVariable(name string) cs.Variable
 	NewSecretVariable(name string) cs.Variable
+	Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error)
 }
 
 // API represents the available functions to circuit developers
@@ -151,6 +152,4 @@ type API interface {
 
 	// Backend returns the backend.ID injected by the compiler
 	Backend() backend.ID
-
-	Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error)
 }
