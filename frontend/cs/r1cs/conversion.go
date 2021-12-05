@@ -44,15 +44,6 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 	// is that ID of the wires will be offseted to take into account the final wire vector ordering
 	// that is: public wires  | secret wires | internal wires
 
-	// computational constraints (= gates)
-	// for i, r1c := range cs.Constraints {
-	// 	res.Constraints[i] = compiled.R1C{
-	// 		L: r1c.L.Clone(),
-	// 		R: r1c.R.Clone(),
-	// 		O: r1c.O.Clone(),
-	// 	}
-	// }
-
 	// offset variable ID depeneding on visibility
 	shiftVID := func(oldID int, visibility compiled.Visibility) int {
 		switch visibility {
@@ -95,11 +86,6 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 
 	// we need to offset the ids in Logs & DebugInfo
 	for i := 0; i < len(cs.Logs); i++ {
-		// res.Logs[i] = compiled.LogEntry{
-		// 	Format:    cs.Logs[i].Format,
-		// 	ToResolve: make([]compiled.Term, len(cs.Logs[i].ToResolve)),
-		// }
-		// copy(res.Logs[i].ToResolve, cs.Logs[i].ToResolve)
 
 		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
 			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
@@ -107,11 +93,6 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 		}
 	}
 	for i := 0; i < len(cs.DebugInfo); i++ {
-		// res.DebugInfo[i] = compiled.LogEntry{
-		// 	Format:    cs.DebugInfo[i].Format,
-		// 	ToResolve: make([]compiled.Term, len(cs.DebugInfo[i].ToResolve)),
-		// }
-		// copy(res.DebugInfo[i].ToResolve, cs.DebugInfo[i].ToResolve)
 
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()

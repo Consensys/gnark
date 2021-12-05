@@ -56,21 +56,21 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem
 	}
 
 	offsetTermID := func(t *compiled.Term) {
-		if *t == 0 {
-			// in a PLONK constraint, not all terms are necessarily set,
-			// the terms which are not set are equal to zero. We just
-			// need to skip them.
-			return
-		}
+		// if *t == 0 {
+		// 	// in a PLONK constraint, not all terms are necessarily set,
+		// 	// the terms which are not set are equal to zero. We just
+		// 	// need to skip them.
+		// 	return
+		// }
 		_, VID, visibility := t.Unpack()
-		if VID == 0 && visibility == compiled.Public {
-			// this would not happen in a plonk constraint as the constant term has been popped out
-			// however it may happen in the Logs or the hints that contains
-			// terms associated with the ONE wire
-			// workaround; we set the visibility to Virtual so that the solver recognizes that as a constant
-			t.SetVariableVisibility(compiled.Virtual)
-			return
-		}
+		// if VID == 0 && visibility == compiled.Public {
+		// 	// this would not happen in a plonk constraint as the constant term has been popped out
+		// 	// however it may happen in the Logs or the hints that contains
+		// 	// terms associated with the ONE wire
+		// 	// workaround; we set the visibility to Virtual so that the solver recognizes that as a constant
+		// 	t.SetVariableVisibility(compiled.Virtual)
+		// 	return
+		// }
 		t.SetWireID(shiftVID(VID, visibility))
 	}
 
@@ -88,29 +88,18 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem
 
 	// we need to offset the ids in Logs & DebugInfo
 	for i := 0; i < len(cs.Logs); i++ {
-		res.Logs[i] = compiled.LogEntry{
-			Format:    cs.Logs[i].Format,
-			ToResolve: make([]compiled.Term, len(cs.Logs[i].ToResolve)),
-		}
-		copy(res.Logs[i].ToResolve, cs.Logs[i].ToResolve)
-
 		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
 			offsetTermID(&res.Logs[i].ToResolve[j])
 		}
 	}
 	for i := 0; i < len(cs.DebugInfo); i++ {
-		res.DebugInfo[i] = compiled.LogEntry{
-			Format:    cs.DebugInfo[i].Format,
-			ToResolve: make([]compiled.Term, len(cs.DebugInfo[i].ToResolve)),
-		}
-		copy(res.DebugInfo[i].ToResolve, cs.DebugInfo[i].ToResolve)
-
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			offsetTermID(&res.DebugInfo[i].ToResolve[j])
 		}
 	}
 
 	// we need to offset the ids in the hints
+	shiftedMap := make(map[int]compiled.Hint)
 	for VID, hint := range cs.MHints {
 		k := shiftVID(VID, compiled.Internal)
 		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
@@ -120,8 +109,9 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem
 				offsetTermID(&inputs[j][k])
 			}
 		}
-		res.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
+		shiftedMap[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}
+	res.MHints = shiftedMap
 
 	switch curveID {
 	case ecc.BLS12_377:

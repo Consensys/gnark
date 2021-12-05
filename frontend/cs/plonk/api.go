@@ -41,6 +41,7 @@ func (system *SparseR1CS) Add(i1, i2 interface{}, in ...interface{}) cs.Variable
 	if len(vars) == 0 {
 		return k
 	}
+	vars = system.reduce(vars)
 	if k.Cmp(zero) == 0 {
 		return system.splitSum(vars[0], vars[1:])
 	}
@@ -130,6 +131,9 @@ func (system *SparseR1CS) divConstant(t compiled.Term, m *big.Int) compiled.Term
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
 func (system *SparseR1CS) DivUnchecked(i1, i2 interface{}) cs.Variable {
+
+	var zero compiled.Term
+
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		l := utils.FromInterface(i1)
 		r := utils.FromInterface(i2)
@@ -149,7 +153,7 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 interface{}) cs.Variable {
 		res := system.newInternalVariable()
 		c := utils.FromInterface(i1)
 		cidl := system.CoeffID(&c)
-		system.addPlonkConstraint(res, t, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+		system.addPlonkConstraint(res, t, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 		return res
 	}
 	res := system.newInternalVariable()
@@ -157,7 +161,7 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 interface{}) cs.Variable {
 	t2 := i2.(compiled.Term)
 	cl, _, _ := t1.Unpack()
 	cr, _, _ := t2.Unpack()
-	system.addPlonkConstraint(t1, t2, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+	system.addPlonkConstraint(t1, t2, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 	return res
 }
 
@@ -169,6 +173,7 @@ func (system *SparseR1CS) Div(i1, i2 interface{}) cs.Variable {
 
 // Inverse returns res = 1 / i1
 func (system *SparseR1CS) Inverse(i1 interface{}) cs.Variable {
+	var zero compiled.Term
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		c.ModInverse(&c, system.CurveID.Info().Fr.Modulus())
@@ -177,7 +182,7 @@ func (system *SparseR1CS) Inverse(i1 interface{}) cs.Variable {
 	t := i1.(compiled.Term)
 	cr, _, _ := t.Unpack()
 	res := system.newInternalVariable()
-	system.addPlonkConstraint(res, t, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+	system.addPlonkConstraint(res, t, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 	return res
 }
 
@@ -353,10 +358,10 @@ func (system *SparseR1CS) Select(b interface{}, i1, i2 interface{}) cs.Variable 
 	if system.IsConstant(i2) {
 		k := utils.FromInterface(i2)
 		_k := system.CoeffID(&k)
-		system.addPlonkConstraint(l, 0, res, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k)
+		system.addPlonkConstraint(l.(compiled.Term), 0, res, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k)
 	} else {
 		_r := i2.(compiled.Term)
-		system.addPlonkConstraint(l, _r, res, compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
+		system.addPlonkConstraint(l.(compiled.Term), _r, res, compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 	}
 	return res
 }
@@ -383,7 +388,7 @@ func (system *SparseR1CS) IsZero(i1 interface{}) cs.Variable {
 	a := i1.(compiled.Term)
 	m := system.NewHint(hint.IsZero, a)
 	system.AssertIsBoolean(i1)
-	system.addPlonkConstraint(a, m, 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+	system.addPlonkConstraint(a, m.(compiled.Term), 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
 	ma := system.Add(m, a)
 	system.Inverse(ma)
 	return m
@@ -524,7 +529,7 @@ func (system *SparseR1CS) Backend() backend.ID {
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *SparseR1CS) filterConstantSum(in ...interface{}) ([]compiled.Term, big.Int) {
+func (system *SparseR1CS) filterConstantSum(in []interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {

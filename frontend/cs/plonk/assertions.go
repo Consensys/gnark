@@ -47,9 +47,11 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 interface{}) {
 		system.addPlonkConstraint(l, 0, 0, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 	}
 	l := i1.(compiled.Term)
-	r := i1.(compiled.Term)
+	r := i2.(compiled.Term)
+
 	debug := system.AddDebugInfo("assertIsEqual", l, " == ", r)
-	system.addPlonkConstraint(l, 0, r, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero, debug)
+
+	system.addPlonkConstraint(l, r, 0, compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
@@ -68,7 +70,8 @@ func (system *SparseR1CS) AssertIsBoolean(i1 interface{}) {
 	}
 	t := i1.(compiled.Term)
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
-	system.addPlonkConstraint(t, t, 0, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	var zero compiled.Term
+	system.addPlonkConstraint(t, t, zero, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
@@ -127,7 +130,7 @@ func (system *SparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 			l := system.Sub(1, p[i+1]).(compiled.Term)
 			l = system.Sub(l, aBits[i]).(compiled.Term)
 
-			system.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+			system.addPlonkConstraint(l, aBits[i].(compiled.Term), 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 			// system.markBoolean(aBits[i].(compiled.Term))
 		} else {
 			system.AssertIsBoolean(aBits[i])
@@ -169,7 +172,17 @@ func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		// system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
-		system.addPlonkConstraint(l, aBits[i], 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+		var zero compiled.Term
+		system.addPlonkConstraint(
+			l.(compiled.Term),
+			aBits[i].(compiled.Term),
+			zero,
+			compiled.CoeffIdZero,
+			compiled.CoeffIdZero,
+			compiled.CoeffIdOne,
+			compiled.CoeffIdOne,
+			compiled.CoeffIdZero,
+			compiled.CoeffIdZero, debug)
 	}
 
 }

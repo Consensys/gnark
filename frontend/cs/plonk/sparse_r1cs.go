@@ -19,6 +19,7 @@ package plonk
 import (
 	"math/big"
 	"reflect"
+	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
@@ -79,25 +80,32 @@ func NewSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-func (system *SparseR1CS) addPlonkConstraint(l, r, o cs.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+//func (system *SparseR1CS) addPlonkConstraint(l, r, o cs.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (system *SparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
 	}
 
-	_l := l.(compiled.Term)
-	_r := r.(compiled.Term)
-	_o := o.(compiled.Term)
-	_l.SetCoeffID(cidl)
-	_r.SetCoeffID(cidr)
-	_o.SetCoeffID(cido)
+	// _l := l.(compiled.Term)
+	// _r := r.(compiled.Term)
+	// _o := o.(compiled.Term)
+	// _l.SetCoeffID(cidl)
+	// _r.SetCoeffID(cidr)
+	// _o.SetCoeffID(cido)
+	l.SetCoeffID(cidl)
+	r.SetCoeffID(cidr)
+	o.SetCoeffID(cido)
 
-	u := _l
-	v := _r
+	// u := _l
+	// v := _r
+	u := l
+	v := r
 	u.SetCoeffID(cidm1)
 	v.SetCoeffID(cidm2)
 
-	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
+	//system.Constraints = append(system.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
+	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: l, R: r, O: o, M: [2]compiled.Term{u, v}, K: k})
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -152,6 +160,30 @@ func (system *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Var
 	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
 
 	return r
+}
+
+// reduces redundancy in linear expression
+// It factorizes Variable that appears multiple times with != coeff Ids
+// To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
+// for each visibility, the Variables are sorted from lowest ID to highest ID
+func (system *SparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+
+	// ensure our linear expression is sorted, by visibility and by Variable ID
+	sort.Sort(l)
+
+	var c big.Int
+	for i := 1; i < len(l); i++ {
+		pcID, pvID, pVis := l[i-1].Unpack()
+		ccID, cvID, cVis := l[i].Unpack()
+		if pVis == cVis && pvID == cvID {
+			// we have redundancy
+			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
+			l[i-1].SetCoeffID(system.CoeffID(&c))
+			l = append(l[:i], l[i+1:]...)
+			i--
+		}
+	}
+	return l
 }
 
 var tVariable reflect.Type
