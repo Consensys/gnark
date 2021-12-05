@@ -45,23 +45,23 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 	// that is: public wires  | secret wires | internal wires
 
 	// computational constraints (= gates)
-	for i, r1c := range cs.Constraints {
-		res.Constraints[i] = compiled.R1C{
-			L: r1c.L.Clone(),
-			R: r1c.R.Clone(),
-			O: r1c.O.Clone(),
-		}
-	}
+	// for i, r1c := range cs.Constraints {
+	// 	res.Constraints[i] = compiled.R1C{
+	// 		L: r1c.L.Clone(),
+	// 		R: r1c.R.Clone(),
+	// 		O: r1c.O.Clone(),
+	// 	}
+	// }
 
 	// offset variable ID depeneding on visibility
 	shiftVID := func(oldID int, visibility compiled.Visibility) int {
 		switch visibility {
 		case compiled.Internal:
-			return oldID + cs.NbPublicVariables + cs.NbSecretVariables
+			return oldID + res.NbPublicVariables + res.NbSecretVariables
 		case compiled.Public:
 			return oldID
 		case compiled.Secret:
-			return oldID + cs.NbPublicVariables
+			return oldID + res.NbPublicVariables
 		}
 		return oldID
 	}
@@ -81,23 +81,25 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 	}
 
 	// we need to offset the ids in the hints
-	for vID, hint := range cs.MHints {
+	shiftedMap := make(map[int]compiled.Hint)
+	for vID, hint := range res.MHints {
 		k := shiftVID(vID, compiled.Internal)
 		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
 			offsetIDs(inputs[j])
 		}
-		res.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
+		shiftedMap[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}
+	res.MHints = shiftedMap
 
 	// we need to offset the ids in Logs & DebugInfo
 	for i := 0; i < len(cs.Logs); i++ {
-		res.Logs[i] = compiled.LogEntry{
-			Format:    cs.Logs[i].Format,
-			ToResolve: make([]compiled.Term, len(cs.Logs[i].ToResolve)),
-		}
-		copy(res.Logs[i].ToResolve, cs.Logs[i].ToResolve)
+		// res.Logs[i] = compiled.LogEntry{
+		// 	Format:    cs.Logs[i].Format,
+		// 	ToResolve: make([]compiled.Term, len(cs.Logs[i].ToResolve)),
+		// }
+		// copy(res.Logs[i].ToResolve, cs.Logs[i].ToResolve)
 
 		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
 			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
@@ -105,11 +107,11 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 		}
 	}
 	for i := 0; i < len(cs.DebugInfo); i++ {
-		res.DebugInfo[i] = compiled.LogEntry{
-			Format:    cs.DebugInfo[i].Format,
-			ToResolve: make([]compiled.Term, len(cs.DebugInfo[i].ToResolve)),
-		}
-		copy(res.DebugInfo[i].ToResolve, cs.DebugInfo[i].ToResolve)
+		// res.DebugInfo[i] = compiled.LogEntry{
+		// 	Format:    cs.DebugInfo[i].Format,
+		// 	ToResolve: make([]compiled.Term, len(cs.DebugInfo[i].ToResolve)),
+		// }
+		// copy(res.DebugInfo[i].ToResolve, cs.DebugInfo[i].ToResolve)
 
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()

@@ -33,6 +33,7 @@ import (
 	cs_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	cs_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	cs_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/consensys/gnark/internal/backend/compiled"
 
 	plonk_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/plonk"
 	plonk_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
@@ -85,7 +86,7 @@ type VerifyingKey interface {
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, VerifyingKey, error) {
+func Setup(ccs compiled.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -111,7 +112,7 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(ccs compiled.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -221,8 +222,8 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error 
 
 // NewCS instantiate a concrete curved-typed SparseR1CS and return a CompiledConstraintSystem interface
 // This method exists for (de)serialization purposes
-func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
-	var r1cs frontend.CompiledConstraintSystem
+func NewCS(curveID ecc.ID) compiled.CompiledConstraintSystem {
+	var r1cs compiled.CompiledConstraintSystem
 	switch curveID {
 	case ecc.BN254:
 		r1cs = &cs_bn254.SparseR1CS{}
@@ -315,7 +316,7 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 }
 
 // ReadAndProve generates PLONK proof from a circuit, associated proving key, and the full witness
-func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func ReadAndProve(ccs compiled.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -465,7 +466,7 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, witness io.Reader) error {
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
-func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
+func IsSolved(ccs compiled.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
 
 	opt, err := backend.NewProverOption(opts...)
 	if err != nil {

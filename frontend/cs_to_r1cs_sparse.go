@@ -57,7 +57,7 @@ type sparseR1CS struct {
 
 var bOne = new(big.Int).SetInt64(1)
 
-func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (CompiledConstraintSystem, error) {
+func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
 
 	res := sparseR1CS{
 		R1CS: cs,

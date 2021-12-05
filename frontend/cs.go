@@ -18,7 +18,6 @@ package frontend
 
 import (
 	"errors"
-	"io"
 	"math/big"
 	"sort"
 	"strconv"
@@ -70,25 +69,25 @@ type R1CS struct {
 	backendID backend.ID
 }
 
-// CompiledConstraintSystem ...
-type CompiledConstraintSystem interface {
-	io.WriterTo
-	io.ReaderFrom
+// // CompiledConstraintSystem ...
+// type CompiledConstraintSystem interface {
+// 	io.WriterTo
+// 	io.ReaderFrom
 
-	// GetNbVariables return number of internal, secret and public cs.Variables
-	GetNbVariables() (internal, secret, public int)
-	GetNbConstraints() int
-	GetNbCoefficients() int
+// 	// GetNbVariables return number of internal, secret and public cs.Variables
+// 	GetNbVariables() (internal, secret, public int)
+// 	GetNbConstraints() int
+// 	GetNbCoefficients() int
 
-	CurveID() ecc.ID
-	FrSize() int
+// 	CurveID() ecc.ID
+// 	FrSize() int
 
-	// ToHTML generates a human readable representation of the constraint system
-	ToHTML(w io.Writer) error
+// 	// ToHTML generates a human readable representation of the constraint system
+// 	ToHTML(w io.Writer) error
 
-	// GetCounters return the collected constraint counters, if any
-	GetCounters() []compiled.Counter
-}
+// 	// GetCounters return the collected constraint counters, if any
+// 	GetCounters() []compiled.Counter
+// }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that

@@ -1,0 +1,3 @@
+- projective, double&add -> 13245
+- affine, double&add -> 12375
+- affine, short addition chain -> 12297 constraints

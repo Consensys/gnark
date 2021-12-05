@@ -21,7 +21,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
@@ -36,7 +35,7 @@ type SparseR1CS struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func NewSparseR1CS(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) *SparseR1CS {
+func NewSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
@@ -111,17 +110,15 @@ func (system *SparseR1CS) newInternalVariable() compiled.Term {
 
 // NewPublicVariable creates a new Public Variable
 func (system *SparseR1CS) NewPublicVariable(name string) cs.Variable {
-	idx := system.NbPublicVariables
+	idx := len(system.Public)
 	system.Public = append(system.Public, name)
-	system.NbPublicVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)
 }
 
 // NewPublicVariable creates a new Secret Variable
 func (system *SparseR1CS) NewSecretVariable(name string) cs.Variable {
 	idx := len(system.Secret)
-	system.Public = append(system.Secret, name)
-	system.NbSecretVariables++
+	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
 }
 

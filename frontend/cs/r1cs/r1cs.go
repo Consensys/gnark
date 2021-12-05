@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -36,7 +35,7 @@ type R1CSRefactor struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func NewR1CSRefactor(curveID ecc.ID, backendID backend.ID, initialCapacity ...int) *R1CSRefactor {
+func NewR1CSRefactor(curveID ecc.ID, initialCapacity ...int) *R1CSRefactor {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
@@ -99,8 +98,7 @@ func (system *R1CSRefactor) newInternalVariable() compiled.Variable {
 // NewPublicVariable creates a new public Variable
 func (system *R1CSRefactor) NewPublicVariable(name string) cs.Variable {
 	t := false
-	idx := system.NbPublicVariables
-	system.NbPublicVariables++
+	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
@@ -112,8 +110,7 @@ func (system *R1CSRefactor) NewPublicVariable(name string) cs.Variable {
 // NewSecretVariable creates a new secret Variable
 func (system *R1CSRefactor) NewSecretVariable(name string) cs.Variable {
 	t := false
-	idx := system.NbSecretVariables
-	system.NbSecretVariables++
+	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	res := compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},

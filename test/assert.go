@@ -43,7 +43,7 @@ var (
 // Assert is a helper to test circuits
 type Assert struct {
 	*require.Assertions
-	compiled map[string]frontend.CompiledConstraintSystem // cache compilation
+	compiled map[string]compiled.CompiledConstraintSystem // cache compilation
 }
 
 // NewAssert returns an Assert helper embedding a testify/require object for convenience
@@ -53,7 +53,7 @@ type Assert struct {
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{require.New(t), make(map[string]frontend.CompiledConstraintSystem)}
+	return &Assert{require.New(t), make(map[string]compiled.CompiledConstraintSystem)}
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -363,7 +363,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (frontend.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (compiled.CompiledConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it
@@ -372,12 +372,12 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return ccs, nil
 	}
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	ccs, err := frontend.RefactorCompile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	_ccs, err := frontend.RefactorCompile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}

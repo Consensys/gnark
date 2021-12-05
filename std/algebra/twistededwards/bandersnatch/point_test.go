@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 )
 
@@ -353,7 +354,7 @@ func TestNeg(t *testing.T) {
 
 // benches
 
-var ccsBench frontend.CompiledConstraintSystem
+var ccsBench compiled.CompiledConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c scalarMulGeneric
