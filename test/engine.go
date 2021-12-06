@@ -88,7 +88,7 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, o
 	return
 }
 
-func (e *engine) Add(i1, i2 interface{}, in ...interface{}) cs.Variable {
+func (e *engine) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	b1.Add(&b1, &b2)
 	for i := 0; i < len(in); i++ {
@@ -99,7 +99,7 @@ func (e *engine) Add(i1, i2 interface{}, in ...interface{}) cs.Variable {
 	return b1
 }
 
-func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) cs.Variable {
+func (e *engine) Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	b1.Sub(&b1, &b2)
 	for i := 0; i < len(in); i++ {
@@ -110,14 +110,14 @@ func (e *engine) Sub(i1, i2 interface{}, in ...interface{}) cs.Variable {
 	return b1
 }
 
-func (e *engine) Neg(i1 interface{}) cs.Variable {
+func (e *engine) Neg(i1 cs.Variable) cs.Variable {
 	b1 := e.toBigInt(i1)
 	b1.Neg(&b1)
 	b1.Mod(&b1, e.modulus())
 	return b1
 }
 
-func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) cs.Variable {
+func (e *engine) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	b1.Mul(&b1, &b2).Mod(&b1, e.modulus())
 	for i := 0; i < len(in); i++ {
@@ -127,7 +127,7 @@ func (e *engine) Mul(i1, i2 interface{}, in ...interface{}) cs.Variable {
 	return b1
 }
 
-func (e *engine) Div(i1, i2 interface{}) cs.Variable {
+func (e *engine) Div(i1, i2 cs.Variable) cs.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b2.ModInverse(&b2, e.modulus()) == nil {
 		panic("no inverse")
@@ -136,7 +136,7 @@ func (e *engine) Div(i1, i2 interface{}) cs.Variable {
 	return b2
 }
 
-func (e *engine) DivUnchecked(i1, i2 interface{}) cs.Variable {
+func (e *engine) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.IsUint64() && b2.IsUint64() && b1.Uint64() == 0 && b2.Uint64() == 0 {
 		return 0
@@ -148,7 +148,7 @@ func (e *engine) DivUnchecked(i1, i2 interface{}) cs.Variable {
 	return b2
 }
 
-func (e *engine) Inverse(i1 interface{}) cs.Variable {
+func (e *engine) Inverse(i1 cs.Variable) cs.Variable {
 	b1 := e.toBigInt(i1)
 	if b1.ModInverse(&b1, e.modulus()) == nil {
 		panic("no inverse")
@@ -156,7 +156,7 @@ func (e *engine) Inverse(i1 interface{}) cs.Variable {
 	return b1
 }
 
-func (e *engine) ToBinary(i1 interface{}, n ...int) []cs.Variable {
+func (e *engine) ToBinary(i1 cs.Variable, n ...int) []cs.Variable {
 	nbBits := e.bitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
@@ -172,7 +172,7 @@ func (e *engine) ToBinary(i1 interface{}, n ...int) []cs.Variable {
 	}
 
 	r := make([]cs.Variable, nbBits)
-	ri := make([]interface{}, nbBits)
+	ri := make([]cs.Variable, nbBits)
 	for i := 0; i < len(r); i++ {
 		r[i] = (b1.Bit(i))
 		ri[i] = r[i]
@@ -187,7 +187,7 @@ func (e *engine) ToBinary(i1 interface{}, n ...int) []cs.Variable {
 	return r
 }
 
-func (e *engine) FromBinary(v ...interface{}) cs.Variable {
+func (e *engine) FromBinary(v ...cs.Variable) cs.Variable {
 	bits := make([]big.Int, len(v))
 	for i := 0; i < len(v); i++ {
 		bits[i] = e.toBigInt(v[i])
@@ -233,7 +233,7 @@ func (e *engine) And(i1, i2 cs.Variable) cs.Variable {
 }
 
 // Select if b is true, yields i1 else yields i2
-func (e *engine) Select(b interface{}, i1, i2 interface{}) cs.Variable {
+func (e *engine) Select(b cs.Variable, i1, i2 cs.Variable) cs.Variable {
 	b1 := e.toBigInt(b)
 	e.mustBeBoolean(&b1)
 
@@ -246,18 +246,18 @@ func (e *engine) Select(b interface{}, i1, i2 interface{}) cs.Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (e *engine) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) cs.Variable {
+func (e *engine) Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable {
 	s0 := e.toBigInt(b0)
 	s1 := e.toBigInt(b1)
 	e.mustBeBoolean(&s0)
 	e.mustBeBoolean(&s1)
 	lookup := new(big.Int).Lsh(&s1, 1)
 	lookup.Or(lookup, &s0)
-	return e.toBigInt([]interface{}{i0, i1, i2, i3}[lookup.Uint64()])
+	return e.toBigInt([]cs.Variable{i0, i1, i2, i3}[lookup.Uint64()])
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (e *engine) IsZero(i1 interface{}) cs.Variable {
+func (e *engine) IsZero(i1 cs.Variable) cs.Variable {
 	b1 := e.toBigInt(i1)
 
 	if b1.IsUint64() && b1.Uint64() == 0 {
@@ -267,26 +267,26 @@ func (e *engine) IsZero(i1 interface{}) cs.Variable {
 	return (0)
 }
 
-func (e *engine) AssertIsEqual(i1, i2 interface{}) {
+func (e *engine) AssertIsEqual(i1, i2 cs.Variable) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) != 0 {
 		panic(fmt.Sprintf("[assertIsEqual] %s == %s", b1.String(), b2.String()))
 	}
 }
 
-func (e *engine) AssertIsDifferent(i1, i2 interface{}) {
+func (e *engine) AssertIsDifferent(i1, i2 cs.Variable) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) == 0 {
 		panic(fmt.Sprintf("[assertIsDifferent] %s != %s", b1.String(), b2.String()))
 	}
 }
 
-func (e *engine) AssertIsBoolean(i1 interface{}) {
+func (e *engine) AssertIsBoolean(i1 cs.Variable) {
 	b1 := e.toBigInt(i1)
 	e.mustBeBoolean(&b1)
 }
 
-func (e *engine) AssertIsLessOrEqual(v cs.Variable, bound interface{}) {
+func (e *engine) AssertIsLessOrEqual(v cs.Variable, bound cs.Variable) {
 
 	var bValue big.Int
 	if v, ok := bound.(cs.Variable); ok {
@@ -307,7 +307,7 @@ func (e *engine) AssertIsLessOrEqual(v cs.Variable, bound interface{}) {
 	}
 }
 
-func (e *engine) Println(a ...interface{}) {
+func (e *engine) Println(a ...cs.Variable) {
 	var sbb strings.Builder
 	sbb.WriteString("(test.engine) ")
 
@@ -330,7 +330,7 @@ func (e *engine) Println(a ...interface{}) {
 	fmt.Println(sbb.String())
 }
 
-func (e *engine) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
+func (e *engine) NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable {
 	in := make([]*big.Int, len(inputs))
 
 	for i := 0; i < len(inputs); i++ {
@@ -372,7 +372,7 @@ func (e *engine) AddCounter(from, to cs.Tag) {
 	// do nothing, we don't measure constraints with the test engine
 }
 
-func (e *engine) toBigInt(i1 interface{}) big.Int {
+func (e *engine) toBigInt(i1 cs.Variable) big.Int {
 
 	b := frontend.FromInterface(i1)
 	if _, ok := i1.(cs.Variable); ok {

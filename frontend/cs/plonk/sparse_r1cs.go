@@ -22,9 +22,7 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/cs"
-	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -128,38 +126,6 @@ func (system *SparseR1CS) NewSecretVariable(name string) cs.Variable {
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
-}
-
-func (system *SparseR1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
-	// create resulting wire
-	r := system.newInternalVariable()
-	_, vID, _ := r.Unpack()
-
-	// mark hint as unconstrained, for now
-	//system.mHintsConstrained[vID] = false
-
-	// now we need to store the linear expressions of the expected input
-	// that will be resolved in the solver
-	hintInputs := make([]compiled.LinearExpression, len(inputs))
-
-	// ensure inputs are set and pack them in a []uint64
-	for i, in := range inputs {
-		switch t := in.(type) {
-		case compiled.Term:
-			hintInputs[i] = []compiled.Term{t}
-		default:
-			n := utils.FromInterface(in)
-			id := system.CoeffID(&n)
-			var u compiled.Term
-			u.SetCoeffID(id)
-			u.SetWireID(-1) // -1 so it is recognized as a constant
-		}
-	}
-
-	// add the hint to the constraint system
-	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
-
-	return r
 }
 
 // reduces redundancy in linear expression

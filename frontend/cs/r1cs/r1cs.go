@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -187,42 +186,6 @@ func (system *R1CSRefactor) addConstraint(r1c compiled.R1C, debugID ...int) {
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
 	}
-}
-
-// NewHint initializes an internal variable whose value will be evaluated using
-// the provided hint function at run time from the inputs. Inputs must be either
-// variables or convertible to *big.Int.
-//
-// The hint function is provided at the proof creation time and is not embedded
-// into the circuit. From the backend point of view, the variable returned by
-// the hint function is equivalent to the user-supplied witness, but its actual
-// value is assigned by the solver, not the caller.
-//
-// No new constraints are added to the newly created wire and must be added
-// manually in the circuit. Failing to do so leads to solver failure.
-func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
-	// create resulting wire
-	r := system.newInternalVariable()
-	_, vID, _ := r.LinExp[0].Unpack()
-
-	// mark hint as unconstrained, for now
-	//system.mHintsConstrained[vID] = false
-
-	// now we need to store the linear expressions of the expected input
-	// that will be resolved in the solver
-	hintInputs := make([]compiled.LinearExpression, len(inputs))
-
-	// ensure inputs are set and pack them in a []uint64
-	for i, in := range inputs {
-		t := system.constant(in).(compiled.Variable)
-		tmp := t.Clone()
-		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
-	}
-
-	// add the hint to the constraint system
-	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
-
-	return r
 }
 
 // Term packs a Variable and a coeff in a Term and returns it.

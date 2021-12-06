@@ -40,25 +40,25 @@ type API interface {
 	// Arithmetic
 
 	// Add returns res = i1+i2+...in
-	Add(i1, i2 interface{}, in ...interface{}) cs.Variable
+	Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 
 	// Sub returns res = i1 - i2 - ...in
-	Sub(i1, i2 interface{}, in ...interface{}) cs.Variable
+	Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 
 	// Neg returns -i
-	Neg(i1 interface{}) cs.Variable
+	Neg(i1 cs.Variable) cs.Variable
 
 	// Mul returns res = i1 * i2 * ... in
-	Mul(i1, i2 interface{}, in ...interface{}) cs.Variable
+	Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 
 	// DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-	DivUnchecked(i1, i2 interface{}) cs.Variable
+	DivUnchecked(i1, i2 cs.Variable) cs.Variable
 
 	// Div returns i1 / i2
-	Div(i1, i2 interface{}) cs.Variable
+	Div(i1, i2 cs.Variable) cs.Variable
 
 	// Inverse returns res = 1 / i1
-	Inverse(i1 interface{}) cs.Variable
+	Inverse(i1 cs.Variable) cs.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
@@ -68,10 +68,10 @@ type API interface {
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
 	// The result in in little endian (first bit= lsb)
-	ToBinary(i1 interface{}, n ...int) []cs.Variable
+	ToBinary(i1 cs.Variable, n ...int) []cs.Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	FromBinary(b ...interface{}) cs.Variable
+	FromBinary(b ...cs.Variable) cs.Variable
 
 	// Xor returns a ^ b
 	// a and b must be 0 or 1
@@ -89,34 +89,34 @@ type API interface {
 	// Conditionals
 
 	// Select if b is true, yields i1 else yields i2
-	Select(b interface{}, i1, i2 interface{}) cs.Variable
+	Select(b cs.Variable, i1, i2 cs.Variable) cs.Variable
 
 	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 	// and i3 if b0=b1=1.
-	Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) cs.Variable
+	Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable
 
 	// IsZero returns 1 if a is zero, 0 otherwise
-	IsZero(i1 interface{}) cs.Variable
+	IsZero(i1 cs.Variable) cs.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Assertions
 
 	// AssertIsEqual fails if i1 != i2
-	AssertIsEqual(i1, i2 interface{})
+	AssertIsEqual(i1, i2 cs.Variable)
 
 	// AssertIsDifferent fails if i1 == i2
-	AssertIsDifferent(i1, i2 interface{})
+	AssertIsDifferent(i1, i2 cs.Variable)
 
 	// AssertIsBoolean fails if v != 0 || v != 1
-	AssertIsBoolean(i1 interface{})
+	AssertIsBoolean(i1 cs.Variable)
 
 	// AssertIsLessOrEqual fails if  v > bound
-	AssertIsLessOrEqual(v cs.Variable, bound interface{})
+	AssertIsLessOrEqual(v cs.Variable, bound cs.Variable)
 
 	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver
-	Println(a ...interface{})
+	Println(a ...cs.Variable)
 
 	// NewHint initializes an internal variable whose value will be evaluated
 	// using the provided hint function at run time from the inputs. Inputs must
@@ -129,7 +129,7 @@ type API interface {
 	//
 	// No new constraints are added to the newly created wire and must be added
 	// manually in the circuit. Failing to do so leads to solver failure.
-	NewHint(f hint.Function, inputs ...interface{}) cs.Variable
+	NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable
 
 	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 	// measure constraints, variables and coefficients creations through AddCounter

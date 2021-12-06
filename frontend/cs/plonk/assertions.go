@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *SparseR1CS) AssertIsEqual(i1, i2 interface{}) {
+func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		a := utils.FromInterface(i1)
@@ -55,12 +55,12 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 interface{}) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *SparseR1CS) AssertIsDifferent(i1, i2 interface{}) {
+func (system *SparseR1CS) AssertIsDifferent(i1, i2 cs.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 || v != 1
-func (system *SparseR1CS) AssertIsBoolean(i1 interface{}) {
+func (system *SparseR1CS) AssertIsBoolean(i1 cs.Variable) {
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
@@ -75,7 +75,7 @@ func (system *SparseR1CS) AssertIsBoolean(i1 interface{}) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *SparseR1CS) AssertIsLessOrEqual(v cs.Variable, bound interface{}) {
+func (system *SparseR1CS) AssertIsLessOrEqual(v cs.Variable, bound cs.Variable) {
 	switch b := bound.(type) {
 	case compiled.Term:
 		system.mustBeLessOrEqVar(v.(compiled.Term), b)
