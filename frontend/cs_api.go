@@ -26,10 +26,10 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (system *R1CS) Add(i1, i2 interface{}, in ...interface{}) cs.Variable {
+func (system *R1CS) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 
 	// extract cs.Variables from input
-	vars, s := system.toVariables(append([]interface{}{i1, i2}, in...)...)
+	vars, s := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
 
 	// allocate resulting cs.Variable
 	t := false
@@ -55,7 +55,7 @@ func (system *R1CS) Add(i1, i2 interface{}, in ...interface{}) cs.Variable {
 }
 
 // Neg returns -i
-func (system *R1CS) Neg(i interface{}) cs.Variable {
+func (system *R1CS) Neg(i cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(i)
 
 	if vars[0].IsConstant() {
@@ -71,10 +71,10 @@ func (system *R1CS) Neg(i interface{}) cs.Variable {
 }
 
 // Sub returns res = i1 - i2
-func (system *R1CS) Sub(i1, i2 interface{}, in ...interface{}) cs.Variable {
+func (system *R1CS) Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 
 	// extract cs.Variables from input
-	vars, s := system.toVariables(append([]interface{}{i1, i2}, in...)...)
+	vars, s := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
 
 	// allocate resulting cs.Variable
 	t := false
@@ -106,8 +106,8 @@ func (system *R1CS) Sub(i1, i2 interface{}, in ...interface{}) cs.Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *R1CS) Mul(i1, i2 interface{}, in ...interface{}) cs.Variable {
-	vars, _ := system.toVariables(append([]interface{}{i1, i2}, in...)...)
+func (system *R1CS) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
+	vars, _ := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
 
@@ -174,7 +174,7 @@ func (system *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 }
 
 // Inverse returns res = inverse(v)
-func (system *R1CS) Inverse(i1 interface{}) cs.Variable {
+func (system *R1CS) Inverse(i1 cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(i1)
 
 	if vars[0].IsConstant() {
@@ -198,7 +198,7 @@ func (system *R1CS) Inverse(i1 interface{}) cs.Variable {
 }
 
 // Div returns res = i1 / i2
-func (system *R1CS) Div(i1, i2 interface{}) cs.Variable {
+func (system *R1CS) Div(i1, i2 cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -231,7 +231,7 @@ func (system *R1CS) Div(i1, i2 interface{}) cs.Variable {
 	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-func (system *R1CS) DivUnchecked(i1, i2 interface{}) cs.Variable {
+func (system *R1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -326,7 +326,7 @@ func (system *R1CS) And(_a, _b cs.Variable) cs.Variable {
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *R1CS) IsZero(i1 interface{}) cs.Variable {
+func (system *R1CS) IsZero(i1 cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(i1)
 	a := vars[0]
 	if a.IsConstant() {
@@ -360,7 +360,7 @@ func (system *R1CS) IsZero(i1 interface{}) cs.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *R1CS) ToBinary(i1 interface{}, n ...int) []cs.Variable {
+func (system *R1CS) ToBinary(i1 cs.Variable, n ...int) []cs.Variable {
 
 	// nbBits
 	nbBits := system.bitLen()
@@ -399,7 +399,7 @@ func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []cs.
 
 	// allocate the resulting cs.Variables and bit-constraint them
 	b := make([]cs.Variable, nbBits)
-	sb := make([]interface{}, nbBits)
+	sb := make([]cs.Variable, nbBits)
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
@@ -437,7 +437,7 @@ func toSliceOfVariables(v []compiled.Variable) []cs.Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *R1CS) FromBinary(_b ...interface{}) cs.Variable {
+func (system *R1CS) FromBinary(_b ...cs.Variable) cs.Variable {
 	b, _ := system.toVariables(_b...)
 
 	// ensure inputs are set
@@ -465,7 +465,7 @@ func (system *R1CS) FromBinary(_b ...interface{}) cs.Variable {
 }
 
 // Select if i0 is true, yields i1 else yields i2
-func (system *R1CS) Select(i0, i1, i2 interface{}) cs.Variable {
+func (system *R1CS) Select(i0, i1, i2 cs.Variable) cs.Variable {
 
 	vars, _ := system.toVariables(i0, i1, i2)
 	b := vars[0]
@@ -500,7 +500,7 @@ func (system *R1CS) Select(i0, i1, i2 interface{}) cs.Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *R1CS) Lookup2(b0, b1 interface{}, i0, i1, i2, i3 interface{}) cs.Variable {
+func (system *R1CS) Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable {
 	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
@@ -558,7 +558,7 @@ func (system *R1CS) ConstantValue(v cs.Variable) *big.Int {
 //
 // a constant cs.Variable does NOT necessary allocate a cs.Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (system *R1CS) constant(input interface{}) cs.Variable {
+func (system *R1CS) constant(input cs.Variable) cs.Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -576,10 +576,10 @@ func (system *R1CS) constant(input interface{}) cs.Variable {
 }
 
 // toVariables return cs.Variable corresponding to inputs and the total size of the linear expressions
-func (system *R1CS) toVariables(in ...interface{}) ([]compiled.Variable, int) {
+func (system *R1CS) toVariables(in ...cs.Variable) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
-	e := func(i interface{}) {
+	e := func(i cs.Variable) {
 		v := system.constant(i).(compiled.Variable)
 		r = append(r, v)
 		s += len(v.LinExp)

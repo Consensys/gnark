@@ -195,11 +195,15 @@ func (cs *R1CS) toSparseR1CS(curveID ecc.ID) (compiled.CompiledConstraintSystem,
 	// we need to offset the ids in the hints
 	for VID, hint := range cs.mHints {
 		k := shiftVID(VID, compiled.Internal)
-		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
+		inputs := make([]interface{}, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
-			for k := 0; k < len(inputs[j]); k++ {
-				offsetTermID(&inputs[j][k])
+			switch t := inputs[j].(type) {
+			case compiled.Term:
+				offsetTermID(&t)
+				inputs[j] = t // TODO check if we can remove it
+			default:
+				inputs[j] = t
 			}
 		}
 		res.ccs.MHints[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}

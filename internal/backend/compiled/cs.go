@@ -50,8 +50,8 @@ const (
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs
 type Hint struct {
-	ID     hint.ID            // hint function id
-	Inputs []LinearExpression // terms to inject in the hint function
+	ID     hint.ID       // hint function id
+	Inputs []interface{} // terms to inject in the hint function
 }
 
 // GetNbVariables return number of internal, secret and public variables

@@ -73,12 +73,27 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSyst
 
 	// we need to offset the ids in the hints
 	shiftedMap := make(map[int]compiled.Hint)
-	for vID, hint := range res.MHints {
+
+	// we need to offset the ids in the hints
+	for vID, hint := range cs.MHints {
 		k := shiftVID(vID, compiled.Internal)
-		inputs := make([]compiled.LinearExpression, len(hint.Inputs))
+		inputs := make([]interface{}, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
-			offsetIDs(inputs[j])
+			switch t := inputs[j].(type) {
+			case compiled.Variable:
+				tmp := make(compiled.LinearExpression, len(t.LinExp))
+				copy(tmp, t.LinExp)
+				offsetIDs(tmp)
+				inputs[j] = tmp
+			case compiled.LinearExpression:
+				tmp := make(compiled.LinearExpression, len(t))
+				copy(tmp, t)
+				offsetIDs(tmp)
+				inputs[j] = tmp
+			default:
+				inputs[j] = t
+			}
 		}
 		shiftedMap[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
 	}

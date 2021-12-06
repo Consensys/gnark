@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *R1CS) AssertIsEqual(i1, i2 interface{}) {
+func (system *R1CS) AssertIsEqual(i1, i2 cs.Variable) {
 	// encoded 1 * i1 == i2
 	r := system.constant(i1).(compiled.Variable)
 	o := system.constant(i2).(compiled.Variable)
@@ -37,12 +37,12 @@ func (system *R1CS) AssertIsEqual(i1, i2 interface{}) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *R1CS) AssertIsDifferent(i1, i2 interface{}) {
+func (system *R1CS) AssertIsDifferent(i1, i2 cs.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (system *R1CS) AssertIsBoolean(i1 interface{}) {
+func (system *R1CS) AssertIsBoolean(i1 cs.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
@@ -86,7 +86,7 @@ func (system *R1CS) AssertIsBoolean(i1 interface{}) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *R1CS) AssertIsLessOrEqual(_v cs.Variable, bound interface{}) {
+func (system *R1CS) AssertIsLessOrEqual(_v cs.Variable, bound cs.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {

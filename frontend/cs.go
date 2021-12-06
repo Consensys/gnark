@@ -144,7 +144,7 @@ func newConstraintSystem(curveID ecc.ID, backendID backend.ID, initialCapacity .
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *R1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Variable {
+func (system *R1CS) NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable {
 	// create resulting wire
 	r := system.newInternalVariable()
 	_, vID, _ := r.LinExp[0].Unpack()
@@ -154,13 +154,20 @@ func (system *R1CS) NewHint(f hint.Function, inputs ...interface{}) cs.Variable 
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
-	hintInputs := make([]compiled.LinearExpression, len(inputs))
+	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		t := system.constant(in).(compiled.Variable)
-		tmp := t.Clone()
-		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
+		switch t := in.(type) {
+		case compiled.Variable:
+			tmp := t.Clone()
+			hintInputs[i] = tmp.LinExp
+		default:
+			hintInputs[i] = t
+		}
+		// t := system.constant(in).(compiled.Variable)
+		// tmp := t.Clone()
+		// hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system

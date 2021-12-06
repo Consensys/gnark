@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
@@ -106,6 +107,15 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 	}
 }
 
+func (s *solution) computeLinearExpression(l compiled.LinearExpression) fr.Element {
+	var res fr.Element
+	for i := 0; i < len(l); i++ {
+		v := s.computeTerm(l[i])
+		res.Add(&res, &v)
+	}
+	return res
+}
+
 // solveHint compute solution.values[vID] using provided solver hint
 func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 	// ensure hint function was provided
@@ -123,26 +133,20 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 	lambda := bigIntPool.Get().(*big.Int)
 
 	for i := 0; i < len(h.Inputs); i++ {
-		// input is a linear expression, we must compute the value
-		for j := 0; j < len(h.Inputs[i]); j++ {
-			ciID, viID, visibility := h.Inputs[i][j].Unpack()
-			if visibility == compiled.Virtual {
-				// we have a constant, just take the coefficient value
-				s.coefficients[ciID].ToBigIntRegular(lambda)
-				inputs[i].Add(inputs[i], lambda)
-				continue
-			}
-			if !s.solved[viID] {
-				// release objects into pool
-				bigIntPool.Put(lambda)
-				for i := 0; i < len(inputs); i++ {
-					bigIntPool.Put(inputs[i])
-				}
-				return errors.New("expected wire to be instantiated while evaluating hint")
-			}
-			v := s.computeTerm(h.Inputs[i][j])
-			v.ToBigIntRegular(lambda)
-			inputs[i].Add(inputs[i], lambda)
+
+		switch t := h.Inputs[i].(type) {
+		case compiled.Variable:
+			v := s.computeLinearExpression(t.LinExp)
+			v.ToBigIntRegular(inputs[i])
+		case compiled.LinearExpression:
+			v := s.computeLinearExpression(t)
+			v.ToBigIntRegular(inputs[i])
+		case compiled.Term:
+			v := s.computeTerm(t)
+			v.ToBigIntRegular(inputs[i])
+		default:
+			v := utils.FromInterface(t)
+			inputs[i] = &v
 		}
 	}
 

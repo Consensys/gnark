@@ -53,7 +53,7 @@ func (system *SparseR1CS) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 
 }
 
-// neg returns -in...
+// neg returns -in
 func (system *SparseR1CS) neg(in []cs.Variable) []cs.Variable {
 
 	res := make([]cs.Variable, len(in))
@@ -157,11 +157,11 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 		return res
 	}
 	res := system.newInternalVariable()
-	t1 := i1.(compiled.Term)
-	t2 := i2.(compiled.Term)
-	cl, _, _ := t1.Unpack()
-	cr, _, _ := t2.Unpack()
-	system.addPlonkConstraint(t1, t2, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+	r := i2.(compiled.Term)
+	o := system.Neg(i1).(compiled.Term)
+	cr, _, _ := r.Unpack()
+	co, _, _ := o.Unpack()
+	system.addPlonkConstraint(res, r, o, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, co, compiled.CoeffIdZero)
 	return res
 }
 
@@ -513,7 +513,8 @@ func (system *SparseR1CS) NewHint(f hint.Function, inputs ...cs.Variable) cs.Var
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
-	hintInputs := make([]compiled.LinearExpression, len(inputs))
+	//hintInputs := make([]compiled.LinearExpression, len(inputs))
+	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
@@ -521,11 +522,7 @@ func (system *SparseR1CS) NewHint(f hint.Function, inputs ...cs.Variable) cs.Var
 		case compiled.Term:
 			hintInputs[i] = []compiled.Term{t}
 		default:
-			n := utils.FromInterface(in)
-			id := system.CoeffID(&n)
-			var u compiled.Term
-			u.SetCoeffID(id)
-			u.SetWireID(-1) // -1 so it is recognized as a constant
+			hintInputs[i] = utils.FromInterface(in)
 		}
 	}
 

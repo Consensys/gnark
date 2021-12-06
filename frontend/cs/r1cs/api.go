@@ -672,13 +672,25 @@ func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...cs.Variable) cs.V
 
 	// now we need to store the linear expressions of the expected input
 	// that will be resolved in the solver
-	hintInputs := make([]compiled.LinearExpression, len(inputs))
+	//hintInputs := make([]compiled.LinearExpression, len(inputs))
+	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		t := system.constant(in).(compiled.Variable)
-		tmp := t.Clone()
-		hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
+		switch t := in.(type) {
+		case compiled.Variable:
+			tmp := t.Clone()
+			hintInputs[i] = tmp.LinExp
+		case compiled.LinearExpression:
+			tmp := make(compiled.LinearExpression, len(t))
+			copy(tmp, t)
+			hintInputs[i] = tmp
+		default:
+			hintInputs[i] = t
+		}
+		// t := system.constant(in).(compiled.Variable)
+		// tmp := t.Clone()
+		// hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system

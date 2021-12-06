@@ -35,7 +35,7 @@ import (
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *R1CS) Println(a ...interface{}) {
+func (system *R1CS) Println(a ...cs.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -73,7 +73,7 @@ func (system *R1CS) Println(a ...interface{}) {
 	system.logs = append(system.logs, log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
+func printArg(log *compiled.LogEntry, sbb *strings.Builder, a cs.Variable) {
 
 	count := 0
 	counter := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
@@ -112,7 +112,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a interface{}) {
 	sbb.WriteByte('}')
 }
 
-func (system *R1CS) addDebugInfo(errName string, i ...interface{}) int {
+func (system *R1CS) addDebugInfo(errName string, i ...cs.Variable) int {
 	var l compiled.LogEntry
 
 	const minLogSize = 500
