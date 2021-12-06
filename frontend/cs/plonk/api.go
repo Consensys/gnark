@@ -545,7 +545,7 @@ func (system *SparseR1CS) filterConstantSum(in []interface{}) ([]compiled.Term, 
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *SparseR1CS) filterConstantProd(in ...interface{}) ([]compiled.Term, big.Int) {
+func (system *SparseR1CS) filterConstantProd(in []interface{}) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
