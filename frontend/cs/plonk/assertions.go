@@ -86,61 +86,6 @@ func (system *SparseR1CS) AssertIsLessOrEqual(v cs.Variable, bound cs.Variable) 
 	}
 }
 
-func (system *SparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
-
-	nbBits := system.BitLen()
-
-	// ensure the bound is positive, it's bit-len doesn't matter
-	if bound.Sign() == -1 {
-		panic("AssertIsLessOrEqual: bound must be positive")
-	}
-	if bound.BitLen() > nbBits {
-		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
-	}
-
-	// debug info
-	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
-
-	// note that at this stage, we didn't boolean-constraint these new variables yet
-	// (as opposed to ToBinary)
-	aBits := system.toBinary(a, nbBits, true)
-
-	// t trailing bits in the bound
-	t := 0
-	for i := 0; i < nbBits; i++ {
-		if bound.Bit(i) == 0 {
-			break
-		}
-		t++
-	}
-
-	p := make([]cs.Variable, nbBits+1)
-	// p[i] == 1 --> a[j] == c[j] for all j >= i
-	p[nbBits] = 1
-
-	for i := nbBits - 1; i >= t; i-- {
-		if bound.Bit(i) == 0 {
-			p[i] = p[i+1]
-		} else {
-			p[i] = system.Mul(p[i+1], aBits[i])
-		}
-	}
-
-	for i := nbBits - 1; i >= 0; i-- {
-		if bound.Bit(i) == 0 {
-			// (1 - p(i+1) - ai) * ai == 0
-			l := system.Sub(1, p[i+1]).(compiled.Term)
-			l = system.Sub(l, aBits[i]).(compiled.Term)
-
-			system.addPlonkConstraint(l, aBits[i].(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
-			// system.markBoolean(aBits[i].(compiled.Term))
-		} else {
-			system.AssertIsBoolean(aBits[i])
-		}
-	}
-
-}
-
 func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
@@ -184,6 +129,72 @@ func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 			compiled.CoeffIdOne,
 			compiled.CoeffIdZero,
 			compiled.CoeffIdZero, debug)
+	}
+
+}
+
+func (system *SparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+
+	nbBits := system.BitLen()
+
+	// ensure the bound is positive, it's bit-len doesn't matter
+	if bound.Sign() == -1 {
+		panic("AssertIsLessOrEqual: bound must be positive")
+	}
+	if bound.BitLen() > nbBits {
+		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
+	}
+
+	// debug info
+	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+
+	// note that at this stage, we didn't boolean-constraint these new variables yet
+	// (as opposed to ToBinary)
+	aBits := system.toBinary(a, nbBits, true)
+
+	// t trailing bits in the bound
+	t := 0
+	for i := 0; i < nbBits; i++ {
+		if bound.Bit(i) == 0 {
+			break
+		}
+		t++
+	}
+
+	p := make([]cs.Variable, nbBits+1)
+	// p[i] == 1 --> a[j] == c[j] for all j >= i
+	p[nbBits] = 1
+
+	for i := nbBits - 1; i >= t; i-- {
+		if bound.Bit(i) == 0 {
+			p[i] = p[i+1]
+		} else {
+			p[i] = system.Mul(p[i+1], aBits[i])
+		}
+	}
+
+	for i := nbBits - 1; i >= 0; i-- {
+
+		if bound.Bit(i) == 0 {
+			// (1 - p(i+1) - ai) * ai == 0
+			l := system.Sub(1, p[i+1], aBits[i]).(compiled.Term)
+			//l = system.Sub(l, ).(compiled.Term)
+
+			system.addPlonkConstraint(
+				l,
+				aBits[i].(compiled.Term),
+				system.zero(),
+				compiled.CoeffIdZero,
+				compiled.CoeffIdZero,
+				compiled.CoeffIdOne,
+				compiled.CoeffIdOne,
+				compiled.CoeffIdZero,
+				compiled.CoeffIdZero,
+				debug)
+			// system.markBoolean(aBits[i].(compiled.Term))
+		} else {
+			system.AssertIsBoolean(aBits[i])
+		}
 	}
 
 }

@@ -299,6 +299,10 @@ func (system *SparseR1CS) Xor(a, b cs.Variable) cs.Variable {
 // Or returns a | b
 // a and b must be 0 or 1
 func (system *SparseR1CS) Or(a, b cs.Variable) cs.Variable {
+
+	var zero, one big.Int
+	one.SetUint64(1)
+
 	if system.IsConstant(a) && system.IsConstant(b) {
 		_a := utils.FromInterface(a)
 		_b := utils.FromInterface(b)
@@ -310,9 +314,16 @@ func (system *SparseR1CS) Or(a, b cs.Variable) cs.Variable {
 		a, b = b, a
 	}
 	if system.IsConstant(b) {
+		_b := utils.FromInterface(b)
+
 		l := a.(compiled.Term)
 		r := l
-		_b := utils.FromInterface(b)
+
+		if _b.Cmp(&one) != 0 && _b.Cmp(&zero) != 0 {
+			panic(fmt.Sprintf("%s should be 0 or 1", _b.String()))
+		}
+		system.AssertIsBoolean(a)
+
 		one := big.NewInt(1)
 		_b.Sub(&_b, one)
 		idl := system.CoeffID(&_b)
@@ -321,6 +332,8 @@ func (system *SparseR1CS) Or(a, b cs.Variable) cs.Variable {
 	}
 	l := a.(compiled.Term)
 	r := b.(compiled.Term)
+	system.AssertIsBoolean(l)
+	system.AssertIsBoolean(r)
 	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
 	return res
 }
@@ -328,6 +341,8 @@ func (system *SparseR1CS) Or(a, b cs.Variable) cs.Variable {
 // Or returns a & b
 // a and b must be 0 or 1
 func (system *SparseR1CS) And(a, b cs.Variable) cs.Variable {
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 	return system.Mul(a, b)
 }
 

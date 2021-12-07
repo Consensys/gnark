@@ -156,6 +156,7 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 
 var tVariable reflect.Type
 
+// TODO @tpiellard change struct{ A Variable } to struct{ A cs.Variable}, and refactor ...
 func init() {
 	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
 }
