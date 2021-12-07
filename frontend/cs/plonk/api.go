@@ -35,9 +35,9 @@ import (
 
 // Add returns res = i1+i2+...in
 func (system *SparseR1CS) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
-
 	zero := big.NewInt(0)
 	vars, k := system.filterConstantSum(append([]cs.Variable{i1, i2}, in...))
+
 	if len(vars) == 0 {
 		return k
 	}
@@ -48,7 +48,7 @@ func (system *SparseR1CS) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 	cl, _, _ := vars[0].Unpack()
 	kID := system.CoeffID(&k)
 	o := system.newInternalVariable()
-	system.addPlonkConstraint(vars[0], 0, o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
+	system.addPlonkConstraint(vars[0], system.zero(), o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
 	return system.splitSum(o, vars[1:])
 
 }
@@ -132,8 +132,6 @@ func (system *SparseR1CS) divConstant(t compiled.Term, m *big.Int) compiled.Term
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
 func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 
-	var zero compiled.Term
-
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		l := utils.FromInterface(i1)
 		r := utils.FromInterface(i2)
@@ -153,7 +151,7 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 		res := system.newInternalVariable()
 		c := utils.FromInterface(i1)
 		cidl := system.CoeffID(&c)
-		system.addPlonkConstraint(res, t, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+		system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 		return res
 	}
 	res := system.newInternalVariable()
@@ -173,7 +171,6 @@ func (system *SparseR1CS) Div(i1, i2 cs.Variable) cs.Variable {
 
 // Inverse returns res = 1 / i1
 func (system *SparseR1CS) Inverse(i1 cs.Variable) cs.Variable {
-	var zero compiled.Term
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		c.ModInverse(&c, system.CurveID.Info().Fr.Modulus())
@@ -182,7 +179,7 @@ func (system *SparseR1CS) Inverse(i1 cs.Variable) cs.Variable {
 	t := i1.(compiled.Term)
 	cr, _, _ := t.Unpack()
 	res := system.newInternalVariable()
-	system.addPlonkConstraint(res, t, zero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+	system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
 	return res
 }
 
@@ -236,6 +233,7 @@ func (system *SparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []c
 	}
 
 	//var Σbi compiled.Term
+	// TODO we can save a constraint here
 	var Σbi cs.Variable
 	if nbBits == 1 {
 		system.AssertIsEqual(sb[0], a)
@@ -257,7 +255,7 @@ func (system *SparseR1CS) FromBinary(b ...cs.Variable) cs.Variable {
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < len(b); i++ {
-		_b[0] = system.Mul(b[i], c)
+		_b[i] = system.Mul(b[i], c)
 		c.Lsh(&c, 1)
 	}
 	if len(b) == 1 {
@@ -266,7 +264,7 @@ func (system *SparseR1CS) FromBinary(b ...cs.Variable) cs.Variable {
 	if len(b) == 1 {
 		return system.Add(_b[0], _b[1])
 	}
-	return system.Add(_b[0], _b[1], _b[2:])
+	return system.Add(_b[0], _b[1], _b[2:]...)
 }
 
 // Xor returns a ^ b
@@ -352,18 +350,10 @@ func (system *SparseR1CS) Select(b cs.Variable, i1, i2 cs.Variable) cs.Variable 
 		return i1
 	}
 
-	u := system.Sub(i2, i1)
+	u := system.Sub(i1, i2)
 	l := system.Mul(u, b)
-	res := system.newInternalVariable()
-	if system.IsConstant(i2) {
-		k := utils.FromInterface(i2)
-		_k := system.CoeffID(&k)
-		system.addPlonkConstraint(l.(compiled.Term), 0, res, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k)
-	} else {
-		_r := i2.(compiled.Term)
-		system.addPlonkConstraint(l.(compiled.Term), _r, res, compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
-	}
-	return res
+
+	return system.Add(l, i2)
 }
 
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
@@ -388,7 +378,7 @@ func (system *SparseR1CS) IsZero(i1 cs.Variable) cs.Variable {
 	a := i1.(compiled.Term)
 	m := system.NewHint(hint.IsZero, a)
 	system.AssertIsBoolean(i1)
-	system.addPlonkConstraint(a, m.(compiled.Term), 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+	system.addPlonkConstraint(a, m.(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
 	ma := system.Add(m, a)
 	system.Inverse(ma)
 	return m
@@ -520,7 +510,7 @@ func (system *SparseR1CS) NewHint(f hint.Function, inputs ...cs.Variable) cs.Var
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case compiled.Term:
-			hintInputs[i] = []compiled.Term{t}
+			hintInputs[i] = t
 		default:
 			hintInputs[i] = utils.FromInterface(in)
 		}

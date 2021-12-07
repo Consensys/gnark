@@ -56,21 +56,7 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem
 	}
 
 	offsetTermID := func(t *compiled.Term) {
-		// if *t == 0 {
-		// 	// in a PLONK constraint, not all terms are necessarily set,
-		// 	// the terms which are not set are equal to zero. We just
-		// 	// need to skip them.
-		// 	return
-		// }
 		_, VID, visibility := t.Unpack()
-		// if VID == 0 && visibility == compiled.Public {
-		// 	// this would not happen in a plonk constraint as the constant term has been popped out
-		// 	// however it may happen in the Logs or the hints that contains
-		// 	// terms associated with the ONE wire
-		// 	// workaround; we set the visibility to Virtual so that the solver recognizes that as a constant
-		// 	t.SetVariableVisibility(compiled.Virtual)
-		// 	return
-		// }
 		t.SetWireID(shiftVID(VID, visibility))
 	}
 
@@ -78,7 +64,6 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem
 	// numbered like this: [publicVariables | secretVariables | internalVariables ]
 	for i := 0; i < len(res.Constraints); i++ {
 		r1c := &res.Constraints[i]
-		// offset each term in the constraint
 		offsetTermID(&r1c.L)
 		offsetTermID(&r1c.R)
 		offsetTermID(&r1c.O)

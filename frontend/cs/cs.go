@@ -18,11 +18,11 @@ package cs
 
 import (
 	"math/big"
-	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -88,6 +88,7 @@ func (cs *ConstraintSystem) CoeffID(b *big.Int) int {
 }
 
 func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
+
 	var l compiled.LogEntry
 
 	const minLogSize = 500
@@ -109,12 +110,11 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 			}
 		case string:
 			sbb.WriteString(v)
-		case int:
-			sbb.WriteString(strconv.Itoa(v))
 		case compiled.Term:
 			l.WriteTerm(v, &sbb)
 		default:
-			panic("unsupported log type")
+			_v := utils.FromInterface(v)
+			sbb.WriteString(_v.String())
 		}
 	}
 	sbb.WriteByte('\n')
@@ -122,6 +122,7 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 	l.Format = sbb.String()
 
 	cs.DebugInfo = append(cs.DebugInfo, l)
+
 	return len(cs.DebugInfo) - 1
 }
 

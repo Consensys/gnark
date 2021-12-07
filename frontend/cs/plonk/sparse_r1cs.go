@@ -85,18 +85,10 @@ func (system *SparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, 
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
 	}
 
-	// _l := l.(compiled.Term)
-	// _r := r.(compiled.Term)
-	// _o := o.(compiled.Term)
-	// _l.SetCoeffID(cidl)
-	// _r.SetCoeffID(cidr)
-	// _o.SetCoeffID(cido)
 	l.SetCoeffID(cidl)
 	r.SetCoeffID(cidr)
 	o.SetCoeffID(cido)
 
-	// u := _l
-	// v := _r
 	u := l
 	v := r
 	u.SetCoeffID(cidm1)
@@ -150,6 +142,12 @@ func (system *SparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 		}
 	}
 	return l
+}
+
+// to handle wires that don't exist (=coef 0) in a sparse constraint
+func (system *SparseR1CS) zero() compiled.Term {
+	var a compiled.Term
+	return a
 }
 
 var tVariable reflect.Type

@@ -34,6 +34,7 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 		if a.Cmp(&b) != 0 {
 			panic("i1, i2 should be equal")
 		}
+		return
 	}
 	if system.IsConstant(i1) {
 		i1, i2 = i2, i1
@@ -41,17 +42,17 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 	if system.IsConstant(i2) {
 		l := i1.(compiled.Term)
 		k := utils.FromInterface(i2)
-		debug := system.AddDebugInfo("assertIsEqual", l, " == ", k)
+		debug := system.AddDebugInfo("assertIsEqual", l, " == ", i2)
 		k.Neg(&k)
 		_k := system.CoeffID(&k)
-		system.addPlonkConstraint(l, 0, 0, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
+		system.addPlonkConstraint(l, system.zero(), system.zero(), compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
+		return
 	}
 	l := i1.(compiled.Term)
 	r := i2.(compiled.Term)
 
 	debug := system.AddDebugInfo("assertIsEqual", l, " == ", r)
-
-	system.addPlonkConstraint(l, r, 0, compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	system.addPlonkConstraint(l, r, system.zero(), compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
@@ -70,8 +71,7 @@ func (system *SparseR1CS) AssertIsBoolean(i1 cs.Variable) {
 	}
 	t := i1.(compiled.Term)
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
-	var zero compiled.Term
-	system.addPlonkConstraint(t, t, zero, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	system.addPlonkConstraint(t, t, system.zero(), compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
@@ -130,7 +130,7 @@ func (system *SparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 			l := system.Sub(1, p[i+1]).(compiled.Term)
 			l = system.Sub(l, aBits[i]).(compiled.Term)
 
-			system.addPlonkConstraint(l, aBits[i].(compiled.Term), 0, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+			system.addPlonkConstraint(l, aBits[i].(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 			// system.markBoolean(aBits[i].(compiled.Term))
 		} else {
 			system.AssertIsBoolean(aBits[i])
@@ -172,11 +172,10 @@ func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		// system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
-		var zero compiled.Term
 		system.addPlonkConstraint(
 			l.(compiled.Term),
 			aBits[i].(compiled.Term),
-			zero,
+			system.zero(),
 			compiled.CoeffIdZero,
 			compiled.CoeffIdZero,
 			compiled.CoeffIdOne,
