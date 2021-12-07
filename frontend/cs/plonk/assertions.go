@@ -49,10 +49,12 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 		return
 	}
 	l := i1.(compiled.Term)
-	r := i2.(compiled.Term)
+	r := system.Neg(i2).(compiled.Term)
+	lc, _, _ := l.Unpack()
+	rc, _, _ := r.Unpack()
 
 	debug := system.AddDebugInfo("assertIsEqual", l, " == ", r)
-	system.addPlonkConstraint(l, r, system.zero(), compiled.CoeffIdOne, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	system.addPlonkConstraint(l, r, system.zero(), lc, rc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
