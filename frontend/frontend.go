@@ -35,7 +35,7 @@ import (
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
 // 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"exponent,public"`
+// 			Y cs.Variable `gnark:"exponent,public"`
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
@@ -154,9 +154,9 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	return nil
 }
 
-var tVariable reflect.Type
+// var tVariable reflect.Type
 
-// TODO @tpiellard change struct{ A Variable } to struct{ A cs.Variable}, and refactor ...
-func init() {
-	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
-}
+// // TODO @tpiellard change struct{ A Variable } to struct{ A cs.Variable}, and refactor ...
+// func init() {
+// 	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
+// }

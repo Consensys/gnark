@@ -29,9 +29,9 @@
 // For example, with this circuit on `ecc.BN254`
 //
 // 	type Circuit struct {
-// 	    X frontend.Variable
-// 	    Y frontend.Variable `gnark:",public"`
-// 	    Z frontend.Variable
+// 	    X cs.Variable
+// 	    Y cs.Variable `gnark:",public"`
+// 	    Z cs.Variable
 // 	}
 //
 // A valid witness would be:

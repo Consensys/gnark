@@ -2,18 +2,19 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type negCircuit struct {
-	X frontend.Variable
-	Z frontend.Variable `gnark:",public"`
+	X cs.Variable
+	Z cs.Variable `gnark:",public"`
 }
 
-func (circuit *negCircuit) Define(cs frontend.API) error {
-	a := cs.Mul(circuit.X, circuit.X)
-	b := cs.Neg(circuit.X)
-	c := cs.Add(a, b)
-	cs.AssertIsEqual(c, circuit.Z)
+func (circuit *negCircuit) Define(api frontend.API) error {
+	a := api.Mul(circuit.X, circuit.X)
+	b := api.Neg(circuit.X)
+	c := api.Add(a, b)
+	api.AssertIsEqual(c, circuit.Z)
 	return nil
 }
 

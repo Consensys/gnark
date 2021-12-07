@@ -165,9 +165,6 @@ func (system *R1CS) NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable 
 		default:
 			hintInputs[i] = t
 		}
-		// t := system.constant(in).(compiled.Variable)
-		// tmp := t.Clone()
-		// hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
 	// add the hint to the constraint system

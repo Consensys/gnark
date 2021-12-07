@@ -114,7 +114,7 @@ type API interface {
 	// AssertIsLessOrEqual fails if  v > bound
 	AssertIsLessOrEqual(v cs.Variable, bound cs.Variable)
 
-	// Println behaves like fmt.Println but accepts frontend.Variable as parameter
+	// Println behaves like fmt.Println but accepts cd.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...cs.Variable)
 

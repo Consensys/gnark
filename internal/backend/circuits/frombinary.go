@@ -2,22 +2,23 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type fromBinaryCircuit struct {
-	B0, B1, B2, B3 frontend.Variable
-	Y              frontend.Variable `gnark:",public"`
+	B0, B1, B2, B3 cs.Variable
+	Y              cs.Variable `gnark:",public"`
 }
 
-func (circuit *fromBinaryCircuit) Define(cs frontend.API) error {
-	cs.AssertIsBoolean(circuit.B0)
-	cs.AssertIsBoolean(circuit.B1)
-	cs.AssertIsBoolean(circuit.B2)
-	cs.AssertIsBoolean(circuit.B3)
+func (circuit *fromBinaryCircuit) Define(api frontend.API) error {
+	api.AssertIsBoolean(circuit.B0)
+	api.AssertIsBoolean(circuit.B1)
+	api.AssertIsBoolean(circuit.B2)
+	api.AssertIsBoolean(circuit.B3)
 
-	r := cs.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
+	r := api.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
 
-	cs.AssertIsEqual(circuit.Y, r)
+	api.AssertIsEqual(circuit.Y, r)
 	return nil
 }
 

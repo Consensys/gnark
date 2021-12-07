@@ -7,10 +7,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type hintCircuit struct {
-	A, B frontend.Variable
+	A, B cs.Variable
 }
 
 func (circuit *hintCircuit) Define(api frontend.API) error {

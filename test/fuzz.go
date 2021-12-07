@@ -9,6 +9,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
@@ -127,5 +128,5 @@ func fill(w frontend.Circuit, nextValue func() interface{}) {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
 }

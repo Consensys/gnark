@@ -2,15 +2,16 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type divCircuit struct {
-	X, Y frontend.Variable
-	Z    frontend.Variable `gnark:",public"`
+	X, Y cs.Variable
+	Z    cs.Variable `gnark:",public"`
 }
 
-func (circuit *divCircuit) Define(cs frontend.API) error {
-	cs.AssertIsEqual(cs.DivUnchecked(circuit.X, circuit.Y), circuit.Z)
+func (circuit *divCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(api.DivUnchecked(circuit.X, circuit.Y), circuit.Z)
 	return nil
 }
 

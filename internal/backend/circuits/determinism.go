@@ -2,15 +2,16 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type determinism struct {
-	X [5]frontend.Variable
-	Z frontend.Variable `gnark:",public"`
+	X [5]cs.Variable
+	Z cs.Variable `gnark:",public"`
 }
 
-func (circuit *determinism) Define(cs frontend.API) error {
-	a := cs.Add(circuit.X[0],
+func (circuit *determinism) Define(api frontend.API) error {
+	a := api.Add(circuit.X[0],
 		circuit.X[0],
 		circuit.X[1],
 		circuit.X[1],
@@ -21,8 +22,8 @@ func (circuit *determinism) Define(cs frontend.API) error {
 		circuit.X[4],
 		circuit.X[4],
 	)
-	b := cs.Mul(a, a)
-	cs.AssertIsEqual(b, circuit.Z)
+	b := api.Mul(a, a)
+	api.AssertIsEqual(b, circuit.Z)
 	return nil
 }
 

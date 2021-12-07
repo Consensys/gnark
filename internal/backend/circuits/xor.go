@@ -2,16 +2,17 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type xorCircuit struct {
-	Op1, Op2, Res frontend.Variable
+	Op1, Op2, Res cs.Variable
 }
 
-func (circuit *xorCircuit) Define(cs frontend.API) error {
-	d := cs.Xor(circuit.Op1, circuit.Op2)
+func (circuit *xorCircuit) Define(api frontend.API) error {
+	d := api.Xor(circuit.Op1, circuit.Op2)
 
-	cs.AssertIsEqual(d, circuit.Res)
+	api.AssertIsEqual(d, circuit.Res)
 	return nil
 }
 

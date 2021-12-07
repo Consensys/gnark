@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -35,7 +36,7 @@ import (
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
 // 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"exponent,public"`
+// 			Y cs.Variable `gnark:"exponent,public"`
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
@@ -70,7 +71,7 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 	}
 
 	// build the constraint system (see Circuit.Define)
-	err = bootLoad(curveID, zkpID, circuit, system, opt.capacity)
+	err = bootStrap(curveID, zkpID, circuit, system, opt.capacity)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func bootLoad(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, initialCapacity ...int) (err error) {
+func bootStrap(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, initialCapacity ...int) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
@@ -133,4 +134,10 @@ func bootLoad(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, 
 
 	return
 
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
 }

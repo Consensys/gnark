@@ -2,22 +2,23 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type checkAssertIsBooleanCircuit struct {
-	A, B, C frontend.Variable
+	A, B, C cs.Variable
 }
 
-func (circuit *checkAssertIsBooleanCircuit) Define(cs frontend.API) error {
+func (circuit *checkAssertIsBooleanCircuit) Define(api frontend.API) error {
 
 	// simple variable
-	cs.AssertIsBoolean(circuit.C)
+	api.AssertIsBoolean(circuit.C)
 
 	// linear expression ADD
-	cs.AssertIsBoolean(cs.Add(circuit.A, circuit.B))
+	api.AssertIsBoolean(api.Add(circuit.A, circuit.B))
 
 	// linear expression SUB
-	cs.AssertIsBoolean(cs.Sub(circuit.A, circuit.B))
+	api.AssertIsBoolean(api.Sub(circuit.A, circuit.B))
 
 	return nil
 }

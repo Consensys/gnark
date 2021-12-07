@@ -2,6 +2,7 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 // circuit designed to test if plonk compiler recognizes
@@ -9,23 +10,23 @@ import (
 // marked as boolean constraint, but the constraint doesn't exist
 // (it's the case for the result of a XOR, OR, AND for instance)
 type orXoAndMulCircuit struct {
-	A, B frontend.Variable
+	A, B cs.Variable
 }
 
-func (circuit *orXoAndMulCircuit) Define(cs frontend.API) error {
+func (circuit *orXoAndMulCircuit) Define(api frontend.API) error {
 
-	a := cs.Xor(circuit.A, circuit.B)
-	b := cs.Mul(a, circuit.A)
+	a := api.Xor(circuit.A, circuit.B)
+	b := api.Mul(a, circuit.A)
 
-	c := cs.Or(circuit.A, circuit.B)
-	d := cs.Mul(c, circuit.A)
+	c := api.Or(circuit.A, circuit.B)
+	d := api.Mul(c, circuit.A)
 
-	e := cs.Or(circuit.A, circuit.B)
-	f := cs.Mul(e, circuit.A)
+	e := api.Or(circuit.A, circuit.B)
+	f := api.Mul(e, circuit.A)
 
-	cs.AssertIsBoolean(b)
-	cs.AssertIsBoolean(d)
-	cs.AssertIsBoolean(f)
+	api.AssertIsBoolean(b)
+	api.AssertIsBoolean(d)
+	api.AssertIsBoolean(f)
 
 	return nil
 }

@@ -316,7 +316,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 	opt := assert.options(opts...)
 
 	// first we clone the circuit
-	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
+	// then we parse the cs.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
 	w := utils.ShallowClone(circuit)
 
@@ -327,7 +327,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 
 			// this puts the compiled circuit in the cache
 			// we do this here in case our fuzzWitness method mutates some references in the circuit
-			// (like []frontend.Variable) before cleaning up
+			// (like []cs.Variable) before cleaning up
 			_, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			assert.NoError(err)
 			valid := 0

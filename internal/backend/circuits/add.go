@@ -2,16 +2,17 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type addCircuit struct {
-	Op1, Op2, Res frontend.Variable
+	Op1, Op2, Res cs.Variable
 }
 
-func (circuit *addCircuit) Define(cs frontend.API) error {
-	d := cs.Add(circuit.Op1, circuit.Op2, circuit.Op1)
+func (circuit *addCircuit) Define(api frontend.API) error {
+	d := api.Add(circuit.Op1, circuit.Op2, circuit.Op1)
 
-	cs.AssertIsEqual(d, circuit.Res)
+	api.AssertIsEqual(d, circuit.Res)
 	return nil
 }
 

@@ -2,15 +2,16 @@ package circuits
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 type checkAssertEqualCircuit struct {
-	X frontend.Variable
-	Y frontend.Variable `gnark:",public"`
+	X cs.Variable
+	Y cs.Variable `gnark:",public"`
 }
 
-func (circuit *checkAssertEqualCircuit) Define(cs frontend.API) error {
-	cs.AssertIsEqual(circuit.X, circuit.Y)
+func (circuit *checkAssertEqualCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
 }
 

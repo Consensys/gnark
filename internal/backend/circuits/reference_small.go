@@ -4,20 +4,21 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 const nbConstraintsRefSmall = 5
 
 type referenceSmallCircuit struct {
-	X frontend.Variable
-	Y frontend.Variable `gnark:",public"`
+	X cs.Variable
+	Y cs.Variable `gnark:",public"`
 }
 
-func (circuit *referenceSmallCircuit) Define(cs frontend.API) error {
+func (circuit *referenceSmallCircuit) Define(api frontend.API) error {
 	for i := 0; i < nbConstraintsRefSmall; i++ {
-		circuit.X = cs.Mul(circuit.X, circuit.X)
+		circuit.X = api.Mul(circuit.X, circuit.X)
 	}
-	cs.AssertIsEqual(circuit.X, circuit.Y)
+	api.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
 }
 
