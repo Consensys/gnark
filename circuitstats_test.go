@@ -3,13 +3,14 @@ package gnark
 import (
 	"encoding/gob"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
-	"github.com/stretchr/testify/require"
+	"github.com/consensys/gnark/test"
 )
 
 const (
@@ -17,27 +18,28 @@ const (
 	generateNewStats = false
 )
 
+var statsM sync.Mutex
+
 func TestCircuitStatistics(t *testing.T) {
+	assert := test.NewAssert(t)
+	for k := range circuits.Circuits {
+		for _, curve := range ecc.Implemented() {
+			for _, b := range backend.Implemented() {
+				curve := curve
+				b := b
+				name := k
+				// copy the circuit now in case assert calls t.Parallel()
+				tData := circuits.Circuits[k]
+				assert.Run(func(assert *test.Assert) {
+					ccs, err := frontend.Compile(curve, b, tData.Circuit)
+					assert.NoError(err)
 
-	assert := require.New(t)
-
-	curves := ecc.Implemented()
-	for name, tData := range circuits.Circuits {
-
-		for _, curve := range curves {
-			check := func(backendID backend.ID) {
-				t.Log(name, curve.String(), backendID.String())
-
-				ccs, err := frontend.Compile(curve, backendID, tData.Circuit)
-				assert.NoError(err)
-
-				// ensure we didn't introduce regressions that make circuits less efficient
-				nbConstraints := ccs.GetNbConstraints()
-				internal, secret, public := ccs.GetNbVariables()
-				checkStats(t, name, nbConstraints, internal, secret, public, curve, backendID)
+					// ensure we didn't introduce regressions that make circuits less efficient
+					nbConstraints := ccs.GetNbConstraints()
+					internal, secret, public := ccs.GetNbVariables()
+					checkStats(t, name, nbConstraints, internal, secret, public, curve, b)
+				}, name, curve.String(), b.String())
 			}
-			check(backend.GROTH16)
-			check(backend.PLONK)
 		}
 
 	}
@@ -60,6 +62,8 @@ type circuitStats struct {
 var mStats map[string][backend.PLONK + 1][ecc.BW6_633 + 1]circuitStats
 
 func checkStats(t *testing.T, circuitName string, nbConstraints, internal, secret, public int, curve ecc.ID, backendID backend.ID) {
+	statsM.Lock()
+	defer statsM.Unlock()
 	if generateNewStats {
 		rs := mStats[circuitName]
 		rs[backendID][curve] = circuitStats{nbConstraints, internal, secret, public}
