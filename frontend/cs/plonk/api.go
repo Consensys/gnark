@@ -360,7 +360,38 @@ func (system *SparseR1CS) Select(b cs.Variable, i1, i2 cs.Variable) cs.Variable 
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
 func (system *SparseR1CS) Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable {
-	return 0
+
+	// vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
+	// s0, s1 := vars[0], vars[1]
+	// in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
+
+	// ensure that bits are actually bits. Adds no constraints if the variables
+	// are already constrained.
+	system.AssertIsBoolean(b0)
+	system.AssertIsBoolean(b1)
+
+	// two-bit lookup for the general case can be done with three constraints as
+	// following:
+	//    (1) (in3 - in2 - in1 + in0) * s1 = tmp1 - in1 + in0
+	//    (2) tmp1 * s0 = tmp2
+	//    (3) (in2 - in0) * s1 = RES - tmp2 - in0
+	// the variables tmp1 and tmp2 are new internal variables and the variables
+	// RES will be the returned result
+
+	// TODO check how it can be optimized for PLONK (currently it's a copy
+	// paste of the r1cs version)
+	tmp1 := system.Add(i3, i0)
+	tmp1 = system.Sub(tmp1, i2, i1)
+	tmp1 = system.Mul(tmp1, b1)
+	tmp1 = system.Add(tmp1, i1)
+	tmp1 = system.Sub(tmp1, i0)  // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp2 := system.Mul(tmp1, b0) // (2) tmp2 = tmp1 * s0
+	res := system.Sub(i2, i0)
+	res = system.Mul(res, b1)
+	res = system.Add(res, tmp2, i0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
+
+	return res
+
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
