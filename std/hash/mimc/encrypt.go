@@ -28,13 +28,14 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/mimc"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
-var encryptFuncs map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var encryptFuncs map[ecc.ID]func(frontend.API, MiMC, cs.Variable, cs.Variable) cs.Variable
 var newMimc map[ecc.ID]func(string, frontend.API) MiMC
 
 func init() {
-	encryptFuncs = make(map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
+	encryptFuncs = make(map[ecc.ID]func(frontend.API, MiMC, cs.Variable, cs.Variable) cs.Variable)
 	encryptFuncs[ecc.BN254] = encryptBN254
 	encryptFuncs[ecc.BLS12_381] = encryptBLS381
 	encryptFuncs[ecc.BLS12_377] = encryptBLS377
@@ -142,7 +143,7 @@ func newMimcBW633(seed string, api frontend.API) MiMC {
 // encryptions functions
 
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN254(api frontend.API, h MiMC, message, key frontend.Variable) frontend.Variable {
+func encryptBN254(api frontend.API, h MiMC, message, key cs.Variable) cs.Variable {
 	res := message
 	// one := big.NewInt(1)
 	for i := 0; i < len(h.params); i++ {
@@ -158,7 +159,7 @@ func encryptBN254(api frontend.API, h MiMC, message, key frontend.Variable) fron
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBLS381(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS381(api frontend.API, h MiMC, message cs.Variable, key cs.Variable) cs.Variable {
 
 	res := message
 
@@ -174,7 +175,7 @@ func encryptBLS381(api frontend.API, h MiMC, message frontend.Variable, key fron
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBW761(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBW761(api frontend.API, h MiMC, message cs.Variable, key cs.Variable) cs.Variable {
 
 	res := message
 
@@ -191,7 +192,7 @@ func encryptBW761(api frontend.API, h MiMC, message frontend.Variable, key front
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS377(api frontend.API, h MiMC, message cs.Variable, key cs.Variable) cs.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
 		tmp := api.Add(res, h.params[i], key)
@@ -204,7 +205,7 @@ func encryptBLS377(api frontend.API, h MiMC, message frontend.Variable, key fron
 }
 
 // encryptBLS315 of a mimc run expressed as r1cs
-func encryptBLS315(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBLS315(api frontend.API, h MiMC, message cs.Variable, key cs.Variable) cs.Variable {
 	res := message
 	for i := 0; i < len(h.params); i++ {
 		tmp := api.Add(res, h.params[i], key)
@@ -219,7 +220,7 @@ func encryptBLS315(api frontend.API, h MiMC, message frontend.Variable, key fron
 }
 
 // execution of a mimc run expressed as r1cs
-func encryptBW633(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
+func encryptBW633(api frontend.API, h MiMC, message cs.Variable, key cs.Variable) cs.Variable {
 
 	res := message
 

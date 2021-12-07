@@ -25,14 +25,15 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
 
 type FiatShamirCircuit struct {
-	Bindings   [3][4]frontend.Variable `gnark:",public"`
-	Challenges [3]frontend.Variable    `gnark:",secret"`
+	Bindings   [3][4]cs.Variable `gnark:",public"`
+	Challenges [3]cs.Variable    `gnark:",secret"`
 }
 
 func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
@@ -55,7 +56,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	tsSnark.Bind(gamma, circuit.Bindings[2][:])
 
 	// derive challenges
-	var challenges [3]frontend.Variable
+	var challenges [3]cs.Variable
 	challenges[0], err = tsSnark.ComputeChallenge(alpha)
 	if err != nil {
 		return err
@@ -106,7 +107,7 @@ func TestFiatShamir(t *testing.T) {
 
 	// compute the witness for each curve
 	for curveID, h := range testData {
-		// get the domain separators, correctly formatted so they match the frontend.Variable size
+		// get the domain separators, correctly formatted so they match the cs.Variable size
 		// (which under the hood is a fr.Element)
 		alpha, beta, gamma := getChallenges(curveID)
 

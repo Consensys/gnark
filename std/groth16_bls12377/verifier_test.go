@@ -23,6 +23,7 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -40,8 +41,8 @@ const preimage string = "4992816046196248432836492760315135318126925090839638585
 const publicHash string = "5100653184692120205048160297349714747883651904319528520089825735266585689318"
 
 type mimcCircuit struct {
-	Data frontend.Variable
-	Hash frontend.Variable `gnark:",public"`
+	Data cs.Variable
+	Hash cs.Variable `gnark:",public"`
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -103,7 +104,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 type verifierCircuit struct {
 	InnerProof Proof
 	InnerVk    VerifyingKey
-	Hash       frontend.Variable
+	Hash       cs.Variable
 }
 
 func (circuit *verifierCircuit) Define(api frontend.API) error {
@@ -116,7 +117,7 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	// create the verifier cs
-	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
+	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []cs.Variable{circuit.Hash})
 
 	return nil
 }

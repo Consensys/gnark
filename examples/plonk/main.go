@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
+	frontendcs "github.com/consensys/gnark/frontend/cs"
 )
 
 // In this example we show how to use PLONK with KZG commitments. The circuit that is
@@ -35,10 +36,10 @@ import (
 type Circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X frontend.Variable `gnark:",public"`
-	Y frontend.Variable `gnark:",public"`
+	X frontendcs.Variable `gnark:",public"`
+	Y frontendcs.Variable `gnark:",public"`
 
-	E frontend.Variable
+	E frontendcs.Variable
 }
 
 // Define declares the circuit's constraints
@@ -49,7 +50,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	const bitSize = 2
 
 	// specify constraints
-	output := frontend.Variable(1)
+	output := frontendcs.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
@@ -136,39 +137,39 @@ func main() {
 			os.Exit(-1)
 		}
 	}
-	// Wrong data: the proof fails
-	{
-		// Witnesses instantiation. Witness is known only by the prover,
-		// while public witness is a public data known by the verifier.
-		var witness, publicWitness Circuit
-		witness.X = 3
-		witness.E = 12
-		witness.Y = 4096
+	// // Wrong data: the proof fails
+	// {
+	// 	// Witnesses instantiation. Witness is known only by the prover,
+	// 	// while public witness is a public data known by the verifier.
+	// 	var witness, publicWitness Circuit
+	// 	witness.X = 3
+	// 	witness.E = 12
+	// 	witness.Y = 4096
 
-		publicWitness.X = 2
-		publicWitness.Y = 4096
+	// 	publicWitness.X = 2
+	// 	publicWitness.Y = 4096
 
-		// public data consists the polynomials describing the constants involved
-		// in the constraints, the polynomial describing the permutation ("grand
-		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(r3, srs)
-		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
-		}
+	// 	// public data consists the polynomials describing the constants involved
+	// 	// in the constraints, the polynomial describing the permutation ("grand
+	// 	// product argument"), and the FFT domains.
+	// 	pk, vk, err := plonk.Setup(r3, srs)
+	// 	//_, err := plonk.Setup(r1cs, kate, &publicWitness)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		os.Exit(-1)
+	// 	}
 
-		proof, err := plonk.Prove(r3, pk, &witness, nil)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
-		}
+	// 	proof, err := plonk.Prove(r3, pk, &witness, nil)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		os.Exit(-1)
+	// 	}
 
-		err = plonk.Verify(proof, vk, &publicWitness)
-		if err == nil {
-			fmt.Printf("Error: wrong proof is accepted")
-			os.Exit(-1)
-		}
-	}
+	// 	err = plonk.Verify(proof, vk, &publicWitness)
+	// 	if err == nil {
+	// 		fmt.Printf("Error: wrong proof is accepted")
+	// 		os.Exit(-1)
+	// 	}
+	// }
 
 }

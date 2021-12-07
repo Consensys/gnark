@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 )
@@ -215,7 +216,7 @@ func TestDouble(t *testing.T) {
 
 type scalarMulFixed struct {
 	E Point
-	S frontend.Variable
+	S cs.Variable
 }
 
 func (circuit *scalarMulFixed) Define(api frontend.API) error {
@@ -264,7 +265,7 @@ func TestScalarMulFixed(t *testing.T) {
 
 type scalarMulGeneric struct {
 	P, E Point
-	S    frontend.Variable
+	S    cs.Variable
 }
 
 func (circuit *scalarMulGeneric) Define(api frontend.API) error {

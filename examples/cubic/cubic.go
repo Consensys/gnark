@@ -16,6 +16,7 @@ package cubic
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 // Circuit defines a simple circuit
@@ -23,8 +24,8 @@ import (
 type Circuit struct {
 	// struct tags on a variable is optional
 	// default uses variable name and secret visibility.
-	X frontend.Variable `gnark:"x"`
-	Y frontend.Variable `gnark:",public"`
+	X cs.Variable `gnark:"x"`
+	Y cs.Variable `gnark:",public"`
 }
 
 // Define declares the circuit constraints

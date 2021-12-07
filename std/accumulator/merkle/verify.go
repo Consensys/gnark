@@ -47,12 +47,13 @@ package merkle
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Variable {
+func leafSum(api frontend.API, h mimc.MiMC, data cs.Variable) cs.Variable {
 
 	h.Write(data)
 	res := h.Sum()
@@ -62,7 +63,7 @@ func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Var
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(api frontend.API, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
+func nodeSum(api frontend.API, h mimc.MiMC, a, b cs.Variable) cs.Variable {
 
 	h.Write(a, b)
 	//res := h.Sum(a, b)
@@ -132,7 +133,7 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(api frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(api frontend.API, h mimc.MiMC, merkleRoot cs.Variable, proofSet, helper []cs.Variable) {
 
 	sum := leafSum(api, h, proofSet[0])
 

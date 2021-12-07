@@ -59,7 +59,7 @@ func (circuit *pairingBLS377) Define(api frontend.API) error {
 func TestPairingBLS377(t *testing.T) {
 
 	// pairing test data
-	P, Q, pairingRes := pairingData()
+	P, Q, _, pairingRes := pairingData()
 
 	// create cs
 	var circuit, witness pairingBLS377
@@ -70,13 +70,47 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
 
 }
 
-func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, pairingRes bls12377.GT) {
+type finalExp struct {
+	ML fields_bls12377.E12
+	R  bls12377.GT
+}
+
+func (circuit *finalExp) Define(api frontend.API) error {
+
+	ateLoop := uint64(9586122913090633729)
+	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.A0 = 0
+	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
+
+	pairingRes := fields_bls12377.E12{}
+	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
+
+	mustbeEq(api, pairingRes, &circuit.R)
+
+	return nil
+}
+func TestFinalExp(t *testing.T) {
+
+	// pairing test data
+	_, _, milRes, pairingRes := pairingData()
+
+	// create cs
+	var circuit, witness finalExp
+	witness.ML.Assign(&milRes)
+	circuit.R = pairingRes
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+}
+
+func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
 	_, _, P, Q = bls12377.Generators()
-	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
+	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
 	return
 }

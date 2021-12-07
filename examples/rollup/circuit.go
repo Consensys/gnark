@@ -18,6 +18,7 @@ package rollup
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -50,39 +51,39 @@ type Circuit struct {
 	Transfers [batchSize]TransferConstraints
 
 	// list of proofs corresponding to sender account
-	MerkleProofsSenderBefore      [batchSize][depth]frontend.Variable
-	MerkleProofsSenderAfter       [batchSize][depth]frontend.Variable
-	MerkleProofHelperSenderBefore [batchSize][depth - 1]frontend.Variable
-	MerkleProofHelperSenderAfter  [batchSize][depth - 1]frontend.Variable
+	MerkleProofsSenderBefore      [batchSize][depth]cs.Variable
+	MerkleProofsSenderAfter       [batchSize][depth]cs.Variable
+	MerkleProofHelperSenderBefore [batchSize][depth - 1]cs.Variable
+	MerkleProofHelperSenderAfter  [batchSize][depth - 1]cs.Variable
 
 	// list of proofs corresponding to receiver account
-	MerkleProofsReceiverBefore      [batchSize][depth]frontend.Variable
-	MerkleProofsReceiverAfter       [batchSize][depth]frontend.Variable
-	MerkleProofHelperReceiverBefore [batchSize][depth - 1]frontend.Variable
-	MerkleProofHelperReceiverAfter  [batchSize][depth - 1]frontend.Variable
+	MerkleProofsReceiverBefore      [batchSize][depth]cs.Variable
+	MerkleProofsReceiverAfter       [batchSize][depth]cs.Variable
+	MerkleProofHelperReceiverBefore [batchSize][depth - 1]cs.Variable
+	MerkleProofHelperReceiverAfter  [batchSize][depth - 1]cs.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// PUBLIC INPUTS
 
 	// list of root hashes
-	RootHashesBefore [batchSize]frontend.Variable `gnark:",public"`
-	RootHashesAfter  [batchSize]frontend.Variable `gnark:",public"`
+	RootHashesBefore [batchSize]cs.Variable `gnark:",public"`
+	RootHashesAfter  [batchSize]cs.Variable `gnark:",public"`
 }
 
 // AccountConstraints accounts encoded as constraints
 type AccountConstraints struct {
-	Index   frontend.Variable // index in the tree
-	Nonce   frontend.Variable // nb transactions done so far from this account
-	Balance frontend.Variable
+	Index   cs.Variable // index in the tree
+	Nonce   cs.Variable // nb transactions done so far from this account
+	Balance cs.Variable
 	PubKey  eddsa.PublicKey `gnark:"-"`
 }
 
 // TransferConstraints transfer encoded as constraints
 type TransferConstraints struct {
-	Amount         frontend.Variable
-	Nonce          frontend.Variable `gnark:"-"`
-	SenderPubKey   eddsa.PublicKey   `gnark:"-"`
-	ReceiverPubKey eddsa.PublicKey   `gnark:"-"`
+	Amount         cs.Variable
+	Nonce          cs.Variable     `gnark:"-"`
+	SenderPubKey   eddsa.PublicKey `gnark:"-"`
+	ReceiverPubKey eddsa.PublicKey `gnark:"-"`
 	Signature      eddsa.Signature
 }
 
@@ -170,7 +171,7 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 	return nil
 }
 
-func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount frontend.Variable) {
+func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated AccountConstraints, amount cs.Variable) {
 
 	// ensure that nonce is correctly updated
 	nonceUpdated := api.Add(from.Nonce, 1)

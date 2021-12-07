@@ -22,16 +22,17 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 // G1Jac point in Jacobian coords
 type G1Jac struct {
-	X, Y, Z frontend.Variable
+	X, Y, Z cs.Variable
 }
 
 // G1Affine point in affine coords
 type G1Affine struct {
-	X, Y frontend.Variable
+	X, Y cs.Variable
 }
 
 // Neg outputs -p
@@ -71,7 +72,7 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 func (p *G1Jac) AddAssign(api frontend.API, p1 G1Jac) *G1Jac {
 
 	// get some Element from our pool
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
+	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V cs.Variable
 
 	Z1Z1 = api.Mul(p1.Z, p1.Z)
 
@@ -124,7 +125,7 @@ func (p *G1Jac) AddAssign(api frontend.API, p1 G1Jac) *G1Jac {
 // DoubleAssign doubles the receiver point in jacobian coords and returns it
 func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
 	// get some Element from our pool
-	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
+	var XX, YY, YYYY, ZZ, S, M, T cs.Variable
 
 	XX = api.Mul(p.X, p.X)
 	YY = api.Mul(p.Y, p.Y)
@@ -152,7 +153,7 @@ func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine) *G1Affine {
+func (p *G1Affine) Select(api frontend.API, b cs.Variable, p1, p2 G1Affine) *G1Affine {
 
 	p.X = api.Select(b, p1.X, p2.X)
 	p.Y = api.Select(b, p1.Y, p2.Y)

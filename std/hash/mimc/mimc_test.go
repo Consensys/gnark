@@ -23,12 +23,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/test"
 )
 
 type mimcCircuit struct {
-	ExpectedResult frontend.Variable `gnark:"data,public"`
-	Data           frontend.Variable
+	ExpectedResult cs.Variable `gnark:"data,public"`
+	Data           cs.Variable
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {

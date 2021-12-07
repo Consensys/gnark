@@ -23,15 +23,16 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
 type MiMC struct {
-	params []big.Int           // slice containing constants for the encryption rounds
-	id     ecc.ID              // id needed to know which encryption function to use
-	h      frontend.Variable   // current vector in the Miyaguchi–Preneel scheme
-	data   []frontend.Variable // state storage. data is updated when Write() is called. Sum sums the data.
-	api    frontend.API        // underlying constraint system
+	params []big.Int     // slice containing constants for the encryption rounds
+	id     ecc.ID        // id needed to know which encryption function to use
+	h      cs.Variable   // current vector in the Miyaguchi–Preneel scheme
+	data   []cs.Variable // state storage. data is updated when Write() is called. Sum sums the data.
+	api    frontend.API  // underlying constraint system
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
@@ -43,7 +44,7 @@ func NewMiMC(seed string, api frontend.API) (MiMC, error) {
 }
 
 // Write adds more data to the running hash.
-func (h *MiMC) Write(data ...frontend.Variable) {
+func (h *MiMC) Write(data ...cs.Variable) {
 	h.data = append(h.data, data...)
 }
 
@@ -57,7 +58,7 @@ func (h *MiMC) Reset() {
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition.
 // See github.com/consensys/gnark-crypto for reference implementation.
-func (h *MiMC) Sum() frontend.Variable {
+func (h *MiMC) Sum() cs.Variable {
 
 	//h.Write(data...)
 	for _, stream := range h.data {

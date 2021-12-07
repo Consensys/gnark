@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 )
 
@@ -170,8 +171,8 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 
 	var l1, l2 LineEvaluation
 	Qacc := make([]G2Affine, 3)
-	yInv := make([]frontend.Variable, 3)
-	xOverY := make([]frontend.Variable, 3)
+	yInv := make([]cs.Variable, 3)
+	xOverY := make([]cs.Variable, 3)
 	for k := 0; k < 3; k++ {
 		Qacc[k] = Q[k]
 		yInv[k] = api.DivUnchecked(1, P[k].Y)

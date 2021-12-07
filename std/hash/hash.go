@@ -17,15 +17,15 @@ limitations under the License.
 // Package hash provides an interface that hash functions (as gadget) should implement.
 package hash
 
-import "github.com/consensys/gnark/frontend"
+import "github.com/consensys/gnark/frontend/cs"
 
 type Hash interface {
 
 	// Sum computes the hash of the internal state of the hash function.
-	Sum() frontend.Variable
+	Sum() cs.Variable
 
 	// Write populate the internal state of the hash function with data.
-	Write(data ...frontend.Variable)
+	Write(data ...cs.Variable)
 
 	// Reset empty the internal state and put the intermediate state to zero.
 	Reset()
