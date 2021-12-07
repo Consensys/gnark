@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -42,6 +43,7 @@ var (
 
 // Assert is a helper to test circuits
 type Assert struct {
+	t *testing.T
 	*require.Assertions
 	compiled map[string]compiled.ConstraintSystem // cache compilation
 }
@@ -53,7 +55,21 @@ type Assert struct {
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{require.New(t), make(map[string]compiled.ConstraintSystem)}
+	return &Assert{t, require.New(t), make(map[string]compiled.ConstraintSystem)}
+}
+
+// Run runs the test function fn as a subtest. The subtest is parametrized by
+// the description strings descs.
+func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
+	desc := strings.Join(descs, "/")
+	assert.t.Run(desc, func(t *testing.T) {
+		// TODO(ivokub): access to compiled cache is not synchronized -- running
+		// the tests in parallel will result in undetermined behaviour. A better
+		// approach would be to synchronize compiled and run the tests in
+		// parallel for a potential speedup.
+		assert := &Assert{t, require.New(t), assert.compiled}
+		fn(assert)
+	})
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
