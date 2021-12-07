@@ -88,89 +88,94 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
-			checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
-
-			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
-			checkError(err)
-
-			// must not error with big int test engine (only the curveID is needed for this test)
-			err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
-			checkError(err)
-
-			switch b {
-			case backend.GROTH16:
-				pk, vk, err := groth16.Setup(ccs)
+				// 1- compile the circuit
+				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 				checkError(err)
 
-				// ensure prove / verify works well with valid witnesses
-				proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
+				// must not error with big int test engine (only the curveID is needed for this test)
+				err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
 				checkError(err)
 
-				err = groth16.Verify(proof, vk, validWitness)
-				checkError(err)
-
-				// same thing through serialized witnesses
-				if opt.witnessSerialization {
-					buf.Reset()
-
-					_, err = witness.WriteFullTo(&buf, curve, validWitness)
+				switch b {
+				case backend.GROTH16:
+					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
 
-					correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
+					// ensure prove / verify works well with valid witnesses
+					proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					buf.Reset()
-
-					_, err = witness.WritePublicTo(&buf, curve, validWitness)
+					err = groth16.Verify(proof, vk, validWitness)
 					checkError(err)
 
-					err = groth16.ReadAndVerify(correctProof, vk, &buf)
+					// same thing through serialized witnesses
+					if opt.witnessSerialization {
+						buf.Reset()
+
+						_, err = witness.WriteFullTo(&buf, curve, validWitness)
+						checkError(err)
+
+						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
+						checkError(err)
+
+						buf.Reset()
+
+						_, err = witness.WritePublicTo(&buf, curve, validWitness)
+						checkError(err)
+
+						err = groth16.ReadAndVerify(correctProof, vk, &buf)
+						checkError(err)
+					}
+
+				case backend.PLONK:
+					srs, err := NewKZGSRS(ccs)
 					checkError(err)
+
+					pk, vk, err := plonk.Setup(ccs, srs)
+					checkError(err)
+
+					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
+					checkError(err)
+
+					err = plonk.Verify(correctProof, vk, validWitness)
+					checkError(err)
+
+					// witness serialization tests.
+					if opt.witnessSerialization {
+						buf.Reset()
+
+						_, err := witness.WriteFullTo(&buf, curve, validWitness)
+						checkError(err)
+
+						correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
+						checkError(err)
+
+						buf.Reset()
+
+						_, err = witness.WritePublicTo(&buf, curve, validWitness)
+						checkError(err)
+
+						err = plonk.ReadAndVerify(correctProof, vk, &buf)
+						checkError(err)
+					}
+
+				default:
+					panic("backend not implemented")
 				}
-
-			case backend.PLONK:
-				srs, err := NewKZGSRS(ccs)
-				checkError(err)
-
-				pk, vk, err := plonk.Setup(ccs, srs)
-				checkError(err)
-
-				correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
-				checkError(err)
-
-				err = plonk.Verify(correctProof, vk, validWitness)
-				checkError(err)
-
-				// witness serialization tests.
-				if opt.witnessSerialization {
-					buf.Reset()
-
-					_, err := witness.WriteFullTo(&buf, curve, validWitness)
-					checkError(err)
-
-					correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
-					checkError(err)
-
-					buf.Reset()
-
-					_, err = witness.WritePublicTo(&buf, curve, validWitness)
-					checkError(err)
-
-					err = plonk.ReadAndVerify(correctProof, vk, &buf)
-					checkError(err)
-				}
-
-			default:
-				panic("backend not implemented")
-			}
+			}, curve.String(), b.String())
 		}
 	}
 
 	// TODO may not be the right place, but ensures all our tests call these minimal tests
 	// (like filling a witness with zeroes, or binary values, ...)
-	assert.Fuzz(circuit, 5, opts...)
+	assert.Run(func(assert *Assert) {
+		assert.Fuzz(circuit, 5, opts...)
+	}, "fuzz")
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -187,48 +192,51 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
+				mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
-			checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
-			mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
-
-			// 1- compile the circuit
-			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
-			checkError(err)
-
-			// must error with big int test engine (only the curveID is needed here)
-			err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
-			mustError(err)
-
-			switch b {
-			case backend.GROTH16:
-				pk, vk, err := groth16.Setup(ccs)
+				// 1- compile the circuit
+				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 				checkError(err)
 
-				err = groth16.IsSolved(ccs, invalidWitness)
+				// must error with big int test engine (only the curveID is needed here)
+				err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
 				mustError(err)
 
-				proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
+				switch b {
+				case backend.GROTH16:
+					pk, vk, err := groth16.Setup(ccs)
+					checkError(err)
 
-				err = groth16.Verify(proof, vk, invalidWitness)
-				mustError(err)
+					err = groth16.IsSolved(ccs, invalidWitness)
+					mustError(err)
 
-			case backend.PLONK:
-				srs, err := NewKZGSRS(ccs)
-				checkError(err)
+					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
-				pk, vk, err := plonk.Setup(ccs, srs)
-				checkError(err)
+					err = groth16.Verify(proof, vk, invalidWitness)
+					mustError(err)
 
-				err = plonk.IsSolved(ccs, invalidWitness)
-				mustError(err)
+				case backend.PLONK:
+					srs, err := NewKZGSRS(ccs)
+					checkError(err)
 
-				incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
-				err = plonk.Verify(incorrectProof, vk, invalidWitness)
-				mustError(err)
+					pk, vk, err := plonk.Setup(ccs, srs)
+					checkError(err)
 
-			default:
-				panic("backend not implemented")
-			}
+					err = plonk.IsSolved(ccs, invalidWitness)
+					mustError(err)
+
+					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
+					err = plonk.Verify(incorrectProof, vk, invalidWitness)
+					mustError(err)
+
+				default:
+					panic("backend not implemented")
+				}
+			}, curve.String(), b.String())
 		}
 	}
 }
@@ -238,7 +246,11 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
-			assert.solvingSucceeded(circuit, validWitness, b, curve, &opt)
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				assert.solvingSucceeded(circuit, validWitness, b, curve, &opt)
+			}, curve.String(), b.String())
 		}
 	}
 }
@@ -273,7 +285,11 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
-			assert.solvingFailed(circuit, invalidWitness, b, curve, &opt)
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				assert.solvingFailed(circuit, invalidWitness, b, curve, &opt)
+			}, curve.String(), b.String())
 		}
 	}
 }
@@ -315,9 +331,13 @@ func (assert *Assert) GetCounters(circuit frontend.Circuit, opts ...func(opt *Te
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
-			ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
-			assert.NoError(err)
-			r = append(r, ccs.GetCounters()...)
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
+				assert.NoError(err)
+				r = append(r, ccs.GetCounters()...)
+			}, curve.String(), b.String())
 		}
 	}
 
@@ -340,23 +360,28 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
+			curve := curve
+			b := b
+			assert.Run(func(assert *Assert) {
+				// this puts the compiled circuit in the cache
+				// we do this here in case our fuzzWitness method mutates some references in the circuit
+				// (like []frontend.Variable) before cleaning up
+				_, err := assert.compile(circuit, curve, b, opt.compileOpts)
+				assert.NoError(err)
+				valid := 0
+				// "fuzz" with zeros
+				valid += assert.fuzzer(zeroFiller, circuit, w, b, curve, &opt)
 
-			// this puts the compiled circuit in the cache
-			// we do this here in case our fuzzWitness method mutates some references in the circuit
-			// (like []frontend.Variable) before cleaning up
-			_, err := assert.compile(circuit, curve, b, opt.compileOpts)
-			assert.NoError(err)
-			valid := 0
-			// "fuzz" with zeros
-			valid += assert.fuzzer(zeroFiller, circuit, w, b, curve, &opt)
-
-			for i := 0; i < fuzzCount; i++ {
-				for _, f := range fillers {
-					valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
+				for i := 0; i < fuzzCount; i++ {
+					for _, f := range fillers {
+						valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
+					}
 				}
-			}
 
-			// fmt.Println(reflect.TypeOf(circuit).String(), valid)
+				// fmt.Println(reflect.TypeOf(circuit).String(), valid)
+
+			}, curve.String(), b.String())
+
 		}
 	}
 }
