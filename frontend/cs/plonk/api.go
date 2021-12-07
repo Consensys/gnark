@@ -375,9 +375,12 @@ func (system *SparseR1CS) IsZero(i1 cs.Variable) cs.Variable {
 		return 1
 	}
 
+	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// a * m = 0            // constrain m to be 0 if a != 0
+	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 	a := i1.(compiled.Term)
 	m := system.NewHint(hint.IsZero, a)
-	system.AssertIsBoolean(i1)
+	system.AssertIsBoolean(m)
 	system.addPlonkConstraint(a, m.(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
 	ma := system.Add(m, a)
 	system.Inverse(ma)
