@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -31,5 +32,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad)
+	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad, ecc.Implemented())
 }

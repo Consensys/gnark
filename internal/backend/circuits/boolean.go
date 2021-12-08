@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -71,5 +72,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad)
+	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad, ecc.Implemented())
 }

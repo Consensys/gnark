@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -63,5 +64,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("orXoAndMulCircuit", &orXoAndMulCircuit{}, good, bad)
+	addNewEntry("orXoAndMulCircuit", &orXoAndMulCircuit{}, good, bad, ecc.Implemented())
 }

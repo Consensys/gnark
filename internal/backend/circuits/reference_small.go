@@ -3,6 +3,7 @@ package circuits
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -40,5 +41,5 @@ func init() {
 	bad.X = (3)
 	bad.Y = (expectedY)
 
-	addEntry("reference_small", &circuit, &good, &bad)
+	addEntry("reference_small", &circuit, &good, &bad, ecc.Implemented())
 }

@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -25,5 +26,5 @@ func init() {
 	bad.X = (5)
 	bad.Y = (2)
 
-	addEntry("assert_equal", &circuit, &good, &bad)
+	addEntry("assert_equal", &circuit, &good, &bad, ecc.Implemented())
 }

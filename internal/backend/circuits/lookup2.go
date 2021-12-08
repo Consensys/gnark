@@ -3,6 +3,7 @@ package circuits
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 )
@@ -30,6 +31,12 @@ func init() {
 		{1, 0, 1, 0},
 		{0, 1, 2, 0},
 		{1, 1, 3, 0}} {
-		addEntry(fmt.Sprintf("lookup2-%d%d", tc.b0, tc.b1), &lookup2Circuit{}, &lookup2Circuit{v0, v1, v2, v3, tc.b0, tc.b1, tc.expected}, &lookup2Circuit{v0, v1, v2, v3, tc.b0, tc.b1, tc.unexpected})
+		addEntry(
+			fmt.Sprintf("lookup2-%d%d", tc.b0, tc.b1),
+			&lookup2Circuit{},
+			&lookup2Circuit{v0, v1, v2, v3, tc.b0, tc.b1, tc.expected},
+			&lookup2Circuit{v0, v1, v2, v3, tc.b0, tc.b1, tc.unexpected},
+			ecc.Implemented(),
+		)
 	}
 }
