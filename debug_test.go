@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ import (
 // -------------------------------------------------------------------------------------------------
 // test println (non regression)
 type printlnCircuit struct {
-	A, B frontend.Variable
+	A, B cs.Variable
 }
 
 func (circuit *printlnCircuit) Define(api frontend.API) error {
@@ -63,7 +64,7 @@ func TestPrintln(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Div by 0
 type divBy0Trace struct {
-	A, B, C frontend.Variable
+	A, B, C cs.Variable
 }
 
 func (circuit *divBy0Trace) Define(api frontend.API) error {
@@ -100,7 +101,7 @@ func TestTraceDivBy0(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not Equal
 type notEqualTrace struct {
-	A, B, C frontend.Variable
+	A, B, C cs.Variable
 }
 
 func (circuit *notEqualTrace) Define(api frontend.API) error {
@@ -137,7 +138,7 @@ func TestTraceNotEqual(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not boolean
 type notBooleanTrace struct {
-	B, C frontend.Variable
+	B, C cs.Variable
 }
 
 func (circuit *notBooleanTrace) Define(api frontend.API) error {

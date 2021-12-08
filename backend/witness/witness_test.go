@@ -8,16 +8,17 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/stretchr/testify/require"
 )
 
 type circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X frontend.Variable `gnark:",public"`
-	Y frontend.Variable `gnark:",public"`
+	X cs.Variable `gnark:",public"`
+	Y cs.Variable `gnark:",public"`
 
-	E frontend.Variable
+	E cs.Variable
 }
 
 func (circuit *circuit) Define(api frontend.API) error {
