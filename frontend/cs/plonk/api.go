@@ -146,14 +146,11 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 		return system.divConstant(t, &c)
 	}
 	if system.IsConstant(i1) {
-		t := i2.(compiled.Term)
-		cidr, _, _ := t.Unpack()
-		res := system.newInternalVariable()
-		c := utils.FromInterface(i1)
-		cidl := system.CoeffID(&c)
-		system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, cidl, cidr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
-		return res
+		res := system.Inverse(i2)
+		m := utils.FromInterface(i1)
+		return system.mulConstant(res.(compiled.Term), &m)
 	}
+
 	res := system.newInternalVariable()
 	r := i2.(compiled.Term)
 	o := system.Neg(i1).(compiled.Term)
