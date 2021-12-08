@@ -15,11 +15,11 @@ type divCircuit struct {
 
 func (circuit *divCircuit) Define(api frontend.API) error {
 	c := api.DivUnchecked(circuit.A, circuit.B)
-	// d := api.Div(2387287246, circuit.B)
-	// e := api.Div(circuit.A, 987342642)
+	d := api.DivUnchecked(2387287246, circuit.B)
+	e := api.DivUnchecked(circuit.A, 987342642)
 	api.AssertIsEqual(c, circuit.C)
-	// api.AssertIsEqual(d, circuit.C)
-	// api.AssertIsEqual(e, circuit.C)
+	api.AssertIsEqual(d, circuit.C)
+	api.AssertIsEqual(e, circuit.C)
 	return nil
 }
 
@@ -33,10 +33,12 @@ func init() {
 	var c big.Int
 	c.ModInverse(b, m).Mul(&c, a)
 
+	// good.A = a
 	good.A = a
 	good.B = b
 	good.C = c
 
+	// bad.A = a
 	bad.A = a
 	bad.B = b
 	bad.C = 1

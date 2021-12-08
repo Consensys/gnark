@@ -114,21 +114,6 @@ func (system *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term
 	return t
 }
 
-// returns t/m
-func (system *SparseR1CS) divConstant(t compiled.Term, m *big.Int) compiled.Term {
-	cid, _, _ := t.Unpack()
-	coef := system.Coeffs[cid]
-	var _m big.Int
-	q := system.CurveID.Info().Fr.Modulus()
-	_m.Set(m).
-		ModInverse(&_m, q).
-		Mul(&_m, &coef).
-		Mod(&_m, q)
-	cid = system.CoeffID(&coef)
-	t.SetCoeffID(cid)
-	return t
-}
-
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
 func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 
@@ -142,8 +127,9 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 	}
 	if system.IsConstant(i2) {
 		c := utils.FromInterface(i2)
-		t := i1.(compiled.Term)
-		return system.divConstant(t, &c)
+		m := system.CurveID.Info().Fr.Modulus()
+		c.ModInverse(&c, m)
+		return system.mulConstant(i1.(compiled.Term), &c)
 	}
 	if system.IsConstant(i1) {
 		res := system.Inverse(i2)
