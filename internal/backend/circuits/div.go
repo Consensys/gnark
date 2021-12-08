@@ -14,12 +14,12 @@ type divCircuit struct {
 }
 
 func (circuit *divCircuit) Define(api frontend.API) error {
-	c := api.Div(circuit.A, circuit.B)
-	d := api.Div(2387287246, circuit.B)
-	e := api.Div(circuit.A, 987342642)
+	c := api.DivUnchecked(circuit.A, circuit.B)
+	// d := api.Div(2387287246, circuit.B)
+	// e := api.Div(circuit.A, 987342642)
 	api.AssertIsEqual(c, circuit.C)
-	api.AssertIsEqual(d, circuit.C)
-	api.AssertIsEqual(e, circuit.C)
+	// api.AssertIsEqual(d, circuit.C)
+	// api.AssertIsEqual(e, circuit.C)
 	return nil
 }
 
