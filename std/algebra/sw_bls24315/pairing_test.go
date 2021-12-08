@@ -29,6 +29,42 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type finalExp struct {
+	ML fields_bls24315.E24
+	R  bls24315.GT
+}
+
+func (circuit *finalExp) Define(api frontend.API) error {
+
+	ateLoop := uint64(9586122913090633729)
+	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
+	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
+	pairingInfo.BTwistCoeff.B0.A0 = 0
+	pairingInfo.BTwistCoeff.B0.A1 = 0
+	pairingInfo.BTwistCoeff.B1.A0 = 0
+	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
+
+	pairingRes := fields_bls24315.E24{}
+	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
+
+	mustbeEq(api, pairingRes, &circuit.R)
+
+	return nil
+}
+func TestFinalExp(t *testing.T) {
+
+	// pairing test data
+	_, _, milRes, pairingRes := pairingData()
+
+	// create cs
+	var circuit, witness finalExp
+	witness.ML.Assign(&milRes)
+	circuit.R = pairingRes
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type pairingBLS24315 struct {
 	P          G1Affine `gnark:",public"`
 	Q          G2Affine
@@ -59,7 +95,7 @@ func (circuit *pairingBLS24315) Define(api frontend.API) error {
 func TestPairingBLS24315(t *testing.T) {
 
 	// pairing test data
-	P, Q, pairingRes := pairingData()
+	P, Q, _, pairingRes := pairingData()
 
 	// create cs
 	var circuit, witness pairingBLS24315
@@ -74,9 +110,9 @@ func TestPairingBLS24315(t *testing.T) {
 
 }
 
-func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, pairingRes bls24315.GT) {
+func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, milRes bls24315.E24, pairingRes bls24315.GT) {
 	_, _, P, Q = bls24315.Generators()
-	milRes, _ := bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
+	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
 	pairingRes = bls24315.FinalExponentiation(&milRes)
 	return
 }
