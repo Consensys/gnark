@@ -14,7 +14,13 @@ type addCircuit struct {
 func (circuit *addCircuit) Define(api frontend.API) error {
 
 	a := api.Add(circuit.A, circuit.B, 3, circuit.C, "273823", circuit.D)
+	b := api.Add(circuit.A, 2)
+	c := api.Add(2, circuit.A)
+	d := api.Add(circuit.B, circuit.A)
 	api.AssertIsEqual(a, circuit.Z)
+	api.AssertIsEqual(b, 8)
+	api.AssertIsEqual(c, 8)
+	api.AssertIsEqual(d, 8)
 	return nil
 }
 
