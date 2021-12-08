@@ -6,33 +6,32 @@ import (
 )
 
 type addCircuit struct {
-	Op1, Op2, Res cs.Variable
+	A, B, C, D cs.Variable
+	Z          cs.Variable `gnark:",public"`
 }
 
 func (circuit *addCircuit) Define(api frontend.API) error {
-	d := api.Add(circuit.Op1, circuit.Op2, circuit.Op1)
 
-	api.AssertIsEqual(d, circuit.Res)
+	a := api.Add(circuit.A, circuit.B, 3, circuit.C, "273823", circuit.D)
+	api.AssertIsEqual(a, circuit.Z)
 	return nil
 }
 
 func init() {
 
-	good := []frontend.Circuit{
-		&addCircuit{
-			Op1: (2),
-			Op2: (3),
-			Res: (7),
-		},
-	}
+	var circuit, good, bad addCircuit
 
-	bad := []frontend.Circuit{
-		&addCircuit{
-			Op1: (2),
-			Op2: (3),
-			Res: (5),
-		},
-	}
+	good.A = 6
+	good.B = 2
+	good.C = 123
+	good.D = 76
+	good.Z = 274033
 
-	addNewEntry("add", &addCircuit{}, good, bad)
+	bad.A = 6
+	bad.B = 2
+	bad.C = 123
+	bad.D = 76
+	bad.Z = 1
+
+	addEntry("add", &circuit, &good, &bad)
 }
