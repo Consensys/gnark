@@ -49,7 +49,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func RefactorCompile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
 
 	// setup option
 	opt := CompileOption{}
