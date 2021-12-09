@@ -8,13 +8,16 @@ import (
 
 type mul struct {
 	A, B, C, D cs.Variable
-	Z          cs.Variable `gnark:",public"`
+	Z, ZZ      cs.Variable `gnark:",public"`
 }
 
 func (circuit *mul) Define(api frontend.API) error {
 
 	a := api.Mul(circuit.A, circuit.B, 3, circuit.C, "273823", circuit.D)
+	b := api.Mul(circuit.A, circuit.A, 0)
 	api.AssertIsEqual(a, circuit.Z)
+	api.AssertIsEqual(b, 0)
+	api.AssertIsEqual(b, circuit.ZZ)
 	return nil
 }
 
@@ -27,12 +30,14 @@ func init() {
 	good.C = 123
 	good.D = 76
 	good.Z = 92149106544
+	good.ZZ = 0
 
 	bad.A = 6
 	bad.B = 2
 	bad.C = 123
 	bad.D = 76
 	bad.Z = 1
+	bad.ZZ = 1
 
-	addEntry("mul", &circuit, &good, &bad, ecc.Implemented())
+	addEntry("mul", &circuit, &good, &bad, []ecc.ID{ecc.BN254}) //ecc.Implemented())
 }
