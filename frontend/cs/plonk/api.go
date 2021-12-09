@@ -90,14 +90,9 @@ func (system *SparseR1CS) Neg(i1 cs.Variable) cs.Variable {
 // Mul returns res = i1 * i2 * ... in
 func (system *SparseR1CS) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
 
-	zero := big.NewInt(0)
-
 	vars, k := system.filterConstantProd(append([]cs.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
 		return k
-	}
-	if k.Cmp(zero) == 0 {
-		return system.splitProd(vars[0], vars[1:])
 	}
 	l := system.mulConstant(vars[0], &k)
 	return system.splitProd(l, vars[1:])
