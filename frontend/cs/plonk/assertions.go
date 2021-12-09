@@ -41,11 +41,12 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 	}
 	if system.IsConstant(i2) {
 		l := i1.(compiled.Term)
+		lc, _, _ := l.Unpack()
 		k := utils.FromInterface(i2)
 		debug := system.AddDebugInfo("assertIsEqual", l, " == ", i2)
 		k.Neg(&k)
 		_k := system.CoeffID(&k)
-		system.addPlonkConstraint(l, system.zero(), system.zero(), compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
+		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 		return
 	}
 	l := i1.(compiled.Term)
