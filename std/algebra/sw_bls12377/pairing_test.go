@@ -70,7 +70,7 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
