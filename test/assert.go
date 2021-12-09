@@ -72,6 +72,11 @@ func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	})
 }
 
+// Log logs using the test instance logger.
+func (assert *Assert) Log(v ...interface{}) {
+	assert.t.Log(v...)
+}
+
 // ProverSucceeded fails the test if any of the following step errored:
 //
 // 1. compiles the circuit (or fetch it from the cache)
