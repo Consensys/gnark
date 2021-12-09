@@ -39,5 +39,5 @@ func init() {
 	bad.Z = 1
 	bad.ZZ = 1
 
-	addEntry("mul", &circuit, &good, &bad, []ecc.ID{ecc.BN254}) //ecc.Implemented())
+	addEntry("mul", &circuit, &good, &bad, ecc.Implemented())
 }
