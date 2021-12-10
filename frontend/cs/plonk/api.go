@@ -603,7 +603,7 @@ func (system *SparseR1CS) filterConstantProd(in []cs.Variable) ([]compiled.Term,
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
-			b.Mul(&b, &n)
+			b.Mul(&b, &n).Mod(&b, system.CurveID.Info().Fr.Modulus())
 		}
 	}
 	return res, b
