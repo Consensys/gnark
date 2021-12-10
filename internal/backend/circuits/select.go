@@ -19,12 +19,16 @@ func (circuit *selectCircuit) Define(api frontend.API) error {
 	d := api.Select(circuit.A2, circuit.B, 3)
 	e := api.Select(circuit.A1, 4, circuit.C)
 	f := api.Select(circuit.A2, 4, circuit.C)
+	g := api.Select(circuit.A1, 3, 4)
+	h := api.Select(circuit.A2, 3, 4)
 	api.AssertIsEqual(a, circuit.B)
 	api.AssertIsEqual(b, circuit.C)
 	api.AssertIsEqual(c, circuit.B)
 	api.AssertIsEqual(d, 3)
 	api.AssertIsEqual(e, 4)
 	api.AssertIsEqual(f, circuit.C)
+	api.AssertIsEqual(g, 3)
+	api.AssertIsEqual(h, 4)
 	return nil
 }
 
