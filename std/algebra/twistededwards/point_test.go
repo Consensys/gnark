@@ -21,7 +21,14 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	tbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	tbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	tbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
+	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/test"
@@ -93,7 +100,7 @@ func TestAddFixedPoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var base, point, expected twistededwards.PointAffine
+	var base, point, expected tbn254.PointAffine
 	base.X.SetBigInt(&params.BaseX)
 	base.Y.SetBigInt(&params.BaseY)
 	point.Set(&base)
@@ -111,6 +118,9 @@ func TestAddFixedPoint(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
+
+//-------------------------------------------------------------
+// addGeneric
 
 type addGeneric struct {
 	P1, P2, E Point
@@ -137,33 +147,121 @@ func TestAddGeneric(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness addGeneric
 
-	// generate random points, and compute expected_point = point1 + point2s
-	params, err := NewEdCurve(ecc.BN254)
-	if err != nil {
-		t.Fatal(err)
+	// generate witness data
+	for _, id := range ecc.Implemented() {
+
+		params, err := NewEdCurve(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		switch id {
+		case ecc.BN254:
+			var op1, op2, expected tbn254.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS12_381:
+			var op1, op2, expected tbls12381.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS12_377:
+			var op1, op2, expected tbls12377.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS24_315:
+			var op1, op2, expected tbls24315.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BW6_633:
+			var op1, op2, expected tbw6633.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BW6_761:
+			var op1, op2, expected tbw6761.PointAffine
+			op1.X.SetBigInt(&params.BaseX)
+			op1.Y.SetBigInt(&params.BaseY)
+			op2.Set(&op1)
+			r1 := big.NewInt(5)
+			r2 := big.NewInt(12)
+			op1.ScalarMul(&op1, r1)
+			op2.ScalarMul(&op2, r2)
+			expected.Add(&op1, &op2)
+			witness.P1.X = (op1.X.String())
+			witness.P1.Y = (op1.Y.String())
+			witness.P2.X = (op2.X.String())
+			witness.P2.Y = (op2.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		}
+
+		// creates r1cs
+		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 	}
-	var point1, point2, expected twistededwards.PointAffine
-	point1.X.SetBigInt(&params.BaseX)
-	point1.Y.SetBigInt(&params.BaseY)
-	point2.Set(&point1)
-	r1 := big.NewInt(5)
-	r2 := big.NewInt(12)
-	point1.ScalarMul(&point1, r1)
-	point2.ScalarMul(&point2, r2)
-	expected.Add(&point1, &point2)
-
-	// populate witness
-	witness.P1.X = (point1.X.String())
-	witness.P1.Y = (point1.Y.String())
-	witness.P2.X = (point2.X.String())
-	witness.P2.Y = (point2.Y.String())
-	witness.E.X = (expected.X.String())
-	witness.E.Y = (expected.Y.String())
-
-	// creates r1cs
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
+
+//-------------------------------------------------------------
+// Double
 
 type double struct {
 	P, E Point
@@ -192,25 +290,78 @@ func TestDouble(t *testing.T) {
 	var circuit, witness double
 
 	// generate witness data
-	params, err := NewEdCurve(ecc.BN254)
-	if err != nil {
-		t.Fatal(err)
+	for _, id := range ecc.Implemented() {
+
+		params, err := NewEdCurve(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		switch id {
+		case ecc.BN254:
+			var base, expected tbn254.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS12_381:
+			var base, expected tbls12381.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS12_377:
+			var base, expected tbls12377.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BLS24_315:
+			var base, expected tbls24315.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BW6_633:
+			var base, expected tbw6633.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		case ecc.BW6_761:
+			var base, expected tbw6761.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			expected.Double(&base)
+			witness.P.X = (base.X.String())
+			witness.P.Y = (base.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+		}
+
+		// creates r1cs
+		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 	}
-	var base, expected twistededwards.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
-	expected.Double(&base)
-
-	// populate witness
-	witness.P.X = (base.X.String())
-	witness.P.Y = (base.Y.String())
-	witness.E.X = (expected.X.String())
-	witness.E.Y = (expected.Y.String())
-
-	// creates r1cs
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
+
+//-------------------------------------------------------------
+// scalarMulFixed
 
 type scalarMulFixed struct {
 	E Point
@@ -241,23 +392,74 @@ func TestScalarMulFixed(t *testing.T) {
 	var circuit, witness scalarMulFixed
 
 	// generate witness data
-	params, err := NewEdCurve(ecc.BN254)
-	if err != nil {
-		t.Fatal(err)
+	//for _, id := range ecc.Implemented() {
+	for _, id := range []ecc.ID{ecc.BLS12_377} {
+
+		params, err := NewEdCurve(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		switch id {
+		case ecc.BN254:
+			var base, expected tbn254.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS12_381:
+			var base, expected tbls12381.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS12_377:
+			var base, expected tbls12377.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS24_315:
+			var base, expected tbls24315.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BW6_633:
+			var base, expected tbw6633.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BW6_761:
+			var base, expected tbw6761.PointAffine
+			base.X.SetBigInt(&params.BaseX)
+			base.Y.SetBigInt(&params.BaseY)
+			r := big.NewInt(928323002)
+			expected.ScalarMul(&base, r)
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		}
+
+		// creates r1cs
+		assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(id))
 	}
-	var base, expected twistededwards.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
-	r := big.NewInt(928323002)
-	expected.ScalarMul(&base, r)
-
-	// populate witness
-	witness.E.X = (expected.X.String())
-	witness.E.Y = (expected.Y.String())
-	witness.S = (r)
-
-	// creates r1cs
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 
@@ -293,7 +495,7 @@ func TestScalarMulGeneric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var base, point, expected twistededwards.PointAffine
+	var base, point, expected tbn254.PointAffine
 	base.X.SetBigInt(&params.BaseX)
 	base.Y.SetBigInt(&params.BaseY)
 	s := big.NewInt(902)
@@ -335,7 +537,7 @@ func TestNeg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var base, expected twistededwards.PointAffine
+	var base, expected tbn254.PointAffine
 	base.X.SetBigInt(&params.BaseX)
 	base.Y.SetBigInt(&params.BaseY)
 	expected.Neg(&base)

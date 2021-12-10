@@ -79,7 +79,8 @@ func (system *SparseR1CS) Neg(i1 cs.Variable) cs.Variable {
 	} else {
 		v := i1.(compiled.Term)
 		c, _, _ := v.Unpack()
-		coef := system.Coeffs[c]
+		var coef big.Int
+		coef.Set(&system.Coeffs[c])
 		coef.Neg(&coef)
 		c = system.CoeffID(&coef)
 		v.SetCoeffID(c)
@@ -101,8 +102,9 @@ func (system *SparseR1CS) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
 
 // returns t*m
 func (system *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+	var coef big.Int
 	cid, _, _ := t.Unpack()
-	coef := system.Coeffs[cid]
+	coef.Set(&system.Coeffs[cid])
 	coef.Mul(m, &coef).Mod(&coef, system.CurveID.Info().Fr.Modulus())
 	cid = system.CoeffID(&coef)
 	t.SetCoeffID(cid)
