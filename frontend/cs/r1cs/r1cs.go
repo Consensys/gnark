@@ -27,6 +27,18 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
+func ID() frontend.ID {
+	return frontend.R1CS
+}
+
+func init() {
+	frontend.RegisterCompiler(frontend.R1CS, cs.NewCompiler(
+		func(curve ecc.ID) (cs.System, error) {
+			return NewR1CSRefactor(curve), nil
+		},
+	))
+}
+
 type R1CSRefactor struct {
 	cs.ConstraintSystem
 

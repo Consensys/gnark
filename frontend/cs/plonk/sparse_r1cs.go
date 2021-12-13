@@ -27,6 +27,18 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
+func ID() frontend.ID {
+	return frontend.PLONK
+}
+
+func init() {
+	frontend.RegisterCompiler(frontend.PLONK, cs.NewCompiler(
+		func(curve ecc.ID) (cs.System, error) {
+			return NewSparseR1CS(curve), nil
+		},
+	))
+}
+
 type SparseR1CS struct {
 	cs.ConstraintSystem
 
