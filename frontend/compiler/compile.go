@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package frontend
+package compiler
 
 import (
 	"errors"
@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -49,7 +50,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit frontend.Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
 
 	// setup option
 	opt := CompileOption{}
@@ -59,7 +60,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 		}
 	}
 
-	var system System
+	var system frontend.System
 
 	switch zkpID {
 	case backend.GROTH16:
@@ -95,7 +96,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func bootStrap(curveID ecc.ID, zkpID backend.ID, circuit Circuit, system System, initialCapacity ...int) (err error) {
+func bootStrap(curveID ecc.ID, zkpID backend.ID, circuit frontend.Circuit, system frontend.System, initialCapacity ...int) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
