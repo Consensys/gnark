@@ -22,17 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend/cs"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
-
-// system represents a constraint system that can be loaded using the bootloader
-type System interface {
-	API
-	NewPublicVariable(name string) Variable
-	NewSecretVariable(name string) Variable
-	Compile(curveID ecc.ID) (compiled.ConstraintSystem, error)
-}
 
 // API represents the available functions to circuit developers
 type API interface {
