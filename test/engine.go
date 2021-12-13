@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/frontend/cs"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -352,12 +351,12 @@ func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
 	return &r
 }
 
-func (e *engine) Tag(name string) cs.Tag {
+func (e *engine) Tag(name string) frontend.Tag {
 	// do nothing, we don't measure constraints with the test engine
-	return cs.Tag{Name: name}
+	return frontend.Tag{Name: name}
 }
 
-func (e *engine) AddCounter(from, to cs.Tag) {
+func (e *engine) AddCounter(from, to frontend.Tag) {
 	// do nothing, we don't measure constraints with the test engine
 }
 
