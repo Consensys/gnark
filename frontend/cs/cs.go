@@ -40,6 +40,9 @@ type ConstraintSystem struct {
 	Coeffs         []big.Int      // list of unique coefficients.
 	CoeffsIDsLarge map[string]int // map to check existence of a coefficient (key = coeff.Bytes())
 	CoeffsIDsInt64 map[int64]int  // map to check existence of a coefficient (key = int64 value)
+
+	// map for recording boolean constrained variables (to not constrain them twice)
+	MTBooleans map[int]struct{}
 }
 
 func (cs *ConstraintSystem) Curve() ecc.ID {

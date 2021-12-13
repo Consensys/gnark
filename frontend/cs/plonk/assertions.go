@@ -73,6 +73,11 @@ func (system *SparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	t := i1.(compiled.Term)
+	if system.isBoolean(t) {
+		return
+	}
+	system.markBoolean(t)
+	system.MTBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	system.addPlonkConstraint(t, t, system.zero(), compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
@@ -118,7 +123,7 @@ func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// --> this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		// system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
+		system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
 		system.addPlonkConstraint(
 			l.(compiled.Term),

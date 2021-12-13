@@ -51,10 +51,9 @@ func NewSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 			Coeffs:         make([]big.Int, 4),
 			CoeffsIDsLarge: make(map[string]int),
 			CoeffsIDsInt64: make(map[int64]int, 4),
+			MTBooleans:     make(map[int]struct{}),
 		},
 		Constraints: make([]compiled.SparseR1C, 0, capacity),
-
-		// Counters:          make([]Counter, 0),
 	}
 
 	system.Coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -149,6 +148,17 @@ func (system *SparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 func (system *SparseR1CS) zero() compiled.Term {
 	var a compiled.Term
 	return a
+}
+
+// returns true if a variable is already boolean
+func (system *SparseR1CS) isBoolean(t compiled.Term) bool {
+	_, ok := system.MTBooleans[int(t)]
+	return ok
+}
+
+// markBoolean records t in the map to not boolean constrain it twice
+func (system *SparseR1CS) markBoolean(t compiled.Term) {
+	system.MTBooleans[int(t)] = struct{}{}
 }
 
 var tVariable reflect.Type
