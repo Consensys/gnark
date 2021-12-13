@@ -1,10 +1,10 @@
 module github.com/consensys/gnark
 
-go 1.17
+go 1.18
 
 require (
 	github.com/consensys/bavard v0.1.8-0.20210915155054-088da2f7f54a
-	github.com/consensys/gnark-crypto v0.6.1-0.20220110145513-493bb1c180d9
+	github.com/consensys/gnark-crypto v0.0.0
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.9
 	github.com/stretchr/testify v1.7.0
@@ -22,3 +22,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+replace github.com/consensys/gnark-crypto => ../gnark-crypto

@@ -19,8 +19,8 @@ package groth16_bls24315
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/tower/fp24"
 )
 
 // Proof represents a groth16 proof in a r1cs
@@ -33,7 +33,7 @@ type Proof struct {
 type VerifyingKey struct {
 
 	// e(α, β)
-	E fields_bls24315.E24
+	E fp24.E24
 
 	// -[γ]2, -[δ]2
 	G2 struct {
@@ -64,12 +64,12 @@ func Verify(api frontend.API, pairingInfo sw_bls24315.PairingContext, innerVk Ve
 		psi0.AddAssign(api, tmp)
 	}
 
-	var resMillerLoop fields_bls24315.E24
+	resMillerLoop := fp24.NewFp24Zero(api)
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
 	sw_bls24315.TripleMillerLoop(api, [3]sw_bls24315.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls24315.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
 
 	// performs the final expo
-	var resPairing fields_bls24315.E24
+	resPairing := fp24.NewFp24Zero(api)
 	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing

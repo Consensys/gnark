@@ -27,8 +27,8 @@ import (
 	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/internal/backend/bls24-315/witness"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/tower/fp24"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -110,7 +110,10 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(3218079743)
-	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
+	ext, err := fp24.NewExtension(api)
+	if err != nil {
+		return err
+	}
 	pairingInfo := sw_bls24315.PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.B0.A0 = 0
 	pairingInfo.BTwistCoeff.B0.A1 = 0
@@ -147,7 +150,7 @@ func TestVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	witness.InnerVk.E.Assign(&e)
+	witness.InnerVk.E.Assign2(&e)
 
 	witness.InnerVk.G1 = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {

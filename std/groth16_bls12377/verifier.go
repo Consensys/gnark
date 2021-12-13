@@ -19,8 +19,8 @@ package groth16_bls12377
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/tower/fp12"
 )
 
 // Proof represents a groth16 proof in a r1cs
@@ -33,7 +33,7 @@ type Proof struct {
 type VerifyingKey struct {
 
 	// e(α, β)
-	E fields_bls12377.E12
+	E fp12.E12
 
 	// -[γ]2, -[δ]2
 	G2 struct {
@@ -64,12 +64,12 @@ func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk Ve
 		psi0.AddAssign(api, tmp)
 	}
 
-	var resMillerLoop fields_bls12377.E12
+	resMillerLoop := fp12.NewFp12Zero(api)
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
 	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
 
 	// performs the final expo
-	var resPairing fields_bls12377.E12
+	resPairing := fp12.NewFp12Zero(api)
 	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
 
 	// vk.E must be equal to resPairing

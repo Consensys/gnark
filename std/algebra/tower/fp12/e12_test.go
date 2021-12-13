@@ -14,15 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields_bls12377
+package fp12
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/tower/fp2"
 	"github.com/consensys/gnark/test"
 )
 
@@ -35,9 +37,12 @@ type fp12Add struct {
 }
 
 func (circuit *fp12Add) Define(api frontend.API) error {
-	expected := E12{}
-	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Add(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -51,9 +56,9 @@ func TestAddFp12(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -66,9 +71,12 @@ type fp12Sub struct {
 }
 
 func (circuit *fp12Sub) Define(api frontend.API) error {
-	expected := E12{}
-	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Sub(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -82,9 +90,9 @@ func TestSubFp12(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -97,10 +105,12 @@ type fp12Mul struct {
 }
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
-	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Mul(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -114,9 +124,9 @@ func TestMulFp12(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -129,9 +139,12 @@ type fp12Square struct {
 }
 
 func (circuit *fp12Square) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	s := circuit.A.Square(api, circuit.A, ext)
-	s.MustBeEqual(api, circuit.B)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Square(circuit.A)
+	expected.MustBeEqual(circuit.B)
 	return nil
 }
 
@@ -144,8 +157,8 @@ func TestSquareFp12(t *testing.T) {
 	a.SetRandom()
 	b.Square(&a)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -159,12 +172,18 @@ type fp12CycloSquare struct {
 }
 
 func (circuit *fp12CycloSquare) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	var u, v E12
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquare(api, circuit.A, ext)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new u: %w", err)
+	}
+	v, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new v: %w", err)
+	}
+	u.Square(circuit.A)
+	v.CyclotomicSquare(circuit.A)
+	u.MustBeEqual(v)
+	u.MustBeEqual(circuit.B)
 	return nil
 }
 
@@ -184,8 +203,8 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 
 	b.CyclotomicSquare(&a)
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -199,13 +218,19 @@ type fp12CycloSquareCompressed struct {
 }
 
 func (circuit *fp12CycloSquareCompressed) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	var u, v E12
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquareCompressed(api, circuit.A, ext)
-	v.Decompress(api, v, ext)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new u: %w", err)
+	}
+	v, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new v: %w", err)
+	}
+	u.Square(circuit.A)
+	v.CyclotomicSquareCompressed(circuit.A)
+	v.Decompress(v)
+	u.MustBeEqual(v)
+	u.MustBeEqual(circuit.B)
 	return nil
 }
 
@@ -226,8 +251,8 @@ func TestFp12CyclotomicSquareCompressed(t *testing.T) {
 
 	b.CyclotomicSquareCompressed(&a)
 	b.Decompress(&b)
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -241,9 +266,12 @@ type fp12Conjugate struct {
 }
 
 func (circuit *fp12Conjugate) Define(api frontend.API) error {
-	expected := E12{}
-	expected.Conjugate(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Conjugate(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -256,8 +284,8 @@ func TestConjugateFp12(t *testing.T) {
 	a.SetRandom()
 	c.Conjugate(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -270,18 +298,26 @@ type fp12Frobenius struct {
 }
 
 func (circuit *fp12Frobenius) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	fb := E12{}
-	fb.Frobenius(api, circuit.A, ext)
-	fb.MustBeEqual(api, circuit.C)
+	fb, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fb: %w", err)
+	}
+	fb.Frobenius(circuit.A)
+	fb.MustBeEqual(circuit.C)
 
-	fbSquare := E12{}
-	fbSquare.FrobeniusSquare(api, circuit.A, ext)
-	fbSquare.MustBeEqual(api, circuit.D)
+	fbSquare, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fb: %w", err)
+	}
+	fbSquare.FrobeniusSquare(circuit.A)
+	fbSquare.MustBeEqual(circuit.D)
 
-	fbCube := E12{}
-	fbCube.FrobeniusCube(api, circuit.A, ext)
-	fbCube.MustBeEqual(api, circuit.E)
+	fbCube, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fb: %w", err)
+	}
+	fbCube.FrobeniusCube(circuit.A)
+	fbCube.MustBeEqual(circuit.E)
 	return nil
 }
 
@@ -296,10 +332,10 @@ func TestFrobeniusFp12(t *testing.T) {
 	d.FrobeniusSquare(&a)
 	e.FrobeniusCube(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-	witness.D.Assign(&d)
-	witness.E.Assign(&e)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
+	witness.D = FromFp12(d)
+	witness.E = FromFp12(e)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -312,10 +348,12 @@ type fp12Inverse struct {
 }
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
-	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
-	expected.Inverse(api, circuit.A, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Inverse(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -328,8 +366,8 @@ func TestInverseFp12(t *testing.T) {
 	a.SetRandom()
 	c.Inverse(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -342,11 +380,13 @@ type fp12FixedExpo struct {
 }
 
 func (circuit *fp12FixedExpo) Define(api frontend.API) error {
-	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
 	expo := uint64(9586122913090633729)
-	expected.Expt(api, circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Expt(circuit.A, expo)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -366,8 +406,8 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	c.Exp(&a, *new(big.Int).SetUint64(expo))
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -380,11 +420,13 @@ type fp12FinalExpo struct {
 }
 
 func (circuit *fp12FinalExpo) Define(api frontend.API) error {
-	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
 	expo := uint64(9586122913090633729)
-	expected.FinalExponentiation(api, circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected.FinalExponentiation(circuit.A, expo)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -397,8 +439,8 @@ func TestExpFinalExpoFp12(t *testing.T) {
 	a.SetRandom()
 	c = bls12377.FinalExponentiation(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -408,13 +450,17 @@ func TestExpFinalExpoFp12(t *testing.T) {
 type fp12MulBy034 struct {
 	A    E12 `gnark:",public"`
 	W    E12
-	B, C E2
+	B, C fp2.E2
 }
 
 func (circuit *fp12MulBy034) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	circuit.A.MulBy034(api, circuit.B, circuit.C, ext)
-	circuit.A.MustBeEqual(api, circuit.W)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Set(circuit.A)
+	expected.MulBy034(circuit.B, circuit.C)
+	expected.MustBeEqual(circuit.W)
 	return nil
 }
 
@@ -426,17 +472,21 @@ func TestFp12MulBy034(t *testing.T) {
 	var b, c, one bls12377.E2
 	one.SetOne()
 	a.SetRandom()
-	witness.A.Assign(&a)
+	witness.A = FromFp12(a)
+	// witness.A.Assign([2][3][2]interface{}{
+	// 	{{a.C0.B0.A0, a.C0.B0.A1}, {a.C0.B1.A0, a.C0.B1.A1}, {a.C0.B2.A0, a.C0.B2.A1}},
+	// 	{{a.C1.B0.A0, a.C1.B0.A1}, {a.C1.B1.A0, a.C1.B1.A1}, {a.C1.B2.A0, a.C1.B2.A1}},
+	// })
 
 	b.SetRandom()
-	witness.B.Assign(&b)
+	witness.B = fp2.From(b)
 
 	c.SetRandom()
-	witness.C.Assign(&c)
+	witness.C = fp2.From(c)
 
 	a.MulBy034(&one, &b, &c)
 
-	witness.W.Assign(&a)
+	witness.W = FromFp12(a)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))

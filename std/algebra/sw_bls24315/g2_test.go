@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls24315
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
+	"github.com/consensys/gnark/std/algebra/tower/fp2"
 	"github.com/consensys/gnark/test"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -39,8 +40,12 @@ type g2AddAssign struct {
 }
 
 func (circuit *g2AddAssign) Define(api frontend.API) error {
+	ext, err := fp2.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields_bls24315.GetBLS24315ExtensionFp24(api))
+	expected.AddAssign(api, &circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -76,8 +81,12 @@ type g2AddAssignAffine struct {
 }
 
 func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
+	ext, err := fp2.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields_bls24315.GetBLS24315ExtensionFp24(api))
+	expected.AddAssign(api, &circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -117,8 +126,12 @@ type g2DoubleAssign struct {
 }
 
 func (circuit *g2DoubleAssign) Define(api frontend.API) error {
+	ext, err := fp2.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields_bls24315.GetBLS24315ExtensionFp24(api))
+	expected.Double(api, &circuit.A, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -152,8 +165,12 @@ type g2DoubleAndAddAffine struct {
 }
 
 func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
+	ext, err := fp2.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	expected := circuit.A
-	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, fields_bls24315.GetBLS24315ExtensionFp24(api))
+	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -193,8 +210,12 @@ type g2DoubleAffine struct {
 }
 
 func (circuit *g2DoubleAffine) Define(api frontend.API) error {
+	ext, err := fp2.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields_bls24315.GetBLS24315ExtensionFp24(api))
+	expected.Double(api, &circuit.A, ext)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }

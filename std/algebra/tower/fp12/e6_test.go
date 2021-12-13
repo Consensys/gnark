@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields_bls12377
+package fp12
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -24,12 +25,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
-
-func getBLS377ExtensionFp6(api frontend.API) Extension {
-	res := Extension{}
-	res.uSquare = -5
-	return res
-}
 
 //--------------------------------------------------------------------
 // test
@@ -40,9 +35,12 @@ type fp6Add struct {
 }
 
 func (circuit *fp6Add) Define(api frontend.API) error {
-	expected := E6{}
-	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp6Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp6: %w", err)
+	}
+	expected.Add(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -56,9 +54,9 @@ func TestAddFp6(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp6(a)
+	witness.B = FromFp6(b)
+	witness.C = FromFp6(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -71,9 +69,12 @@ type fp6Sub struct {
 }
 
 func (circuit *fp6Sub) Define(api frontend.API) error {
-	expected := E6{}
-	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp6Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp6: %w", err)
+	}
+	expected.Sub(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -87,9 +88,9 @@ func TestSubFp6(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp6(a)
+	witness.B = FromFp6(b)
+	witness.C = FromFp6(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -102,10 +103,12 @@ type fp6Mul struct {
 }
 
 func (circuit *fp6Mul) Define(api frontend.API) error {
-	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp6Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp6: %w", err)
+	}
+	expected.Mul(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -119,9 +122,9 @@ func TestMulFp6(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp6(a)
+	witness.B = FromFp6(b)
+	witness.C = FromFp6(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -134,11 +137,12 @@ type fp6MulByNonResidue struct {
 }
 
 func (circuit *fp6MulByNonResidue) Define(api frontend.API) error {
-	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.MulByNonResidue(api, circuit.A, ext)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp6Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp6: %w", err)
+	}
+	expected.MulByNonResidue(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -151,8 +155,8 @@ func TestMulByNonResidueFp6(t *testing.T) {
 	a.SetRandom()
 	c.MulByNonResidue(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp6(a)
+	witness.C = FromFp6(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -166,11 +170,12 @@ type fp6Inverse struct {
 }
 
 func (circuit *fp6Inverse) Define(api frontend.API) error {
-	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Inverse(api, circuit.A, ext)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp6Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp6: %w", err)
+	}
+	expected.Inverse(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -183,8 +188,8 @@ func TestInverseFp6(t *testing.T) {
 	a.SetRandom()
 	c.Inverse(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp6(a)
+	witness.C = FromFp6(c)
 
 	// cs values
 	assert := test.NewAssert(t)

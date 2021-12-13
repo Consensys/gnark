@@ -17,6 +17,7 @@ limitations under the License.
 package groth16_bls12377
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -27,8 +28,8 @@ import (
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/tower/fp12"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -110,7 +111,10 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 
 	// pairing data
 	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	ext, err := fp12.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	pairingInfo := sw_bls12377.PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
@@ -145,7 +149,7 @@ func TestVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	witness.InnerVk.E.Assign(&e)
+	witness.InnerVk.E.Assign2(&e)
 
 	witness.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {

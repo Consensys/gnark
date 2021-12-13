@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -25,7 +26,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/tower/fp12"
 	"github.com/consensys/gnark/test"
 )
 
@@ -38,17 +39,20 @@ type pairingBLS377 struct {
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	ext, err := fp12.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("get extension: %w", err)
+	}
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
-	milRes := fields_bls12377.E12{}
+	milRes := fp12.NewFp12Zero(api)
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
 
-	pairingRes := fields_bls12377.E12{}
+	pairingRes := fp12.NewFp12Zero(api)
 	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
@@ -75,19 +79,22 @@ func TestPairingBLS377(t *testing.T) {
 }
 
 type finalExp struct {
-	ML fields_bls12377.E12
+	ML fp12.E12
 	R  bls12377.GT
 }
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	ext, err := fp12.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("new extension: %w", err)
+	}
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
-	pairingRes := fields_bls12377.E12{}
+	pairingRes := fp12.NewFp12Zero(api)
 	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.R)
@@ -101,7 +108,7 @@ func TestFinalExp(t *testing.T) {
 
 	// create cs
 	var circuit, witness finalExp
-	witness.ML.Assign(&milRes)
+	witness.ML.Assign2(&milRes)
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
@@ -133,7 +140,7 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	return
 }
 
-func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
+func mustbeEq(api frontend.API, fp12 fp12.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
 	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
 	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
@@ -157,15 +164,18 @@ type triplePairingBLS377 struct {
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
+	ext, err := fp12.NewExtension(api)
+	if err != nil {
+		return fmt.Errorf("get extension: %w", err)
+	}
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
 	pairingInfo.BTwistCoeff.A0 = 0
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
-	milRes := fields_bls12377.E12{}
+	milRes := fp12.NewFp12Zero(api)
 	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)
 
-	pairingRes := fields_bls12377.E12{}
+	pairingRes := fp12.NewFp12Zero(api)
 	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)

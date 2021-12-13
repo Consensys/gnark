@@ -20,23 +20,24 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/tower/fp12"
+	"github.com/consensys/gnark/std/algebra/tower/fp2"
 )
 
 // PairingContext contains useful info about the pairing
 type PairingContext struct {
 	AteLoop     uint64 // stores the ate loop
-	Extension   fields_bls12377.Extension
-	BTwistCoeff fields_bls12377.E2
+	Extension   *fp12.Extension
+	BTwistCoeff fp2.E2
 }
 
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvaluation struct {
-	R0, R1 fields_bls12377.E2
+	R0, R1 fp2.E2
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E12, pairingInfo PairingContext) *fields_bls12377.E12 {
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fp12.E12, pairingInfo PairingContext) *fp12.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -54,32 +55,32 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E
 	xOverY := api.DivUnchecked(P.X, P.Y)
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, *res, pairingInfo.Extension)
+		res.Square(api, *res, pairingInfo.Extension.Fp2Ext)
 
 		if ateLoopBin[i] == 0 {
-			Qacc, l1 = DoubleStep(api, &Qacc, pairingInfo.Extension)
+			Qacc, l1 = DoubleStep(api, &Qacc, pairingInfo.Extension.Fp2Ext)
 			l1.R0.MulByFp(api, l1.R0, xOverY)
 			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension.Fp2Ext)
 			continue
 		}
 
-		Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q, pairingInfo.Extension)
+		Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q, pairingInfo.Extension.Fp2Ext)
 		l1.R0.MulByFp(api, l1.R0, xOverY)
 		l1.R1.MulByFp(api, l1.R1, yInv)
-		res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+		res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension.Fp2Ext)
 		l2.R0.MulByFp(api, l2.R0, xOverY)
 		l2.R1.MulByFp(api, l2.R1, yInv)
-		res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
+		res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension.Fp2Ext)
 	}
 
 	return res
 }
 
 // DoubleAndAddStep
-func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields_bls12377.Extension) (G2Affine, LineEvaluation, LineEvaluation) {
+func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext *fp2.Extension) (G2Affine, LineEvaluation, LineEvaluation) {
 
-	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
+	var n, d, l1, l2, x3, x4, y4 fp2.E2
 	var line1, line2 LineEvaluation
 	var p G2Affine
 
@@ -125,9 +126,9 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine, ext fields_bls12377.Ex
 	return p, line1, line2
 }
 
-func DoubleStep(api frontend.API, p1 *G2Affine, ext fields_bls12377.Extension) (G2Affine, LineEvaluation) {
+func DoubleStep(api frontend.API, p1 *G2Affine, ext *fp2.Extension) (G2Affine, LineEvaluation) {
 
-	var n, d, l, xr, yr fields_bls12377.E2
+	var n, d, l, xr, yr fp2.E2
 	var p G2Affine
 	var line LineEvaluation
 
@@ -157,7 +158,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine, ext fields_bls12377.Extension) (
 }
 
 // TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields_bls12377.E12, pairingInfo PairingContext) *fields_bls12377.E12 {
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fp12.E12, pairingInfo PairingContext) *fp12.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -179,26 +180,26 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 	}
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, *res, pairingInfo.Extension)
+		res.Square(api, *res, pairingInfo.Extension.Fp2Ext)
 
 		if ateLoopBin[i] == 0 {
 			for k := 0; k < 3; k++ {
-				Qacc[k], l1 = DoubleStep(api, &Qacc[k], pairingInfo.Extension)
+				Qacc[k], l1 = DoubleStep(api, &Qacc[k], pairingInfo.Extension.Fp2Ext)
 				l1.R0.MulByFp(api, l1.R0, xOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+				res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension.Fp2Ext)
 			}
 			continue
 		}
 
 		for k := 0; k < 3; k++ {
-			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k], pairingInfo.Extension)
+			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k], pairingInfo.Extension.Fp2Ext)
 			l1.R0.MulByFp(api, l1.R0, xOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
-			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension)
+			res.MulBy034(api, l1.R0, l1.R1, pairingInfo.Extension.Fp2Ext)
 			l2.R0.MulByFp(api, l2.R0, xOverY[k])
 			l2.R1.MulByFp(api, l2.R1, yInv[k])
-			res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension)
+			res.MulBy034(api, l2.R0, l2.R1, pairingInfo.Extension.Fp2Ext)
 		}
 	}
 

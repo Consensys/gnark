@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields_bls24315
+package fp24
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -32,9 +33,12 @@ type e4Add struct {
 }
 
 func (circuit *e4Add) Define(api frontend.API) error {
-	var expected E4
-	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Add(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -47,9 +51,9 @@ func TestAddFp4(t *testing.T) {
 	c.Add(&a, &b)
 
 	var witness e4Add
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.B = FromFp4(b)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&e4Add{}, &witness, test.WithCurves(ecc.BW6_633))
@@ -61,9 +65,12 @@ type e4Sub struct {
 }
 
 func (circuit *e4Sub) Define(api frontend.API) error {
-	var expected E4
-	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Sub(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -76,9 +83,9 @@ func TestSubFp4(t *testing.T) {
 	c.Sub(&a, &b)
 
 	var witness e4Sub
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.B = FromFp4(b)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&e4Sub{}, &witness, test.WithCurves(ecc.BW6_633))
@@ -90,10 +97,12 @@ type e4Square struct {
 }
 
 func (circuit *e4Square) Define(api frontend.API) error {
-	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Square(api, circuit.A, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Square(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -105,8 +114,8 @@ func TestSquareFp4(t *testing.T) {
 	c.Square(&a)
 
 	var witness e4Square
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&e4Square{}, &witness, test.WithCurves(ecc.BW6_633))
@@ -118,10 +127,12 @@ type e4Mul struct {
 }
 
 func (circuit *e4Mul) Define(api frontend.API) error {
-	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Mul(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -134,9 +145,9 @@ func TestMulFp4(t *testing.T) {
 	c.Mul(&a, &b)
 
 	var witness e4Mul
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.B = FromFp4(b)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&e4Mul{}, &witness, test.WithCurves(ecc.BW6_633))
@@ -150,10 +161,12 @@ type fp4MulByFp struct {
 }
 
 func (circuit *fp4MulByFp) Define(api frontend.API) error {
-	expected := E4{}
-	expected.MulByFp(api, circuit.A, circuit.B)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.MulByFp(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -168,10 +181,9 @@ func TestMulByFpFp4(t *testing.T) {
 	b.SetRandom()
 	c.MulByElement(&a, &b)
 
-	witness.A.Assign(&a)
 	witness.B = (fr.Element)(b)
-
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
@@ -184,10 +196,12 @@ type fp4Conjugate struct {
 }
 
 func (circuit *fp4Conjugate) Define(api frontend.API) error {
-	expected := E4{}
-	expected.Conjugate(api, circuit.A)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Conjugate(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -200,9 +214,8 @@ func TestConjugateFp4(t *testing.T) {
 	a.SetRandom()
 	c.Conjugate(&a)
 
-	witness.A.Assign(&a)
-
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
@@ -214,11 +227,13 @@ type fp4Inverse struct {
 }
 
 func (circuit *fp4Inverse) Define(api frontend.API) error {
-	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Inverse(api, circuit.A, ext)
+	expected, err := NewFp4Zero(api)
+	if err != nil {
+		return fmt.Errorf("new fp4: %w", err)
+	}
+	expected.Inverse(circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -231,9 +246,8 @@ func TestInverseFp4(t *testing.T) {
 	a.SetRandom()
 	c.Inverse(&a)
 
-	witness.A.Assign(&a)
-
-	witness.C.Assign(&c)
+	witness.A = FromFp4(a)
+	witness.C = FromFp4(c)
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))

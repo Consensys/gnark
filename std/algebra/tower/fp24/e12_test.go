@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fields_bls24315
+package fp24
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -24,12 +25,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
-
-func getBLS24315ExtensionFp12(api frontend.API) Extension {
-	res := Extension{}
-	res.uSquare = 13
-	return res
-}
 
 //--------------------------------------------------------------------
 // test
@@ -40,9 +35,12 @@ type fp12Add struct {
 }
 
 func (circuit *fp12Add) Define(api frontend.API) error {
-	expected := E12{}
-	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Add(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -56,9 +54,9 @@ func TestAddFp12(t *testing.T) {
 	b.SetRandom()
 	c.Add(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -71,9 +69,12 @@ type fp12Sub struct {
 }
 
 func (circuit *fp12Sub) Define(api frontend.API) error {
-	expected := E12{}
-	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Sub(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -87,9 +88,9 @@ func TestSubFp12(t *testing.T) {
 	b.SetRandom()
 	c.Sub(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -102,10 +103,12 @@ type fp12Mul struct {
 }
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
-	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Mul(circuit.A, circuit.B)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -119,9 +122,9 @@ func TestMulFp12(t *testing.T) {
 	b.SetRandom()
 	c.Mul(&a, &b)
 
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.B = FromFp12(b)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -134,11 +137,12 @@ type fp12MulByNonResidue struct {
 }
 
 func (circuit *fp12MulByNonResidue) Define(api frontend.API) error {
-	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.MulByNonResidue(api, circuit.A, ext)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.MulByNonResidue(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -150,9 +154,8 @@ func TestMulByNonResidueFp12(t *testing.T) {
 	var a, c bls24315.E12
 	a.SetRandom()
 	c.MulByNonResidue(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
@@ -166,11 +169,12 @@ type fp12Inverse struct {
 }
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
-	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Inverse(api, circuit.A, ext)
-
-	expected.MustBeEqual(api, circuit.C)
+	expected, err := NewFp12Zero(api)
+	if err != nil {
+		return fmt.Errorf("new expected: %w", err)
+	}
+	expected.Inverse(circuit.A)
+	expected.MustBeEqual(circuit.C)
 	return nil
 }
 
@@ -183,8 +187,8 @@ func TestInverseFp12(t *testing.T) {
 	a.SetRandom()
 	c.Inverse(&a)
 
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
+	witness.A = FromFp12(a)
+	witness.C = FromFp12(c)
 
 	// cs values
 	assert := test.NewAssert(t)
