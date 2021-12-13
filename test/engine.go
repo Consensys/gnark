@@ -361,7 +361,7 @@ func (e *engine) AddCounter(from, to frontend.Tag) {
 }
 
 func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
-	b := frontend.FromInterface(i1)
+	b := utils.FromInterface(i1)
 	b.Mod(&b, e.modulus())
 	return b
 }

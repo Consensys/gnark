@@ -21,8 +21,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // AssertIsEqual fails if i1 != i2

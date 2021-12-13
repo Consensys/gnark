@@ -22,8 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // ConstraintSystem contains the parts common to plonk and Groth16
