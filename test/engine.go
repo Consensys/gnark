@@ -288,14 +288,7 @@ func (e *engine) AssertIsBoolean(i1 frontend.Variable) {
 
 func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 
-	var bValue big.Int
-	if v, ok := bound.(frontend.Variable); ok {
-		bValue = frontend.FromInterface(v)
-		bValue.Mod(&bValue, e.modulus())
-	} else {
-		// note: here we don't do a mod reduce on the bound.
-		bValue = frontend.FromInterface(bound)
-	}
+	bValue := e.toBigInt(bound)
 
 	if bValue.Sign() == -1 {
 		panic(fmt.Sprintf("[assertIsLessOrEqual] bound (%s) must be positive", bValue.String()))
@@ -320,12 +313,8 @@ func (e *engine) Println(a ...frontend.Variable) {
 	}
 
 	for i := 0; i < len(a); i++ {
-		if v, ok := a[i].(frontend.Variable); ok {
-			b := e.toBigInt(v)
-			sbb.WriteString(b.String())
-		} else {
-			sbb.WriteString(fmt.Sprint(a[i]))
-		}
+		v := e.toBigInt(a[i])
+		sbb.WriteString(v.String())
 	}
 	fmt.Println(sbb.String())
 }
