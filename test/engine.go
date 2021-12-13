@@ -362,13 +362,8 @@ func (e *engine) AddCounter(from, to cs.Tag) {
 }
 
 func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
-
 	b := frontend.FromInterface(i1)
-	if _, ok := i1.(frontend.Variable); ok {
-		// we reduce mod q
-		// TODO @gbotrel that seems unnecessary; should be done by FromInterface()
-		b.Mod(&b, e.modulus())
-	}
+	b.Mod(&b, e.modulus())
 	return b
 }
 
