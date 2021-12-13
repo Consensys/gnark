@@ -23,9 +23,8 @@ import (
 
 	"errors"
 	"fmt"
-	"io"
-
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	"io"
 )
 
 var (

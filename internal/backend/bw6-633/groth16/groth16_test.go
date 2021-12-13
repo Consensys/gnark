@@ -26,9 +26,8 @@ import (
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
 	"bytes"
-	"testing"
-
 	bw6_633groth16 "github.com/consensys/gnark/internal/backend/bw6-633/groth16"
+	"testing"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"

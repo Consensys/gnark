@@ -20,9 +20,8 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"errors"
-	"io"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"io"
 )
 
 // WriteTo writes binary encoding of Proof to w

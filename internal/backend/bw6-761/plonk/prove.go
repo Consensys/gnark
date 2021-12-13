@@ -37,7 +37,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 )

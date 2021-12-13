@@ -26,9 +26,8 @@ import (
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 
 	"bytes"
-	"testing"
-
 	bn254groth16 "github.com/consensys/gnark/internal/backend/bn254/groth16"
+	"testing"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"

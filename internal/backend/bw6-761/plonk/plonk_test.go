@@ -28,10 +28,9 @@ import (
 	bw6_761plonk "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
 
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 	"math/big"
 	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"

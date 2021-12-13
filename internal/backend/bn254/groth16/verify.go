@@ -23,9 +23,8 @@ import (
 
 	"errors"
 	"fmt"
-	"io"
-
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	"io"
 
 	"text/template"
 )

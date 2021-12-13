@@ -26,13 +26,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 
 	"fmt"
-	"math/big"
-	"runtime"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	"github.com/consensys/gnark/internal/utils"
+	"math/big"
+	"runtime"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified

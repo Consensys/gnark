@@ -26,9 +26,8 @@ import (
 	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 
 	"bytes"
-	"testing"
-
 	bls12_377groth16 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
+	"testing"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"

@@ -28,10 +28,9 @@ import (
 	bn254plonk "github.com/consensys/gnark/internal/backend/bn254/plonk"
 
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"math/big"
 	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"

@@ -22,10 +22,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"reflect"
 	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 )
 
 func TestProvingKeySerialization(t *testing.T) {

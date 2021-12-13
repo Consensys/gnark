@@ -29,9 +29,8 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
-	"text/template"
-
 	"github.com/consensys/gnark-crypto/ecc"
+	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 )

@@ -30,7 +30,7 @@ import (
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var (

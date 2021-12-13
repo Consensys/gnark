@@ -18,14 +18,13 @@ package cs
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
 	"os"
 	"strings"
 	"text/template"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
