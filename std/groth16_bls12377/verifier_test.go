@@ -23,7 +23,6 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -63,7 +62,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := compiler.Compile(ecc.BLS12_377, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS12_377, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +199,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs compiled.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+		ccs, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend/compiler"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func TestCircuitStatistics(t *testing.T) {
 			check := func(backendID backend.ID) {
 				t.Log(name, curve.String(), backendID.String())
 
-				ccs, err := compiler.Compile(curve, backendID, tData.Circuit)
+				ccs, err := frontend.Compile(curve, backendID, tData.Circuit)
 				assert.NoError(err)
 
 				// ensure we didn't introduce regressions that make circuits less efficient

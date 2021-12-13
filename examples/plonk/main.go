@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 )
 
 // In this example we show how to use PLONK with KZG commitments. The circuit that is
@@ -76,14 +75,14 @@ func main() {
 	fR1CS, _ := os.Create("r1cs.html")
 	fSparseR1CS, _ := os.Create("sparse_r1cs.html")
 
-	r1, _ := compiler.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	r1, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	err := r1.ToHTML(fR1CS)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	// building the circuit...
-	r3, err_r1cs := compiler.Compile(ecc.BN254, backend.PLONK, &circuit)
+	r3, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
 	if err_r1cs != nil {
 		fmt.Println("circuit compilation error")
 	}

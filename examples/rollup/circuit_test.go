@@ -21,7 +21,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -80,7 +79,7 @@ func TestCircuitSignature(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
-	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(compiler.IgnoreUnconstrainedInputs))
+	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -146,7 +145,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 	var inclusionProofCircuit circuitInclusionProof
 
-	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(compiler.IgnoreUnconstrainedInputs))
+	assert.ProverSucceeded(&inclusionProofCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -203,7 +202,7 @@ func TestCircuitUpdateAccount(t *testing.T) {
 
 	var updateAccountCircuit circuitUpdateAccount
 
-	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(compiler.IgnoreUnconstrainedInputs))
+	assert.ProverSucceeded(&updateAccountCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }
 
@@ -248,6 +247,6 @@ func TestCircuitFull(t *testing.T) {
 	var rollupCircuit Circuit
 
 	// TODO full circuit has some unconstrained inputs, that's odd.
-	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(compiler.IgnoreUnconstrainedInputs))
+	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs))
 
 }

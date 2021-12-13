@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -173,7 +172,7 @@ func TestTraceNotBoolean(t *testing.T) {
 }
 
 func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
-	ccs, err := compiler.Compile(ecc.BN254, backend.PLONK, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +192,7 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 }
 
 func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
-	ccs, err := compiler.Compile(ecc.BN254, backend.GROTH16, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit)
 	if err != nil {
 		return "", err
 	}

@@ -19,7 +19,7 @@ package test
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend/compiler"
+	"github.com/consensys/gnark/frontend"
 )
 
 // TestingOption enables calls to assert.ProverSucceeded and assert.ProverFailed to run with various features
@@ -32,7 +32,7 @@ type TestingOption struct {
 	curves               []ecc.ID
 	witnessSerialization bool
 	proverOpts           []func(opt *backend.ProverOption) error
-	compileOpts          []func(opt *compiler.CompileOption) error
+	compileOpts          []func(opt *frontend.CompileOption) error
 }
 
 // WithBackends enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific backends only
@@ -76,7 +76,7 @@ func WithProverOpts(proverOpts ...func(opt *backend.ProverOption) error) func(op
 
 // WithCompileOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward compiler.Compile option
 // to compiler.Compile calls
-func WithCompileOpts(compileOpts ...func(opt *compiler.CompileOption) error) func(opt *TestingOption) error {
+func WithCompileOpts(compileOpts ...func(opt *frontend.CompileOption) error) func(opt *TestingOption) error {
 	return func(opt *TestingOption) error {
 		opt.compileOpts = compileOpts
 		return nil

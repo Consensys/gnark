@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 )
 
 {{/* TODO this is duplicate with groth16 tests tempalte */}}
@@ -42,7 +41,7 @@ func referenceCircuit() (compiled.ConstraintSystem, frontend.Circuit, *kzg.SRS) 
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ccs, err := compiler.Compile(curve.ID, backend.PLONK, &circuit)
+	ccs, err := frontend.Compile(curve.ID, backend.PLONK, &circuit)
 	if err != nil {
 		panic(err)
 	}

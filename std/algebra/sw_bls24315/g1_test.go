@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 
@@ -309,7 +308,7 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = compiler.Compile(ecc.BN254, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
 		}
 
 	})
@@ -317,7 +316,7 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = compiler.Compile(ecc.BW6_633, backend.PLONK, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633, backend.PLONK, &c)
 			if err != nil {
 				b.Fatal(err)
 			}

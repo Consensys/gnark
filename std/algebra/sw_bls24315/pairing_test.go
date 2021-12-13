@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/test"
 )
@@ -214,6 +213,6 @@ func TestTriplePairingBLS24315(t *testing.T) {
 
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS24315
-	ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
+	ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

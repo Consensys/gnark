@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/frontend/compiler"
+	"github.com/consensys/gnark/frontend"
 
 	"github.com/consensys/gnark/examples/cubic"
 )
@@ -17,7 +17,7 @@ func main() {
 	var circuit cubic.Circuit
 
 	// compile a circuit
-	_r1cs, _ := compiler.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	_r1cs, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 
 	// R1CS implements io.WriterTo and io.ReaderFrom
 	var buf bytes.Buffer
