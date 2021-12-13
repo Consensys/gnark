@@ -146,7 +146,10 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variab
 
 // Div returns i1 / i2
 func (system *SparseR1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
-	// TODO check that later
+
+	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
+	system.Inverse(i2)
+
 	return system.DivUnchecked(i1, i2)
 }
 
