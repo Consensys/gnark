@@ -410,7 +410,7 @@ func TestExpFinalExpoFp24(t *testing.T) {
 }
 
 // benches
-var ccsBench compiled.CompiledConstraintSystem
+var ccsBench compiled.ConstraintSystem
 
 func BenchmarkMulE24(b *testing.B) {
 	var c fp24Mul

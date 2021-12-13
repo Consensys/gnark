@@ -31,7 +31,7 @@ type System interface {
 	API
 	NewPublicVariable(name string) Variable
 	NewSecretVariable(name string) Variable
-	Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error)
+	Compile(curveID ecc.ID) (compiled.ConstraintSystem, error)
 }
 
 // API represents the available functions to circuit developers

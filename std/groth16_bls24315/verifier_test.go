@@ -199,7 +199,7 @@ func BenchmarkCompile(b *testing.B) {
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
 
-	var ccs compiled.CompiledConstraintSystem
+	var ccs compiled.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &circuit)

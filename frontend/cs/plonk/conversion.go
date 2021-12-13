@@ -27,7 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
+func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.ConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,

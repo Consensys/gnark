@@ -44,7 +44,7 @@ var (
 // Assert is a helper to test circuits
 type Assert struct {
 	*require.Assertions
-	compiled map[string]compiled.CompiledConstraintSystem // cache compilation
+	compiled map[string]compiled.ConstraintSystem // cache compilation
 }
 
 // NewAssert returns an Assert helper embedding a testify/require object for convenience
@@ -54,7 +54,7 @@ type Assert struct {
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{require.New(t), make(map[string]compiled.CompiledConstraintSystem)}
+	return &Assert{require.New(t), make(map[string]compiled.ConstraintSystem)}
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -364,7 +364,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *compiler.CompileOption) error) (compiled.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *compiler.CompileOption) error) (compiled.ConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it

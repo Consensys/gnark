@@ -37,7 +37,7 @@ func (circuit *refCircuit) Define( api frontend.API) error {
 	return nil 
 }
 
-func referenceCircuit() (compiled.CompiledConstraintSystem, frontend.Circuit, *kzg.SRS) {
+func referenceCircuit() (compiled.ConstraintSystem, frontend.Circuit, *kzg.SRS) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

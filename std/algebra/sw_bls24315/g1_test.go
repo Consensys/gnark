@@ -301,7 +301,7 @@ func randomPointG1() bls24315.G1Jac {
 	return p1
 }
 
-var ccsBench compiled.CompiledConstraintSystem
+var ccsBench compiled.ConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c g1ScalarMul

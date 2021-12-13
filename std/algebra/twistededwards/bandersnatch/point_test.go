@@ -355,7 +355,7 @@ func TestNeg(t *testing.T) {
 
 // benches
 
-var ccsBench compiled.CompiledConstraintSystem
+var ccsBench compiled.ConstraintSystem
 
 func BenchmarkScalarMulG1(b *testing.B) {
 	var c scalarMulGeneric

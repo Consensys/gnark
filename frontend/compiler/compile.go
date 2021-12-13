@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// Compile will generate a CompiledConstraintSystem from the given circuit
+// Compile will generate a ConstraintSystem from the given circuit
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
@@ -43,13 +43,13 @@ import (
 // 2. it then calls circuit.Define(curveID, R1CS) to build the internal constraint system
 // from the declarative code
 //
-// 3. finally, it converts that to a CompiledConstraintSystem.
+// 3. finally, it converts that to a ConstraintSystem.
 // 		if zkpID == backend.GROTH16	--> R1CS
 //		if zkpID == backend.PLONK 	--> SparseR1CS
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit frontend.Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.CompiledConstraintSystem, err error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit frontend.Circuit, opts ...func(opt *CompileOption) error) (ccs compiled.ConstraintSystem, err error) {
 
 	// setup option
 	opt := CompileOption{}

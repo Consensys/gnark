@@ -53,7 +53,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit() (compiled.CompiledConstraintSystem, frontend.Circuit) {
+func referenceCircuit() (compiled.ConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

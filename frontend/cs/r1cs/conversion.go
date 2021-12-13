@@ -28,7 +28,7 @@ import (
 )
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error) {
+func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.ConstraintSystem, error) {
 
 	// wires = public wires  | secret wires | internal wires
 

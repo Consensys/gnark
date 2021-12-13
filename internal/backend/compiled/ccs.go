@@ -20,9 +20,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 )
 
-// CompiledConstraintSystem interface that a compiled (=typed, and correctly routed)
+// ConstraintSystem interface that a compiled (=typed, and correctly routed)
 // should implement.
-type CompiledConstraintSystem interface {
+type ConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
