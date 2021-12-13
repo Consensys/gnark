@@ -28,7 +28,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
@@ -630,10 +629,10 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *R1CSRefactor) Tag(name string) cs.Tag {
+func (system *R1CSRefactor) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
-	return cs.Tag{
+	return frontend.Tag{
 		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
 		VID:  system.NbInternalVariables,
 		CID:  len(system.Constraints),
@@ -641,7 +640,7 @@ func (system *R1CSRefactor) Tag(name string) cs.Tag {
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (system *R1CSRefactor) AddCounter(from, to cs.Tag) {
+func (system *R1CSRefactor) AddCounter(from, to frontend.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,

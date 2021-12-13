@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cs
+package frontend
 
 // Tag contains informations needed to measure and display statistics of a delimited piece of circuit
 type Tag struct {

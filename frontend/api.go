@@ -133,12 +133,12 @@ type API interface {
 
 	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 	// measure constraints, variables and coefficients creations through AddCounter
-	Tag(name string) cs.Tag
+	Tag(name string) Tag
 
 	// AddCounter measures the number of constraints, variables and coefficients created between two tags
 	// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 	// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-	AddCounter(from, to cs.Tag)
+	AddCounter(from, to Tag)
 
 	// IsConstant returns true if v is a constant known at compile time
 	IsConstant(v Variable) bool
