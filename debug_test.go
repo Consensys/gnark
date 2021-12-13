@@ -44,20 +44,20 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:25 13 is the addition\n")
-	expected.WriteString("debug_test.go:27 26 42\n")
-	expected.WriteString("debug_test.go:29 bits 1\n")
-	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:34 m <unsolved>\n")
+	expected.WriteString("debug_test.go:26 13 is the addition\n")
+	expected.WriteString("debug_test.go:28 26 42\n")
+	expected.WriteString("debug_test.go:30 bits 1\n")
+	expected.WriteString("debug_test.go:31 circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:35 m <unsolved>\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 
 	{
 		trace, _ := getPlonkTrace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 }
 
@@ -92,6 +92,7 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
+		t.Log(err.Error())
 		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/0 == <unsolved>")
 		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
@@ -129,6 +130,7 @@ func TestTraceNotEqual(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
+		t.Log(err.Error())
 		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == 66")
 		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
