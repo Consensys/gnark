@@ -16,7 +16,6 @@ package mimc
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
 
@@ -25,8 +24,8 @@ import (
 type Circuit struct {
 	// struct tag on a variable is optional
 	// default uses variable name and secret visibility.
-	PreImage cs.Variable
-	Hash     cs.Variable `gnark:",public"`
+	PreImage frontend.Variable
+	Hash     frontend.Variable `gnark:",public"`
 }
 
 // Define declares the circuit's constraints

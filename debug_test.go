@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ import (
 // -------------------------------------------------------------------------------------------------
 // test println (non regression)
 type printlnCircuit struct {
-	A, B cs.Variable
+	A, B frontend.Variable
 }
 
 func (circuit *printlnCircuit) Define(api frontend.API) error {
@@ -64,7 +64,7 @@ func TestPrintln(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Div by 0
 type divBy0Trace struct {
-	A, B, C cs.Variable
+	A, B, C frontend.Variable
 }
 
 func (circuit *divBy0Trace) Define(api frontend.API) error {
@@ -101,7 +101,7 @@ func TestTraceDivBy0(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not Equal
 type notEqualTrace struct {
-	A, B, C cs.Variable
+	A, B, C frontend.Variable
 }
 
 func (circuit *notEqualTrace) Define(api frontend.API) error {
@@ -138,7 +138,7 @@ func TestTraceNotEqual(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Not boolean
 type notBooleanTrace struct {
-	B, C cs.Variable
+	B, C frontend.Variable
 }
 
 func (circuit *notBooleanTrace) Define(api frontend.API) error {
@@ -173,7 +173,7 @@ func TestTraceNotBoolean(t *testing.T) {
 }
 
 func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, circuit)
+	ccs, err := compiler.Compile(ecc.BN254, backend.PLONK, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 }
 
 func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit)
+	ccs, err := compiler.Compile(ecc.BN254, backend.GROTH16, circuit)
 	if err != nil {
 		return "", err
 	}

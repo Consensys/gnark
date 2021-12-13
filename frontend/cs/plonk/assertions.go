@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
+func (system *SparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		a := utils.FromInterface(i1)
@@ -59,12 +59,12 @@ func (system *SparseR1CS) AssertIsEqual(i1, i2 cs.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *SparseR1CS) AssertIsDifferent(i1, i2 cs.Variable) {
+func (system *SparseR1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 || v != 1
-func (system *SparseR1CS) AssertIsBoolean(i1 cs.Variable) {
+func (system *SparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
@@ -78,7 +78,7 @@ func (system *SparseR1CS) AssertIsBoolean(i1 cs.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *SparseR1CS) AssertIsLessOrEqual(v cs.Variable, bound cs.Variable) {
+func (system *SparseR1CS) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case compiled.Term:
 		system.mustBeLessOrEqVar(v.(compiled.Term), b)
@@ -96,7 +96,7 @@ func (system *SparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 	aBits := system.toBinary(a, nbBits, true)
 	boundBits := system.ToBinary(bound, nbBits)
 
-	p := make([]cs.Variable, nbBits+1)
+	p := make([]frontend.Variable, nbBits+1)
 	p[nbBits] = 1
 
 	for i := nbBits - 1; i >= 0; i-- {
@@ -162,7 +162,7 @@ func (system *SparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 		t++
 	}
 
-	p := make([]cs.Variable, nbBits+1)
+	p := make([]frontend.Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
 	p[nbBits] = 1
 

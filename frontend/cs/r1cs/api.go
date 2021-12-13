@@ -27,6 +27,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -34,12 +35,12 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (system *R1CSRefactor) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
-	// extract cs.Variables from input
-	vars, s := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
+	// extract frontend.Variables from input
+	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
-	// allocate resulting cs.Variable
+	// allocate resulting frontend.Variable
 	t := false
 	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s), IsBoolean: &t}
 
@@ -54,7 +55,7 @@ func (system *R1CSRefactor) Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variab
 }
 
 // Neg returns -i
-func (system *R1CSRefactor) Neg(i cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Neg(i frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i)
 
 	if vars[0].IsConstant() {
@@ -70,12 +71,12 @@ func (system *R1CSRefactor) Neg(i cs.Variable) cs.Variable {
 }
 
 // Sub returns res = i1 - i2
-func (system *R1CSRefactor) Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
-	// extract cs.Variables from input
-	vars, s := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
+	// extract frontend.Variables from input
+	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
-	// allocate resulting cs.Variable
+	// allocate resulting frontend.Variable
 	t := false
 	res := compiled.Variable{
 		LinExp:    make([]compiled.Term, 0, s),
@@ -96,8 +97,8 @@ func (system *R1CSRefactor) Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variab
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *R1CSRefactor) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable {
-	vars, _ := system.toVariables(append([]cs.Variable{i1, i2}, in...)...)
+func (system *R1CSRefactor) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
 
@@ -135,8 +136,8 @@ func (system *R1CSRefactor) Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variab
 }
 
 func (system *R1CSRefactor) mulConstant(v1, constant compiled.Variable) compiled.Variable {
-	// multiplying a cs.Variable by a constant -> we updated the coefficients in the linear expression
-	// leading to that cs.Variable
+	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
+	// leading to that frontend.Variable
 	res := v1.Clone()
 	lambda := system.constantValue(constant)
 
@@ -164,7 +165,7 @@ func (system *R1CSRefactor) mulConstant(v1, constant compiled.Variable) compiled
 }
 
 // Inverse returns res = inverse(v)
-func (system *R1CSRefactor) Inverse(i1 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 
 	if vars[0].IsConstant() {
@@ -178,7 +179,7 @@ func (system *R1CSRefactor) Inverse(i1 cs.Variable) cs.Variable {
 		return system.constant(c)
 	}
 
-	// allocate resulting cs.Variable
+	// allocate resulting frontend.Variable
 	res := system.newInternalVariable()
 
 	debug := system.AddDebugInfo("inverse", vars[0], "*", res, " == 1")
@@ -188,7 +189,7 @@ func (system *R1CSRefactor) Inverse(i1 cs.Variable) cs.Variable {
 }
 
 // Div returns res = i1 / i2
-func (system *R1CSRefactor) Div(i1, i2 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Div(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -221,7 +222,7 @@ func (system *R1CSRefactor) Div(i1, i2 cs.Variable) cs.Variable {
 	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-func (system *R1CSRefactor) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -252,8 +253,8 @@ func (system *R1CSRefactor) DivUnchecked(i1, i2 cs.Variable) cs.Variable {
 	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-// Xor compute the XOR between two cs.Variables
-func (system *R1CSRefactor) Xor(_a, _b cs.Variable) cs.Variable {
+// Xor compute the XOR between two frontend.Variables
+func (system *R1CSRefactor) Xor(_a, _b frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(_a, _b)
 
@@ -277,8 +278,8 @@ func (system *R1CSRefactor) Xor(_a, _b cs.Variable) cs.Variable {
 	return res
 }
 
-// Or compute the OR between two cs.Variables
-func (system *R1CSRefactor) Or(_a, _b cs.Variable) cs.Variable {
+// Or compute the OR between two frontend.Variables
+func (system *R1CSRefactor) Or(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -300,8 +301,8 @@ func (system *R1CSRefactor) Or(_a, _b cs.Variable) cs.Variable {
 	return res
 }
 
-// And compute the AND between two cs.Variables
-func (system *R1CSRefactor) And(_a, _b cs.Variable) cs.Variable {
+// And compute the AND between two frontend.Variables
+func (system *R1CSRefactor) And(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -316,7 +317,7 @@ func (system *R1CSRefactor) And(_a, _b cs.Variable) cs.Variable {
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *R1CSRefactor) IsZero(i1 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) IsZero(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 	a := vars[0]
 	if a.IsConstant() {
@@ -345,12 +346,12 @@ func (system *R1CSRefactor) IsZero(i1 cs.Variable) cs.Variable {
 
 }
 
-// ToBinary unpacks a cs.Variable in binary,
+// ToBinary unpacks a frontend.Variable in binary,
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *R1CSRefactor) ToBinary(i1 cs.Variable, n ...int) []cs.Variable {
+func (system *R1CSRefactor) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := system.BitLen()
@@ -378,7 +379,7 @@ func (system *R1CSRefactor) ToBinary(i1 cs.Variable, n ...int) []cs.Variable {
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (system *R1CSRefactor) toBinary(a compiled.Variable, nbBits int, unsafe bool) []cs.Variable {
+func (system *R1CSRefactor) toBinary(a compiled.Variable, nbBits int, unsafe bool) []frontend.Variable {
 
 	if a.IsConstant() {
 		return system.ToBinary(a, nbBits)
@@ -387,9 +388,9 @@ func (system *R1CSRefactor) toBinary(a compiled.Variable, nbBits int, unsafe boo
 	// ensure a is set
 	a.AssertIsSet()
 
-	// allocate the resulting cs.Variables and bit-constraint them
-	b := make([]cs.Variable, nbBits)
-	sb := make([]cs.Variable, nbBits)
+	// allocate the resulting frontend.Variables and bit-constraint them
+	b := make([]frontend.Variable, nbBits)
+	sb := make([]frontend.Variable, nbBits)
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
@@ -402,7 +403,7 @@ func (system *R1CSRefactor) toBinary(a compiled.Variable, nbBits int, unsafe boo
 	}
 
 	//var Σbi compiled.Variable
-	var Σbi cs.Variable
+	var Σbi frontend.Variable
 	if nbBits == 1 {
 		system.AssertIsEqual(sb[0], a)
 	} else if nbBits == 2 {
@@ -417,9 +418,9 @@ func (system *R1CSRefactor) toBinary(a compiled.Variable, nbBits int, unsafe boo
 
 }
 
-func toSliceOfVariables(v []compiled.Variable) []cs.Variable {
+func toSliceOfVariables(v []compiled.Variable) []frontend.Variable {
 	// TODO this is ugly.
-	r := make([]cs.Variable, len(v))
+	r := make([]frontend.Variable, len(v))
 	for i := 0; i < len(v); i++ {
 		r[i] = v[i]
 	}
@@ -427,7 +428,7 @@ func toSliceOfVariables(v []compiled.Variable) []cs.Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *R1CSRefactor) FromBinary(_b ...cs.Variable) cs.Variable {
+func (system *R1CSRefactor) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.toVariables(_b...)
 
 	// ensure inputs are set
@@ -437,7 +438,7 @@ func (system *R1CSRefactor) FromBinary(_b ...cs.Variable) cs.Variable {
 
 	// res = Σ (2**i * b[i])
 
-	var res, v cs.Variable
+	var res, v frontend.Variable
 	res = system.constant(0) // no constraint is recorded
 
 	var c big.Int
@@ -455,7 +456,7 @@ func (system *R1CSRefactor) FromBinary(_b ...cs.Variable) cs.Variable {
 }
 
 // Select if i0 is true, yields i1 else yields i2
-func (system *R1CSRefactor) Select(i0, i1, i2 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i0, i1, i2)
 	b := vars[0]
@@ -490,7 +491,7 @@ func (system *R1CSRefactor) Select(i0, i1, i2 cs.Variable) cs.Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *R1CSRefactor) Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable {
+func (system *R1CSRefactor) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
@@ -521,19 +522,19 @@ func (system *R1CSRefactor) Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variab
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (system *R1CSRefactor) IsConstant(v cs.Variable) bool {
+func (system *R1CSRefactor) IsConstant(v frontend.Variable) bool {
 	if _v, ok := v.(compiled.Variable); ok {
 		return _v.IsConstant()
 	}
 	// it's not a wire, it's another golang type, we consider it constant.
-	// TODO we may want to use the struct parser to ensure this cs.Variable interface doesn't contain fields which are
-	// cs.Variable
+	// TODO we may want to use the struct parser to ensure this frontend.Variable interface doesn't contain fields which are
+	// frontend.Variable
 	return true
 }
 
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
-func (system *R1CSRefactor) ConstantValue(v cs.Variable) *big.Int {
+func (system *R1CSRefactor) ConstantValue(v frontend.Variable) *big.Int {
 	if _v, ok := v.(compiled.Variable); ok {
 		return system.constantValue(_v)
 	}
@@ -550,7 +551,7 @@ func (system *R1CSRefactor) Backend() backend.ID {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *R1CSRefactor) Println(a ...cs.Variable) {
+func (system *R1CSRefactor) Println(a ...frontend.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -588,7 +589,7 @@ func (system *R1CSRefactor) Println(a ...cs.Variable) {
 	system.Logs = append(system.Logs, log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a cs.Variable) {
+func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	count := 0
 	counter := func(visibility compiled.Visibility, name string, tValue reflect.Value) error {
@@ -662,7 +663,7 @@ func (system *R1CSRefactor) AddCounter(from, to cs.Tag) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable {
+func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
 	// create resulting wire
 	r := system.newInternalVariable()
 	_, vID, _ := r.LinExp[0].Unpack()
@@ -699,14 +700,14 @@ func (system *R1CSRefactor) NewHint(f hint.Function, inputs ...cs.Variable) cs.V
 	return r
 }
 
-// constant will return (and allocate if neccesary) a cs.Variable from given value
+// constant will return (and allocate if neccesary) a frontend.Variable from given value
 //
-// if input is already a cs.Variable, does nothing
-// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a constant cs.Variable
+// if input is already a frontend.Variable, does nothing
+// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a constant frontend.Variable
 //
-// a constant cs.Variable does NOT necessary allocate a cs.Variable in the ConstraintSystem
+// a constant frontend.Variable does NOT necessary allocate a frontend.Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (system *R1CSRefactor) constant(input cs.Variable) cs.Variable {
+func (system *R1CSRefactor) constant(input frontend.Variable) frontend.Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -723,11 +724,11 @@ func (system *R1CSRefactor) constant(input cs.Variable) cs.Variable {
 	}
 }
 
-// toVariables return cs.Variable corresponding to inputs and the total size of the linear expressions
-func (system *R1CSRefactor) toVariables(in ...cs.Variable) ([]compiled.Variable, int) {
+// toVariables return frontend.Variable corresponding to inputs and the total size of the linear expressions
+func (system *R1CSRefactor) toVariables(in ...frontend.Variable) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
-	e := func(i cs.Variable) {
+	e := func(i frontend.Variable) {
 		v := system.constant(i).(compiled.Variable)
 		r = append(r, v)
 		s += len(v.LinExp)

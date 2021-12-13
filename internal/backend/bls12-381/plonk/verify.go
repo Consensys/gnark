@@ -30,7 +30,7 @@ import (
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var (

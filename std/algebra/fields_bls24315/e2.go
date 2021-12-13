@@ -20,12 +20,11 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // E2 element in a quadratic extension
 type E2 struct {
-	A0, A1 cs.Variable
+	A0, A1 frontend.Variable
 }
 
 // SetOne returns a newly allocated element equal to 1

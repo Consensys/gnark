@@ -3,11 +3,10 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type checkAssertIsBooleanCircuit struct {
-	A, B, C cs.Variable
+	A, B, C frontend.Variable
 }
 
 func (circuit *checkAssertIsBooleanCircuit) Define(api frontend.API) error {

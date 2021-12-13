@@ -5,12 +5,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type divCircuit struct {
-	A, B cs.Variable
-	C    cs.Variable `gnark:",public"`
+	A, B frontend.Variable
+	C    frontend.Variable `gnark:",public"`
 }
 
 func (circuit *divCircuit) Define(api frontend.API) error {

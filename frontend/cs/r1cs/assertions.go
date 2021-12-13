@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/utils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *R1CSRefactor) AssertIsEqual(i1, i2 cs.Variable) {
+func (system *R1CSRefactor) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
 	r := system.constant(i1).(compiled.Variable)
 	o := system.constant(i2).(compiled.Variable)
@@ -37,12 +37,12 @@ func (system *R1CSRefactor) AssertIsEqual(i1, i2 cs.Variable) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *R1CSRefactor) AssertIsDifferent(i1, i2 cs.Variable) {
+func (system *R1CSRefactor) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (system *R1CSRefactor) AssertIsBoolean(i1 cs.Variable) {
+func (system *R1CSRefactor) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
@@ -75,7 +75,7 @@ func (system *R1CSRefactor) AssertIsBoolean(i1 cs.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *R1CSRefactor) AssertIsLessOrEqual(_v cs.Variable, bound cs.Variable) {
+func (system *R1CSRefactor) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
@@ -96,7 +96,7 @@ func (system *R1CSRefactor) mustBeLessOrEqVar(a, bound compiled.Variable) {
 	aBits := system.toBinary(a, nbBits, true)
 	boundBits := system.ToBinary(bound, nbBits)
 
-	p := make([]cs.Variable, nbBits+1)
+	p := make([]frontend.Variable, nbBits+1)
 	p[nbBits] = system.constant(1)
 
 	zero := system.constant(0)
@@ -115,7 +115,7 @@ func (system *R1CSRefactor) mustBeLessOrEqVar(a, bound compiled.Variable) {
 		t := system.Select(boundBits[i], zero, p[i+1])
 
 		// (1 - t - ai) * ai == 0
-		var l cs.Variable
+		var l frontend.Variable
 		l = system.one()
 		l = system.Sub(l, t, aBits[i])
 
@@ -157,7 +157,7 @@ func (system *R1CSRefactor) mustBeLessOrEqCst(a compiled.Variable, bound big.Int
 		t++
 	}
 
-	p := make([]cs.Variable, nbBits+1)
+	p := make([]frontend.Variable, nbBits+1)
 	// p[i] == 1 --> a[j] == c[j] for all j >= i
 	p[nbBits] = system.constant(1)
 

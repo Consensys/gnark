@@ -13,7 +13,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	frontendcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 )
 
 {{/* TODO this is duplicate with groth16 tests tempalte */}}
@@ -25,8 +25,8 @@ import (
 
 type refCircuit struct {
 	nbConstraints int 
-	X frontendcs.Variable
-	Y frontendcs.Variable  `gnark:",public"`
+	X frontend.Variable
+	Y frontend.Variable  `gnark:",public"`
 }
 
 func (circuit *refCircuit) Define( api frontend.API) error {
@@ -42,7 +42,7 @@ func referenceCircuit() (compiled.CompiledConstraintSystem, frontend.Circuit, *k
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ccs, err := frontend.Compile(curve.ID, backend.PLONK, &circuit)
+	ccs, err := compiler.Compile(curve.ID, backend.PLONK, &circuit)
 	if err != nil {
 		panic(err)
 	}

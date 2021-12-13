@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
@@ -37,7 +36,7 @@ import (
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
 // 		type MyCircuit struct {
-// 			Y cs.Variable `gnark:"exponent,public"`
+// 			Y frontend.Variable `gnark:"exponent,public"`
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
@@ -140,5 +139,5 @@ func bootStrap(curveID ecc.ID, zkpID backend.ID, circuit frontend.Circuit, syste
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

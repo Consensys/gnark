@@ -23,7 +23,7 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/internal/backend/bls24-315/witness"
@@ -41,8 +41,8 @@ const preimage string = "4992816046196248432836492760315135318126925090839638585
 const publicHash string = "3718771881240184991188517086989383268708326752185784029396612181634328520985"
 
 type mimcCircuit struct {
-	Data cs.Variable
-	Hash cs.Variable `gnark:",public"`
+	Data frontend.Variable
+	Hash frontend.Variable `gnark:",public"`
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -63,7 +63,7 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS24_315, backend.GROTH16, &circuit)
+	r1cs, err := compiler.Compile(ecc.BLS24_315, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 type verifierCircuit struct {
 	InnerProof Proof
 	InnerVk    VerifyingKey
-	Hash       cs.Variable
+	Hash       frontend.Variable
 }
 
 func (circuit *verifierCircuit) Define(api frontend.API) error {
@@ -119,7 +119,7 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
 
 	// create the verifier cs
-	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []cs.Variable{circuit.Hash})
+	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
 
 	return nil
 }
@@ -202,7 +202,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs compiled.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &circuit)
+		ccs, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

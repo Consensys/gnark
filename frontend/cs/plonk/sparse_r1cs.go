@@ -22,6 +22,7 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -78,7 +79,7 @@ func NewSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-//func (system *SparseR1CS) addPlonkConstraint(l, r, o cs.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+//func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 func (system *SparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
@@ -107,14 +108,14 @@ func (system *SparseR1CS) newInternalVariable() compiled.Term {
 }
 
 // NewPublicVariable creates a new Public Variable
-func (system *SparseR1CS) NewPublicVariable(name string) cs.Variable {
+func (system *SparseR1CS) NewPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)
 }
 
 // NewPublicVariable creates a new Secret Variable
-func (system *SparseR1CS) NewSecretVariable(name string) cs.Variable {
+func (system *SparseR1CS) NewSecretVariable(name string) frontend.Variable {
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
@@ -153,5 +154,5 @@ func (system *SparseR1CS) zero() compiled.Term {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

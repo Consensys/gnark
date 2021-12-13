@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -118,7 +117,7 @@ func TestMulFp2(t *testing.T) {
 
 type fp2MulByFp struct {
 	A E2
-	B cs.Variable
+	B frontend.Variable
 	C E2 `gnark:",public"`
 }
 
@@ -219,7 +218,7 @@ func TestMulByNonResidueFp2(t *testing.T) {
 	// ext := Extension{uSquare: 5}
 
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

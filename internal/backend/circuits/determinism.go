@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type determinism struct {
-	X [5]cs.Variable
-	Z cs.Variable `gnark:",public"`
+	X [5]frontend.Variable
+	Z frontend.Variable `gnark:",public"`
 }
 
 func (circuit *determinism) Define(api frontend.API) error {

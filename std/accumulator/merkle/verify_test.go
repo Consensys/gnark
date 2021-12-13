@@ -26,14 +26,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
 
 type merkleCircuit struct {
-	RootHash     cs.Variable `gnark:",public"`
-	Path, Helper []cs.Variable
+	RootHash     frontend.Variable `gnark:",public"`
+	Path, Helper []frontend.Variable
 }
 
 func (circuit *merkleCircuit) Define(api frontend.API) error {
@@ -77,13 +76,13 @@ func TestVerify(t *testing.T) {
 
 	// create cs
 	circuit := merkleCircuit{
-		Path:   make([]cs.Variable, len(proof)),
-		Helper: make([]cs.Variable, len(proof)-1),
+		Path:   make([]frontend.Variable, len(proof)),
+		Helper: make([]frontend.Variable, len(proof)-1),
 	}
 
 	witness := merkleCircuit{
-		Path:     make([]cs.Variable, len(proof)),
-		Helper:   make([]cs.Variable, len(proof)-1),
+		Path:     make([]frontend.Variable, len(proof)),
+		Helper:   make([]frontend.Variable, len(proof)-1),
 		RootHash: (merkleRoot),
 	}
 

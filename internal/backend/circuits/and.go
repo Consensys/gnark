@@ -3,11 +3,10 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type andCircuit struct {
-	Op1, Op2, Res cs.Variable
+	Op1, Op2, Res frontend.Variable
 }
 
 func (circuit *andCircuit) Define(api frontend.API) error {

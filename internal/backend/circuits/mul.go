@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type mul struct {
-	A, B, C, D cs.Variable
-	Z, ZZ      cs.Variable `gnark:",public"`
+	A, B, C, D frontend.Variable
+	Z, ZZ      frontend.Variable `gnark:",public"`
 }
 
 func (circuit *mul) Define(api frontend.API) error {

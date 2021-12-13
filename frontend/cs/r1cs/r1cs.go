@@ -22,6 +22,7 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
@@ -95,7 +96,7 @@ func (system *R1CSRefactor) newInternalVariable() compiled.Variable {
 }
 
 // NewPublicVariable creates a new public Variable
-func (system *R1CSRefactor) NewPublicVariable(name string) cs.Variable {
+func (system *R1CSRefactor) NewPublicVariable(name string) frontend.Variable {
 	t := false
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
@@ -107,7 +108,7 @@ func (system *R1CSRefactor) NewPublicVariable(name string) cs.Variable {
 }
 
 // NewSecretVariable creates a new secret Variable
-func (system *R1CSRefactor) NewSecretVariable(name string) cs.Variable {
+func (system *R1CSRefactor) NewSecretVariable(name string) frontend.Variable {
 	t := false
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
@@ -163,7 +164,7 @@ func (system *R1CSRefactor) reduce(l compiled.Variable) compiled.Variable {
 
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func newR1C(_l, _r, _o cs.Variable) compiled.R1C {
+func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 	l := _l.(compiled.Variable)
 	r := _r.(compiled.Variable)
 	o := _o.(compiled.Variable)
@@ -209,5 +210,5 @@ func (system *R1CSRefactor) markBoolean(v compiled.Variable) bool {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

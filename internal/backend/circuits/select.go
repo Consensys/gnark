@@ -5,11 +5,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type selectCircuit struct {
-	A1, A2, B, C cs.Variable
+	A1, A2, B, C frontend.Variable
 }
 
 func (circuit *selectCircuit) Define(api frontend.API) error {

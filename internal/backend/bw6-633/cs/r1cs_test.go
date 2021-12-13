@@ -18,12 +18,13 @@ package cs_test
 
 import (
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/circuits"
 	"reflect"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend/compiler"
+	"github.com/consensys/gnark/internal/backend/circuits"
 
 	"github.com/consensys/gnark/internal/backend/bw6-633/cs"
 )
@@ -34,7 +35,7 @@ func TestSerialization(t *testing.T) {
 
 	for name, circuit := range circuits.Circuits {
 
-		r1cs, err := frontend.Compile(ecc.BW6_633, backend.GROTH16, circuit.Circuit)
+		r1cs, err := compiler.Compile(ecc.BW6_633, backend.GROTH16, circuit.Circuit)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +44,7 @@ func TestSerialization(t *testing.T) {
 		}
 
 		// copmpile a second time to ensure determinism
-		r1cs2, err := frontend.Compile(ecc.BW6_633, backend.GROTH16, circuit.Circuit)
+		r1cs2, err := compiler.Compile(ecc.BW6_633, backend.GROTH16, circuit.Circuit)
 		if err != nil {
 			t.Fatal(err)
 		}

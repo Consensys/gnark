@@ -37,15 +37,14 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/test"
 )
 
 type eddsaCircuit struct {
-	PublicKey PublicKey   `gnark:",public"`
-	Signature Signature   `gnark:",public"`
-	Message   cs.Variable `gnark:",public"`
+	PublicKey PublicKey         `gnark:",public"`
+	Signature Signature         `gnark:",public"`
+	Message   frontend.Variable `gnark:",public"`
 }
 
 //func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {

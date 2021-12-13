@@ -5,12 +5,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type invCircuit struct {
-	A cs.Variable
-	C cs.Variable `gnark:",public"`
+	A frontend.Variable
+	C frontend.Variable `gnark:",public"`
 }
 
 func (circuit *invCircuit) Define(api frontend.API) error {

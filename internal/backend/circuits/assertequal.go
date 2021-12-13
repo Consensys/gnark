@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type checkAssertEqualCircuit struct {
-	X cs.Variable
-	Y cs.Variable `gnark:",public"`
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
 }
 
 func (circuit *checkAssertEqualCircuit) Define(api frontend.API) error {

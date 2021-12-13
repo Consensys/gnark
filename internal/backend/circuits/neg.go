@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type negCircuit struct {
-	X cs.Variable
-	Z cs.Variable `gnark:",public"`
+	X frontend.Variable
+	Z frontend.Variable `gnark:",public"`
 }
 
 func (circuit *negCircuit) Define(api frontend.API) error {

@@ -26,12 +26,13 @@ import (
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 
 	"bytes"
-	bls12_381groth16 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
 	"testing"
+
+	bls12_381groth16 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	frontendcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -41,8 +42,8 @@ import (
 
 type refCircuit struct {
 	nbConstraints int
-	X             frontendcs.Variable
-	Y             frontendcs.Variable `gnark:",public"`
+	X             frontend.Variable
+	Y             frontend.Variable `gnark:",public"`
 }
 
 func (circuit *refCircuit) Define(api frontend.API) error {
@@ -58,7 +59,7 @@ func referenceCircuit() (compiled.CompiledConstraintSystem, frontend.Circuit) {
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, &circuit)
+	r1cs, err := compiler.Compile(curve.ID, backend.GROTH16, &circuit)
 	if err != nil {
 		panic(err)
 	}

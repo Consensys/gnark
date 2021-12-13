@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
-	frontendcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 )
 
 // In this example we show how to use PLONK with KZG commitments. The circuit that is
@@ -36,10 +36,10 @@ import (
 type Circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X frontendcs.Variable `gnark:",public"`
-	Y frontendcs.Variable `gnark:",public"`
+	X frontend.Variable `gnark:",public"`
+	Y frontend.Variable `gnark:",public"`
 
-	E frontendcs.Variable
+	E frontend.Variable
 }
 
 // Define declares the circuit's constraints
@@ -50,7 +50,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	const bitSize = 2
 
 	// specify constraints
-	output := frontendcs.Variable(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
@@ -76,14 +76,14 @@ func main() {
 	fR1CS, _ := os.Create("r1cs.html")
 	fSparseR1CS, _ := os.Create("sparse_r1cs.html")
 
-	r1, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+	r1, _ := compiler.Compile(ecc.BN254, backend.GROTH16, &circuit)
 	err := r1.ToHTML(fR1CS)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	// building the circuit...
-	r3, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	r3, err_r1cs := compiler.Compile(ecc.BN254, backend.PLONK, &circuit)
 	if err_r1cs != nil {
 		fmt.Println("circuit compilation error")
 	}

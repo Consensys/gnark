@@ -23,6 +23,7 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 )
@@ -415,7 +416,7 @@ func BenchmarkMulE24(b *testing.B) {
 	var c fp24Mul
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
 		}
 
 	})
@@ -426,7 +427,7 @@ func BenchmarkSquareE24(b *testing.B) {
 	var c fp24Square
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
 		}
 
 	})
@@ -437,7 +438,7 @@ func BenchmarkInverseE24(b *testing.B) {
 	var c fp24Inverse
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
 		}
 
 	})
@@ -448,7 +449,7 @@ func BenchmarkConjugateE24(b *testing.B) {
 	var c fp24Conjugate
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
 		}
 
 	})
@@ -459,7 +460,7 @@ func BenchmarkMulBy034E24(b *testing.B) {
 	var c fp24MulBy034
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BW6_633, backend.GROTH16, &c)
 		}
 
 	})

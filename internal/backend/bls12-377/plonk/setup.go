@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"errors"
+
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"

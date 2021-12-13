@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
@@ -35,7 +34,7 @@ func CopyWitness(to, from frontend.Circuit) {
 	var wValues []interface{}
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(cs.Variable)
+		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret || visibility == compiled.Public {
 			if v == nil {
@@ -65,5 +64,5 @@ func CopyWitness(to, from frontend.Circuit) {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

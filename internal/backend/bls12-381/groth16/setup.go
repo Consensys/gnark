@@ -23,11 +23,12 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
 
+	"math/big"
+	"math/bits"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"math/big"
-	"math/bits"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement

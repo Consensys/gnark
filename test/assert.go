@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/stretchr/testify/require"
@@ -316,7 +317,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 	opt := assert.options(opts...)
 
 	// first we clone the circuit
-	// then we parse the cs.Variable and set them to a random value  or from our interesting pool
+	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
 	w := utils.ShallowClone(circuit)
 
@@ -327,7 +328,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 
 			// this puts the compiled circuit in the cache
 			// we do this here in case our fuzzWitness method mutates some references in the circuit
-			// (like []cs.Variable) before cleaning up
+			// (like []frontend.Variable) before cleaning up
 			_, err := assert.compile(circuit, curve, b, opt.compileOpts)
 			assert.NoError(err)
 			valid := 0
@@ -363,7 +364,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (compiled.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *compiler.CompileOption) error) (compiled.CompiledConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it
@@ -372,14 +373,14 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return ccs, nil
 	}
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
-	// ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
+	// ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
-	// _ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	_ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
+	// _ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}

@@ -19,7 +19,6 @@ package groth16_bls12377
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 )
@@ -49,7 +48,7 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []cs.Variable) {
+func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set

@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fp"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -146,7 +145,7 @@ func TestMulFp2(t *testing.T) {
 
 type fp2MulByFp struct {
 	A E2
-	B cs.Variable
+	B frontend.Variable
 	C E2 `gnark:",public"`
 }
 

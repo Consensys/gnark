@@ -5,13 +5,12 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type lookup2Circuit struct {
-	V0, V1, V2, V3       cs.Variable `gnark:",secret"`
-	Selector0, Selector1 cs.Variable `gnark:",secret"`
-	Expected             cs.Variable `gnark:",public"`
+	V0, V1, V2, V3       frontend.Variable `gnark:",secret"`
+	Selector0, Selector1 frontend.Variable `gnark:",secret"`
+	Expected             frontend.Variable `gnark:",public"`
 }
 
 func (c *lookup2Circuit) Define(api frontend.API) error {

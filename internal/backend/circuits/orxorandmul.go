@@ -3,7 +3,6 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // circuit designed to test if plonk compiler recognizes
@@ -11,7 +10,7 @@ import (
 // marked as boolean constraint, but the constraint doesn't exist
 // (it's the case for the result of a XOR, OR, AND for instance)
 type orXoAndMulCircuit struct {
-	A, B cs.Variable
+	A, B frontend.Variable
 }
 
 func (circuit *orXoAndMulCircuit) Define(api frontend.API) error {

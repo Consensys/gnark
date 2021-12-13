@@ -20,12 +20,11 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // Point point on a twisted Edwards curve in a Snark cs
 type Point struct {
-	X, Y cs.Variable
+	X, Y frontend.Variable
 }
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
@@ -124,7 +123,7 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar cs.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
@@ -152,7 +151,7 @@ func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar cs.Var
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar cs.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	b := api.ToBinary(scalar)

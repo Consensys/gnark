@@ -23,7 +23,7 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -41,8 +41,8 @@ const preimage string = "4992816046196248432836492760315135318126925090839638585
 const publicHash string = "5100653184692120205048160297349714747883651904319528520089825735266585689318"
 
 type mimcCircuit struct {
-	Data cs.Variable
-	Hash cs.Variable `gnark:",public"`
+	Data frontend.Variable
+	Hash frontend.Variable `gnark:",public"`
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -63,7 +63,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS12_377, backend.GROTH16, &circuit)
+	r1cs, err := compiler.Compile(ecc.BLS12_377, backend.GROTH16, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 type verifierCircuit struct {
 	InnerProof Proof
 	InnerVk    VerifyingKey
-	Hash       cs.Variable
+	Hash       frontend.Variable
 }
 
 func (circuit *verifierCircuit) Define(api frontend.API) error {
@@ -117,7 +117,7 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	// create the verifier cs
-	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []cs.Variable{circuit.Hash})
+	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
 
 	return nil
 }
@@ -200,7 +200,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs compiled.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+		ccs, _ = compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }
@@ -218,7 +218,7 @@ func BenchmarkCompile(b *testing.B) {
 
 // 	// create an empty cs
 // 	var circuit XXXX
-// 	r1cs, err := frontend.Compile(gurvy.XXXX, &circuit)
+// 	r1cs, err := compiler.Compile(gurvy.XXXX, &circuit)
 // 	if err != nil {
 // 		t.Fatal(err)
 // 	}

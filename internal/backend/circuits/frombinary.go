@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type fromBinaryCircuit struct {
-	B0, B1, B2, B3 cs.Variable
-	Y              cs.Variable `gnark:",public"`
+	B0, B1, B2, B3 frontend.Variable
+	Y              frontend.Variable `gnark:",public"`
 }
 
 func (circuit *fromBinaryCircuit) Define(api frontend.API) error {

@@ -19,7 +19,6 @@ package fields_bls12377
 import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp6->Fp12 (Fp2 = Fp(u), Fp6 = Fp2(v), Fp12 = Fp6(w))
@@ -399,7 +398,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
 }
 
 // Select sets e to r1 if b=1, r2 otherwise
-func (e *E12) Select(api frontend.API, b cs.Variable, r1, r2 E12) *E12 {
+func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
 	e.C0.B0.A0 = api.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
 	e.C0.B0.A1 = api.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)

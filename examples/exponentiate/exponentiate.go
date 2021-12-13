@@ -16,7 +16,6 @@ package exponentiate
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // Circuit y == x**e
@@ -24,10 +23,10 @@ import (
 type Circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X cs.Variable `gnark:",public"`
-	Y cs.Variable `gnark:",public"`
+	X frontend.Variable `gnark:",public"`
+	Y frontend.Variable `gnark:",public"`
 
-	E cs.Variable
+	E frontend.Variable
 }
 
 // Define declares the circuit's constraints
@@ -38,7 +37,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	const bitSize = 8
 
 	// specify constraints
-	output := cs.Variable(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 	api.ToBinary(circuit.E, bitSize)
 

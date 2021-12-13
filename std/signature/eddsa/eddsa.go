@@ -19,7 +19,6 @@ package eddsa
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
@@ -38,15 +37,15 @@ type PublicKey struct {
 // mod l ensures S < r, therefore there is no risk of overflow.
 type Signature struct {
 	R twistededwards.Point
-	S cs.Variable
+	S frontend.Variable
 }
 
 // Verify verifies an eddsa signature
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(api frontend.API, sig Signature, msg cs.Variable, pubKey PublicKey) error {
+func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
 
 	// compute H(R, A, M), all parameters in data are in Montgomery form
-	data := []cs.Variable{
+	data := []frontend.Variable{
 		sig.R.X,
 		sig.R.Y,
 		pubKey.A.X,

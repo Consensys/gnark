@@ -3,13 +3,12 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // test circuit with no computational constraints
 type noComputationCircuit struct {
-	A cs.Variable `gnark:",public"`
-	B cs.Variable
+	A frontend.Variable `gnark:",public"`
+	B frontend.Variable
 }
 
 func (c *noComputationCircuit) Define(api frontend.API) error {

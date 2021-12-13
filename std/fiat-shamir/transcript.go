@@ -20,7 +20,6 @@ import (
 	"errors"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/std/hash"
 )
 
@@ -44,9 +43,9 @@ type Transcript struct {
 }
 
 type challenge struct {
-	position   int           // position of the challenge in the transcript. order matters.
-	bindings   []cs.Variable // bindings stores the variables a challenge is binded to.
-	value      cs.Variable   // value stores the computed challenge
+	position   int                 // position of the challenge in the transcript. order matters.
+	bindings   []frontend.Variable // bindings stores the variables a challenge is binded to.
+	value      frontend.Variable   // value stores the computed challenge
 	isComputed bool
 }
 
@@ -72,7 +71,7 @@ func NewTranscript(api frontend.API, h hash.Hash, challengesID ...string) Transc
 // arbitrary number of values, but the order in which the binded values
 // are added is important. Once a challenge is computed, it cannot be
 // binded to other values.
-func (t *Transcript) Bind(challengeID string, values []cs.Variable) error {
+func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error {
 
 	challenge, ok := t.challenges[challengeID]
 
@@ -94,7 +93,7 @@ func (t *Transcript) Bind(challengeID string, values []cs.Variable) error {
 // The resulting variable is:
 // * H(name || previous_challenge || binded_values...) if the challenge is not the first one
 // * H(name || binded_values... ) if it's is the first challenge
-func (t *Transcript) ComputeChallenge(challengeID string) (cs.Variable, error) {
+func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
 
 	challenge, ok := t.challenges[challengeID]
 

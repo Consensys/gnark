@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package frontend
+package compiler
 
-// CompileOption enables to set optional argument to call of compiler.Compiler()
+// CompileOption enables to set optional argument to call of frontend.Compile()
 type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool

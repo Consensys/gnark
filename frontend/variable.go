@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cs
+package frontend
 
 // Variable represents a variable in the circuit. Any integer type (e.g. int, *big.Int, fr.Element)
 // can be assigned to it. It is also allowed to set a base-10 encoded string representing an integer value.

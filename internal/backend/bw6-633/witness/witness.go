@@ -25,7 +25,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 
@@ -95,7 +94,7 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 	i = nbPublic // offset
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(cs.Variable)
+		v := tInput.Interface().(frontend.Variable)
 
 		if v == nil {
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
@@ -131,7 +130,7 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
-			v := tInput.Interface().(cs.Variable)
+			v := tInput.Interface().(frontend.Variable)
 
 			if v == nil {
 				return fmt.Errorf("when parsing variable %s: missing assignment", name)
@@ -182,7 +181,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 	var e fr.Element
 
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		v := tInput.Interface().(cs.Variable)
+		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret {
 			if v == nil {
@@ -219,5 +218,5 @@ func ToJSON(w frontend.Circuit) (string, error) {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A cs.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

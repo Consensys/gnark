@@ -23,8 +23,9 @@ import (
 
 	"errors"
 	"fmt"
-	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	"io"
+
+	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 )
 
 var (

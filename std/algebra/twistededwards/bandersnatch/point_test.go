@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 )
@@ -216,7 +216,7 @@ func TestDouble(t *testing.T) {
 
 type scalarMulFixed struct {
 	E Point
-	S cs.Variable
+	S frontend.Variable
 }
 
 func (circuit *scalarMulFixed) Define(api frontend.API) error {
@@ -265,7 +265,7 @@ func TestScalarMulFixed(t *testing.T) {
 
 type scalarMulGeneric struct {
 	P, E Point
-	S    cs.Variable
+	S    frontend.Variable
 }
 
 func (circuit *scalarMulGeneric) Define(api frontend.API) error {
@@ -361,14 +361,14 @@ func BenchmarkScalarMulG1(b *testing.B) {
 	var c scalarMulGeneric
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+			ccsBench, _ = compiler.Compile(ecc.BLS12_381, backend.GROTH16, &c)
 		}
 
 	})
 	b.Log("groth16", ccsBench.GetNbConstraints())
 	b.Run("plonk", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BLS12_381, backend.PLONK, &c)
+			ccsBench, _ = compiler.Compile(ecc.BLS12_381, backend.PLONK, &c)
 		}
 
 	})

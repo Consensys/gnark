@@ -29,8 +29,8 @@ import (
 // system represents a constraint system that can be loaded using the bootloader
 type System interface {
 	API
-	NewPublicVariable(name string) cs.Variable
-	NewSecretVariable(name string) cs.Variable
+	NewPublicVariable(name string) Variable
+	NewSecretVariable(name string) Variable
 	Compile(curveID ecc.ID) (compiled.CompiledConstraintSystem, error)
 }
 
@@ -40,83 +40,83 @@ type API interface {
 	// Arithmetic
 
 	// Add returns res = i1+i2+...in
-	Add(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
+	Add(i1, i2 Variable, in ...Variable) Variable
 
 	// Sub returns res = i1 - i2 - ...in
-	Sub(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
+	Sub(i1, i2 Variable, in ...Variable) Variable
 
 	// Neg returns -i
-	Neg(i1 cs.Variable) cs.Variable
+	Neg(i1 Variable) Variable
 
 	// Mul returns res = i1 * i2 * ... in
-	Mul(i1, i2 cs.Variable, in ...cs.Variable) cs.Variable
+	Mul(i1, i2 Variable, in ...Variable) Variable
 
 	// DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-	DivUnchecked(i1, i2 cs.Variable) cs.Variable
+	DivUnchecked(i1, i2 Variable) Variable
 
 	// Div returns i1 / i2
-	Div(i1, i2 cs.Variable) cs.Variable
+	Div(i1, i2 Variable) Variable
 
 	// Inverse returns res = 1 / i1
-	Inverse(i1 cs.Variable) cs.Variable
+	Inverse(i1 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
 
-	// ToBinary unpacks a cs.Variable in binary,
+	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
 	// The result in in little endian (first bit= lsb)
-	ToBinary(i1 cs.Variable, n ...int) []cs.Variable
+	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	FromBinary(b ...cs.Variable) cs.Variable
+	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b
 	// a and b must be 0 or 1
-	Xor(a, b cs.Variable) cs.Variable
+	Xor(a, b Variable) Variable
 
 	// Or returns a | b
 	// a and b must be 0 or 1
-	Or(a, b cs.Variable) cs.Variable
+	Or(a, b Variable) Variable
 
 	// Or returns a & b
 	// a and b must be 0 or 1
-	And(a, b cs.Variable) cs.Variable
+	And(a, b Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Conditionals
 
 	// Select if b is true, yields i1 else yields i2
-	Select(b cs.Variable, i1, i2 cs.Variable) cs.Variable
+	Select(b Variable, i1, i2 Variable) Variable
 
 	// Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 	// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 	// and i3 if b0=b1=1.
-	Lookup2(b0, b1 cs.Variable, i0, i1, i2, i3 cs.Variable) cs.Variable
+	Lookup2(b0, b1 Variable, i0, i1, i2, i3 Variable) Variable
 
 	// IsZero returns 1 if a is zero, 0 otherwise
-	IsZero(i1 cs.Variable) cs.Variable
+	IsZero(i1 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Assertions
 
 	// AssertIsEqual fails if i1 != i2
-	AssertIsEqual(i1, i2 cs.Variable)
+	AssertIsEqual(i1, i2 Variable)
 
 	// AssertIsDifferent fails if i1 == i2
-	AssertIsDifferent(i1, i2 cs.Variable)
+	AssertIsDifferent(i1, i2 Variable)
 
 	// AssertIsBoolean fails if v != 0 || v != 1
-	AssertIsBoolean(i1 cs.Variable)
+	AssertIsBoolean(i1 Variable)
 
 	// AssertIsLessOrEqual fails if  v > bound
-	AssertIsLessOrEqual(v cs.Variable, bound cs.Variable)
+	AssertIsLessOrEqual(v Variable, bound Variable)
 
 	// Println behaves like fmt.Println but accepts cd.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver
-	Println(a ...cs.Variable)
+	Println(a ...Variable)
 
 	// NewHint initializes an internal variable whose value will be evaluated
 	// using the provided hint function at run time from the inputs. Inputs must
@@ -129,7 +129,7 @@ type API interface {
 	//
 	// No new constraints are added to the newly created wire and must be added
 	// manually in the circuit. Failing to do so leads to solver failure.
-	NewHint(f hint.Function, inputs ...cs.Variable) cs.Variable
+	NewHint(f hint.Function, inputs ...Variable) Variable
 
 	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 	// measure constraints, variables and coefficients creations through AddCounter
@@ -141,11 +141,11 @@ type API interface {
 	AddCounter(from, to cs.Tag)
 
 	// IsConstant returns true if v is a constant known at compile time
-	IsConstant(v cs.Variable) bool
+	IsConstant(v Variable) bool
 
 	// ConstantValue returns the big.Int value of v. It
 	// panics if v.IsConstant() == false
-	ConstantValue(v cs.Variable) *big.Int
+	ConstantValue(v Variable) *big.Int
 
 	// CurveID returns the ecc.ID injected by the compiler
 	Curve() ecc.ID

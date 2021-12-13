@@ -28,14 +28,15 @@ import (
 	bls12_381plonk "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
 
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	"math/big"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	frontendcs "github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/compiler"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -45,8 +46,8 @@ import (
 
 type refCircuit struct {
 	nbConstraints int
-	X             frontendcs.Variable
-	Y             frontendcs.Variable `gnark:",public"`
+	X             frontend.Variable
+	Y             frontend.Variable `gnark:",public"`
 }
 
 func (circuit *refCircuit) Define(api frontend.API) error {
@@ -62,7 +63,7 @@ func referenceCircuit() (compiled.CompiledConstraintSystem, frontend.Circuit, *k
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ccs, err := frontend.Compile(curve.ID, backend.PLONK, &circuit)
+	ccs, err := compiler.Compile(curve.ID, backend.PLONK, &circuit)
 	if err != nil {
 		panic(err)
 	}

@@ -20,12 +20,11 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 // E2 element in a quadratic extension
 type E2 struct {
-	A0, A1 cs.Variable
+	A0, A1 frontend.Variable
 }
 
 // SetOne returns a newly allocated element equal to 1
@@ -132,7 +131,7 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 // Inverse inverses an fp2elmt
 func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
 
-	var a0, a1, t0, t1, t1beta cs.Variable
+	var a0, a1, t0, t1, t1beta frontend.Variable
 
 	a0 = e1.A0
 	a1 = e1.A1

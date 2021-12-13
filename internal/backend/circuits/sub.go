@@ -3,12 +3,11 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type subCircuit struct {
-	A, B, C, D, E cs.Variable
-	Res           cs.Variable `gnark:",public"`
+	A, B, C, D, E frontend.Variable
+	Res           frontend.Variable `gnark:",public"`
 }
 
 func (circuit *subCircuit) Define(api frontend.API) error {

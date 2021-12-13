@@ -3,16 +3,15 @@ package circuits
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs"
 )
 
 type expCircuit struct {
-	X, E cs.Variable
-	Y    cs.Variable `gnark:",public"`
+	X, E frontend.Variable
+	Y    frontend.Variable `gnark:",public"`
 }
 
 func (circuit *expCircuit) Define(api frontend.API) error {
-	o := cs.Variable(1)
+	o := frontend.Variable(1)
 	b := api.ToBinary(circuit.E, 4)
 
 	var i int

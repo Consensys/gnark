@@ -17,8 +17,9 @@
 package groth16
 
 import (
-	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"io"
+
+	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
 // WriteTo writes binary encoding of the Proof elements to writer
