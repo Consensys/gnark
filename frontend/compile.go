@@ -38,13 +38,13 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 	f, ok := backends[zkpID]
 	backendsM.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("no frontend registered for backend '%s'", zkpID)
+		return nil, fmt.Errorf("no frontend registered for backend '%s' (import backend to fix)", zkpID)
 	}
 	systemsM.RLock()
 	compiler, ok := systems[f]
 	systemsM.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("no compiler registered for frontend '%s'", f)
+		return nil, fmt.Errorf("no compiler registered for frontend '%s' (import frontend or backend to fix)", f)
 	}
 	ccs, err := compiler(curveID, circuit)
 	if err != nil {
