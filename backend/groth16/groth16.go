@@ -53,7 +53,7 @@ import (
 )
 
 func init() {
-	frontend.RegisterFrontend(backend.GROTH16, r1cs.ID())
+	frontend.RegisterDefaultBuilder(backend.GROTH16, r1cs.NewBuilder)
 }
 
 // TODO @gbotrel document hint functions here and in assert

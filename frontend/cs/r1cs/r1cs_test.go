@@ -49,7 +49,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := NewR1CSRefactor(ecc.BN254)
+	cs := newR1CSRefactor(ecc.BN254)
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()

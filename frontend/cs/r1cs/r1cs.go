@@ -27,16 +27,12 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func ID() frontend.ID {
-	return frontend.R1CS
+func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
+	return newR1CSRefactor(curve), nil
 }
 
 func init() {
-	frontend.RegisterCompiler(frontend.R1CS, cs.NewCompiler(
-		func(curve ecc.ID) (cs.System, error) {
-			return NewR1CSRefactor(curve), nil
-		},
-	))
+	frontend.RegisterCompiler(frontend.R1CS, cs.NewCompiler(Builder))
 }
 
 type R1CSRefactor struct {
@@ -47,7 +43,7 @@ type R1CSRefactor struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func NewR1CSRefactor(curveID ecc.ID, initialCapacity ...int) *R1CSRefactor {
+func newR1CSRefactor(curveID ecc.ID, initialCapacity ...int) *R1CSRefactor {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]

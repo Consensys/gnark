@@ -13,21 +13,21 @@ import (
 )
 
 // system represents a constraint system that can be loaded using the bootloader
-type System interface {
+type Builder interface {
 	frontend.API
 	NewPublicVariable(name string) frontend.Variable
 	NewSecretVariable(name string) frontend.Variable
-	Compile(curveID ecc.ID) (compiled.ConstraintSystem, error)
+	Compile() (compiled.ConstraintSystem, error)
 }
 
-type NewSystem func(ecc.ID) (System, error)
+type NewBuilder func(ecc.ID) (Builder, error)
 
 // buildCS builds the constraint system. It bootstraps the inputs
 // allocations by parsing the circuit's underlying structure, then
 // it builds the constraint system using the Define method.
-func NewCompiler(maker NewSystem) frontend.Compiler {
+func NewCompiler(builder NewBuilder) frontend.Compiler {
 	return func(curve ecc.ID, circuit frontend.Circuit) (ccs compiled.ConstraintSystem, err error) {
-		system, err := maker(curve)
+		system, err := builder(curve)
 		if err != nil {
 			return nil, fmt.Errorf("new system: %w", err)
 		}

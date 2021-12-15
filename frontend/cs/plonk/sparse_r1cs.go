@@ -27,16 +27,12 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func ID() frontend.ID {
-	return frontend.PLONK
+func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
+	return newSparseR1CS(curve), nil
 }
 
 func init() {
-	frontend.RegisterCompiler(frontend.PLONK, cs.NewCompiler(
-		func(curve ecc.ID) (cs.System, error) {
-			return NewSparseR1CS(curve), nil
-		},
-	))
+	frontend.RegisterCompiler(frontend.PLONK, cs.NewCompiler(Builder))
 }
 
 type SparseR1CS struct {
@@ -47,7 +43,7 @@ type SparseR1CS struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func NewSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
+func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
