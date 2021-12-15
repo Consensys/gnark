@@ -54,15 +54,19 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
-	backendsM.RLock()
-	newBuilder, ok := backends[zkpID]
-	backendsM.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("no frontend registered for backend '%s' (import backend to fix)", zkpID)
+	newBuilder := opt.newBuilder
+	if newBuilder == nil {
+		var ok bool
+		backendsM.RLock()
+		newBuilder, ok = backends[zkpID]
+		backendsM.RUnlock()
+		if !ok {
+			return nil, fmt.Errorf("no default constraint builder registered nor set as option")
+		}
 	}
 	builder, err := newBuilder(curveID)
 	if err != nil {
-		return nil, fmt.Errorf("new builder")
+		return nil, fmt.Errorf("new builder: %w", err)
 	}
 
 	if err = bootstrap(builder, circuit); err != nil {
@@ -119,6 +123,7 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
+	newBuilder                NewBuilder
 }
 
 // WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
@@ -133,4 +138,11 @@ func WithCapacity(capacity int) func(opt *CompileOption) error {
 func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	opt.ignoreUnconstrainedInputs = true
 	return nil
+}
+
+func WithBuilder(builder NewBuilder) func(opt *CompileOption) error {
+	return func(opt *CompileOption) error {
+		opt.newBuilder = builder
+		return nil
+	}
 }
