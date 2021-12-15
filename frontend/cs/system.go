@@ -66,7 +66,7 @@ func NewCompiler(maker NewSystem) frontend.Compiler {
 			return nil, fmt.Errorf("define circuit: %w", err)
 		}
 
-		ccs, err = system.Compile(curve)
+		ccs, err = system.Compile()
 		if err != nil {
 			return nil, fmt.Errorf("compile system: %w", err)
 		}

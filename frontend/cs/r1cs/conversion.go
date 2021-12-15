@@ -28,7 +28,7 @@ import (
 )
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.ConstraintSystem, error) {
+func (cs *R1CSRefactor) Compile() (compiled.ConstraintSystem, error) {
 
 	// wires = public wires  | secret wires | internal wires
 
@@ -115,7 +115,7 @@ func (cs *R1CSRefactor) Compile(curveID ecc.ID) (compiled.ConstraintSystem, erro
 		}
 	}
 
-	switch curveID {
+	switch cs.CurveID {
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewR1CS(res, cs.Coeffs), nil
 	case ecc.BLS12_381:

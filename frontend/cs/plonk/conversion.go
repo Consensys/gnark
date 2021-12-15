@@ -27,7 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.ConstraintSystem, error) {
+func (cs *SparseR1CS) Compile() (compiled.ConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,
@@ -102,7 +102,7 @@ func (cs *SparseR1CS) Compile(curveID ecc.ID) (compiled.ConstraintSystem, error)
 	}
 	res.MHints = shiftedMap
 
-	switch curveID {
+	switch cs.CurveID {
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewSparseR1CS(res, cs.Coeffs), nil
 	case ecc.BLS12_381:
