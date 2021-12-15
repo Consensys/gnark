@@ -31,10 +31,6 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 	return newSparseR1CS(curve), nil
 }
 
-func init() {
-	frontend.RegisterCompiler(frontend.PLONK, cs.NewCompiler(Builder))
-}
-
 type SparseR1CS struct {
 	cs.ConstraintSystem
 

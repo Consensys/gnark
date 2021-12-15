@@ -31,10 +31,6 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 	return newR1CSRefactor(curve), nil
 }
 
-func init() {
-	frontend.RegisterCompiler(frontend.R1CS, cs.NewCompiler(Builder))
-}
-
 type R1CSRefactor struct {
 	cs.ConstraintSystem
 

@@ -1,12 +1,32 @@
 package frontend
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/parser"
 )
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
+}
+
+// system represents a constraint system that can be loaded using the bootloader
+type Builder interface {
+	API
+	NewPublicVariable(name string) Variable
+	NewSecretVariable(name string) Variable
+	Compile() (compiled.ConstraintSystem, error)
+}
+
+type NewBuilder func(ecc.ID) (Builder, error)
 
 // Compile will generate a ConstraintSystem from the given circuit
 //
@@ -35,22 +55,64 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 		}
 	}
 	backendsM.RLock()
-	f, ok := backends[zkpID]
+	newBuilder, ok := backends[zkpID]
 	backendsM.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("no frontend registered for backend '%s' (import backend to fix)", zkpID)
 	}
-	systemsM.RLock()
-	compiler, ok := systems[f]
-	systemsM.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("no compiler registered for frontend '%s' (import frontend or backend to fix)", f)
-	}
-	ccs, err := compiler(curveID, circuit)
+	builder, err := newBuilder(curveID)
 	if err != nil {
-		return nil, fmt.Errorf("compile: %w", err)
+		return nil, fmt.Errorf("new builder")
+	}
+
+	if err = bootstrap(builder, circuit); err != nil {
+		return nil, fmt.Errorf("bootstrap: %w", err)
+
+	}
+	ccs, err := builder.Compile()
+	if err != nil {
+		return nil, fmt.Errorf("compile system: %w", err)
 	}
 	return ccs, nil
+}
+
+func bootstrap(builder Builder, circuit Circuit) (err error) {
+	// leaf handlers are called when encoutering leafs in the circuit data struct
+	// leafs are Constraints that need to be initialized in the context of compiling a circuit
+	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if tInput.CanSet() {
+			switch visibility {
+			case compiled.Secret:
+				tInput.Set(reflect.ValueOf(builder.NewSecretVariable(name)))
+			case compiled.Public:
+				tInput.Set(reflect.ValueOf(builder.NewPublicVariable(name)))
+			case compiled.Unset:
+				return errors.New("can't set val " + name + " visibility is unset")
+			}
+
+			return nil
+		}
+		return errors.New("can't set val " + name)
+	}
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
+	// (secret or public inputs)
+	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
+		return err
+	}
+
+	// recover from panics to print user-friendlier messages
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v\n%s", r, debug.Stack())
+		}
+	}()
+
+	// call Define() to fill in the Constraints
+	if err = circuit.Define(builder); err != nil {
+		return fmt.Errorf("define circuit: %w", err)
+	}
+
+	return
 }
 
 // CompileOption enables to set optional argument to call of frontend.Compile()
