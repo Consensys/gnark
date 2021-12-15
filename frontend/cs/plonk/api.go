@@ -34,7 +34,7 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (system *SparseR1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	zero := big.NewInt(0)
 	vars, k := system.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
@@ -54,7 +54,7 @@ func (system *SparseR1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable)
 }
 
 // neg returns -in
-func (system *SparseR1CS) neg(in []frontend.Variable) []frontend.Variable {
+func (system *sparseR1CS) neg(in []frontend.Variable) []frontend.Variable {
 
 	res := make([]frontend.Variable, len(in))
 
@@ -65,13 +65,13 @@ func (system *SparseR1CS) neg(in []frontend.Variable) []frontend.Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (system *SparseR1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	r := system.neg(append([]frontend.Variable{i2}, in...))
 	return system.Add(i1, r[0], r[1:]...)
 }
 
 // Neg returns -i
-func (system *SparseR1CS) Neg(i1 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Neg(i1 frontend.Variable) frontend.Variable {
 	if system.IsConstant(i1) {
 		k := system.ConstantValue(i1)
 		k.Neg(k)
@@ -89,7 +89,7 @@ func (system *SparseR1CS) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *SparseR1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	vars, k := system.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
@@ -101,7 +101,7 @@ func (system *SparseR1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable)
 }
 
 // returns t*m
-func (system *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (system *sparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
 	coef.Set(&system.Coeffs[cid])
@@ -112,7 +112,7 @@ func (system *SparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (system *SparseR1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		l := utils.FromInterface(i1)
@@ -144,7 +144,7 @@ func (system *SparseR1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variab
 }
 
 // Div returns i1 / i2
-func (system *SparseR1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	system.Inverse(i2)
@@ -153,7 +153,7 @@ func (system *SparseR1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Inverse returns res = 1 / i1
-func (system *SparseR1CS) Inverse(i1 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		c.ModInverse(&c, system.CurveID.Info().Fr.Modulus())
@@ -174,7 +174,7 @@ func (system *SparseR1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *SparseR1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (system *sparseR1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := system.BitLen()
@@ -199,7 +199,7 @@ func (system *SparseR1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Va
 	return system.toBinary(a, nbBits, false)
 }
 
-func (system *SparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
+func (system *sparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
 
 	// allocate the resulting frontend.Variables and bit-constraint them
 	b := make([]frontend.Variable, nbBits)
@@ -233,7 +233,7 @@ func (system *SparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []f
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *SparseR1CS) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) FromBinary(b ...frontend.Variable) frontend.Variable {
 	_b := make([]frontend.Variable, len(b))
 	var c big.Int
 	c.SetUint64(1)
@@ -252,7 +252,7 @@ func (system *SparseR1CS) FromBinary(b ...frontend.Variable) frontend.Variable {
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (system *SparseR1CS) Xor(a, b frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Xor(a, b frontend.Variable) frontend.Variable {
 	if system.IsConstant(a) && system.IsConstant(b) {
 		_a := utils.FromInterface(a)
 		_b := utils.FromInterface(b)
@@ -281,7 +281,7 @@ func (system *SparseR1CS) Xor(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (system *SparseR1CS) Or(a, b frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Or(a, b frontend.Variable) frontend.Variable {
 
 	var zero, one big.Int
 	one.SetUint64(1)
@@ -323,7 +323,7 @@ func (system *SparseR1CS) Or(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (system *SparseR1CS) And(a, b frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) And(a, b frontend.Variable) frontend.Variable {
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
 	return system.Mul(a, b)
@@ -333,7 +333,7 @@ func (system *SparseR1CS) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (system *SparseR1CS) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
 
 	if system.IsConstant(b) {
 		_b := utils.FromInterface(b)
@@ -357,7 +357,7 @@ func (system *SparseR1CS) Select(b frontend.Variable, i1, i2 frontend.Variable) 
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *SparseR1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 
 	// vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	// s0, s1 := vars[0], vars[1]
@@ -393,7 +393,7 @@ func (system *SparseR1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 front
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (system *SparseR1CS) IsZero(i1 frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	if system.IsConstant(i1) {
 		a := utils.FromInterface(i1)
@@ -423,7 +423,7 @@ func (system *SparseR1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *SparseR1CS) Println(a ...frontend.Variable) {
+func (system *sparseR1CS) Println(a ...frontend.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -501,7 +501,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *SparseR1CS) Tag(name string) frontend.Tag {
+func (system *sparseR1CS) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
 	return frontend.Tag{
@@ -514,7 +514,7 @@ func (system *SparseR1CS) Tag(name string) frontend.Tag {
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
 // note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 // are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (system *SparseR1CS) AddCounter(from, to frontend.Tag) {
+func (system *sparseR1CS) AddCounter(from, to frontend.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,
@@ -525,7 +525,7 @@ func (system *SparseR1CS) AddCounter(from, to frontend.Tag) {
 	})
 }
 
-func (system *SparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
+func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
 	// create resulting wire
 	r := system.newInternalVariable()
 	_, vID, _ := r.Unpack()
@@ -555,7 +555,7 @@ func (system *SparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) 
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (system *SparseR1CS) IsConstant(v frontend.Variable) bool {
+func (system *sparseR1CS) IsConstant(v frontend.Variable) bool {
 	switch t := v.(type) {
 	case compiled.Term:
 		return false
@@ -567,7 +567,7 @@ func (system *SparseR1CS) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (system *SparseR1CS) ConstantValue(v frontend.Variable) *big.Int {
+func (system *sparseR1CS) ConstantValue(v frontend.Variable) *big.Int {
 	if !system.IsConstant(v) {
 		panic("v should be a constant")
 	}
@@ -575,12 +575,12 @@ func (system *SparseR1CS) ConstantValue(v frontend.Variable) *big.Int {
 	return &res
 }
 
-func (system *SparseR1CS) Backend() backend.ID {
+func (system *sparseR1CS) Backend() backend.ID {
 	return backend.PLONK
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *SparseR1CS) filterConstantSum(in []frontend.Variable) ([]compiled.Term, big.Int) {
+func (system *sparseR1CS) filterConstantSum(in []frontend.Variable) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
@@ -596,7 +596,7 @@ func (system *SparseR1CS) filterConstantSum(in []frontend.Variable) ([]compiled.
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *SparseR1CS) filterConstantProd(in []frontend.Variable) ([]compiled.Term, big.Int) {
+func (system *sparseR1CS) filterConstantProd(in []frontend.Variable) ([]compiled.Term, big.Int) {
 	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
@@ -612,7 +612,7 @@ func (system *SparseR1CS) filterConstantProd(in []frontend.Variable) ([]compiled
 	return res, b
 }
 
-func (system *SparseR1CS) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (system *sparseR1CS) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -626,7 +626,7 @@ func (system *SparseR1CS) splitSum(acc compiled.Term, r []compiled.Term) compile
 	return system.splitSum(o, r[1:])
 }
 
-func (system *SparseR1CS) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (system *sparseR1CS) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {

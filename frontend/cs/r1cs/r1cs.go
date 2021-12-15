@@ -31,7 +31,7 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 	return newR1CS(curve), nil
 }
 
-type R1CS struct {
+type r1CS struct {
 	cs.ConstraintSystem
 
 	Constraints []compiled.R1C
@@ -39,12 +39,12 @@ type R1CS struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newR1CS(curveID ecc.ID, initialCapacity ...int) *R1CS {
+func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	system := R1CS{
+	system := r1CS{
 		ConstraintSystem: cs.ConstraintSystem{
 
 			CS: compiled.CS{
@@ -89,7 +89,7 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *R1CS {
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (system *R1CS) newInternalVariable() compiled.Variable {
+func (system *r1CS) newInternalVariable() compiled.Variable {
 	t := false
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
@@ -100,7 +100,7 @@ func (system *R1CS) newInternalVariable() compiled.Variable {
 }
 
 // NewPublicVariable creates a new public Variable
-func (system *R1CS) NewPublicVariable(name string) frontend.Variable {
+func (system *r1CS) NewPublicVariable(name string) frontend.Variable {
 	t := false
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
@@ -112,7 +112,7 @@ func (system *R1CS) NewPublicVariable(name string) frontend.Variable {
 }
 
 // NewSecretVariable creates a new secret Variable
-func (system *R1CS) NewSecretVariable(name string) frontend.Variable {
+func (system *r1CS) NewSecretVariable(name string) frontend.Variable {
 	t := false
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
@@ -124,7 +124,7 @@ func (system *R1CS) NewSecretVariable(name string) frontend.Variable {
 }
 
 // func (v *variable) constantValue(system *R1CS) *big.Int {
-func (system *R1CS) constantValue(v compiled.Variable) *big.Int {
+func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.IsConstant() {
@@ -133,7 +133,7 @@ func (system *R1CS) constantValue(v compiled.Variable) *big.Int {
 	return new(big.Int).Set(&system.Coeffs[v.LinExp[0].CoeffID()])
 }
 
-func (system *R1CS) one() compiled.Variable {
+func (system *r1CS) one() compiled.Variable {
 	t := false
 	return compiled.Variable{
 		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
@@ -145,7 +145,7 @@ func (system *R1CS) one() compiled.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (system *R1CS) reduce(l compiled.Variable) compiled.Variable {
+func (system *r1CS) reduce(l compiled.Variable) compiled.Variable {
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	if !sort.IsSorted(l.LinExp) { // may not help
 		sort.Sort(l.LinExp)
@@ -186,7 +186,7 @@ func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 	return compiled.R1C{L: l.Clone(), R: r.Clone(), O: o.Clone()}
 }
 
-func (system *R1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
+func (system *r1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
 	system.Constraints = append(system.Constraints, r1c)
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
@@ -195,7 +195,7 @@ func (system *R1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
 
 // Term packs a Variable and a coeff in a Term and returns it.
 // func (system *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
-func (system *R1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
+func (system *r1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
 	return compiled.Pack(vID, system.CoeffID(coeff), vVis)
 }
@@ -203,7 +203,7 @@ func (system *R1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 // markBoolean marks the Variable as boolean and return true
 // if a constraint was added, false if the Variable was already
 // constrained as a boolean
-func (system *R1CS) markBoolean(v compiled.Variable) bool {
+func (system *r1CS) markBoolean(v compiled.Variable) bool {
 	if *v.IsBoolean {
 		return false
 	}

@@ -27,7 +27,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *SparseR1CS) Compile() (compiled.ConstraintSystem, error) {
+func (cs *sparseR1CS) Compile() (compiled.ConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,

@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *R1CS) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *r1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
 	r := system.constant(i1).(compiled.Variable)
 	o := system.constant(i2).(compiled.Variable)
@@ -37,12 +37,12 @@ func (system *R1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *R1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *r1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
-func (system *R1CS) AssertIsBoolean(i1 frontend.Variable) {
+func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
@@ -75,7 +75,7 @@ func (system *R1CS) AssertIsBoolean(i1 frontend.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *R1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
+func (system *r1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
@@ -88,7 +88,7 @@ func (system *R1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Var
 
 }
 
-func (system *R1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
+func (system *r1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := system.BitLen()
@@ -129,7 +129,7 @@ func (system *R1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
 
 }
 
-func (system *R1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 
 	nbBits := system.BitLen()
 

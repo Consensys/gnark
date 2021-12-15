@@ -31,7 +31,7 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 	return newSparseR1CS(curve), nil
 }
 
-type SparseR1CS struct {
+type sparseR1CS struct {
 	cs.ConstraintSystem
 
 	Constraints []compiled.SparseR1C
@@ -39,12 +39,12 @@ type SparseR1CS struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
+func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 	capacity := 0
 	if len(initialCapacity) > 0 {
 		capacity = initialCapacity[0]
 	}
-	system := SparseR1CS{
+	system := sparseR1CS{
 		ConstraintSystem: cs.ConstraintSystem{
 
 			CS: compiled.CS{
@@ -83,7 +83,7 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *SparseR1CS {
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
 //func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-func (system *SparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (system *sparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
@@ -104,21 +104,21 @@ func (system *SparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, 
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (system *SparseR1CS) newInternalVariable() compiled.Term {
+func (system *sparseR1CS) newInternalVariable() compiled.Term {
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)
 }
 
 // NewPublicVariable creates a new Public Variable
-func (system *SparseR1CS) NewPublicVariable(name string) frontend.Variable {
+func (system *sparseR1CS) NewPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)
 }
 
 // NewPublicVariable creates a new Secret Variable
-func (system *SparseR1CS) NewSecretVariable(name string) frontend.Variable {
+func (system *sparseR1CS) NewSecretVariable(name string) frontend.Variable {
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
@@ -128,7 +128,7 @@ func (system *SparseR1CS) NewSecretVariable(name string) frontend.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (system *SparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+func (system *sparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExpression {
 
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
@@ -149,19 +149,19 @@ func (system *SparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 }
 
 // to handle wires that don't exist (=coef 0) in a sparse constraint
-func (system *SparseR1CS) zero() compiled.Term {
+func (system *sparseR1CS) zero() compiled.Term {
 	var a compiled.Term
 	return a
 }
 
 // returns true if a variable is already boolean
-func (system *SparseR1CS) isBoolean(t compiled.Term) bool {
+func (system *sparseR1CS) isBoolean(t compiled.Term) bool {
 	_, ok := system.MTBooleans[int(t)]
 	return ok
 }
 
 // markBoolean records t in the map to not boolean constrain it twice
-func (system *SparseR1CS) markBoolean(t compiled.Term) {
+func (system *sparseR1CS) markBoolean(t compiled.Term) {
 	system.MTBooleans[int(t)] = struct{}{}
 }
 

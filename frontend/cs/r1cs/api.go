@@ -34,7 +34,7 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (system *R1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
@@ -54,7 +54,7 @@ func (system *R1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 }
 
 // Neg returns -i
-func (system *R1CS) Neg(i frontend.Variable) frontend.Variable {
+func (system *r1CS) Neg(i frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i)
 
 	if vars[0].IsConstant() {
@@ -70,7 +70,7 @@ func (system *R1CS) Neg(i frontend.Variable) frontend.Variable {
 }
 
 // Sub returns res = i1 - i2
-func (system *R1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
@@ -96,7 +96,7 @@ func (system *R1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) front
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *R1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
@@ -134,7 +134,7 @@ func (system *R1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	return res
 }
 
-func (system *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
+func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
 	res := v1.Clone()
@@ -164,7 +164,7 @@ func (system *R1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 }
 
 // Inverse returns res = inverse(v)
-func (system *R1CS) Inverse(i1 frontend.Variable) frontend.Variable {
+func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 
 	if vars[0].IsConstant() {
@@ -188,7 +188,7 @@ func (system *R1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 // Div returns res = i1 / i2
-func (system *R1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -221,7 +221,7 @@ func (system *R1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-func (system *R1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -253,7 +253,7 @@ func (system *R1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Xor compute the XOR between two frontend.Variables
-func (system *R1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(_a, _b)
 
@@ -278,7 +278,7 @@ func (system *R1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
 }
 
 // Or compute the OR between two frontend.Variables
-func (system *R1CS) Or(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -301,7 +301,7 @@ func (system *R1CS) Or(_a, _b frontend.Variable) frontend.Variable {
 }
 
 // And compute the AND between two frontend.Variables
-func (system *R1CS) And(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1CS) And(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -316,7 +316,7 @@ func (system *R1CS) And(_a, _b frontend.Variable) frontend.Variable {
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *R1CS) IsZero(i1 frontend.Variable) frontend.Variable {
+func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 	a := vars[0]
 	if a.IsConstant() {
@@ -350,7 +350,7 @@ func (system *R1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *R1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (system *r1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := system.BitLen()
@@ -378,7 +378,7 @@ func (system *R1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (system *R1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []frontend.Variable {
+func (system *r1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []frontend.Variable {
 
 	if a.IsConstant() {
 		return system.ToBinary(a, nbBits)
@@ -427,7 +427,7 @@ func toSliceOfVariables(v []compiled.Variable) []frontend.Variable {
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *R1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
+func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.toVariables(_b...)
 
 	// ensure inputs are set
@@ -455,7 +455,7 @@ func (system *R1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 }
 
 // Select if i0 is true, yields i1 else yields i2
-func (system *R1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i0, i1, i2)
 	b := vars[0]
@@ -490,7 +490,7 @@ func (system *R1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *R1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (system *r1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
@@ -521,7 +521,7 @@ func (system *R1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 }
 
 // IsConstant returns true if v is a constant known at compile time
-func (system *R1CS) IsConstant(v frontend.Variable) bool {
+func (system *r1CS) IsConstant(v frontend.Variable) bool {
 	if _v, ok := v.(compiled.Variable); ok {
 		return _v.IsConstant()
 	}
@@ -533,7 +533,7 @@ func (system *R1CS) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
-func (system *R1CS) ConstantValue(v frontend.Variable) *big.Int {
+func (system *r1CS) ConstantValue(v frontend.Variable) *big.Int {
 	if _v, ok := v.(compiled.Variable); ok {
 		return system.constantValue(_v)
 	}
@@ -541,7 +541,7 @@ func (system *R1CS) ConstantValue(v frontend.Variable) *big.Int {
 	return &r
 }
 
-func (system *R1CS) Backend() backend.ID {
+func (system *r1CS) Backend() backend.ID {
 	return backend.GROTH16
 }
 
@@ -550,7 +550,7 @@ func (system *R1CS) Backend() backend.ID {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *R1CS) Println(a ...frontend.Variable) {
+func (system *r1CS) Println(a ...frontend.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -629,7 +629,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *R1CS) Tag(name string) frontend.Tag {
+func (system *r1CS) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
 	return frontend.Tag{
@@ -640,7 +640,7 @@ func (system *R1CS) Tag(name string) frontend.Tag {
 }
 
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (system *R1CS) AddCounter(from, to frontend.Tag) {
+func (system *r1CS) AddCounter(from, to frontend.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,
@@ -662,7 +662,7 @@ func (system *R1CS) AddCounter(from, to frontend.Tag) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *R1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
+func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
 	// create resulting wire
 	r := system.newInternalVariable()
 	_, vID, _ := r.LinExp[0].Unpack()
@@ -706,7 +706,7 @@ func (system *R1CS) NewHint(f hint.Function, inputs ...frontend.Variable) fronte
 //
 // a constant frontend.Variable does NOT necessary allocate a frontend.Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (system *R1CS) constant(input frontend.Variable) frontend.Variable {
+func (system *r1CS) constant(input frontend.Variable) frontend.Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -724,7 +724,7 @@ func (system *R1CS) constant(input frontend.Variable) frontend.Variable {
 }
 
 // toVariables return frontend.Variable corresponding to inputs and the total size of the linear expressions
-func (system *R1CS) toVariables(in ...frontend.Variable) ([]compiled.Variable, int) {
+func (system *r1CS) toVariables(in ...frontend.Variable) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
 	e := func(i frontend.Variable) {
@@ -741,7 +741,7 @@ func (system *R1CS) toVariables(in ...frontend.Variable) ([]compiled.Variable, i
 }
 
 // returns -le, the result is a copy
-func (system *R1CS) negateLinExp(l []compiled.Term) []compiled.Term {
+func (system *r1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 	res := make([]compiled.Term, len(l))
 	var lambda big.Int
 	for i, t := range l {
