@@ -233,14 +233,16 @@ func (cs *constraintSystem) reduce(l compiled.Variable) compiled.Variable {
 		sort.Sort(l.LinExp)
 	}
 
-	var c big.Int
+	mod := cs.curveID.Info().Fr.Modulus()
+	c := new(big.Int)
 	for i := 1; i < len(l.LinExp); i++ {
 		pcID, pvID, pVis := l.LinExp[i-1].Unpack()
 		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&cs.coeffs[pcID], &cs.coeffs[ccID])
-			l.LinExp[i-1].SetCoeffID(cs.coeffID(&c))
+			c.Mod(c, mod)
+			l.LinExp[i-1].SetCoeffID(cs.coeffID(c))
 			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
