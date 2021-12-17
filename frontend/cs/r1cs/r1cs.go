@@ -17,9 +17,12 @@ limitations under the License.
 package r1cs
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -78,7 +81,6 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 	system.Secret = make([]string, 0)
 
 	// by default the circuit is given a public wire equal to 1
-	// system.public.variables[0] = system.newPublicVariable("one")
 	system.Public[0] = "one"
 
 	system.CurveID = curveID
@@ -209,6 +211,105 @@ func (system *r1CS) markBoolean(v compiled.Variable) bool {
 	}
 	*v.IsBoolean = true
 	return true
+}
+
+// checkVariables perform post compilation checks on the Variables
+//
+// 1. checks that all user inputs are referenced in at least one constraint
+// 2. checks that all hints are constrained
+func (system *r1CS) CheckVariables() error {
+
+	// TODO @gbotrel add unit test for that.
+
+	cptSecret := len(system.Secret)
+	cptPublic := len(system.Public)
+	cptHints := len(system.MHints)
+
+	secretConstrained := make([]bool, cptSecret)
+	publicConstrained := make([]bool, cptPublic)
+	publicConstrained[0] = true
+
+	mHintsConstrained := make(map[int]bool)
+
+	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
+	processLinearExpression := func(l compiled.Variable) {
+		for _, t := range l.LinExp {
+			if t.CoeffID() == compiled.CoeffIdZero {
+				// ignore zero coefficient, as it does not constraint the Variable
+				// though, we may want to flag that IF the Variable doesn't appear else where
+				continue
+			}
+			visibility := t.VariableVisibility()
+			vID := t.WireID()
+
+			switch visibility {
+			case compiled.Public:
+				if vID != 0 && !publicConstrained[vID] {
+					publicConstrained[vID] = true
+					cptPublic--
+				}
+			case compiled.Secret:
+				if !secretConstrained[vID] {
+					secretConstrained[vID] = true
+					cptSecret--
+				}
+			case compiled.Internal:
+				if b, ok := mHintsConstrained[vID]; ok && !b {
+					mHintsConstrained[vID] = true
+					cptHints--
+				}
+			}
+		}
+	}
+	for _, r1c := range system.Constraints {
+		processLinearExpression(r1c.L)
+		processLinearExpression(r1c.R)
+		processLinearExpression(r1c.O)
+
+		if cptHints|cptSecret|cptPublic == 0 {
+			return nil // we can stop.
+		}
+
+	}
+
+	// something is a miss, we build the error string
+	var sbb strings.Builder
+	if cptSecret != 0 {
+		sbb.WriteString(strconv.Itoa(cptSecret))
+		sbb.WriteString(" unconstrained secret input(s):")
+		sbb.WriteByte('\n')
+		for i := 0; i < len(secretConstrained) && cptSecret != 0; i++ {
+			if !secretConstrained[i] {
+				sbb.WriteString(system.Secret[i])
+				sbb.WriteByte('\n')
+				cptSecret--
+			}
+		}
+		sbb.WriteByte('\n')
+	}
+
+	if cptPublic != 0 {
+		sbb.WriteString(strconv.Itoa(cptPublic))
+		sbb.WriteString(" unconstrained public input(s):")
+		sbb.WriteByte('\n')
+		for i := 0; i < len(publicConstrained) && cptPublic != 0; i++ {
+			if !publicConstrained[i] {
+				sbb.WriteString(system.Public[i])
+				sbb.WriteByte('\n')
+				cptPublic--
+			}
+		}
+		sbb.WriteByte('\n')
+	}
+
+	if cptHints != 0 {
+		sbb.WriteString(strconv.Itoa(cptHints))
+		sbb.WriteString(" unconstrained hints")
+		sbb.WriteByte('\n')
+		// TODO we may add more debug info here --> idea, in NewHint, take the debug stack, and store in the hint map some
+		// debugInfo to find where a hint was declared (and not constrained)
+	}
+	return errors.New(sbb.String())
 }
 
 var tVariable reflect.Type

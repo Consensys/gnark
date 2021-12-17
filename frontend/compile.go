@@ -21,6 +21,7 @@ func init() {
 // system represents a constraint system that can be loaded using the bootloader
 type Builder interface {
 	API
+	CheckVariables() error
 	NewPublicVariable(name string) Variable
 	NewSecretVariable(name string) Variable
 	Compile() (compiled.ConstraintSystem, error)
@@ -73,6 +74,14 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 		return nil, fmt.Errorf("bootstrap: %w", err)
 
 	}
+
+	// ensure all inputs and hints are constrained
+	if !opt.ignoreUnconstrainedInputs {
+		if err := builder.CheckVariables(); err != nil {
+			return nil, err
+		}
+	}
+
 	ccs, err := builder.Compile()
 	if err != nil {
 		return nil, fmt.Errorf("compile system: %w", err)

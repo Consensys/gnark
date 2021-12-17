@@ -17,9 +17,12 @@ limitations under the License.
 package plonk
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -163,6 +166,102 @@ func (system *sparseR1CS) isBoolean(t compiled.Term) bool {
 // markBoolean records t in the map to not boolean constrain it twice
 func (system *sparseR1CS) markBoolean(t compiled.Term) {
 	system.MTBooleans[int(t)] = struct{}{}
+}
+
+// checkVariables perform post compilation checks on the Variables
+//
+// 1. checks that all user inputs are referenced in at least one constraint
+// 2. checks that all hints are constrained
+func (system *sparseR1CS) CheckVariables() error {
+
+	// TODO @gbotrel add unit test for that.
+
+	cptSecret := len(system.Secret)
+	cptPublic := len(system.Public)
+	cptHints := len(system.MHints)
+
+	secretConstrained := make([]bool, cptSecret)
+	publicConstrained := make([]bool, cptPublic)
+
+	mHintsConstrained := make(map[int]bool)
+
+	// for each constraint, we check the terms and mark our inputs / hints as constrained
+	processTerm := func(t compiled.Term) {
+
+		// L and M[0] handles the same wire but with a different coeff
+		visibility := t.VariableVisibility()
+		vID := t.WireID()
+		if t.CoeffID() != compiled.CoeffIdZero {
+			switch visibility {
+			case compiled.Public:
+				if vID != 0 && !publicConstrained[vID] {
+					publicConstrained[vID] = true
+					cptPublic--
+				}
+			case compiled.Secret:
+				if !secretConstrained[vID] {
+					secretConstrained[vID] = true
+					cptSecret--
+				}
+			case compiled.Internal:
+				if b, ok := mHintsConstrained[vID]; ok && !b {
+					mHintsConstrained[vID] = true
+					cptHints--
+				}
+			}
+		}
+
+	}
+	for _, c := range system.Constraints {
+		processTerm(c.L)
+		processTerm(c.R)
+		processTerm(c.M[0])
+		processTerm(c.M[1])
+		processTerm(c.O)
+		if cptHints|cptSecret|cptPublic == 0 {
+			return nil // we can stop.
+		}
+
+	}
+
+	// something is a miss, we build the error string
+	var sbb strings.Builder
+	if cptSecret != 0 {
+		sbb.WriteString(strconv.Itoa(cptSecret))
+		sbb.WriteString(" unconstrained secret input(s):")
+		sbb.WriteByte('\n')
+		for i := 0; i < len(secretConstrained) && cptSecret != 0; i++ {
+			if !secretConstrained[i] {
+				sbb.WriteString(system.Secret[i])
+				sbb.WriteByte('\n')
+				cptSecret--
+			}
+		}
+		sbb.WriteByte('\n')
+	}
+
+	if cptPublic != 0 {
+		sbb.WriteString(strconv.Itoa(cptPublic))
+		sbb.WriteString(" unconstrained public input(s):")
+		sbb.WriteByte('\n')
+		for i := 0; i < len(publicConstrained) && cptPublic != 0; i++ {
+			if !publicConstrained[i] {
+				sbb.WriteString(system.Public[i])
+				sbb.WriteByte('\n')
+				cptPublic--
+			}
+		}
+		sbb.WriteByte('\n')
+	}
+
+	if cptHints != 0 {
+		sbb.WriteString(strconv.Itoa(cptHints))
+		sbb.WriteString(" unconstrained hints")
+		sbb.WriteByte('\n')
+		// TODO we may add more debug info here --> idea, in NewHint, take the debug stack, and store in the hint map some
+		// debugInfo to find where a hint was declared (and not constrained)
+	}
+	return errors.New(sbb.String())
 }
 
 var tVariable reflect.Type
