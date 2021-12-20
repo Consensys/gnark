@@ -194,7 +194,7 @@ func (system *sparseR1CS) CheckVariables() error {
 		if t.CoeffID() != compiled.CoeffIdZero {
 			switch visibility {
 			case compiled.Public:
-				if vID != 0 && !publicConstrained[vID] {
+				if !publicConstrained[vID] {
 					publicConstrained[vID] = true
 					cptPublic--
 				}
