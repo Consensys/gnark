@@ -51,12 +51,12 @@ func TestPrintln(t *testing.T) {
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 
 	{
 		trace, _ := getPlonkTrace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 }
 
