@@ -89,7 +89,7 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 func (system *sparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
-		system.MDebug[len(system.Constraints)-1] = debugID[0]
+		system.MDebug[len(system.Constraints)] = debugID[0]
 	}
 
 	l.SetCoeffID(cidl)
