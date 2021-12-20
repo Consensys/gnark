@@ -43,7 +43,7 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 		l := i1.(compiled.Term)
 		lc, _, _ := l.Unpack()
 		k := utils.FromInterface(i2)
-		debug := system.AddDebugInfo("assertIsEqual", l, " == ", i2)
+		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(&k)
 		_k := system.CoeffID(&k)
 		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
@@ -54,7 +54,7 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 	lc, _, _ := l.Unpack()
 	rc, _, _ := r.Unpack()
 
-	debug := system.AddDebugInfo("assertIsEqual", l, " == ", r)
+	debug := system.AddDebugInfo("assertIsEqual", l, " + ", r, " == 0")
 	system.addPlonkConstraint(l, r, system.zero(), lc, rc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
