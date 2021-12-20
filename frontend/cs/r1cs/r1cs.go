@@ -227,7 +227,9 @@ func (system *r1CS) CheckVariables() error {
 
 	secretConstrained := make([]bool, cptSecret)
 	publicConstrained := make([]bool, cptPublic)
+	// one wire does not need to be constrained
 	publicConstrained[0] = true
+	cptPublic--
 
 	mHintsConstrained := make(map[int]bool)
 
