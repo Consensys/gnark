@@ -79,7 +79,11 @@ func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 	system.markBoolean(t)
 	system.MTBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
-	system.addPlonkConstraint(t, t, system.zero(), compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	cID, _, _ := t.Unpack()
+	var mCoef big.Int
+	mCoef.Neg(&system.Coeffs[cID])
+	mcID := system.CoeffID(&mCoef)
+	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
