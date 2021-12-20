@@ -256,7 +256,7 @@ func (system *r1CS) CheckVariables() error {
 					cptSecret--
 				}
 			case compiled.Internal:
-				if b, ok := mHintsConstrained[vID]; ok && !b {
+				if _, ok := system.MHints[vID]; !mHintsConstrained[vID] && ok {
 					mHintsConstrained[vID] = true
 					cptHints--
 				}
