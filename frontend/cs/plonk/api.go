@@ -487,11 +487,11 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(compiled.Variable)
+		v := tValue.Interface().(compiled.Term)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		log.ToResolve = append(log.ToResolve, v.LinExp...)
+		log.ToResolve = append(log.ToResolve, v)
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		return nil
 	}
