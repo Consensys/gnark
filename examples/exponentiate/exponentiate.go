@@ -39,11 +39,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// specify constraints
 	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
-	api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
-		// api.Println(fmt.Sprintf("e[%d]", i), bits[i]) // we may print a variable for testing and / or debugging purposes
-
 		if i != 0 {
 			output = api.Mul(output, output)
 		}
