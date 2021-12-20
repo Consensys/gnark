@@ -161,8 +161,9 @@ func (system *sparseR1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 	}
 	t := i1.(compiled.Term)
 	cr, _, _ := t.Unpack()
+	debug := system.AddDebugInfo("inverse", "1/", i1, " < ∞")
 	res := system.newInternalVariable()
-	system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne)
+	system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, debug)
 	return res
 }
 
