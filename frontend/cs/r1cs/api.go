@@ -686,7 +686,7 @@ func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) fronte
 			copy(tmp, t)
 			hintInputs[i] = tmp
 		default:
-			hintInputs[i] = t
+			hintInputs[i] = utils.FromInterface(t)
 		}
 		// t := system.constant(in).(compiled.Variable)
 		// tmp := t.Clone()
