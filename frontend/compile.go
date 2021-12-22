@@ -24,7 +24,7 @@ type Builder interface {
 	CheckVariables() error
 	NewPublicVariable(name string) Variable
 	NewSecretVariable(name string) Variable
-	Compile() (compiled.ConstraintSystem, error)
+	Compile() (CompiledConstraintSystem, error)
 }
 
 type NewBuilder func(ecc.ID) (Builder, error)
@@ -47,7 +47,7 @@ type NewBuilder func(ecc.ID) (Builder, error)
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (compiled.ConstraintSystem, error) {
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (CompiledConstraintSystem, error) {
 	// setup option
 	opt := CompileOption{}
 	for _, o := range opts {

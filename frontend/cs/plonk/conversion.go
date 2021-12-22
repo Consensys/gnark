@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -27,7 +28,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-func (cs *sparseR1CS) Compile() (compiled.ConstraintSystem, error) {
+func (cs *sparseR1CS) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	res := compiled.SparseR1CS{
 		CS:          cs.CS,

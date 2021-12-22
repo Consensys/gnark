@@ -33,7 +33,6 @@ import (
 	backend_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	backend_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	backend_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
-	"github.com/consensys/gnark/internal/backend/compiled"
 
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
@@ -211,7 +210,7 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
-func Prove(r1cs compiled.ConstraintSystem, pk ProvingKey, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -264,7 +263,7 @@ func Prove(r1cs compiled.ConstraintSystem, pk ProvingKey, witness frontend.Circu
 // ReadAndProve behaves like Prove, , except witness is read from a io.Reader
 // witness must be encoded following the binary serialization protocol described in
 // gnark/backend/witness package
-func ReadAndProve(r1cs compiled.ConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -325,7 +324,7 @@ func ReadAndProve(r1cs compiled.ConstraintSystem, pk ProvingKey, witness io.Read
 //
 // Two main solutions to this deployment issues are: running the Setup through a MPC (multi party computation)
 // or using a ZKP backend like PLONK where the per-circuit Setup is deterministic.
-func Setup(r1cs compiled.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
+func Setup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
@@ -377,7 +376,7 @@ func Setup(r1cs compiled.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 // DummySetup create a random ProvingKey with provided R1CS
 // it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
-func DummySetup(r1cs compiled.ConstraintSystem) (ProvingKey, error) {
+func DummySetup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, error) {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
 		var pk groth16_bls12377.ProvingKey
@@ -493,8 +492,8 @@ func NewProof(curveID ecc.ID) Proof {
 
 // NewCS instantiate a concrete curved-typed R1CS and return a R1CS interface
 // This method exists for (de)serialization purposes
-func NewCS(curveID ecc.ID) compiled.ConstraintSystem {
-	var r1cs compiled.ConstraintSystem
+func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
+	var r1cs frontend.CompiledConstraintSystem
 	switch curveID {
 	case ecc.BN254:
 		r1cs = &backend_bn254.R1CS{}
@@ -516,7 +515,7 @@ func NewCS(curveID ecc.ID) compiled.ConstraintSystem {
 
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
-func IsSolved(r1cs compiled.ConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
+func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)

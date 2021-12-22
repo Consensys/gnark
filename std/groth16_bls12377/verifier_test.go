@@ -26,7 +26,6 @@ import (
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -196,7 +195,7 @@ func BenchmarkCompile(b *testing.B) {
 	var circuit verifierCircuit
 	circuit.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
-	var ccs compiled.ConstraintSystem
+	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)

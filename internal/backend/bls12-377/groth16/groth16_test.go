@@ -32,7 +32,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 //--------------------//
@@ -53,7 +52,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit() (compiled.ConstraintSystem, frontend.Circuit) {
+func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
