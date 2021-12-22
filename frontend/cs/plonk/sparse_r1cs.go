@@ -182,6 +182,13 @@ func (system *sparseR1CS) CheckVariables() error {
 	cptPublic := len(system.Public)
 	cptHints := len(system.MHints)
 
+	// compared to R1CS, we may have a circuit which does not have any inputs
+	// (R1CS always has a constant ONE wire). Check the edge case and omit any
+	// processing if so.
+	if cptSecret+cptPublic+cptHints == 0 {
+		return nil
+	}
+
 	secretConstrained := make([]bool, cptSecret)
 	publicConstrained := make([]bool, cptPublic)
 
