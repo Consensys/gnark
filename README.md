@@ -22,7 +22,7 @@ src="logo_new.png">
 
 If you have any questions, queries or comments, [GitHub discussions] is the place to find us.
 
-You can also get in touch directly: zkteam@consensys.net
+You can also get in touch directly: gnark@consensys.net
 
 
 ## `gnark` Users
