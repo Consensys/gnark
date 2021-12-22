@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package frontend
+package r1cs
 
 import (
 	"sort"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -50,7 +49,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newConstraintSystem(ecc.BN254, backend.GROTH16)
+	cs := newR1CS(ecc.BN254)
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
@@ -69,45 +68,4 @@ func TestReduce(t *testing.T) {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
-}
-func TestFindUnsolvedVariable(t *testing.T) {
-
-	sizeLe := 10
-	totalInternalVariables := 3 * sizeLe / 2
-
-	l := make(compiled.LinearExpression, sizeLe)
-	r := make(compiled.LinearExpression, sizeLe)
-	o := make(compiled.LinearExpression, sizeLe)
-	for i := 0; i < sizeLe/2; i++ {
-		l[i] = compiled.Pack(3*i, i, compiled.Internal)
-		l[i+sizeLe/2] = compiled.Pack(3*i, i, compiled.Public)
-	}
-	for i := 0; i < sizeLe/2; i++ {
-		r[i] = compiled.Pack(3*i+1, i, compiled.Internal)
-		r[i+sizeLe/2] = compiled.Pack(3*i+1, i, compiled.Public)
-	}
-	for i := 0; i < sizeLe/2; i++ {
-		o[i] = compiled.Pack(3*i+2, i, compiled.Internal)
-		o[i+sizeLe/2] = compiled.Pack(3*i+2, i, compiled.Public)
-	}
-
-	solvedVariables := make([]bool, totalInternalVariables)
-	for i := 0; i < totalInternalVariables; i++ {
-		solvedVariables[i] = true
-	}
-	r1c := compiled.R1C{L: compiled.Variable{LinExp: l}, R: compiled.Variable{LinExp: r}, O: compiled.Variable{LinExp: o}}
-
-	for i := 0; i < totalInternalVariables; i++ {
-		solvedVariables[i] = false
-		expectedPos := i % 3 // left=0, right=1, out = 3
-		expectedID := i
-		pos, id := findUnsolvedVariable(r1c, solvedVariables)
-		if pos != expectedPos {
-			t.Fatal("wrong position")
-		}
-		if id != expectedID {
-			t.Fatal("wrong id")
-		}
-		solvedVariables[i] = true
-	}
 }

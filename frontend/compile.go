@@ -1,20 +1,3 @@
-/*
-Copyright © 2021 ConsenSys Software Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package frontend contains the object and logic to define and compile gnark circuits
 package frontend
 
 import (
@@ -22,15 +5,31 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/consensys/gnark/debug"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/parser"
 )
 
-// Compile will generate a CompiledConstraintSystem from the given circuit
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
+}
+
+// Builder represents a constraint system builder
+type Builder interface {
+	API
+	CheckVariables() error
+	NewPublicVariable(name string) Variable
+	NewSecretVariable(name string) Variable
+	Compile() (compiled.ConstraintSystem, error)
+}
+
+type NewBuilder func(ecc.ID) (Builder, error)
+
+// Compile will generate a ConstraintSystem from the given circuit
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
@@ -39,71 +38,67 @@ import (
 // 		}
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
-// 2. it then calls circuit.Define(curveID, constraintSystem) to build the internal constraint system
+// 2. it then calls circuit.Define(curveID, R1CS) to build the internal constraint system
 // from the declarative code
 //
-// 3. finally, it converts that to a CompiledConstraintSystem.
+// 3. finally, it converts that to a ConstraintSystem.
 // 		if zkpID == backend.GROTH16	--> R1CS
 //		if zkpID == backend.PLONK 	--> SparseR1CS
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (ccs CompiledConstraintSystem, err error) {
-
+func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt *CompileOption) error) (compiled.ConstraintSystem, error) {
 	// setup option
 	opt := CompileOption{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
-
-	// build the constraint system (see Circuit.Define)
-	cs, err := buildCS(curveID, zkpID, circuit, opt.capacity)
+	newBuilder := opt.newBuilder
+	if newBuilder == nil {
+		var ok bool
+		backendsM.RLock()
+		newBuilder, ok = backends[zkpID]
+		backendsM.RUnlock()
+		if !ok {
+			return nil, fmt.Errorf("no default constraint builder registered nor set as option")
+		}
+	}
+	builder, err := newBuilder(curveID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new builder: %w", err)
+	}
+
+	if err = bootstrap(builder, circuit); err != nil {
+		return nil, fmt.Errorf("bootstrap: %w", err)
+
 	}
 
 	// ensure all inputs and hints are constrained
 	if !opt.ignoreUnconstrainedInputs {
-		if err := cs.checkVariables(); err != nil {
+		if err := builder.CheckVariables(); err != nil {
 			return nil, err
 		}
 	}
 
-	switch zkpID {
-	case backend.GROTH16:
-		ccs, err = cs.toR1CS(curveID)
-	case backend.PLONK:
-		ccs, err = cs.toSparseR1CS(curveID)
-	default:
-		panic("not implemented")
-	}
-
+	ccs, err := builder.Compile()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("compile system: %w", err)
 	}
-
-	return
+	return ccs, nil
 }
 
-// buildCS builds the constraint system. It bootstraps the inputs
-// allocations by parsing the circuit's underlying structure, then
-// it builds the constraint system using the Define method.
-func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity ...int) (cs constraintSystem, err error) {
-
-	// instantiate our constraint system
-	cs = newConstraintSystem(curveID, zkpID, initialCapacity...)
-
+func bootstrap(builder Builder, circuit Circuit) (err error) {
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			switch visibility {
 			case compiled.Secret:
-				tInput.Set(reflect.ValueOf(cs.newSecretVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.NewSecretVariable(name)))
 			case compiled.Public:
-				tInput.Set(reflect.ValueOf(cs.newPublicVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.NewPublicVariable(name)))
 			case compiled.Unset:
 				return errors.New("can't set val " + name + " visibility is unset")
 			}
@@ -112,10 +107,10 @@ func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 		}
 		return errors.New("can't set val " + name)
 	}
-	// recursively parse through reflection the circuits members to find all Constraints that need to be allOoutputcated
+	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
 	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
-		return cs, err
+		return err
 	}
 
 	// recover from panics to print user-friendlier messages
@@ -126,18 +121,18 @@ func buildCS(curveID ecc.ID, zkpID backend.ID, circuit Circuit, initialCapacity 
 	}()
 
 	// call Define() to fill in the Constraints
-	if err := circuit.Define(&cs); err != nil {
-		return cs, err
+	if err = circuit.Define(builder); err != nil {
+		return fmt.Errorf("define circuit: %w", err)
 	}
 
 	return
-
 }
 
 // CompileOption enables to set optional argument to call of frontend.Compile()
 type CompileOption struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
+	newBuilder                NewBuilder
 }
 
 // WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
@@ -154,8 +149,12 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	return nil
 }
 
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
+// WithBuilder enables the compiler to build the constraint system with a user-defined builder
+//
+// /!\ This is highly experimental and may change in upcoming releases /!\
+func WithBuilder(builder NewBuilder) func(opt *CompileOption) error {
+	return func(opt *CompileOption) error {
+		opt.newBuilder = builder
+		return nil
+	}
 }

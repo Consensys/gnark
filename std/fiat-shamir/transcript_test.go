@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -43,7 +44,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// get the challenges
-	alpha, beta, gamma := getChallenges(api.CurveID())
+	alpha, beta, gamma := getChallenges(api.Curve())
 
 	// New transcript with 3 challenges to be derived
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
@@ -153,7 +154,7 @@ func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
 	var circuit FiatShamirCircuit
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs compiled.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)

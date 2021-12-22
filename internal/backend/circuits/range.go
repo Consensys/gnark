@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,12 +10,12 @@ type rangeCheckConstantCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckConstantCircuit) Define(cs frontend.API) error {
-	c1 := cs.Mul(circuit.X, circuit.Y)
-	c2 := cs.Mul(c1, circuit.Y)
-	c3 := cs.Add(circuit.X, circuit.Y)
-	cs.AssertIsLessOrEqual(c3, 161) // c3 is from a linear expression only
-	cs.AssertIsLessOrEqual(c2, 161)
+func (circuit *rangeCheckConstantCircuit) Define(api frontend.API) error {
+	c1 := api.Mul(circuit.X, circuit.Y)
+	c2 := api.Mul(c1, circuit.Y)
+	c3 := api.Add(circuit.X, circuit.Y)
+	api.AssertIsLessOrEqual(c3, 161) // c3 is from a linear expression only
+	api.AssertIsLessOrEqual(c2, 161)
 	return nil
 }
 
@@ -27,7 +28,7 @@ func rangeCheckConstant() {
 	bad.X = (11)
 	bad.Y = (4)
 
-	addEntry("range_constant", &circuit, &good, &bad)
+	addEntry("range_constant", &circuit, &good, &bad, ecc.Implemented())
 }
 
 type rangeCheckCircuit struct {
@@ -35,12 +36,12 @@ type rangeCheckCircuit struct {
 	Y, Bound frontend.Variable `gnark:",public"`
 }
 
-func (circuit *rangeCheckCircuit) Define(cs frontend.API) error {
-	c1 := cs.Mul(circuit.X, circuit.Y)
-	c2 := cs.Mul(c1, circuit.Y)
-	c3 := cs.Add(circuit.X, circuit.Y)
-	cs.AssertIsLessOrEqual(c2, circuit.Bound)
-	cs.AssertIsLessOrEqual(c3, circuit.Bound) // c3 is from a linear expression only
+func (circuit *rangeCheckCircuit) Define(api frontend.API) error {
+	c1 := api.Mul(circuit.X, circuit.Y)
+	c2 := api.Mul(c1, circuit.Y)
+	c3 := api.Add(circuit.X, circuit.Y)
+	api.AssertIsLessOrEqual(c2, circuit.Bound)
+	api.AssertIsLessOrEqual(c3, circuit.Bound) // c3 is from a linear expression only
 
 	return nil
 }
@@ -57,7 +58,7 @@ func rangeCheck() {
 	bad.Y = (4)
 	bad.Bound = (161)
 
-	addEntry("range", &circuit, &good, &bad)
+	addEntry("range", &circuit, &good, &bad, ecc.Implemented())
 }
 
 func init() {

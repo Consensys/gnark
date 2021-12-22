@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,18 +10,18 @@ type expCircuit struct {
 	Y    frontend.Variable `gnark:",public"`
 }
 
-func (circuit *expCircuit) Define(cs frontend.API) error {
+func (circuit *expCircuit) Define(api frontend.API) error {
 	o := frontend.Variable(1)
-	b := cs.ToBinary(circuit.E, 4)
+	b := api.ToBinary(circuit.E, 4)
 
 	var i int
 	for i < len(b) {
-		o = cs.Mul(o, o)
-		mu := cs.Mul(o, circuit.X)
-		o = cs.Select(b[len(b)-1-i], mu, o)
+		o = api.Mul(o, o)
+		mu := api.Mul(o, circuit.X)
+		o = api.Select(b[len(b)-1-i], mu, o)
 		i++
 	}
-	cs.AssertIsEqual(circuit.Y, o)
+	api.AssertIsEqual(circuit.Y, o)
 	return nil
 }
 
@@ -35,5 +36,5 @@ func init() {
 	bad.E = (11)
 	bad.Y = (4096)
 
-	addEntry("expo", &circuit, &good, &bad)
+	addEntry("expo", &circuit, &good, &bad, ecc.Implemented())
 }

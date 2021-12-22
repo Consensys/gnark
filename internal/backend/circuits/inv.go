@@ -1,32 +1,39 @@
 package circuits
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
 type invCircuit struct {
-	X, Y, Z frontend.Variable
+	A frontend.Variable
+	C frontend.Variable `gnark:",public"`
 }
 
-func (circuit *invCircuit) Define(cs frontend.API) error {
-	m := cs.Mul(circuit.X, circuit.Y)
-	u := cs.Inverse(circuit.Y)
-	v := cs.Mul(m, u)
-	cs.AssertIsEqual(v, circuit.Z)
+func (circuit *invCircuit) Define(api frontend.API) error {
+	d := api.Inverse(circuit.A)
+	e := api.Inverse(2387287246)
+	api.AssertIsEqual(d, circuit.C)
+	api.AssertIsEqual(e, circuit.C)
 	return nil
 }
 
 func init() {
 
-	var circuit, good, bad invCircuit
+	var good, bad invCircuit
 
-	good.X = (6)
-	good.Y = (12)
-	good.Z = (6)
+	a := big.NewInt(2387287246)
+	m := ecc.BN254.Info().Fr.Modulus()
+	var c big.Int
+	c.ModInverse(a, m)
 
-	bad.X = (4)
-	bad.Y = (12)
-	bad.Z = (5)
+	good.A = a
+	good.C = c
 
-	addEntry("inv", &circuit, &good, &bad)
+	bad.A = a
+	bad.C = 1
+
+	addEntry("inv", &invCircuit{}, &good, &bad, []ecc.ID{ecc.BN254})
 }

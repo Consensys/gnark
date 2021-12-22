@@ -31,6 +31,8 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 //--------------------//
@@ -51,12 +53,12 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
+func referenceCircuit() (compiled.ConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(curve.ID, backend.UNKNOWN, &circuit, frontend.WithBuilder(r1cs.NewBuilder))
 	if err != nil {
 		panic(err)
 	}

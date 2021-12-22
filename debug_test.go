@@ -51,12 +51,12 @@ func TestPrintln(t *testing.T) {
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 
 	{
 		trace, _ := getPlonkTrace(&circuit, &witness)
-		assert.Equal(trace, expected.String())
+		assert.Equal(expected.String(), trace)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [div] 2/0 == <unsolved>")
+		assert.Contains(err.Error(), "constraint is not satisfied: [inverse] 1/0 < ∞")
 		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
@@ -128,7 +128,7 @@ func TestTraceNotEqual(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 == 66")
+		assert.Contains(err.Error(), "constraint is not satisfied: [assertIsEqual] 1 + -66 == 0")
 		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}

@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -8,10 +9,10 @@ type andCircuit struct {
 	Op1, Op2, Res frontend.Variable
 }
 
-func (circuit *andCircuit) Define(cs frontend.API) error {
-	d := cs.And(circuit.Op1, circuit.Op2)
+func (circuit *andCircuit) Define(api frontend.API) error {
+	d := api.And(circuit.Op1, circuit.Op2)
 
-	cs.AssertIsEqual(d, circuit.Res)
+	api.AssertIsEqual(d, circuit.Res)
 	return nil
 }
 
@@ -73,5 +74,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("and", &andCircuit{}, good, bad)
+	addNewEntry("and", &andCircuit{}, good, bad, ecc.Implemented())
 }

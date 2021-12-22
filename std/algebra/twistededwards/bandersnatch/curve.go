@@ -22,7 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // EdCurve stores the info on the chosen edwards curve
@@ -56,12 +56,12 @@ func newBandersnatch() EdCurve {
 	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
-		A:        frontend.FromInterface(edcurve.A),
-		D:        frontend.FromInterface(edcurve.D),
-		Cofactor: frontend.FromInterface(edcurve.Cofactor),
-		Order:    frontend.FromInterface(edcurve.Order),
-		BaseX:    frontend.FromInterface(edcurve.Base.X),
-		BaseY:    frontend.FromInterface(edcurve.Base.Y),
+		A:        utils.FromInterface(edcurve.A),
+		D:        utils.FromInterface(edcurve.D),
+		Cofactor: utils.FromInterface(edcurve.Cofactor),
+		Order:    utils.FromInterface(edcurve.Order),
+		BaseX:    utils.FromInterface(edcurve.Base.X),
+		BaseY:    utils.FromInterface(edcurve.Base.Y),
 		ID:       ecc.BLS12_381,
 	}
 

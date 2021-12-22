@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,15 +10,15 @@ type fromBinaryCircuit struct {
 	Y              frontend.Variable `gnark:",public"`
 }
 
-func (circuit *fromBinaryCircuit) Define(cs frontend.API) error {
-	cs.AssertIsBoolean(circuit.B0)
-	cs.AssertIsBoolean(circuit.B1)
-	cs.AssertIsBoolean(circuit.B2)
-	cs.AssertIsBoolean(circuit.B3)
+func (circuit *fromBinaryCircuit) Define(api frontend.API) error {
+	api.AssertIsBoolean(circuit.B0)
+	api.AssertIsBoolean(circuit.B1)
+	api.AssertIsBoolean(circuit.B2)
+	api.AssertIsBoolean(circuit.B3)
 
-	r := cs.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
+	r := api.FromBinary(circuit.B0, circuit.B1, circuit.B2, circuit.B3)
 
-	cs.AssertIsEqual(circuit.Y, r)
+	api.AssertIsEqual(circuit.Y, r)
 	return nil
 }
 
@@ -36,5 +37,5 @@ func init() {
 	bad.B3 = (1)
 	bad.Y = (13)
 
-	addEntry("frombinary", &circuit, &good, &bad)
+	addEntry("frombinary", &circuit, &good, &bad, ecc.Implemented())
 }

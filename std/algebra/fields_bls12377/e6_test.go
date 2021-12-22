@@ -196,7 +196,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// TODO fixme
 	t.Skip("missing e6.MulByE2")
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

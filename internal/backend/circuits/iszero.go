@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -8,12 +9,12 @@ type isZero struct {
 	X, Y frontend.Variable
 }
 
-func (circuit *isZero) Define(cs frontend.API) error {
+func (circuit *isZero) Define(api frontend.API) error {
 
-	a := cs.IsZero(circuit.X)
-	b := cs.IsZero(circuit.Y)
-	cs.AssertIsEqual(a, 1)
-	cs.AssertIsEqual(b, 0)
+	a := api.IsZero(circuit.X)
+	b := api.IsZero(circuit.Y)
+	api.AssertIsEqual(a, 1)
+	api.AssertIsEqual(b, 0)
 
 	return nil
 }
@@ -28,5 +29,5 @@ func init() {
 	bad.X = (23)
 	bad.Y = (0)
 
-	addEntry("isZero", &circuit, &good, &bad)
+	addEntry("isZero", &circuit, &good, &bad, ecc.Implemented())
 }

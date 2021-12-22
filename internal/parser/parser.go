@@ -11,7 +11,7 @@ import (
 )
 
 // Tag is a (optional) struct tag one can add to Variable
-// to specify frontend.Compile() behavior
+// to specify compiler.Compile() behavior
 //
 // the tag format is as follow:
 // 		type MyCircuit struct {

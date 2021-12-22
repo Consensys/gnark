@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,8 +10,8 @@ type determinism struct {
 	Z frontend.Variable `gnark:",public"`
 }
 
-func (circuit *determinism) Define(cs frontend.API) error {
-	a := cs.Add(circuit.X[0],
+func (circuit *determinism) Define(api frontend.API) error {
+	a := api.Add(circuit.X[0],
 		circuit.X[0],
 		circuit.X[1],
 		circuit.X[1],
@@ -21,8 +22,8 @@ func (circuit *determinism) Define(cs frontend.API) error {
 		circuit.X[4],
 		circuit.X[4],
 	)
-	b := cs.Mul(a, a)
-	cs.AssertIsEqual(b, circuit.Z)
+	b := api.Mul(a, a)
+	api.AssertIsEqual(b, circuit.Z)
 	return nil
 }
 
@@ -43,5 +44,5 @@ func init() {
 	bad.X[4] = (1)
 	bad.Z = (900)
 
-	addEntry("determinism", &circuit, &good, &bad)
+	addEntry("determinism", &circuit, &good, &bad, ecc.Implemented())
 }

@@ -218,7 +218,7 @@ func TestMulByNonResidueFp2(t *testing.T) {
 	// ext := Extension{uSquare: 5}
 
 	// var circuit, witness XXXX
-	// r1cs, err := frontend.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
+	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }

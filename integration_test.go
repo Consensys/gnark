@@ -40,17 +40,25 @@ func TestIntegrationAPI(t *testing.T) {
 		tData := circuits.Circuits[k]
 		t.Log(k)
 		for _, w := range tData.ValidWitnesses {
-			assert.ProverSucceeded(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
+			// assert.ProverSucceeded(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
+			assert.ProverSucceeded(
+				tData.Circuit,
+				w,
+				test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+				test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
 		}
 
 		for _, w := range tData.InvalidWitnesses {
-			assert.ProverFailed(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
+			assert.ProverFailed(
+				tData.Circuit,
+				w,
+				test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+				test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
 		}
 
 		// we put that here now, but will be into a proper fuzz target with go1.18
 		const fuzzCount = 30
-		assert.Fuzz(tData.Circuit, fuzzCount, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
-
+		assert.Fuzz(tData.Circuit, fuzzCount, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)), test.WithBackends(backend.GROTH16))
 	}
 
 }

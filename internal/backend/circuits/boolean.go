@@ -1,23 +1,27 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
 type checkAssertIsBooleanCircuit struct {
-	A, B, C frontend.Variable
+	A, B, C, D frontend.Variable
 }
 
-func (circuit *checkAssertIsBooleanCircuit) Define(cs frontend.API) error {
+func (circuit *checkAssertIsBooleanCircuit) Define(api frontend.API) error {
 
 	// simple variable
-	cs.AssertIsBoolean(circuit.C)
+	api.AssertIsBoolean(circuit.C)
 
 	// linear expression ADD
-	cs.AssertIsBoolean(cs.Add(circuit.A, circuit.B))
+	api.AssertIsBoolean(api.Add(circuit.A, circuit.B))
 
 	// linear expression SUB
-	cs.AssertIsBoolean(cs.Sub(circuit.A, circuit.B))
+	api.AssertIsBoolean(api.Sub(circuit.A, circuit.B))
+
+	// mul by constant
+	api.AssertIsBoolean(api.Mul(circuit.D, 2))
 
 	return nil
 }
@@ -29,21 +33,25 @@ func init() {
 			A: (0),
 			B: (0),
 			C: (1),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (0),
 			B: (0),
 			C: (0),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (1),
 			B: (0),
 			C: (1),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (1),
 			B: (0),
 			C: (0),
+			D: (0),
 		},
 	}
 
@@ -52,23 +60,33 @@ func init() {
 			A: (1),
 			B: (1),
 			C: (0),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (0),
 			B: (1),
 			C: (0),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (0),
 			B: (0),
 			C: (3),
+			D: (0),
 		},
 		&checkAssertIsBooleanCircuit{
 			A: (1),
 			B: (0),
 			C: (3),
+			D: (0),
+		},
+		&checkAssertIsBooleanCircuit{
+			A: (1),
+			B: (0),
+			C: (0),
+			D: (1),
 		},
 	}
 
-	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad)
+	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad, ecc.Implemented())
 }

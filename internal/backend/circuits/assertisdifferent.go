@@ -1,6 +1,7 @@
 package circuits
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -9,8 +10,8 @@ type assertIsDifferentCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *assertIsDifferentCircuit) Define(cs frontend.API) error {
-	cs.AssertIsDifferent(circuit.X, circuit.Y)
+func (circuit *assertIsDifferentCircuit) Define(api frontend.API) error {
+	api.AssertIsDifferent(circuit.X, circuit.Y)
 	return nil
 }
 
@@ -30,5 +31,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad)
+	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad, ecc.Implemented())
 }

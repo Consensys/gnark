@@ -39,7 +39,7 @@ func init() {
 		},
 	}
 
-	addNewEntry("hint", &hintCircuit{}, good, bad, mulBy7, make3)
+	addNewEntry("hint", &hintCircuit{}, good, bad, ecc.Implemented(), mulBy7, make3)
 }
 
 func mulBy7(curveID ecc.ID, inputs []*big.Int, result *big.Int) error {

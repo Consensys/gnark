@@ -20,6 +20,7 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // E2 element in a quadratic extension
@@ -80,7 +81,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 	e.A1 = api.Sub(u, l31)
 
 	// 1C
-	buSquare := frontend.FromInterface(ext.uSquare)
+	buSquare := utils.FromInterface(ext.uSquare)
 	l41 := api.Mul(bd, buSquare)
 	e.A0 = api.Add(ac, l41)
 
@@ -91,7 +92,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 func (e *E2) Square(api frontend.API, x E2, ext Extension) *E2 {
 	//algo 22 https://eprint.iacr.org/2010/354.pdf
 	c0 := api.Add(x.A0, x.A1)
-	buSquare := frontend.FromInterface(ext.uSquare)
+	buSquare := utils.FromInterface(ext.uSquare)
 	c2 := api.Mul(x.A1, buSquare)
 	c2 = api.Add(c2, x.A0)
 
