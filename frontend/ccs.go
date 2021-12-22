@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package compiled
+package frontend
 
 import (
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-// ConstraintSystem interface that a compiled (=typed, and correctly routed)
+// CompiledConstraintSystem interface that a compiled (=typed, and correctly routed)
 // should implement.
-type ConstraintSystem interface {
+type CompiledConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
@@ -38,5 +39,5 @@ type ConstraintSystem interface {
 	ToHTML(w io.Writer) error
 
 	// GetCounters return the collected constraint counters, if any
-	GetCounters() []Counter
+	GetCounters() []compiled.Counter
 }

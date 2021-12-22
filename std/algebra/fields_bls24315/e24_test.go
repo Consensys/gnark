@@ -23,7 +23,6 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/test"
 )
 
@@ -409,7 +408,7 @@ func TestExpFinalExpoFp24(t *testing.T) {
 }
 
 // benches
-var ccsBench compiled.ConstraintSystem
+var ccsBench frontend.CompiledConstraintSystem
 
 func BenchmarkMulE24(b *testing.B) {
 	var c fp24Mul
