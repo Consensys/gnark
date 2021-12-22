@@ -136,14 +136,16 @@ func (system *sparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	var c big.Int
+	mod := system.CurveID.Info().Fr.Modulus()
+	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
-			l[i-1].SetCoeffID(system.CoeffID(&c))
+			c.Mod(c, mod)
+			l[i-1].SetCoeffID(system.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)
 			i--
 		}

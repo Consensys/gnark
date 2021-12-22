@@ -153,14 +153,16 @@ func (system *r1CS) reduce(l compiled.Variable) compiled.Variable {
 		sort.Sort(l.LinExp)
 	}
 
-	var c big.Int
+	mod := system.CurveID.Info().Fr.Modulus()
+	c := new(big.Int)
 	for i := 1; i < len(l.LinExp); i++ {
 		pcID, pvID, pVis := l.LinExp[i-1].Unpack()
 		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
-			l.LinExp[i-1].SetCoeffID(system.CoeffID(&c))
+			c.Mod(c, mod)
+			l.LinExp[i-1].SetCoeffID(system.CoeffID(c))
 			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
