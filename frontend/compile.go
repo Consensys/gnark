@@ -18,7 +18,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
 }
 
-// system represents a constraint system that can be loaded using the bootloader
+// Builder represents a constraint system builder
 type Builder interface {
 	API
 	CheckVariables() error
@@ -149,6 +149,9 @@ func IgnoreUnconstrainedInputs(opt *CompileOption) error {
 	return nil
 }
 
+// WithBuilder enables the compiler to build the constraint system with a user-defined builder
+//
+// /!\ This is highly experimental and may change in upcoming releases /!\
 func WithBuilder(builder NewBuilder) func(opt *CompileOption) error {
 	return func(opt *CompileOption) error {
 		opt.newBuilder = builder

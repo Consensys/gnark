@@ -25,7 +25,7 @@ func init() {
 	var good, bad invCircuit
 
 	a := big.NewInt(2387287246)
-	m := ecc.BLS12_377.Info().Fp.Modulus()
+	m := ecc.BN254.Info().Fr.Modulus()
 	var c big.Int
 	c.ModInverse(a, m)
 
@@ -35,5 +35,5 @@ func init() {
 	bad.A = a
 	bad.C = 1
 
-	addEntry("inv", &invCircuit{}, &good, &bad, []ecc.ID{ecc.BW6_761})
+	addEntry("inv", &invCircuit{}, &good, &bad, []ecc.ID{ecc.BN254})
 }

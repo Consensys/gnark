@@ -12,12 +12,14 @@ var (
 	backendsM sync.RWMutex
 )
 
-// RegisterFrontend registers a frontend f for a backend b. This registration
+// RegisterDefaultBuilder registers a frontend f for a backend b. This registration
 // ensures that a correct frontend system is chosen for a specific backend when
 // compiling a circuit. The method does not check that the compiler for that
 // frontend is already registered and the compiler is looked up during compile
 // time. It is an error to double-assign a frontend to a single backend and the
 // mehod panics.
+//
+// /!\ This is highly experimental and may change in upcoming releases /!\
 func RegisterDefaultBuilder(b backend.ID, builder NewBuilder) {
 	if b == backend.UNKNOWN {
 		panic("can not assign builder to unknown backend")
