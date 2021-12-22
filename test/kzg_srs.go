@@ -31,7 +31,7 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 )
 
-const srsCachedSize = (1 << 15) + 3
+const srsCachedSize = (1 << 14) + 3
 
 // NewKZGSRS uses ccs nb variables and nb constraints to initialize a kzg srs
 // for sizes < 2^15, returns a pre-computed cached SRS

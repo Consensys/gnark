@@ -37,7 +37,7 @@ func init() {
 
 	a := big.NewInt(2387287246)
 	b := big.NewInt(987342642)
-	m := ecc.BLS12_377.Info().Fp.Modulus()
+	m := ecc.BN254.Info().Fr.Modulus()
 	var c big.Int
 	c.ModInverse(b, m).Mul(&c, a)
 
@@ -51,5 +51,5 @@ func init() {
 	bad.B = 12323
 	bad.C = 83723
 
-	addEntry("select", &selectCircuit{}, &good, &bad, []ecc.ID{ecc.BW6_761})
+	addEntry("select", &selectCircuit{}, &good, &bad, []ecc.ID{ecc.BN254})
 }
