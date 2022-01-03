@@ -1,3 +1,61 @@
+<a name="v0.6.0"></a>
+
+## [v0.6.0] - 2022-01-03
+
+**Important: next release (v0.7.0) will be compatible with Go1.18+ only**
+
+### Breaking changes
+
+- `circuit.Define(curveID, api)` -> `circuit.Define(api)`; added `api.Curve()` to retrieve curve info
+- `api.Constant(...)` was removed. Can now directy assign values with `=` operator in the circuit definition and the witness assignment.
+- `frontend.Variable` is now an alias for `interface{}`
+- assert helper is now under `gnark/test`. Instead of taking a `CompiledConstraintSystem` it takes a `Circuit` as input, enabling easier tests accross curves and proving schemes through the use of `test/TestingOption` (`WithBackends(backend.GROTH16)`, `WithCurves(ecc.BN254)`, ...)
+- `api.NewHint` handles multiple outputs and custom solver `Hint` definition has changed
+
+
+### Feat
+- added explicit warning when parser encounters unadressable struct field [#169](https://github.com/consensys/gnark/issues/169)
+- `FromInterface` supports uintXX and intXX types closes [#197](https://github.com/consensys/gnark/issues/197)
+- lighter stack trace by default for circuits, more verbose when `-tags=debug` provided
+- added `api.Tag` and `api.AddCounter` to measure number of constraints in portion of circuit
+- `api.DivUnchecked` does not handle zero divisor. `api.Div` does.
+- added `frontend.IsConstant` and `ConstantValue` apis
+- add support for bw6-633 curve
+- added `api.Lookup2` method  (2-bit lookup)
+- **frontend:** plonk frontend directly implements the `frontend.API` interface instead of building on top of the `R1CS` builder
+- **std:** fields and pairing over BLS24-315 in BW6-633 circuit
+- **test:** add `Run` for running circuit test configurations as subtests
+- **test:** add `Log` method for logging in subtests
+- **test:** assert helper cross check constraint system solver results with `big.Int` test execution engine
+
+### Fix
+- fixes [#169](https://github.com/consensys/gnark/issues/169) ensure frontend.Circuit methods are defined on pointer receiver
+- fixes [#178](https://github.com/consensys/gnark/issues/178) by adding cbor.MaxMapPairs options when reading R1CS
+- fixed `AssertIsBoolean` in plonk (mul by constant failed)
+- fixes [#168](https://github.com/consensys/gnark/issues/168) adds context to a non-deterministic compilation error in the Assert object
+- **frontend:** reduce constant by modulus
+- **frontend:** plonk compiler now outputs a reasonable number of constraints  [#186](https://github.com/consensys/gnark/issues/186)
+
+### Build
+- updated to gnark-crypto v0.6.0
+
+### Pull Requests
+- Merge pull request [#192](https://github.com/consensys/gnark/issues/192) from ConsenSys/multi-hint
+- Merge pull request [#220](https://github.com/consensys/gnark/issues/220) from ConsenSys/feat-from-interface
+- Merge pull request [#217](https://github.com/consensys/gnark/issues/217) from ConsenSys/fix-internal-compiled
+- Merge pull request [#191](https://github.com/consensys/gnark/issues/191) from ConsenSys/assert-subtests
+- Merge pull request [#200](https://github.com/consensys/gnark/issues/200) from ConsenSys/refactor/frontend
+- Merge pull request [#205](https://github.com/consensys/gnark/issues/205) from ConsenSys/fix/constant-mod-reduction
+- Merge pull request [#186](https://github.com/consensys/gnark/issues/186) from ConsenSys/fix/plonk_constraints
+- Merge pull request [#185](https://github.com/consensys/gnark/issues/185) from ConsenSys/feat/bw6-633
+- Merge pull request [#189](https://github.com/consensys/gnark/issues/189) from ConsenSys/lookup2
+- Merge pull request [#183](https://github.com/consensys/gnark/issues/183) from ivokub/hint-registry
+- Merge pull request [#182](https://github.com/consensys/gnark/issues/182) from ConsenSys/std/pairing
+- Merge pull request [#176](https://github.com/consensys/gnark/issues/176) from ConsenSys/feat-constraint-counter
+- Merge pull request [#180](https://github.com/consensys/gnark/issues/180) from ConsenSys/refactor-variable-interface
+- Merge pull request [#173](https://github.com/consensys/gnark/issues/173) from ConsenSys/feat-debug-tag
+
+
 <a name="v0.5.2"></a>
 
 ## [v0.5.2] - 2021-11-03
