@@ -72,20 +72,25 @@ type CubicCircuit struct {
 
 // Define declares the circuit constraints
 // x**3 + x + 5 == y
-func (circuit *CubicCircuit) Define(curveID gurvy.ID, cs *frontend.ConstraintSystem) error {
-	x3 := cs.Mul(circuit.X, circuit.X, circuit.X)
-	cs.AssertIsEqual(circuit.Y, cs.Add(x3, circuit.X, 5))
+func (circuit *CubicCircuit) Define(api frontend.API) error {
+	x3 := api.Mul(circuit.X, circuit.X, circuit.X)
+	api.AssertIsEqual(circuit.Y, api.Add(x3, circuit.X, 5))
 	return nil
 }
 
 // compiles our circuit into a R1CS
 var circuit CubicCircuit
-r1cs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 
-// groth16 zkSNARK
-pk, vk := groth16.Setup(r1cs)
-proof, err := groth16.Prove(r1cs, pk, witness)
-err := groth16.Verify(proof, vk, publicWitness)
+// groth16 zkSNARK: Setup
+pk, vk, err := groth16.Setup(ccs)
+
+// witness definition
+witness := CubicCircuit{X: 3, Y: 35}
+
+// groth16: Prove & Verify
+proof, err := groth16.Prove(ccs, pk, &witness)
+err := groth16.Verify(proof, vk, &witness)
 ```
 
 
