@@ -318,22 +318,35 @@ func (e *engine) Println(a ...frontend.Variable) {
 	fmt.Println(sbb.String())
 }
 
-func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
+func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+
+	if f.NbOutputs(e.Curve(), len(inputs)) <= 0 {
+		return nil, fmt.Errorf("hint function must return at least one output")
+	}
+
 	in := make([]*big.Int, len(inputs))
 
 	for i := 0; i < len(inputs); i++ {
 		v := e.toBigInt(inputs[i])
 		in[i] = &v
 	}
+	res := make([]*big.Int, f.NbOutputs(e.Curve(), len(inputs)))
+	for i := range res {
+		res[i] = new(big.Int)
+	}
 
-	var result big.Int
-	err := f(e.curveID, in, &result)
+	err := f.Call(e.curveID, in, res)
 
 	if err != nil {
 		panic("NewHint: " + err.Error())
 	}
 
-	return (result)
+	out := make([]frontend.Variable, len(res))
+	for i := range res {
+		out[i] = res[i]
+	}
+
+	return out, nil
 }
 
 // IsConstant returns true if v is a constant known at compile time

@@ -32,11 +32,11 @@ constructing the proof must be extremely cautious when using hints.
 Using hint functions in circuits
 
 To use a hint function in a circuit, the developer first needs to define a hint
-function hintFn according to the Function type. Then, in a circuit, the
+function hintFn according to the Function interface. Then, in a circuit, the
 developer applies the hint function with frontend.API.NewHint(hintFn, vars...),
 where vars are the variables the hint function will be applied to (and
 correspond to the argument inputs in the Function type) which returns a new
-unconstrained variable. The returned variable must be constrained using
+unconstrained variable. The returned variables must be constrained using
 frontend.API.Assert[.*] methods.
 
 As explained, the hints are essentially black boxes from the circuit point of
@@ -65,6 +65,8 @@ the hint function hintFn to register a hint function in the package registry.
 package hint
 
 import (
+	"encoding/binary"
+	"fmt"
 	"hash/fnv"
 	"math/big"
 	"reflect"
@@ -73,20 +75,98 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 )
 
-// ID is a unique identifier for an hint function. It is set by the package in
-// is used for lookup.
+// ID is a unique identifier for a hint function used for lookup.
 type ID uint32
 
-// Function defines how a hint is computed from the inputs. The hint value is
-// stored in result. If the hint is computable, then the functio must return a
-// nil error and non-nil error otherwise.
-type Function func(curveID ecc.ID, inputs []*big.Int, result *big.Int) error
+// StaticFunction is a function which takes a constant number of inputs and
+// returns a constant number of outputs. Use NewStaticHint() to construct an
+// instance compatible with Function interface.
+type StaticFunction func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
 
-// UUID returns a unique ID for the hint function. Multiple calls using same
-// function return the same ID.
-func UUID(hintFn Function) ID {
-	name := runtime.FuncForPC(reflect.ValueOf(hintFn).Pointer()).Name()
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(name))
-	return ID(h.Sum32())
+// Function defines an annotated hint function. To initialize a hint function
+// with static number of inputs and outputs, use NewStaticHint().
+type Function interface {
+	// UUID returns an unique identifier for the hint function. UUID is used for
+	// lookup of the hint function.
+	UUID() ID
+
+	// Call is invoked by the framework to obtain the result from inputs.
+	// The length of res is NbOutputs() and every element is
+	// already initialized (but not necessarily to zero as the elements may be
+	// obtained from cache). A returned non-nil error will be propagated.
+	Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
+
+	// NbOutputs returns the total number of outputs by the function when
+	// invoked on the curveID with nInputs number of inputs. The number of
+	// outputs must be at least one and the framework errors otherwise.
+	NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int)
+
+	// String returns a human-readable description of the function used in logs
+	// and debug messages.
+	String() string
+}
+
+// UUID is a reference function for computing the hint ID based on a function
+// and additional context values ctx. A change in any of the inputs modifies the
+// returned value and thus this function can be used to compute the hint ID for
+// same function in different contexts (for example, for different number of
+// inputs and outputs).
+func UUID(fn StaticFunction, ctx ...uint64) ID {
+	var buf [8]byte
+	hf := fnv.New32a()
+	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	// using a name for identifying different hints should be enough as we get a
+	// solve-time error when there are duplicate hints with the same signature.
+	hf.Write([]byte(name)) // #nosec G104 -- does not err
+	// also feed all context values into the checksum do differentiate different
+	// hints based on the same function.
+	for _, ct := range ctx {
+		binary.BigEndian.PutUint64(buf[:], uint64(ct))
+		hf.Write(buf[:]) // #nosec G104 -- does not err
+	}
+	return ID(hf.Sum32())
+}
+
+// staticArgumentsFunction defines a function where the number of inputs and
+// outputs is constant.
+type staticArgumentsFunction struct {
+	fn   StaticFunction
+	nIn  int
+	nOut int
+}
+
+// NewStaticHint returns an Function where the number of inputs and outputs is
+// constant. UUID is computed by combining fn, nIn and nOut and thus it is legal
+// to defined multiple AnnotatedFunctions on the same fn with different nIn and
+// nOut.
+func NewStaticHint(fn StaticFunction, nIn, nOut int) Function {
+	return &staticArgumentsFunction{
+		fn:   fn,
+		nIn:  nIn,
+		nOut: nOut,
+	}
+}
+
+func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	if len(inputs) != h.nIn {
+		return fmt.Errorf("input has %d elements, expected %d", len(inputs), h.nIn)
+	}
+	if len(res) != h.nOut {
+		return fmt.Errorf("result has %d elements, expected %d", len(res), h.nOut)
+	}
+	return h.fn(curveID, inputs, res)
+}
+
+func (h *staticArgumentsFunction) NbOutputs(_ ecc.ID, _ int) int {
+	return h.nOut
+}
+
+func (h *staticArgumentsFunction) UUID() ID {
+	return UUID(h.fn, uint64(h.nIn), uint64(h.nOut))
+}
+
+func (h *staticArgumentsFunction) String() string {
+	fnptr := reflect.ValueOf(h.fn).Pointer()
+	name := runtime.FuncForPC(fnptr).Name()
+	return fmt.Sprintf("%s([%d]*big.Int, [%d]*big.Int) at (%x)", name, h.nIn, h.nOut, fnptr)
 }

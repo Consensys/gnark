@@ -52,7 +52,7 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 
 			CS: compiled.CS{
 				MDebug: make(map[int]int),
-				MHints: make(map[int]compiled.Hint),
+				MHints: make(map[int]*compiled.Hint),
 			},
 
 			Coeffs:         make([]big.Int, 4),

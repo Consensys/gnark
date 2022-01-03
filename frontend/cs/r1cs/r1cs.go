@@ -52,7 +52,7 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 
 			CS: compiled.CS{
 				MDebug: make(map[int]int),
-				MHints: make(map[int]compiled.Hint),
+				MHints: make(map[int]*compiled.Hint),
 			},
 
 			Coeffs:         make([]big.Int, 4),

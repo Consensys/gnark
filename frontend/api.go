@@ -108,9 +108,10 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...Variable)
 
-	// NewHint initializes an internal variable whose value will be evaluated
+	// NewHint initializes internal variables whose value will be evaluated
 	// using the provided hint function at run time from the inputs. Inputs must
-	// be either variables or convertible to *big.Int.
+	// be either variables or convertible to *big.Int. The function returns an
+	// error if the number of inputs is not compatible with f.
 	//
 	// The hint function is provided at the proof creation time and is not
 	// embedded into the circuit. From the backend point of view, the variable
@@ -119,7 +120,7 @@ type API interface {
 	//
 	// No new constraints are added to the newly created wire and must be added
 	// manually in the circuit. Failing to do so leads to solver failure.
-	NewHint(f hint.Function, inputs ...Variable) Variable
+	NewHint(f hint.Function, inputs ...Variable) ([]Variable, error)
 
 	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 	// measure constraints, variables and coefficients creations through AddCounter

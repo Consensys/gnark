@@ -34,7 +34,7 @@ type CS struct {
 	// maps wire id to hint
 
 	// a wire may point to at most one hint
-	MHints map[int]Hint
+	MHints map[int]*Hint
 }
 
 // Visibility encodes a Variable (or wire) visibility
@@ -55,6 +55,7 @@ const (
 type Hint struct {
 	ID     hint.ID       // hint function id
 	Inputs []interface{} // terms to inject in the hint function
+	Wires  []int         // IDs of wires the hint outputs map to
 }
 
 func (h Hint) inputsCBORTags() (cbor.TagSet, error) {
@@ -107,7 +108,7 @@ func (h Hint) MarshalCBOR() ([]byte, error) {
 			inputs[i] = h.Inputs[i]
 		}
 	}
-	v := vt{ID: h.ID, Inputs: inputs}
+	v := vt{ID: h.ID, Inputs: inputs, Wires: h.Wires}
 	return enc.Marshal(v)
 }
 
@@ -124,6 +125,7 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 	type vt struct {
 		ID     hint.ID
 		Inputs []cbor.RawTag
+		Wires  []int
 	}
 	var v vt
 	if err := dec.Unmarshal(b, &v); err != nil {
@@ -172,6 +174,7 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 	}
 	h.ID = v.ID
 	h.Inputs = inputs
+	h.Wires = v.Wires
 	return nil
 }
 

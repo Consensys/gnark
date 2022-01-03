@@ -73,11 +73,20 @@ func (cs *r1CS) Compile() (frontend.CompiledConstraintSystem, error) {
 	}
 
 	// we need to offset the ids in the hints
-	shiftedMap := make(map[int]compiled.Hint)
+	shiftedMap := make(map[int]*compiled.Hint)
 
 	// we need to offset the ids in the hints
-	for vID, hint := range cs.MHints {
-		k := shiftVID(vID, compiled.Internal)
+HINTLOOP:
+	for _, hint := range cs.MHints {
+		ws := make([]int, len(hint.Wires))
+		// we set for all outputs in shiftedMap. If one shifted output
+		// is in shiftedMap, then all are
+		for i, vID := range hint.Wires {
+			ws[i] = shiftVID(vID, compiled.Internal)
+			if _, ok := shiftedMap[ws[i]]; i == 0 && ok {
+				continue HINTLOOP
+			}
+		}
 		inputs := make([]interface{}, len(hint.Inputs))
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
@@ -96,7 +105,10 @@ func (cs *r1CS) Compile() (frontend.CompiledConstraintSystem, error) {
 				inputs[j] = t
 			}
 		}
-		shiftedMap[k] = compiled.Hint{ID: hint.ID, Inputs: inputs}
+		ch := &compiled.Hint{ID: hint.ID, Inputs: inputs, Wires: ws}
+		for _, vID := range ws {
+			shiftedMap[vID] = ch
+		}
 	}
 	res.MHints = shiftedMap
 
