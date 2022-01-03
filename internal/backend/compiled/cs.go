@@ -34,7 +34,7 @@ type CS struct {
 	// maps wire id to hint
 
 	// a wire may point to at most one hint
-	MHints map[int]Hint
+	MHints map[int]*Hint
 }
 
 // Visibility encodes a Variable (or wire) visibility
@@ -55,6 +55,7 @@ const (
 type Hint struct {
 	ID     hint.ID       // hint function id
 	Inputs []interface{} // terms to inject in the hint function
+	Wires  []int         // IDs of wires the hint outputs map to
 }
 
 func (h Hint) inputsCBORTags() (cbor.TagSet, error) {
