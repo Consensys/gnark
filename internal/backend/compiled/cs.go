@@ -108,7 +108,7 @@ func (h Hint) MarshalCBOR() ([]byte, error) {
 			inputs[i] = h.Inputs[i]
 		}
 	}
-	v := vt{ID: h.ID, Inputs: inputs}
+	v := vt{ID: h.ID, Inputs: inputs, Wires: h.Wires}
 	return enc.Marshal(v)
 }
 
@@ -125,6 +125,7 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 	type vt struct {
 		ID     hint.ID
 		Inputs []cbor.RawTag
+		Wires  []int
 	}
 	var v vt
 	if err := dec.Unmarshal(b, &v); err != nil {
@@ -173,6 +174,7 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 	}
 	h.ID = v.ID
 	h.Inputs = inputs
+	h.Wires = v.Wires
 	return nil
 }
 
