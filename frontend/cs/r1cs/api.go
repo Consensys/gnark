@@ -335,7 +335,12 @@ func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	m := system.NewHint(hint.IsZero, a)
+	res, err := system.NewHint(hint.IsZero, a)
+	if err != nil {
+		// the function errs only if the number of inputs is invalid.
+		panic(err)
+	}
+	m := res[0]
 	system.addConstraint(newR1C(a, m, system.constant(0)), debug)
 
 	system.AssertIsBoolean(m)
@@ -393,7 +398,11 @@ func (system *r1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []fro
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
-		b[i] = system.NewHint(hint.IthBit, a, i)
+		res, err := system.NewHint(hint.IthBit, a, i)
+		if err != nil {
+			panic(err)
+		}
+		b[i] = res[0]
 		sb[i] = system.Mul(b[i], c)
 		c.Lsh(&c, 1)
 		if !unsafe {
@@ -651,9 +660,10 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 	})
 }
 
-// NewHint initializes an internal variable whose value will be evaluated using
+// NewHint initializes internal variables whose value will be evaluated using
 // the provided hint function at run time from the inputs. Inputs must be either
-// variables or convertible to *big.Int.
+// variables or convertible to *big.Int. The function returns an error if the
+// number of inputs is not compatible with f.
 //
 // The hint function is provided at the proof creation time and is not embedded
 // into the circuit. From the backend point of view, the variable returned by
@@ -662,17 +672,13 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
-	// create resulting wire
-	r := system.newInternalVariable()
-	_, vID, _ := r.LinExp[0].Unpack()
-
-	// mark hint as unconstrained, for now
-	//system.mHintsConstrained[vID] = false
-
-	// now we need to store the linear expressions of the expected input
-	// that will be resolved in the solver
-	//hintInputs := make([]compiled.LinearExpression, len(inputs))
+func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	if nIn := f.TotalInputs(system.Curve()); nIn >= 0 && nIn != len(inputs) {
+		return nil, fmt.Errorf("expected %d inputs, got %d", nIn, len(inputs))
+	}
+	if f.TotalOutputs(system.Curve(), len(inputs)) <= 0 {
+		return nil, fmt.Errorf("hint function must return at least one output")
+	}
 	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
@@ -688,15 +694,24 @@ func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) fronte
 		default:
 			hintInputs[i] = utils.FromInterface(t)
 		}
-		// t := system.constant(in).(compiled.Variable)
-		// tmp := t.Clone()
-		// hintInputs[i] = tmp.LinExp // TODO @gbotrel check that we need to clone here ?
 	}
 
-	// add the hint to the constraint system
-	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+	// prepare wires
+	varIDs := make([]int, f.TotalOutputs(system.Curve(), len(inputs)))
+	res := make([]frontend.Variable, len(varIDs))
+	for i := range varIDs {
+		r := system.newInternalVariable()
+		_, vID, _ := r.LinExp[0].Unpack()
+		varIDs[i] = vID
+		res[i] = r
+	}
 
-	return r
+	ch := &compiled.Hint{ID: f.UUID(), Inputs: hintInputs, Wires: varIDs}
+	for _, vID := range varIDs {
+		system.MHints[vID] = ch
+	}
+
+	return res, nil
 }
 
 // constant will return (and allocate if neccesary) a frontend.Variable from given value

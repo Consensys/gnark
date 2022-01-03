@@ -208,7 +208,11 @@ func (system *sparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []f
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
-		b[i] = system.NewHint(hint.IthBit, a, i)
+		res, err := system.NewHint(hint.IthBit, a, i)
+		if err != nil {
+			panic(err)
+		}
+		b[i] = res[0]
 		sb[i] = system.Mul(b[i], c)
 		c.Lsh(&c, 1)
 		if !unsafe {
@@ -409,7 +413,12 @@ func (system *sparseR1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 	// a * m = 0            // constrain m to be 0 if a != 0
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 	a := i1.(compiled.Term)
-	m := system.NewHint(hint.IsZero, a)
+	res, err := system.NewHint(hint.IsZero, a)
+	if err != nil {
+		// the function errs only if the number of inputs is invalid.
+		panic(err)
+	}
+	m := res[0]
 	system.AssertIsBoolean(m)
 	system.addPlonkConstraint(a, m.(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
 	ma := system.Add(m, a)
@@ -526,17 +535,26 @@ func (system *sparseR1CS) AddCounter(from, to frontend.Tag) {
 	})
 }
 
-func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) frontend.Variable {
-	// create resulting wire
-	r := system.newInternalVariable()
-	_, vID, _ := r.Unpack()
+// NewHint initializes internal variables whose value will be evaluated using
+// the provided hint function at run time from the inputs. Inputs must be either
+// variables or convertible to *big.Int. The function returns an error if the
+// number of inputs is not compatible with f.
+//
+// The hint function is provided at the proof creation time and is not embedded
+// into the circuit. From the backend point of view, the variable returned by
+// the hint function is equivalent to the user-supplied witness, but its actual
+// value is assigned by the solver, not the caller.
+//
+// No new constraints are added to the newly created wire and must be added
+// manually in the circuit. Failing to do so leads to solver failure.
+func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	if nIn := f.TotalInputs(system.Curve()); nIn >= 0 && nIn != len(inputs) {
+		return nil, fmt.Errorf("expected %d inputs, got %d", nIn, len(inputs))
+	}
+	if f.TotalOutputs(system.Curve(), len(inputs)) <= 0 {
+		return nil, fmt.Errorf("hint function must return at least one output")
+	}
 
-	// mark hint as unconstrained, for now
-	//system.mHintsConstrained[vID] = false
-
-	// now we need to store the linear expressions of the expected input
-	// that will be resolved in the solver
-	//hintInputs := make([]compiled.LinearExpression, len(inputs))
 	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
@@ -549,10 +567,22 @@ func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) 
 		}
 	}
 
-	// add the hint to the constraint system
-	system.MHints[vID] = compiled.Hint{ID: hint.UUID(f), Inputs: hintInputs}
+	// prepare wires
+	varIDs := make([]int, f.TotalOutputs(system.Curve(), len(inputs)))
+	res := make([]frontend.Variable, len(varIDs))
+	for i := range varIDs {
+		r := system.newInternalVariable()
+		_, vID, _ := r.Unpack()
+		varIDs[i] = vID
+		res[i] = r
+	}
 
-	return r
+	ch := &compiled.Hint{ID: f.UUID(), Inputs: hintInputs, Wires: varIDs}
+	for _, vID := range varIDs {
+		system.MHints[vID] = ch
+	}
+
+	return res, nil
 }
 
 // IsConstant returns true if v is a constant known at compile time
