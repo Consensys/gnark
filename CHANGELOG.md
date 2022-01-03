@@ -28,6 +28,9 @@
 - **test:** add `Log` method for logging in subtests
 - **test:** assert helper cross check constraint system solver results with `big.Int` test execution engine
 
+### Perf
+- **std:** verifying a Pairing (bls12-377, Groth16) inside a circuit went from ~40k constraints to less than <12k constraints
+
 ### Fix
 - fixes [#169](https://github.com/consensys/gnark/issues/169) ensure frontend.Circuit methods are defined on pointer receiver
 - fixes [#178](https://github.com/consensys/gnark/issues/178) by adding cbor.MaxMapPairs options when reading R1CS
