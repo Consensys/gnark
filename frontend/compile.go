@@ -90,6 +90,11 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...func(opt
 }
 
 func bootstrap(builder Builder, circuit Circuit) (err error) {
+	// ensure circuit.Define has pointer receiver
+	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
+		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
+	}
+
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
