@@ -674,7 +674,7 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 // manually in the circuit. Failing to do so leads to solver failure.
 func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
-	if f.TotalOutputs(system.Curve(), len(inputs)) <= 0 {
+	if f.NbOutputs(system.Curve(), len(inputs)) <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 	hintInputs := make([]interface{}, len(inputs))
@@ -695,7 +695,7 @@ func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]fro
 	}
 
 	// prepare wires
-	varIDs := make([]int, f.TotalOutputs(system.Curve(), len(inputs)))
+	varIDs := make([]int, f.NbOutputs(system.Curve(), len(inputs)))
 	res := make([]frontend.Variable, len(varIDs))
 	for i := range varIDs {
 		r := system.newInternalVariable()

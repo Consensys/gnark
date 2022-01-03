@@ -549,7 +549,7 @@ func (system *sparseR1CS) AddCounter(from, to frontend.Tag) {
 // manually in the circuit. Failing to do so leads to solver failure.
 func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
-	if f.TotalOutputs(system.Curve(), len(inputs)) <= 0 {
+	if f.NbOutputs(system.Curve(), len(inputs)) <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
@@ -566,7 +566,7 @@ func (system *sparseR1CS) NewHint(f hint.Function, inputs ...frontend.Variable) 
 	}
 
 	// prepare wires
-	varIDs := make([]int, f.TotalOutputs(system.Curve(), len(inputs)))
+	varIDs := make([]int, f.NbOutputs(system.Curve(), len(inputs)))
 	res := make([]frontend.Variable, len(varIDs))
 	for i := range varIDs {
 		r := system.newInternalVariable()

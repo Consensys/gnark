@@ -124,7 +124,7 @@ func (dv *doubleVector) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) 
 	return nil
 }
 
-func (dv *doubleVector) TotalOutputs(curveID ecc.ID, nInputs int) (nOutputs int) {
+func (dv *doubleVector) NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int) {
 	return nInputs
 }
 

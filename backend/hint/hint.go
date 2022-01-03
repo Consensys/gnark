@@ -78,6 +78,11 @@ import (
 // ID is a unique identifier for a hint function used for lookup.
 type ID uint32
 
+// StaticFunction is a function which takes a constant number of inputs and
+// returns a constant number of outputs. Use NewStaticHint() to construct an
+// instance compatible with Function interface.
+type StaticFunction func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
+
 // Function defines an annotated hint function. To initialize a hint function
 // with static number of inputs and outputs, use NewStaticHint().
 type Function interface {
@@ -86,15 +91,15 @@ type Function interface {
 	UUID() ID
 
 	// Call is invoked by the framework to obtain the result from inputs.
-	// The length of res is TotalOutputs() and every element is
+	// The length of res is NbOutputs() and every element is
 	// already initialized (but not necessarily to zero as the elements may be
 	// obtained from cache). A returned non-nil error will be propagated.
 	Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
 
-	// TotalOutputs returns the total number of outputs by the function when
+	// NbOutputs returns the total number of outputs by the function when
 	// invoked on the curveID with nInputs number of inputs. The number of
 	// outputs must be at least one and the framework errors otherwise.
-	TotalOutputs(curveID ecc.ID, nInputs int) (nOutputs int)
+	NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int)
 
 	// String returns a human-readable description of the function used in logs
 	// and debug messages.
@@ -121,11 +126,6 @@ func UUID(fn StaticFunction, ctx ...uint64) ID {
 	}
 	return ID(hf.Sum32())
 }
-
-// StaticFunction is a function which takes a constant number of inputs and
-// returns a constant number of outputs. Use NewStaticHint() to construct an
-// instance compatible with Function interface.
-type StaticFunction func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
 
 // staticArgumentsFunction defines a function where the number of inputs and
 // outputs is constant.
@@ -157,7 +157,7 @@ func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []
 	return h.fn(curveID, inputs, res)
 }
 
-func (h *staticArgumentsFunction) TotalOutputs(_ ecc.ID, _ int) int {
+func (h *staticArgumentsFunction) NbOutputs(_ ecc.ID, _ int) int {
 	return h.nOut
 }
 
