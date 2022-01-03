@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -14,10 +15,26 @@ type hintCircuit struct {
 }
 
 func (circuit *hintCircuit) Define(api frontend.API) error {
-	a3b := api.NewHint(hint.IthBit, circuit.A, 3)
-	a25b := api.NewHint(hint.IthBit, circuit.A, 25)
-	aisZero := api.NewHint(hint.IsZero, circuit.A)
-	bisZero := api.NewHint(hint.IsZero, circuit.B)
+	res, err := api.NewHint(hint.IthBit, circuit.A, 3)
+	if err != nil {
+		return fmt.Errorf("IthBit circuitA 3: %w", err)
+	}
+	a3b := res[0]
+	res, err = api.NewHint(hint.IthBit, circuit.A, 25)
+	if err != nil {
+		return fmt.Errorf("IthBit circuitA 25: %w", err)
+	}
+	a25b := res[0]
+	res, err = api.NewHint(hint.IsZero, circuit.A)
+	if err != nil {
+		return fmt.Errorf("IsZero CircuitA: %w", err)
+	}
+	aisZero := res[0]
+	res, err = api.NewHint(hint.IsZero, circuit.B)
+	if err != nil {
+		return fmt.Errorf("IsZero, CircuitB")
+	}
+	bisZero := res[0]
 
 	api.AssertIsEqual(aisZero, 0)
 	api.AssertIsEqual(bisZero, 1)
