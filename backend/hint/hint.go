@@ -85,19 +85,11 @@ type Function interface {
 	// lookup of the hint function.
 	UUID() ID
 
-	// Call is invoked by the framework to obtain the result from inputs. It is
-	// ensured that the number of inputs is exactly TotalInputs() if it is
-	// non-negative. If TotalInputs() is negative, then the length of inputs is
-	// not bounded. The length of res is TotalOutputs() and every element is
+	// Call is invoked by the framework to obtain the result from inputs.
+	// The length of res is TotalOutputs() and every element is
 	// already initialized (but not necessarily to zero as the elements may be
 	// obtained from cache). A returned non-nil error will be propagated.
 	Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
-
-	// TotalInputs returns the total number of inputs accepted by the function
-	// when invoked on the curveID. If the returned value is negative, then the
-	// function takes any number of inputs. If it is zero, then the function
-	// does not take any inputs.
-	TotalInputs(curveID ecc.ID) (nInputs int)
 
 	// TotalOutputs returns the total number of outputs by the function when
 	// invoked on the curveID with nInputs number of inputs. The number of
@@ -163,10 +155,6 @@ func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []
 		return fmt.Errorf("result has %d elements, expected %d", len(res), h.nOut)
 	}
 	return h.fn(curveID, inputs, res)
-}
-
-func (h *staticArgumentsFunction) TotalInputs(_ ecc.ID) int {
-	return h.nIn
 }
 
 func (h *staticArgumentsFunction) TotalOutputs(_ ecc.ID, _ int) int {

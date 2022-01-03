@@ -673,9 +673,7 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	if nIn := f.TotalInputs(system.Curve()); nIn >= 0 && nIn != len(inputs) {
-		return nil, fmt.Errorf("expected %d inputs, got %d", nIn, len(inputs))
-	}
+
 	if f.TotalOutputs(system.Curve(), len(inputs)) <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}

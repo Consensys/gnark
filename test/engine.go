@@ -319,9 +319,7 @@ func (e *engine) Println(a ...frontend.Variable) {
 }
 
 func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	if nIn := f.TotalInputs(e.Curve()); nIn >= 0 && nIn != len(inputs) {
-		return nil, fmt.Errorf("expected %d inputs, got %d", nIn, len(inputs))
-	}
+
 	if f.TotalOutputs(e.Curve(), len(inputs)) <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
