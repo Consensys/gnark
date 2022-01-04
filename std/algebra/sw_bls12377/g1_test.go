@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
@@ -252,34 +252,114 @@ func TestNegG1(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Scalar multiplication
 
-type g1ScalarMul struct {
+type g1constantScalarMul struct {
 	A G1Affine
 	C G1Affine `gnark:",public"`
-	r fr.Element
+	R *big.Int
 }
 
-func (circuit *g1ScalarMul) Define(api frontend.API) error {
+func (circuit *g1constantScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
-	expected.ScalarMul(api, circuit.A, circuit.r)
+	expected.constScalarMul(api, circuit.A, circuit.R)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
 
-func TestScalarMulG1(t *testing.T) {
+func TestConstantScalarMulG1(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
 
-	// sample 2 random points
+	// create the cs
+	var circuit, witness g1constantScalarMul
+	var r fr.Element
+	r.SetRandom()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	br := new(big.Int)
+	r.ToBigIntRegular(br)
+	// br is a circuit parameter
+	circuit.R = br
+	_a.ScalarMultiplication(&_a, br)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
+type g1varScalarMul struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMul) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestVarScalarMulG1(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMul
+	var r fr.Element
+	r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+}
+
+type g1ScalarMul struct {
+	A    G1Affine
+	C    G1Affine `gnark:",public"`
+	Rvar frontend.Variable
+	Rcon fr.Element
+}
+
+func (circuit *g1ScalarMul) Define(api frontend.API) error {
+	var expected, expected2 G1Affine
+	expected.ScalarMul(api, circuit.A, circuit.Rvar)
+	expected.MustBeEqual(api, circuit.C)
+	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
+	expected2.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG1(t *testing.T) {
+	// sample random point
 	_a := randomPointG1()
 	var a, c bls12377.G1Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
 	var circuit, witness g1ScalarMul
-	circuit.r.SetRandom()
+	var r fr.Element
+	r.SetRandom()
+	witness.Rvar = r.String()
+	circuit.Rcon = r
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, circuit.r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -301,13 +381,46 @@ func randomPointG1() bls12377.G1Jac {
 
 var ccsBench frontend.CompiledConstraintSystem
 
-func BenchmarkScalarMulG1(b *testing.B) {
-	var c g1ScalarMul
+func BenchmarkConstScalarMulG1(b *testing.B) {
+	var c g1constantScalarMul
 	// this is q - 1
-	c.r.SetString("660539884262666720468348340822774968888139573360124440321458176")
+	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
+	if !ok {
+		b.Fatal("invalid integer")
+	}
+	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		var err error
+		for i := 0; i < b.N; i++ {
+			ccsBench, err = frontend.Compile(ecc.BW6_761, backend.PLONK, &c)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
+
+}
+
+func BenchmarkVarScalarMulG1(b *testing.B) {
+	var c g1varScalarMul
+	// this is q - 1
+	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
+	if !ok {
+		b.Fatal("invalid integer")
+	}
+	c.R = r
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
 		}
 
 	})
