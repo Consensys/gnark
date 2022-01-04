@@ -35,6 +35,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/plonk"
 )
 
 //--------------------//
@@ -47,7 +48,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *refCircuit) Define(api frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = api.Mul(circuit.X, circuit.X)
 	}
@@ -60,13 +61,13 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ccs, err := frontend.Compile(curve.ID, backend.PLONK, &circuit)
+	ccs, err := frontend.Compile(curve.ID, backend.UNKNOWN, &circuit, frontend.WithBuilder(plonk.NewBuilder))
 	if err != nil {
 		panic(err)
 	}
 
 	var good refCircuit
-	good.X.Assign(2)
+	good.X = (2)
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -76,7 +77,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *k
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 	srs, err := kzg.NewSRS(ecc.NextPowerOfTwo(nbConstraints)+3, new(big.Int).SetUint64(42))
 	if err != nil {
 		panic(err)

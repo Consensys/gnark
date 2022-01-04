@@ -29,9 +29,9 @@ import (
 	bls12_377groth16 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
 //--------------------//
@@ -44,7 +44,7 @@ type refCircuit struct {
 	Y             frontend.Variable `gnark:",public"`
 }
 
-func (circuit *refCircuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *refCircuit) Define(api frontend.API) error {
 	for i := 0; i < circuit.nbConstraints; i++ {
 		circuit.X = api.Mul(circuit.X, circuit.X)
 	}
@@ -57,13 +57,13 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	r1cs, err := frontend.Compile(curve.ID, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(curve.ID, backend.UNKNOWN, &circuit, frontend.WithBuilder(r1cs.NewBuilder))
 	if err != nil {
 		panic(err)
 	}
 
 	var good refCircuit
-	good.X.Assign(2)
+	good.X = 2
 
 	// compute expected Y
 	var expectedY fr.Element
@@ -73,7 +73,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 		expectedY.Mul(&expectedY, &expectedY)
 	}
 
-	good.Y.Assign(expectedY)
+	good.Y = (expectedY)
 
 	return r1cs, &good
 }

@@ -35,8 +35,8 @@ type merkleCircuit struct {
 	Path, Helper []frontend.Variable
 }
 
-func (circuit *merkleCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	hFunc, err := mimc.NewMiMC("seed", curveID, api)
+func (circuit *merkleCircuit) Define(api frontend.API) error {
+	hFunc, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -83,14 +83,14 @@ func TestVerify(t *testing.T) {
 	witness := merkleCircuit{
 		Path:     make([]frontend.Variable, len(proof)),
 		Helper:   make([]frontend.Variable, len(proof)-1),
-		RootHash: frontend.Value(merkleRoot),
+		RootHash: (merkleRoot),
 	}
 
 	for i := 0; i < len(proof); i++ {
-		witness.Path[i].Assign(proof[i])
+		witness.Path[i] = (proof[i])
 	}
 	for i := 0; i < len(proof)-1; i++ {
-		witness.Helper[i].Assign(proofHelper[i])
+		witness.Helper[i] = (proofHelper[i])
 	}
 
 	assert := test.NewAssert(t)

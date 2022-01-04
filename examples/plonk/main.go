@@ -16,7 +16,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -43,13 +43,13 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // y == x**e
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) Define(api frontend.API) error {
 
 	// number of bits of exponent
-	const bitSize = 2
+	const bitSize = 4
 
 	// specify constraints
-	output := api.Constant(1)
+	output := frontend.Variable(1)
 	bits := api.ToBinary(circuit.E, bitSize)
 
 	for i := 0; i < len(bits); i++ {
@@ -72,23 +72,10 @@ func main() {
 
 	var circuit Circuit
 
-	fR1CS, _ := os.Create("r1cs.html")
-	fSparseR1CS, _ := os.Create("sparse_r1cs.html")
-
-	r1, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
-	err := r1.ToHTML(fR1CS)
+	// // building the circuit...
+	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
 	if err != nil {
-		fmt.Println(err)
-	}
-
-	// building the circuit...
-	r3, err_r1cs := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
-	if err_r1cs != nil {
 		fmt.Println("circuit compilation error")
-	}
-	err = r3.ToHTML(fSparseR1CS)
-	if err != nil {
-		fmt.Println(err)
 	}
 
 	// create the necessary data for KZG.
@@ -96,7 +83,7 @@ func main() {
 	// has been ran before.
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
-	_r1cs := r3.(*cs.SparseR1CS)
+	_r1cs := ccs.(*cs.SparseR1CS)
 	srs, err := test.NewKZGSRS(_r1cs)
 	if err != nil {
 		panic(err)
@@ -106,34 +93,28 @@ func main() {
 	{
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
-		var witness, publicWitness Circuit
-		witness.X.Assign(2)
-		witness.E.Assign(2)
-		witness.Y.Assign(4)
-
-		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(4)
+		var witness Circuit
+		witness.X = 2
+		witness.E = 2
+		witness.Y = 4
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(r3, srs)
+		pk, vk, err := plonk.Setup(ccs, srs)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 
-		proof, err := plonk.Prove(r3, pk, &witness, nil)
+		proof, err := plonk.Prove(ccs, pk, &witness)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 
-		err = plonk.Verify(proof, vk, &publicWitness)
+		err = plonk.Verify(proof, vk, &witness)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 	}
 	// Wrong data: the proof fails
@@ -141,33 +122,30 @@ func main() {
 		// Witnesses instantiation. Witness is known only by the prover,
 		// while public witness is a public data known by the verifier.
 		var witness, publicWitness Circuit
-		witness.X.Assign(3)
-		witness.E.Assign(12)
-		witness.Y.Assign(4096)
+		witness.X = 2
+		witness.E = 12
+		witness.Y = 4096
 
-		publicWitness.X.Assign(2)
-		publicWitness.Y.Assign(4096)
+		publicWitness.X = 3
+		publicWitness.Y = 4096
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(r3, srs)
+		pk, vk, err := plonk.Setup(ccs, srs)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 
-		proof, err := plonk.Prove(r3, pk, &witness, nil)
+		proof, err := plonk.Prove(ccs, pk, &witness)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+			log.Fatal(err)
 		}
 
 		err = plonk.Verify(proof, vk, &publicWitness)
 		if err == nil {
-			fmt.Printf("Error: wrong proof is accepted")
-			os.Exit(-1)
+			log.Fatal("Error: wrong proof is accepted")
 		}
 	}
 

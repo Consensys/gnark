@@ -128,7 +128,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverOption) ([]f
 // else returns the wire position (L -> 0, R -> 1, O -> 2)
 func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) (int, error) {
 	r := -1
-	lID, rID, oID := c.L.VariableID(), c.R.VariableID(), c.O.VariableID()
+	lID, rID, oID := c.L.WireID(), c.R.WireID(), c.O.WireID()
 
 	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
 		// check if it's a hint
@@ -180,19 +180,35 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 		// can happen if the constraint contained only hint wires.
 		return nil
 	}
-	if lro == 1 {
-		panic("unsolved wire in R; shouldn't happen as frontend puts unsolved wire in L")
+	if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
+		if !solution.solved[c.L.WireID()] {
+			panic("L wire should be instantiated when we solve R")
+		}
+		var u1, u2, u3, den, num, v1, v2 fr.Element
+		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
+		u1.Set(&cs.Coefficients[c.L.CoeffID()])
+		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		den.Mul(&u3, &solution.values[c.L.WireID()]).Add(&den, &u2)
+
+		v1 = solution.computeTerm(c.L)
+		v2 = solution.computeTerm(c.O)
+		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
+
+		// TODO find a way to do lazy div (/ batch inversion)
+		num.Div(&num, &den).Neg(&num)
+		solution.set(c.L.WireID(), num)
+		return nil
 	}
 
 	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-		if !solution.solved[c.R.VariableID()] {
+		if !solution.solved[c.R.WireID()] {
 			panic("R wire should be instantiated when we solve L")
 		}
 		var u1, u2, u3, den, num, v1, v2 fr.Element
 		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
 		u1.Set(&cs.Coefficients[c.L.CoeffID()])
 		u2.Set(&cs.Coefficients[c.R.CoeffID()])
-		den.Mul(&u3, &solution.values[c.R.VariableID()]).Add(&den, &u1)
+		den.Mul(&u3, &solution.values[c.R.WireID()]).Add(&den, &u1)
 
 		v1 = solution.computeTerm(c.R)
 		v2 = solution.computeTerm(c.O)
@@ -200,7 +216,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 		// TODO find a way to do lazy div (/ batch inversion)
 		num.Div(&num, &den).Neg(&num)
-		solution.set(c.L.VariableID(), num)
+		solution.set(c.L.WireID(), num)
 		return nil
 
 	}
@@ -318,7 +334,10 @@ func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
 func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
-	dm, err := cbor.DecOptions{MaxArrayElements: 134217728}.DecMode()
+	dm, err := cbor.DecOptions{
+		MaxArrayElements: 134217728,
+		MaxMapPairs:      134217728,
+	}.DecMode()
 	if err != nil {
 		return 0, err
 	}

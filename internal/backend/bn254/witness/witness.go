@@ -96,24 +96,24 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
-		if v.WitnessValue == nil {
+		if v == nil {
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
 		}
 
 		if visibility == compiled.Secret {
-			if _, err := (*witness)[i].SetInterface(v.WitnessValue); err != nil {
+			if _, err := (*witness)[i].SetInterface(v); err != nil {
 				return fmt.Errorf("when parsing variable %s: %v", name, err)
 			}
 			i++
 		} else if visibility == compiled.Public {
-			if _, err := (*witness)[j].SetInterface(v.WitnessValue); err != nil {
+			if _, err := (*witness)[j].SetInterface(v); err != nil {
 				return fmt.Errorf("when parsing variable %s: %v", name, err)
 			}
 			j++
 		}
 		return nil
 	}
-	return parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	return parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
 }
 
 // FromPublicAssignment extracts the public part of witness
@@ -132,18 +132,18 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 		if visibility == compiled.Public {
 			v := tInput.Interface().(frontend.Variable)
 
-			if v.WitnessValue == nil {
+			if v == nil {
 				return fmt.Errorf("when parsing variable %s: missing assignment", name)
 			}
 
-			if _, err := (*witness)[j].SetInterface(v.WitnessValue); err != nil {
+			if _, err := (*witness)[j].SetInterface(v); err != nil {
 				return fmt.Errorf("when parsing variable %s: %v", name, err)
 			}
 			j++
 		}
 		return nil
 	}
-	return parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	return parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
 }
 
 func count(w frontend.Circuit) (nbSecret, nbPublic int) {
@@ -156,7 +156,7 @@ func count(w frontend.Circuit) (nbSecret, nbPublic int) {
 		return nil
 	}
 
-	err := parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{}))
+	err := parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
 	if err != nil {
 		panic("count handler doesn't return an error -- this panic should not happen")
 	}
@@ -184,19 +184,19 @@ func ToJSON(w frontend.Circuit) (string, error) {
 		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret {
-			if v.WitnessValue == nil {
+			if v == nil {
 				toPrint.Secret[name] = "<nil>"
 			} else {
-				if _, err := e.SetInterface(v.WitnessValue); err != nil {
+				if _, err := e.SetInterface(v); err != nil {
 					return fmt.Errorf("when parsing variable %s: %v", name, err)
 				}
 				toPrint.Secret[name] = e.String()
 			}
 		} else if visibility == compiled.Public {
-			if v.WitnessValue == nil {
+			if v == nil {
 				toPrint.Public[name] = "<nil>"
 			} else {
-				if _, err := e.SetInterface(v.WitnessValue); err != nil {
+				if _, err := e.SetInterface(v); err != nil {
 					return fmt.Errorf("when parsing variable %s: %v", name, err)
 				}
 				toPrint.Public[name] = e.String()
@@ -204,7 +204,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 		}
 		return nil
 	}
-	if err := parser.Visit(w, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(w, "", compiled.Unset, collectHandler, tVariable); err != nil {
 		return "", err
 	}
 
@@ -213,4 +213,10 @@ func ToJSON(w frontend.Circuit) (string, error) {
 		return "", err
 	}
 	return string(prettyJSON), nil
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

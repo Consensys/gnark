@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"reflect"
-	"runtime"
 	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
@@ -46,23 +45,19 @@ type solution struct {
 }
 
 func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+
 	s := solution{
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
-		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)+2),
+		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
 	}
 
-	s.mHintsFunctions[hint.UUID(hint.IsZero)] = hint.IsZero
-	s.mHintsFunctions[hint.UUID(hint.IthBit)] = hint.IthBit
-
-	for i := 0; i < len(hintFunctions); i++ {
-		id := hint.UUID(hintFunctions[i])
-		if _, ok := s.mHintsFunctions[id]; ok {
-			name := runtime.FuncForPC(reflect.ValueOf(hintFunctions[i]).Pointer()).Name()
-			return solution{}, fmt.Errorf("duplicate hint function with id %d - name %s", uint32(id), name)
+	for _, h := range hintFunctions {
+		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
+			return solution{}, fmt.Errorf("duplicate hint function %s", h)
 		}
-		s.mHintsFunctions[id] = hintFunctions[i]
+		s.mHintsFunctions[h.UUID()] = h
 	}
 
 	return s, nil
@@ -107,8 +102,22 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 	}
 }
 
+func (s *solution) computeLinearExpression(l compiled.LinearExpression) fr.Element {
+	var res fr.Element
+	for i := 0; i < len(l); i++ {
+		v := s.computeTerm(l[i])
+		res.Add(&res, &v)
+	}
+	return res
+}
+
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
+func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
+	// skip if the wire is already solved by a call to the same hint
+	// function on the same inputs
+	if s.solved[vID] {
+		return nil
+	}
 	// ensure hint function was provided
 	f, ok := s.mHintsFunctions[h.ID]
 	if !ok {
@@ -121,34 +130,29 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 		inputs[i] = bigIntPool.Get().(*big.Int)
 		inputs[i].SetUint64(0)
 	}
-	lambda := bigIntPool.Get().(*big.Int)
 
 	for i := 0; i < len(h.Inputs); i++ {
-		// input is a linear expression, we must compute the value
-		for j := 0; j < len(h.Inputs[i]); j++ {
-			ciID, viID, visibility := h.Inputs[i][j].Unpack()
-			if visibility == compiled.Virtual {
-				// we have a constant, just take the coefficient value
-				s.coefficients[ciID].ToBigIntRegular(lambda)
-				inputs[i].Add(inputs[i], lambda)
-				continue
-			}
-			if !s.solved[viID] {
-				// release objects into pool
-				bigIntPool.Put(lambda)
-				for i := 0; i < len(inputs); i++ {
-					bigIntPool.Put(inputs[i])
-				}
-				return errors.New("expected wire to be instantiated while evaluating hint")
-			}
-			v := s.computeTerm(h.Inputs[i][j])
-			v.ToBigIntRegular(lambda)
-			inputs[i].Add(inputs[i], lambda)
+
+		switch t := h.Inputs[i].(type) {
+		case compiled.Variable:
+			v := s.computeLinearExpression(t.LinExp)
+			v.ToBigIntRegular(inputs[i])
+		case compiled.LinearExpression:
+			v := s.computeLinearExpression(t)
+			v.ToBigIntRegular(inputs[i])
+		case compiled.Term:
+			v := s.computeTerm(t)
+			v.ToBigIntRegular(inputs[i])
+		default:
+			v := utils.FromInterface(t)
+			inputs[i] = &v
 		}
 	}
 
-	// use lambda as the result.
-	lambda.SetUint64(0)
+	outputs := make([]*big.Int, f.NbOutputs(curve.ID, len(inputs)))
+	for i := 0; i < len(outputs); i++ {
+		outputs[i] = bigIntPool.Get().(*big.Int)
+	}
 
 	// ensure our inputs are mod q
 	q := fr.Modulus()
@@ -158,22 +162,27 @@ func (s *solution) solveWithHint(vID int, h compiled.Hint) error {
 		inputs[i].Mod(inputs[i], q)
 	}
 
-	err := f(curve.ID, inputs, lambda)
+	err := f.Call(curve.ID, inputs, outputs)
 
 	var v fr.Element
-	v.SetBigInt(lambda)
+	for i := range outputs {
+		v.SetBigInt(outputs[i])
+		s.set(h.Wires[i], v)
+	}
 
 	// release objects into pool
-	bigIntPool.Put(lambda)
 	for i := 0; i < len(inputs); i++ {
 		bigIntPool.Put(inputs[i])
+	}
+
+	for i := 0; i < len(outputs); i++ {
+		bigIntPool.Put(outputs[i])
 	}
 
 	if err != nil {
 		return err
 	}
 
-	s.set(vID, v)
 	return nil
 }
 

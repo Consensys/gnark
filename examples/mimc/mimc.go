@@ -15,7 +15,6 @@
 package mimc
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
 )
@@ -31,9 +30,9 @@ type Circuit struct {
 
 // Define declares the circuit's constraints
 // Hash = mimc(PreImage)
-func (circuit *Circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *Circuit) Define(api frontend.API) error {
 	// hash function
-	mimc, _ := mimc.NewMiMC("seed", curveID, api)
+	mimc, _ := mimc.NewMiMC("seed", api)
 
 	// specify constraints
 	// mimc(preImage) == hash

@@ -30,18 +30,6 @@ func ShallowClone(circuit frontend.Circuit) frontend.Circuit {
 	return circuitCopy
 }
 
-// ResetWitness parses the reachable frontend.Variable values in the given circuit and sets them to nil
-func ResetWitness(c frontend.Circuit) {
-	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret || visibility == compiled.Public {
-			tInput.Set(reflect.ValueOf(frontend.Value(nil)))
-		}
-		return nil
-	}
-	// this can't error.
-	_ = parser.Visit(c, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
-}
-
 func CopyWitness(to, from frontend.Circuit) {
 	var wValues []interface{}
 
@@ -49,26 +37,32 @@ func CopyWitness(to, from frontend.Circuit) {
 		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret || visibility == compiled.Public {
-			if v.WitnessValue == nil {
+			if v == nil {
 				return fmt.Errorf("when parsing variable %s: missing assignment", name)
 			}
-			wValues = append(wValues, v.WitnessValue)
+			wValues = append(wValues, v)
 		}
 		return nil
 	}
-	if err := parser.Visit(from, "", compiled.Unset, collectHandler, reflect.TypeOf(frontend.Variable{})); err != nil {
+	if err := parser.Visit(from, "", compiled.Unset, collectHandler, tVariable); err != nil {
 		panic(err)
 	}
 
 	i := 0
 	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Secret || visibility == compiled.Public {
-			tInput.Set(reflect.ValueOf(frontend.Value(wValues[i])))
+			tInput.Set(reflect.ValueOf((wValues[i])))
 			i++
 		}
 		return nil
 	}
 	// this can't error.
-	_ = parser.Visit(to, "", compiled.Unset, setHandler, reflect.TypeOf(frontend.Variable{}))
+	_ = parser.Visit(to, "", compiled.Unset, setHandler, tVariable)
 
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

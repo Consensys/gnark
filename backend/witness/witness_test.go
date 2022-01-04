@@ -20,7 +20,7 @@ type circuit struct {
 	E frontend.Variable
 }
 
-func (circuit *circuit) Define(curveID ecc.ID, api frontend.API) error {
+func (circuit *circuit) Define(api frontend.API) error {
 	return nil
 }
 
@@ -28,8 +28,8 @@ func TestReconstructionPublic(t *testing.T) {
 	assert := require.New(t)
 
 	var wPublic, wPublicReconstructed circuit
-	wPublic.X.Assign(new(big.Int).SetInt64(42))
-	wPublic.Y.Assign(new(big.Int).SetInt64(8000))
+	wPublic.X = new(big.Int).SetInt64(42)
+	wPublic.Y = new(big.Int).SetInt64(8000)
 
 	var buf bytes.Buffer
 	written, err := WritePublicTo(&buf, ecc.BN254, &wPublic)
@@ -48,9 +48,9 @@ func TestReconstructionFull(t *testing.T) {
 	assert := require.New(t)
 
 	var wFull, wFullReconstructed circuit
-	wFull.X.Assign(new(big.Int).SetInt64(42))
-	wFull.Y.Assign(new(big.Int).SetInt64(8000))
-	wFull.E.Assign(new(big.Int).SetInt64(1))
+	wFull.X = new(big.Int).SetInt64(42)
+	wFull.Y = new(big.Int).SetInt64(8000)
+	wFull.E = new(big.Int).SetInt64(1)
 
 	var buf bytes.Buffer
 	written, err := WriteFullTo(&buf, ecc.BN254, &wFull)

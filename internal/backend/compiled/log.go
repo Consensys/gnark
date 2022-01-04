@@ -1,8 +1,20 @@
+// Copyright 2020 ConsenSys AG
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package compiled
 
 import (
-	"runtime"
-	"strconv"
 	"strings"
 )
 
@@ -14,20 +26,20 @@ type LogEntry struct {
 	ToResolve []Term
 }
 
-func (l *LogEntry) WriteLinearExpression(le LinearExpression, sbb *strings.Builder) {
-	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
+func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
+	sbb.Grow(len(le.LinExp) * len(" + (xx + xxxxxxxxxxxx"))
 
-	for i := 0; i < len(le); i++ {
+	for i := 0; i < len(le.LinExp); i++ {
 		if i > 0 {
 			sbb.WriteString(" + ")
 		}
-		l.WriteTerm(le[i], sbb)
+		l.WriteTerm(le.LinExp[i], sbb)
 	}
 }
 
 func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	// virtual == only a coeff, we discard the wire
-	if t.VariableVisibility() == Public && t.VariableID() == 0 {
+	if t.VariableVisibility() == Public && t.WireID() == 0 {
 		sbb.WriteString("%s")
 		t.SetVariableVisibility(Virtual)
 		l.ToResolve = append(l.ToResolve, t)
@@ -44,45 +56,4 @@ func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	}
 
 	l.ToResolve = append(l.ToResolve, t)
-}
-
-func (l *LogEntry) WriteStack(sbb *strings.Builder) {
-	// TODO @gbotrel should be a package level function somewhere (internal), not a method on log.
-	// derived from: https://golang.org/pkg/runtime/#example_Frames
-	// we stop when func name == Define as it is where the gnark circuit code should start
-
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(3, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-		if strings.Contains(function, "frontend.(*ConstraintSystem)") {
-			continue
-		}
-
-		sbb.WriteString(function)
-		sbb.WriteByte('\n')
-		sbb.WriteByte('\t')
-		sbb.WriteString(frame.File)
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(frame.Line))
-		sbb.WriteByte('\n')
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
 }

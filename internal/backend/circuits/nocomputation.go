@@ -11,8 +11,8 @@ type noComputationCircuit struct {
 	B frontend.Variable
 }
 
-func (c *noComputationCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	cs.AssertIsEqual(c.A, c.B)
+func (c *noComputationCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.A, c.B)
 	return nil
 }
 
@@ -20,11 +20,11 @@ func init() {
 
 	var circuit, good, bad noComputationCircuit
 
-	good.A.Assign(42)
-	good.B.Assign(42)
+	good.A = (42)
+	good.B = (42)
 
-	bad.A.Assign(42)
-	bad.B.Assign(43)
+	bad.A = (42)
+	bad.B = (43)
 
-	addEntry("noComputationCircuit", &circuit, &good, &bad)
+	addEntry("noComputationCircuit", &circuit, &good, &bad, ecc.Implemented())
 }

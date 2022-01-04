@@ -17,6 +17,7 @@ limitations under the License.
 package gnark
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -35,21 +36,22 @@ func TestIntegrationAPI(t *testing.T) {
 	}
 	sort.Strings(keys)
 
-	for _, k := range keys {
-		tData := circuits.Circuits[k]
-		t.Log(k)
-		for _, w := range tData.ValidWitnesses {
-			assert.ProverSucceeded(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
-		}
+	for i := range keys {
+		name := keys[i]
+		tData := circuits.Circuits[name]
+		assert.Run(func(assert *test.Assert) {
+			for i := range tData.ValidWitnesses {
+				assert.Run(func(assert *test.Assert) {
+					assert.ProverSucceeded(tData.Circuit, tData.ValidWitnesses[i], test.WithProverOpts(backend.WithHints(tData.HintFunctions...)), test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
+				}, fmt.Sprintf("valid-%d", i))
+			}
 
-		for _, w := range tData.InvalidWitnesses {
-			assert.ProverFailed(tData.Circuit, w, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
-		}
-
-		// we put that here now, but will be into a proper fuzz target with go1.18
-		const fuzzCount = 30
-		assert.Fuzz(tData.Circuit, fuzzCount, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)))
-
+			for i := range tData.InvalidWitnesses {
+				assert.Run(func(assert *test.Assert) {
+					assert.ProverFailed(tData.Circuit, tData.InvalidWitnesses[i], test.WithProverOpts(backend.WithHints(tData.HintFunctions...)), test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
+				}, fmt.Sprintf("invalid-%d", i))
+			}
+		}, name)
 	}
 
 }

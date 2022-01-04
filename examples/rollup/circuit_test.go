@@ -31,11 +31,11 @@ type circuitSignature struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitSignature) Define(curveID ecc.ID, api frontend.API) error {
-	if err := t.postInit(curveID, api); err != nil {
+func (t *circuitSignature) Define(api frontend.API) error {
+	if err := t.postInit(api); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", curveID, api)
+	hFunc, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -88,11 +88,11 @@ type circuitInclusionProof struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitInclusionProof) Define(curveID ecc.ID, api frontend.API) error {
-	if err := t.postInit(curveID, api); err != nil {
+func (t *circuitInclusionProof) Define(api frontend.API) error {
+	if err := t.postInit(api); err != nil {
 		return err
 	}
-	hashFunc, err := mimc.NewMiMC("seed", curveID, api)
+	hashFunc, err := mimc.NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -154,8 +154,8 @@ type circuitUpdateAccount struct {
 }
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
-func (t *circuitUpdateAccount) Define(curveID ecc.ID, api frontend.API) error {
-	if err := t.postInit(curveID, api); err != nil {
+func (t *circuitUpdateAccount) Define(api frontend.API) error {
+	if err := t.postInit(api); err != nil {
 		return err
 	}
 	verifyAccountUpdated(api, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],

@@ -6,38 +6,38 @@ import (
 )
 
 type subCircuit struct {
-	Op1, Op2, Res frontend.Variable
+	A, B, C, D, E frontend.Variable
+	Res           frontend.Variable `gnark:",public"`
 }
 
-func (circuit *subCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	d := cs.Sub(circuit.Op1, circuit.Op2, circuit.Op2)
+func (circuit *subCircuit) Define(api frontend.API) error {
 
-	cs.AssertIsEqual(d, circuit.Res)
+	a := api.Sub(23820938283, circuit.A, circuit.B, 232, circuit.C, "2039", circuit.D)
+	api.AssertIsEqual(a, circuit.Res)
+
+	b := api.Sub(circuit.E, circuit.A, circuit.B, 232, circuit.C, "2039", circuit.D)
+	api.AssertIsEqual(b, circuit.Res)
+
 	return nil
 }
 
 func init() {
 
-	good := []frontend.Circuit{
-		&subCircuit{
-			Op1: frontend.Value(7),
-			Op2: frontend.Value(3),
-			Res: frontend.Value(1),
-		},
-		&subCircuit{
-			Op1: frontend.Value(6),
-			Op2: frontend.Value(3),
-			Res: frontend.Value(0),
-		},
-	}
+	var circuit, good, bad subCircuit
 
-	bad := []frontend.Circuit{
-		&subCircuit{
-			Op1: frontend.Value(2),
-			Op2: frontend.Value(3),
-			Res: frontend.Value(5),
-		},
-	}
+	good.A = 6
+	good.B = 2
+	good.C = 123
+	good.D = 76
+	good.E = 23820938283
+	good.Res = 23820935805
 
-	addNewEntry("sub", &subCircuit{}, good, bad)
+	bad.A = 6
+	bad.B = 2
+	bad.C = 123
+	bad.D = 76
+	bad.E = 23820938283
+	bad.Res = 1
+
+	addEntry("sub", &circuit, &good, &bad, ecc.Implemented())
 }

@@ -31,8 +31,8 @@ type mimcCircuit struct {
 	Data           frontend.Variable
 }
 
-func (circuit *mimcCircuit) Define(curveID ecc.ID, api frontend.API) error {
-	mimc, err := NewMiMC("seed", curveID, api)
+func (circuit *mimcCircuit) Define(api frontend.API) error {
+	mimc, err := NewMiMC("seed", api)
 	if err != nil {
 		return err
 	}
@@ -56,6 +56,7 @@ func TestMimcAll(t *testing.T) {
 		ecc.BLS12_381: hash.MIMC_BLS12_381,
 		ecc.BLS12_377: hash.MIMC_BLS12_377,
 		ecc.BW6_761:   hash.MIMC_BW6_761,
+		ecc.BW6_633:   hash.MIMC_BW6_633,
 		ecc.BLS24_315: hash.MIMC_BLS24_315,
 	}
 
@@ -70,13 +71,13 @@ func TestMimcAll(t *testing.T) {
 		b := goMimc.Sum(nil)
 
 		// assert correctness against correct witness
-		witness.Data.Assign(data)
-		witness.ExpectedResult.Assign(b)
+		witness.Data = data
+		witness.ExpectedResult = b
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(curve))
 
 		// assert failure against wrong witness
-		wrongWitness.Data.Assign(tamperedData)
-		wrongWitness.ExpectedResult.Assign(b)
+		wrongWitness.Data = tamperedData
+		wrongWitness.ExpectedResult = b
 		assert.ProverFailed(&circuit, &wrongWitness, test.WithCurves(curve))
 	}
 

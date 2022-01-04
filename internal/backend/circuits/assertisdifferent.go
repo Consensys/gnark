@@ -10,8 +10,8 @@ type assertIsDifferentCircuit struct {
 	Y frontend.Variable `gnark:",public"`
 }
 
-func (circuit *assertIsDifferentCircuit) Define(curveID ecc.ID, cs frontend.API) error {
-	cs.AssertIsDifferent(circuit.X, circuit.Y)
+func (circuit *assertIsDifferentCircuit) Define(api frontend.API) error {
+	api.AssertIsDifferent(circuit.X, circuit.Y)
 	return nil
 }
 
@@ -19,17 +19,17 @@ func init() {
 
 	good := []frontend.Circuit{
 		&assertIsDifferentCircuit{
-			X: frontend.Value(6),
-			Y: frontend.Value(37),
+			X: (6),
+			Y: (37),
 		},
 	}
 
 	bad := []frontend.Circuit{
 		&assertIsDifferentCircuit{
-			X: frontend.Value(6),
-			Y: frontend.Value(6),
+			X: (6),
+			Y: (6),
 		},
 	}
 
-	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad)
+	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad, ecc.Implemented())
 }
