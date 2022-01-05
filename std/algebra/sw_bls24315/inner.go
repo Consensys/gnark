@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	companionsOnce.Do(func() {
+	mappingOnce.Do(func() {
 		bls24315lambda := new(big.Int).SetBytes([]byte{0x19, 0x6d, 0xea, 0xc2,
 			0x4a, 0x9d, 0xa1, 0x2b, 0x25, 0xfc, 0x7e, 0xc9, 0xcf, 0x92, 0x7a,
 			0x99, 0x19, 0x73, 0x9f, 0x46, 0x27, 0xd9, 0x92, 0x6e, 0x38, 0x20,
@@ -23,7 +23,7 @@ func init() {
 		})
 		bls24315glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(ecc.BLS24_315.Info().Fr.Modulus(), bls24315lambda, bls24315glvBasis)
-		companionCurves[ecc.BW6_633] = &companionConfig{
+		innerCurves[ecc.BW6_633] = &innerConfig{
 			thirdRootOne: bls24315thirdRootOne,
 			glvBasis:     bls24315glvBasis,
 			lambda:       bls24315lambda,
@@ -33,9 +33,9 @@ func init() {
 	})
 }
 
-var companionsOnce sync.Once
+var mappingOnce sync.Once
 
-type companionConfig struct {
+type innerConfig struct {
 	thirdRootOne *big.Int
 	glvBasis     *ecc.Lattice
 	lambda       *big.Int
@@ -43,19 +43,19 @@ type companionConfig struct {
 	fp           *big.Int
 }
 
-var companionCurves = make(map[ecc.ID]*companionConfig)
+var innerCurves = make(map[ecc.ID]*innerConfig)
 
-func (cc *companionConfig) phi(api frontend.API, res, P *G1Affine) *G1Affine {
+func (cc *innerConfig) phi(api frontend.API, res, P *G1Affine) *G1Affine {
 	res.X = api.Mul(P.X, cc.thirdRootOne)
 	res.Y = P.Y
 	return res
 }
 
-// companionCurve returns the configuration of the companion elliptic curve
-// which can be defined on the scalars of main curve.
-func companionCurve(main ecc.ID) *companionConfig {
-	if cc, ok := companionCurves[main]; ok {
+// innerCurve returns the configuration of the inner elliptic curve
+// which can be defined on the scalars of outer curve.
+func innerCurve(outerCurve ecc.ID) *innerConfig {
+	if cc, ok := innerCurves[outerCurve]; ok {
 		return cc
 	}
-	panic(fmt.Sprintf("curve %s does not have a companion curve", main.String()))
+	panic(fmt.Sprintf("outer curve %s does not have a inner curve", outerCurve.String()))
 }

@@ -207,7 +207,7 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Aff
 }
 
 var scalarDecompositionHintBLS12377 = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
-	cc := companionCurve(curve)
+	cc := innerCurve(curve)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))
 	res[1].Set(&(sp[1]))
@@ -245,11 +245,11 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
 
-	// The context we are working is based on the `main` curve. However, the
-	// points and the operations on the points are performed on the `companion`
-	// curve of the main curve. We require some parameters from the companion
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
 	// curve.
-	cc := companionCurve(api.Curve())
+	cc := innerCurve(api.Curve())
 
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
@@ -264,10 +264,10 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// when we split scalar, then s1, s2 < lambda by default. However, to have
 	// the high 1-2 bits of s1, s2 set, the hint functions compute the
 	// decomposition for
-	//     s + r
+	//     s + k*r (for some k)
 	// instead and omits the last reduction. Thus, to constrain s1 and s2, we
 	// have to assert that
-	//     s1 + λ * s2 == s + r
+	//     s1 + λ * s2 == s + k*r
 	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
 
 	// As the decomposed scalars are not fully reduced, then in addition of
@@ -294,10 +294,10 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	Acc = tableQ[1]
 	Acc.AddAssign(api, tablePhiQ[1])
 
-	// first bit However, we can not directly add step value conditionally as we
-	// may get to incomplete path of the addition formula. We either add or
-	// subtract step value from [2] Acc (instead of conditionally adding step
-	// value to Acc):
+	// However, we can not directly add step value conditionally as we may get
+	// to incomplete path of the addition formula. We either add or subtract
+	// step value from [2] Acc (instead of conditionally adding step value to
+	// Acc):
 	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
 	Acc.Double(api, Acc)
 	// only y coordinate differs for negation, select on that instead.
@@ -343,7 +343,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
 	var Acc, B, negQ, negPhiQ, phiQ G1Affine
-	cc := companionCurve(api.Curve())
+	cc := innerCurve(api.Curve())
 	s.Mod(s, cc.fr)
 	cc.phi(api, &phiQ, &Q)
 
