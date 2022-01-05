@@ -206,7 +206,7 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Aff
 	}
 }
 
-var scalarDecompositionHintBLS24316 = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var scalarDecompositionHintBLS24315 = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	cc := companionCurve(curve)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))
@@ -228,7 +228,7 @@ var scalarDecompositionHintBLS24316 = hint.NewStaticHint(func(curve ecc.ID, inpu
 }, 1, 3)
 
 func init() {
-	hint.Register(scalarDecompositionHintBLS24316)
+	hint.Register(scalarDecompositionHintBLS24315)
 }
 
 // varScalarMul sets P = [s] Q and returns P.
@@ -254,7 +254,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.NewHint(scalarDecompositionHintBLS24316, s)
+	sd, err := api.NewHint(scalarDecompositionHintBLS24315, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
