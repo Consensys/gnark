@@ -25,8 +25,8 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -82,7 +82,7 @@ func (witness *Witness) LimitReadFrom(r io.Reader, expectedSize int) (int64, err
 
 // FromFullAssignment extracts the full witness [ public | secret ]
 func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
-	nbSecret, nbPublic := count(w)
+	nbSecret, nbPublic := schema.Count(w, tVariable)
 
 	if len(*witness) < (nbPublic + nbSecret) {
 		(*witness) = make(Witness, nbPublic+nbSecret)
@@ -93,7 +93,7 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 	var i, j int // indexes for secret / public variables
 	i = nbPublic // offset
 
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
 		if v == nil {
@@ -113,12 +113,13 @@ func (witness *Witness) FromFullAssignment(w frontend.Circuit) error {
 		}
 		return nil
 	}
-	return parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
+	_, err := schema.Parse(w, tVariable, collectHandler)
+	return err
 }
 
 // FromPublicAssignment extracts the public part of witness
 func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
-	_, nbPublic := count(w)
+	_, nbPublic := schema.Count(w, tVariable)
 
 	// note: does not contain ONE_WIRE for Groth16
 	if len(*witness) < (nbPublic) {
@@ -128,7 +129,7 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 	}
 	var j int // index for public variables
 
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
 			v := tInput.Interface().(frontend.Variable)
 
@@ -143,30 +144,14 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 		}
 		return nil
 	}
-	return parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
-}
-
-func count(w frontend.Circuit) (nbSecret, nbPublic int) {
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret {
-			nbSecret++
-		} else if visibility == compiled.Public {
-			nbPublic++
-		}
-		return nil
-	}
-
-	err := parser.Visit(w, "", compiled.Unset, collectHandler, tVariable)
-	if err != nil {
-		panic("count handler doesn't return an error -- this panic should not happen")
-	}
-	return
+	_, err := schema.Parse(w, tVariable, collectHandler)
+	return err
 }
 
 // ToJSON extracts the full witness [ public | secret ] and returns a JSON string
 // or an error if it can't convert values to field elements
 func ToJSON(w frontend.Circuit) (string, error) {
-	nbSecret, nbPublic := count(w)
+	nbSecret, nbPublic := schema.Count(w, tVariable)
 
 	type jsonStruct struct {
 		Public map[string]string
@@ -180,7 +165,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 
 	var e fr.Element
 
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret {
@@ -204,7 +189,7 @@ func ToJSON(w frontend.Circuit) (string, error) {
 		}
 		return nil
 	}
-	if err := parser.Visit(w, "", compiled.Unset, collectHandler, tVariable); err != nil {
+	if _, err := schema.Parse(w, tVariable, collectHandler); err != nil {
 		return "", err
 	}
 

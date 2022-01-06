@@ -49,6 +49,21 @@ const (
 	Virtual
 )
 
+func (v Visibility) String() string {
+	switch v {
+	case Internal:
+		return "internal"
+	case Secret:
+		return "secret"
+	case Public:
+		return "public"
+	case Virtual:
+		return "virtual"
+	}
+
+	return "unset"
+}
+
 // Hint represents a solver hint
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs

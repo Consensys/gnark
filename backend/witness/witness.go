@@ -49,6 +49,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
@@ -56,7 +57,6 @@ import (
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
 )
 
 // WriteFullTo encodes the witness to a slice of []fr.Element and write the []byte on provided writer
@@ -160,7 +160,7 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 		}
 		return nil
 	}
-	if err := parser.Visit(circuit, "", compiled.Unset, collectHandler, tVariable); err != nil {
+	if _, err := schema.Parse(circuit, tVariable, collectHandler); err != nil {
 		return err
 	}
 
@@ -205,7 +205,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
+	_, _ = schema.Parse(witness, tVariable, collectHandler)
 
 	if nbPublic == 0 {
 		return 0, nil
@@ -241,7 +241,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 		return nil
 	}
 
-	if err := parser.Visit(witness, "", compiled.Unset, reader, tVariable); err != nil {
+	if _, err := schema.Parse(witness, tVariable, reader); err != nil {
 		return int64(read), err
 	}
 
@@ -265,7 +265,7 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 		}
 		return nil
 	}
-	_ = parser.Visit(witness, "", compiled.Unset, collectHandler, tVariable)
+	_, _ = schema.Parse(witness, tVariable, collectHandler)
 
 	if nbPublic == 0 && nbSecrets == 0 {
 		return 0, nil
@@ -310,12 +310,12 @@ func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64,
 	}
 
 	// public
-	if err := parser.Visit(witness, "", compiled.Unset, publicReader, tVariable); err != nil {
+	if _, err := schema.Parse(witness, tVariable, publicReader); err != nil {
 		return int64(read), err
 	}
 
 	// secret
-	if err := parser.Visit(witness, "", compiled.Unset, secretReader, tVariable); err != nil {
+	if _, err := schema.Parse(witness, tVariable, secretReader); err != nil {
 		return int64(read), err
 	}
 

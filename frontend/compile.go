@@ -8,8 +8,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
 )
 
 var tVariable reflect.Type
@@ -97,7 +97,7 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var handler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			switch visibility {
 			case compiled.Secret:
@@ -114,7 +114,7 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	if err := parser.Visit(circuit, "", compiled.Unset, handler, tVariable); err != nil {
+	if _, err := schema.Parse(circuit, tVariable, handler); err != nil {
 		return err
 	}
 
