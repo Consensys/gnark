@@ -59,10 +59,10 @@ func (h *MiMC) Reset() {
 // See github.com/consensys/gnark-crypto for reference implementation.
 func (h *MiMC) Sum() frontend.Variable {
 
-	//h.Write(data...)
+	//h.Write(data...)s
 	for _, stream := range h.data {
-		h.h = encryptFuncs[h.id](h.api, *h, stream, h.h)
-		h.h = h.api.Add(h.h, stream)
+		r := encryptFuncs[h.id](*h, stream)
+		h.h = h.api.Add(h.h, r, stream)
 	}
 
 	h.data = nil // flush the data already hashed

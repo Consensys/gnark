@@ -30,17 +30,17 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-var encryptFuncs map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable
+var encryptFuncs map[ecc.ID]func(MiMC, frontend.Variable) frontend.Variable
 var newMimc map[ecc.ID]func(string, frontend.API) MiMC
 
 func init() {
-	encryptFuncs = make(map[ecc.ID]func(frontend.API, MiMC, frontend.Variable, frontend.Variable) frontend.Variable)
-	encryptFuncs[ecc.BN254] = encryptBN254
-	encryptFuncs[ecc.BLS12_381] = encryptBLS381
-	encryptFuncs[ecc.BLS12_377] = encryptBLS377
-	encryptFuncs[ecc.BW6_761] = encryptBW761
-	encryptFuncs[ecc.BW6_633] = encryptBW633
-	encryptFuncs[ecc.BLS24_315] = encryptBLS315
+	encryptFuncs = make(map[ecc.ID]func(MiMC, frontend.Variable) frontend.Variable)
+	encryptFuncs[ecc.BN254] = encryptPow5
+	encryptFuncs[ecc.BLS12_381] = encryptPow5
+	encryptFuncs[ecc.BLS12_377] = encryptInverse
+	encryptFuncs[ecc.BW6_761] = encryptPow5
+	encryptFuncs[ecc.BW6_633] = encryptPow5
+	encryptFuncs[ecc.BLS24_315] = encryptPow5
 
 	newMimc = make(map[ecc.ID]func(string, frontend.API) MiMC)
 	newMimc[ecc.BN254] = newMimcBN254
@@ -141,96 +141,30 @@ func newMimcBW633(seed string, api frontend.API) MiMC {
 // -------------------------------------------------------------------------------------------------
 // encryptions functions
 
+func pow5(api frontend.API, x frontend.Variable) frontend.Variable {
+	r := api.Mul(x, x)
+	r = api.Mul(r, r)
+	return api.Mul(r, x)
+}
+
 // encryptBn256 of a mimc run expressed as r1cs
-func encryptBN254(api frontend.API, h MiMC, message, key frontend.Variable) frontend.Variable {
-	res := message
-	// one := big.NewInt(1)
+// m is the message, k the key
+func encryptPow5(h MiMC, m frontend.Variable) frontend.Variable {
+	x := m
 	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, key, h.params[i])
-		// res = (res+k+c)^5
-		res = api.Mul(tmp, tmp)
-		res = api.Mul(res, res)
-		res = api.Mul(res, tmp)
+		x = pow5(h.api, h.api.Add(x, h.h, h.params[i]))
 	}
-	res = api.Add(res, key)
-	return res
-
-}
-
-// execution of a mimc run expressed as r1cs
-func encryptBLS381(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
-
-	res := message
-
-	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, key, h.params[i])
-		// res = (res+k+c)^5
-		res = api.Mul(tmp, tmp) // square
-		res = api.Mul(res, res) // square
-		res = api.Mul(res, tmp) // mul
-	}
-	res = api.Add(res, key)
-	return res
-}
-
-// execution of a mimc run expressed as r1cs
-func encryptBW761(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
-
-	res := message
-
-	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, key, h.params[i])
-		// res = (res+k+c)^5
-		res = api.Mul(tmp, tmp) // square
-		res = api.Mul(res, res) // square
-		res = api.Mul(res, tmp) // mul
-	}
-	res = api.Add(res, key)
-	return res
-
+	return h.api.Add(x, h.h)
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-func encryptBLS377(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
-	res := message
+// only for bls377
+func encryptInverse(h MiMC, m frontend.Variable) frontend.Variable {
+	x := m
 	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, h.params[i], key)
 		// res = (res+key+c)**-1
-		res = api.Inverse(tmp)
+		x = h.api.Inverse(h.api.Add(x, h.h, h.params[i]))
 	}
-	res = api.Add(res, key)
-	return res
-
-}
-
-// encryptBLS315 of a mimc run expressed as r1cs
-func encryptBLS315(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
-	res := message
-	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, h.params[i], key)
-		// res = (res+k+c)^5
-		res = api.Mul(tmp, tmp) // square
-		res = api.Mul(res, res) // square
-		res = api.Mul(res, tmp) // mul
-	}
-	res = api.Add(res, key)
-	return res
-
-}
-
-// execution of a mimc run expressed as r1cs
-func encryptBW633(api frontend.API, h MiMC, message frontend.Variable, key frontend.Variable) frontend.Variable {
-
-	res := message
-
-	for i := 0; i < len(h.params); i++ {
-		tmp := api.Add(res, key, h.params[i])
-		// res = (res+k+c)^5
-		res = api.Mul(tmp, tmp) // square
-		res = api.Mul(res, res) // square
-		res = api.Mul(res, tmp) // mul
-	}
-	res = api.Add(res, key)
-	return res
+	return h.api.Add(x, h.h)
 
 }

@@ -28,7 +28,7 @@ import (
 
 type mimcCircuit struct {
 	ExpectedResult frontend.Variable `gnark:"data,public"`
-	Data           frontend.Variable
+	Data           [10]frontend.Variable
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -37,7 +37,7 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 		return err
 	}
 	//result := mimc.Sum(circuit.Data)
-	mimc.Write(circuit.Data)
+	mimc.Write(circuit.Data[:]...)
 	result := mimc.Sum()
 	api.AssertIsEqual(result, circuit.ExpectedResult)
 	return nil
@@ -45,11 +45,6 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 
 func TestMimcAll(t *testing.T) {
 	assert := test.NewAssert(t)
-
-	// input
-	var data, tamperedData big.Int
-	data.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919487", 10)
-	tamperedData.SetString("7808462342289447506325013279997289618334122576263655295146895675168642919488", 10)
 
 	curves := map[ecc.ID]hash.Hash{
 		ecc.BN254:     hash.MIMC_BN254,
@@ -65,20 +60,33 @@ func TestMimcAll(t *testing.T) {
 		// minimal cs res = hash(data)
 		var circuit, witness, wrongWitness mimcCircuit
 
+		modulus := curve.Info().Fr.Modulus()
+		var data [10]big.Int
+		data[0].Sub(modulus, big.NewInt(1))
+		for i := 1; i < 10; i++ {
+			data[i].Add(&data[i-1], &data[i-1]).Mod(&data[i], modulus)
+		}
+
 		// running MiMC (Go)
 		goMimc := hashFunc.New("seed")
-		goMimc.Write(data.Bytes())
-		b := goMimc.Sum(nil)
+		for i := 0; i < 10; i++ {
+			goMimc.Write(data[i].Bytes())
+		}
+		expectedh := goMimc.Sum(nil)
 
 		// assert correctness against correct witness
-		witness.Data = data
-		witness.ExpectedResult = b
-		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(curve))
+		for i := 0; i < 10; i++ {
+			witness.Data[i] = data[i].String()
+		}
+		witness.ExpectedResult = expectedh
+		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(curve))
 
 		// assert failure against wrong witness
-		wrongWitness.Data = tamperedData
-		wrongWitness.ExpectedResult = b
-		assert.ProverFailed(&circuit, &wrongWitness, test.WithCurves(curve))
+		for i := 0; i < 10; i++ {
+			wrongWitness.Data[i] = data[i].Sub(&data[i], big.NewInt(1)).String()
+		}
+		wrongWitness.ExpectedResult = expectedh
+		assert.SolvingFailed(&circuit, &wrongWitness, test.WithCurves(curve))
 	}
 
 }
