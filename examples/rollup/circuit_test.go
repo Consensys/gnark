@@ -26,13 +26,11 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type circuitSignature struct {
-	Circuit `gnark:",embed"`
-}
+type circuitSignature Circuit
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitSignature) Define(api frontend.API) error {
-	if err := t.postInit(api); err != nil {
+	if err := (*Circuit)(t).postInit(api); err != nil {
 		return err
 	}
 	hFunc, err := mimc.NewMiMC("seed", api)

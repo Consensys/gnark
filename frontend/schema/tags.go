@@ -28,7 +28,6 @@ const (
 	tagKey    Tag = "gnark"
 	optPublic Tag = "public"
 	optSecret Tag = "secret"
-	optEmbed  Tag = "embed"
 	optOmit   Tag = "-"
 )
 
