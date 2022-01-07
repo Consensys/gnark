@@ -266,6 +266,13 @@ func (e *engine) IsZero(i1 frontend.Variable) frontend.Variable {
 	return (0)
 }
 
+// Cmp returns 1 if i1>i2, 0 if i1==i2, -1 if i1<i2
+func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+	b1 := e.toBigInt(i1)
+	b2 := e.toBigInt(i2)
+	return e.toBigInt(b1.Cmp(&b2))
+}
+
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) != 0 {

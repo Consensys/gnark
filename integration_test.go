@@ -37,6 +37,7 @@ func TestIntegrationAPI(t *testing.T) {
 	sort.Strings(keys)
 
 	for i := range keys {
+
 		name := keys[i]
 		tData := circuits.Circuits[name]
 		assert.Run(func(assert *test.Assert) {
