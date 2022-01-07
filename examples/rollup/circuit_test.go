@@ -26,13 +26,11 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type circuitSignature struct {
-	Circuit `gnark:",embed"`
-}
+type circuitSignature Circuit
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitSignature) Define(api frontend.API) error {
-	if err := t.postInit(api); err != nil {
+	if err := (*Circuit)(t).postInit(api); err != nil {
 		return err
 	}
 	hFunc, err := mimc.NewMiMC("seed", api)
@@ -83,13 +81,11 @@ func TestCircuitSignature(t *testing.T) {
 
 }
 
-type circuitInclusionProof struct {
-	Circuit `gnark:",embed"`
-}
+type circuitInclusionProof Circuit
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitInclusionProof) Define(api frontend.API) error {
-	if err := t.postInit(api); err != nil {
+	if err := (*Circuit)(t).postInit(api); err != nil {
 		return err
 	}
 	hashFunc, err := mimc.NewMiMC("seed", api)
@@ -149,13 +145,11 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 }
 
-type circuitUpdateAccount struct {
-	Circuit `gnark:",embed"`
-}
+type circuitUpdateAccount Circuit
 
 // Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
 func (t *circuitUpdateAccount) Define(api frontend.API) error {
-	if err := t.postInit(api); err != nil {
+	if err := (*Circuit)(t).postInit(api); err != nil {
 		return err
 	}
 	verifyAccountUpdated(api, t.SenderAccountsBefore[0], t.ReceiverAccountsBefore[0],

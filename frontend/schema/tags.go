@@ -1,9 +1,37 @@
-package parser
+package schema
 
 import (
 	"strings"
 	"unicode"
 )
+
+// Tag is a (optional) struct tag one can add to Variable
+// to specify compiler.Compile() behavior
+//
+// the tag format is as follow:
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:"name,option"`
+// 		}
+// if empty, default resolves to variable name (here "Y") and secret visibility
+// similarly to json or xml struct tags, these are valid:
+// 		`gnark:",public"` or `gnark:"-"`
+// using "-" marks the variable as ignored by the Compile method. This can be useful when you need to
+// declare variables as aliases that are already allocated. For example
+// 		type MyCircuit struct {
+// 			Y frontend.Variable `gnark:",public"`
+//			Z frontend.Variable `gnark:"-"`
+// 		}
+// it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
+type Tag string
+
+const (
+	tagKey    Tag = "gnark"
+	optPublic Tag = "public"
+	optSecret Tag = "secret"
+	optOmit   Tag = "-"
+)
+
+// TODO @gbotrel checkout latest go1.17 tag lookup apis
 
 // Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -24,10 +52,10 @@ func parseTag(tag string) (string, tagOptions) {
 	return tag, tagOptions("")
 }
 
-// Contains reports whether a comma-separated list of options
+// contains reports whether a comma-separated list of options
 // contains a particular substr flag. substr must be surrounded by a
 // string boundary or commas.
-func (o tagOptions) Contains(optionName string) bool {
+func (o tagOptions) contains(optionName string) bool {
 	if len(o) == 0 {
 		return false
 	}

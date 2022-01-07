@@ -28,8 +28,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -605,7 +605,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 		return nil
 	}
 	// ignoring error, counter() always return nil
-	_ = parser.Visit(a, "", compiled.Unset, counter, tVariable)
+	_, _ = schema.Parse(a, tVariable, counter)
 
 	// no variables in nested struct, we use fmt std print function
 	if count == 0 {
@@ -632,7 +632,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_ = parser.Visit(a, "", compiled.Unset, printer, tVariable)
+	_, _ = schema.Parse(a, tVariable, printer)
 	sbb.WriteByte('}')
 }
 

@@ -5,8 +5,8 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/parser"
 )
 
 // ShallowClone clones given circuit
@@ -33,7 +33,7 @@ func ShallowClone(circuit frontend.Circuit) frontend.Circuit {
 func CopyWitness(to, from frontend.Circuit) {
 	var wValues []interface{}
 
-	var collectHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
 		if visibility == compiled.Secret || visibility == compiled.Public {
@@ -44,12 +44,12 @@ func CopyWitness(to, from frontend.Circuit) {
 		}
 		return nil
 	}
-	if err := parser.Visit(from, "", compiled.Unset, collectHandler, tVariable); err != nil {
+	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
 	i := 0
-	var setHandler parser.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Secret || visibility == compiled.Public {
 			tInput.Set(reflect.ValueOf((wValues[i])))
 			i++
@@ -57,7 +57,7 @@ func CopyWitness(to, from frontend.Circuit) {
 		return nil
 	}
 	// this can't error.
-	_ = parser.Visit(to, "", compiled.Unset, setHandler, tVariable)
+	_, _ = schema.Parse(to, tVariable, setHandler)
 
 }
 
