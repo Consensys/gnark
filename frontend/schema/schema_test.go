@@ -105,7 +105,7 @@ func TestSchemaCorrectness(t *testing.T) {
 
 	// build schema
 	witness := &Circuit{Z: make([]frontend.Variable, 3)}
-	s, err := schema.Parse(witness, tVariable)
+	s, err := schema.Parse(witness, tVariable, nil)
 	assert.NoError(err)
 
 	// instantiate a concrete object

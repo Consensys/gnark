@@ -198,15 +198,7 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 // If it can't fully re-construct the witness from the reader, returns an error
 // if the provided witness has 0 public Variables this function returns 0, nil
 func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	nbPublic := 0
-	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Public {
-			nbPublic++
-		}
-		return nil
-	}
-	_, _ = schema.Parse(witness, tVariable, collectHandler)
-
+	_, nbPublic := schema.Count(witness, tVariable)
 	if nbPublic == 0 {
 		return 0, nil
 	}
@@ -255,17 +247,7 @@ func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int6
 // If it can't fully re-construct the witness from the reader, returns an error
 // if the provided witness has 0 public Variables and 0 secret Variables this function returns 0, nil
 func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	nbPublic := 0
-	nbSecrets := 0
-	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Public {
-			nbPublic++
-		} else if visibility == compiled.Secret {
-			nbSecrets++
-		}
-		return nil
-	}
-	_, _ = schema.Parse(witness, tVariable, collectHandler)
+	nbSecrets, nbPublic := schema.Count(witness, tVariable)
 
 	if nbPublic == 0 && nbSecrets == 0 {
 		return 0, nil

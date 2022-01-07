@@ -35,13 +35,10 @@ type LeafHandler func(visibility compiled.Visibility, name string, tValue reflec
 // type frontend.Variable and return the corresponding Schema. Slices are converted to arrays.
 //
 // If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-func Parse(circuit interface{}, tLeaf reflect.Type, handler ...LeafHandler) (Schema, error) {
+func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
-	var h LeafHandler
-	if len(handler) > 0 {
-		h = handler[0]
-	}
-	return parse(nil, circuit, tLeaf, "", "", compiled.Unset, h)
+	// same for tLeaf it is in practice always frontend.Variable
+	return parse(nil, circuit, tLeaf, "", "", "", compiled.Unset, handler)
 }
 
 // Instantiate builds a concrete type using reflect matching the provided schema.
@@ -103,7 +100,10 @@ func structTag(baseNameTag string, visibility compiled.Visibility) reflect.Struc
 	return reflect.StructTag(fmt.Sprintf("`gnark:\"%s,%s\" json:\"%s\"`", baseNameTag, visibility.String(), baseNameTag))
 }
 
-func parse(r []Field, input interface{}, target reflect.Type, parentName, parentNameTag string, parentVisibility compiled.Visibility, handler LeafHandler) ([]Field, error) {
+// parentFullName: the name of parent with its ancestors separated by "_"
+// parentGoName: the name of parent (Go struct definition)
+// parentTagName: may be empty, set if a struct tag with name is set
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility compiled.Visibility, handler LeafHandler) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -119,14 +119,15 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 				if v == compiled.Unset {
 					v = compiled.Secret
 				}
-				if err := handler(v, parentName, tValue); err != nil {
+
+				if err := handler(v, parentFullName, tValue); err != nil {
 					return nil, err
 				}
 			}
 			// we just add it to our current fields
 			return append(r, Field{
-				Name:       parentName,
-				NameTag:    parentNameTag,
+				Name:       parentGoName,
+				NameTag:    parentTagName,
 				Type:       Leaf,
 				Visibility: parentVisibility,
 			}), nil
@@ -167,14 +168,14 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 				} else if opts.contains(string(optPublic)) {
 					visibility = compiled.Public
 				} else {
-					return r, fmt.Errorf("invalid gnark struct tag option on %s. must be \"public\", \"secret\" or \"-\"", appendName(parentName, name))
+					return r, fmt.Errorf("invalid gnark struct tag option on %s. must be \"public\", \"secret\" or \"-\"", getFullName(parentGoName, name, nameTag))
 				}
 			}
 
 			if ((parentVisibility == compiled.Public) && (visibility == compiled.Secret)) ||
 				((parentVisibility == compiled.Secret) && (visibility == compiled.Public)) {
 				// TODO @gbotrel maybe we should just force it to take the parent value.
-				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", appendName(parentName, name), visibility.String())
+				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", getFullName(parentGoName, name, nameTag), visibility.String())
 			}
 
 			fValue := tValue.FieldByIndex(f.Index)
@@ -182,14 +183,14 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
 				var err error
-				subFields, err = parse(subFields, value, target, name, nameTag, visibility, handler)
+				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler)
 				if err != nil {
 					return r, err
 				}
 			}
 		}
 
-		if parentName == "" {
+		if parentGoName == "" {
 			// root
 			return subFields, nil
 		}
@@ -202,8 +203,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 			return r, nil
 		}
 		return append(r, Field{
-			Name:       parentName,
-			NameTag:    parentNameTag,
+			Name:       parentGoName,
+			NameTag:    parentTagName,
 			Type:       Struct,
 			SubFields:  subFields,
 			Visibility: parentVisibility, // == compiled.Secret,
@@ -214,7 +215,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 	if tValue.Kind() == reflect.Slice || tValue.Kind() == reflect.Array {
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
-				fmt.Printf("ignoring unitizalized slice: %s %s\n", parentName, reflect.SliceOf(target).String())
+				fmt.Printf("ignoring uninitizalized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
 			}
 			return r, nil
 		}
@@ -230,15 +231,16 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 			for j := 0; j < tValue.Len(); j++ {
 				val := tValue.Index(j)
 				if val.CanAddr() && val.Addr().CanInterface() {
-					if _, err := parse(nil, val.Addr().Interface(), target, appendName(parentName, strconv.Itoa(j)), parentNameTag, parentVisibility, handler); err != nil {
+					fqn := getFullName(parentFullName, strconv.Itoa(j), "")
+					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler); err != nil {
 						return nil, err
 					}
 				}
 			}
 
 			return append(r, Field{
-				Name:       parentName,
-				NameTag:    parentNameTag,
+				Name:       parentGoName,
+				NameTag:    parentTagName,
 				Type:       Array,
 				Visibility: parentVisibility,
 				ArraySize:  tValue.Len(),
@@ -251,7 +253,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 		for j := 0; j < tValue.Len(); j++ {
 			val := tValue.Index(j)
 			if val.CanAddr() && val.Addr().CanInterface() {
-				subFields, err = parse(subFields, val.Addr().Interface(), target, appendName(parentName, strconv.Itoa(j)), parentNameTag, parentVisibility, handler)
+				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
+				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler)
 				if err != nil {
 					return nil, err
 				}
@@ -262,8 +265,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 			return r, nil
 		}
 		return append(r, Field{
-			Name:       parentName,
-			NameTag:    parentNameTag,
+			Name:       parentGoName,
+			NameTag:    parentTagName,
 			Type:       Array,
 			SubFields:  subFields[:1], // TODO @gbotrel we should ensure that elements are not heterogeneous?
 			Visibility: parentVisibility,
@@ -275,11 +278,17 @@ func parse(r []Field, input interface{}, target reflect.Type, parentName, parent
 	return r, nil
 }
 
-func appendName(baseName, name string) string {
-	if baseName == "" {
-		return name
+// specify parentName, name and tag
+// returns fully qualified name
+func getFullName(parentFullName, name, tagName string) string {
+	n := name
+	if tagName != "" {
+		n = tagName
 	}
-	return baseName + "_" + name
+	if parentFullName == "" {
+		return n
+	}
+	return parentFullName + "_" + n
 }
 
 // Count returns the the number of target type associated with Secret or Public visibility
@@ -293,6 +302,6 @@ func Count(input interface{}, target reflect.Type) (nbSecret, nbPublic int) {
 		}
 		return nil
 	}
-	_, _ = parse(nil, input, target, "", "", compiled.Unset, collectHandler)
+	_, _ = parse(nil, input, target, "", "", "", compiled.Unset, collectHandler)
 	return
 }
