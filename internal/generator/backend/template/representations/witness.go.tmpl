@@ -1,10 +1,8 @@
 import (
     "reflect"
-    "errors"
     "fmt"
     "io"
     "encoding/binary"
-    "encoding/json"
 
     "github.com/consensys/gnark/internal/backend/compiled"
     "github.com/consensys/gnark/frontend"
@@ -36,35 +34,6 @@ func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
     return enc.BytesWritten() + 4, nil
 }
 
-// LimitReadFrom decodes witness from reader; first 4 bytes (uint32) must equal to expectedSize
-// this method won't read more than expectedSize * size(fr.Element)
-func (witness *Witness) LimitReadFrom(r io.Reader, expectedSize int) (int64, error) {
-
-	var buf [4]byte
-	if read, err := io.ReadFull(r, buf[:4]); err != nil {
-        return int64(read), err 
-    }
-	sliceLen := binary.BigEndian.Uint32(buf[:4])
-    if int(sliceLen) != expectedSize {
-        return 4, errors.New("invalid witness size")
-    }
-
-    if len(*witness) != int(sliceLen) {
-        *witness = make([]fr.Element, sliceLen)
-    }
-
-    lr := io.LimitReader(r, int64(expectedSize * fr.Limbs * 8))
-    dec := curve.NewDecoder(lr)
-
-    for i:=0; i < int(sliceLen); i++ {
-        if err := dec.Decode(&(*witness)[i]); err != nil {
-		    return dec.BytesRead() + 4, err
-	    }
-    }
-	
-
-    return dec.BytesRead() + 4, nil 
-}
 
 func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 
@@ -154,133 +123,7 @@ func (witness *Witness) CopyTo(to interface{}, toLeafType reflect.Type, publicOn
 
 }
 
-// FromFullAssignment extracts the full witness [ public | secret ]
-func (witness *Witness) FromFullAssignment(w frontend.Circuit) error  {
-    nbSecret, nbPublic := schema.Count(w, tVariable)
 
-    if len(*witness) < (nbPublic + nbSecret) {
-        (*witness) = make(Witness, nbPublic + nbSecret)
-    } else {
-        (*witness) = (*witness)[:nbPublic + nbSecret]
-    }
-
-    var i, j int // indexes for secret / public variables
-    i = nbPublic // offset
-
-    var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-        v := tInput.Interface().(frontend.Variable)
-
-        if v == nil {
-            return fmt.Errorf("when parsing variable %s: missing assignment", name) 
-        }
-
-        if visibility == compiled.Secret {
-            if _, err := (*witness)[i].SetInterface(v) ; err != nil {
-                return fmt.Errorf("when parsing variable %s: %v", name, err) 
-            }
-            i++
-        } else if visibility == compiled.Public {
-            if _, err := (*witness)[j].SetInterface(v) ; err != nil {
-                return fmt.Errorf("when parsing variable %s: %v", name, err) 
-            }
-            j++
-        }
-        return nil
-    }
-    _, err := schema.Parse(w, tVariable,  collectHandler)
-    return err
-}
-
-// FromPublicAssignment extracts the public part of witness
-func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
-    _, nbPublic := schema.Count(w, tVariable)
-
-    // note: does not contain ONE_WIRE for Groth16
-     if len(*witness) < (nbPublic ) {
-        (*witness) = make(Witness, nbPublic )
-    } else {
-        (*witness) = (*witness)[:nbPublic ]
-    }
-    var j int // index for public variables
- 
-
-    var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-       if visibility == compiled.Public {
-            if tInput.IsNil() {
-                return fmt.Errorf("when parsing variable %s: missing assignment", name)
-            }
-            v := tInput.Interface().(frontend.Variable)
-
-            if v == nil {
-                return fmt.Errorf("when parsing variable %s: missing assignment", name) 
-            }
-
-            if _, err := (*witness)[j].SetInterface(v) ; err != nil {
-                return fmt.Errorf("when parsing variable %s: %v", name, err) 
-            }
-            j++
-        }
-        return nil
-    }
-       _, err := schema.Parse(w, tVariable,  collectHandler)
-    return err
-}
-
-
-
-
-// ToJSON extracts the full witness [ public | secret ] and returns a JSON string
-// or an error if it can't convert values to field elements
-func ToJSON(w frontend.Circuit) (string, error)  {
-    nbSecret, nbPublic := schema.Count(w, tVariable)
-
-    type jsonStruct struct {
-        Public map[string]string
-        Secret map[string]string
-    }
-
-    toPrint := jsonStruct{
-        Public: make(map[string]string, nbPublic),
-        Secret: make(map[string]string, nbSecret),
-    }
-
-    var e fr.Element
-
-    var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-        v := tInput.Interface().(frontend.Variable)
-
-        if visibility == compiled.Secret {
-            if v == nil {
-                toPrint.Secret[name] = "<nil>"
-            } else {
-                if _, err := e.SetInterface(v) ; err != nil {
-                    return fmt.Errorf("when parsing variable %s: %v", name, err) 
-                }
-                toPrint.Secret[name] = e.String()
-            }
-        } else if visibility == compiled.Public {
-            if v == nil {
-                toPrint.Public[name] = "<nil>"
-            } else {
-                if _, err := e.SetInterface(v) ; err != nil {
-                    return fmt.Errorf("when parsing variable %s: %v", name, err) 
-                }
-                toPrint.Public[name] = e.String()
-            }
-        }
-        return nil
-    }
-    if _, err := schema.Parse(w, tVariable, collectHandler); err != nil {
-        return "", err
-    }
-    
-
-    prettyJSON, err := json.MarshalIndent(toPrint, "", "    ")
-    if err != nil {
-       return "", err 
-    }
-    return string(prettyJSON), nil 
-}
 
 
 var tVariable reflect.Type

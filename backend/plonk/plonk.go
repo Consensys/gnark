@@ -333,37 +333,37 @@ func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, o
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
 		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6633.SparseR1CS:
 		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)

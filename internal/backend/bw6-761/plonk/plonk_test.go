@@ -101,7 +101,7 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -123,12 +123,12 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution, false)
 	if err != nil {
 		b.Fatal(err)
 	}
 	publicWitness := bw6_761witness.Witness{}
-	err = publicWitness.FromPublicAssignment(_solution)
+	_, err = publicWitness.FromAssignment(_solution, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func BenchmarkVerifier(b *testing.B) {
 func BenchmarkSerialization(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution, false)
 	if err != nil {
 		b.Fatal(err)
 	}

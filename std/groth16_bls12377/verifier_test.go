@@ -71,7 +71,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	correctAssignment := witness.Witness{}
 
-	err = correctAssignment.FromFullAssignment(&w)
+	_, err = correctAssignment.FromAssignment(&w, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Krs = _proof.Krs
 
 	correctAssignmentPublic := witness.Witness{}
-	err = correctAssignmentPublic.FromPublicAssignment(&w)
+	_, err = correctAssignmentPublic.FromAssignment(&w, true)
 	if err != nil {
 		t.Fatal(err)
 	}
