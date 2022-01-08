@@ -20,6 +20,7 @@
 package plonk
 
 import (
+	"errors"
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -28,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 
+	"github.com/consensys/gnark/backend/witness"
 	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	cs_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	cs_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -116,7 +118,7 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -126,46 +128,46 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), *w, opt)
 
 	case *cs_bls12381.SparseR1CS:
-		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, opt)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), *w, opt)
 
 	case *cs_bls12377.SparseR1CS:
-		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, opt)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), *w, opt)
 
 	case *cs_bw6761.SparseR1CS:
-		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, opt)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), *w, opt)
 
 	case *cs_bw6633.SparseR1CS:
-		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), w, opt)
+		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), *w, opt)
 
 	case *cs_bls24315.SparseR1CS:
-		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return nil, errors.New("invalid witness")
 		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, opt)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), *w, opt)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")
@@ -173,51 +175,51 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 }
 
 // Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
-func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error {
 
 	switch _proof := proof.(type) {
 
 	case *plonk_bn254.Proof:
-		w := witness_bn254.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w)
+		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), *w)
 
 	case *plonk_bls12381.Proof:
-		w := witness_bls12381.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w)
+		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), *w)
 
 	case *plonk_bls12377.Proof:
-		w := witness_bls12377.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w)
+		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), *w)
 
 	case *plonk_bw6761.Proof:
-		w := witness_bw6761.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w)
+		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), *w)
 
 	case *plonk_bw6633.Proof:
-		w := witness_bw6633.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w)
+		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), *w)
 
 	case *plonk_bls24315.Proof:
-		w := witness_bls24315.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return errors.New("invalid witness")
 		}
-		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w)
+		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), *w)
 
 	default:
 		panic("unrecognized proof type")

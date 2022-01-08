@@ -103,22 +103,23 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
 				checkError(err)
 
+				_validWitnessFull, err := witness.New(validWitness, curve)
+				checkError(err)
+
+				_validWitnessPublic, err := witness.New(validWitness, curve, witness.PublicOnly())
+				checkError(err)
+
 				switch b {
 				case backend.GROTH16:
 					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
 
 					// ensure prove / verify works well with valid witnesses
-					w, err := witness.New(validWitness, curve)
+
+					proof, err := groth16.Prove(ccs, pk, _validWitnessFull, opt.proverOpts...)
 					checkError(err)
 
-					proof, err := groth16.Prove(ccs, pk, w, opt.proverOpts...)
-					checkError(err)
-
-					w, err = witness.New(validWitness, curve, witness.PublicOnly())
-					checkError(err)
-
-					err = groth16.Verify(proof, vk, w)
+					err = groth16.Verify(proof, vk, _validWitnessPublic)
 					checkError(err)
 
 					// same thing through serialized witnesses
@@ -151,10 +152,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
 
-					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
+					correctProof, err := plonk.Prove(ccs, pk, _validWitnessFull, opt.proverOpts...)
 					checkError(err)
 
-					err = plonk.Verify(correctProof, vk, validWitness)
+					err = plonk.Verify(correctProof, vk, _validWitnessPublic)
 					checkError(err)
 
 					// witness serialization tests.
@@ -219,6 +220,11 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
 				mustError(err)
 
+				_invalidWitness, err := witness.New(invalidWitness, curve)
+				checkError(err)
+				_invalidWitnessPublic, err := witness.New(invalidWitness, curve, witness.PublicOnly())
+				checkError(err)
+
 				switch b {
 				case backend.GROTH16:
 					pk, vk, err := groth16.Setup(ccs)
@@ -227,14 +233,9 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					err = groth16.IsSolved(ccs, invalidWitness)
 					mustError(err)
 
-					w, err := witness.New(invalidWitness, curve)
-					checkError(err)
-					proof, _ := groth16.Prove(ccs, pk, w, popts...)
+					proof, _ := groth16.Prove(ccs, pk, _invalidWitness, popts...)
 
-					w, err = witness.New(invalidWitness, curve, witness.PublicOnly())
-					checkError(err)
-
-					err = groth16.Verify(proof, vk, w)
+					err = groth16.Verify(proof, vk, _invalidWitnessPublic)
 					mustError(err)
 
 				case backend.PLONK:
@@ -247,8 +248,8 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					err = plonk.IsSolved(ccs, invalidWitness)
 					mustError(err)
 
-					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
-					err = plonk.Verify(incorrectProof, vk, invalidWitness)
+					incorrectProof, _ := plonk.Prove(ccs, pk, _invalidWitness, popts...)
+					err = plonk.Verify(incorrectProof, vk, _invalidWitnessPublic)
 					mustError(err)
 
 				default:
