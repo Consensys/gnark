@@ -42,12 +42,10 @@ package witness
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -352,36 +350,6 @@ func (w *Witness) getType() (reflect.Type, error) {
 	}
 }
 
-// WriteFullTo encodes the witness to a slice of []fr.Element and write the []byte on provided writer
-func WriteFullTo(w io.Writer, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	_w, err := New(witness, curveID)
-	if err != nil {
-		return 0, err
-	}
-	data, err := _w.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
-	n, err := w.Write(data)
-	return int64(n), err
-}
-
-// WritePublicTo encodes the witness to a slice of []fr.Element and write the result on provided writer
-func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) (int64, error) {
-	_w, err := New(publicWitness, curveID, PublicOnly())
-	if err != nil {
-		return 0, err
-	}
-	ww := &witness_bn254.Witness{}
-	ww.FromPublicAssignment(publicWitness)
-	data, err := _w.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
-	n, err := w.Write(data)
-	return int64(n), err
-}
-
 // WriteSequence writes the expected sequence order of the witness on provided writer
 // witness elements are identified by their tag name, or if unset, struct & field name
 func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
@@ -423,113 +391,6 @@ func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 	}
 
 	return nil
-}
-
-// ReadPublicFrom reads bytes from provided reader and attempts to reconstruct
-// a statically typed witness, with big.Int values
-// The stream must match the binary protocol to encode witnesses
-// This function will read at most the number of expected bytes
-// If it can't fully re-construct the witness from the reader, returns an error
-// if the provided witness has 0 public Variables this function returns 0, nil
-func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return 0, err
-	}
-	w := Witness{
-		CurveID: curveID,
-	}
-	if err := w.UnmarshalBinary(data); err != nil {
-		return 0, err
-	}
-	err = w.copyTo(witness, tVariable)
-
-	return int64(len(data)), err
-}
-
-// ReadFullFrom reads bytes from provided reader and attempts to reconstruct
-// a statically typed witness, with big.Int values
-// The stream must match the binary protocol to encode witnesses
-// This function will read at most the number of expected bytes
-// If it can't fully re-construct the witness from the reader, returns an error
-// if the provided witness has 0 public Variables and 0 secret Variables this function returns 0, nil
-func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	nbSecrets, nbPublic := schema.Count(witness, tVariable)
-
-	if nbPublic == 0 && nbSecrets == 0 {
-		return 0, nil
-	}
-
-	// first 4 bytes have number of bytes
-	var buf [4]byte
-	if read, err := io.ReadFull(r, buf[:4]); err != nil {
-		return int64(read), err
-	}
-	sliceLen := binary.BigEndian.Uint32(buf[:4])
-	if int(sliceLen) != (nbPublic + nbSecrets) {
-		return 4, errors.New("invalid witness size")
-	}
-
-	elementSize := curveID.Info().Fr.Bytes
-	expectedSize := elementSize * (nbPublic + nbSecrets)
-
-	lr := io.LimitReader(r, int64(expectedSize*elementSize))
-	read := 4
-
-	bufElement := make([]byte, elementSize)
-
-	reader := func(targetVisibility, visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == targetVisibility {
-			r, err := io.ReadFull(lr, bufElement)
-			read += r
-			if err != nil {
-				return err
-			}
-			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
-		}
-		return nil
-	}
-
-	publicReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		return reader(compiled.Public, visibility, name, tInput)
-	}
-
-	secretReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		return reader(compiled.Secret, visibility, name, tInput)
-	}
-
-	// public
-	if _, err := schema.Parse(witness, tVariable, publicReader); err != nil {
-		return int64(read), err
-	}
-
-	// secret
-	if _, err := schema.Parse(witness, tVariable, secretReader); err != nil {
-		return int64(read), err
-	}
-
-	return int64(read), nil
-}
-
-// ToJSON outputs a JSON string with variableName: value
-// values are first converted to field element (mod base curve modulus)
-func ToJSON(witness frontend.Circuit, curveID ecc.ID) (string, error) {
-	switch curveID {
-	case ecc.BN254:
-		return witness_bn254.ToJSON(witness)
-	case ecc.BLS12_377:
-		return witness_bls12377.ToJSON(witness)
-	case ecc.BLS12_381:
-		return witness_bls12381.ToJSON(witness)
-	case ecc.BW6_761:
-		return witness_bw6761.ToJSON(witness)
-	case ecc.BLS24_315:
-		return witness_bls24315.ToJSON(witness)
-	case ecc.BW6_633:
-		return witness_bw6633.ToJSON(witness)
-	default:
-		panic("not implemented")
-	}
 }
 
 var tVariable reflect.Type

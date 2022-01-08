@@ -1,8 +1,6 @@
 package witness
 
 import (
-	"bytes"
-	"math/big"
 	"reflect"
 	"testing"
 
@@ -33,13 +31,24 @@ func TestReconstructionPublic(t *testing.T) {
 	wPublic.X = *(e.SetInt64(42))
 	wPublic.Y = *(e.SetInt64(8000))
 
-	var buf bytes.Buffer
-	written, err := WritePublicTo(&buf, ecc.BN254, &wPublic)
+	// build the vector
+	w, err := New(&wPublic, ecc.BN254, PublicOnly())
 	assert.NoError(err)
 
-	read, err := ReadPublicFrom(&buf, ecc.BN254, &wPublicReconstructed)
+	// serialize the vector to binary
+	data, err := w.MarshalBinary()
 	assert.NoError(err)
-	assert.Equal(written, read)
+
+	// re-read
+	wReconstructed := Witness{
+		CurveID: ecc.BN254,
+	}
+	err = wReconstructed.UnmarshalBinary(data)
+	assert.NoError(err)
+
+	// reconstruct a circuit object
+	err = wReconstructed.copyTo(&wPublicReconstructed, tVariable)
+	assert.NoError(err)
 
 	if !reflect.DeepEqual(wPublic, wPublicReconstructed) {
 		t.Fatal("public witness reconstructed doesn't match original value")
@@ -50,19 +59,31 @@ func TestReconstructionFull(t *testing.T) {
 	assert := require.New(t)
 
 	var wFull, wFullReconstructed circuit
-	wFull.X = new(big.Int).SetInt64(42)
-	wFull.Y = new(big.Int).SetInt64(8000)
-	wFull.E = new(big.Int).SetInt64(1)
+	var e fr.Element
+	wFull.X = *(e.SetInt64(42))
+	wFull.Y = *(e.SetInt64(8000))
+	wFull.E = *(e.SetInt64(1))
 
-	var buf bytes.Buffer
-	written, err := WriteFullTo(&buf, ecc.BN254, &wFull)
+	// build the vector
+	w, err := New(&wFull, ecc.BN254)
 	assert.NoError(err)
 
-	read, err := ReadFullFrom(&buf, ecc.BN254, &wFullReconstructed)
+	// serialize the vector to binary
+	data, err := w.MarshalBinary()
 	assert.NoError(err)
-	assert.Equal(written, read)
+
+	// re-read
+	wReconstructed := Witness{
+		CurveID: ecc.BN254,
+	}
+	err = wReconstructed.UnmarshalBinary(data)
+	assert.NoError(err)
+
+	// reconstruct a circuit object
+	err = wReconstructed.copyTo(&wFullReconstructed, tVariable)
+	assert.NoError(err)
 
 	if !reflect.DeepEqual(wFull, wFullReconstructed) {
-		t.Fatal("public witness reconstructed doesn't match original value")
+		t.Fatal("full witness reconstructed doesn't match original value")
 	}
 }

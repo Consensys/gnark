@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
@@ -43,11 +44,11 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:25 13 is the addition\n")
-	expected.WriteString("debug_test.go:27 26 42\n")
-	expected.WriteString("debug_test.go:29 bits 1\n")
-	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:34 m <unsolved>\n")
+	expected.WriteString("debug_test.go:26 13 is the addition\n")
+	expected.WriteString("debug_test.go:28 26 42\n")
+	expected.WriteString("debug_test.go:30 bits 1\n")
+	expected.WriteString("debug_test.go:31 circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:35 m <unsolved>\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -191,7 +192,7 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 	return buf.String(), err
 }
 
-func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
+func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit)
 	if err != nil {
 		return "", err
@@ -203,6 +204,10 @@ func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	_, err = groth16.Prove(ccs, pk, witness, backend.WithOutput(&buf))
+	sw, err := witness.New(w, ecc.BN254)
+	if err != nil {
+		return "", err
+	}
+	_, err = groth16.Prove(ccs, pk, sw, backend.WithOutput(&buf))
 	return buf.String(), err
 }

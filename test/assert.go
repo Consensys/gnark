@@ -17,7 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -88,8 +87,6 @@ func (assert *Assert) Log(v ...interface{}) {
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
-	var buf bytes.Buffer
-
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
 		for _, b := range opt.backends {
@@ -112,29 +109,39 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					checkError(err)
 
 					// ensure prove / verify works well with valid witnesses
-					proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
+					w, err := witness.New(validWitness, curve)
 					checkError(err)
 
-					err = groth16.Verify(proof, vk, validWitness)
+					proof, err := groth16.Prove(ccs, pk, w, opt.proverOpts...)
+					checkError(err)
+
+					w, err = witness.New(validWitness, curve, witness.PublicOnly())
+					checkError(err)
+
+					err = groth16.Verify(proof, vk, w)
 					checkError(err)
 
 					// same thing through serialized witnesses
 					if opt.witnessSerialization {
-						buf.Reset()
+						// TODO @gbotrel fixme
+						// buf.Reset()
 
-						_, err = witness.WriteFullTo(&buf, curve, validWitness)
-						checkError(err)
+						// w, err := witness.New(validWitness, curve)
+						// // _, err = witness.WriteFullTo(&buf, curve, validWitness)
+						// checkError(err)
+						// data, err := w.MarshalBinary()
+						// checkError(err)
 
-						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
-						checkError(err)
+						// correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
+						// checkError(err)
 
-						buf.Reset()
+						// buf.Reset()
 
-						_, err = witness.WritePublicTo(&buf, curve, validWitness)
-						checkError(err)
+						// _, err = witness.WritePublicTo(&buf, curve, validWitness)
+						// checkError(err)
 
-						err = groth16.ReadAndVerify(correctProof, vk, &buf)
-						checkError(err)
+						// err = groth16.ReadAndVerify(correctProof, vk, &buf)
+						// checkError(err)
 					}
 
 				case backend.PLONK:
@@ -152,21 +159,22 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 
 					// witness serialization tests.
 					if opt.witnessSerialization {
-						buf.Reset()
+						// TODO @gbotrel fixme
+						// buf.Reset()
 
-						_, err := witness.WriteFullTo(&buf, curve, validWitness)
-						checkError(err)
+						// _, err := witness.WriteFullTo(&buf, curve, validWitness)
+						// checkError(err)
 
-						correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
-						checkError(err)
+						// correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
+						// checkError(err)
 
-						buf.Reset()
+						// buf.Reset()
 
-						_, err = witness.WritePublicTo(&buf, curve, validWitness)
-						checkError(err)
+						// _, err = witness.WritePublicTo(&buf, curve, validWitness)
+						// checkError(err)
 
-						err = plonk.ReadAndVerify(correctProof, vk, &buf)
-						checkError(err)
+						// err = plonk.ReadAndVerify(correctProof, vk, &buf)
+						// checkError(err)
 					}
 
 				default:
@@ -219,9 +227,14 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					err = groth16.IsSolved(ccs, invalidWitness)
 					mustError(err)
 
-					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
+					w, err := witness.New(invalidWitness, curve)
+					checkError(err)
+					proof, _ := groth16.Prove(ccs, pk, w, popts...)
 
-					err = groth16.Verify(proof, vk, invalidWitness)
+					w, err = witness.New(invalidWitness, curve, witness.PublicOnly())
+					checkError(err)
+
+					err = groth16.Verify(proof, vk, w)
 					mustError(err)
 
 				case backend.PLONK:
@@ -471,13 +484,24 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 		return
 	}
 	var json string
-	json, err = witness.ToJSON(w, curve)
+
+	defer func() {
+		e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
+
+		assert.FailNow(e.Error())
+	}()
+
+	witness, err := witness.New(w, curve)
 	if err != nil {
 		json = err.Error()
+		return
 	}
-	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
-
-	assert.FailNow(e.Error())
+	bjson, err := witness.MarshalJSON()
+	if err != nil {
+		json = err.Error()
+		return
+	}
+	json = string(bjson)
 }
 
 // ensure the error is nil, else fails the test
@@ -485,12 +509,22 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 	if err == nil {
 		return
 	}
-	e := fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
-	json, err := witness.ToJSON(w, curve)
+	var e error
+	defer func() {
+		assert.FailNow(e.Error())
+	}()
+
+	var json string
+	e = fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
+	witness, err := witness.New(w, curve)
 	if err != nil {
-		e = fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
-	} else if w != nil {
-		e = fmt.Errorf("%w\nwitness:%s", e, json)
+		return
 	}
-	assert.FailNow(e.Error())
+	bjson, err := witness.MarshalJSON()
+	if err != nil {
+		json = err.Error()
+	} else {
+		json = string(bjson)
+	}
+	e = fmt.Errorf("%w\nwitness:%s", e, json)
 }
