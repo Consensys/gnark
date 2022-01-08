@@ -35,6 +35,10 @@ import (
 
 type Witness []fr.Element
 
+// that's public and modifiable. Fine since it's internal for now
+// TODO @gbotrel get rid of that through generics
+var T = reflect.TypeOf(fr.Element{})
+
 // WriteTo encodes witness to writer (implements io.WriterTo)
 func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
 	// encode slice length
@@ -78,6 +82,92 @@ func (witness *Witness) LimitReadFrom(r io.Reader, expectedSize int) (int64, err
 	}
 
 	return dec.BytesRead() + 4, nil
+}
+
+func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
+
+	var buf [4]byte
+	if read, err := io.ReadFull(r, buf[:4]); err != nil {
+		return int64(read), err
+	}
+	sliceLen := binary.BigEndian.Uint32(buf[:4])
+
+	if len(*witness) != int(sliceLen) {
+		*witness = make([]fr.Element, sliceLen)
+	}
+
+	dec := curve.NewDecoder(r)
+
+	for i := 0; i < int(sliceLen); i++ {
+		if err := dec.Decode(&(*witness)[i]); err != nil {
+			return dec.BytesRead() + 4, err
+		}
+	}
+
+	return dec.BytesRead() + 4, nil
+}
+
+// FromAssignment extracts the witness and its schema
+func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (schema.Schema, error) {
+	nbSecret, nbPublic := schema.Count(w, tVariable)
+
+	if publicOnly {
+		nbSecret = 0
+	}
+
+	if len(*witness) < (nbPublic + nbSecret) {
+		(*witness) = make(Witness, nbPublic+nbSecret)
+	} else {
+		(*witness) = (*witness)[:nbPublic+nbSecret]
+	}
+
+	var i, j int // indexes for secret / public variables
+	i = nbPublic // offset
+
+	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if publicOnly && visibility != compiled.Public {
+			return nil
+		}
+		if tInput.IsNil() {
+			return fmt.Errorf("when parsing variable %s: missing assignment", name)
+		}
+		v := tInput.Interface().(frontend.Variable)
+
+		if v == nil {
+			return fmt.Errorf("when parsing variable %s: missing assignment", name)
+		}
+
+		if !publicOnly && visibility == compiled.Secret {
+			if _, err := (*witness)[i].SetInterface(v); err != nil {
+				return fmt.Errorf("when parsing variable %s: %v", name, err)
+			}
+			i++
+		} else if visibility == compiled.Public {
+			if _, err := (*witness)[j].SetInterface(v); err != nil {
+				return fmt.Errorf("when parsing variable %s: %v", name, err)
+			}
+			j++
+		}
+		return nil
+	}
+	return schema.Parse(w, tVariable, collectHandler)
+}
+
+func (witness *Witness) CopyTo(to interface{}, toLeafType reflect.Type, publicOnly bool) {
+	i := 0
+	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+		if publicOnly && visibility != compiled.Public {
+			return nil
+		}
+		if visibility == compiled.Secret || visibility == compiled.Public {
+			tInput.Set(reflect.ValueOf(((*witness)[i])))
+			i++
+		}
+		return nil
+	}
+	// this can't error.
+	_, _ = schema.Parse(to, toLeafType, setHandler)
+
 }
 
 // FromFullAssignment extracts the full witness [ public | secret ]
@@ -131,6 +221,9 @@ func (witness *Witness) FromPublicAssignment(w frontend.Circuit) error {
 
 	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if visibility == compiled.Public {
+			if tInput.IsNil() {
+				return fmt.Errorf("when parsing variable %s: missing assignment", name)
+			}
 			v := tInput.Interface().(frontend.Variable)
 
 			if v == nil {

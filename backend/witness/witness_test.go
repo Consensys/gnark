@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/require"
 )
@@ -28,8 +29,9 @@ func TestReconstructionPublic(t *testing.T) {
 	assert := require.New(t)
 
 	var wPublic, wPublicReconstructed circuit
-	wPublic.X = new(big.Int).SetInt64(42)
-	wPublic.Y = new(big.Int).SetInt64(8000)
+	var e fr.Element
+	wPublic.X = *(e.SetInt64(42))
+	wPublic.Y = *(e.SetInt64(8000))
 
 	var buf bytes.Buffer
 	written, err := WritePublicTo(&buf, ecc.BN254, &wPublic)
