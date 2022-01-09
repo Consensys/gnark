@@ -67,11 +67,18 @@ type Witness struct {
 	CurveID ecc.ID        // should be redundant with generic impl
 }
 
-// New build an orderded vector of field elements from the given witness (frontend.Circuit)
+var (
+	errMissingSchema  = errors.New("missing Schema")
+	errEmptyWitness   = errors.New("empty witness")
+	errInvalidWitness = errors.New("invalid witness")
+	errMissingCurveID = errors.New("missing CurveID")
+)
+
+// New build an orderded vector of field elements from the given assignment (frontend.Circuit)
 // if PublicOnly is specified, returns the public part of the witness only
 // else returns [public | secret]. The result can then be serialized to / from json & binary
 //
-// Returns an error if the witness has missing assignments
+// Returns an error if the assignment has missing entries
 func New(assignment frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessOption) error) (*Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
@@ -81,7 +88,7 @@ func New(assignment frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessO
 	return newWitness(assignment, curveID, opt.publicOnly)
 }
 
-func newWitness(witness interface{}, curveID ecc.ID, publicOnly bool) (*Witness, error) {
+func newWitness(assignment interface{}, curveID ecc.ID, publicOnly bool) (*Witness, error) {
 	var err error
 	var vector interface{}
 	var schema schema.Schema
@@ -89,27 +96,27 @@ func newWitness(witness interface{}, curveID ecc.ID, publicOnly bool) (*Witness,
 	switch curveID {
 	case ecc.BN254:
 		_witness := &witness_bn254.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	case ecc.BLS12_377:
 		_witness := &witness_bls12377.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	case ecc.BLS12_381:
 		_witness := &witness_bls12381.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	case ecc.BW6_761:
 		_witness := &witness_bw6761.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	case ecc.BLS24_315:
 		_witness := &witness_bls24315.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	case ecc.BW6_633:
 		_witness := &witness_bw6633.Witness{}
-		schema, err = _witness.FromAssignment(witness, publicOnly)
+		schema, err = _witness.FromAssignment(assignment, publicOnly)
 		vector = _witness
 	default:
 		panic("not implemented")
@@ -142,7 +149,7 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 	case *witness_bw6761.Witness:
 		_, err = wt.WriteTo(&buf)
 	default:
-		return nil, errors.New("invalid witness type " + reflect.TypeOf(w.Vector).String())
+		return nil, fmt.Errorf("%w: type not supported %s", errInvalidWitness, reflect.TypeOf(w.Vector).String())
 	}
 	if err != nil {
 		return
@@ -181,7 +188,7 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 		_, err = _witness.ReadFrom(r)
 		w.Vector = _witness
 	default:
-		return errors.New("witness.CurveID must be set to call UnmarshalBinary")
+		return errMissingCurveID
 	}
 
 	// TODO @gbotrel if we have a schema, we can do some post-unmarshalling validation here
@@ -192,7 +199,7 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 // MarshalJSON implements json.Marshaler
 func (w *Witness) MarshalJSON() (r []byte, err error) {
 	if len(w.Schema) == 0 {
-		return nil, errors.New("witness.Schema must be set to MarshalJSON")
+		return nil, errMissingSchema
 	}
 	typ, err := w.getType()
 	if err != nil {
@@ -210,7 +217,7 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 // UnmarshalJSON implements json.Unmarshaler
 func (w *Witness) UnmarshalJSON(data []byte) error {
 	if len(w.Schema) == 0 {
-		return errors.New("witness.Schema must be set to UnmarshalJSON")
+		return errMissingSchema
 	}
 
 	typ, err := w.getType()
@@ -241,7 +248,7 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 
 func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 	if w.Vector == nil {
-		return errors.New("witness is empty")
+		return errEmptyWitness
 	}
 
 	n, err := w.len()
@@ -260,7 +267,7 @@ func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 		publicOnly = false
 	} else {
 		// invalid witness size
-		return fmt.Errorf("invalid witness size. got %d, expected either %d (public) or %d (full)", n, nbPublic, nbPublic+nbSecret)
+		return fmt.Errorf("%w: got %d elements, expected either %d (public) or %d (full)", errInvalidWitness, n, nbPublic, nbPublic+nbSecret)
 	}
 
 	switch wt := w.Vector.(type) {
@@ -304,7 +311,7 @@ func (w *Witness) len() (int, error) {
 	case *witness_bw6761.Witness:
 		return len(*wt), nil
 	default:
-		return 0, errors.New("invalid witness type")
+		return 0, fmt.Errorf("%w: invalid type %s", errInvalidWitness, reflect.TypeOf(wt).String())
 	}
 }
 
