@@ -23,67 +23,63 @@ func (circuit *circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestReconstructionPublic(t *testing.T) {
-	assert := require.New(t)
+type marshaller uint8
 
-	var wPublic, wPublicReconstructed circuit
-	var e fr.Element
-	wPublic.X = *(e.SetInt64(42))
-	wPublic.Y = *(e.SetInt64(8000))
+const (
+	JSON marshaller = iota
+	Binary
+)
 
+func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, opts ...func(opt *WitnessOption) error) {
 	// build the vector
-	w, err := New(&wPublic, ecc.BN254, PublicOnly())
+	w, err := New(&assignment, ecc.BN254, opts...)
 	assert.NoError(err)
 
+	marshal := w.MarshalBinary
+	if m == JSON {
+		marshal = w.MarshalJSON
+	}
+
+	var reconstructed circuit
 	// serialize the vector to binary
-	data, err := w.MarshalBinary()
+	data, err := marshal()
 	assert.NoError(err)
 
 	// re-read
-	wReconstructed := Witness{
-		CurveID: ecc.BN254,
+	witness := Witness{CurveID: ecc.BN254}
+	unmarshal := witness.UnmarshalBinary
+	if m == JSON {
+		unmarshal = witness.UnmarshalJSON
 	}
-	err = wReconstructed.UnmarshalBinary(data)
+	err = unmarshal(data)
 	assert.NoError(err)
 
 	// reconstruct a circuit object
-	err = wReconstructed.copyTo(&wPublicReconstructed, tVariable)
+	err = witness.copyTo(&reconstructed, tVariable)
 	assert.NoError(err)
 
-	if !reflect.DeepEqual(wPublic, wPublicReconstructed) {
-		t.Fatal("public witness reconstructed doesn't match original value")
-	}
+	assert.True(reflect.DeepEqual(assignment, reconstructed), "public witness reconstructed doesn't match original value")
 }
 
-func TestReconstructionFull(t *testing.T) {
+func TestMarshalPublic(t *testing.T) {
 	assert := require.New(t)
 
-	var wFull, wFullReconstructed circuit
+	var assignment circuit
 	var e fr.Element
-	wFull.X = *(e.SetInt64(42))
-	wFull.Y = *(e.SetInt64(8000))
-	wFull.E = *(e.SetInt64(1))
+	assignment.X = *(e.SetInt64(42))
+	assignment.Y = *(e.SetInt64(8000))
 
-	// build the vector
-	w, err := New(&wFull, ecc.BN254)
-	assert.NoError(err)
+	roundTripMarshal(assert, assignment, Binary, PublicOnly())
+}
 
-	// serialize the vector to binary
-	data, err := w.MarshalBinary()
-	assert.NoError(err)
+func TestMarshal(t *testing.T) {
+	assert := require.New(t)
 
-	// re-read
-	wReconstructed := Witness{
-		CurveID: ecc.BN254,
-	}
-	err = wReconstructed.UnmarshalBinary(data)
-	assert.NoError(err)
+	var assignment circuit
+	var e fr.Element
+	assignment.X = *(e.SetInt64(42))
+	assignment.Y = *(e.SetInt64(8000))
+	assignment.E = *(e.SetInt64(1))
 
-	// reconstruct a circuit object
-	err = wReconstructed.copyTo(&wFullReconstructed, tVariable)
-	assert.NoError(err)
-
-	if !reflect.DeepEqual(wFull, wFullReconstructed) {
-		t.Fatal("full witness reconstructed doesn't match original value")
-	}
+	roundTripMarshal(assert, assignment, Binary)
 }
