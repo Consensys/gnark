@@ -110,13 +110,13 @@ func TestVerifyBellmanProof(t *testing.T) {
 		binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
 		buf.Write(inputsBytes)
 
-		w := &witness.Witness{
+		witness := &witness.Witness{
 			CurveID: ecc.BLS12_381,
 		}
-		err = w.UnmarshalBinary(buf.Bytes())
+		err = witness.UnmarshalBinary(buf.Bytes())
 		require.NoError(t, err)
 
-		err = Verify(proof, vk, w)
+		err = Verify(proof, vk, witness)
 		if test.ok {
 			assert.NoError(t, err)
 		}

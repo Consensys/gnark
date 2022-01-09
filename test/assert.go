@@ -84,15 +84,24 @@ func (assert *Assert) Log(v ...interface{}) {
 // 4. if set, (de)serializes the witness and call ReadAndProve and ReadAndVerify on the backend
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
+
+		// parse the assignment and instantiate the witness
+		validWitness, err := witness.New(validAssignment, curve)
+		assert.NoError(err, "can't parse valid assignment")
+
+		validPublicWitness, err := witness.New(validAssignment, curve, witness.PublicOnly())
+		assert.NoError(err, "can't parse valid assignment")
+
 		for _, b := range opt.backends {
 			curve := curve
 			b := b
 			assert.Run(func(assert *Assert) {
+
 				checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 				// 1- compile the circuit
@@ -100,13 +109,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				checkError(err)
 
 				// must not error with big int test engine (only the curveID is needed for this test)
-				err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
-				checkError(err)
-
-				_validWitnessFull, err := witness.New(validWitness, curve)
-				checkError(err)
-
-				_validWitnessPublic, err := witness.New(validWitness, curve, witness.PublicOnly())
+				err = IsSolved(circuit, validAssignment, curve, backend.UNKNOWN)
 				checkError(err)
 
 				switch b {
@@ -116,10 +119,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 
 					// ensure prove / verify works well with valid witnesses
 
-					proof, err := groth16.Prove(ccs, pk, _validWitnessFull, opt.proverOpts...)
+					proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					err = groth16.Verify(proof, vk, _validWitnessPublic)
+					err = groth16.Verify(proof, vk, validPublicWitness)
 					checkError(err)
 
 					// same thing through serialized witnesses
@@ -152,10 +155,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
 
-					correctProof, err := plonk.Prove(ccs, pk, _validWitnessFull, opt.proverOpts...)
+					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					err = plonk.Verify(correctProof, vk, _validWitnessPublic)
+					err = plonk.Verify(correctProof, vk, validPublicWitness)
 					checkError(err)
 
 					// witness serialization tests.
@@ -199,16 +202,24 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 // 3. run Setup / Prove / Verify with the backend (must fail)
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
 	popts := append(opt.proverOpts, backend.IgnoreSolverError)
 
 	for _, curve := range opt.curves {
+
+		// parse assignment
+		invalidWitness, err := witness.New(invalidAssignment, curve)
+		assert.NoError(err, "can't parse invalid assignment")
+		invalidPublicWitness, err := witness.New(invalidAssignment, curve, witness.PublicOnly())
+		assert.NoError(err, "can't parse invalid assignment")
+
 		for _, b := range opt.backends {
 			curve := curve
 			b := b
 			assert.Run(func(assert *Assert) {
+
 				checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
 				mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
@@ -217,25 +228,20 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				checkError(err)
 
 				// must error with big int test engine (only the curveID is needed here)
-				err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, invalidAssignment, curve, backend.UNKNOWN)
 				mustError(err)
-
-				_invalidWitness, err := witness.New(invalidWitness, curve)
-				checkError(err)
-				_invalidWitnessPublic, err := witness.New(invalidWitness, curve, witness.PublicOnly())
-				checkError(err)
 
 				switch b {
 				case backend.GROTH16:
 					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
 
-					err = groth16.IsSolved(ccs, invalidWitness)
+					err = groth16.IsSolved(ccs, invalidAssignment)
 					mustError(err)
 
-					proof, _ := groth16.Prove(ccs, pk, _invalidWitness, popts...)
+					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
-					err = groth16.Verify(proof, vk, _invalidWitnessPublic)
+					err = groth16.Verify(proof, vk, invalidPublicWitness)
 					mustError(err)
 
 				case backend.PLONK:
@@ -245,11 +251,11 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
 
-					err = plonk.IsSolved(ccs, invalidWitness)
+					err = plonk.IsSolved(ccs, invalidAssignment)
 					mustError(err)
 
-					incorrectProof, _ := plonk.Prove(ccs, pk, _invalidWitness, popts...)
-					err = plonk.Verify(incorrectProof, vk, _invalidWitnessPublic)
+					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
+					err = plonk.Verify(incorrectProof, vk, invalidPublicWitness)
 					mustError(err)
 
 				default:
@@ -274,7 +280,11 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 	}
 }
 
-func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	// parse assignment
+	validWitness, err := witness.New(validAssignment, curve)
+	assert.NoError(err, "can't parse valid assignment")
+
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 	// 1- compile the circuit
@@ -282,16 +292,16 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness fr
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validWitness, curve, b)
+	err = IsSolved(circuit, validAssignment, curve, b)
 	checkError(err)
 
 	switch b {
 	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...)
+		err := groth16.IsSolved(ccs, validAssignment, opt.proverOpts...)
 		checkError(err)
 
 	case backend.PLONK:
-		err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
+		err := plonk.IsSolved(ccs, validAssignment, opt.proverOpts...)
 		checkError(err)
 	default:
 		panic("not implemented")
@@ -313,7 +323,11 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 	}
 }
 
-func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	// parse assignment
+	invalidWitness, err := witness.New(invalidAssignment, curve)
+	assert.NoError(err, "can't parse invalid assignment")
+
 	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
 	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
@@ -325,15 +339,15 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidWitness, curve, b)
+	err = IsSolved(circuit, invalidAssignment, curve, b)
 	mustError(err)
 
 	switch b {
 	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		err := groth16.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
 		mustError(err)
 	case backend.PLONK:
-		err := plonk.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		err := plonk.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
 		mustError(err)
 	default:
 		panic("not implemented")
@@ -480,7 +494,7 @@ func (assert *Assert) options(opts ...func(*TestingOption) error) TestingOption 
 }
 
 // ensure the error is set, else fails the test
-func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w frontend.Circuit) {
+func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
 	if err != nil {
 		return
 	}
@@ -492,11 +506,6 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 		assert.FailNow(e.Error())
 	}()
 
-	witness, err := witness.New(w, curve)
-	if err != nil {
-		json = err.Error()
-		return
-	}
 	bjson, err := witness.MarshalJSON()
 	if err != nil {
 		json = err.Error()
@@ -506,7 +515,7 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 }
 
 // ensure the error is nil, else fails the test
-func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, w frontend.Circuit) {
+func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
 	if err == nil {
 		return
 	}
@@ -517,10 +526,7 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 
 	var json string
 	e = fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
-	witness, err := witness.New(w, curve)
-	if err != nil {
-		return
-	}
+
 	bjson, err := witness.MarshalJSON()
 	if err != nil {
 		json = err.Error()

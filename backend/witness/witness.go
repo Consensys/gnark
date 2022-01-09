@@ -72,13 +72,13 @@ type Witness struct {
 // else returns [public | secret]. The result can then be serialized to / from json & binary
 //
 // Returns an error if the witness has missing assignments
-func New(witness frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessOption) error) (*Witness, error) {
+func New(assignment frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessOption) error) (*Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return newWitness(witness, curveID, opt.publicOnly)
+	return newWitness(assignment, curveID, opt.publicOnly)
 }
 
 func newWitness(witness interface{}, curveID ecc.ID, publicOnly bool) (*Witness, error) {
