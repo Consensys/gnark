@@ -61,9 +61,9 @@ import (
 )
 
 var (
+	ErrInvalidWitness = errors.New("invalid witness")
 	errMissingSchema  = errors.New("missing Schema")
 	errMissingCurveID = errors.New("missing CurveID")
-	errInvalidWitness = errors.New("invalid witness")
 )
 
 // Witness represents a zkSNARK witness.
@@ -154,7 +154,7 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 	case *witness_bw6761.Witness:
 		_, err = wt.WriteTo(&buf)
 	default:
-		return nil, fmt.Errorf("%w: type not supported %s", errInvalidWitness, reflect.TypeOf(w.Vector).String())
+		return nil, fmt.Errorf("%w: type not supported %s", ErrInvalidWitness, reflect.TypeOf(w.Vector).String())
 	}
 	if err != nil {
 		return
@@ -286,7 +286,7 @@ func (w *Witness) vectorToAssignment(to interface{}, toLeafType reflect.Type) er
 		return errMissingSchema
 	}
 	if w.Vector == nil {
-		return fmt.Errorf("%w: empty witness", errInvalidWitness)
+		return fmt.Errorf("%w: empty witness", ErrInvalidWitness)
 	}
 
 	// we check the size of the underlying vector to determine if we have the full witness
@@ -307,7 +307,7 @@ func (w *Witness) vectorToAssignment(to interface{}, toLeafType reflect.Type) er
 		publicOnly = false
 	} else {
 		// invalid witness size
-		return fmt.Errorf("%w: got %d elements, expected either %d (public) or %d (full)", errInvalidWitness, n, nbPublic, nbPublic+nbSecret)
+		return fmt.Errorf("%w: got %d elements, expected either %d (public) or %d (full)", ErrInvalidWitness, n, nbPublic, nbPublic+nbSecret)
 	}
 
 	switch wt := w.Vector.(type) {
@@ -345,7 +345,7 @@ func (w *Witness) len() (int, error) {
 	case *witness_bw6761.Witness:
 		return len(*wt), nil
 	default:
-		return 0, fmt.Errorf("%w: invalid type %s", errInvalidWitness, reflect.TypeOf(wt).String())
+		return 0, fmt.Errorf("%w: invalid type %s", ErrInvalidWitness, reflect.TypeOf(wt).String())
 	}
 }
 

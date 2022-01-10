@@ -20,7 +20,6 @@
 package plonk
 
 import (
-	"errors"
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -130,42 +129,42 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *wi
 	case *cs_bn254.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bn254.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), *w, opt)
 
 	case *cs_bls12381.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bls12381.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), *w, opt)
 
 	case *cs_bls12377.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bls12377.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), *w, opt)
 
 	case *cs_bw6761.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bw6761.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), *w, opt)
 
 	case *cs_bw6633.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bw6633.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), *w, opt)
 
 	case *cs_bls24315.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bls24315.Witness)
 		if !ok {
-			return nil, errors.New("invalid witness")
+			return nil, witness.ErrInvalidWitness
 		}
 		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), *w, opt)
 
@@ -182,42 +181,42 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error 
 	case *plonk_bn254.Proof:
 		w, ok := publicWitness.Vector.(*witness_bn254.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), *w)
 
 	case *plonk_bls12381.Proof:
 		w, ok := publicWitness.Vector.(*witness_bls12381.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), *w)
 
 	case *plonk_bls12377.Proof:
 		w, ok := publicWitness.Vector.(*witness_bls12377.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), *w)
 
 	case *plonk_bw6761.Proof:
 		w, ok := publicWitness.Vector.(*witness_bw6761.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), *w)
 
 	case *plonk_bw6633.Proof:
 		w, ok := publicWitness.Vector.(*witness_bw6633.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), *w)
 
 	case *plonk_bls24315.Proof:
 		w, ok := publicWitness.Vector.(*witness_bls24315.Witness)
 		if !ok {
-			return errors.New("invalid witness")
+			return witness.ErrInvalidWitness
 		}
 		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), *w)
 
