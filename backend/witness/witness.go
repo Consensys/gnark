@@ -60,18 +60,23 @@ import (
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-// Witness ...
-type Witness struct {
-	Vector  interface{}    //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
-	Schema  *schema.Schema // optional, Binary encoding needs no schema
-	CurveID ecc.ID         // should be redundant with generic impl
-}
-
 var (
 	errMissingSchema  = errors.New("missing Schema")
 	errMissingCurveID = errors.New("missing CurveID")
 	errInvalidWitness = errors.New("invalid witness")
 )
+
+// Witness represents a zkSNARK witness.
+//
+// A witness can be in 3 states:
+// 1. Assignment (ie assigning values to a frontend.Circuit object)
+// 2. Witness (this object: an ordered vector of field elements + metadata)
+// 3. Serialized (Binary or JSON) using MarshalBinary or MarshalJSON
+type Witness struct {
+	Vector  interface{}    //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
+	Schema  *schema.Schema // optional, Binary encoding needs no schema
+	CurveID ecc.ID         // should be redundant with generic impl
+}
 
 // New build an orderded vector of field elements from the given assignment (frontend.Circuit)
 // if PublicOnly is specified, returns the public part of the witness only
@@ -132,6 +137,7 @@ func newWitness(assignment interface{}, curveID ecc.ID, publicOnly bool) (*Witne
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler
+// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
 func (w *Witness) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 	switch wt := w.Vector.(type) {
@@ -204,6 +210,8 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 }
 
 // MarshalJSON implements json.Marshaler
+//
+// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
 func (w *Witness) MarshalJSON() (r []byte, err error) {
 	if w.Schema == nil {
 		return nil, errMissingSchema
@@ -273,8 +281,10 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// @pre: w.Schema != nil
 func (w *Witness) vectorToAssignment(to interface{}, toLeafType reflect.Type) error {
+	if w.Schema == nil {
+		return errMissingSchema
+	}
 	if w.Vector == nil {
 		return fmt.Errorf("%w: empty witness", errInvalidWitness)
 	}
@@ -340,7 +350,6 @@ func (w *Witness) len() (int, error) {
 }
 
 func (w *Witness) getType() (reflect.Type, error) {
-	// try with the curveID
 	switch w.CurveID {
 	case ecc.BLS12_377:
 		return witness_bls12377.T, nil
@@ -360,6 +369,8 @@ func (w *Witness) getType() (reflect.Type, error) {
 
 // WriteSequence writes the expected sequence order of the witness on provided writer
 // witness elements are identified by their tag name, or if unset, struct & field name
+//
+// The expected sequence matches the binary encoding protocol [public | secret]
 func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
 	var public, secret []string
 	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
@@ -422,10 +433,12 @@ func options(opts ...func(*WitnessOption) error) (WitnessOption, error) {
 	return opt, nil
 }
 
+// WitnessOption sets optional parameter to witness instantiation from an assigment
 type WitnessOption struct {
 	publicOnly bool
 }
 
+// PublicOnly enables to instantiate a witness with the public part only of the assignment
 func PublicOnly() func(opt *WitnessOption) error {
 	return func(opt *WitnessOption) error {
 		opt.publicOnly = true
