@@ -111,3 +111,5 @@ func TestMarshal(t *testing.T) {
 	roundTripMarshal(assert, assignment, JSON)
 	roundTripMarshal(assert, assignment, Binary)
 }
+
+// TODO @gbotrel add test with unmarshal partial jsons

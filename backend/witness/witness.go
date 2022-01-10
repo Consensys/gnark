@@ -206,12 +206,12 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 		return nil, err
 	}
 
-	i := w.Schema.Instantiate(typ)
-	if err := w.copyTo(i, typ); err != nil {
+	instance := w.Schema.Instantiate(typ)
+	if err := w.copyTo(instance, typ); err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(i)
+	return json.Marshal(instance)
 }
 
 // UnmarshalJSON implements json.Unmarshaler
@@ -226,27 +226,36 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	}
 
 	// we instantiate an object matching the schema, with leaf type == field element
-	i := w.Schema.Instantiate(typ)
+	// note that we pass a pointer here to have nil for zero values
+	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
 
 	// field.Element (gnark-crypto) implements json.Unmarshaler
-	if err := json.Unmarshal(data, i); err != nil {
+	if err := dec.Decode(instance); err != nil {
 		return err
 	}
 
-	// now we re-create an object, this type with leaf type == Variable , to mimic a circuit
-	circuit := w.Schema.Instantiate(tVariable)
+	// now we re-create an object, this type with leaf type == Variable , to mimic a assignment
+	assignment := w.Schema.Instantiate(tVariable)
 
 	// we copy the parsed variable to the circuit
-	schema.Copy(i, typ, circuit, tVariable)
+	schema.Copy(instance, reflect.PtrTo(typ), assignment, tVariable)
 
-	// since we instantiated i with type typ, which is NOT a pointer, the zero value is going to be copied
-	// anyway to the circuit (frontend.Variable)
-	// that is something we need to improve on: UnmarshalJSON will always produce a full witness, with secret part set to ZERO
-	// (but still here)
-	// TODO fixme here seems wiser than reading only the public first N elements in the backend
-	toReturn, err := newWitness(circuit, w.CurveID, false)
+	// optimistic approach: first try to unmarshall everything. then only the public part if it fails
+	// note that our instance has leaf type == *fr.Element, so the zero value is nil
+	// and is going to make the newWitness method error since it doesn't accept missing assignments
+	toReturn, err := newWitness(assignment, w.CurveID, false)
 	if err != nil {
-		return err
+		// try with public only
+		toReturn, err := newWitness(assignment, w.CurveID, true)
+		if err != nil {
+			return err
+		}
+		toReturn.Schema = w.Schema
+		*w = *toReturn
+		return nil
 	}
 	toReturn.Schema = w.Schema
 	*w = *toReturn

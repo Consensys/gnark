@@ -46,6 +46,7 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema
 // It replaces leafs by provided type, such that one can do:
 //		struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
 func (s Schema) Instantiate(leafType reflect.Type) interface{} {
+
 	// first, let's replace the Field by reflect.StructField
 	is := toStructField(s, leafType)
 
@@ -315,6 +316,10 @@ func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflec
 		return nil
 	}
 	_, _ = Parse(from, fromType, collectHandler)
+
+	if len(wValues) == 0 {
+		return
+	}
 
 	i := 0
 	var setHandler LeafHandler = func(v compiled.Visibility, _ string, tInput reflect.Value) error {
