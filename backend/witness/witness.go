@@ -69,9 +69,8 @@ type Witness struct {
 
 var (
 	errMissingSchema  = errors.New("missing Schema")
-	errEmptyWitness   = errors.New("empty witness")
-	errInvalidWitness = errors.New("invalid witness")
 	errMissingCurveID = errors.New("missing CurveID")
+	errInvalidWitness = errors.New("invalid witness")
 )
 
 // New build an orderded vector of field elements from the given assignment (frontend.Circuit)
@@ -207,7 +206,7 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 	}
 
 	instance := w.Schema.Instantiate(typ)
-	if err := w.copyTo(instance, typ); err != nil {
+	if err := w.vectorToAssignment(instance, typ); err != nil {
 		return nil, err
 	}
 
@@ -263,11 +262,13 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 }
 
 // @pre: w.Schema != nil
-func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
+func (w *Witness) vectorToAssignment(to interface{}, toLeafType reflect.Type) error {
 	if w.Vector == nil {
-		return errEmptyWitness
+		return fmt.Errorf("%w: empty witness", errInvalidWitness)
 	}
 
+	// we check the size of the underlying vector to determine if we have the full witness
+	// or only the public part
 	n, err := w.len()
 	if err != nil {
 		return err
@@ -305,12 +306,6 @@ func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 	}
 
 	return nil
-
-	// could check schema if present against to structure.
-	// if w.Schema != nil && !reflect.DeepEqual(w.Schema, s) {
-	// 	return errors.New("schema are different")
-	// }
-
 }
 
 func (w *Witness) len() (int, error) {
@@ -333,45 +328,22 @@ func (w *Witness) len() (int, error) {
 }
 
 func (w *Witness) getType() (reflect.Type, error) {
-	switch w.Vector.(type) {
-	case *witness_bls12377.Witness:
-		w.CurveID = ecc.BLS12_377
+	// try with the curveID
+	switch w.CurveID {
+	case ecc.BLS12_377:
 		return witness_bls12377.T, nil
-	case *witness_bls12381.Witness:
-		w.CurveID = ecc.BLS12_381
+	case ecc.BLS12_381:
 		return witness_bls12381.T, nil
-	case *witness_bls24315.Witness:
-		w.CurveID = ecc.BLS24_315
+	case ecc.BLS24_315:
 		return witness_bls24315.T, nil
-	case *witness_bn254.Witness:
-		w.CurveID = ecc.BN254
+	case ecc.BN254:
 		return witness_bn254.T, nil
-	case *witness_bw6633.Witness:
-		w.CurveID = ecc.BW6_633
+	case ecc.BW6_633:
 		return witness_bw6633.T, nil
-	case *witness_bw6761.Witness:
-		w.CurveID = ecc.BW6_761
+	case ecc.BW6_761:
 		return witness_bw6761.T, nil
-	default:
-		if w.Vector == nil {
-			// try with the curveID
-			switch w.CurveID {
-			case ecc.BLS12_377:
-				return witness_bls12377.T, nil
-			case ecc.BLS12_381:
-				return witness_bls12381.T, nil
-			case ecc.BLS24_315:
-				return witness_bls24315.T, nil
-			case ecc.BN254:
-				return witness_bn254.T, nil
-			case ecc.BW6_633:
-				return witness_bw6633.T, nil
-			case ecc.BW6_761:
-				return witness_bw6761.T, nil
-			}
-		}
-		return nil, errors.New("can't infer witness type from vector or curveID")
 	}
+	return nil, errMissingCurveID
 }
 
 // WriteSequence writes the expected sequence order of the witness on provided writer
