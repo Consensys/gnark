@@ -62,9 +62,9 @@ import (
 
 // Witness ...
 type Witness struct {
-	Vector  interface{}   //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
-	Schema  schema.Schema // optional, Binary encoding needs no schema
-	CurveID ecc.ID        // should be redundant with generic impl
+	Vector  interface{}    //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
+	Schema  *schema.Schema // optional, Binary encoding needs no schema
+	CurveID ecc.ID         // should be redundant with generic impl
 }
 
 var (
@@ -91,7 +91,7 @@ func New(assignment frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessO
 func newWitness(assignment interface{}, curveID ecc.ID, publicOnly bool) (*Witness, error) {
 	var err error
 	var vector interface{}
-	var schema schema.Schema
+	var schema *schema.Schema
 
 	switch curveID {
 	case ecc.BN254:
@@ -198,7 +198,7 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 
 // MarshalJSON implements json.Marshaler
 func (w *Witness) MarshalJSON() (r []byte, err error) {
-	if len(w.Schema) == 0 {
+	if w.Schema == nil {
 		return nil, errMissingSchema
 	}
 	typ, err := w.getType()
@@ -216,7 +216,7 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 
 // UnmarshalJSON implements json.Unmarshaler
 func (w *Witness) UnmarshalJSON(data []byte) error {
-	if len(w.Schema) == 0 {
+	if w.Schema == nil {
 		return errMissingSchema
 	}
 
@@ -262,6 +262,7 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// @pre: w.Schema != nil
 func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 	if w.Vector == nil {
 		return errEmptyWitness
@@ -272,7 +273,7 @@ func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 		return err
 	}
 
-	nbSecret, nbPublic := schema.Count(to, toLeafType)
+	nbSecret, nbPublic := w.Schema.NbSecret, w.Schema.NbPublic
 
 	var publicOnly bool
 	if n == nbPublic {

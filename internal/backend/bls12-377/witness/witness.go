@@ -77,8 +77,12 @@ func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // FromAssignment extracts the witness and its schema
-func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (schema.Schema, error) {
-	nbSecret, nbPublic := schema.Count(w, tVariable)
+func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.Schema, error) {
+	s, err := schema.Parse(w, tVariable, nil)
+	if err != nil {
+		return nil, err
+	}
+	nbSecret, nbPublic := s.NbSecret, s.NbPublic
 
 	if publicOnly {
 		nbSecret = 0

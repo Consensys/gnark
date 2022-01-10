@@ -26,7 +26,11 @@ import (
 )
 
 // Schema represents the structure of a gnark circuit (/ witness)
-type Schema []Field
+type Schema struct {
+	Fields   []Field
+	NbPublic int
+	NbSecret int
+}
 
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
 type LeafHandler func(visibility compiled.Visibility, name string, tValue reflect.Value) error
@@ -35,10 +39,17 @@ type LeafHandler func(visibility compiled.Visibility, name string, tValue reflec
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
 //
 // If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema, error) {
+func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable
-	return parse(nil, circuit, tLeaf, "", "", "", compiled.Unset, handler)
+
+	var nbPublic, nbSecret int
+	fields, err := parse(nil, circuit, tLeaf, "", "", "", compiled.Unset, handler, &nbPublic, &nbSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Schema{Fields: fields, NbPublic: nbPublic, NbSecret: nbSecret}, nil
 }
 
 // Instantiate builds a concrete type using reflect matching the provided schema
@@ -54,7 +65,7 @@ func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interfa
 	}
 
 	// first, let's replace the Field by reflect.StructField
-	is := toStructField(s, leafType, omitEmpty)
+	is := toStructField(s.Fields, leafType, omitEmpty)
 
 	// now create the correspoinding type
 	typ := reflect.StructOf(is)
@@ -117,7 +128,7 @@ func structTag(baseNameTag string, visibility compiled.Visibility, omitEmpty boo
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility compiled.Visibility, handler LeafHandler) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility compiled.Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -126,14 +137,18 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	}
 
 	// stop condition
-	// if tValue.Kind() == reflect.Interface {
 	if tValue.Type() == target {
-		if handler != nil {
-			v := parentVisibility
-			if v == compiled.Unset {
-				v = compiled.Secret
-			}
+		v := parentVisibility
+		if v == compiled.Unset {
+			v = compiled.Secret
+		}
+		if v == compiled.Secret {
+			(*nbSecret)++
+		} else if v == compiled.Public {
+			(*nbPublic)++
+		}
 
+		if handler != nil {
 			if err := handler(v, parentFullName, tValue); err != nil {
 				return nil, err
 			}
@@ -143,10 +158,9 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			Name:       parentGoName,
 			NameTag:    parentTagName,
 			Type:       Leaf,
-			Visibility: parentVisibility,
+			Visibility: v,
 		}), nil
 	}
-	// }
 
 	// struct
 	if tValue.Kind() == reflect.Struct {
@@ -197,7 +211,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
 				var err error
-				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler)
+				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler, nbPublic, nbSecret)
 				if err != nil {
 					return r, err
 				}
@@ -246,7 +260,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				val := tValue.Index(j)
 				if val.CanAddr() && val.Addr().CanInterface() {
 					fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler); err != nil {
+					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret); err != nil {
 						return nil, err
 					}
 				}
@@ -268,7 +282,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			val := tValue.Index(j)
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler)
+				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret)
 				if err != nil {
 					return nil, err
 				}
@@ -303,21 +317,6 @@ func getFullName(parentFullName, name, tagName string) string {
 		return n
 	}
 	return parentFullName + "_" + n
-}
-
-// Count returns the the number of target type associated with Secret or Public visibility
-// through gnark struct tags
-func Count(input interface{}, target reflect.Type) (nbSecret, nbPublic int) {
-	collectHandler := func(v compiled.Visibility, name string, _ reflect.Value) error {
-		if v == compiled.Secret {
-			nbSecret++
-		} else if v == compiled.Public {
-			nbPublic++
-		}
-		return nil
-	}
-	_, _ = parse(nil, input, target, "", "", "", compiled.Unset, collectHandler)
-	return
 }
 
 // TODO @gbotrel this should probably not be here.
