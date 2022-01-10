@@ -159,7 +159,15 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (w *Witness) UnmarshalBinary(data []byte) error {
 	var err error
-	r := bytes.NewReader(data)
+	br := bytes.NewReader(data)
+
+	var r io.Reader
+	r = br
+	if w.Schema != nil {
+		// if schema is set we can do a limit reader
+		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
+		r = io.LimitReader(r, int64(maxSize))
+	}
 
 	switch w.CurveID {
 	case ecc.BN254:
@@ -228,7 +236,11 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	// note that we pass a pointer here to have nil for zero values
 	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
 
-	dec := json.NewDecoder(bytes.NewReader(data))
+	// we can do a limit reader
+	maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
+	r := io.LimitReader(bytes.NewReader(data), int64(maxSize))
+
+	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
 	// field.Element (gnark-crypto) implements json.Unmarshaler
