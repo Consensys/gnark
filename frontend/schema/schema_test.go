@@ -110,7 +110,7 @@ func TestSchemaCorrectness(t *testing.T) {
 
 	// instantiate a concrete object
 	var a int
-	instance := s.Instantiate(reflect.TypeOf(a))
+	instance := s.Instantiate(reflect.TypeOf(a), false)
 
 	// encode it to json
 	var instanceBuf, expectedBuf bytes.Buffer

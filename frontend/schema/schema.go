@@ -45,10 +45,16 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema
 //
 // It replaces leafs by provided type, such that one can do:
 //		struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
-func (s Schema) Instantiate(leafType reflect.Type) interface{} {
+//
+// Default behavior is to add "json:,omitempty" to the generated struct
+func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interface{} {
+	omitEmpty := true
+	if len(omitEmptyTag) == 1 {
+		omitEmpty = omitEmptyTag[0]
+	}
 
 	// first, let's replace the Field by reflect.StructField
-	is := toStructField(s, leafType)
+	is := toStructField(s, leafType, omitEmpty)
 
 	// now create the correspoinding type
 	typ := reflect.StructOf(is)
@@ -61,13 +67,13 @@ func (s Schema) Instantiate(leafType reflect.Type) interface{} {
 }
 
 // toStructField recurse through Field and builds corresponding reflect.StructField
-func toStructField(fields []Field, leafType reflect.Type) []reflect.StructField {
+func toStructField(fields []Field, leafType reflect.Type, omitEmpty bool) []reflect.StructField {
 	r := make([]reflect.StructField, len(fields))
 
 	for i, f := range fields {
 		r[i] = reflect.StructField{
 			Name: f.Name,
-			Tag:  structTag(f.NameTag, f.Visibility),
+			Tag:  structTag(f.NameTag, f.Visibility, omitEmpty),
 		}
 		switch f.Type {
 		case Leaf:
@@ -75,30 +81,37 @@ func toStructField(fields []Field, leafType reflect.Type) []reflect.StructField 
 		case Array:
 			if len(f.SubFields) > 0 {
 				// array of structs
-				r[i].Type = reflect.ArrayOf(f.ArraySize, reflect.StructOf(toStructField(f.SubFields[0].SubFields, leafType)))
+				r[i].Type = reflect.ArrayOf(f.ArraySize, reflect.StructOf(toStructField(f.SubFields[0].SubFields, leafType, omitEmpty)))
 			} else {
 				// array of leaf
 				r[i].Type = reflect.ArrayOf(f.ArraySize, leafType)
 			}
 		case Struct:
-			r[i].Type = reflect.StructOf(toStructField(f.SubFields, leafType))
+			r[i].Type = reflect.StructOf(toStructField(f.SubFields, leafType, omitEmpty))
 		}
 	}
 
 	return r
 }
 
-func structTag(baseNameTag string, visibility compiled.Visibility) reflect.StructTag {
+func structTag(baseNameTag string, visibility compiled.Visibility, omitEmpty bool) reflect.StructTag {
+	sOmitEmpty := ""
+	if omitEmpty {
+		sOmitEmpty = ",omitempty"
+	}
 	if visibility == compiled.Unset {
 		if baseNameTag != "" {
-			return reflect.StructTag(fmt.Sprintf("gnark:\"%s\" json:\"%s\"", baseNameTag, baseNameTag))
+			return reflect.StructTag(fmt.Sprintf("gnark:\"%s\" json:\"%s%s\"", baseNameTag, baseNameTag, sOmitEmpty))
 		}
 		return ""
 	}
 	if baseNameTag == "" {
-		return reflect.StructTag(fmt.Sprintf("gnark:\",%s\"", visibility.String()))
+		if !omitEmpty {
+			return reflect.StructTag(fmt.Sprintf("gnark:\",%s\"", visibility.String()))
+		}
+		return reflect.StructTag(fmt.Sprintf("gnark:\",%s\" json:\",omitempty\"", visibility.String()))
 	}
-	return reflect.StructTag(fmt.Sprintf("gnark:\"%s,%s\" json:\"%s\"", baseNameTag, visibility.String(), baseNameTag))
+	return reflect.StructTag(fmt.Sprintf("gnark:\"%s,%s\" json:\"%s%s\"", baseNameTag, visibility.String(), baseNameTag, sOmitEmpty))
 }
 
 // parentFullName: the name of parent with its ancestors separated by "_"
