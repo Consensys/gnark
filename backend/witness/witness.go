@@ -289,17 +289,17 @@ func (w *Witness) copyTo(to interface{}, toLeafType reflect.Type) error {
 
 	switch wt := w.Vector.(type) {
 	case *witness_bls12377.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	case *witness_bls12381.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	case *witness_bls24315.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	case *witness_bn254.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	case *witness_bw6633.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	case *witness_bw6761.Witness:
-		wt.CopyTo(to, toLeafType, publicOnly)
+		wt.VectorToAssignment(to, toLeafType, publicOnly)
 	default:
 		panic("not implemented")
 	}

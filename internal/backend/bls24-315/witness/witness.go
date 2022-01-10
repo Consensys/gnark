@@ -126,7 +126,9 @@ func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.
 	return schema.Parse(w, tVariable, collectHandler)
 }
 
-func (witness *Witness) CopyTo(to interface{}, toLeafType reflect.Type, publicOnly bool) {
+// VectorToAssignment sets to leaf values to witness underlying vector element values (in order)
+// see witness.MarshalBinary protocol description
+func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Type, publicOnly bool) {
 	i := 0
 	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 		if publicOnly && visibility != compiled.Public {
