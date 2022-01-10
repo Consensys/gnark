@@ -130,18 +130,26 @@ func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.
 // see witness.MarshalBinary protocol description
 func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Type, publicOnly bool) {
 	i := 0
-	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if publicOnly && visibility != compiled.Public {
+	setAddr := toLeafType.Kind() == reflect.Ptr
+	setHandler := func(v compiled.Visibility) schema.LeafHandler {
+		return func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+			if visibility == v {
+				if setAddr {
+					tInput.Set(reflect.ValueOf((&(*witness)[i])))
+				} else {
+					tInput.Set(reflect.ValueOf(((*witness)[i])))
+				}
+
+				i++
+			}
 			return nil
 		}
-		if visibility == compiled.Secret || visibility == compiled.Public {
-			tInput.Set(reflect.ValueOf(((*witness)[i])))
-			i++
-		}
-		return nil
 	}
-	// this can't error.
-	_, _ = schema.Parse(to, toLeafType, setHandler)
+	_, _ = schema.Parse(to, toLeafType, setHandler(compiled.Public))
+	if publicOnly {
+		return
+	}
+	_, _ = schema.Parse(to, toLeafType, setHandler(compiled.Secret))
 
 }
 

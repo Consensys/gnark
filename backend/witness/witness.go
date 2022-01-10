@@ -221,8 +221,8 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 		return nil, err
 	}
 
-	instance := w.Schema.Instantiate(typ)
-	if err := w.vectorToAssignment(instance, typ); err != nil {
+	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
+	if err := w.vectorToAssignment(instance, reflect.PtrTo(typ)); err != nil {
 		return nil, err
 	}
 
