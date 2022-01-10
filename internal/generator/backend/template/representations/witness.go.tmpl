@@ -2,6 +2,7 @@ import (
     "reflect"
     "fmt"
     "io"
+    "strings"
     "encoding/binary"
 
     "github.com/consensys/gnark/internal/backend/compiled"
@@ -137,7 +138,16 @@ func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Ty
 
 }
 
-
+func (witness *Witness) String() string {
+    var sbb strings.Builder
+    sbb.WriteByte('[')
+    for i:=0; i < len(*witness); i++ {
+        sbb.WriteString((*witness)[i].String())
+        sbb.WriteByte(',')
+    }
+    sbb.WriteByte(']')
+    return sbb.String()
+}
 
 
 var tVariable reflect.Type

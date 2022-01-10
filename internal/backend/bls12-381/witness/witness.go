@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
@@ -151,6 +152,17 @@ func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Ty
 	}
 	_, _ = schema.Parse(to, toLeafType, setHandler(compiled.Secret))
 
+}
+
+func (witness *Witness) String() string {
+	var sbb strings.Builder
+	sbb.WriteByte('[')
+	for i := 0; i < len(*witness); i++ {
+		sbb.WriteString((*witness)[i].String())
+		sbb.WriteByte(',')
+	}
+	sbb.WriteByte(']')
+	return sbb.String()
 }
 
 var tVariable reflect.Type

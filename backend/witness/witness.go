@@ -49,6 +49,7 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
@@ -226,7 +227,11 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 		return nil, err
 	}
 
-	return json.Marshal(instance)
+	if debug.Debug {
+		return json.MarshalIndent(instance, "  ", "    ")
+	} else {
+		return json.Marshal(instance)
+	}
 }
 
 // UnmarshalJSON implements json.Unmarshaler

@@ -534,5 +534,13 @@ func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marsh
 	err = unmarshal(data)
 	assert.NoError(err)
 
-	assert.True(reflect.DeepEqual(*w, witness), m.String()+" round trip marshaling failed")
+	witnessMatch := reflect.DeepEqual(*w, witness)
+
+	if !witnessMatch {
+		assert.Log("original json", string(data))
+		// assert.Log("original vector", w.Vector)
+		// assert.Log("reconstructed vector", witness.Vector)
+	}
+
+	assert.True(witnessMatch, m.String()+" round trip marshaling failed")
 }

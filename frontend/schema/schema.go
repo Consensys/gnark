@@ -90,19 +90,33 @@ func toStructField(fields []Field, leafType reflect.Type, omitEmpty bool) []refl
 		case Leaf:
 			r[i].Type = leafType
 		case Array:
-			if len(f.SubFields) > 0 {
-				// array of structs
-				r[i].Type = reflect.ArrayOf(f.ArraySize, reflect.StructOf(toStructField(f.SubFields[0].SubFields, leafType, omitEmpty)))
-			} else {
-				// array of leaf
-				r[i].Type = reflect.ArrayOf(f.ArraySize, leafType)
-			}
+			r[i].Type = arrayElementType(f.ArraySize, f.SubFields, leafType, omitEmpty)
 		case Struct:
 			r[i].Type = reflect.StructOf(toStructField(f.SubFields, leafType, omitEmpty))
 		}
 	}
 
 	return r
+}
+
+func arrayElementType(n int, fields []Field, leafType reflect.Type, omitEmpty bool) reflect.Type {
+	// we know parent is an array.
+	// we check first element of fields
+	// if it's a struct or a leaf, we're done.
+	// if it's another array, we recurse
+
+	if len(fields) == 0 {
+		// no subfields, we reached an array of leaves
+		return reflect.ArrayOf(n, leafType)
+	}
+
+	switch fields[0].Type {
+	case Struct:
+		return reflect.ArrayOf(n, reflect.StructOf(toStructField(fields[0].SubFields, leafType, omitEmpty)))
+	case Array:
+		return reflect.ArrayOf(n, arrayElementType(fields[0].ArraySize, fields[0].SubFields, leafType, omitEmpty))
+	}
+	panic("invalid array type")
 }
 
 func structTag(baseNameTag string, visibility compiled.Visibility, omitEmpty bool) reflect.StructTag {
