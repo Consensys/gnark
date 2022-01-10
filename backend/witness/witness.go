@@ -224,22 +224,29 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+
+	// we instantiate an object matching the schema, with leaf type == field element
 	i := w.Schema.Instantiate(typ)
+
+	// field.Element (gnark-crypto) implements json.Unmarshaler
 	if err := json.Unmarshal(data, i); err != nil {
 		return err
 	}
 
-	// optimistic approach; try public + secret
-	toReturn, err := newWitness(i, w.CurveID, false)
+	// now we re-create an object, this type with leaf type == Variable , to mimic a circuit
+	circuit := w.Schema.Instantiate(tVariable)
+
+	// we copy the parsed variable to the circuit
+	schema.Copy(i, typ, circuit, tVariable)
+
+	// since we instantiated i with type typ, which is NOT a pointer, the zero value is going to be copied
+	// anyway to the circuit (frontend.Variable)
+	// that is something we need to improve on: UnmarshalJSON will always produce a full witness, with secret part set to ZERO
+	// (but still here)
+	// TODO fixme here seems wiser than reading only the public first N elements in the backend
+	toReturn, err := newWitness(circuit, w.CurveID, false)
 	if err != nil {
-		// try public only
-		toReturn, err := newWitness(i, w.CurveID, true)
-		if err != nil {
-			return err
-		}
-		toReturn.Schema = w.Schema
-		*w = *toReturn
-		return nil
+		return err
 	}
 	toReturn.Schema = w.Schema
 	*w = *toReturn

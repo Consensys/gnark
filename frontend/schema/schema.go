@@ -32,7 +32,7 @@ type Schema []Field
 type LeafHandler func(visibility compiled.Visibility, name string, tValue reflect.Value) error
 
 // Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
-// type frontend.Variable and return the corresponding Schema. Slices are converted to arrays.
+// type frontend.Variable and return the corresponding  Slices are converted to arrays.
 //
 // If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
 func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema, error) {
@@ -41,12 +41,12 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (Schema
 	return parse(nil, circuit, tLeaf, "", "", "", compiled.Unset, handler)
 }
 
-// Instantiate builds a concrete type using reflect matching the provided schema.
+// Instantiate builds a concrete type using reflect matching the provided schema
 //
 // It replaces leafs by provided type, such that one can do:
 //		struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
 func (s Schema) Instantiate(leafType reflect.Type) interface{} {
-	// first, let's replace the schema.Field by reflect.StructField
+	// first, let's replace the Field by reflect.StructField
 	is := toStructField(s, leafType)
 
 	// now create the correspoinding type
@@ -59,7 +59,7 @@ func (s Schema) Instantiate(leafType reflect.Type) interface{} {
 	return v.Addr().Interface()
 }
 
-// toStructField recurse through schema.Field and builds corresponding reflect.StructField
+// toStructField recurse through Field and builds corresponding reflect.StructField
 func toStructField(fields []Field, leafType reflect.Type) []reflect.StructField {
 	r := make([]reflect.StructField, len(fields))
 
@@ -90,14 +90,14 @@ func toStructField(fields []Field, leafType reflect.Type) []reflect.StructField 
 func structTag(baseNameTag string, visibility compiled.Visibility) reflect.StructTag {
 	if visibility == compiled.Unset {
 		if baseNameTag != "" {
-			return reflect.StructTag(fmt.Sprintf("`gnark:\"%s\" json:\"%s\"`", baseNameTag, baseNameTag))
+			return reflect.StructTag(fmt.Sprintf("gnark:\"%s\" json:\"%s\"", baseNameTag, baseNameTag))
 		}
 		return ""
 	}
 	if baseNameTag == "" {
-		return reflect.StructTag(fmt.Sprintf("`gnark:\",%s\"`", visibility.String()))
+		return reflect.StructTag(fmt.Sprintf("gnark:\",%s\"", visibility.String()))
 	}
-	return reflect.StructTag(fmt.Sprintf("`gnark:\"%s,%s\" json:\"%s\"`", baseNameTag, visibility.String(), baseNameTag))
+	return reflect.StructTag(fmt.Sprintf("gnark:\"%s,%s\" json:\"%s\"", baseNameTag, visibility.String(), baseNameTag))
 }
 
 // parentFullName: the name of parent with its ancestors separated by "_"
@@ -112,27 +112,27 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	}
 
 	// stop condition
-	if tValue.Kind() == reflect.Interface {
-		if tValue.Type() == target {
-			if handler != nil {
-				v := parentVisibility
-				if v == compiled.Unset {
-					v = compiled.Secret
-				}
-
-				if err := handler(v, parentFullName, tValue); err != nil {
-					return nil, err
-				}
+	// if tValue.Kind() == reflect.Interface {
+	if tValue.Type() == target {
+		if handler != nil {
+			v := parentVisibility
+			if v == compiled.Unset {
+				v = compiled.Secret
 			}
-			// we just add it to our current fields
-			return append(r, Field{
-				Name:       parentGoName,
-				NameTag:    parentTagName,
-				Type:       Leaf,
-				Visibility: parentVisibility,
-			}), nil
+
+			if err := handler(v, parentFullName, tValue); err != nil {
+				return nil, err
+			}
 		}
+		// we just add it to our current fields
+		return append(r, Field{
+			Name:       parentGoName,
+			NameTag:    parentTagName,
+			Type:       Leaf,
+			Visibility: parentVisibility,
+		}), nil
 	}
+	// }
 
 	// struct
 	if tValue.Kind() == reflect.Struct {
@@ -294,7 +294,7 @@ func getFullName(parentFullName, name, tagName string) string {
 // Count returns the the number of target type associated with Secret or Public visibility
 // through gnark struct tags
 func Count(input interface{}, target reflect.Type) (nbSecret, nbPublic int) {
-	collectHandler := func(v compiled.Visibility, _ string, _ reflect.Value) error {
+	collectHandler := func(v compiled.Visibility, name string, _ reflect.Value) error {
 		if v == compiled.Secret {
 			nbSecret++
 		} else if v == compiled.Public {
@@ -304,4 +304,24 @@ func Count(input interface{}, target reflect.Type) (nbSecret, nbPublic int) {
 	}
 	_, _ = parse(nil, input, target, "", "", "", compiled.Unset, collectHandler)
 	return
+}
+
+// TODO @gbotrel this should probably not be here.
+func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
+	var wValues []interface{}
+
+	var collectHandler LeafHandler = func(v compiled.Visibility, _ string, tInput reflect.Value) error {
+		wValues = append(wValues, tInput.Interface())
+		return nil
+	}
+	_, _ = Parse(from, fromType, collectHandler)
+
+	i := 0
+	var setHandler LeafHandler = func(v compiled.Visibility, _ string, tInput reflect.Value) error {
+		tInput.Set(reflect.ValueOf((wValues[i])))
+		i++
+		return nil
+	}
+	// this can't error.
+	_, _ = Parse(to, toType, setHandler)
 }
