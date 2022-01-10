@@ -244,11 +244,7 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	// note that we pass a pointer here to have nil for zero values
 	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
 
-	// we can do a limit reader
-	maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
-	r := io.LimitReader(bytes.NewReader(data), int64(maxSize))
-
-	dec := json.NewDecoder(r)
+	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 
 	// field.Element (gnark-crypto) implements json.Unmarshaler
