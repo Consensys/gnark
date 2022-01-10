@@ -62,8 +62,11 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshall
 	// reconstruct a circuit object
 	var reconstructed circuit
 
-	// TODO @gbotrel this is very ugly fixme
-	publicOnly := len(opts) > 0
+	var opt WitnessOption
+	for i := 0; i < len(opts); i++ {
+		assert.NoError(opts[i](&opt))
+	}
+	publicOnly := opt.publicOnly
 	switch wt := witness.Vector.(type) {
 	case *witness_bls12377.Witness:
 		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
@@ -80,9 +83,6 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshall
 	default:
 		panic("not implemented")
 	}
-
-	// err = witness.copyTo(&reconstructed, tVariable)
-	// assert.NoError(err)
 
 	assert.True(reflect.DeepEqual(assignment, reconstructed), "public witness reconstructed doesn't match original value")
 }
@@ -111,5 +111,3 @@ func TestMarshal(t *testing.T) {
 	roundTripMarshal(assert, assignment, JSON)
 	roundTripMarshal(assert, assignment, Binary)
 }
-
-// TODO @gbotrel add test with unmarshal partial jsons
