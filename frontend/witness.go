@@ -10,7 +10,7 @@ import (
 // else returns [public | secret]. The result can then be serialized to / from json & binary
 //
 // Returns an error if the assignment has missing entries
-func NewWitness(assignment Circuit, curveID ecc.ID, opts ...func(opt *WitnessOption) error) (*witness.Witness, error) {
+func NewWitness(assignment Circuit, curveID ecc.ID, opts ...func(opt *witnessConfig) error) (*witness.Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
 		return nil, err
@@ -30,9 +30,9 @@ func NewWitness(assignment Circuit, curveID ecc.ID, opts ...func(opt *WitnessOpt
 }
 
 // default options
-func options(opts ...func(*WitnessOption) error) (WitnessOption, error) {
+func options(opts ...func(*witnessConfig) error) (witnessConfig, error) {
 	// apply options
-	opt := WitnessOption{
+	opt := witnessConfig{
 		publicOnly: false,
 	}
 	for _, option := range opts {
@@ -45,13 +45,15 @@ func options(opts ...func(*WitnessOption) error) (WitnessOption, error) {
 }
 
 // WitnessOption sets optional parameter to witness instantiation from an assigment
-type WitnessOption struct {
+type WitnessOption func(*witnessConfig) error
+
+type witnessConfig struct {
 	publicOnly bool
 }
 
 // PublicOnly enables to instantiate a witness with the public part only of the assignment
-func PublicOnly() func(opt *WitnessOption) error {
-	return func(opt *WitnessOption) error {
+func PublicOnly() WitnessOption {
+	return func(opt *witnessConfig) error {
 		opt.publicOnly = true
 		return nil
 	}

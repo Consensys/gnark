@@ -515,7 +515,7 @@ func (m marshaller) String() string {
 	return "Binary"
 }
 
-func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...func(opt *frontend.WitnessOption) error) {
+func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...frontend.WitnessOption) {
 	marshal := w.MarshalBinary
 	if m == JSON {
 		marshal = w.MarshalJSON
