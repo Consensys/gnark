@@ -141,8 +141,6 @@ HINTLOOP:
 		return bw6633r1cs.NewR1CS(res, cs.Coeffs), nil
 	case ecc.BLS24_315:
 		return bls24315r1cs.NewR1CS(res, cs.Coeffs), nil
-	case ecc.UNKNOWN:
-		return &res, nil
 	default:
 		panic("not implemtented")
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -33,6 +34,8 @@ import (
 	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+
+	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 )
 
 // R1CS decsribes a set of R1CS constraint
@@ -133,11 +136,17 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness []fr.Element, opt backend.ProverOption) error {
+func (cs *R1CS) IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
+	opt, err := backend.NewProverOption(opts...)
+	if err != nil {
+		return err
+	}
+
 	a := make([]fr.Element, len(cs.Constraints))
 	b := make([]fr.Element, len(cs.Constraints))
 	c := make([]fr.Element, len(cs.Constraints))
-	_, err := cs.Solve(witness, a, b, c, opt)
+	v := witness.Vector.(*bw6_633witness.Witness)
+	_, err = cs.Solve(*v, a, b, c, opt)
 	return err
 }
 

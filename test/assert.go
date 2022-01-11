@@ -192,6 +192,9 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 				checkError(err)
 
+				err = ccs.IsSolved(*invalidPublicWitness)
+				mustError(err)
+
 				// must error with big int test engine (only the curveID is needed here)
 				err = IsSolved(circuit, invalidAssignment, curve, backend.UNKNOWN)
 				mustError(err)
@@ -200,9 +203,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				case backend.GROTH16:
 					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
-
-					err = groth16.IsSolved(ccs, invalidAssignment)
-					mustError(err)
 
 					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
@@ -215,9 +215,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
-
-					err = plonk.IsSolved(ccs, invalidAssignment)
-					mustError(err)
 
 					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
 					err = plonk.Verify(incorrectProof, vk, invalidPublicWitness)
@@ -260,17 +257,8 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	err = IsSolved(circuit, validAssignment, curve, b)
 	checkError(err)
 
-	switch b {
-	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, validAssignment, opt.proverOpts...)
-		checkError(err)
-
-	case backend.PLONK:
-		err := plonk.IsSolved(ccs, validAssignment, opt.proverOpts...)
-		checkError(err)
-	default:
-		panic("not implemented")
-	}
+	err = ccs.IsSolved(*validWitness, opt.proverOpts...)
+	checkError(err)
 
 }
 
@@ -307,16 +295,8 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	err = IsSolved(circuit, invalidAssignment, curve, b)
 	mustError(err)
 
-	switch b {
-	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
-		mustError(err)
-	case backend.PLONK:
-		err := plonk.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
-		mustError(err)
-	default:
-		panic("not implemented")
-	}
+	err = ccs.IsSolved(*invalidWitness, opt.proverOpts...)
+	mustError(err)
 
 }
 
