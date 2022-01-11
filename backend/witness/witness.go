@@ -50,7 +50,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -72,28 +71,8 @@ type Witness struct {
 	CurveID ecc.ID         // should be redundant with generic impl
 }
 
-// New build an orderded vector of field elements from the given assignment (frontend.Circuit)
-// if PublicOnly is specified, returns the public part of the witness only
-// else returns [public | secret]. The result can then be serialized to / from json & binary
-//
-// Returns an error if the assignment has missing entries
-func New(assignment frontend.Circuit, curveID ecc.ID, opts ...func(opt *WitnessOption) error) (*Witness, error) {
-	opt, err := options(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return newWitness(assignment, tVariable, curveID, opt.publicOnly)
-}
-
-func newWitness(assignment interface{}, leafType reflect.Type, curveID ecc.ID, publicOnly bool) (*Witness, error) {
-
+func New(curveID ecc.ID, schema *schema.Schema) (*Witness, error) {
 	v, err := newVector(curveID)
-	if err != nil {
-		return nil, err
-	}
-
-	schema, err := v.FromAssignment(assignment, leafType, publicOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -238,38 +217,4 @@ func (w *Witness) toAssignment(to interface{}, toLeafType reflect.Type) error {
 	w.Vector.ToAssignment(to, toLeafType, publicOnly)
 
 	return nil
-}
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
-}
-
-// default options
-func options(opts ...func(*WitnessOption) error) (WitnessOption, error) {
-	// apply options
-	opt := WitnessOption{
-		publicOnly: false,
-	}
-	for _, option := range opts {
-		if err := option(&opt); err != nil {
-			return opt, err
-		}
-	}
-
-	return opt, nil
-}
-
-// WitnessOption sets optional parameter to witness instantiation from an assigment
-type WitnessOption struct {
-	publicOnly bool
-}
-
-// PublicOnly enables to instantiate a witness with the public part only of the assignment
-func PublicOnly() func(opt *WitnessOption) error {
-	return func(opt *WitnessOption) error {
-		opt.publicOnly = true
-		return nil
-	}
 }

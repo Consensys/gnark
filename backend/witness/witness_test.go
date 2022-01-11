@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/frontend"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
@@ -19,14 +18,10 @@ import (
 type circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X frontend.Variable `gnark:",public"`
-	Y frontend.Variable `gnark:",public"`
+	X *fr.Element `gnark:",public"`
+	Y *fr.Element `gnark:",public"`
 
-	E frontend.Variable
-}
-
-func (circuit *circuit) Define(api frontend.API) error {
-	return nil
+	E *fr.Element
 }
 
 type marshaller uint8
@@ -36,9 +31,12 @@ const (
 	Binary
 )
 
-func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, opts ...func(opt *WitnessOption) error) {
+func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, publicOnly bool) {
 	// build the vector
-	w, err := New(&assignment, ecc.BN254, opts...)
+	w, err := New(ecc.BN254, nil)
+	assert.NoError(err)
+
+	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, publicOnly)
 	assert.NoError(err)
 
 	marshal := w.MarshalBinary
@@ -62,11 +60,6 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshall
 	// reconstruct a circuit object
 	var reconstructed circuit
 
-	var opt WitnessOption
-	for i := 0; i < len(opts); i++ {
-		assert.NoError(opts[i](&opt))
-	}
-	publicOnly := opt.publicOnly
 	switch wt := witness.Vector.(type) {
 	case *witness_bls12377.Witness:
 		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
@@ -91,23 +84,27 @@ func TestMarshalPublic(t *testing.T) {
 	assert := require.New(t)
 
 	var assignment circuit
-	var e fr.Element
-	assignment.X = *(e.SetInt64(42))
-	assignment.Y = *(e.SetInt64(8000))
+	assignment.X = new(fr.Element).SetInt64(42)
+	assignment.Y = new(fr.Element).SetInt64(8000)
 
-	roundTripMarshal(assert, assignment, JSON, PublicOnly())
-	roundTripMarshal(assert, assignment, Binary, PublicOnly())
+	roundTripMarshal(assert, assignment, JSON, true)
+	roundTripMarshal(assert, assignment, Binary, true)
 }
 
 func TestMarshal(t *testing.T) {
 	assert := require.New(t)
 
 	var assignment circuit
-	var e fr.Element
-	assignment.X = *(e.SetInt64(42))
-	assignment.Y = *(e.SetInt64(8000))
-	assignment.E = *(e.SetInt64(1))
+	assignment.X = new(fr.Element).SetInt64(42)
+	assignment.Y = new(fr.Element).SetInt64(8000)
+	assignment.E = new(fr.Element).SetInt64(1)
 
-	roundTripMarshal(assert, assignment, JSON)
-	roundTripMarshal(assert, assignment, Binary)
+	roundTripMarshal(assert, assignment, JSON, false)
+	roundTripMarshal(assert, assignment, Binary, false)
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.TypeOf(circuit{}.E)
 }

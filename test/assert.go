@@ -91,18 +91,18 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	for _, curve := range opt.curves {
 
 		// parse the assignment and instantiate the witness
-		validWitness, err := witness.New(validAssignment, curve)
+		validWitness, err := frontend.NewWitness(validAssignment, curve)
 		assert.NoError(err, "can't parse valid assignment")
 
-		validPublicWitness, err := witness.New(validAssignment, curve, witness.PublicOnly())
+		validPublicWitness, err := frontend.NewWitness(validAssignment, curve, frontend.PublicOnly())
 		assert.NoError(err, "can't parse valid assignment")
 
 		if opt.witnessSerialization {
 			// do a round trip marshalling test
 			assert.marshalWitness(validWitness, curve, JSON)
 			assert.marshalWitness(validWitness, curve, Binary)
-			assert.marshalWitness(validPublicWitness, curve, JSON, witness.PublicOnly())
-			assert.marshalWitness(validPublicWitness, curve, Binary, witness.PublicOnly())
+			assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
+			assert.marshalWitness(validPublicWitness, curve, Binary, frontend.PublicOnly())
 		}
 
 		for _, b := range opt.backends {
@@ -175,9 +175,9 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	for _, curve := range opt.curves {
 
 		// parse assignment
-		invalidWitness, err := witness.New(invalidAssignment, curve)
+		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
 		assert.NoError(err, "can't parse invalid assignment")
-		invalidPublicWitness, err := witness.New(invalidAssignment, curve, witness.PublicOnly())
+		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve, frontend.PublicOnly())
 		assert.NoError(err, "can't parse invalid assignment")
 
 		for _, b := range opt.backends {
@@ -247,7 +247,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 
 func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
 	// parse assignment
-	validWitness, err := witness.New(validAssignment, curve)
+	validWitness, err := frontend.NewWitness(validAssignment, curve)
 	assert.NoError(err, "can't parse valid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
@@ -290,7 +290,7 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
 	// parse assignment
-	invalidWitness, err := witness.New(invalidAssignment, curve)
+	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
 	assert.NoError(err, "can't parse invalid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
@@ -515,7 +515,7 @@ func (m marshaller) String() string {
 	return "Binary"
 }
 
-func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...func(opt *witness.WitnessOption) error) {
+func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...func(opt *frontend.WitnessOption) error) {
 	marshal := w.MarshalBinary
 	if m == JSON {
 		marshal = w.MarshalJSON

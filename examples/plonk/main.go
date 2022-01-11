@@ -21,7 +21,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	"github.com/consensys/gnark/test"
 
@@ -99,12 +98,12 @@ func main() {
 		w.E = 2
 		w.Y = 4
 
-		witnessFull, err := witness.New(&w, ecc.BN254)
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		witnessPublic, err := witness.New(&w, ecc.BN254, witness.PublicOnly())
+		witnessPublic, err := frontend.NewWitness(&w, ecc.BN254, frontend.PublicOnly())
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -140,12 +139,12 @@ func main() {
 		pW.X = 3
 		pW.Y = 4096
 
-		witnessFull, err := witness.New(&w, ecc.BN254)
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		witnessPublic, err := witness.New(&pW, ecc.BN254, witness.PublicOnly())
+		witnessPublic, err := frontend.NewWitness(&pW, ecc.BN254, frontend.PublicOnly())
 		if err != nil {
 			log.Fatal(err)
 		}

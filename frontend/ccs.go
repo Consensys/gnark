@@ -27,6 +27,8 @@ type CompiledConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
+	// IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error
+
 	// GetNbVariables return number of internal, secret and public Variables
 	GetNbVariables() (internal, secret, public int)
 	GetNbConstraints() int
