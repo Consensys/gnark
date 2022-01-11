@@ -464,19 +464,15 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 		return
 	}
 	var json string
-
-	defer func() {
-		e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
-
-		assert.FailNow(e.Error())
-	}()
-
 	bjson, err := witness.MarshalJSON()
 	if err != nil {
 		json = err.Error()
-		return
+	} else {
+		json = string(bjson)
 	}
-	json = string(bjson)
+
+	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
+	assert.FailNow(e.Error())
 }
 
 // ensure the error is nil, else fails the test
@@ -484,13 +480,9 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 	if err == nil {
 		return
 	}
-	var e error
-	defer func() {
-		assert.FailNow(e.Error())
-	}()
 
 	var json string
-	e = fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
+	e := fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
 
 	bjson, err := witness.MarshalJSON()
 	if err != nil {
@@ -499,6 +491,8 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 		json = string(bjson)
 	}
 	e = fmt.Errorf("%w\nwitness:%s", e, json)
+
+	assert.FailNow(e.Error())
 }
 
 type marshaller uint8
