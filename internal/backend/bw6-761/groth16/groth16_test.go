@@ -27,6 +27,7 @@ import (
 
 	"bytes"
 	bw6_761groth16 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
+	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
@@ -95,7 +96,7 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -114,12 +115,12 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
 	publicWitness := bw6_761witness.Witness{}
-	_, err = publicWitness.FromAssignment(_solution, true)
+	_, err = publicWitness.FromAssignment(_solution, tVariable, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -143,7 +144,7 @@ func BenchmarkVerifier(b *testing.B) {
 func BenchmarkProofSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := bw6_761witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -263,4 +264,10 @@ func BenchmarkProvingKeySerialization(b *testing.B) {
 			pk.UnsafeReadFrom(bytes.NewReader(rawBytes))
 		}
 	})
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

@@ -21,6 +21,7 @@ package groth16
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -424,41 +425,47 @@ func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
 		w := witness_bls12377.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bls12381.R1CS:
 		w := witness_bls12381.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bls24315.R1CS:
 		w := witness_bls24315.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bw6633.R1CS:
 		w := witness_bw6633.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

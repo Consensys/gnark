@@ -69,17 +69,17 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshall
 	publicOnly := opt.publicOnly
 	switch wt := witness.Vector.(type) {
 	case *witness_bls12377.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bls12381.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bls24315.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bn254.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bw6633.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bw6761.Witness:
-		wt.VectorToAssignment(&reconstructed, tVariable, publicOnly)
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	default:
 		panic("not implemented")
 	}

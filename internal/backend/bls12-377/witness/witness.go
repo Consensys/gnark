@@ -23,7 +23,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 
@@ -33,10 +32,6 @@ import (
 )
 
 type Witness []fr.Element
-
-// that's public and modifiable. Fine since it's internal for now
-// TODO @gbotrel get rid of that through generics
-var T = reflect.TypeOf(fr.Element{})
 
 // WriteTo encodes witness to writer (implements io.WriterTo)
 func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
@@ -52,6 +47,14 @@ func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
 		}
 	}
 	return enc.BytesWritten() + 4, nil
+}
+
+func (witness *Witness) Len() int {
+	return len(*witness)
+}
+
+func (witness *Witness) Type() reflect.Type {
+	return reflect.TypeOf(fr.Element{})
 }
 
 func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
@@ -78,8 +81,8 @@ func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // FromAssignment extracts the witness and its schema
-func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.Schema, error) {
-	s, err := schema.Parse(w, tVariable, nil)
+func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) (*schema.Schema, error) {
+	s, err := schema.Parse(assignment, leafType, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +108,7 @@ func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.
 		if tInput.IsNil() {
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
 		}
-		v := tInput.Interface().(frontend.Variable)
+		v := tInput.Interface()
 
 		if v == nil {
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
@@ -124,14 +127,14 @@ func (witness *Witness) FromAssignment(w interface{}, publicOnly bool) (*schema.
 		}
 		return nil
 	}
-	return schema.Parse(w, tVariable, collectHandler)
+	return schema.Parse(assignment, leafType, collectHandler)
 }
 
-// VectorToAssignment sets to leaf values to witness underlying vector element values (in order)
+// ToAssignment sets to leaf values to witness underlying vector element values (in order)
 // see witness.MarshalBinary protocol description
-func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Type, publicOnly bool) {
+func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) {
 	i := 0
-	setAddr := toLeafType.Kind() == reflect.Ptr
+	setAddr := leafType.Kind() == reflect.Ptr
 	setHandler := func(v compiled.Visibility) schema.LeafHandler {
 		return func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
 			if visibility == v {
@@ -146,11 +149,11 @@ func (witness *Witness) VectorToAssignment(to interface{}, toLeafType reflect.Ty
 			return nil
 		}
 	}
-	_, _ = schema.Parse(to, toLeafType, setHandler(compiled.Public))
+	_, _ = schema.Parse(assignment, leafType, setHandler(compiled.Public))
 	if publicOnly {
 		return
 	}
-	_, _ = schema.Parse(to, toLeafType, setHandler(compiled.Secret))
+	_, _ = schema.Parse(assignment, leafType, setHandler(compiled.Secret))
 
 }
 
@@ -163,10 +166,4 @@ func (witness *Witness) String() string {
 	}
 	sbb.WriteByte(']')
 	return sbb.String()
-}
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

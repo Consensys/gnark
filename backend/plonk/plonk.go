@@ -21,6 +21,7 @@ package plonk
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
@@ -332,41 +333,47 @@ func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, o
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
 		w := witness_bn254.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6633.SparseR1CS:
 		w := witness_bw6633.Witness{}
-		if _, err := w.FromAssignment(witness, false); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	default:
 		panic("unknown constraint system type")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

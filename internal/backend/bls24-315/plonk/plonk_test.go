@@ -30,6 +30,7 @@ import (
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -101,7 +102,7 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bls24_315witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -123,12 +124,12 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bls24_315witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
 	publicWitness := bls24_315witness.Witness{}
-	_, err = publicWitness.FromAssignment(_solution, true)
+	_, err = publicWitness.FromAssignment(_solution, tVariable, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func BenchmarkVerifier(b *testing.B) {
 func BenchmarkSerialization(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
 	fullWitness := bls24_315witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, false)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -217,4 +218,10 @@ func BenchmarkSerialization(b *testing.B) {
 		_, _ = proof.WriteTo(&buf)
 	}
 
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

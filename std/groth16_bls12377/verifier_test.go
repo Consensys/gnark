@@ -17,6 +17,7 @@ limitations under the License.
 package groth16_bls12377
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -71,7 +72,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	correctAssignment := witness.Witness{}
 
-	_, err = correctAssignment.FromAssignment(&w, false)
+	_, err = correctAssignment.FromAssignment(&w, tVariable, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +89,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Krs = _proof.Krs
 
 	correctAssignmentPublic := witness.Witness{}
-	_, err = correctAssignmentPublic.FromAssignment(&w, true)
+	_, err = correctAssignmentPublic.FromAssignment(&w, tVariable, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,3 +257,9 @@ func BenchmarkCompile(b *testing.B) {
 // 	}
 
 // }
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+}
