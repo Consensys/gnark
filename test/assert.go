@@ -89,7 +89,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
-
+		curve := curve
 		// parse the assignment and instantiate the witness
 		validWitness, err := frontend.NewWitness(validAssignment, curve)
 		assert.NoError(err, "can't parse valid assignment")
@@ -99,14 +99,22 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 
 		if opt.witnessSerialization {
 			// do a round trip marshalling test
-			assert.marshalWitness(validWitness, curve, JSON)
-			assert.marshalWitness(validWitness, curve, Binary)
-			assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
-			assert.marshalWitness(validPublicWitness, curve, Binary, frontend.PublicOnly())
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validWitness, curve, JSON)
+			}, curve.String(), "marshal/json")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validWitness, curve, Binary)
+			}, curve.String(), "marshal/binary")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
+			}, curve.String(), "marshal-public/json")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validPublicWitness, curve, Binary, frontend.PublicOnly())
+			}, curve.String(), "marshal-public/binary")
 		}
 
 		for _, b := range opt.backends {
-			curve := curve
+
 			b := b
 			assert.Run(func(assert *Assert) {
 
