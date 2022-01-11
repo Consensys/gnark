@@ -18,6 +18,7 @@ package schema
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -75,6 +76,55 @@ func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interfa
 
 	// return interface
 	return v.Addr().Interface()
+}
+
+// WriteSequence writes the expected sequence order of the witness on provided writer
+// witness elements are identified by their tag name, or if unset, struct & field name
+//
+// The expected sequence matches the binary encoding protocol [public | secret]
+func (s Schema) WriteSequence(w io.Writer) error {
+	var public, secret []string
+
+	var a int
+	instance := s.Instantiate(reflect.TypeOf(a), false)
+
+	collectHandler := func(visibility compiled.Visibility, name string, _ reflect.Value) error {
+		if visibility == compiled.Public {
+			public = append(public, name)
+		} else if visibility == compiled.Secret {
+			secret = append(secret, name)
+		}
+		return nil
+	}
+	if _, err := Parse(instance, reflect.TypeOf(a), collectHandler); err != nil {
+		return err
+	}
+
+	if _, err := io.WriteString(w, "public:\n"); err != nil {
+		return err
+	}
+	for _, p := range public {
+		if _, err := io.WriteString(w, p); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	if _, err := io.WriteString(w, "secret:\n"); err != nil {
+		return err
+	}
+	for _, s := range secret {
+		if _, err := io.WriteString(w, s); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte{'\n'}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // toStructField recurse through Field and builds corresponding reflect.StructField

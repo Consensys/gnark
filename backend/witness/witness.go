@@ -58,7 +58,6 @@ import (
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 var (
@@ -366,51 +365,6 @@ func (w *Witness) getType() (reflect.Type, error) {
 		return witness_bw6761.T, nil
 	}
 	return nil, errMissingCurveID
-}
-
-// WriteSequence writes the expected sequence order of the witness on provided writer
-// witness elements are identified by their tag name, or if unset, struct & field name
-//
-// The expected sequence matches the binary encoding protocol [public | secret]
-func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
-	var public, secret []string
-	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Public {
-			public = append(public, name)
-		} else if visibility == compiled.Secret {
-			secret = append(secret, name)
-		}
-		return nil
-	}
-	if _, err := schema.Parse(circuit, tVariable, collectHandler); err != nil {
-		return err
-	}
-
-	if _, err := io.WriteString(w, "public:\n"); err != nil {
-		return err
-	}
-	for _, p := range public {
-		if _, err := io.WriteString(w, p); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte{'\n'}); err != nil {
-			return err
-		}
-	}
-
-	if _, err := io.WriteString(w, "secret:\n"); err != nil {
-		return err
-	}
-	for _, s := range secret {
-		if _, err := io.WriteString(w, s); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte{'\n'}); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 var tVariable reflect.Type
