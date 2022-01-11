@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -110,21 +111,21 @@ func (system *sparseR1CS) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, 
 func (system *sparseR1CS) newInternalVariable() compiled.Term {
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
-	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)
+	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
 }
 
 // NewPublicVariable creates a new Public Variable
 func (system *sparseR1CS) NewPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
-	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)
+	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
 }
 
 // NewPublicVariable creates a new Secret Variable
 func (system *sparseR1CS) NewSecretVariable(name string) frontend.Variable {
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
-	return compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)
+	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
 }
 
 // reduces redundancy in linear expression
@@ -202,17 +203,17 @@ func (system *sparseR1CS) CheckVariables() error {
 		vID := t.WireID()
 		if t.CoeffID() != compiled.CoeffIdZero {
 			switch visibility {
-			case compiled.Public:
+			case schema.Public:
 				if !publicConstrained[vID] {
 					publicConstrained[vID] = true
 					cptPublic--
 				}
-			case compiled.Secret:
+			case schema.Secret:
 				if !secretConstrained[vID] {
 					secretConstrained[vID] = true
 					cptSecret--
 				}
-			case compiled.Internal:
+			case schema.Internal:
 				if _, ok := system.MHints[vID]; !mHintsConstrained[vID] && ok {
 					mHintsConstrained[vID] = true
 					cptHints--

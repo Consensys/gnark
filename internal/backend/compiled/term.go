@@ -18,6 +18,8 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/consensys/gnark/frontend/schema"
 )
 
 // Term lightweight version of a term, no pointers
@@ -76,7 +78,7 @@ const (
 // next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
 // next 29 bits represent the constraint used to compute the wire
 // if we support more than 500 millions constraints, this breaks (not so soon.)
-func Pack(variableID, coeffID int, variableVisiblity Visibility) Term {
+func Pack(variableID, coeffID int, variableVisiblity schema.Visibility) Term {
 	var t Term
 	t.SetWireID(variableID)
 	t.SetCoeffID(coeffID)
@@ -85,41 +87,41 @@ func Pack(variableID, coeffID int, variableVisiblity Visibility) Term {
 }
 
 // Unpack returns coeffID, variableID and visibility
-func (t Term) Unpack() (coeffID, variableID int, variableVisiblity Visibility) {
+func (t Term) Unpack() (coeffID, variableID int, variableVisiblity schema.Visibility) {
 	coeffID = t.CoeffID()
 	variableID = t.WireID()
 	variableVisiblity = t.VariableVisibility()
 	return
 }
 
-// VariableVisibility returns encoded Visibility attribute
-func (t Term) VariableVisibility() Visibility {
+// VariableVisibility returns encoded schema.Visibility attribute
+func (t Term) VariableVisibility() schema.Visibility {
 	variableVisiblity := (uint64(t) & maskVariableVisibility) >> shiftVariableVisibility
 	switch variableVisiblity {
 	case variableInternal:
-		return Internal
+		return schema.Internal
 	case variablePublic:
-		return Public
+		return schema.Public
 	case variableSecret:
-		return Secret
+		return schema.Secret
 	case variableVirtual:
-		return Virtual
+		return schema.Virtual
 	default:
-		return Unset
+		return schema.Unset
 	}
 }
 
 // SetVariableVisibility update the bits correponding to the variableVisiblity with its encoding
-func (t *Term) SetVariableVisibility(v Visibility) {
+func (t *Term) SetVariableVisibility(v schema.Visibility) {
 	variableVisiblity := uint64(0)
 	switch v {
-	case Internal:
+	case schema.Internal:
 		variableVisiblity = variableInternal
-	case Public:
+	case schema.Public:
 		variableVisiblity = variablePublic
-	case Secret:
+	case schema.Secret:
 		variableVisiblity = variableSecret
-	case Virtual:
+	case schema.Virtual:
 		variableVisiblity = variableVirtual
 	default:
 		return
@@ -161,15 +163,15 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 	sbb.WriteString(coeffs[t.CoeffID()].String())
 	sbb.WriteString("*")
 	switch t.VariableVisibility() {
-	case Internal:
+	case schema.Internal:
 		sbb.WriteString("i")
-	case Public:
+	case schema.Public:
 		sbb.WriteString("p")
-	case Secret:
+	case schema.Secret:
 		sbb.WriteString("s")
-	case Virtual:
+	case schema.Virtual:
 		sbb.WriteString("v")
-	case Unset:
+	case schema.Unset:
 		sbb.WriteString("u")
 	default:
 		panic("not implemented")

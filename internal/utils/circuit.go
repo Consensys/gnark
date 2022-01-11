@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // ShallowClone clones given circuit
@@ -33,10 +32,10 @@ func ShallowClone(circuit frontend.Circuit) frontend.Circuit {
 func CopyWitness(to, from frontend.Circuit) {
 	var wValues []interface{}
 
-	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
 		v := tInput.Interface().(frontend.Variable)
 
-		if visibility == compiled.Secret || visibility == compiled.Public {
+		if visibility == schema.Secret || visibility == schema.Public {
 			if v == nil {
 				return fmt.Errorf("when parsing variable %s: missing assignment", name)
 			}
@@ -49,8 +48,8 @@ func CopyWitness(to, from frontend.Circuit) {
 	}
 
 	i := 0
-	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret || visibility == compiled.Public {
+	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		if visibility == schema.Secret || visibility == schema.Public {
 			tInput.Set(reflect.ValueOf((wValues[i])))
 			i++
 		}

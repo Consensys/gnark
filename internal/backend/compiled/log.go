@@ -16,6 +16,8 @@ package compiled
 
 import (
 	"strings"
+
+	"github.com/consensys/gnark/frontend/schema"
 )
 
 // LogEntry is used as a shared data structure between the frontend and the backend
@@ -39,9 +41,9 @@ func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
 
 func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 	// virtual == only a coeff, we discard the wire
-	if t.VariableVisibility() == Public && t.WireID() == 0 {
+	if t.VariableVisibility() == schema.Public && t.WireID() == 0 {
 		sbb.WriteString("%s")
-		t.SetVariableVisibility(Virtual)
+		t.SetVariableVisibility(schema.Virtual)
 		l.ToResolve = append(l.ToResolve, t)
 		return
 	}

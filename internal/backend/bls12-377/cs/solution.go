@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 
@@ -228,7 +229,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 
 		if isEval {
 			// we are evaluating
-			if visibility == compiled.Virtual {
+			if visibility == schema.Virtual {
 				// just add the constant
 				eval.Add(&eval, &s.coefficients[cID])
 				continue
@@ -242,7 +243,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 			continue
 		}
 
-		if visibility == compiled.Virtual {
+		if visibility == schema.Virtual {
 			// it's just a constant
 			if cID == compiled.CoeffIdMinusOne {
 				toResolve = append(toResolve, "-1")

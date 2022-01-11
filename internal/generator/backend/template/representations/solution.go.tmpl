@@ -8,6 +8,7 @@ import (
     "github.com/consensys/gnark/backend/hint"
     "github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/frontend/schema"
     
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
@@ -209,7 +210,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 
 		if isEval {
 			// we are evaluating
-			if visibility == compiled.Virtual {
+			if visibility == schema.Virtual {
 				// just add the constant
 				eval.Add(&eval, &s.coefficients[cID])
 				continue
@@ -223,7 +224,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 			continue
 		}
 
-		if visibility == compiled.Virtual {
+		if visibility == schema.Virtual {
 			// it's just a constant
 			if cID == compiled.CoeffIdMinusOne {
 				toResolve = append(toResolve, "-1")

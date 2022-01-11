@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package schema_test
+package schema
 
 import (
 	"bytes"
@@ -22,29 +22,29 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/schema"
 	"github.com/stretchr/testify/require"
 )
 
+type variable interface{}
+
 type Circuit struct {
-	X frontend.Variable `gnark:"x"`
-	Y frontend.Variable `gnark:",public"`
-	Z []frontend.Variable
+	X variable `gnark:"x"`
+	Y variable `gnark:",public"`
+	Z []variable
 	G circuitChild
 	H circuitGrandChild `gnark:",secret"`
 	I [2]circuitGrandChild
 }
 
 type circuitChild struct {
-	A frontend.Variable    `gnark:",public"`
-	B circuitGrandChild    `gnark:",public"`
-	C [2]frontend.Variable `gnark:"super"`
+	A variable          `gnark:",public"`
+	B circuitGrandChild `gnark:",public"`
+	C [2]variable       `gnark:"super"`
 }
 
 type circuitGrandChild struct {
-	E frontend.Variable
-	F [2]frontend.Variable
+	E variable
+	F [2]variable
 	N circuitGrandGrandChildWithoutVariables
 	O circuitGrandGrandChildWithVariables
 	P [1]circuitGrandGrandChildWithVariables
@@ -55,7 +55,7 @@ type circuitGrandGrandChildWithoutVariables struct {
 }
 
 type circuitGrandGrandChildWithVariables struct {
-	M frontend.Variable
+	M variable
 }
 
 type expected struct {
@@ -98,14 +98,12 @@ type expected struct {
 	}
 }
 
-func (circuit *Circuit) Define(api frontend.API) error { panic("not implemented") }
-
 func TestSchemaCorrectness(t *testing.T) {
 	assert := require.New(t)
 
 	// build schema
-	witness := &Circuit{Z: make([]frontend.Variable, 3)}
-	s, err := schema.Parse(witness, tVariable, nil)
+	witness := &Circuit{Z: make([]variable, 3)}
+	s, err := Parse(witness, tVariable, nil)
 	assert.NoError(err)
 
 	// instantiate a concrete object
@@ -126,5 +124,5 @@ func TestSchemaCorrectness(t *testing.T) {
 var tVariable reflect.Type
 
 func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+	tVariable = reflect.ValueOf(struct{ A variable }{}).FieldByName("A").Type()
 }

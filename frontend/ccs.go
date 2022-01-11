@@ -45,4 +45,6 @@ type CompiledConstraintSystem interface {
 
 	// GetCounters return the collected constraint counters, if any
 	GetCounters() []compiled.Counter
+
+	// Schema() *schema.Schema
 }

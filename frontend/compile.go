@@ -9,7 +9,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 var tVariable reflect.Type
@@ -97,14 +96,14 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			switch visibility {
-			case compiled.Secret:
+			case schema.Secret:
 				tInput.Set(reflect.ValueOf(builder.NewSecretVariable(name)))
-			case compiled.Public:
+			case schema.Public:
 				tInput.Set(reflect.ValueOf(builder.NewPublicVariable(name)))
-			case compiled.Unset:
+			case schema.Unset:
 				return errors.New("can't set val " + name + " visibility is unset")
 			}
 

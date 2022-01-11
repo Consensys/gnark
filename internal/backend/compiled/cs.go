@@ -37,33 +37,6 @@ type CS struct {
 	MHints map[int]*Hint
 }
 
-// Visibility encodes a Variable (or wire) visibility
-// Possible values are Unset, Internal, Secret or Public
-type Visibility uint8
-
-const (
-	Unset Visibility = iota
-	Internal
-	Secret
-	Public
-	Virtual
-)
-
-func (v Visibility) String() string {
-	switch v {
-	case Internal:
-		return "internal"
-	case Secret:
-		return "secret"
-	case Public:
-		return "public"
-	case Virtual:
-		return "virtual"
-	}
-
-	return "unset"
-}
-
 // Hint represents a solver hint
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs

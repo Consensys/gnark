@@ -27,6 +27,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -342,18 +343,18 @@ func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHin
 	vID := t.WireID()
 	class := ""
 	switch t.VariableVisibility() {
-	case compiled.Internal:
+	case schema.Internal:
 		class = "internal"
 		if _, ok := MHints[vID]; ok {
 			class = "hint"
 		}
-	case compiled.Public:
+	case schema.Public:
 		class = "public"
-	case compiled.Secret:
+	case schema.Secret:
 		class = "secret"
-	case compiled.Virtual:
+	case schema.Virtual:
 		class = "virtual"
-	case compiled.Unset:
+	case schema.Unset:
 		class = "unset"
 	default:
 		panic("not implemented")

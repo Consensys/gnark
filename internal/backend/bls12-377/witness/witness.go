@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
@@ -101,8 +100,8 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 	var i, j int // indexes for secret / public variables
 	i = nbPublic // offset
 
-	var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if publicOnly && visibility != compiled.Public {
+	var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		if publicOnly && visibility != schema.Public {
 			return nil
 		}
 		if tInput.IsNil() {
@@ -114,12 +113,12 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 			return fmt.Errorf("when parsing variable %s: missing assignment", name)
 		}
 
-		if !publicOnly && visibility == compiled.Secret {
+		if !publicOnly && visibility == schema.Secret {
 			if _, err := (*witness)[i].SetInterface(v); err != nil {
 				return fmt.Errorf("when parsing variable %s: %v", name, err)
 			}
 			i++
-		} else if visibility == compiled.Public {
+		} else if visibility == schema.Public {
 			if _, err := (*witness)[j].SetInterface(v); err != nil {
 				return fmt.Errorf("when parsing variable %s: %v", name, err)
 			}
@@ -135,8 +134,8 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) {
 	i := 0
 	setAddr := leafType.Kind() == reflect.Ptr
-	setHandler := func(v compiled.Visibility) schema.LeafHandler {
-		return func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
+	setHandler := func(v schema.Visibility) schema.LeafHandler {
+		return func(visibility schema.Visibility, name string, tInput reflect.Value) error {
 			if visibility == v {
 				if setAddr {
 					tInput.Set(reflect.ValueOf((&(*witness)[i])))
@@ -149,11 +148,11 @@ func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Ty
 			return nil
 		}
 	}
-	_, _ = schema.Parse(assignment, leafType, setHandler(compiled.Public))
+	_, _ = schema.Parse(assignment, leafType, setHandler(schema.Public))
 	if publicOnly {
 		return
 	}
-	_, _ = schema.Parse(assignment, leafType, setHandler(compiled.Secret))
+	_, _ = schema.Parse(assignment, leafType, setHandler(schema.Secret))
 
 }
 
