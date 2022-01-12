@@ -22,12 +22,14 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-// TestingOption enables calls to assert.ProverSucceeded and assert.ProverFailed to run with various features
+type TestingOption func(*testingConfig) error
+
+// testingConfig enables calls to assert.ProverSucceeded and assert.ProverFailed to run with various features
 //
 // In particular: chose the curve, chose the backend and execute serialization tests on the witness
 //
 // Default values to all supported curves, backends and execute serialization tests = true
-type TestingOption struct {
+type testingConfig struct {
 	backends             []backend.ID
 	curves               []ecc.ID
 	witnessSerialization bool
@@ -38,8 +40,8 @@ type TestingOption struct {
 // WithBackends enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific backends only
 //
 // (defaults to all gnark supported backends)
-func WithBackends(b backend.ID, backends ...backend.ID) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+func WithBackends(b backend.ID, backends ...backend.ID) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.backends = []backend.ID{b}
 		opt.backends = append(opt.backends, backends...)
 		return nil
@@ -49,8 +51,8 @@ func WithBackends(b backend.ID, backends ...backend.ID) func(opt *TestingOption)
 // WithCurves enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific curves only
 //
 // (defaults to all gnark supported curves)
-func WithCurves(c ecc.ID, curves ...ecc.ID) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+func WithCurves(c ecc.ID, curves ...ecc.ID) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.curves = []ecc.ID{c}
 		opt.curves = append(opt.curves, curves...)
 		return nil
@@ -58,8 +60,8 @@ func WithCurves(c ecc.ID, curves ...ecc.ID) func(opt *TestingOption) error {
 }
 
 // NoSerialization enables calls to assert.ProverSucceeded and assert.ProverFailed to skip witness serialization tests
-func NoSerialization() func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+func NoSerialization() TestingOption {
+	return func(opt *testingConfig) error {
 		opt.witnessSerialization = false
 		return nil
 	}
@@ -67,8 +69,8 @@ func NoSerialization() func(opt *TestingOption) error {
 
 // WithProverOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward backend.Prover option
 // to backend.Prove and backend.ReadAndProve calls
-func WithProverOpts(proverOpts ...backend.ProverOption) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+func WithProverOpts(proverOpts ...backend.ProverOption) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.proverOpts = proverOpts
 		return nil
 	}
@@ -76,8 +78,8 @@ func WithProverOpts(proverOpts ...backend.ProverOption) func(opt *TestingOption)
 
 // WithCompileOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward compiler.Compile option
 // to compiler.Compile calls
-func WithCompileOpts(compileOpts ...frontend.CompileOption) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+func WithCompileOpts(compileOpts ...frontend.CompileOption) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.compileOpts = compileOpts
 		return nil
 	}
