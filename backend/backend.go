@@ -72,9 +72,11 @@ type ProverConfig struct {
 // should complete, even if constraint system is not solved.
 // In that case, Prove will output an invalid Proof, but will execute all algorithms
 // which is useful for test and benchmarking purposes
-func IgnoreSolverError(opt *ProverConfig) error {
-	opt.Force = true
-	return nil
+func IgnoreSolverError() ProverOption {
+	return func(opt *ProverConfig) error {
+		opt.Force = true
+		return nil
+	}
 }
 
 // WithHints is a Prover option that specifies additional hint functions to be used

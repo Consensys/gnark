@@ -178,7 +178,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
-	popts := append(opt.proverOpts, backend.IgnoreSolverError)
+	popts := append(opt.proverOpts, backend.IgnoreSolverError())
 
 	for _, curve := range opt.curves {
 
