@@ -30,7 +30,7 @@ type CompiledConstraintSystem interface {
 	io.ReaderFrom
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
-	IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error
+	IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error
 
 	// GetNbVariables return number of internal, secret and public Variables
 	GetNbVariables() (internal, secret, public int)

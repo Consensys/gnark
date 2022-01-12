@@ -21,7 +21,6 @@ package plonk
 
 import (
 	"io"
-	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
@@ -319,10 +318,4 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	}
 
 	return vk
-}
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

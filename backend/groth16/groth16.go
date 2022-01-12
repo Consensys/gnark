@@ -21,7 +21,6 @@ package groth16
 
 import (
 	"io"
-	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -410,10 +409,4 @@ func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 		panic("not implemented")
 	}
 	return r1cs
-}
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

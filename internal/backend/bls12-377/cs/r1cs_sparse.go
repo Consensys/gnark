@@ -243,7 +243,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 // IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
+func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
 	opt, err := backend.NewProverOption(opts...)
 	if err != nil {
 		return err

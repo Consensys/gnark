@@ -192,7 +192,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 				checkError(err)
 
-				err = ccs.IsSolved(*invalidPublicWitness)
+				err = ccs.IsSolved(invalidPublicWitness)
 				mustError(err)
 
 				// must error with big int test engine (only the curveID is needed here)
@@ -257,7 +257,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	err = IsSolved(circuit, validAssignment, curve, b)
 	checkError(err)
 
-	err = ccs.IsSolved(*validWitness, opt.proverOpts...)
+	err = ccs.IsSolved(validWitness, opt.proverOpts...)
 	checkError(err)
 
 }
@@ -295,7 +295,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	err = IsSolved(circuit, invalidAssignment, curve, b)
 	mustError(err)
 
-	err = ccs.IsSolved(*invalidWitness, opt.proverOpts...)
+	err = ccs.IsSolved(invalidWitness, opt.proverOpts...)
 	mustError(err)
 
 }

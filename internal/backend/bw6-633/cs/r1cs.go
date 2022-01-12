@@ -137,7 +137,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
+func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
 	opt, err := backend.NewProverOption(opts...)
 	if err != nil {
 		return err
