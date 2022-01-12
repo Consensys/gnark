@@ -31,7 +31,7 @@ type TestingOption struct {
 	backends             []backend.ID
 	curves               []ecc.ID
 	witnessSerialization bool
-	proverOpts           []func(opt *backend.ProverOption) error
+	proverOpts           []backend.ProverOption
 	compileOpts          []frontend.CompileOption
 }
 
@@ -67,7 +67,7 @@ func NoSerialization() func(opt *TestingOption) error {
 
 // WithProverOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward backend.Prover option
 // to backend.Prove and backend.ReadAndProve calls
-func WithProverOpts(proverOpts ...func(opt *backend.ProverOption) error) func(opt *TestingOption) error {
+func WithProverOpts(proverOpts ...backend.ProverOption) func(opt *TestingOption) error {
 	return func(opt *TestingOption) error {
 		opt.proverOpts = proverOpts
 		return nil

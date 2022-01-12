@@ -117,10 +117,10 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
 	// apply options
-	opt, err := backend.NewProverOption(opts...)
+	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return nil, err
 	}

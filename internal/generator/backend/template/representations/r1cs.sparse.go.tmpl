@@ -44,7 +44,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverOption) ([]fr.Element, error) {
+func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
 
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
@@ -233,8 +233,8 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 
 // IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
-	opt, err := backend.NewProverOption(opts...)
+func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
+	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
 	}

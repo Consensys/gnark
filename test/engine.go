@@ -42,7 +42,7 @@ import (
 type engine struct {
 	backendID backend.ID
 	curveID   ecc.ID
-	opt       backend.ProverOption
+	opt       backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 }
 
@@ -52,9 +52,9 @@ type engine struct {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, opts ...func(opt *backend.ProverOption) error) (err error) {
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, opts ...backend.ProverOption) (err error) {
 	// apply options
-	opt, err := backend.NewProverOption(opts...)
+	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
 	}
