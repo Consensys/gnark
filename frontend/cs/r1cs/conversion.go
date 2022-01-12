@@ -146,3 +146,7 @@ HINTLOOP:
 		panic("not implemtented")
 	}
 }
+
+func (cs *r1CS) SetSchema(s *schema.Schema) {
+	cs.Schema = s
+}

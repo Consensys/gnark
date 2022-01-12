@@ -134,3 +134,7 @@ HINTLOOP:
 	}
 
 }
+
+func (cs *sparseR1CS) SetSchema(s *schema.Schema) {
+	cs.Schema = s
+}

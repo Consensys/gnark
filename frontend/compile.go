@@ -24,6 +24,7 @@ type Builder interface {
 	NewPublicVariable(name string) Variable
 	NewSecretVariable(name string) Variable
 	Compile() (CompiledConstraintSystem, error)
+	SetSchema(*schema.Schema)
 }
 
 type NewBuilder func(ecc.ID) (Builder, error)
@@ -113,9 +114,11 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	if _, err := schema.Parse(circuit, tVariable, handler); err != nil {
+	s, err := schema.Parse(circuit, tVariable, handler)
+	if err != nil {
 		return err
 	}
+	builder.SetSchema(s)
 
 	// recover from panics to print user-friendlier messages
 	defer func() {

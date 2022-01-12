@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/fxamacker/cbor/v2"
 )
 
@@ -35,6 +36,8 @@ type CS struct {
 
 	// a wire may point to at most one hint
 	MHints map[int]*Hint
+
+	Schema *schema.Schema
 }
 
 // Hint represents a solver hint
@@ -191,6 +194,8 @@ func (cs *CS) ToHTML(w io.Writer) error { panic("not implemtened") }
 
 // GetCounters return the collected constraint counters, if any
 func (cs *CS) GetCounters() []Counter { return cs.Counters }
+
+func (cs *CS) GetSchema() *schema.Schema { return cs.Schema }
 
 // Counter contains measurements of useful statistics between two Tag
 type Counter struct {
