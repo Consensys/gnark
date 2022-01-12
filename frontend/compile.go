@@ -135,16 +135,20 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 	return
 }
 
+// CompileOption defines option for altering the behaviour of the Compile
+// method. See the descriptions of the functions returning instances of this
+// type for available options.
 type CompileOption func(opt *compileConfig) error
 
-// CompileOption enables to set optional argument to call of frontend.Compile()
 type compileConfig struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
 	newBuilder                NewBuilder
 }
 
-// WithOutput is a Compile option that specifies the estimated capacity needed for internal variables and constraints
+// WithCapacity is a compile option that specifies the estimated capacity needed
+// for internal variables and constraints. If not set, then the initial capacity
+// is 0 and is dynamically allocated as needed.
 func WithCapacity(capacity int) CompileOption {
 	return func(opt *compileConfig) error {
 		opt.capacity = capacity
@@ -152,7 +156,13 @@ func WithCapacity(capacity int) CompileOption {
 	}
 }
 
-// IgnoreUnconstrainedInputs when set, the Compile function doesn't check for unconstrained inputs
+// IgnoreUnconstrainedInputs is a compile option which allow compiling input
+// circuits where not all inputs are not constrained. If not set, then the
+// compiler returns an error if there exists an unconstrained input.
+//
+// This option is useful for debugging circuits, but should not be used in
+// production settings as it means that there is a potential error in the
+// circuit definition or that it is possible to optimize witness size.
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *compileConfig) error {
 		opt.ignoreUnconstrainedInputs = true
@@ -160,7 +170,8 @@ func IgnoreUnconstrainedInputs() CompileOption {
 	}
 }
 
-// WithBuilder enables the compiler to build the constraint system with a user-defined builder
+// WithBuilder is a compile option which enables the compiler to build the
+// constraint system with a user-defined builder.
 //
 // /!\ This is highly experimental and may change in upcoming releases /!\
 func WithBuilder(builder NewBuilder) CompileOption {
