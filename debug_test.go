@@ -171,7 +171,7 @@ func TestTraceNotBoolean(t *testing.T) {
 	}
 }
 
-func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
+func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, circuit)
 	if err != nil {
 		return "", err
@@ -187,11 +187,15 @@ func getPlonkTrace(circuit, witness frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	_, err = plonk.Prove(ccs, pk, witness, backend.WithOutput(&buf))
+	sw, err := frontend.NewWitness(w, ecc.BN254)
+	if err != nil {
+		return "", err
+	}
+	_, err = plonk.Prove(ccs, pk, sw, backend.WithOutput(&buf))
 	return buf.String(), err
 }
 
-func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
+func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit)
 	if err != nil {
 		return "", err
@@ -203,6 +207,10 @@ func getGroth16Trace(circuit, witness frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	_, err = groth16.Prove(ccs, pk, witness, backend.WithOutput(&buf))
+	sw, err := frontend.NewWitness(w, ecc.BN254)
+	if err != nil {
+		return "", err
+	}
+	_, err = groth16.Prove(ccs, pk, sw, backend.WithOutput(&buf))
 	return buf.String(), err
 }

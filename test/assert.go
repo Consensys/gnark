@@ -17,7 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -85,17 +84,40 @@ func (assert *Assert) Log(v ...interface{}) {
 // 4. if set, (de)serializes the witness and call ReadAndProve and ReadAndVerify on the backend
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
-
-	var buf bytes.Buffer
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
+		curve := curve
+		// parse the assignment and instantiate the witness
+		validWitness, err := frontend.NewWitness(validAssignment, curve)
+		assert.NoError(err, "can't parse valid assignment")
+
+		validPublicWitness, err := frontend.NewWitness(validAssignment, curve, frontend.PublicOnly())
+		assert.NoError(err, "can't parse valid assignment")
+
+		if opt.witnessSerialization {
+			// do a round trip marshalling test
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validWitness, curve, JSON)
+			}, curve.String(), "marshal/json")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validWitness, curve, Binary)
+			}, curve.String(), "marshal/binary")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
+			}, curve.String(), "marshal-public/json")
+			assert.Run(func(assert *Assert) {
+				assert.marshalWitness(validPublicWitness, curve, Binary, frontend.PublicOnly())
+			}, curve.String(), "marshal-public/binary")
+		}
+
 		for _, b := range opt.backends {
-			curve := curve
+
 			b := b
 			assert.Run(func(assert *Assert) {
+
 				checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 				// 1- compile the circuit
@@ -103,7 +125,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 				checkError(err)
 
 				// must not error with big int test engine (only the curveID is needed for this test)
-				err = IsSolved(circuit, validWitness, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, validAssignment, curve, backend.UNKNOWN)
 				checkError(err)
 
 				switch b {
@@ -112,30 +134,12 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					checkError(err)
 
 					// ensure prove / verify works well with valid witnesses
+
 					proof, err := groth16.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					err = groth16.Verify(proof, vk, validWitness)
+					err = groth16.Verify(proof, vk, validPublicWitness)
 					checkError(err)
-
-					// same thing through serialized witnesses
-					if opt.witnessSerialization {
-						buf.Reset()
-
-						_, err = witness.WriteFullTo(&buf, curve, validWitness)
-						checkError(err)
-
-						correctProof, err := groth16.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
-						checkError(err)
-
-						buf.Reset()
-
-						_, err = witness.WritePublicTo(&buf, curve, validWitness)
-						checkError(err)
-
-						err = groth16.ReadAndVerify(correctProof, vk, &buf)
-						checkError(err)
-					}
 
 				case backend.PLONK:
 					srs, err := NewKZGSRS(ccs)
@@ -147,27 +151,8 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					err = plonk.Verify(correctProof, vk, validWitness)
+					err = plonk.Verify(correctProof, vk, validPublicWitness)
 					checkError(err)
-
-					// witness serialization tests.
-					if opt.witnessSerialization {
-						buf.Reset()
-
-						_, err := witness.WriteFullTo(&buf, curve, validWitness)
-						checkError(err)
-
-						correctProof, err := plonk.ReadAndProve(ccs, pk, &buf, opt.proverOpts...)
-						checkError(err)
-
-						buf.Reset()
-
-						_, err = witness.WritePublicTo(&buf, curve, validWitness)
-						checkError(err)
-
-						err = plonk.ReadAndVerify(correctProof, vk, &buf)
-						checkError(err)
-					}
 
 				default:
 					panic("backend not implemented")
@@ -190,16 +175,24 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validWitness fro
 // 3. run Setup / Prove / Verify with the backend (must fail)
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
 	opt := assert.options(opts...)
 
 	popts := append(opt.proverOpts, backend.IgnoreSolverError)
 
 	for _, curve := range opt.curves {
+
+		// parse assignment
+		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+		assert.NoError(err, "can't parse invalid assignment")
+		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve, frontend.PublicOnly())
+		assert.NoError(err, "can't parse invalid assignment")
+
 		for _, b := range opt.backends {
 			curve := curve
 			b := b
 			assert.Run(func(assert *Assert) {
+
 				checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
 				mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
@@ -208,7 +201,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 				checkError(err)
 
 				// must error with big int test engine (only the curveID is needed here)
-				err = IsSolved(circuit, invalidWitness, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, invalidAssignment, curve, backend.UNKNOWN)
 				mustError(err)
 
 				switch b {
@@ -216,12 +209,12 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
 
-					err = groth16.IsSolved(ccs, invalidWitness)
+					err = groth16.IsSolved(ccs, invalidAssignment)
 					mustError(err)
 
 					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
 
-					err = groth16.Verify(proof, vk, invalidWitness)
+					err = groth16.Verify(proof, vk, invalidPublicWitness)
 					mustError(err)
 
 				case backend.PLONK:
@@ -231,11 +224,11 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidWitness fron
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
 
-					err = plonk.IsSolved(ccs, invalidWitness)
+					err = plonk.IsSolved(ccs, invalidAssignment)
 					mustError(err)
 
 					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
-					err = plonk.Verify(incorrectProof, vk, invalidWitness)
+					err = plonk.Verify(incorrectProof, vk, invalidPublicWitness)
 					mustError(err)
 
 				default:
@@ -260,7 +253,11 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 	}
 }
 
-func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	// parse assignment
+	validWitness, err := frontend.NewWitness(validAssignment, curve)
+	assert.NoError(err, "can't parse valid assignment")
+
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
 
 	// 1- compile the circuit
@@ -268,16 +265,16 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validWitness fr
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validWitness, curve, b)
+	err = IsSolved(circuit, validAssignment, curve, b)
 	checkError(err)
 
 	switch b {
 	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, validWitness, opt.proverOpts...)
+		err := groth16.IsSolved(ccs, validAssignment, opt.proverOpts...)
 		checkError(err)
 
 	case backend.PLONK:
-		err := plonk.IsSolved(ccs, validWitness, opt.proverOpts...)
+		err := plonk.IsSolved(ccs, validAssignment, opt.proverOpts...)
 		checkError(err)
 	default:
 		panic("not implemented")
@@ -299,7 +296,11 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 	}
 }
 
-func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+	// parse assignment
+	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+	assert.NoError(err, "can't parse invalid assignment")
+
 	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
 	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
 
@@ -311,15 +312,15 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidWitness fro
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidWitness, curve, b)
+	err = IsSolved(circuit, invalidAssignment, curve, b)
 	mustError(err)
 
 	switch b {
 	case backend.GROTH16:
-		err := groth16.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		err := groth16.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
 		mustError(err)
 	case backend.PLONK:
-		err := plonk.IsSolved(ccs, invalidWitness, opt.proverOpts...)
+		err := plonk.IsSolved(ccs, invalidAssignment, opt.proverOpts...)
 		mustError(err)
 	default:
 		panic("not implemented")
@@ -460,37 +461,88 @@ func (assert *Assert) options(opts ...func(*TestingOption) error) TestingOption 
 		if reflect.DeepEqual(opt.curves, ecc.Implemented()) {
 			opt.curves = []ecc.ID{ecc.BN254}
 		}
-		opt.witnessSerialization = false
+		// opt.witnessSerialization = false
 	}
 	return opt
 }
 
 // ensure the error is set, else fails the test
-func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w frontend.Circuit) {
+func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
 	if err != nil {
 		return
 	}
 	var json string
-	json, err = witness.ToJSON(w, curve)
+	bjson, err := witness.MarshalJSON()
 	if err != nil {
 		json = err.Error()
+	} else {
+		json = string(bjson)
 	}
-	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
 
+	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
 	assert.FailNow(e.Error())
 }
 
 // ensure the error is nil, else fails the test
-func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, w frontend.Circuit) {
+func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
 	if err == nil {
 		return
 	}
+
+	var json string
 	e := fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
-	json, err := witness.ToJSON(w, curve)
+
+	bjson, err := witness.MarshalJSON()
 	if err != nil {
-		e = fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
-	} else if w != nil {
-		e = fmt.Errorf("%w\nwitness:%s", e, json)
+		json = err.Error()
+	} else {
+		json = string(bjson)
 	}
+	e = fmt.Errorf("%w\nwitness:%s", e, json)
+
 	assert.FailNow(e.Error())
+}
+
+type marshaller uint8
+
+const (
+	JSON marshaller = iota
+	Binary
+)
+
+func (m marshaller) String() string {
+	if m == JSON {
+		return "JSON"
+	}
+	return "Binary"
+}
+
+func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...frontend.WitnessOption) {
+	marshal := w.MarshalBinary
+	if m == JSON {
+		marshal = w.MarshalJSON
+	}
+
+	// serialize the vector to binary
+	data, err := marshal()
+	assert.NoError(err)
+
+	// re-read
+	witness := witness.Witness{CurveID: curveID, Schema: w.Schema}
+	unmarshal := witness.UnmarshalBinary
+	if m == JSON {
+		unmarshal = witness.UnmarshalJSON
+	}
+	err = unmarshal(data)
+	assert.NoError(err)
+
+	witnessMatch := reflect.DeepEqual(*w, witness)
+
+	if !witnessMatch {
+		assert.Log("original json", string(data))
+		// assert.Log("original vector", w.Vector)
+		// assert.Log("reconstructed vector", witness.Vector)
+	}
+
+	assert.True(witnessMatch, m.String()+" round trip marshaling failed")
 }

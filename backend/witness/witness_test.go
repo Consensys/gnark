@@ -1,66 +1,110 @@
 package witness
 
 import (
-	"bytes"
-	"math/big"
 	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
+	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
+	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
+	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
+	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/stretchr/testify/require"
 )
 
 type circuit struct {
 	// tagging a variable is optional
 	// default uses variable name and secret visibility.
-	X frontend.Variable `gnark:",public"`
-	Y frontend.Variable `gnark:",public"`
+	X *fr.Element `gnark:",public"`
+	Y *fr.Element `gnark:",public"`
 
-	E frontend.Variable
+	E *fr.Element
 }
 
-func (circuit *circuit) Define(api frontend.API) error {
-	return nil
+type marshaller uint8
+
+const (
+	JSON marshaller = iota
+	Binary
+)
+
+func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, publicOnly bool) {
+	// build the vector
+	w, err := New(ecc.BN254, nil)
+	assert.NoError(err)
+
+	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, publicOnly)
+	assert.NoError(err)
+
+	marshal := w.MarshalBinary
+	if m == JSON {
+		marshal = w.MarshalJSON
+	}
+
+	// serialize the vector to binary
+	data, err := marshal()
+	assert.NoError(err)
+
+	// re-read
+	witness := Witness{CurveID: ecc.BN254, Schema: w.Schema}
+	unmarshal := witness.UnmarshalBinary
+	if m == JSON {
+		unmarshal = witness.UnmarshalJSON
+	}
+	err = unmarshal(data)
+	assert.NoError(err)
+
+	// reconstruct a circuit object
+	var reconstructed circuit
+
+	switch wt := witness.Vector.(type) {
+	case *witness_bls12377.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bls12381.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bls24315.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bn254.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bw6633.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bw6761.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	default:
+		panic("not implemented")
+	}
+
+	assert.True(reflect.DeepEqual(assignment, reconstructed), "public witness reconstructed doesn't match original value")
 }
 
-func TestReconstructionPublic(t *testing.T) {
+func TestMarshalPublic(t *testing.T) {
 	assert := require.New(t)
 
-	var wPublic, wPublicReconstructed circuit
-	wPublic.X = new(big.Int).SetInt64(42)
-	wPublic.Y = new(big.Int).SetInt64(8000)
+	var assignment circuit
+	assignment.X = new(fr.Element).SetInt64(42)
+	assignment.Y = new(fr.Element).SetInt64(8000)
 
-	var buf bytes.Buffer
-	written, err := WritePublicTo(&buf, ecc.BN254, &wPublic)
-	assert.NoError(err)
-
-	read, err := ReadPublicFrom(&buf, ecc.BN254, &wPublicReconstructed)
-	assert.NoError(err)
-	assert.Equal(written, read)
-
-	if !reflect.DeepEqual(wPublic, wPublicReconstructed) {
-		t.Fatal("public witness reconstructed doesn't match original value")
-	}
+	roundTripMarshal(assert, assignment, JSON, true)
+	roundTripMarshal(assert, assignment, Binary, true)
 }
 
-func TestReconstructionFull(t *testing.T) {
+func TestMarshal(t *testing.T) {
 	assert := require.New(t)
 
-	var wFull, wFullReconstructed circuit
-	wFull.X = new(big.Int).SetInt64(42)
-	wFull.Y = new(big.Int).SetInt64(8000)
-	wFull.E = new(big.Int).SetInt64(1)
+	var assignment circuit
+	assignment.X = new(fr.Element).SetInt64(42)
+	assignment.Y = new(fr.Element).SetInt64(8000)
+	assignment.E = new(fr.Element).SetInt64(1)
 
-	var buf bytes.Buffer
-	written, err := WriteFullTo(&buf, ecc.BN254, &wFull)
-	assert.NoError(err)
+	roundTripMarshal(assert, assignment, JSON, false)
+	roundTripMarshal(assert, assignment, Binary, false)
+}
 
-	read, err := ReadFullFrom(&buf, ecc.BN254, &wFullReconstructed)
-	assert.NoError(err)
-	assert.Equal(written, read)
+var tVariable reflect.Type
 
-	if !reflect.DeepEqual(wFull, wFullReconstructed) {
-		t.Fatal("public witness reconstructed doesn't match original value")
-	}
+func init() {
+	tVariable = reflect.TypeOf(circuit{}.E)
 }

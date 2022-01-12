@@ -92,11 +92,21 @@ func main() {
 	// Correct data: the proof passes
 	{
 		// Witnesses instantiation. Witness is known only by the prover,
-		// while public witness is a public data known by the verifier.
-		var witness Circuit
-		witness.X = 2
-		witness.E = 2
-		witness.Y = 4
+		// while public w is a public data known by the verifier.
+		var w Circuit
+		w.X = 2
+		w.E = 2
+		w.Y = 4
+
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		witnessPublic, err := frontend.NewWitness(&w, ecc.BN254, frontend.PublicOnly())
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
@@ -107,12 +117,12 @@ func main() {
 			log.Fatal(err)
 		}
 
-		proof, err := plonk.Prove(ccs, pk, &witness)
+		proof, err := plonk.Prove(ccs, pk, witnessFull)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = plonk.Verify(proof, vk, &witness)
+		err = plonk.Verify(proof, vk, witnessPublic)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -120,14 +130,24 @@ func main() {
 	// Wrong data: the proof fails
 	{
 		// Witnesses instantiation. Witness is known only by the prover,
-		// while public witness is a public data known by the verifier.
-		var witness, publicWitness Circuit
-		witness.X = 2
-		witness.E = 12
-		witness.Y = 4096
+		// while public w is a public data known by the verifier.
+		var w, pW Circuit
+		w.X = 2
+		w.E = 12
+		w.Y = 4096
 
-		publicWitness.X = 3
-		publicWitness.Y = 4096
+		pW.X = 3
+		pW.Y = 4096
+
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		witnessPublic, err := frontend.NewWitness(&pW, ecc.BN254, frontend.PublicOnly())
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		// public data consists the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
@@ -138,12 +158,12 @@ func main() {
 			log.Fatal(err)
 		}
 
-		proof, err := plonk.Prove(ccs, pk, &witness)
+		proof, err := plonk.Prove(ccs, pk, witnessFull)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = plonk.Verify(proof, vk, &publicWitness)
+		err = plonk.Verify(proof, vk, witnessPublic)
 		if err == nil {
 			log.Fatal("Error: wrong proof is accepted")
 		}

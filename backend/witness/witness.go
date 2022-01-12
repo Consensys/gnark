@@ -41,292 +41,180 @@
 package witness
 
 import (
-	"encoding/binary"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
-	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
-	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
-	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
-	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
-// WriteFullTo encodes the witness to a slice of []fr.Element and write the []byte on provided writer
-func WriteFullTo(w io.Writer, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	switch curveID {
-	case ecc.BN254:
-		_witness := &witness_bn254.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS12_377:
-		_witness := &witness_bls12377.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS12_381:
-		_witness := &witness_bls12381.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BW6_761:
-		_witness := &witness_bw6761.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS24_315:
-		_witness := &witness_bls24315.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BW6_633:
-		_witness := &witness_bw6633.Witness{}
-		if err := _witness.FromFullAssignment(witness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
+var (
+	ErrInvalidWitness = errors.New("invalid witness")
+	errMissingSchema  = errors.New("missing Schema")
+	errMissingCurveID = errors.New("missing CurveID")
+)
 
-	default:
-		panic("not implemented")
-	}
+// Witness represents a zkSNARK witness.
+//
+// A witness can be in 3 states:
+// 1. Assignment (ie assigning values to a frontend.Circuit object)
+// 2. Witness (this object: an ordered vector of field elements + metadata)
+// 3. Serialized (Binary or JSON) using MarshalBinary or MarshalJSON
+type Witness struct {
+	Vector  Vector         //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
+	Schema  *schema.Schema // optional, Binary encoding needs no schema
+	CurveID ecc.ID         // should be redundant with generic impl
 }
 
-// WritePublicTo encodes the witness to a slice of []fr.Element and write the result on provided writer
-func WritePublicTo(w io.Writer, curveID ecc.ID, publicWitness frontend.Circuit) (int64, error) {
-	switch curveID {
-	case ecc.BN254:
-		_witness := &witness_bn254.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS12_377:
-		_witness := &witness_bls12377.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS12_381:
-		_witness := &witness_bls12381.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BW6_761:
-		_witness := &witness_bw6761.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BLS24_315:
-		_witness := &witness_bls24315.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	case ecc.BW6_633:
-		_witness := &witness_bw6633.Witness{}
-		if err := _witness.FromPublicAssignment(publicWitness); err != nil {
-			return 0, err
-		}
-		return _witness.WriteTo(w)
-	default:
-		panic("not implemented")
+func New(curveID ecc.ID, schema *schema.Schema) (*Witness, error) {
+	v, err := newVector(curveID)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Witness{
+		CurveID: curveID,
+		Vector:  v,
+		Schema:  schema,
+	}, nil
 }
 
-// WriteSequence writes the expected sequence order of the witness on provided writer
-// witness elements are identified by their tag name, or if unset, struct & field name
-func WriteSequence(w io.Writer, circuit frontend.Circuit) error {
-	var public, secret []string
-	collectHandler := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Public {
-			public = append(public, name)
-		} else if visibility == compiled.Secret {
-			secret = append(secret, name)
-		}
-		return nil
-	}
-	if _, err := schema.Parse(circuit, tVariable, collectHandler); err != nil {
-		return err
+// MarshalBinary implements encoding.BinaryMarshaler
+// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
+func (w *Witness) MarshalBinary() (data []byte, err error) {
+	var buf bytes.Buffer
+
+	if w.Vector == nil {
+		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
 	}
 
-	if _, err := io.WriteString(w, "public:\n"); err != nil {
-		return err
+	if _, err = w.Vector.WriteTo(&buf); err != nil {
+		return
 	}
-	for _, p := range public {
-		if _, err := io.WriteString(w, p); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte{'\n'}); err != nil {
-			return err
-		}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler
+func (w *Witness) UnmarshalBinary(data []byte) error {
+
+	var r io.Reader
+	r = bytes.NewReader(data)
+	if w.Schema != nil {
+		// if schema is set we can do a limit reader
+		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
+		r = io.LimitReader(r, int64(maxSize))
 	}
 
-	if _, err := io.WriteString(w, "secret:\n"); err != nil {
+	v, err := newVector(w.CurveID)
+	if err != nil {
 		return err
 	}
-	for _, s := range secret {
-		if _, err := io.WriteString(w, s); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte{'\n'}); err != nil {
-			return err
-		}
+	_, err = v.ReadFrom(r)
+	if err != nil {
+		return err
 	}
+	w.Vector = v
 
 	return nil
 }
 
-// ReadPublicFrom reads bytes from provided reader and attempts to reconstruct
-// a statically typed witness, with big.Int values
-// The stream must match the binary protocol to encode witnesses
-// This function will read at most the number of expected bytes
-// If it can't fully re-construct the witness from the reader, returns an error
-// if the provided witness has 0 public Variables this function returns 0, nil
-func ReadPublicFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	_, nbPublic := schema.Count(witness, tVariable)
-	if nbPublic == 0 {
-		return 0, nil
+// MarshalJSON implements json.Marshaler
+//
+// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
+func (w *Witness) MarshalJSON() (r []byte, err error) {
+	if w.Schema == nil {
+		return nil, errMissingSchema
+	}
+	if w.Vector == nil {
+		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
 	}
 
-	// first 4 bytes have number of bytes
-	var buf [4]byte
-	if read, err := io.ReadFull(r, buf[:4]); err != nil {
-		return int64(read), err
-	}
-	sliceLen := binary.BigEndian.Uint32(buf[:4])
-	if int(sliceLen) != nbPublic {
-		return 4, errors.New("invalid witness size")
+	typ := w.Vector.Type()
+
+	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
+	if err := w.toAssignment(instance, reflect.PtrTo(typ)); err != nil {
+		return nil, err
 	}
 
-	elementSize := curveID.Info().Fr.Bytes
+	if debug.Debug {
+		return json.MarshalIndent(instance, "  ", "    ")
+	} else {
+		return json.Marshal(instance)
+	}
+}
 
-	expectedSize := elementSize * nbPublic
+// UnmarshalJSON implements json.Unmarshaler
+func (w *Witness) UnmarshalJSON(data []byte) error {
+	if w.Schema == nil {
+		return errMissingSchema
+	}
+	v, err := newVector(w.CurveID)
+	if err != nil {
+		return err
+	}
 
-	lr := io.LimitReader(r, int64(expectedSize*elementSize))
-	read := 4
+	typ := v.Type()
 
-	bufElement := make([]byte, elementSize)
-	reader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Public {
-			r, err := io.ReadFull(lr, bufElement)
-			read += r
-			if err != nil {
-				return err
-			}
-			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
+	// we instantiate an object matching the schema, with leaf type == field element
+	// note that we pass a pointer here to have nil for zero values
+	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+
+	// field.Element (gnark-crypto) implements json.Unmarshaler
+	if err := dec.Decode(instance); err != nil {
+		return err
+	}
+
+	// optimistic approach: first try to unmarshall everything. then only the public part if it fails
+	// note that our instance has leaf type == *fr.Element, so the zero value is nil
+	// and is going to make the newWitness method error since it doesn't accept missing assignments
+	_, err = v.FromAssignment(instance, reflect.PtrTo(typ), false)
+	if err != nil {
+		// try with public only
+		_, err := v.FromAssignment(instance, reflect.PtrTo(typ), true)
+		if err != nil {
+			return err
 		}
+		w.Vector = v
 		return nil
 	}
-
-	if _, err := schema.Parse(witness, tVariable, reader); err != nil {
-		return int64(read), err
-	}
-
-	return int64(read), nil
+	w.Vector = v
+	return nil
 }
 
-// ReadFullFrom reads bytes from provided reader and attempts to reconstruct
-// a statically typed witness, with big.Int values
-// The stream must match the binary protocol to encode witnesses
-// This function will read at most the number of expected bytes
-// If it can't fully re-construct the witness from the reader, returns an error
-// if the provided witness has 0 public Variables and 0 secret Variables this function returns 0, nil
-func ReadFullFrom(r io.Reader, curveID ecc.ID, witness frontend.Circuit) (int64, error) {
-	nbSecrets, nbPublic := schema.Count(witness, tVariable)
-
-	if nbPublic == 0 && nbSecrets == 0 {
-		return 0, nil
+func (w *Witness) toAssignment(to interface{}, toLeafType reflect.Type) error {
+	if w.Schema == nil {
+		return errMissingSchema
+	}
+	if w.Vector == nil {
+		return fmt.Errorf("%w: empty witness", ErrInvalidWitness)
 	}
 
-	// first 4 bytes have number of bytes
-	var buf [4]byte
-	if read, err := io.ReadFull(r, buf[:4]); err != nil {
-		return int64(read), err
+	// we check the size of the underlying vector to determine if we have the full witness
+	// or only the public part
+	n := w.Vector.Len()
+
+	nbSecret, nbPublic := w.Schema.NbSecret, w.Schema.NbPublic
+
+	var publicOnly bool
+	if n == nbPublic {
+		// public witness only
+		publicOnly = true
+	} else if n == (nbPublic + nbSecret) {
+		// full witness
+		publicOnly = false
+	} else {
+		// invalid witness size
+		return fmt.Errorf("%w: got %d elements, expected either %d (public) or %d (full)", ErrInvalidWitness, n, nbPublic, nbPublic+nbSecret)
 	}
-	sliceLen := binary.BigEndian.Uint32(buf[:4])
-	if int(sliceLen) != (nbPublic + nbSecrets) {
-		return 4, errors.New("invalid witness size")
-	}
+	w.Vector.ToAssignment(to, toLeafType, publicOnly)
 
-	elementSize := curveID.Info().Fr.Bytes
-	expectedSize := elementSize * (nbPublic + nbSecrets)
-
-	lr := io.LimitReader(r, int64(expectedSize*elementSize))
-	read := 4
-
-	bufElement := make([]byte, elementSize)
-
-	reader := func(targetVisibility, visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == targetVisibility {
-			r, err := io.ReadFull(lr, bufElement)
-			read += r
-			if err != nil {
-				return err
-			}
-			tInput.Set(reflect.ValueOf(new(big.Int).SetBytes(bufElement)))
-		}
-		return nil
-	}
-
-	publicReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		return reader(compiled.Public, visibility, name, tInput)
-	}
-
-	secretReader := func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		return reader(compiled.Secret, visibility, name, tInput)
-	}
-
-	// public
-	if _, err := schema.Parse(witness, tVariable, publicReader); err != nil {
-		return int64(read), err
-	}
-
-	// secret
-	if _, err := schema.Parse(witness, tVariable, secretReader); err != nil {
-		return int64(read), err
-	}
-
-	return int64(read), nil
-}
-
-// ToJSON outputs a JSON string with variableName: value
-// values are first converted to field element (mod base curve modulus)
-func ToJSON(witness frontend.Circuit, curveID ecc.ID) (string, error) {
-	switch curveID {
-	case ecc.BN254:
-		return witness_bn254.ToJSON(witness)
-	case ecc.BLS12_377:
-		return witness_bls12377.ToJSON(witness)
-	case ecc.BLS12_381:
-		return witness_bls12381.ToJSON(witness)
-	case ecc.BW6_761:
-		return witness_bw6761.ToJSON(witness)
-	case ecc.BLS24_315:
-		return witness_bls24315.ToJSON(witness)
-	case ecc.BW6_633:
-		return witness_bw6633.ToJSON(witness)
-	default:
-		panic("not implemented")
-	}
-}
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
+	return nil
 }

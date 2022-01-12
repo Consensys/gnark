@@ -21,6 +21,7 @@ package plonk
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
@@ -28,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/plonk"
 
+	"github.com/consensys/gnark/backend/witness"
 	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	cs_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	cs_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -116,7 +118,7 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -126,46 +128,46 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), *w, opt)
 
 	case *cs_bls12381.SparseR1CS:
-		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, opt)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), *w, opt)
 
 	case *cs_bls12377.SparseR1CS:
-		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, opt)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), *w, opt)
 
 	case *cs_bw6761.SparseR1CS:
-		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, opt)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), *w, opt)
 
 	case *cs_bw6633.SparseR1CS:
-		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), w, opt)
+		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), *w, opt)
 
 	case *cs_bls24315.SparseR1CS:
-		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(fullWitness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, opt)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), *w, opt)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")
@@ -173,51 +175,51 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness fro
 }
 
 // Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
-func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error {
 
 	switch _proof := proof.(type) {
 
 	case *plonk_bn254.Proof:
-		w := witness_bn254.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w)
+		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), *w)
 
 	case *plonk_bls12381.Proof:
-		w := witness_bls12381.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w)
+		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), *w)
 
 	case *plonk_bls12377.Proof:
-		w := witness_bls12377.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w)
+		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), *w)
 
 	case *plonk_bw6761.Proof:
-		w := witness_bw6761.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w)
+		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), *w)
 
 	case *plonk_bw6633.Proof:
-		w := witness_bw6633.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w)
+		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), *w)
 
 	case *plonk_bls24315.Proof:
-		w := witness_bls24315.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w)
+		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), *w)
 
 	default:
 		panic("unrecognized proof type")
@@ -319,155 +321,6 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	return vk
 }
 
-// ReadAndProve generates PLONK proof from a circuit, associated proving key, and the full witness
-func ReadAndProve(ccs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
-
-	// apply options
-	opt, err := backend.NewProverOption(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	_, nbSecret, nbPublic := ccs.GetNbVariables()
-	expectedSize := (nbSecret + nbPublic)
-
-	switch tccs := ccs.(type) {
-	case *cs_bn254.SparseR1CS:
-		_pk := pk.(*plonk_bn254.ProvingKey)
-		w := witness_bn254.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bn254.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	case *cs_bls12381.SparseR1CS:
-		_pk := pk.(*plonk_bls12381.ProvingKey)
-		w := witness_bls12381.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bls12381.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	case *cs_bls12377.SparseR1CS:
-		_pk := pk.(*plonk_bls12377.ProvingKey)
-		w := witness_bls12377.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bls12377.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	case *cs_bw6761.SparseR1CS:
-		_pk := pk.(*plonk_bw6761.ProvingKey)
-		w := witness_bw6761.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bw6761.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	case *cs_bls24315.SparseR1CS:
-		_pk := pk.(*plonk_bls24315.ProvingKey)
-		w := witness_bls24315.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bls24315.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	case *cs_bw6633.SparseR1CS:
-		_pk := pk.(*plonk_bw6633.ProvingKey)
-		w := witness_bw6633.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		proof, err := plonk_bw6633.Prove(tccs, _pk, w, opt)
-		if err != nil {
-			return proof, err
-		}
-		return proof, nil
-
-	default:
-		panic("unrecognized R1CS curve type")
-	}
-}
-
-// ReadAndVerify verifies a PLONK proof from a circuit, associated proving key, and the full witness
-func ReadAndVerify(proof Proof, vk VerifyingKey, witness io.Reader) error {
-
-	expectedSize := vk.NbPublicWitness()
-
-	switch _proof := proof.(type) {
-	case *plonk_bn254.Proof:
-		_vk := vk.(*plonk_bn254.VerifyingKey)
-		w := witness_bn254.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bn254.Verify(_proof, _vk, w)
-
-	case *plonk_bls12381.Proof:
-		_vk := vk.(*plonk_bls12381.VerifyingKey)
-		w := witness_bls12381.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bls12381.Verify(_proof, _vk, w)
-
-	case *plonk_bls12377.Proof:
-		_vk := vk.(*plonk_bls12377.VerifyingKey)
-		w := witness_bls12377.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bls12377.Verify(_proof, _vk, w)
-
-	case *plonk_bw6761.Proof:
-		_vk := vk.(*plonk_bw6761.VerifyingKey)
-		w := witness_bw6761.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bw6761.Verify(_proof, _vk, w)
-
-	case *plonk_bls24315.Proof:
-		_vk := vk.(*plonk_bls24315.VerifyingKey)
-		w := witness_bls24315.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bls24315.Verify(_proof, _vk, w)
-
-	case *plonk_bw6633.Proof:
-		_vk := vk.(*plonk_bw6633.VerifyingKey)
-		w := witness_bw6633.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return err
-		}
-		return plonk_bw6633.Verify(_proof, _vk, w)
-
-	default:
-		panic("unrecognized R1CS curve type")
-	}
-}
-
 // IsSolved attempts to solve the constraint system with provided witness
 // returns nil if it succeeds, error otherwise.
 func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) error {
@@ -480,41 +333,47 @@ func IsSolved(ccs frontend.CompiledConstraintSystem, witness frontend.Circuit, o
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
 		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12381.SparseR1CS:
 		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls12377.SparseR1CS:
 		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6761.SparseR1CS:
 		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bls24315.SparseR1CS:
 		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	case *cs_bw6633.SparseR1CS:
 		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return tccs.IsSolved(w, opt)
 	default:
 		panic("unknown constraint system type")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

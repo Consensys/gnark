@@ -5,6 +5,7 @@ import (
 	{{ template "import_witness" . }}
 	{{ template "import_groth16" . }}
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
@@ -76,7 +77,7 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := {{toLower .CurveID}}witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -95,12 +96,12 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := {{toLower .CurveID}}witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
 	if err != nil {
 		b.Fatal(err)
 	}
 	publicWitness := {{toLower .CurveID}}witness.Witness{}
-	err = publicWitness.FromPublicAssignment(_solution)
+	_, err = publicWitness.FromAssignment(_solution, tVariable, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -126,7 +127,7 @@ func BenchmarkVerifier(b *testing.B) {
 func BenchmarkProofSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
 	fullWitness := {{toLower .CurveID}}witness.Witness{}
-	err := fullWitness.FromFullAssignment(_solution)
+	_, err := fullWitness.FromAssignment(_solution,tVariable,  false)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -258,4 +259,11 @@ func BenchmarkProvingKeySerialization(b *testing.B) {
 			pk.UnsafeReadFrom(bytes.NewReader(rawBytes))
 		}
 	})
+}
+
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }

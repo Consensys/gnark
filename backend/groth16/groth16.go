@@ -21,10 +21,12 @@ package groth16
 
 import (
 	"io"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -113,92 +115,45 @@ type VerifyingKey interface {
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given witness
-func Verify(proof Proof, vk VerifyingKey, publicWitness frontend.Circuit) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error {
 
 	switch _proof := proof.(type) {
 	case *groth16_bls12377.Proof:
-		w := witness_bls12377.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bls12377.Verify(_proof, vk.(*groth16_bls12377.VerifyingKey), w)
+		return groth16_bls12377.Verify(_proof, vk.(*groth16_bls12377.VerifyingKey), *w)
 	case *groth16_bls12381.Proof:
-		w := witness_bls12381.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bls12381.Verify(_proof, vk.(*groth16_bls12381.VerifyingKey), w)
+		return groth16_bls12381.Verify(_proof, vk.(*groth16_bls12381.VerifyingKey), *w)
 	case *groth16_bn254.Proof:
-		w := witness_bn254.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bn254.Verify(_proof, vk.(*groth16_bn254.VerifyingKey), w)
+		return groth16_bn254.Verify(_proof, vk.(*groth16_bn254.VerifyingKey), *w)
 	case *groth16_bw6761.Proof:
-		w := witness_bw6761.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bw6761.Verify(_proof, vk.(*groth16_bw6761.VerifyingKey), w)
+		return groth16_bw6761.Verify(_proof, vk.(*groth16_bw6761.VerifyingKey), *w)
 	case *groth16_bls24315.Proof:
-		w := witness_bls24315.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bls24315.Verify(_proof, vk.(*groth16_bls24315.VerifyingKey), w)
+		return groth16_bls24315.Verify(_proof, vk.(*groth16_bls24315.VerifyingKey), *w)
 	case *groth16_bw6633.Proof:
-		w := witness_bw6633.Witness{}
-		if err := w.FromPublicAssignment(publicWitness); err != nil {
-			return err
+		w, ok := publicWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
 		}
-		return groth16_bw6633.Verify(_proof, vk.(*groth16_bw6633.VerifyingKey), w)
-	default:
-		panic("unrecognized R1CS curve type")
-	}
-}
-
-// ReadAndVerify behaves like Verify, except witness is read from a io.Reader
-// witness must be encoded following the binary serialization protocol described in
-// gnark/backend/witness package
-func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error {
-
-	switch _vk := vk.(type) {
-	case *groth16_bls12377.VerifyingKey:
-		w := witness_bls12377.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bls12377.Verify(proof.(*groth16_bls12377.Proof), _vk, w)
-	case *groth16_bls12381.VerifyingKey:
-		w := witness_bls12381.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bls12381.Verify(proof.(*groth16_bls12381.Proof), _vk, w)
-	case *groth16_bn254.VerifyingKey:
-		w := witness_bn254.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bn254.Verify(proof.(*groth16_bn254.Proof), _vk, w)
-	case *groth16_bw6761.VerifyingKey:
-		w := witness_bw6761.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bw6761.Verify(proof.(*groth16_bw6761.Proof), _vk, w)
-	case *groth16_bls24315.VerifyingKey:
-		w := witness_bls24315.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bls24315.Verify(proof.(*groth16_bls24315.Proof), _vk, w)
-	case *groth16_bw6633.VerifyingKey:
-		w := witness_bw6633.Witness{}
-		if _, err := w.LimitReadFrom(publicWitness, vk.NbPublicWitness()); err != nil {
-			return err
-		}
-		return groth16_bw6633.Verify(proof.(*groth16_bw6633.Proof), _vk, w)
+		return groth16_bw6633.Verify(_proof, vk.(*groth16_bw6633.VerifyingKey), *w)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -210,7 +165,7 @@ func ReadAndVerify(proof Proof, vk VerifyingKey, publicWitness io.Reader) error 
 // 	will executes all the prover computations, even if the witness is invalid
 //  will produce an invalid proof
 //	internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
-func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness frontend.Circuit, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
+func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverOption(opts...)
@@ -220,97 +175,41 @@ func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness fronte
 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
-		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12377.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, opt)
+		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), *w, opt)
 	case *backend_bls12381.R1CS:
-		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls12381.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, opt)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), *w, opt)
 	case *backend_bn254.R1CS:
-		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bn254.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, opt)
+		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), *w, opt)
 	case *backend_bw6761.R1CS:
-		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6761.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, opt)
+		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), *w, opt)
 	case *backend_bls24315.R1CS:
-		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bls24315.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, opt)
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), *w, opt)
 	case *backend_bw6633.R1CS:
-		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
-			return nil, err
+		w, ok := fullWitness.Vector.(*witness_bw6633.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
 		}
-		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), w, opt)
-	default:
-		panic("unrecognized R1CS curve type")
-	}
-}
-
-// ReadAndProve behaves like Prove, , except witness is read from a io.Reader
-// witness must be encoded following the binary serialization protocol described in
-// gnark/backend/witness package
-func ReadAndProve(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, witness io.Reader, opts ...func(opt *backend.ProverOption) error) (Proof, error) {
-
-	// apply options
-	opt, err := backend.NewProverOption(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	_, nbSecret, nbPublic := r1cs.GetNbVariables()
-	expectedSize := (nbSecret + nbPublic - 1)
-
-	switch _r1cs := r1cs.(type) {
-	case *backend_bls12377.R1CS:
-		w := witness_bls12377.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, opt)
-	case *backend_bls12381.R1CS:
-		w := witness_bls12381.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, opt)
-	case *backend_bn254.R1CS:
-		w := witness_bn254.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, opt)
-	case *backend_bw6761.R1CS:
-		w := witness_bw6761.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, opt)
-	case *backend_bls24315.R1CS:
-		w := witness_bls24315.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, opt)
-	case *backend_bw6633.R1CS:
-		w := witness_bw6633.Witness{}
-		if _, err := w.LimitReadFrom(witness, expectedSize); err != nil {
-			return nil, err
-		}
-		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), w, opt)
+		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), *w, opt)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -526,41 +425,47 @@ func IsSolved(r1cs frontend.CompiledConstraintSystem, witness frontend.Circuit, 
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
 		w := witness_bls12377.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bls12381.R1CS:
 		w := witness_bls12381.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bn254.R1CS:
 		w := witness_bn254.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bw6761.R1CS:
 		w := witness_bw6761.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bls24315.R1CS:
 		w := witness_bls24315.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	case *backend_bw6633.R1CS:
 		w := witness_bw6633.Witness{}
-		if err := w.FromFullAssignment(witness); err != nil {
+		if _, err := w.FromAssignment(witness, tVariable, false); err != nil {
 			return err
 		}
 		return _r1cs.IsSolved(w, opt)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
+}
+
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
