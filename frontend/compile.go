@@ -153,9 +153,11 @@ func WithCapacity(capacity int) CompileOption {
 }
 
 // IgnoreUnconstrainedInputs when set, the Compile function doesn't check for unconstrained inputs
-func IgnoreUnconstrainedInputs(opt *compileConfig) error {
-	opt.ignoreUnconstrainedInputs = true
-	return nil
+func IgnoreUnconstrainedInputs() CompileOption {
+	return func(opt *compileConfig) error {
+		opt.ignoreUnconstrainedInputs = true
+		return nil
+	}
 }
 
 // WithBuilder enables the compiler to build the constraint system with a user-defined builder
