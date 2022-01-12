@@ -32,7 +32,7 @@ type TestingOption struct {
 	curves               []ecc.ID
 	witnessSerialization bool
 	proverOpts           []func(opt *backend.ProverOption) error
-	compileOpts          []func(opt *frontend.CompileOption) error
+	compileOpts          []frontend.CompileOption
 }
 
 // WithBackends enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific backends only
@@ -76,7 +76,7 @@ func WithProverOpts(proverOpts ...func(opt *backend.ProverOption) error) func(op
 
 // WithCompileOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward compiler.Compile option
 // to compiler.Compile calls
-func WithCompileOpts(compileOpts ...func(opt *frontend.CompileOption) error) func(opt *TestingOption) error {
+func WithCompileOpts(compileOpts ...frontend.CompileOption) func(opt *TestingOption) error {
 	return func(opt *TestingOption) error {
 		opt.compileOpts = compileOpts
 		return nil
