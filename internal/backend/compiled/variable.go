@@ -18,6 +18,8 @@ import (
 	"errors"
 	"math/big"
 	"strings"
+
+	"github.com/consensys/gnark/frontend/schema"
 )
 
 // errNoValue triggered when trying to access a variable that was not allocated
@@ -106,5 +108,5 @@ func (v *Variable) IsConstant() bool {
 		return false
 	}
 	_, vID, visibility := v.LinExp[0].Unpack()
-	return vID == 0 && visibility == Public
+	return vID == 0 && visibility == schema.Public
 }

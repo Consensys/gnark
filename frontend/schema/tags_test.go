@@ -1,22 +1,19 @@
-package schema_test
+package schema
 
 import (
 	"errors"
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStructTags(t *testing.T) {
 
-	testParseTags := func(t *testing.T, input interface{}, expected map[string]compiled.Visibility) {
+	testParseTags := func(t *testing.T, input interface{}, expected map[string]Visibility) {
 		assert := require.New(t)
-		collected := make(map[string]compiled.Visibility)
-		var collectHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, _ reflect.Value) error {
+		collected := make(map[string]Visibility)
+		var collectHandler LeafHandler = func(visibility Visibility, name string, _ reflect.Value) error {
 			if _, ok := collected[name]; ok {
 				return errors.New("duplicate name collected")
 			}
@@ -24,7 +21,7 @@ func TestStructTags(t *testing.T) {
 			return nil
 		}
 
-		_, err := schema.Parse(input, tVariable, collectHandler)
+		_, err := Parse(input, tVariable, collectHandler)
 		assert.NoError(err)
 
 		for k, v := range expected {
@@ -36,94 +33,94 @@ func TestStructTags(t *testing.T) {
 			delete(collected, k)
 		}
 		if len(collected) != 0 {
-			t.Fatal("collected more frontend.Variable than expected")
+			t.Fatal("collected more variable than expected")
 		}
 
 	}
 
 	{
 		s := struct {
-			A, B frontend.Variable
+			A, B variable
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A"] = compiled.Secret
-		expected["B"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["A"] = Secret
+		expected["B"] = Secret
 		t.Run("simple_no_tag", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	{
 		s := struct {
-			A frontend.Variable `gnark:"a, public"`
-			B frontend.Variable
+			A variable `gnark:"a, public"`
+			B variable
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["a"] = compiled.Public
-		expected["B"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["a"] = Public
+		expected["B"] = Secret
 		t.Run("simple_tag_name", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	{
 		s := struct {
-			A frontend.Variable `gnark:",public"`
-			B frontend.Variable
+			A variable `gnark:",public"`
+			B variable
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A"] = compiled.Public
-		expected["B"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["A"] = Public
+		expected["B"] = Secret
 		t.Run("simple_tag_visibility", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	{
 		s := struct {
-			A frontend.Variable `gnark:"-"`
-			B frontend.Variable
+			A variable `gnark:"-"`
+			B variable
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["B"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["B"] = Secret
 		t.Run("simple_tag_omit", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	{
 		s := struct {
-			A frontend.Variable `gnark:",public"`
-			B frontend.Variable
+			A variable `gnark:",public"`
+			B variable
 			C struct {
-				D frontend.Variable
+				D variable
 			}
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A"] = compiled.Public
-		expected["B"] = compiled.Secret
-		expected["C_D"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["A"] = Public
+		expected["B"] = Secret
+		expected["C_D"] = Secret
 		t.Run("one_layer", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	// hierarchy of structs
 	{
 		type grandchild struct {
-			D frontend.Variable `gnark:"grandchild"` // parent visibility is unset, this will be secret
+			D variable `gnark:"grandchild"` // parent visibility is unset, this will be secret
 		}
 		type child struct {
-			D frontend.Variable `gnark:",public"` // parent visibility is unset, this will be public
+			D variable `gnark:",public"` // parent visibility is unset, this will be public
 			G grandchild
 		}
 		s := struct {
-			A frontend.Variable `gnark:",public"`
-			B frontend.Variable
+			A variable `gnark:",public"`
+			B variable
 			C child
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A"] = compiled.Public
-		expected["B"] = compiled.Secret
-		expected["C_D"] = compiled.Public
-		expected["C_G_grandchild"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["A"] = Public
+		expected["B"] = Secret
+		expected["C_D"] = Public
+		expected["C_G_grandchild"] = Secret
 		t.Run("two_layers", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	//  embedded structs
 	{
 		type embedded struct {
-			D frontend.Variable
+			D variable
 		}
 		type child struct {
 			embedded
@@ -131,35 +128,35 @@ func TestStructTags(t *testing.T) {
 
 		s := struct {
 			C child
-			A frontend.Variable `gnark:",public"`
-			B frontend.Variable
+			A variable `gnark:",public"`
+			B variable
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A"] = compiled.Public
-		expected["B"] = compiled.Secret
-		expected["C_D"] = compiled.Secret
+		expected := make(map[string]Visibility)
+		expected["A"] = Public
+		expected["B"] = Secret
+		expected["C_D"] = Secret
 		t.Run("embedded_structs", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	// array
 	{
 		s := struct {
-			A [2]frontend.Variable `gnark:",public"`
+			A [2]variable `gnark:",public"`
 		}{}
-		expected := make(map[string]compiled.Visibility)
-		expected["A_0"] = compiled.Public
-		expected["A_1"] = compiled.Public
+		expected := make(map[string]Visibility)
+		expected["A_0"] = Public
+		expected["A_1"] = Public
 		t.Run("array", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 
 	// slice
 	{
 		s := struct {
-			A []frontend.Variable `gnark:",public"`
-		}{A: make([]frontend.Variable, 2)}
-		expected := make(map[string]compiled.Visibility)
-		expected["A_0"] = compiled.Public
-		expected["A_1"] = compiled.Public
+			A []variable `gnark:",public"`
+		}{A: make([]variable, 2)}
+		expected := make(map[string]Visibility)
+		expected["A_0"] = Public
+		expected["A_1"] = Public
 		t.Run("slice", func(t *testing.T) { testParseTags(t, &s, expected) })
 	}
 

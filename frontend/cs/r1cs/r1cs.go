@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -96,7 +97,7 @@ func (system *r1CS) newInternalVariable() compiled.Variable {
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
 	return compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Internal)},
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)},
 		IsBoolean: &t,
 	}
 }
@@ -107,7 +108,7 @@ func (system *r1CS) NewPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	res := compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Public)},
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)},
 		IsBoolean: &t,
 	}
 	return res
@@ -119,7 +120,7 @@ func (system *r1CS) NewSecretVariable(name string) frontend.Variable {
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	res := compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, compiled.Secret)},
+		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)},
 		IsBoolean: &t,
 	}
 	return res
@@ -138,7 +139,7 @@ func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
 func (system *r1CS) one() compiled.Variable {
 	t := false
 	return compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, compiled.Public)},
+		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, schema.Public)},
 		IsBoolean: &t,
 	}
 }
@@ -247,17 +248,17 @@ func (system *r1CS) CheckVariables() error {
 			vID := t.WireID()
 
 			switch visibility {
-			case compiled.Public:
+			case schema.Public:
 				if vID != 0 && !publicConstrained[vID] {
 					publicConstrained[vID] = true
 					cptPublic--
 				}
-			case compiled.Secret:
+			case schema.Secret:
 				if !secretConstrained[vID] {
 					secretConstrained[vID] = true
 					cptSecret--
 				}
-			case compiled.Internal:
+			case schema.Internal:
 				if _, ok := system.MHints[vID]; !mHintsConstrained[vID] && ok {
 					mHintsConstrained[vID] = true
 					cptHints--

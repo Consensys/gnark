@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 var seedCorpus []*big.Int
@@ -113,8 +112,8 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func fill(w frontend.Circuit, nextValue func() interface{}) {
-	var setHandler schema.LeafHandler = func(visibility compiled.Visibility, name string, tInput reflect.Value) error {
-		if visibility == compiled.Secret || visibility == compiled.Public {
+	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		if visibility == schema.Secret || visibility == schema.Public {
 			v := nextValue()
 			tInput.Set(reflect.ValueOf((v)))
 		}

@@ -18,6 +18,8 @@ import (
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
@@ -27,7 +29,8 @@ type CompiledConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
 
-	// IsSolved(witness witness.Witness, opts ...func(opt *backend.ProverOption) error) error
+	// IsSolved returns nil if given witness solves the constraint system and error otherwise
+	IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error
 
 	// GetNbVariables return number of internal, secret and public Variables
 	GetNbVariables() (internal, secret, public int)
@@ -42,4 +45,6 @@ type CompiledConstraintSystem interface {
 
 	// GetCounters return the collected constraint counters, if any
 	GetCounters() []compiled.Counter
+
+	// Schema() *schema.Schema
 }

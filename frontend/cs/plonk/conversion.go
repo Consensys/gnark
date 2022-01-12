@@ -19,6 +19,7 @@ package plonk
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -43,13 +44,13 @@ func (cs *sparseR1CS) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// shift variable ID
 	// we want publicWires | privateWires | internalWires
-	shiftVID := func(oldID int, visibility compiled.Visibility) int {
+	shiftVID := func(oldID int, visibility schema.Visibility) int {
 		switch visibility {
-		case compiled.Internal:
+		case schema.Internal:
 			return oldID + res.NbPublicVariables + res.NbSecretVariables
-		case compiled.Public:
+		case schema.Public:
 			return oldID
-		case compiled.Secret:
+		case schema.Secret:
 			return oldID + res.NbPublicVariables
 		default:
 			return oldID
@@ -92,7 +93,7 @@ HINTLOOP:
 		// we set for all outputs in shiftedMap. If one shifted output
 		// is in shiftedMap, then all are
 		for i, vID := range hint.Wires {
-			ws[i] = shiftVID(vID, compiled.Internal)
+			ws[i] = shiftVID(vID, schema.Internal)
 			if _, ok := shiftedMap[ws[i]]; i == 0 && ok {
 				continue HINTLOOP
 			}

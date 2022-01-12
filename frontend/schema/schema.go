@@ -22,8 +22,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // Schema represents the structure of a gnark circuit (/ witness)
@@ -34,7 +32,7 @@ type Schema struct {
 }
 
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(visibility compiled.Visibility, name string, tValue reflect.Value) error
+type LeafHandler func(visibility Visibility, name string, tValue reflect.Value) error
 
 // Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
@@ -45,7 +43,7 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schem
 	// same for tLeaf it is in practice always frontend.Variable
 
 	var nbPublic, nbSecret int
-	fields, err := parse(nil, circuit, tLeaf, "", "", "", compiled.Unset, handler, &nbPublic, &nbSecret)
+	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, handler, &nbPublic, &nbSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +86,10 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	var a int
 	instance := s.Instantiate(reflect.TypeOf(a), false)
 
-	collectHandler := func(visibility compiled.Visibility, name string, _ reflect.Value) error {
-		if visibility == compiled.Public {
+	collectHandler := func(visibility Visibility, name string, _ reflect.Value) error {
+		if visibility == Public {
 			public = append(public, name)
-		} else if visibility == compiled.Secret {
+		} else if visibility == Secret {
 			secret = append(secret, name)
 		}
 		return nil
@@ -169,12 +167,12 @@ func arrayElementType(n int, fields []Field, leafType reflect.Type, omitEmpty bo
 	panic("invalid array type")
 }
 
-func structTag(baseNameTag string, visibility compiled.Visibility, omitEmpty bool) reflect.StructTag {
+func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflect.StructTag {
 	sOmitEmpty := ""
 	if omitEmpty {
 		sOmitEmpty = ",omitempty"
 	}
-	if visibility == compiled.Unset {
+	if visibility == Unset {
 		if baseNameTag != "" {
 			return reflect.StructTag(fmt.Sprintf("gnark:\"%s\" json:\"%s%s\"", baseNameTag, baseNameTag, sOmitEmpty))
 		}
@@ -192,7 +190,7 @@ func structTag(baseNameTag string, visibility compiled.Visibility, omitEmpty boo
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility compiled.Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -203,12 +201,12 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	// stop condition
 	if tValue.Type() == target {
 		v := parentVisibility
-		if v == compiled.Unset {
-			v = compiled.Secret
+		if v == Unset {
+			v = Secret
 		}
-		if v == compiled.Secret {
+		if v == Secret {
 			(*nbSecret)++
-		} else if v == compiled.Public {
+		} else if v == Public {
 			(*nbPublic)++
 		}
 
@@ -241,7 +239,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			}
 
 			// default visibility is Unset
-			visibility := compiled.Unset
+			visibility := Unset
 
 			// variable name is field name, unless overriden by gnark tag value
 			name := f.Name
@@ -256,16 +254,16 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				}
 				opts = tagOptions(strings.TrimSpace(string(opts)))
 				if opts == "" || opts.contains(string(optSecret)) {
-					visibility = compiled.Secret
+					visibility = Secret
 				} else if opts.contains(string(optPublic)) {
-					visibility = compiled.Public
+					visibility = Public
 				} else {
 					return r, fmt.Errorf("invalid gnark struct tag option on %s. must be \"public\", \"secret\" or \"-\"", getFullName(parentGoName, name, nameTag))
 				}
 			}
 
-			if ((parentVisibility == compiled.Public) && (visibility == compiled.Secret)) ||
-				((parentVisibility == compiled.Secret) && (visibility == compiled.Public)) {
+			if ((parentVisibility == Public) && (visibility == Secret)) ||
+				((parentVisibility == Secret) && (visibility == Public)) {
 				// TODO @gbotrel maybe we should just force it to take the parent value.
 				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", getFullName(parentGoName, name, nameTag), visibility.String())
 			}
@@ -287,8 +285,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			return subFields, nil
 		}
 		// we just add it to our current fields
-		// if parentVisibility == compiled.Unset {
-		// 	parentVisibility = compiled.Secret // default visibility to Secret
+		// if parentVisibility == Unset {
+		// 	parentVisibility = Secret // default visibility to Secret
 		// }
 		if len(subFields) == 0 {
 			// nothing to add in the schema
@@ -299,7 +297,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			NameTag:    parentTagName,
 			Type:       Struct,
 			SubFields:  subFields,
-			Visibility: parentVisibility, // == compiled.Secret,
+			Visibility: parentVisibility, // == Secret,
 		}), nil
 
 	}
@@ -316,8 +314,8 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		// [n]frontend.Variable
 		// [] / [n] of something else.
 		if reflect.SliceOf(target) == tValue.Type() || reflect.ArrayOf(tValue.Len(), target) == tValue.Type() {
-			// if parentVisibility == compiled.Unset {
-			// 	parentVisibility = compiled.Secret // default visibility to Secret
+			// if parentVisibility == Unset {
+			// 	parentVisibility = Secret // default visibility to Secret
 			// }
 
 			for j := 0; j < tValue.Len(); j++ {
@@ -387,7 +385,7 @@ func getFullName(parentFullName, name, tagName string) string {
 func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
 	var wValues []interface{}
 
-	var collectHandler LeafHandler = func(v compiled.Visibility, _ string, tInput reflect.Value) error {
+	var collectHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
 		wValues = append(wValues, tInput.Interface())
 		return nil
 	}
@@ -398,7 +396,7 @@ func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflec
 	}
 
 	i := 0
-	var setHandler LeafHandler = func(v compiled.Visibility, _ string, tInput reflect.Value) error {
+	var setHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
 		tInput.Set(reflect.ValueOf((wValues[i])))
 		i++
 		return nil
