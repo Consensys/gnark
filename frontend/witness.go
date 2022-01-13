@@ -10,7 +10,7 @@ import (
 // else returns [public | secret]. The result can then be serialized to / from json & binary
 //
 // Returns an error if the assignment has missing entries
-func NewWitness(assignment Circuit, curveID ecc.ID, opts ...func(opt *witnessConfig) error) (*witness.Witness, error) {
+func NewWitness(assignment Circuit, curveID ecc.ID, opts ...WitnessOption) (*witness.Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func NewWitness(assignment Circuit, curveID ecc.ID, opts ...func(opt *witnessCon
 }
 
 // default options
-func options(opts ...func(*witnessConfig) error) (witnessConfig, error) {
+func options(opts ...WitnessOption) (witnessConfig, error) {
 	// apply options
 	opt := witnessConfig{
 		publicOnly: false,
