@@ -53,7 +53,7 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_633witness.Witness, opt backend.ProverOption) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_633witness.Witness, opt backend.ProverConfig) (*Proof, error) {
 	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
 		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}

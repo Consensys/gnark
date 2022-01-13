@@ -84,7 +84,7 @@ func (assert *Assert) Log(v ...interface{}) {
 // 4. if set, (de)serializes the witness and call ReadAndProve and ReadAndVerify on the backend
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
 	opt := assert.options(opts...)
 
 	// for each {curve, backend} tuple
@@ -175,10 +175,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 // 3. run Setup / Prove / Verify with the backend (must fail)
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
 	opt := assert.options(opts...)
 
-	popts := append(opt.proverOpts, backend.IgnoreSolverError)
+	popts := append(opt.proverOpts, backend.IgnoreSolverError())
 
 	for _, curve := range opt.curves {
 
@@ -236,7 +236,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	}
 }
 
-func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {
@@ -250,7 +250,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 	}
 }
 
-func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
 	validWitness, err := frontend.NewWitness(validAssignment, curve)
 	assert.NoError(err, "can't parse valid assignment")
@@ -270,7 +270,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 
 }
 
-func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...TestingOption) {
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {
@@ -284,7 +284,7 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 	}
 }
 
-func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) {
+func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
 	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
 	assert.NoError(err, "can't parse invalid assignment")
@@ -310,7 +310,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 
 // GetCounters compiles (or fetch from the compiled circuit cache) the circuit with set backends and curves
 // and returns measured counters
-func (assert *Assert) GetCounters(circuit frontend.Circuit, opts ...func(opt *TestingOption) error) []compiled.Counter {
+func (assert *Assert) GetCounters(circuit frontend.Circuit, opts ...TestingOption) []compiled.Counter {
 	opt := assert.options(opts...)
 
 	var r []compiled.Counter
@@ -334,7 +334,7 @@ func (assert *Assert) GetCounters(circuit frontend.Circuit, opts ...func(opt *Te
 // execution result between constraint system solver and big.Int test execution engine
 //
 // note: this is experimental and will be more tightly integrated with go1.18 built-in fuzzing
-func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func(opt *TestingOption) error) {
+func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...TestingOption) {
 	opt := assert.options(opts...)
 
 	// first we clone the circuit
@@ -372,7 +372,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...func
 	}
 }
 
-func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backend.ID, curve ecc.ID, opt *TestingOption) int {
+func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) int {
 	// fuzz a witness
 	fuzzer(w, curve)
 
@@ -390,7 +390,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []func(opt *frontend.CompileOption) error) (frontend.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (frontend.CompiledConstraintSystem, error) {
 	key := curveID.String() + backendID.String() + reflect.TypeOf(circuit).String()
 
 	// check if we already compiled it
@@ -424,9 +424,9 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 }
 
 // default options
-func (assert *Assert) options(opts ...func(*TestingOption) error) TestingOption {
+func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	// apply options
-	opt := TestingOption{
+	opt := testingConfig{
 		witnessSerialization: true,
 		backends:             backend.Implemented(),
 		curves:               ecc.Implemented(),

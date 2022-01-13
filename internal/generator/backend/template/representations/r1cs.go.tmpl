@@ -45,7 +45,7 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) ([]fr.Element, error) {
+func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
 	solution, err := newSolution(nbWires, opt.HintFunctions, cs.Coefficients)
@@ -119,8 +119,8 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverOption) (
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...func(opt *backend.ProverOption) error) error {
-	opt, err := backend.NewProverOption(opts...)
+func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
+	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
 	}

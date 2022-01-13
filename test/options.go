@@ -22,62 +22,62 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-// TestingOption enables calls to assert.ProverSucceeded and assert.ProverFailed to run with various features
-//
-// In particular: chose the curve, chose the backend and execute serialization tests on the witness
-//
-// Default values to all supported curves, backends and execute serialization tests = true
-type TestingOption struct {
+// TestingOption defines option for altering the behaviour of Assert methods.
+// See the descriptions of functions returning instances of this type for
+// particular options.
+type TestingOption func(*testingConfig) error
+
+type testingConfig struct {
 	backends             []backend.ID
 	curves               []ecc.ID
 	witnessSerialization bool
-	proverOpts           []func(opt *backend.ProverOption) error
-	compileOpts          []func(opt *frontend.CompileOption) error
+	proverOpts           []backend.ProverOption
+	compileOpts          []frontend.CompileOption
 }
 
-// WithBackends enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific backends only
-//
-// (defaults to all gnark supported backends)
-func WithBackends(b backend.ID, backends ...backend.ID) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+// WithBackends is testing option which restricts the backends the assertions are
+// run. When not given, runs on all implemented backends.
+func WithBackends(b backend.ID, backends ...backend.ID) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.backends = []backend.ID{b}
 		opt.backends = append(opt.backends, backends...)
 		return nil
 	}
 }
 
-// WithCurves enables calls to assert.ProverSucceeded and assert.ProverFailed to run on specific curves only
-//
-// (defaults to all gnark supported curves)
-func WithCurves(c ecc.ID, curves ...ecc.ID) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+// WithCurves is a testing option which restricts the curves the assertions are
+// run. When not given, runs on all implemented curves.
+func WithCurves(c ecc.ID, curves ...ecc.ID) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.curves = []ecc.ID{c}
 		opt.curves = append(opt.curves, curves...)
 		return nil
 	}
 }
 
-// NoSerialization enables calls to assert.ProverSucceeded and assert.ProverFailed to skip witness serialization tests
-func NoSerialization() func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+// NoSerialization is a testing option which disables witness serialization tests
+// in assertions.
+func NoSerialization() TestingOption {
+	return func(opt *testingConfig) error {
 		opt.witnessSerialization = false
 		return nil
 	}
 }
 
-// WithProverOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward backend.Prover option
-// to backend.Prove and backend.ReadAndProve calls
-func WithProverOpts(proverOpts ...func(opt *backend.ProverOption) error) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+// WithProverOpts is a testing option which uses the given proverOpts when
+// calling backend.Prover, backend.ReadAndProve and backend.IsSolved methods in
+// assertions.
+func WithProverOpts(proverOpts ...backend.ProverOption) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.proverOpts = proverOpts
 		return nil
 	}
 }
 
-// WithCompileOpts enables calls to assert.ProverSucceeded and assert.ProverFailed to forward compiler.Compile option
-// to compiler.Compile calls
-func WithCompileOpts(compileOpts ...func(opt *frontend.CompileOption) error) func(opt *TestingOption) error {
-	return func(opt *TestingOption) error {
+// WithCompileOpts is a testing option which uses the given compileOpts when
+// calling frontend.Compile in assertions.
+func WithCompileOpts(compileOpts ...frontend.CompileOption) TestingOption {
+	return func(opt *testingConfig) error {
 		opt.compileOpts = compileOpts
 		return nil
 	}
