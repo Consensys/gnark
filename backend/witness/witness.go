@@ -84,6 +84,25 @@ func New(curveID ecc.ID, schema *schema.Schema) (*Witness, error) {
 	}, nil
 }
 
+// Public extracts the public part of the witness and returns a new witness object
+func (w *Witness) Public() (*Witness, error) {
+	if w.Vector == nil {
+		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
+	}
+	if w.Schema == nil {
+		return nil, errMissingSchema
+	}
+	v, err := newFrom(w.Vector, w.Schema.NbPublic)
+	if err != nil {
+		return nil, err
+	}
+	return &Witness{
+		CurveID: w.CurveID,
+		Vector:  v,
+		Schema:  w.Schema,
+	}, nil
+}
+
 // MarshalBinary implements encoding.BinaryMarshaler
 // Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
 func (w *Witness) MarshalBinary() (data []byte, err error) {
