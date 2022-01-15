@@ -103,6 +103,32 @@ func TestMarshal(t *testing.T) {
 	roundTripMarshal(assert, assignment, Binary, false)
 }
 
+func TestPublic(t *testing.T) {
+	assert := require.New(t)
+
+	var assignment circuit
+	assignment.X = new(fr.Element).SetInt64(42)
+	assignment.Y = new(fr.Element).SetInt64(8000)
+	assignment.E = new(fr.Element).SetInt64(1)
+
+	w, err := New(ecc.BN254, nil)
+	assert.NoError(err)
+
+	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, false)
+	assert.NoError(err)
+
+	publicW, err := w.Public()
+	assert.NoError(err)
+
+	assert.Equal(3, w.Vector.Len())
+	assert.Equal(2, publicW.Vector.Len())
+
+	wt := publicW.Vector.(*witness_bn254.Witness)
+
+	assert.Equal("42", (*wt)[0].String())
+	assert.Equal("8000", (*wt)[1].String())
+}
+
 var tVariable reflect.Type
 
 func init() {
