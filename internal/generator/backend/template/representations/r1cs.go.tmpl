@@ -346,7 +346,7 @@ func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 		}
 	case schema.Public:
 		if vID == 0 {
-			sbb.WriteString("①") // one wire 
+			sbb.WriteByte('1') // one wire 
 		} else {
 			sbb.WriteString(fmt.Sprintf("p%d", vID - 1))
 		}
