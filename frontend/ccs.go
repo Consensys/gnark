@@ -48,4 +48,7 @@ type CompiledConstraintSystem interface {
 	GetCounters() []compiled.Counter
 
 	GetSchema() *schema.Schema
+
+	// GetConstraints return a human readable representation of the constraints
+	GetConstraints() [][]string
 }
