@@ -32,11 +32,11 @@ type API interface {
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 Variable, in ...Variable) Variable
 
-	// Sub returns res = i1 - i2 - ...in
-	Sub(i1, i2 Variable, in ...Variable) Variable
-
 	// Neg returns -i
 	Neg(i1 Variable) Variable
+
+	// Sub returns res = i1 - i2 - ...in
+	Sub(i1, i2 Variable, in ...Variable) Variable
 
 	// Mul returns res = i1 * i2 * ... in
 	Mul(i1, i2 Variable, in ...Variable) Variable
@@ -88,6 +88,9 @@ type API interface {
 
 	// IsZero returns 1 if a is zero, 0 otherwise
 	IsZero(i1 Variable) Variable
+
+	// Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
+	Cmp(i1, i2 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Assertions

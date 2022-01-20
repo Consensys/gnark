@@ -33,6 +33,9 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// ---------------------------------------------------------------------------------------------
+// Arithmetic
+
 // Add returns res = i1+i2+...in
 func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
@@ -163,28 +166,35 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 	return res
 }
 
-// Inverse returns res = inverse(v)
-func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1)
+func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+	vars, _ := system.toVariables(i1, i2)
 
-	if vars[0].IsConstant() {
-		// c := vars[0].constantValue(cs)
-		c := system.constantValue(vars[0])
-		if c.IsUint64() && c.Uint64() == 0 {
-			panic("inverse by constant(0)")
-		}
+	v1 := vars[0]
+	v2 := vars[1]
 
-		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
-		return system.constant(c)
+	if !v2.IsConstant() {
+		res := system.newInternalVariable()
+		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
+		// note that here we don't ensure that divisor is != 0
+		system.addConstraint(newR1C(v2, res, v1), debug)
+		return res
 	}
 
-	// allocate resulting frontend.Variable
-	res := system.newInternalVariable()
+	// v2 is constant
+	b2 := system.constantValue(v2)
+	if b2.IsUint64() && b2.Uint64() == 0 {
+		panic("div by constant(0)")
+	}
+	q := system.CurveID.Info().Fr.Modulus()
+	b2.ModInverse(b2, q)
 
-	debug := system.AddDebugInfo("inverse", vars[0], "*", res, " == 1")
-	system.addConstraint(newR1C(res, vars[0], system.one()), debug)
+	if v1.IsConstant() {
+		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
+		return system.constant(b2)
+	}
 
-	return res
+	// v1 is not constant
+	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
 // Div returns res = i1 / i2
@@ -221,134 +231,32 @@ func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
 }
 
-func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1, i2)
-
-	v1 := vars[0]
-	v2 := vars[1]
-
-	if !v2.IsConstant() {
-		res := system.newInternalVariable()
-		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
-		// note that here we don't ensure that divisor is != 0
-		system.addConstraint(newR1C(v2, res, v1), debug)
-		return res
-	}
-
-	// v2 is constant
-	b2 := system.constantValue(v2)
-	if b2.IsUint64() && b2.Uint64() == 0 {
-		panic("div by constant(0)")
-	}
-	q := system.CurveID.Info().Fr.Modulus()
-	b2.ModInverse(b2, q)
-
-	if v1.IsConstant() {
-		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
-		return system.constant(b2)
-	}
-
-	// v1 is not constant
-	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
-}
-
-// Xor compute the XOR between two frontend.Variables
-func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
-
-	vars, _ := system.toVariables(_a, _b)
-
-	a := vars[0]
-	b := vars[1]
-
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
-
-	// the formulation used is for easing up the conversion to sparse r1cs
-	res := system.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
-	c := system.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
-	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
-	aa := system.Mul(a, 2)
-	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
-
-	return res
-}
-
-// Or compute the OR between two frontend.Variables
-func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
-
-	a := vars[0]
-	b := vars[1]
-
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
-
-	// the formulation used is for easing up the conversion to sparse r1cs
-	res := system.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
-	c := system.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
-	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
-	system.Constraints = append(system.Constraints, newR1C(a, b, c))
-
-	return res
-}
-
-// And compute the AND between two frontend.Variables
-func (system *r1CS) And(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
-
-	a := vars[0]
-	b := vars[1]
-
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
-
-	res := system.Mul(a, b)
-
-	return res
-}
-
-// IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
+// Inverse returns res = inverse(v)
+func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
-	a := vars[0]
-	if a.IsConstant() {
-		// c := a.constantValue(cs)
-		c := system.constantValue(a)
+
+	if vars[0].IsConstant() {
+		// c := vars[0].constantValue(cs)
+		c := system.constantValue(vars[0])
 		if c.IsUint64() && c.Uint64() == 0 {
-			return system.constant(1)
+			panic("inverse by constant(0)")
 		}
-		return system.constant(0)
+
+		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
+		return system.constant(c)
 	}
 
-	debug := system.AddDebugInfo("isZero", a)
+	// allocate resulting frontend.Variable
+	res := system.newInternalVariable()
 
-	//m * (1 - m) = 0       // constrain m to be 0 or 1
-	// a * m = 0            // constrain m to be 0 if a != 0
-	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
+	debug := system.AddDebugInfo("inverse", vars[0], "*", res, " == 1")
+	system.addConstraint(newR1C(res, vars[0], system.one()), debug)
 
-	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	res, err := system.NewHint(hint.IsZero, a)
-	if err != nil {
-		// the function errs only if the number of inputs is invalid.
-		panic(err)
-	}
-	m := res[0]
-	system.addConstraint(newR1C(a, m, system.constant(0)), debug)
-
-	system.AssertIsBoolean(m)
-	ma := system.Add(m, a)
-	_ = system.Inverse(ma)
-	return m
-
+	return res
 }
+
+// ---------------------------------------------------------------------------------------------
+// Bit operations
 
 // ToBinary unpacks a frontend.Variable in binary,
 // n is the number of bits to select (starting from lsb)
@@ -463,6 +371,72 @@ func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	return res
 }
 
+// Xor compute the XOR between two frontend.Variables
+func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
+
+	vars, _ := system.toVariables(_a, _b)
+
+	a := vars[0]
+	b := vars[1]
+
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
+
+	// the formulation used is for easing up the conversion to sparse r1cs
+	res := system.newInternalVariable()
+	res.IsBoolean = new(bool)
+	*res.IsBoolean = true
+	c := system.Neg(res).(compiled.Variable)
+	c.IsBoolean = new(bool)
+	*c.IsBoolean = false
+	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	aa := system.Mul(a, 2)
+	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
+
+	return res
+}
+
+// Or compute the OR between two frontend.Variables
+func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
+	vars, _ := system.toVariables(_a, _b)
+
+	a := vars[0]
+	b := vars[1]
+
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
+
+	// the formulation used is for easing up the conversion to sparse r1cs
+	res := system.newInternalVariable()
+	res.IsBoolean = new(bool)
+	*res.IsBoolean = true
+	c := system.Neg(res).(compiled.Variable)
+	c.IsBoolean = new(bool)
+	*c.IsBoolean = false
+	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	system.Constraints = append(system.Constraints, newR1C(a, b, c))
+
+	return res
+}
+
+// And compute the AND between two frontend.Variables
+func (system *r1CS) And(_a, _b frontend.Variable) frontend.Variable {
+	vars, _ := system.toVariables(_a, _b)
+
+	a := vars[0]
+	b := vars[1]
+
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
+
+	res := system.Mul(a, b)
+
+	return res
+}
+
+// ---------------------------------------------------------------------------------------------
+// Conditionals
+
 // Select if i0 is true, yields i1 else yields i2
 func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
@@ -528,6 +502,69 @@ func (system *r1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 	res = system.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
 	return res
 }
+
+// IsZero returns 1 if i1 is zero, 0 otherwise
+func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
+	vars, _ := system.toVariables(i1)
+	a := vars[0]
+	if a.IsConstant() {
+		// c := a.constantValue(cs)
+		c := system.constantValue(a)
+		if c.IsUint64() && c.Uint64() == 0 {
+			return system.constant(1)
+		}
+		return system.constant(0)
+	}
+
+	debug := system.AddDebugInfo("isZero", a)
+
+	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// a * m = 0            // constrain m to be 0 if a != 0
+	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
+
+	// m is computed by the solver such that m = 1 - a^(modulus - 1)
+	res, err := system.NewHint(hint.IsZero, a)
+	if err != nil {
+		// the function errs only if the number of inputs is invalid.
+		panic(err)
+	}
+	m := res[0]
+	system.addConstraint(newR1C(a, m, system.constant(0)), debug)
+
+	system.AssertIsBoolean(m)
+	ma := system.Add(m, a)
+	_ = system.Inverse(ma)
+	return m
+}
+
+// Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
+func (system *r1CS) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+
+	vars, _ := system.toVariables(i1, i2)
+	bi1 := system.ToBinary(vars[0], system.BitLen())
+	bi2 := system.ToBinary(vars[1], system.BitLen())
+
+	res := system.constant(0)
+
+	for i := system.BitLen() - 1; i >= 0; i-- {
+
+		iszeroi1 := system.IsZero(bi1[i])
+		iszeroi2 := system.IsZero(bi2[i])
+
+		i1i2 := system.And(bi1[i], iszeroi2)
+		i2i1 := system.And(bi2[i], iszeroi1)
+
+		n := system.Select(i2i1, -1, 0)
+		m := system.Select(i1i2, 1, n)
+
+		res = system.Select(system.IsZero(res), m, res)
+
+	}
+	return res
+}
+
+// ---------------------------------------------------------------------------------------------
+// Assertions
 
 // IsConstant returns true if v is a constant known at compile time
 func (system *r1CS) IsConstant(v frontend.Variable) bool {
