@@ -295,6 +295,69 @@ func sub(a, b int) int {
 	return a - b
 }
 
+func (cs *R1CS) GetConstraints() [][]string {
+	var r [][]string 
+	for _, c := range cs.Constraints {
+		// for each constraint, we build a string representation of it's L, R and O part 
+		// if we are worried about perf for large cs, we could do a string builder + csv format.
+		var line [3]string
+		line[0] = cs.vtoString(c.L)
+		line[1] = cs.vtoString(c.R)
+		line[2] = cs.vtoString(c.O)
+		r = append(r, line[:])
+	}
+	return r
+}
+
+func (cs *R1CS) vtoString(l compiled.Variable) string {
+	var sbb strings.Builder
+	for i := 0; i < len(l.LinExp); i++ {
+		cs.termToString(l.LinExp[i], &sbb)
+		if i+1 < len(l.LinExp) {
+			sbb.WriteString(" + ")
+		}
+	}
+	return sbb.String()
+}
+
+func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
+	tID := t.CoeffID()
+	if tID == compiled.CoeffIdOne {
+		// do nothing, just print the variable
+	} else if tID == compiled.CoeffIdMinusOne {
+		// print neg sign
+		sbb.WriteByte('-')
+	} else if tID == compiled.CoeffIdZero {
+		sbb.WriteByte('0')
+		return
+	} else {
+		sbb.WriteString(cs.Coefficients[tID].String())
+		sbb.WriteByte('*')
+	}
+	vID := t.WireID()
+	visibility := t.VariableVisibility()
+
+	switch visibility {
+	case schema.Internal:
+		if _, isHint := cs.MHints[vID]; isHint {
+			sbb.WriteString(fmt.Sprintf("hv%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
+		} else {
+			sbb.WriteString(fmt.Sprintf("v%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
+		}
+	case schema.Public:
+		if vID == 0 {
+			sbb.WriteByte('1') // one wire 
+		} else {
+			sbb.WriteString(fmt.Sprintf("p%d", vID - 1))
+		}
+	case schema.Secret:
+		sbb.WriteString(fmt.Sprintf("s%d", vID - cs.NbPublicVariables))
+	default:
+		sbb.WriteString("<?>")
+	}
+}
+
+
 func toHTML(l compiled.Variable, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l.LinExp); i++ {

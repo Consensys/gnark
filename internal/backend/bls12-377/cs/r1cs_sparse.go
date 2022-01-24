@@ -28,6 +28,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
@@ -252,6 +253,57 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 	v := witness.Vector.(*bls12_377witness.Witness)
 	_, err = cs.Solve(*v, opt)
 	return err
+}
+
+func (cs *SparseR1CS) GetConstraints() [][]string {
+	var r [][]string
+	for _, c := range cs.Constraints {
+		// if we are worried about perf for large cs, we could do a string builder + csv format.
+		var line [6]string
+		line[0] = cs.termToString(c.L)
+		line[1] = cs.termToString(c.R)
+		line[2] = cs.termToString(c.M[0])
+		line[3] = cs.termToString(c.M[1])
+		line[4] = cs.termToString(c.O)
+		line[5] = cs.Coefficients[c.K].String()
+		r = append(r, line[:])
+	}
+	return r
+}
+
+func (cs *SparseR1CS) termToString(t compiled.Term) string {
+	var sbb strings.Builder
+	tID := t.CoeffID()
+	if tID == compiled.CoeffIdOne {
+		// do nothing, just print the variable
+	} else if tID == compiled.CoeffIdMinusOne {
+		// print neg sign
+		sbb.WriteByte('-')
+	} else if tID == compiled.CoeffIdZero {
+		sbb.WriteByte('0')
+		return sbb.String()
+	} else {
+		sbb.WriteString(cs.Coefficients[tID].String())
+		sbb.WriteByte('*')
+	}
+	vID := t.WireID()
+	visibility := t.VariableVisibility()
+
+	switch visibility {
+	case schema.Internal:
+		if _, isHint := cs.MHints[vID]; isHint {
+			sbb.WriteString(fmt.Sprintf("hv%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
+		} else {
+			sbb.WriteString(fmt.Sprintf("v%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
+		}
+	case schema.Public:
+		sbb.WriteString(fmt.Sprintf("p%d", vID))
+	case schema.Secret:
+		sbb.WriteString(fmt.Sprintf("s%d", vID-cs.NbPublicVariables))
+	default:
+		sbb.WriteString("<?>")
+	}
+	return sbb.String()
 }
 
 // checkConstraint verifies that the constraint holds

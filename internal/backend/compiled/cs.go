@@ -197,6 +197,8 @@ func (cs *CS) GetCounters() []Counter { return cs.Counters }
 
 func (cs *CS) GetSchema() *schema.Schema { return cs.Schema }
 
+func (cs *CS) GetConstraints() [][]string { panic("not implemented") }
+
 // Counter contains measurements of useful statistics between two Tag
 type Counter struct {
 	From, To      string
