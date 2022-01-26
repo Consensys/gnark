@@ -103,9 +103,9 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 		if !check.Equal(&c[i]) {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+				return solution.values, fmt.Errorf("%w: %s", errUnsatisfiedConstraint(i), debugInfoStr)
 			}
-			return solution.values, ErrUnsatisfiedConstraint
+			return solution.values, errUnsatisfiedConstraint(i)
 		}
 	}
 

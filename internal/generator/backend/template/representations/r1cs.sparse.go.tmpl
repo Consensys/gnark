@@ -99,9 +99,9 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values,  fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+				return solution.values,  fmt.Errorf("%w: %s\n%v", errUnsatisfiedConstraint(i), debugInfoStr, err)
 			}
-			return solution.values, ErrUnsatisfiedConstraint
+			return solution.values, fmt.Errorf("%w: %v", errUnsatisfiedConstraint(i), err)
 		}
 	}
 
@@ -311,7 +311,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 	var t fr.Element 
 	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
 	if !t.IsZero() {
-		return fmt.Errorf("%w\n%s + %s + (%s * %s) + %s + %s != 0",ErrUnsatisfiedConstraint, 
+		return fmt.Errorf("%s + %s + (%s * %s) + %s + %s != 0",
 		l.String(),
 		r.String(),
 		m0.String(),
