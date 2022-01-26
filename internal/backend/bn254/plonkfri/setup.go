@@ -92,6 +92,7 @@ type ProvingKey struct {
 // * Commitments of qr, qm, qo, qk prepended with as many zeroes as there are public inputs
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
+
 	// Size circuit
 	Size              uint64
 	SizeInv           fr.Element
@@ -103,6 +104,9 @@ type VerifyingKey struct {
 
 	// S commitments to S1, S2, S3
 	S [3]Commitment
+
+	// Id commitments to Id1, Id2, Id3
+	Id [3]Commitment
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
@@ -318,6 +322,9 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) {
 	fft.BitReverse(pk.LsId1[:pk.DomainSmall.Cardinality])
 	fft.BitReverse(pk.LsId2[:pk.DomainSmall.Cardinality])
 	fft.BitReverse(pk.LsId3[:pk.DomainSmall.Cardinality])
+	vk.Id[0] = vk.Cscheme.Commit(pk.LsId1)
+	vk.Id[1] = vk.Cscheme.Commit(pk.LsId2)
+	vk.Id[2] = vk.Cscheme.Commit(pk.LsId3)
 	pk.DomainBig.FFT(pk.LsId1, fft.DIF, 1)
 	pk.DomainBig.FFT(pk.LsId2, fft.DIF, 1)
 	pk.DomainBig.FFT(pk.LsId3, fft.DIF, 1)

@@ -49,6 +49,12 @@ type Proof struct {
 
 	// opening proofs for ql, qr, qm, qo, qk
 	OpeningsQlQrQmQoQk [5]OpeningProof
+
+	// openings of S1, S2, S3
+	OpeningsS1S2S3 [3]OpeningProof
+
+	// openings of Id1, Id2, Id3
+	OpeningsId1Id2Id3 [3]OpeningProof
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
