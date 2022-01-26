@@ -15,11 +15,9 @@
 package plonkfri
 
 import (
-	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
-	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
@@ -51,22 +49,6 @@ type Proof struct {
 
 	// opening proofs for ql, qr, qm, qo, qk
 	OpeningsQlQrQmQoQk [5]OpeningProof
-}
-
-func printPoly(name string, c []fr.Element, size ...int) string {
-	var sbb strings.Builder
-	sbb.WriteString(name + " = [")
-	var s int
-	if len(size) > 0 {
-		s = size[0]
-	} else {
-		s = len(c)
-	}
-	for i := 0; i < s; i++ {
-		sbb.WriteString(fmt.Sprintf("%s,", c[i].String()))
-	}
-	sbb.WriteString("]")
-	return sbb.String()
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
