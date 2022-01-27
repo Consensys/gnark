@@ -248,33 +248,87 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 func (cs *SparseR1CS) GetConstraints() [][]string {
 	var r [][]string 
 	for _, c := range cs.Constraints {
-		// if we are worried about perf for large cs, we could do a string builder + csv format.
-		var line [6]string
-		line[0] = cs.termToString(c.L)
-		line[1] = cs.termToString(c.R)
-		line[2] = cs.termToString(c.M[0])
-		line[3] = cs.termToString(c.M[1])
-		line[4] = cs.termToString(c.O)
-		line[5] = cs.Coefficients[c.K].String()
-		r = append(r, line[:])
+		fc := cs.formatConstraint(c)
+		r = append(r, fc[:])
 	}
 	return r
 }
 
+// formatConstraint return a human readable representation of a constraint
+// in the form A + M + k == O
+// where
+// A = c1 * v1 + c2 *v2
+// M = c1 * v1 * v2
+// k = c1
+// If A is set, then M == 0 . If M is set, A == 0 .
+// k can be set for both A and M
+// cX are constants
+func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [4]string {
+	isZeroA :=  (c.L.CoeffID() == compiled.CoeffIdZero) && (c.R.CoeffID() == compiled.CoeffIdZero)
+	isZeroM :=  (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
 
-func (cs *SparseR1CS) termToString(t compiled.Term) string  {
+	var A, M, k, O string 
 	var sbb strings.Builder
+	
+	if isZeroA {
+		A = "0"
+	} else {
+		sbb.Reset()
+		cs.termToString(c.L, &sbb, false)
+		sbb.WriteString(" + ")
+		cs.termToString(c.R, &sbb, false)
+		A = sbb.String()
+	}
+
+	if isZeroM {
+		M = "0"
+	} else {
+		sbb.Reset()
+		cs.termToString(c.M[0], &sbb, false)
+		sbb.WriteString(" * ")
+		cs.termToString(c.M[1], &sbb, false)
+		M = sbb.String()
+	}
+
+	k = cs.Coefficients[c.K].String()
+
+	// we need to negate O
+	sbb.Reset()
+	cs.termToString(c.O, &sbb, true)
+	O = sbb.String()
+	
+
+	return [4]string{A, M, k, O}
+}
+
+
+func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, negate bool)   {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
-		// do nothing, just print the variable
+		if negate {
+			sbb.WriteByte('-')	
+		} else {
+			// do nothing, just print the variable
+		}
 	} else if tID == compiled.CoeffIdMinusOne {
-		// print neg sign
-		sbb.WriteByte('-')
+		if negate {
+			// do nothing, just print the variable
+		} else {
+			// print neg sign
+			sbb.WriteByte('-')
+		}
 	} else if tID == compiled.CoeffIdZero {
 		sbb.WriteByte('0')
-		return sbb.String()
+		return
 	} else {
-		sbb.WriteString(cs.Coefficients[tID].String())
+		if negate {
+			var cNeg fr.Element 
+			cNeg.Neg(&cs.Coefficients[tID])
+			sbb.WriteString(cNeg.String())
+		} else {
+			sbb.WriteString(cs.Coefficients[tID].String())
+		}
+		
 		sbb.WriteByte('*')
 	}
 	vID := t.WireID()
@@ -294,7 +348,6 @@ func (cs *SparseR1CS) termToString(t compiled.Term) string  {
 	default:
 		sbb.WriteString("<?>")
 	}
-	return sbb.String()
 }
 
 
