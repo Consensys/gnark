@@ -273,31 +273,29 @@ func (cs *SparseR1CS) GetConstraints() [][]string {
 // If A is set, then M == 0 . If M is set, A == 0 .
 // k can be set for both A and M
 // cX are constants
-func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [4]string {
+func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [3]string {
 	isZeroA := (c.L.CoeffID() == compiled.CoeffIdZero) && (c.R.CoeffID() == compiled.CoeffIdZero)
 	isZeroM := (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
 
-	var A, M, k, O string
+	var AM, k, O string
 	var sbb strings.Builder
 
-	if isZeroA {
-		A = "0"
+	if isZeroA && isZeroM {
+		AM = "0"
 	} else {
-		sbb.Reset()
-		cs.termToString(c.L, &sbb, false)
-		sbb.WriteString(" + ")
-		cs.termToString(c.R, &sbb, false)
-		A = sbb.String()
-	}
-
-	if isZeroM {
-		M = "0"
-	} else {
-		sbb.Reset()
-		cs.termToString(c.M[0], &sbb, false)
-		sbb.WriteString(" * ")
-		cs.termToString(c.M[1], &sbb, false)
-		M = sbb.String()
+		if isZeroA {
+			sbb.Reset()
+			cs.termToString(c.M[0], &sbb, false)
+			sbb.WriteString(" * ")
+			cs.termToString(c.M[1], &sbb, false)
+			AM = sbb.String()
+		} else {
+			sbb.Reset()
+			cs.termToString(c.L, &sbb, false)
+			sbb.WriteString(" + ")
+			cs.termToString(c.R, &sbb, false)
+			AM = sbb.String()
+		}
 	}
 
 	k = cs.Coefficients[c.K].String()
@@ -307,7 +305,7 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [4]string {
 	cs.termToString(c.O, &sbb, true)
 	O = sbb.String()
 
-	return [4]string{A, M, k, O}
+	return [3]string{AM, k, O}
 }
 
 func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, negate bool) {
