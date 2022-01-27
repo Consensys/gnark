@@ -264,37 +264,30 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
 	var sbb strings.Builder
 	
 	sbb.Reset()
-	cs.termToString(c.L, &sbb)
+	cs.termToString(c.L, &sbb, false)
 	A0 = sbb.String()
 	sbb.Reset()
-	cs.termToString(c.R, &sbb)
+	cs.termToString(c.R, &sbb, false)
 	A1 = sbb.String()
 
 	if isZeroM {
 		M = "0"
 	} else {
 		sbb.Reset()
-		cm0 := c.M[0]
-		addParenthesis := cm0.CoeffID() != compiled.CoeffIdOne
-		if addParenthesis {
-			sbb.WriteString(cs.Coefficients[cm0.CoeffID()].String())
-			sbb.WriteString("⋅")
-			sbb.WriteByte('(')
-		}
-		cm0.SetCoeffID(compiled.CoeffIdOne)
-		cs.termToString(cm0, &sbb)
+		sbb.WriteString(cs.Coefficients[c.M[0].CoeffID()].String())
+		sbb.WriteString("⋅")
+		sbb.WriteByte('(')
+		cs.termToString(c.M[0], &sbb, true)
 		sbb.WriteString(" × ")
-		cs.termToString(c.M[1], &sbb)
-		if addParenthesis {
-			sbb.WriteByte(')')
-		}
+		cs.termToString(c.M[1], &sbb, true)
+		sbb.WriteByte(')')
 		M = sbb.String()
 	}
 
 	k = cs.Coefficients[c.K].String()
 
 	sbb.Reset()
-	cs.termToString(c.O, &sbb)
+	cs.termToString(c.O, &sbb, false)
 	O = sbb.String()
 	
 
@@ -302,20 +295,24 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
 }
 
 
-func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder)   {
-	tID := t.CoeffID()
-	if tID == compiled.CoeffIdOne {
-		// do nothing, just print the variable
-	} else if tID == compiled.CoeffIdMinusOne {
-		// print neg sign
-		sbb.WriteByte('-')
-	} else if tID == compiled.CoeffIdZero {
-		sbb.WriteByte('0')
-		return
-	} else {
-		sbb.WriteString(cs.Coefficients[tID].String())
+func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly bool)   {
+	if !vOnly {
+		tID := t.CoeffID()
+		if tID == compiled.CoeffIdOne {
+			// do nothing, just print the variable
+			sbb.WriteString("1")
+		} else if tID == compiled.CoeffIdMinusOne {
+			// print neg sign
+			sbb.WriteString("-1")
+		} else if tID == compiled.CoeffIdZero {
+			sbb.WriteByte('0')
+			return
+		} else {
+			sbb.WriteString(cs.Coefficients[tID].String())
+		}
 		sbb.WriteString("⋅")
 	}
+
 	vID := t.WireID()
 	visibility := t.VariableVisibility()
 
