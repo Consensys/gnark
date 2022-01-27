@@ -332,7 +332,7 @@ func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 		return
 	} else {
 		sbb.WriteString(cs.Coefficients[tID].String())
-		sbb.WriteByte('*')
+		sbb.WriteString("⋅")
 	}
 	vID := t.WireID()
 	visibility := t.VariableVisibility()

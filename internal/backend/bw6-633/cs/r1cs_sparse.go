@@ -255,6 +255,9 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 	return err
 }
 
+// GetConstraints return a list of constraint formatted as in the paper
+// https://eprint.iacr.org/2019/953.pdf section 6
+// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 func (cs *SparseR1CS) GetConstraints() [][]string {
 	var r [][]string
 	for _, c := range cs.Constraints {
@@ -264,15 +267,6 @@ func (cs *SparseR1CS) GetConstraints() [][]string {
 	return r
 }
 
-// formatConstraint return a human readable representation of a constraint
-// in the form A + M + k == O
-// where
-// A = c1 * v1 + c2 *v2
-// M = c1 * v1 * v2
-// k = c1
-// If A is set, then M == 0 . If M is set, A == 0 .
-// k can be set for both A and M
-// cX are constants
 func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
 	isZeroM := (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
 
@@ -280,60 +274,55 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
 	var sbb strings.Builder
 
 	sbb.Reset()
-	cs.termToString(c.L, &sbb, false)
+	cs.termToString(c.L, &sbb)
 	A0 = sbb.String()
 	sbb.Reset()
-	cs.termToString(c.R, &sbb, false)
+	cs.termToString(c.R, &sbb)
 	A1 = sbb.String()
 
 	if isZeroM {
 		M = "0"
 	} else {
 		sbb.Reset()
-		cs.termToString(c.M[0], &sbb, false)
-		sbb.WriteString(" * ")
-		cs.termToString(c.M[1], &sbb, false)
+		cm0 := c.M[0]
+		addParenthesis := cm0.CoeffID() != compiled.CoeffIdOne
+		if addParenthesis {
+			sbb.WriteString(cs.Coefficients[cm0.CoeffID()].String())
+			sbb.WriteString("⋅")
+			sbb.WriteByte('(')
+		}
+		cm0.SetCoeffID(compiled.CoeffIdOne)
+		cs.termToString(cm0, &sbb)
+		sbb.WriteString(" × ")
+		cs.termToString(c.M[1], &sbb)
+		if addParenthesis {
+			sbb.WriteByte(')')
+		}
 		M = sbb.String()
 	}
 
 	k = cs.Coefficients[c.K].String()
 
-	// we need to negate O
 	sbb.Reset()
-	cs.termToString(c.O, &sbb, false)
+	cs.termToString(c.O, &sbb)
 	O = sbb.String()
 
-	return [5]string{A0, A1, M, O, k}
+	return [5]string{A0, A1, O, M, k}
 }
 
-func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, negate bool) {
+func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
-		if negate {
-			sbb.WriteByte('-')
-		} else {
-			// do nothing, just print the variable
-		}
+		// do nothing, just print the variable
 	} else if tID == compiled.CoeffIdMinusOne {
-		if negate {
-			// do nothing, just print the variable
-		} else {
-			// print neg sign
-			sbb.WriteByte('-')
-		}
+		// print neg sign
+		sbb.WriteByte('-')
 	} else if tID == compiled.CoeffIdZero {
 		sbb.WriteByte('0')
 		return
 	} else {
-		if negate {
-			var cNeg fr.Element
-			cNeg.Neg(&cs.Coefficients[tID])
-			sbb.WriteString(cNeg.String())
-		} else {
-			sbb.WriteString(cs.Coefficients[tID].String())
-		}
-
-		sbb.WriteByte('*')
+		sbb.WriteString(cs.Coefficients[tID].String())
+		sbb.WriteString("⋅")
 	}
 	vID := t.WireID()
 	visibility := t.VariableVisibility()
