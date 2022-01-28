@@ -41,9 +41,6 @@ type CompiledConstraintSystem interface {
 	CurveID() ecc.ID
 	FrSize() int
 
-	// ToHTML generates a human readable representation of the constraint system
-	ToHTML(w io.Writer) error
-
 	// GetCounters return the collected constraint counters, if any
 	GetCounters() []compiled.Counter
 

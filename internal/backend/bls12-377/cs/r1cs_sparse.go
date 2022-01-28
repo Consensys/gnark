@@ -24,10 +24,10 @@ import (
 	"math/big"
 	"os"
 	"strings"
-	"text/template"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -112,9 +112,15 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s\n%v", errUnsatisfiedConstraint(i), debugInfoStr, err)
+				if debug.Debug {
+					return solution.values, fmt.Errorf("%w: %s\n%v", errUnsatisfiedConstraint(i), debugInfoStr, err)
+				}
+				return solution.values, fmt.Errorf("%w: %s", errUnsatisfiedConstraint(i), debugInfoStr)
 			}
-			return solution.values, fmt.Errorf("%w: %v", errUnsatisfiedConstraint(i), err)
+			if debug.Debug {
+				return solution.values, fmt.Errorf("%w: %v", errUnsatisfiedConstraint(i), err)
+			}
+			return solution.values, fmt.Errorf("%w", errUnsatisfiedConstraint(i))
 		}
 	}
 
@@ -256,8 +262,14 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 }
 
 // GetConstraints return a list of constraint formatted as in the paper
-// https://eprint.iacr.org/2019/953.pdf section 6
+// https://eprint.iacr.org/2019/953.pdf section 6 such that
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
+// each constraint is thus decomposed in [5]string with
+// 		[0] = qL⋅xa
+//		[1] = qR⋅xb
+//		[2] = qO⋅xc
+//		[3] = qM⋅(xaxb)
+//		[4] = qC
 func (cs *SparseR1CS) GetConstraints() [][]string {
 	var r [][]string
 	for _, c := range cs.Constraints {
@@ -352,50 +364,17 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 	var t fr.Element
 	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
 	if !t.IsZero() {
-		return fmt.Errorf("%s + %s + (%s * %s) + %s + %s != 0",
+		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + (%s × %s) + %s != 0",
 			l.String(),
 			r.String(),
+			o.String(),
 			m0.String(),
 			m1.String(),
-			o.String(),
 			cs.Coefficients[c.K].String(),
 		)
 	}
 	return nil
 
-}
-
-// ToHTML returns an HTML human-readable representation of the constraint system
-func (cs *SparseR1CS) ToHTML(w io.Writer) error {
-	t, err := template.New("scs.html").Funcs(template.FuncMap{
-		"toHTML":      toHTMLTerm,
-		"toHTMLCoeff": toHTMLCoeff,
-		"add":         add,
-		"sub":         sub,
-	}).Parse(compiled.SparseR1CSTemplate)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(w, cs)
-}
-
-func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
-	var sbb strings.Builder
-	termToHTML(t, &sbb, coeffs, MHints, true)
-	return sbb.String()
-}
-
-func toHTMLCoeff(cID int, coeffs []fr.Element) string {
-	if cID == compiled.CoeffIdMinusOne {
-		// print neg sign
-		return "<span class=\"coefficient\">-1</span>"
-	}
-	var sbb strings.Builder
-	sbb.WriteString("<span class=\"coefficient\">")
-	sbb.WriteString(coeffs[cID].String())
-	sbb.WriteString("</span>")
-	return sbb.String()
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
