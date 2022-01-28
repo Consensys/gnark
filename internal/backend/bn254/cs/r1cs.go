@@ -32,7 +32,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -119,11 +118,11 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
+			errMsg := fmt.Sprintf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
 			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
+				errMsg = solution.logValue(cs.DebugInfo[dID])
 			}
-			return solution.values, ErrUnsatisfiedConstraint
+			return solution.values, fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
 		}
 	}
 
@@ -289,32 +288,10 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	return nil
 }
 
-// TODO @gbotrel clean logs and html see https://github.com/ConsenSys/gnark/issues/140
-
-// ToHTML returns an HTML human-readable representation of the constraint system
-func (cs *R1CS) ToHTML(w io.Writer) error {
-	t, err := template.New("cs.html").Funcs(template.FuncMap{
-		"toHTML": toHTML,
-		"add":    add,
-		"sub":    sub,
-	}).Parse(compiled.R1CSTemplate)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(w, cs)
-}
-
-func add(a, b int) int {
-	return a + b
-}
-
-func sub(a, b int) int {
-	return a - b
-}
-
+// GetConstraints return a list of constraint formatted as L⋅R == O
+// such that [0] -> L, [1] -> R, [2] -> O
 func (cs *R1CS) GetConstraints() [][]string {
-	var r [][]string
+	r := make([][]string, len(cs.Constraints))
 	for _, c := range cs.Constraints {
 		// for each constraint, we build a string representation of it's L, R and O part
 		// if we are worried about perf for large cs, we could do a string builder + csv format.
@@ -350,7 +327,7 @@ func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 		return
 	} else {
 		sbb.WriteString(cs.Coefficients[tID].String())
-		sbb.WriteByte('*')
+		sbb.WriteString("⋅")
 	}
 	vID := t.WireID()
 	visibility := t.VariableVisibility()
@@ -373,59 +350,6 @@ func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 	default:
 		sbb.WriteString("<?>")
 	}
-}
-
-func toHTML(l compiled.Variable, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
-	var sbb strings.Builder
-	for i := 0; i < len(l.LinExp); i++ {
-		termToHTML(l.LinExp[i], &sbb, coeffs, MHints, false)
-		if i+1 < len(l.LinExp) {
-			sbb.WriteString(" + ")
-		}
-	}
-	return sbb.String()
-}
-
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]compiled.Hint, offset bool) {
-	tID := t.CoeffID()
-	if tID == compiled.CoeffIdOne {
-		// do nothing, just print the variable
-	} else if tID == compiled.CoeffIdMinusOne {
-		// print neg sign
-		sbb.WriteString("<span class=\"coefficient\">-</span>")
-	} else if tID == compiled.CoeffIdZero {
-		sbb.WriteString("<span class=\"coefficient\">0</span>")
-		return
-	} else {
-		sbb.WriteString("<span class=\"coefficient\">")
-		sbb.WriteString(coeffs[tID].String())
-		sbb.WriteString("</span>*")
-	}
-
-	vID := t.WireID()
-	class := ""
-	switch t.VariableVisibility() {
-	case schema.Internal:
-		class = "internal"
-		if _, ok := MHints[vID]; ok {
-			class = "hint"
-		}
-	case schema.Public:
-		class = "public"
-	case schema.Secret:
-		class = "secret"
-	case schema.Virtual:
-		class = "virtual"
-	case schema.Unset:
-		class = "unset"
-	default:
-		panic("not implemented")
-	}
-	if offset {
-		vID++ // for sparse R1CS, we offset to have same variable numbers as in R1CS
-	}
-	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, vID))
-
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

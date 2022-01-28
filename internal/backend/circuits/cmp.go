@@ -55,5 +55,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("cmp", &cmpCircuit{}, good, bad, []ecc.ID{ecc.BW6_761})
+	addNewEntry("cmp", &cmpCircuit{}, good, bad, ecc.Implemented())
 }
