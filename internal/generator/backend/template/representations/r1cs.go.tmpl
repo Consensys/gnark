@@ -100,11 +100,11 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
 		if !check.Equal(&c[i]) {
+			errMsg := fmt.Sprintf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
 			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", errUnsatisfiedConstraint(i), debugInfoStr)
+				errMsg = solution.logValue(cs.DebugInfo[dID])
 			}
-			return solution.values, errUnsatisfiedConstraint(i)
+			return solution.values,  fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
 		}
 	}
 

@@ -27,7 +27,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -110,17 +109,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
+			errMsg := err.Error()
 			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				if debug.Debug {
-					return solution.values, fmt.Errorf("%w: %s\n%v", errUnsatisfiedConstraint(i), debugInfoStr, err)
-				}
-				return solution.values, fmt.Errorf("%w: %s", errUnsatisfiedConstraint(i), debugInfoStr)
+				errMsg = solution.logValue(cs.DebugInfo[dID])
 			}
-			if debug.Debug {
-				return solution.values, fmt.Errorf("%w: %v", errUnsatisfiedConstraint(i), err)
-			}
-			return solution.values, fmt.Errorf("%w", errUnsatisfiedConstraint(i))
+			return solution.values, fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
 		}
 	}
 

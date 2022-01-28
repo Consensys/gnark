@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/backend/witness"
 
@@ -97,17 +96,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
 		}
 		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
+			errMsg := err.Error()
 			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				if debug.Debug {
-					return solution.values,  fmt.Errorf("%w: %s\n%v", errUnsatisfiedConstraint(i), debugInfoStr, err)
-				}
-				return solution.values,  fmt.Errorf("%w: %s", errUnsatisfiedConstraint(i), debugInfoStr)
+				errMsg = solution.logValue(cs.DebugInfo[dID])
 			}
-			if debug.Debug {
-				return solution.values, fmt.Errorf("%w: %v", errUnsatisfiedConstraint(i), err)
-			}
-			return solution.values, fmt.Errorf("%w", errUnsatisfiedConstraint(i))
+			return solution.values,  fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
 		}
 	}
 
@@ -359,12 +352,12 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
 	if !t.IsZero() {
 		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + (%s × %s) + %s != 0",
-		l.String(),
-		r.String(),
-		o.String(),
-		m0.String(),
-		m1.String(),
-		cs.Coefficients[c.K].String(),
+			l.String(),
+			r.String(),
+			o.String(),
+			m0.String(),
+			m1.String(),
+			cs.Coefficients[c.K].String(),
 		)
 	}
 	return nil 
