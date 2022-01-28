@@ -273,7 +273,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 // GetConstraints return a list of constraint formatted as L⋅R == O
 // such that [0] -> L, [1] -> R, [2] -> O
 func (cs *R1CS) GetConstraints() [][]string {
-	var r [][]string 
+	r  := make([][]string , len(cs.Constraints))
 	for _, c := range cs.Constraints {
 		// for each constraint, we build a string representation of it's L, R and O part 
 		// if we are worried about perf for large cs, we could do a string builder + csv format.

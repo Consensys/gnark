@@ -264,7 +264,7 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 //		[3] = qM⋅(xaxb)
 //		[4] = qC
 func (cs *SparseR1CS) GetConstraints() [][]string {
-	var r [][]string
+	r := make([][]string, 0, len(cs.Constraints))
 	for _, c := range cs.Constraints {
 		fc := cs.formatConstraint(c)
 		r = append(r, fc[:])
@@ -272,21 +272,28 @@ func (cs *SparseR1CS) GetConstraints() [][]string {
 	return r
 }
 
-func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
+// r[0] = qL⋅xa
+// r[1] = qR⋅xb
+// r[2] = qO⋅xc
+// r[3] = qM⋅(xaxb)
+// r[4] = qC
+func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
 	isZeroM := (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
 
-	var A0, A1, M, k, O string
 	var sbb strings.Builder
-
-	sbb.Reset()
 	cs.termToString(c.L, &sbb, false)
-	A0 = sbb.String()
+	r[0] = sbb.String()
+
 	sbb.Reset()
 	cs.termToString(c.R, &sbb, false)
-	A1 = sbb.String()
+	r[1] = sbb.String()
+
+	sbb.Reset()
+	cs.termToString(c.O, &sbb, false)
+	r[2] = sbb.String()
 
 	if isZeroM {
-		M = "0"
+		r[3] = "0"
 	} else {
 		sbb.Reset()
 		sbb.WriteString(cs.Coefficients[c.M[0].CoeffID()].String())
@@ -296,16 +303,12 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) [5]string {
 		sbb.WriteString(" × ")
 		cs.termToString(c.M[1], &sbb, true)
 		sbb.WriteByte(')')
-		M = sbb.String()
+		r[3] = sbb.String()
 	}
 
-	k = cs.Coefficients[c.K].String()
+	r[4] = cs.Coefficients[c.K].String()
 
-	sbb.Reset()
-	cs.termToString(c.O, &sbb, false)
-	O = sbb.String()
-
-	return [5]string{A0, A1, O, M, k}
+	return
 }
 
 func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly bool) {
