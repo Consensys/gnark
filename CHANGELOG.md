@@ -1,3 +1,44 @@
+<a name="v0.6.1"></a>
+
+## [v0.6.1] - 2022-01-28
+
+### Build
+- go version dependency bumped from 1.16 to 1.17
+
+### Feat
+- added witness.MarshalJSON and witness.MarshalBinary
+- added `ccs.GetSchema()` - the schema of a circuit is required for witness json (de)serialization
+- added `ccs.GetConstraints()` - returns a list of human-readable constraints
+- added `ccs.IsSolved()` - moved from groth16 / plonk to the CompiledConstraintSystem interface
+- added `witness.Public()` to return Public part of the witness
+- addition of `Cmp` in the circuit API
+
+### Refactor
+- compiled.Visbility -> schema.Visibiility
+- witness.WriteSequence -> schema.WriteSequence
+- killed `ReadAndProve` and `ReadAndVerify` (plonk)
+- killed `ReadAndProve` and `ReadAndVerify` (groth16)
+- remove embbed struct tag for frontend.Variable fields
+
+### Docs
+- **backend:** unify documentation for options
+- **frontend:** unify docs for options
+- **test:** unify documentation for options
+
+### Pull Requests
+- Merge pull request [#244](https://github.com/consensys/gnark/issues/244) from ConsenSys/plonk-human-readable
+- Merge pull request [#237](https://github.com/consensys/gnark/issues/237) from ConsenSys/ccs-get-constraints
+- Merge pull request [#233](https://github.com/consensys/gnark/issues/233) from ConsenSys/feat/api_cmp
+- Merge pull request [#235](https://github.com/consensys/gnark/issues/235) from ConsenSys/witness-public-api
+- Merge pull request [#232](https://github.com/consensys/gnark/issues/232) from ConsenSys/cleanup-231-group-options
+- Merge pull request [#230](https://github.com/consensys/gnark/issues/230) from ConsenSys/ccs-schema
+- Merge pull request [#229](https://github.com/consensys/gnark/issues/229) from ConsenSys/ccs-issolved-api
+- Merge pull request [#228](https://github.com/consensys/gnark/issues/228) from ConsenSys/witness-json
+- Merge pull request [#226](https://github.com/consensys/gnark/issues/226) from ConsenSys/feat-circuit-schema
+- Merge pull request [#227](https://github.com/consensys/gnark/issues/227) from ConsenSys/build-update-go1.17
+- Merge pull request [#222](https://github.com/consensys/gnark/issues/222) from ConsenSys/perf/std-sw-glv
+
+
 <a name="v0.6.0"></a>
 
 ## [v0.6.0] - 2022-01-03
