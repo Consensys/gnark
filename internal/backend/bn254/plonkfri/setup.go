@@ -15,6 +15,9 @@
 package plonkfri
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
@@ -23,20 +26,21 @@ import (
 type Commitment []fr.Element
 
 type OpeningProof struct {
-	res bool
-	val fr.Element
+	Val fr.Element
 }
 
 type CommitmentScheme interface {
 	Commit(a []fr.Element) Commitment
 	Open(c Commitment, p fr.Element) OpeningProof
-	Verify(c Commitment, o OpeningProof) bool
+	Verify(c Commitment, o OpeningProof, point fr.Element) bool
 }
 
 type MockCommitment struct{}
 
 func (m MockCommitment) Commit(a []fr.Element) Commitment {
-	return a
+	res := make([]fr.Element, len(a))
+	copy(res, a)
+	return res
 }
 
 func (m MockCommitment) Open(c Commitment, p fr.Element) OpeningProof {
@@ -45,13 +49,16 @@ func (m MockCommitment) Open(c Commitment, p fr.Element) OpeningProof {
 		r.Mul(&r, &p).Add(&r, &c[i])
 	}
 	return OpeningProof{
-		res: true,
-		val: r,
+		Val: r,
 	}
 }
 
-func (m MockCommitment) Verify(c Commitment, o OpeningProof) bool {
-	return o.res
+func (m MockCommitment) Verify(c Commitment, o OpeningProof, point fr.Element) bool {
+	var r fr.Element
+	for i := len(c) - 1; i >= 0; i-- {
+		r.Mul(&r, &point).Add(&r, &c[i])
+	}
+	return r.Equal(&o.Val)
 }
 
 // ProvingKey stores the data needed to generate a proof:
@@ -111,6 +118,16 @@ type VerifyingKey struct {
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, QkIncomplete Commitment
+}
+
+func printPoly(name string, a []fr.Element) string {
+	var sbb strings.Builder
+	sbb.WriteString(name)
+	sbb.WriteString(" = ")
+	for i := len(a) - 1; i >= 0; i-- {
+		sbb.WriteString(fmt.Sprintf("%s*x**%d+", a[i].String(), i))
+	}
+	return sbb.String()
 }
 
 // Setup sets proving and verifying keys
@@ -187,10 +204,9 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	pk.CQm = make([]fr.Element, pk.DomainSmall.Cardinality)
 	pk.CQo = make([]fr.Element, pk.DomainSmall.Cardinality)
 	copy(pk.CQl, pk.LsQl)
-	copy(pk.CQl, pk.LsQr)
-	copy(pk.CQl, pk.LsQm)
-	copy(pk.CQl, pk.LsQo)
-	copy(pk.CQl, pk.LsQl)
+	copy(pk.CQr, pk.LsQr)
+	copy(pk.CQm, pk.LsQm)
+	copy(pk.CQo, pk.LsQo)
 	vk.Ql = vk.Cscheme.Commit(pk.CQl)
 	vk.Qr = vk.Cscheme.Commit(pk.CQr)
 	vk.Qm = vk.Cscheme.Commit(pk.CQm)

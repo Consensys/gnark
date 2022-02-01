@@ -48,7 +48,7 @@ type Proof struct {
 	OpeningsH [3]OpeningProof
 
 	// opening proofs for ql, qr, qm, qo, qk
-	OpeningsQlQrQmQoQk [5]OpeningProof
+	OpeningsQlQrQmQoQkincomplete [5]OpeningProof
 
 	// openings of S1, S2, S3
 	OpeningsS1S2S3 [3]OpeningProof
@@ -144,11 +144,24 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	proof.OpeningsLRO[1] = pk.Cscheme.Open(bcr, zeta)
 	proof.OpeningsLRO[2] = pk.Cscheme.Open(bco, zeta)
 
-	proof.OpeningsQlQrQmQoQk[0] = pk.Cscheme.Open(pk.CQl, zeta)
-	proof.OpeningsQlQrQmQoQk[1] = pk.Cscheme.Open(pk.CQr, zeta)
-	proof.OpeningsQlQrQmQoQk[2] = pk.Cscheme.Open(pk.CQm, zeta)
-	proof.OpeningsQlQrQmQoQk[3] = pk.Cscheme.Open(pk.CQo, zeta)
-	proof.OpeningsQlQrQmQoQk[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
+	proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
+	proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
+	proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
+
+	proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
+	proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
+	proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
+
+	proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
+	proof.OpeningsQlQrQmQoQkincomplete[1] = pk.Cscheme.Open(pk.CQr, zeta)
+	proof.OpeningsQlQrQmQoQkincomplete[2] = pk.Cscheme.Open(pk.CQm, zeta)
+	proof.OpeningsQlQrQmQoQkincomplete[3] = pk.Cscheme.Open(pk.CQo, zeta)
+	proof.OpeningsQlQrQmQoQkincomplete[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
+
+	proof.OpeningsZ[0] = pk.Cscheme.Open(bz, zeta)
+	var zetaShifted fr.Element
+	zetaShifted.Mul(&pk.Vk.Generator, &zeta)
+	proof.OpeningsZ[1] = pk.Cscheme.Open(bz, zetaShifted)
 
 	return &proof, nil
 }
