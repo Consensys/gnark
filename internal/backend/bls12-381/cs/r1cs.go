@@ -27,7 +27,6 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -97,6 +96,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	// check if there is an inconsistant constraint
 	var check fr.Element
+	var solved bool
 
 	// for each constraint
 	// we are guaranteed that each R1C contains at most one unsolved wire
@@ -105,7 +105,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		solved, err := cs.solveConstraint(cs.Constraints[i], &solution)
+		solved, a[i], b[i], c[i], err = cs.solveConstraint(cs.Constraints[i], &solution)
 		if err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
@@ -113,14 +113,11 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 			}
 			return solution.values, err
 		}
-		if !debug.Debug && solved {
-			// the constraint was solved computationally by the solver
-			// no need to ensure a[i] * b[i] == c[i] since we just computed it.
+
+		if solved {
+			// a[i] * b[i] == c[i], since we just computed it.
 			continue
 		}
-
-		// compute values for the R1C (ie value * coeff)
-		a[i], b[i], c[i] = cs.instantiateR1C(cs.Constraints[i], &solution)
 
 		// ensure a[i] * b[i] == c[i]
 		check.Mul(&a[i], &b[i])
@@ -157,8 +154,8 @@ func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption)
 	return err
 }
 
-// mulByCoeff sets res = res * t.Coeff
-func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term) {
+// divByCoeff sets res = res / t.Coeff
+func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 	cID := t.CoeffID()
 	switch cID {
 	case compiled.CoeffIdOne:
@@ -166,32 +163,13 @@ func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term) {
 	case compiled.CoeffIdMinusOne:
 		res.Neg(res)
 	case compiled.CoeffIdZero:
-		res.SetZero()
-	case compiled.CoeffIdTwo:
-		res.Double(res)
+		panic("division by 0")
 	default:
-		res.Mul(res, &cs.Coefficients[cID])
+		// this is slow, but shouldn't happen as divByCoeff is called to
+		// remove the coeff of an unsolved wire
+		// but unsolved wires are (in gnark frontend) systematically set with a coeff == 1 or -1
+		res.Div(res, &cs.Coefficients[cID])
 	}
-}
-
-// compute left, right, o part of a cs constraint
-// this function is called when all the wires have been computed
-// it instantiates the l, r o part of a R1C
-func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.Element) {
-	var v fr.Element
-	for _, t := range r.L.LinExp {
-		v = solution.computeTerm(t)
-		a.Add(&a, &v)
-	}
-	for _, t := range r.R.LinExp {
-		v = solution.computeTerm(t)
-		b.Add(&b, &v)
-	}
-	for _, t := range r.O.LinExp {
-		v = solution.computeTerm(t)
-		c.Add(&c, &v)
-	}
-	return
 }
 
 // solveConstraint compute unsolved wires in the constraint, if any and set the solution accordingly
@@ -200,13 +178,12 @@ func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.E
 // returns false, nil if there was no wire to solve
 // returns true, nil if exactly one wire was solved. In that case, it is redundant to check that
 // the constraint is satisfied later.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (bool, error) {
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool, a, b, c fr.Element, err error) {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 
-	var a, b, c fr.Element
 	var termToCompute compiled.Term
 
 	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
@@ -238,20 +215,20 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (bool, error
 	}
 
 	for _, t := range r.L.LinExp {
-		if err := processTerm(t, &a, 1); err != nil {
-			return false, err
+		if err = processTerm(t, &a, 1); err != nil {
+			return
 		}
 	}
 
 	for _, t := range r.R.LinExp {
-		if err := processTerm(t, &b, 2); err != nil {
-			return false, err
+		if err = processTerm(t, &b, 2); err != nil {
+			return
 		}
 	}
 
 	for _, t := range r.O.LinExp {
-		if err := processTerm(t, &c, 3); err != nil {
-			return false, err
+		if err = processTerm(t, &c, 3); err != nil {
+			return
 		}
 	}
 
@@ -259,10 +236,11 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (bool, error
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return false, nil
+		return
 	}
 
 	// we compute the wire value and instantiate it
+	solved = true
 	vID := termToCompute.WireID()
 
 	// solver result
@@ -273,23 +251,34 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (bool, error
 		if !b.IsZero() {
 			wire.Div(&c, &b).
 				Sub(&wire, &a)
-			cs.mulByCoeff(&wire, termToCompute)
+			a.Add(&a, &wire)
+		} else {
+			// we didn't actually ensure that a * b == c
+			solved = false
 		}
 	case 2:
 		if !a.IsZero() {
 			wire.Div(&c, &a).
 				Sub(&wire, &b)
-			cs.mulByCoeff(&wire, termToCompute)
+			b.Add(&b, &wire)
+		} else {
+			// we didn't actually ensure that a * b == c
+			solved = false
 		}
 	case 3:
 		wire.Mul(&a, &b).
 			Sub(&wire, &c)
-		cs.mulByCoeff(&wire, termToCompute)
+
+		c.Add(&c, &wire)
 	}
 
+	// wire is the term (coeff * value)
+	// but in the solution we want to store the value only
+	// note that in gnark frontend, coeff here is always 1 or -1
+	cs.divByCoeff(&wire, termToCompute)
 	solution.set(vID, wire)
 
-	return true, nil
+	return
 }
 
 // GetConstraints return a list of constraint formatted as L⋅R == O
