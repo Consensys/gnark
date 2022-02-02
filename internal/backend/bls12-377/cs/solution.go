@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
@@ -40,6 +39,7 @@ type solution struct {
 	solved               []bool
 	nbSolved             int
 	mHintsFunctions      map[hint.ID]hint.Function
+	tmpHintsIO           []*big.Int
 }
 
 func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
@@ -49,6 +49,7 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
+		tmpHintsIO:      make([]*big.Int, 0),
 	}
 
 	for _, h := range hintFunctions {
@@ -143,14 +144,20 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		return errors.New("missing hint function")
 	}
 
-	// compute values for all inputs.
-	inputs := make([]*big.Int, len(h.Inputs))
-	for i := 0; i < len(inputs); i++ {
-		inputs[i] = bigIntPool.Get().(*big.Int)
-		inputs[i].SetUint64(0)
+	// tmp IO big int memory
+	nbInputs := len(h.Inputs)
+	nbOutputs := f.NbOutputs(curve.ID, len(h.Inputs))
+	m := len(s.tmpHintsIO)
+	if m < (nbInputs + nbOutputs) {
+		s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs+nbInputs)-m)...)
+		for i := m; i < len(s.tmpHintsIO); i++ {
+			s.tmpHintsIO[i] = big.NewInt(0)
+		}
 	}
+	inputs := s.tmpHintsIO[:nbInputs]
+	outputs := s.tmpHintsIO[nbInputs : nbInputs+nbOutputs]
 
-	for i := 0; i < len(h.Inputs); i++ {
+	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
 		case compiled.Variable:
@@ -168,19 +175,6 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		}
 	}
 
-	outputs := make([]*big.Int, f.NbOutputs(curve.ID, len(inputs)))
-	for i := 0; i < len(outputs); i++ {
-		outputs[i] = bigIntPool.Get().(*big.Int)
-	}
-
-	// ensure our inputs are mod q
-	q := fr.Modulus()
-	for i := 0; i < len(inputs); i++ {
-		// note since we're only doing additions up there, we may want to avoid the use of Mod
-		// here in favor of Cmp & Sub
-		inputs[i].Mod(inputs[i], q)
-	}
-
 	err := f.Call(curve.ID, inputs, outputs)
 
 	var v fr.Element
@@ -189,20 +183,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		s.set(h.Wires[i], v)
 	}
 
-	// release objects into pool
-	for i := 0; i < len(inputs); i++ {
-		bigIntPool.Put(inputs[i])
-	}
-
-	for i := 0; i < len(outputs); i++ {
-		bigIntPool.Put(outputs[i])
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
@@ -280,10 +261,4 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
-}
-
-var bigIntPool = sync.Pool{
-	New: func() interface{} {
-		return new(big.Int)
-	},
 }
