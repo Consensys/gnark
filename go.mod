@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/consensys/bavard v0.1.8-0.20210915155054-088da2f7f54a
-	github.com/consensys/gnark-crypto v0.6.1-0.20220104190544-f87c8cb542d9
+	github.com/consensys/gnark-crypto v0.6.1-0.20220202101857-f9e35f654649
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/kr/pretty v0.2.0 // indirect

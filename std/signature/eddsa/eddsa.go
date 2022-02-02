@@ -53,7 +53,7 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 		msg,
 	}
 
-	hash, err := mimc.NewMiMC("seed", api)
+	hash, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}

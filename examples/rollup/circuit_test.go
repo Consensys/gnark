@@ -35,7 +35,7 @@ func (t *circuitSignature) Define(api frontend.API) error {
 	if err := t.postInit(api); err != nil {
 		return err
 	}
-	hFunc, err := mimc.NewMiMC("seed", api)
+	hFunc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (t *circuitInclusionProof) Define(api frontend.API) error {
 	if err := t.postInit(api); err != nil {
 		return err
 	}
-	hashFunc, err := mimc.NewMiMC("seed", api)
+	hashFunc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ import (
 // utils
 
 const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-const publicHash string = "5100653184692120205048160297349714747883651904319528520089825735266585689318"
+const publicHash string = "4458332240632096997117977163518118563548842578509780924154021342053538349576"
 
 type mimcCircuit struct {
 	Data frontend.Variable
@@ -44,11 +44,10 @@ type mimcCircuit struct {
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
-	mimc, err := mimc.NewMiMC("seed", api)
+	mimc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
-	//result := mimc.Sum(circuit.Data)
 	mimc.Write(circuit.Data)
 	result := mimc.Sum()
 	api.AssertIsEqual(result, circuit.Hash)
@@ -97,6 +96,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	if err := groth16_bls12377.Verify(proof, vk, correctAssignmentPublic); err != nil {
 		t.Fatal(err)
 	}
+
 }
 
 type verifierCircuit struct {
@@ -155,6 +155,7 @@ func TestVerifier(t *testing.T) {
 	gammaNeg.Neg(&innerVk.G2.Gamma)
 	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
 	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
+	//witness.Hash = publicHash
 	witness.Hash = publicHash
 
 	// verifies the cs

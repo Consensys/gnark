@@ -32,11 +32,10 @@ type mimcCircuit struct {
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
-	mimc, err := NewMiMC("seed", api)
+	mimc, err := NewMiMC(api)
 	if err != nil {
 		return err
 	}
-	//result := mimc.Sum(circuit.Data)
 	mimc.Write(circuit.Data[:]...)
 	result := mimc.Sum()
 	api.AssertIsEqual(result, circuit.ExpectedResult)
@@ -68,7 +67,7 @@ func TestMimcAll(t *testing.T) {
 		}
 
 		// running MiMC (Go)
-		goMimc := hashFunc.New("seed")
+		goMimc := hashFunc.New()
 		for i := 0; i < 10; i++ {
 			goMimc.Write(data[i].Bytes())
 		}
