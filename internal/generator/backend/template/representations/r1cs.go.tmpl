@@ -87,7 +87,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		err, solved := cs.solveConstraint(cs.Constraints[i], &solution)
+		solved, err := cs.solveConstraint(cs.Constraints[i], &solution)
 		if err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
@@ -179,10 +179,10 @@ func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.E
 // solveConstraint compute unsolved wires in the constraint, if any and set the solution accordingly
 // 
 // returns an error if the solver called a hint function that errored
-// returns nil,false if there was no wire to solve 
-// returns nil,true if exactly one wire was solved. In that case, it is redundant to check that 
+// returns false, nil if there was no wire to solve 
+// returns true, nil if exactly one wire was solved. In that case, it is redundant to check that 
 // the constraint is satisfied later.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (error, bool) {
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (bool, error) {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
@@ -221,19 +221,19 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (error, bool
 
 	for _, t := range r.L.LinExp {
 		if err := processTerm(t, &a, 1); err != nil {
-			return err, false
+			return false, err
 		}
 	}
 
 	for _, t := range r.R.LinExp {
 		if err := processTerm(t, &b, 2); err != nil {
-			return err, false
+			return false, err
 		}
 	}
 
 	for _, t := range r.O.LinExp {
 		if err := processTerm(t, &c, 3); err != nil {
-			return err, false
+			return false, err
 		}
 	}
 
@@ -241,7 +241,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (error, bool
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return nil, false
+		return false, nil
 	}
 
 	// we compute the wire value and instantiate it
@@ -271,7 +271,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (error, bool
 
 	solution.set(vID, wire)
 
-	return nil, true
+	return true, nil
 }
 
 // GetConstraints return a list of constraint formatted as L⋅R == O
