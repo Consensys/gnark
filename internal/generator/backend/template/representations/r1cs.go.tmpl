@@ -170,50 +170,46 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool
 
 	var termToCompute compiled.Term
 
-	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
-		vID := t.WireID()
+	processLExp := func(l compiled.LinearExpression, val *fr.Element, locValue uint8) error {
+		for _, t := range l {
+			vID := t.WireID()
 
-		// wire is already computed, we just accumulate in val
-		if solution.solved[vID] {
-			v := solution.computeTerm(t)
-			val.Add(val, &v)
-			return nil
-		}
-
-		// first we check if this is a hint wire
-		if hint, ok := cs.MHints[vID]; ok {
-			if err := solution.solveWithHint(vID, hint); err != nil {
-				return err
+			// wire is already computed, we just accumulate in val
+			if solution.solved[vID] {
+				v := solution.computeTerm(t)
+				val.Add(val, &v)
+				continue
 			}
-			v := solution.computeTerm(t)
-			val.Add(val, &v)
-			return nil
-		}
 
-		if loc != 0 {
-			panic("found more than one wire to instantiate")
+			// first we check if this is a hint wire
+			if hint, ok := cs.MHints[vID]; ok {
+				if err := solution.solveWithHint(vID, hint); err != nil {
+					return err
+				}
+				v := solution.computeTerm(t)
+				val.Add(val, &v)
+				continue
+			}
+
+			if loc != 0 {
+				panic("found more than one wire to instantiate")
+			}
+			termToCompute = t
+			loc = locValue
 		}
-		termToCompute = t
-		loc = locValue
 		return nil
 	}
 
-	for _, t := range r.L.LinExp {
-		if err = processTerm(t, &a, 1); err != nil {
-			return
-		}
+	if err = processLExp(r.L.LinExp, &a, 1); err != nil {
+		return
 	}
 
-	for _, t := range r.R.LinExp {
-		if err = processTerm(t, &b, 2); err != nil {
-			return
-		}
+	if err = processLExp(r.R.LinExp, &b, 2); err != nil {
+		return
 	}
 
-	for _, t := range r.O.LinExp {
-		if err = processTerm(t, &c, 3); err != nil {
-			return
-		}
+	if err = processLExp(r.O.LinExp, &c, 3); err != nil {
+		return
 	}
 
 	if loc == 0 {

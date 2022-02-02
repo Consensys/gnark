@@ -121,7 +121,7 @@ func TestSerialization(t *testing.T) {
 	}
 }
 
-const n = 500000
+const n = 10000
 
 type circuit struct {
 	X frontend.Variable
@@ -130,7 +130,7 @@ type circuit struct {
 
 func (circuit *circuit) Define(api frontend.API) error {
 	for i := 0; i < n; i++ {
-		circuit.X = api.Mul(circuit.X, circuit.X)
+		circuit.X = api.Add(api.Mul(circuit.X, circuit.X), circuit.X, 42)
 	}
 	api.AssertIsEqual(circuit.X, circuit.Y)
 	return nil
