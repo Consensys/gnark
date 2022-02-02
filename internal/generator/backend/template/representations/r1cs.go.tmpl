@@ -176,8 +176,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool
 
 			// wire is already computed, we just accumulate in val
 			if solution.solved[vID] {
-				v := solution.computeTerm(t)
-				val.Add(val, &v)
+				solution.accumulateInto(t, val)
 				continue
 			}
 
@@ -186,8 +185,8 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool
 				if err := solution.solveWithHint(vID, hint); err != nil {
 					return err
 				}
-				v := solution.computeTerm(t)
-				val.Add(val, &v)
+				// now that the wire is saved, accumulate it into a, b or c
+				solution.accumulateInto(t, val)
 				continue
 			}
 
