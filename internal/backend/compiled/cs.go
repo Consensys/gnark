@@ -138,11 +138,11 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 			}
 			inputs[i] = v
 		case 25445:
-			var v Term
+			var v uint64
 			if err := dec.Unmarshal(vin.Content, &v); err != nil {
 				return fmt.Errorf("unmarshal term: %w", err)
 			}
-			inputs[i] = v
+			inputs[i] = Term(v)
 		case 25446:
 			v := new(big.Int)
 			var bb []byte
