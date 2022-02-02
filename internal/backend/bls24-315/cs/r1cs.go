@@ -27,6 +27,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -104,12 +105,18 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
 	for i := 0; i < len(cs.Constraints); i++ {
 		// solve the constraint, this will compute the missing wire of the gate
-		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
+		err, solved := cs.solveConstraint(cs.Constraints[i], &solution)
+		if err != nil {
 			if dID, ok := cs.MDebug[i]; ok {
 				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
 				return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
 			}
 			return solution.values, err
+		}
+		if !debug.Debug && solved {
+			// the constraint was solved computationally by the solver
+			// no need to ensure a[i] * b[i] == c[i] since we just computed it.
+			continue
 		}
 
 		// compute values for the R1C (ie value * coeff)
@@ -187,16 +194,13 @@ func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.E
 	return
 }
 
-// solveR1c computes a wire by solving a cs
-// the function searches for the unset wire (either the unset wire is
-// alone, or it can be computed without ambiguity using the other computed wires
-// , eg when doing a binary decomposition: either way the missing wire can
-// be computed without ambiguity because the cs is correctly ordered)
+// solveConstraint compute unsolved wires in the constraint, if any and set the solution accordingly
 //
-// It returns the 1 if the the position to solve is in the quadratic part (it
-// means that there is a division and serves to navigate in the log info for the
-// computational constraints), and 0 otherwise.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
+// returns an error if the solver called a hint function that errored
+// returns nil,false if there was no wire to solve
+// returns nil,true if exactly one wire was solved. In that case, it is redundant to check that
+// the constraint is satisfied later.
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (error, bool) {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
@@ -235,19 +239,19 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 
 	for _, t := range r.L.LinExp {
 		if err := processTerm(t, &a, 1); err != nil {
-			return err
+			return err, false
 		}
 	}
 
 	for _, t := range r.R.LinExp {
 		if err := processTerm(t, &b, 2); err != nil {
-			return err
+			return err, false
 		}
 	}
 
 	for _, t := range r.O.LinExp {
 		if err := processTerm(t, &c, 3); err != nil {
-			return err
+			return err, false
 		}
 	}
 
@@ -255,7 +259,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return nil
+		return nil, false
 	}
 
 	// we compute the wire value and instantiate it
@@ -285,7 +289,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 
 	solution.set(vID, wire)
 
-	return nil
+	return nil, true
 }
 
 // GetConstraints return a list of constraint formatted as L⋅R == O
