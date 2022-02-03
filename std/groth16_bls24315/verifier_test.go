@@ -37,7 +37,7 @@ import (
 // utils
 
 const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-const publicHash string = "3718771881240184991188517086989383268708326752185784029396612181634328520985"
+const publicHash string = "740442171083661049659184837119506324904268940878674425328909705936292585001"
 
 type mimcCircuit struct {
 	Data frontend.Variable
@@ -45,7 +45,7 @@ type mimcCircuit struct {
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
-	mimc, err := mimc.NewMiMC("seed", api)
+	mimc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}

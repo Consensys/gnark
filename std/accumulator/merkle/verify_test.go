@@ -36,7 +36,7 @@ type merkleCircuit struct {
 }
 
 func (circuit *merkleCircuit) Define(api frontend.API) error {
-	hFunc, err := mimc.NewMiMC("seed", api)
+	hFunc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -62,14 +62,14 @@ func TestVerify(t *testing.T) {
 	// build & verify proof for an elmt in the file
 	proofIndex := uint64(0)
 	segmentSize := 32
-	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn254.NewMiMC("seed"), segmentSize, proofIndex)
+	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn254.NewMiMC(), segmentSize, proofIndex)
 	if err != nil {
 		t.Fatal(err)
 		os.Exit(-1)
 	}
 	proofHelper := GenerateProofHelper(proof, proofIndex, numLeaves)
 
-	verified := merkletree.VerifyProof(bn254.NewMiMC("seed"), merkleRoot, proof, proofIndex, numLeaves)
+	verified := merkletree.VerifyProof(bn254.NewMiMC(), merkleRoot, proof, proofIndex, numLeaves)
 	if !verified {
 		t.Fatal("The merkle proof in plain go should pass")
 	}

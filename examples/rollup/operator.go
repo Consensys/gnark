@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/std/accumulator/merkle"
 )
 
-var hFunc = mimc.NewMiMC("seed")
+var hFunc = mimc.NewMiMC()
 
 // BatchSize size of a batch of transactions to put in a snark
 var BatchSize = 10

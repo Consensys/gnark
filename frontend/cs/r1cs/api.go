@@ -693,7 +693,7 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
 		CurveID:       system.CurveID,
-		BackendID:     backend.PLONK,
+		BackendID:     backend.GROTH16,
 	})
 }
 
