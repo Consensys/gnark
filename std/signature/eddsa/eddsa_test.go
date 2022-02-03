@@ -177,7 +177,7 @@ func TestEddsa(t *testing.T) {
 	for id, conf := range confs {
 
 		// generate parameters for the signatures
-		hFunc := conf.h.New("seed")
+		hFunc := conf.h.New()
 		src := rand.NewSource(0)
 		r := rand.New(src)
 		privKey, err := conf.s.New(r)

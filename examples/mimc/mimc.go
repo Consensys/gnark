@@ -32,7 +32,7 @@ type Circuit struct {
 // Hash = mimc(PreImage)
 func (circuit *Circuit) Define(api frontend.API) error {
 	// hash function
-	mimc, _ := mimc.NewMiMC("seed", api)
+	mimc, _ := mimc.NewMiMC(api)
 
 	// specify constraints
 	// mimc(preImage) == hash

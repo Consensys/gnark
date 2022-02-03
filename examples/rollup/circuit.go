@@ -127,7 +127,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return err
 	}
 	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", api)
+	hFunc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}

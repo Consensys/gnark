@@ -37,7 +37,7 @@ type FiatShamirCircuit struct {
 func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 
 	// create the hash function
-	hSnark, err := mimc.NewMiMC("seed", api)
+	hSnark, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func TestFiatShamir(t *testing.T) {
 		alpha, beta, gamma := getChallenges(curveID)
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New("seed"), alpha, beta, gamma)
+		ts := fiatshamir.NewTranscript(h.New(), alpha, beta, gamma)
 
 		var bindings [3][4]big.Int
 		for i := 0; i < 3; i++ {
