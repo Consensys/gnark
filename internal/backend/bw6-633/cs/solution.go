@@ -157,6 +157,8 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	inputs := s.tmpHintsIO[:nbInputs]
 	outputs := s.tmpHintsIO[nbInputs : nbInputs+nbOutputs]
 
+	q := fr.Modulus()
+
 	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
@@ -172,6 +174,9 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		default:
 			v := utils.FromInterface(t)
 			inputs[i] = &v
+
+			// here we have no guarantee that v < q, so we mod reduce
+			inputs[i].Mod(inputs[i], q)
 		}
 	}
 
