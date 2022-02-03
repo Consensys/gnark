@@ -15,9 +15,6 @@
 package plonkfri
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
@@ -118,16 +115,6 @@ type VerifyingKey struct {
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, QkIncomplete Commitment
-}
-
-func printPoly(name string, a []fr.Element) string {
-	var sbb strings.Builder
-	sbb.WriteString(name)
-	sbb.WriteString(" = ")
-	for i := len(a) - 1; i >= 0; i-- {
-		sbb.WriteString(fmt.Sprintf("%s*x**%d+", a[i].String(), i))
-	}
-	return sbb.String()
 }
 
 // Setup sets proving and verifying keys
