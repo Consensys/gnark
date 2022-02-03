@@ -116,3 +116,40 @@ func TestSerialization(t *testing.T) {
 
 	}
 }
+
+const n = 10000
+
+type circuit struct {
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
+}
+
+func (circuit *circuit) Define(api frontend.API) error {
+	for i := 0; i < n; i++ {
+		circuit.X = api.Add(api.Mul(circuit.X, circuit.X), circuit.X, 42)
+	}
+	api.AssertIsEqual(circuit.X, circuit.Y)
+	return nil
+}
+
+func BenchmarkSolve(b *testing.B) {
+
+	var c circuit
+	ccs, err := frontend.Compile(ecc.BLS12_381, backend.UNKNOWN, &c, frontend.WithBuilder(r1cs.NewBuilder))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	var w circuit
+	w.X = 1
+	w.Y = 1
+	witness, err := frontend.NewWitness(&w, ecc.BLS12_381)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ccs.IsSolved(witness)
+	}
+}

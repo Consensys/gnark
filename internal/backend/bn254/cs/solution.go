@@ -100,11 +100,32 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 	}
 }
 
+// r += (t.coeff*t.value)
+func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
+	cID := t.CoeffID()
+	vID := t.WireID()
+	switch cID {
+	case compiled.CoeffIdZero:
+		return
+	case compiled.CoeffIdOne:
+		r.Add(r, &s.values[vID])
+	case compiled.CoeffIdTwo:
+		var res fr.Element
+		res.Double(&s.values[vID])
+		r.Add(r, &res)
+	case compiled.CoeffIdMinusOne:
+		r.Sub(r, &s.values[vID])
+	default:
+		var res fr.Element
+		res.Mul(&s.coefficients[cID], &s.values[vID])
+		r.Add(r, &res)
+	}
+}
+
 func (s *solution) computeLinearExpression(l compiled.LinearExpression) fr.Element {
 	var res fr.Element
-	for i := 0; i < len(l); i++ {
-		v := s.computeTerm(l[i])
-		res.Add(&res, &v)
+	for _, t := range l {
+		s.accumulateInto(t, &res)
 	}
 	return res
 }
