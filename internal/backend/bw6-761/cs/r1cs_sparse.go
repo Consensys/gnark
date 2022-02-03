@@ -84,6 +84,11 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		return solution.values, err
 	}
 
+	defer func() {
+		// release memory
+		solution.tmpHintsIO = nil
+	}()
+
 	// solution.values = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
 	copy(solution.values, witness)
 	for i := 0; i < len(witness); i++ {
