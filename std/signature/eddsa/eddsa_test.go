@@ -36,6 +36,7 @@ import (
 	eddsabw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/test"
@@ -251,4 +252,11 @@ func TestEddsa(t *testing.T) {
 		}
 
 	}
+}
+
+// Bench
+func BenchmarkEdDSA(b *testing.B) {
+	var c eddsaCircuit
+	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
 }
