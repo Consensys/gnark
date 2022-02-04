@@ -58,7 +58,6 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 		return err
 	}
 	hash.Write(data...)
-	//hramConstant := hash.Sum(data...)
 	hramConstant := hash.Sum()
 
 	// lhs = [S]G
@@ -71,24 +70,24 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 	rhs := twistededwards.Point{}
 	rhs.ScalarMulNonFixedBase(api, &pubKey.A, hramConstant, pubKey.Curve).
 		AddGeneric(api, &rhs, &sig.R, pubKey.Curve)
-	rhs.MustBeOnCurve(api, pubKey.Curve)
+	// rhs.MustBeOnCurve(api, pubKey.Curve)
 
-	// lhs-rhs
-	rhs.Neg(api, &rhs).AddGeneric(api, &lhs, &rhs, pubKey.Curve)
-
-	// [cofactor](lhs-rhs)
+	// [cofactor]*lhs and [cofactor]*rhs
 	switch cofactor {
 	case 4:
 		rhs.Double(api, &rhs, pubKey.Curve).
 			Double(api, &rhs, pubKey.Curve)
+		lhs.Double(api, &lhs, pubKey.Curve).
+			Double(api, &lhs, pubKey.Curve)
 	case 8:
 		rhs.Double(api, &rhs, pubKey.Curve).
 			Double(api, &rhs, pubKey.Curve).Double(api, &rhs, pubKey.Curve)
+		lhs.Double(api, &lhs, pubKey.Curve).
+			Double(api, &lhs, pubKey.Curve).Double(api, &lhs, pubKey.Curve)
 	}
 
-	//rhs.MustBeOnCurve(api, pubKey.Curve)
-	api.AssertIsEqual(rhs.X, 0)
-	api.AssertIsEqual(rhs.Y, 1)
+	api.AssertIsEqual(rhs.X, lhs.X)
+	api.AssertIsEqual(rhs.Y, lhs.Y)
 
 	return nil
 }
