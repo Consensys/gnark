@@ -46,34 +46,9 @@ func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 
 }
 
-// AddFixedPoint Adds two points, among which is one fixed point (the base), on a twisted edwards curve (eg jubjub)
-// p1, base, ecurve are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddFixedPoint(api frontend.API, p1 *Point /*basex*/, x /*basey*/, y interface{}, curve EdCurve) *Point {
-
-	// https://eprint.iacr.org/2008/013.pdf
-
-	n11 := api.Mul(p1.X, y)
-	n12 := api.Mul(p1.Y, x)
-	n1 := api.Add(n11, n12)
-
-	n21 := api.Mul(p1.Y, y)
-	n22 := api.Mul(p1.X, x)
-	an22 := api.Mul(n22, &curve.A)
-	n2 := api.Sub(n21, an22)
-
-	d11 := api.Mul(curve.D, n11, n12)
-	d1 := api.Add(1, d11)
-	d2 := api.Sub(1, d11)
-
-	p.X = api.DivUnchecked(n1, d1)
-	p.Y = api.DivUnchecked(n2, d2)
-
-	return p
-}
-
-// AddGeneric Adds two points on a twisted edwards curve (eg jubjub)
+// Add Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
+func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 
 	// https://eprint.iacr.org/2008/013.pdf
 
@@ -90,25 +65,6 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 	d1 := api.Add(1, d11)
 
 	d2 := api.Sub(1, d11)
-
-	p.X = api.DivUnchecked(n1, d1)
-	p.Y = api.DivUnchecked(n2, d2)
-
-	return p
-}
-
-// DoubleFixedPoint doubles a points in SNARK coordinates
-func (p *Point) DoubleFixedPoint(api frontend.API, x, y interface{}, curve EdCurve) *Point {
-
-	u := api.Mul(x, y)
-	v := api.Mul(x, x)
-	w := api.Mul(y, y)
-
-	n1 := api.Mul(2, u)
-	av := api.Mul(v, &curve.A)
-	n2 := api.Sub(w, av)
-	d1 := api.Add(w, av)
-	d2 := api.Sub(2, d1)
 
 	p.X = api.DivUnchecked(n1, d1)
 	p.Y = api.DivUnchecked(n2, d2)
@@ -135,44 +91,12 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 	return p
 }
 
-// ScalarMulNonFixedBase computes the scalar multiplication of a point on a twisted Edwards curve
+// ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
-
-	// first unpack the scalar
-	b := api.ToBinary(scalar)
-
-	res := Point{
-		0,
-		1,
-	}
-
-	n := len(b) - 1
-	res.X = api.Select(b[n], p1.X, res.X)
-	res.Y = api.Select(b[n], p1.Y, res.Y)
-
-	for i := len(b) - 2; i >= 0; i-- {
-		res.Double(api, &res, curve)
-		tmp := Point{}
-		tmp.AddGeneric(api, &res, p1, curve)
-		res.X = api.Select(b[i], tmp.X, res.X)
-		res.Y = api.Select(b[i], tmp.Y, res.Y)
-	}
-
-	p.X = res.X
-	p.Y = res.Y
-	return p
-}
-
-// ScalarMulFixedBase computes the scalar multiplication of a point on a twisted Edwards curve
-// x, y: coordinates of the base point
-// curve: parameters of the Edwards curve
-// scal: scalar as a SNARK constraint
-// Standard left to right double and add
-func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
@@ -184,17 +108,17 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 
 	pp := Point{}
 	ppp := Point{}
-	pp.DoubleFixedPoint(api, x, y, curve)
-	ppp.AddFixedPoint(api, &pp, x, y, curve)
+	pp.Double(api, p1, curve)
+	ppp.Add(api, &pp, p1, curve)
 
 	n := len(b) - 1
-	res.X = api.Lookup2(b[n], b[n-1], res.X, pp.X, x, ppp.X)
-	res.Y = api.Lookup2(b[n], b[n-1], res.Y, pp.Y, y, ppp.Y)
+	res.X = api.Lookup2(b[n], b[n-1], res.X, pp.X, p1.X, ppp.X)
+	res.Y = api.Lookup2(b[n], b[n-1], res.Y, pp.Y, p1.Y, ppp.Y)
 
 	for i := len(b) - 3; i >= 0; i-- {
 		res.Double(api, &res, curve)
 		tmp := Point{}
-		tmp.AddFixedPoint(api, &res, x, y, curve)
+		tmp.Add(api, &res, p1, curve)
 		res.X = api.Select(b[i], tmp.X, res.X)
 		res.Y = api.Select(b[i], tmp.Y, res.Y)
 	}
