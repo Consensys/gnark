@@ -133,7 +133,11 @@ func (p *Point) ScalarMulNonFixedBase(api frontend.API, p1 *Point, scalar fronte
 		1,
 	}
 
-	for i := len(b) - 1; i >= 0; i-- {
+	n := len(b) - 1
+	res.X = api.Select(b[n], p1.X, res.X)
+	res.Y = api.Select(b[n], p1.Y, res.Y)
+
+	for i := len(b) - 2; i >= 0; i-- {
 		res.Double(api, &res, curve)
 		tmp := Point{}
 		tmp.AddGeneric(api, &res, p1, curve)
@@ -161,7 +165,11 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 		1,
 	}
 
-	for i := len(b) - 1; i >= 0; i-- {
+	n := len(b) - 1
+	res.X = api.Select(b[n], x, res.X)
+	res.Y = api.Select(b[n], y, res.Y)
+
+	for i := len(b) - 2; i >= 0; i-- {
 		res.Double(api, &res, curve)
 		tmp := Point{}
 		tmp.AddFixedPoint(api, &res, x, y, curve)
