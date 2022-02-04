@@ -97,6 +97,25 @@ func (p *Point) AddGeneric(api frontend.API, p1, p2 *Point, curve EdCurve) *Poin
 	return p
 }
 
+// DoubleFixedPoint doubles a points in SNARK coordinates
+func (p *Point) DoubleFixedPoint(api frontend.API, x, y interface{}, curve EdCurve) *Point {
+
+	u := api.Mul(x, y)
+	v := api.Mul(x, x)
+	w := api.Mul(y, y)
+
+	n1 := api.Mul(2, u)
+	av := api.Mul(v, &curve.A)
+	n2 := api.Sub(w, av)
+	d1 := api.Add(w, av)
+	d2 := api.Sub(2, d1)
+
+	p.X = api.DivUnchecked(n1, d1)
+	p.Y = api.DivUnchecked(n2, d2)
+
+	return p
+}
+
 // Double doubles a points in SNARK coordinates
 func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 
@@ -163,11 +182,16 @@ func (p *Point) ScalarMulFixedBase(api frontend.API, x, y interface{}, scalar fr
 		1,
 	}
 
-	n := len(b) - 1
-	res.X = api.Select(b[n], x, res.X)
-	res.Y = api.Select(b[n], y, res.Y)
+	pp := Point{}
+	ppp := Point{}
+	pp.DoubleFixedPoint(api, x, y, curve)
+	ppp.AddFixedPoint(api, &pp, x, y, curve)
 
-	for i := len(b) - 2; i >= 0; i-- {
+	n := len(b) - 1
+	res.X = api.Lookup2(b[n], b[n-1], res.X, pp.X, x, ppp.X)
+	res.Y = api.Lookup2(b[n], b[n-1], res.Y, pp.Y, y, ppp.Y)
+
+	for i := len(b) - 3; i >= 0; i-- {
 		res.Double(api, &res, curve)
 		tmp := Point{}
 		tmp.AddFixedPoint(api, &res, x, y, curve)
