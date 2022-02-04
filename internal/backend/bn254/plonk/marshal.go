@@ -89,20 +89,20 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	// fft domains
-	n2, err := pk.DomainNum.WriteTo(w)
+	n2, err := pk.DomainSmall.WriteTo(w)
 	if err != nil {
 		return
 	}
 	n += n2
 
-	n2, err = pk.DomainH.WriteTo(w)
+	n2, err = pk.DomainBig.WriteTo(w)
 	if err != nil {
 		return
 	}
 	n += n2
 
-	// sanity check len(Permutation) == 3*int(pk.DomainNum.Cardinality)
-	if len(pk.Permutation) != (3 * int(pk.DomainNum.Cardinality)) {
+	// sanity check len(Permutation) == 3*int(pk.DomainSmall.Cardinality)
+	if len(pk.Permutation) != (3 * int(pk.DomainSmall.Cardinality)) {
 		return n, errors.New("invalid permutation size, expected 3*domain cardinality")
 	}
 
@@ -143,19 +143,19 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 
-	n2, err := pk.DomainNum.ReadFrom(r)
+	n2, err := pk.DomainSmall.ReadFrom(r)
 	n += n2
 	if err != nil {
 		return n, err
 	}
 
-	n2, err = pk.DomainH.ReadFrom(r)
+	n2, err = pk.DomainBig.ReadFrom(r)
 	n += n2
 	if err != nil {
 		return n, err
 	}
 
-	pk.Permutation = make([]int64, 3*pk.DomainNum.Cardinality)
+	pk.Permutation = make([]int64, 3*pk.DomainSmall.Cardinality)
 
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
