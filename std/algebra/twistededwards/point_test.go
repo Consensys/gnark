@@ -61,8 +61,8 @@ func TestIsOnCurve(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	witness.P.X = (params.BaseX)
-	witness.P.Y = (params.BaseY)
+	witness.P.X = (params.Base.X)
+	witness.P.Y = (params.Base.Y)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
@@ -80,7 +80,10 @@ func (circuit *add) Define(api frontend.API) error {
 		return err
 	}
 
-	res := circuit.P.AddFixedPoint(api, &circuit.P, params.BaseX, params.BaseY, params)
+	p := Point{}
+	p.X = params.Base.X
+	p.Y = params.Base.Y
+	res := circuit.P.Add(api, &circuit.P, &p, params)
 
 	api.AssertIsEqual(res.X, circuit.E.X)
 	api.AssertIsEqual(res.Y, circuit.E.Y)
@@ -100,8 +103,8 @@ func TestAddFixedPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, point, expected tbn254.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	point.Set(&base)
 	r := big.NewInt(5)
 	point.ScalarMul(&point, r)
@@ -133,7 +136,7 @@ func (circuit *addGeneric) Define(api frontend.API) error {
 		return err
 	}
 
-	res := circuit.P1.AddGeneric(api, &circuit.P1, &circuit.P2, params)
+	res := circuit.P1.Add(api, &circuit.P1, &circuit.P2, params)
 
 	api.AssertIsEqual(res.X, circuit.E.X)
 	api.AssertIsEqual(res.Y, circuit.E.Y)
@@ -157,8 +160,8 @@ func TestAddGeneric(t *testing.T) {
 		switch id {
 		case ecc.BN254:
 			var op1, op2, expected tbn254.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -173,8 +176,8 @@ func TestAddGeneric(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS12_381:
 			var op1, op2, expected tbls12381.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -189,8 +192,8 @@ func TestAddGeneric(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS12_377:
 			var op1, op2, expected tbls12377.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -205,8 +208,8 @@ func TestAddGeneric(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS24_315:
 			var op1, op2, expected tbls24315.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -221,8 +224,8 @@ func TestAddGeneric(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BW6_633:
 			var op1, op2, expected tbw6633.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -237,8 +240,8 @@ func TestAddGeneric(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BW6_761:
 			var op1, op2, expected tbw6761.PointAffine
-			op1.X.SetBigInt(&params.BaseX)
-			op1.Y.SetBigInt(&params.BaseY)
+			op1.X.SetBigInt(&params.Base.X)
+			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
 			r1 := big.NewInt(5)
 			r2 := big.NewInt(12)
@@ -299,8 +302,8 @@ func TestDouble(t *testing.T) {
 		switch id {
 		case ecc.BN254:
 			var base, expected tbn254.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -308,8 +311,8 @@ func TestDouble(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS12_381:
 			var base, expected tbls12381.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -317,8 +320,8 @@ func TestDouble(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS12_377:
 			var base, expected tbls12377.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -326,8 +329,8 @@ func TestDouble(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BLS24_315:
 			var base, expected tbls24315.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -335,8 +338,8 @@ func TestDouble(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BW6_633:
 			var base, expected tbw6633.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -344,8 +347,8 @@ func TestDouble(t *testing.T) {
 			witness.E.Y = (expected.Y.String())
 		case ecc.BW6_761:
 			var base, expected tbw6761.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			expected.Double(&base)
 			witness.P.X = (base.X.String())
 			witness.P.Y = (base.Y.String())
@@ -375,8 +378,10 @@ func (circuit *scalarMulFixed) Define(api frontend.API) error {
 		return err
 	}
 
-	var resFixed Point
-	resFixed.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
+	var resFixed, p Point
+	p.X = params.Base.X
+	p.Y = params.Base.Y
+	resFixed.ScalarMul(api, &p, circuit.S, params)
 
 	api.AssertIsEqual(resFixed.X, circuit.E.X)
 	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
@@ -402,8 +407,8 @@ func TestScalarMulFixed(t *testing.T) {
 		switch id {
 		case ecc.BN254:
 			var base, expected tbn254.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -411,8 +416,8 @@ func TestScalarMulFixed(t *testing.T) {
 			witness.S = (r)
 		case ecc.BLS12_381:
 			var base, expected tbls12381.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -420,8 +425,8 @@ func TestScalarMulFixed(t *testing.T) {
 			witness.S = (r)
 		case ecc.BLS12_377:
 			var base, expected tbls12377.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -429,8 +434,8 @@ func TestScalarMulFixed(t *testing.T) {
 			witness.S = (r)
 		case ecc.BLS24_315:
 			var base, expected tbls24315.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -438,8 +443,8 @@ func TestScalarMulFixed(t *testing.T) {
 			witness.S = (r)
 		case ecc.BW6_633:
 			var base, expected tbw6633.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -447,8 +452,8 @@ func TestScalarMulFixed(t *testing.T) {
 			witness.S = (r)
 		case ecc.BW6_761:
 			var base, expected tbw6761.PointAffine
-			base.X.SetBigInt(&params.BaseX)
-			base.Y.SetBigInt(&params.BaseY)
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
 			r := big.NewInt(928323002)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
@@ -475,7 +480,7 @@ func (circuit *scalarMulGeneric) Define(api frontend.API) error {
 		return err
 	}
 
-	resGeneric := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
+	resGeneric := circuit.P.ScalarMul(api, &circuit.P, circuit.S, params)
 
 	api.AssertIsEqual(resGeneric.X, circuit.E.X)
 	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
@@ -495,8 +500,8 @@ func TestScalarMulGeneric(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, point, expected tbn254.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	s := big.NewInt(902)
 	point.ScalarMul(&base, s) // random point
 	r := big.NewInt(230928302)
@@ -537,8 +542,8 @@ func TestNeg(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, expected tbn254.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	expected.Neg(&base)
 
 	// generate witness

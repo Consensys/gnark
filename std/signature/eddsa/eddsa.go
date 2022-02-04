@@ -60,16 +60,20 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 	hash.Write(data...)
 	hramConstant := hash.Sum()
 
+	base := twistededwards.Point{}
+	base.X = pubKey.Curve.Base.X
+	base.Y = pubKey.Curve.Base.Y
+
 	// lhs = [S]G
 	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
-	lhs.ScalarMulFixedBase(api, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
+	lhs.ScalarMul(api, &base, sig.S, pubKey.Curve)
 	lhs.MustBeOnCurve(api, pubKey.Curve)
 
 	// rhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
-	rhs.ScalarMulNonFixedBase(api, &pubKey.A, hramConstant, pubKey.Curve).
-		AddGeneric(api, &rhs, &sig.R, pubKey.Curve)
+	rhs.ScalarMul(api, &pubKey.A, hramConstant, pubKey.Curve).
+		Add(api, &rhs, &sig.R, pubKey.Curve)
 	// rhs.MustBeOnCurve(api, pubKey.Curve)
 
 	// [cofactor]*lhs and [cofactor]*rhs
