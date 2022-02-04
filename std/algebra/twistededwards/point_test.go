@@ -570,3 +570,9 @@ func BenchmarkAddFixedPoint(b *testing.B) {
 	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
+
+func BenchmarkMustBeOnCurve(b *testing.B) {
+	var c mustBeOnCurve
+	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
