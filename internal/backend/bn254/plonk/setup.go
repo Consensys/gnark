@@ -96,15 +96,15 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainNum = *fft.NewDomain(sizeSystem, 0, false)
+	pk.DomainNum = *fft.NewDomain(sizeSystem)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
 	// except when n<6.
 	if sizeSystem < 6 {
-		pk.DomainH = *fft.NewDomain(8*sizeSystem, 1, false)
+		pk.DomainH = *fft.NewDomain(8 * sizeSystem)
 	} else {
-		pk.DomainH = *fft.NewDomain(4*sizeSystem, 1, false)
+		pk.DomainH = *fft.NewDomain(4 * sizeSystem)
 	}
 
 	vk.Size = pk.DomainNum.Cardinality
@@ -113,8 +113,8 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
 	// shifters
-	vk.Shifter[0].Set(&pk.DomainNum.FinerGenerator)
-	vk.Shifter[1].Square(&pk.DomainNum.FinerGenerator)
+	vk.Shifter[0].Set(&pk.DomainNum.FrMultiplicativeGen)
+	vk.Shifter[1].Square(&pk.DomainNum.FrMultiplicativeGen)
 
 	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
@@ -148,11 +148,11 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 
-	pk.DomainNum.FFTInverse(pk.Ql, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.Qr, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.Qm, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.Qo, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.CQk, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(pk.Ql, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.Qr, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.Qm, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.Qo, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.CQk, fft.DIF)
 	fft.BitReverse(pk.Ql)
 	fft.BitReverse(pk.Qr)
 	fft.BitReverse(pk.Qm)
@@ -274,8 +274,8 @@ func computeLDE(pk *ProvingKey) {
 	// sID = [1,z,..,z**n-1,u,uz,..,uz**n-1,u**2,u**2.z,..,u**2.z**n-1]
 	sID := make([]fr.Element, 3*nbElmt)
 	sID[0].SetOne()
-	sID[nbElmt].Set(&pk.DomainNum.FinerGenerator)
-	sID[2*nbElmt].Square(&pk.DomainNum.FinerGenerator)
+	sID[nbElmt].Set(&pk.DomainNum.FrMultiplicativeGen)
+	sID[2*nbElmt].Square(&pk.DomainNum.FrMultiplicativeGen)
 
 	for i := 1; i < nbElmt; i++ {
 		sID[i].Mul(&sID[i-1], &pk.DomainNum.Generator)                   // z**i -> z**i+1
@@ -300,9 +300,9 @@ func computeLDE(pk *ProvingKey) {
 	copy(pk.CS1, pk.LS1)
 	copy(pk.CS2, pk.LS2)
 	copy(pk.CS3, pk.LS3)
-	pk.DomainNum.FFTInverse(pk.CS1, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.CS2, fft.DIF, 0)
-	pk.DomainNum.FFTInverse(pk.CS3, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(pk.CS1, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.CS2, fft.DIF)
+	pk.DomainNum.FFTInverse(pk.CS3, fft.DIF)
 	fft.BitReverse(pk.CS1)
 	fft.BitReverse(pk.CS2)
 	fft.BitReverse(pk.CS3)

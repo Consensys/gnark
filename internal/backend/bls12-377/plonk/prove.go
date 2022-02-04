@@ -166,7 +166,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		qk := make(polynomial.Polynomial, pk.DomainNum.Cardinality)
 		copy(qk, fullWitness[:spr.NbPublicVariables])
 		copy(qk[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
-		pk.DomainNum.FFTInverse(qk, fft.DIF, 0)
+		pk.DomainNum.FFTInverse(qk, fft.DIF)
 		fft.BitReverse(qk)
 
 		// compute the evaluation of qlL+qrR+qmL.R+qoO+k on the odd cosets of (Z/8mZ)/(Z/mZ)
@@ -401,7 +401,7 @@ func computeBlindedLRO(ll, lr, lo polynomial.Polynomial, domain *fft.Domain) (bc
 	go func() {
 		var err error
 		copy(cl, ll)
-		domain.FFTInverse(cl, fft.DIF, 0)
+		domain.FFTInverse(cl, fft.DIF)
 		fft.BitReverse(cl)
 		bcl, err = blindPoly(cl, domain.Cardinality, 1)
 		chDone <- err
@@ -409,13 +409,13 @@ func computeBlindedLRO(ll, lr, lo polynomial.Polynomial, domain *fft.Domain) (bc
 	go func() {
 		var err error
 		copy(cr, lr)
-		domain.FFTInverse(cr, fft.DIF, 0)
+		domain.FFTInverse(cr, fft.DIF)
 		fft.BitReverse(cr)
 		bcr, err = blindPoly(cr, domain.Cardinality, 1)
 		chDone <- err
 	}()
 	copy(co, lo)
-	domain.FFTInverse(co, fft.DIF, 0)
+	domain.FFTInverse(co, fft.DIF)
 	fft.BitReverse(co)
 	if bco, err = blindPoly(co, domain.Cardinality, 1); err != nil {
 		return
@@ -552,7 +552,7 @@ func computeBlindedZ(l, r, o polynomial.Polynomial, pk *ProvingKey, gamma fr.Ele
 			Mul(&z[i], &gInv[i])
 	}
 
-	pk.DomainNum.FFTInverse(z, fft.DIF, 0)
+	pk.DomainNum.FFTInverse(z, fft.DIF)
 	fft.BitReverse(z)
 
 	return blindPoly(z, pk.DomainNum.Cardinality, 2)
@@ -608,16 +608,17 @@ func evalConstraints(pk *ProvingKey, evalL, evalR, evalO, qk []fr.Element) []fr.
 	return evalQk
 }
 
-// evalIDCosets id, uid, u**2id on the odd cosets of (Z/8mZ)/(Z/mZ)
+// evalIDCosets id, uid, u**2id on (Z/4mZ)
 func evalIDCosets(pk *ProvingKey) (id polynomial.Polynomial) {
 
 	id = make([]fr.Element, pk.DomainH.Cardinality)
 
+	// TODO doing an expo per chunk is useless
 	utils.Parallelize(int(pk.DomainH.Cardinality), func(start, end int) {
 		var acc fr.Element
 		acc.Exp(pk.DomainH.Generator, new(big.Int).SetInt64(int64(start)))
 		for i := start; i < end; i++ {
-			id[i].Mul(&acc, &pk.DomainH.FinerGenerator)
+			id[i].Mul(&acc, &pk.DomainH.FrMultiplicativeGen)
 			acc.Mul(&acc, &pk.DomainH.Generator)
 		}
 	})
@@ -707,18 +708,10 @@ func evalConstraintOrdering(pk *ProvingKey, evalZ, evalL, evalR, evalO polynomia
 //
 // Puts the result in res of size n.
 // Warning: result is in bit reversed order, we do a bit reverse operation only once in computeH
+// TODO remove this function
 func evaluateHDomain(poly []fr.Element, domainH *fft.Domain) []fr.Element {
-
 	res := make([]fr.Element, domainH.Cardinality)
-
-	// we copy poly in res and scale by coset here
-	// to avoid FFT scaling on domainH.Cardinality (res is very sparse)
-	utils.Parallelize(len(poly), func(start, end int) {
-		for i := start; i < end; i++ {
-			res[i].Mul(&poly[i], &domainH.CosetTable[0][i])
-		}
-	}, runtime.NumCPU()/2)
-	domainH.FFT(res, fft.DIF, 0)
+	domainH.FFT(res, fft.DIF, true)
 	return res
 }
 
@@ -742,7 +735,7 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 	var one fr.Element
 	one.SetOne()
 	uu.Set(&pk.DomainH.Generator)
-	u[0].Set(&pk.DomainH.FinerGenerator)
+	u[0].Set(&pk.DomainH.FrMultiplicativeGen)
 	u[1].Mul(&u[0], &uu)
 	u[2].Mul(&u[1], &uu)
 	u[3].Mul(&u[2], &uu)
@@ -768,15 +761,7 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 
 	// computes L1 (canonical form)
 	startsAtOne := make(polynomial.Polynomial, pk.DomainH.Cardinality)
-	utils.Parallelize(int(pk.DomainNum.Cardinality), func(start, end int) {
-		for i := start; i < end; i++ {
-			startsAtOne[i].Mul(&pk.DomainNum.CardinalityInv, &pk.DomainH.CosetTable[0][i])
-		}
-	})
-
-	// evaluates L1 on the odd cosets of (Z/8mZ)/(Z/mZ)
-	// / ! \ note that we scaled by the coset in the previous loop, hence we pass 0 as coset here.
-	pk.DomainH.FFT(startsAtOne, fft.DIF, 0)
+	pk.DomainH.FFT(startsAtOne, fft.DIF, true)
 
 	// evaluate qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3*l-z*f1*f2*f3*l) + alpha**2*L1(X)(Z(X)-1)
 	// on the odd cosets of (Z/8mZ)/(Z/mZ)
@@ -802,12 +787,7 @@ func computeH(pk *ProvingKey, constraintsInd, constraintOrdering, evalBZ polynom
 
 	// put h in canonical form. h is of degree 3*(n+1)+2.
 	// using fft.DIT put h revert bit reverse
-	pk.DomainH.FFTInverse(h, fft.DIT, 1)
-	// fmt.Println("h:")
-	// for i := 0; i < len(h); i++ {
-	// 	fmt.Printf("%s\n", h[i].String())
-	// }
-	// fmt.Println("")
+	pk.DomainH.FFTInverse(h, fft.DIT, true)
 
 	// degree of hi is n+2 because of the blinding
 	h1 := h[:pk.DomainNum.Cardinality+2]

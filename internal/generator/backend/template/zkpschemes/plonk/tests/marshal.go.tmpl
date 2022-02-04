@@ -30,8 +30,8 @@ func TestProvingKeySerialization(t *testing.T) {
     // random pk
     var pk ProvingKey
     pk.Vk = &vk
-	pk.DomainNum = *fft.NewDomain(42, 3, false)
-	pk.DomainH = *fft.NewDomain(4*42, 1, false)
+	pk.DomainNum = *fft.NewDomain(42)
+	pk.DomainH = *fft.NewDomain(4*42)
 	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
 	pk.Qr = make([]fr.Element, pk.DomainNum.Cardinality)
 	pk.Qm = make([]fr.Element, pk.DomainNum.Cardinality)
