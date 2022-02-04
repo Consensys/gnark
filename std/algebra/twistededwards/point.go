@@ -103,14 +103,12 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 	u := api.Mul(p1.X, p1.Y)
 	v := api.Mul(p1.X, p1.X)
 	w := api.Mul(p1.Y, p1.Y)
-	z := api.Mul(v, w)
 
 	n1 := api.Mul(2, u)
 	av := api.Mul(v, &curve.A)
 	n2 := api.Sub(w, av)
-	d := api.Mul(z, curve.D)
-	d1 := api.Add(1, d)
-	d2 := api.Sub(1, d)
+	d1 := api.Add(w, av)
+	d2 := api.Sub(2, d1)
 
 	p.X = api.DivUnchecked(n1, d1)
 	p.Y = api.DivUnchecked(n2, d2)
