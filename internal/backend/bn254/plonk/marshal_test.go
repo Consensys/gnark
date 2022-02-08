@@ -32,7 +32,6 @@ func TestProvingKeySerialization(t *testing.T) {
 	var vk VerifyingKey
 	vk.Size = 42
 	vk.SizeInv = fr.One()
-	vk.Shifter[1].SetUint64(12)
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen
@@ -94,7 +93,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	var vk VerifyingKey
 	vk.Size = 42
 	vk.SizeInv = fr.One()
-	vk.Shifter[1].SetUint64(12)
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen

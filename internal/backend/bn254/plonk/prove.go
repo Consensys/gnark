@@ -233,19 +233,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		close(chConstraintOrdering)
 	}()
 
-	if err := <-chConstraintOrdering; err != nil {
+	if err := <-chConstraintOrdering; err != nil { // CORRECT
 		return nil, err
 	}
-
-	check := make([]fr.Element, len(constraintsOrdering))
-	copy(check, constraintsOrdering)
-	fft.BitReverse(constraintsOrdering)
-	// printVector("gordering", constraintsOrdering, true)
 
 	<-chConstraintInd // CORRECT
 
 	// compute h in canonical form
-	h1, h2, h3 := computeQuotientCanonical(pk, constraintsInd, constraintsOrdering, evaluationBlindedZDomainBigBitReversed, alpha)
+	h1, h2, h3 := computeQuotientCanonical(pk, constraintsInd, constraintsOrdering, evaluationBlindedZDomainBigBitReversed, alpha) // CORRECT
 
 	// compute kzg commitments of h1, h2 and h3
 	if err := commitToQuotient(h1, h2, h3, proof, pk.Vk.KZGSRS); err != nil {
@@ -297,16 +292,16 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	var (
-		linearizedPolynomial       []fr.Element
-		linearizedPolynomialDigest curve.G1Affine
-		errLPoly                   error
+		linearizedPolynomialCanonical []fr.Element
+		linearizedPolynomialDigest    curve.G1Affine
+		errLPoly                      error
 	)
 	chLpoly := make(chan struct{}, 1)
 
 	go func() {
 		// compute the linearization polynomial r at zeta (goal: save committing separately to z, ql, qr, qm, qo, k)
 		wgZetaEvals.Wait()
-		linearizedPolynomial = computeLinearizedPolynomial(
+		linearizedPolynomialCanonical = computeLinearizedPolynomial(
 			blzeta,
 			brzeta,
 			bozeta,
@@ -321,11 +316,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 		// TODO this commitment is only necessary to derive the challenge, we should
 		// be able to avoid doing it and get the challenge in another way
-		linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomial, pk.Vk.KZGSRS)
+		linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomialCanonical, pk.Vk.KZGSRS)
 		close(chLpoly)
 	}()
 
-	// foldedHDigest = Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
+	// foldedHDigest = Comm(h1) + \zeta^{m+2}*Comm(h2) + \zeta^{2(m+2)}*Comm(h3)
 	var bZetaPowerm, bSize big.Int
 	bSize.SetUint64(pk.DomainSmall.Cardinality + 2) // +2 because of the masking (h of degree 3(n+2)-1)
 	var zetaPowerm fr.Element
@@ -333,18 +328,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
 	foldedHDigest := proof.H[2]
 	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // zeta**(m+1)*Comm(h3)
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // zeta**2(m+1)*Comm(h3) + zeta**(m+1)*Comm(h2) + Comm(h1)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // \zeta^{m+2}*Comm(h3)
+	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // \zeta^{2(m+2)}*Comm(h3) + \zeta^{m+2}*Comm(h2)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // \zeta^{2(m+2)}*Comm(h3) + \zeta^{m+2}*Comm(h2) + Comm(h1)
 
-	// foldedH = h1 + zeta*h2 + zeta**2*h3
+	// foldedH = h1 + \zeta*h2 + \zeta^{2}*h3
 	foldedH := h3
 	utils.Parallelize(len(foldedH), func(start, end int) {
 		for i := start; i < end; i++ {
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**(m+1)*h3
-			foldedH[i].Add(&foldedH[i], &h2[i])      // zeta**(m+1)*h3
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // zeta**2(m+1)*h3+h2*zeta**(m+1)
-			foldedH[i].Add(&foldedH[i], &h1[i])      // zeta**2(m+1)*h3+zeta**(m+1)*h2 + h1
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // \zeta^{m+2}*h3
+			foldedH[i].Add(&foldedH[i], &h2[i])      // \zeta^{m+2)*h3+h2
+			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // \zeta^{2(m+2)}*h3+h2*\zeta^{m+2}
+			foldedH[i].Add(&foldedH[i], &h1[i])      // \zeta^{2(m+2)*h3+\zeta^{m+2}*h2 + h1
 		}
 	})
 
@@ -357,7 +352,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
 		[]polynomial.Polynomial{
 			foldedH,
-			linearizedPolynomial,
+			linearizedPolynomialCanonical,
 			blindedLCanonical,
 			blindedRCanonical,
 			blindedOCanonical,
@@ -619,7 +614,7 @@ func computeBlindedZCanonical(l, r, o []fr.Element, pk *ProvingKey, beta, gamma 
 }
 
 // evaluateConstraintsDomainBigBitReversed computes the evaluation of lL+qrR+qqmL.R+qoO+k on
-// the odd cosets of (Z/8mZ)/(Z/mZ), where m=nbConstraints+nbAssertions.
+// the big domain coset.
 //
 // * evalL, evalR, evalO are the evaluation of the blinded solution vectors on odd cosets
 // * qk is the completed version of qk, in canonical version
@@ -700,14 +695,6 @@ func evaluateOrderingDomainBigBitReversed(pk *ProvingKey, z, l, r, o []fr.Elemen
 	cosetShift.Set(&pk.Vk.CosetShift)
 	cosetShiftSquare.Square(&pk.Vk.CosetShift)
 
-	// fft.BitReverse(z)
-	// fft.BitReverse(l)
-	// fft.BitReverse(r)
-	// fft.BitReverse(o)
-	// fft.BitReverse(pk.EvaluationPermutationBigDomainBitReversed[:pk.DomainBig.Cardinality])
-	// fft.BitReverse(pk.EvaluationPermutationBigDomainBitReversed[pk.DomainBig.Cardinality : 2*pk.DomainBig.Cardinality])
-	// fft.BitReverse(pk.EvaluationPermutationBigDomainBitReversed[2*pk.DomainBig.Cardinality:])
-
 	utils.Parallelize(int(pk.DomainBig.Cardinality), func(start, end int) {
 
 		var evaluationIDBigDomain fr.Element
@@ -762,16 +749,18 @@ func evaluateXnMinusOneDomainBigCoset(domainBig, domainSmall *fft.Domain) []fr.E
 
 	res := make([]fr.Element, ratio)
 
-	var g fr.Element
 	expo := big.NewInt(int64(domainSmall.Cardinality))
-	g.Exp(domainBig.Generator, expo)
+	res[0].Exp(domainBig.FrMultiplicativeGen, expo)
 
-	res[0].Set(&domainBig.FrMultiplicativeGen)
+	var t fr.Element
+	t.Exp(domainBig.Generator, big.NewInt(int64(domainSmall.Cardinality)))
+
 	for i := 1; i < int(ratio); i++ {
-		res[i].Mul(&res[i-1], &g)
+		res[i].Mul(&res[i-1], &t)
 	}
 
 	var one fr.Element
+	one.SetOne()
 	for i := 0; i < int(ratio); i++ {
 		res[i].Sub(&res[i], &one)
 	}
@@ -784,19 +773,20 @@ func evaluateXnMinusOneDomainBigCoset(domainBig, domainSmall *fft.Domain) []fr.E
 // ql(X)L(X)+qr(X)R(X)+qm(X)L(X)R(X)+qo(X)O(X)+k(X) + α.(z(μX)*g₁(X)*g₂(X)*g₃(X)-z(X)*f₁(X)*f₂(X)*f₃(X)) + α²*L₁(X)*(Z(X)-1)= h(X)Z(X)
 //
 // constraintInd, constraintOrdering are evaluated on the big domain (coset).
-func computeQuotientCanonical(pk *ProvingKey, constraintsInd, constraintOrdering, evaluationBlindedZDomainBigBitReversed []fr.Element, alpha fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
+func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReversed, evaluationConstraintOrderingBitReversed, evaluationBlindedZDomainBigBitReversed []fr.Element, alpha fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
 
 	h := make([]fr.Element, pk.DomainBig.Cardinality)
 
 	// evaluate Z = Xᵐ-1 on a coset of the big domain
-	var bExpo big.Int
-	bExpo.SetUint64(pk.DomainSmall.Cardinality)
 	evaluationXnMinusOneInverse := evaluateXnMinusOneDomainBigCoset(&pk.DomainBig, &pk.DomainSmall)
-	evaluationXnMinusOneInverse = fr.BatchInvert(evaluationXnMinusOneInverse)
+	evaluationXnMinusOneInverse = fr.BatchInvert(evaluationXnMinusOneInverse) // CORRECT
 
 	// computes L_{1} (canonical form)
 	startsAtOne := make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.DomainBig.FFT(startsAtOne, fft.DIF, true)
+	for i := 0; i < int(pk.DomainSmall.Cardinality); i++ {
+		startsAtOne[i].SetOne()
+	}
+	pk.DomainBig.FFT(startsAtOne, fft.DIF, true) // CORRECT
 
 	// ql(X)L(X)+qr(X)R(X)+qm(X)L(X)R(X)+qo(X)O(X)+k(X) + α.(z(μX)*g₁(X)*g₂(X)*g₃(X)-z(X)*f₁(X)*f₂(X)*f₃(X)) + α**2*L_{1}(X)(Z(X)-1)
 	// on a coset of the big domain
@@ -810,16 +800,15 @@ func computeQuotientCanonical(pk *ProvingKey, constraintsInd, constraintOrdering
 	utils.Parallelize(int(pk.DomainBig.Cardinality), func(start, end int) {
 		var t fr.Element
 		for i := uint64(start); i < uint64(end); i++ {
-			t.Sub(&evaluationBlindedZDomainBigBitReversed[i], &one) // evaluates L₁(X)*(Z(X)-1) on a coset of the big domain
-			h[i].Mul(&startsAtOne[i], &alpha).Mul(&h[i], &t).
-				Add(&h[i], &constraintOrdering[i]).
-				Mul(&h[i], &alpha).
-				Add(&h[i], &constraintsInd[i])
 
-			// evaluate qlL+qrR+qmL.R+qoO+k + α.(zu*g1*g2*g3*l-z*f1*f2*f3*l)/Z
-			// on the big domain (coset)
-			irev := bits.Reverse64(i) >> nn
-			h[i].Mul(&h[i], &evaluationXnMinusOneInverse[irev%ratio])
+			_i := bits.Reverse64(i) >> nn
+
+			t.Sub(&evaluationBlindedZDomainBigBitReversed[_i], &one) // evaluates L₁(X)*(Z(X)-1) on a coset of the big domain
+			h[_i].Mul(&startsAtOne[_i], &alpha).Mul(&h[_i], &t).
+				Add(&h[_i], &evaluationConstraintOrderingBitReversed[_i]).
+				Mul(&h[_i], &alpha).
+				Add(&h[_i], &evaluationConstraintsIndBitReversed[_i]).
+				Mul(&h[_i], &evaluationXnMinusOneInverse[i%ratio])
 		}
 	})
 
@@ -832,7 +821,7 @@ func computeQuotientCanonical(pk *ProvingKey, constraintsInd, constraintOrdering
 	h2 := h[pk.DomainSmall.Cardinality+2 : 2*(pk.DomainSmall.Cardinality+2)]
 	h3 := h[2*(pk.DomainSmall.Cardinality+2) : 3*(pk.DomainSmall.Cardinality+2)]
 
-	return h1, h2, h3
+	return h1, h2, h3 // CORRECT
 
 }
 
@@ -845,7 +834,7 @@ func computeQuotientCanonical(pk *ProvingKey, constraintsInd, constraintOrdering
 // The Linearized polynomial is:
 //
 // α²*L₁(ζ)*Z(X)
-// + α*( (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
+// + α*( (l(ζ)+β*s1(\zeta)+γ)*(r(ζ)+β*s2(\zeta)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
 func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, blindedZCanonical []fr.Element, pk *ProvingKey) []fr.Element {
 
@@ -853,19 +842,22 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
 
+	fmt.Printf("Z(μζ) = %s\n", zu.String())
+
 	// second part:
 	// Z(μζ)(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*s3(X)-Z(X)(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ)
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
-		s1 = eval(pk.S1Canonical, zeta)
+		s1 = eval(pk.S1Canonical, zeta)                      // s1(ζ)
 		s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 		close(chS1)
 	}()
-	tmp := eval(pk.S2Canonical, zeta)
+	tmp := eval(pk.S2Canonical, zeta)                        // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1
 	s1.Mul(&s1, &tmp).Mul(&s1, &zu) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*Z(μζ)
+	fmt.Printf("l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*Z(μζ) = %s\n", s1.String())
 
 	var uzeta, uuzeta fr.Element
 	uzeta.Mul(&zeta, &pk.Vk.CosetShift)
@@ -887,9 +879,8 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		Sub(&lagrangeZeta, &one)
 	frNbElmt.SetUint64(uint64(nbElmt))
 	den.Sub(&zeta, &one).
-		Mul(&den, &frNbElmt).
 		Inverse(&den)
-	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (1/n)*(ζⁿ⁻¹)/(ζ-1)
+	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
 						Mul(&lagrangeZeta, &alpha).
 						Mul(&lagrangeZeta, &alpha) // α²*L₁(ζ)
 
