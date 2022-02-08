@@ -879,23 +879,32 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
 						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &alpha) // α²*L₁(ζ) // CORRECT
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &pk.DomainSmall.CardinalityInv) // (1/n)*α²*L₁(ζ) // CORRECT
 
 	linPol := make([]fr.Element, len(blindedZCanonical))
 	copy(linPol, blindedZCanonical)
 
 	utils.Parallelize(len(linPol), func(start, end int) {
+
 		var t0, t1 fr.Element
+
 		for i := start; i < end; i++ {
+
 			linPol[i].Mul(&linPol[i], &s2) // -Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+
 			if i < len(pk.S3Canonical) {
-				t0.Mul(&pk.S3Canonical[i], &s1) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X)
+
+				t0.Mul(&pk.S3Canonical[i], &s1).
+					Mul(&t0, &beta) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*\beta*s3(X)
+
 				linPol[i].Add(&linPol[i], &t0)
 			}
 
 			linPol[i].Mul(&linPol[i], &alpha) // α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ))
 
 			if i < len(pk.Qm) {
+
 				t1.Mul(&pk.Qm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
 				t0.Mul(&pk.Ql[i], &lZeta)
 				t0.Add(&t0, &t1)
