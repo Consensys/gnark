@@ -784,7 +784,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 	// computes L_{1} (canonical form)
 	startsAtOne := make([]fr.Element, pk.DomainBig.Cardinality)
 	for i := 0; i < int(pk.DomainSmall.Cardinality); i++ {
-		startsAtOne[i].SetOne()
+		startsAtOne[i].Set(&pk.DomainSmall.CardinalityInv)
 	}
 	pk.DomainBig.FFT(startsAtOne, fft.DIF, true) // CORRECT
 
