@@ -396,8 +396,7 @@ func TestScalarMulFixed(t *testing.T) {
 	var circuit, witness scalarMulFixed
 
 	// generate witness data
-	//for _, id := range ecc.Implemented() {
-	for _, id := range []ecc.ID{ecc.BLS12_377} {
+	for _, id := range ecc.Implemented() {
 
 		params, err := NewEdCurve(id)
 		if err != nil {
@@ -462,7 +461,7 @@ func TestScalarMulFixed(t *testing.T) {
 		}
 
 		// creates r1cs
-		assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(id))
+		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 	}
 
 }
@@ -495,28 +494,109 @@ func TestScalarMulGeneric(t *testing.T) {
 	var circuit, witness scalarMulGeneric
 
 	// generate witness data
-	params, err := NewEdCurve(ecc.BN254)
-	if err != nil {
-		t.Fatal(err)
+	for _, id := range ecc.Implemented() {
+
+		params, err := NewEdCurve(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		switch id {
+		case ecc.BN254:
+			var base, point, expected tbn254.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS12_377:
+			var base, point, expected tbls12377.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS12_381:
+			var base, point, expected tbls12381.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BLS24_315:
+			var base, point, expected tbls24315.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BW6_761:
+			var base, point, expected tbw6761.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		case ecc.BW6_633:
+			var base, point, expected tbw6633.PointAffine
+			base.X.SetBigInt(&params.Base.X)
+			base.Y.SetBigInt(&params.Base.Y)
+			s := big.NewInt(902)
+			point.ScalarMul(&base, s) // random point
+			r := big.NewInt(230928302)
+			expected.ScalarMul(&point, r)
+
+			// populate witness
+			witness.P.X = (point.X.String())
+			witness.P.Y = (point.Y.String())
+			witness.E.X = (expected.X.String())
+			witness.E.Y = (expected.Y.String())
+			witness.S = (r)
+		}
+
+		// creates r1cs
+		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
 	}
-	var base, point, expected tbn254.PointAffine
-	base.X.SetBigInt(&params.Base.X)
-	base.Y.SetBigInt(&params.Base.Y)
-	s := big.NewInt(902)
-	point.ScalarMul(&base, s) // random point
-	r := big.NewInt(230928302)
-	expected.ScalarMul(&point, r)
-
-	// populate witness
-	witness.P.X = (point.X.String())
-	witness.P.Y = (point.Y.String())
-	witness.E.X = (expected.X.String())
-	witness.E.Y = (expected.Y.String())
-	witness.S = (r)
-
-	// creates r1cs
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
-
 }
 
 type neg struct {
