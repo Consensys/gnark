@@ -67,7 +67,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	hFunc := sha256.New()
 
 	// create a transcript manager to apply Fiat Shamir
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// result
 	proof := &Proof{}
@@ -115,8 +115,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	}
 
 	// Fiat Shamir this
-	var beta fr.Element
-	beta.SetUint64(10)
+	beta, err := deriveRandomness(&fs, "beta")
+	if err != nil {
+		return nil, err
+	}
 
 	// compute Z, the permutation accumulator polynomial, in canonical basis
 	// ll, lr, lo are NOT blinded

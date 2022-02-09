@@ -43,10 +43,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	hFunc := sha256.New()
 
 	// transcript to derive the challenge
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// derive gamma from Comm(l), Comm(r), Comm(o)
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	if err != nil {
+		return err
+	}
+
+	// derive beta from Comm(l), Comm(r), Comm(o)
+	beta, err := deriveRandomness(&fs, "beta")
 	if err != nil {
 		return err
 	}
@@ -105,8 +111,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	s1 := proof.BatchedProof.ClaimedValues[5]                       // CORRECT
 	s2 := proof.BatchedProof.ClaimedValues[6]                       // CORRECT
 
-	var beta fr.Element
-	beta.SetUint64(10)
+	// var beta fr.Element
+	// beta.SetUint64(10)
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
