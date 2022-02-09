@@ -16,7 +16,6 @@ package plonk
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
@@ -314,32 +313,6 @@ func getIDSmallDomain(domain *fft.Domain) []fr.Element {
 	}
 
 	return res
-}
-
-func printVector(name string, vector []fr.Element, reverse ...bool) {
-
-	a := make([]fr.Element, len(vector))
-	copy(a, vector)
-	if len(reverse) > 0 {
-		fft.BitReverse(a)
-	}
-
-	fmt.Printf("%s = [", name)
-	for i := 0; i < len(a); i++ {
-		fmt.Printf("%s, ", a[i].String())
-	}
-	fmt.Println("]")
-}
-
-func printPoly(name string, vector []fr.Element) {
-	fmt.Printf("%s = ", name)
-	for i := 0; i < len(vector); i++ {
-		fmt.Printf("%s*x**%d", vector[i].String(), i)
-		if i < len(vector)-1 {
-			fmt.Printf(" + ")
-		}
-	}
-	fmt.Println("")
 }
 
 // InitKZG inits pk.Vk.KZG using pk.DomainSmall cardinality and provided SRS

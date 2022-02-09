@@ -17,7 +17,6 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -83,7 +82,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		xiLi.Mul(&lagrange, &publicWitness[i])
 		pi.Add(&pi, &xiLi)
 
-		// use Lᵢ₊₁ = w*L_i*(X-z^{i})/(X-zⁱ⁺¹)
+		// use Lᵢ₊₁ = w*L_i*(X-zⁱ)/(X-zⁱ⁺¹)
 		lagrange.Mul(&lagrange, &vk.Generator).
 			Mul(&lagrange, &den)
 		acc.Mul(&acc, &vk.Generator)
@@ -91,7 +90,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		lagrange.Div(&lagrange, &den)
 	}
 
-	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+\beta*s1(ζ)+γ)*(r(ζ)+\beta*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
+	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
 	var _s1, _s2, _o, alphaSquareLagrange fr.Element
 
 	zu := proof.ZShiftedOpening.ClaimedValue
@@ -104,21 +103,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	s1 := proof.BatchedProof.ClaimedValues[5]                       // CORRECT
 	s2 := proof.BatchedProof.ClaimedValues[6]                       // CORRECT
 
-	fmt.Printf("h(zeta) = %s\n", claimedQuotient.String())
-
 	var beta fr.Element
 	beta.SetUint64(10)
 
-	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+\beta*s1(ζ)+γ)
-	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+\beta*s2(ζ)+γ)
+	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
+	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	_o.Add(&o, &gamma)                                  // (o(ζ)+γ)
 
 	_s1.Mul(&_s1, &_s2).
 		Mul(&_s1, &_o).
 		Mul(&_s1, &alpha).
-		Mul(&_s1, &zu) //  α*(Z(μζ))*(l(ζ)+\beta*s1(ζ)+γ)*(r(ζ)+\beta*s2(ζ)+γ)*(o(ζ)+γ)
-
-	fmt.Printf("α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ) = %s\n", _s1.String())
+		Mul(&_s1, &zu) //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
 
 	alphaSquareLagrange.Mul(&lagrangeOne, &alpha).
 		Mul(&alphaSquareLagrange, &alpha) // α²*L₁(ζ)
@@ -127,8 +122,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		Add(&linearizedPolynomialZeta, &pi).                 // linearizedpolynomial + pi(zeta)
 		Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
 		Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
-
-	fmt.Printf("linpolcompleted(zeta) = %s\n", linearizedPolynomialZeta.String())
 
 	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
 	var zetaPowerMMinusOne fr.Element
@@ -140,7 +133,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		return errWrongClaimedQuotient
 	}
 
-	// compute the folded commitment to H: Comm(h₁) + ζ^{m+2}*Comm(h₂) + ζ^{2(m+2)}*Comm(h₃)
+	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
 	mPlusTwo := big.NewInt(int64(vk.Size) + 2)
 	var zetaMPlusTwo fr.Element
 	zetaMPlusTwo.Exp(zeta, mPlusTwo)
@@ -163,24 +156,24 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 
 	var linearizedPolynomialDigest curve.G1Affine
 
-	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*\beta*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
+	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
 
 	// CORRECT
 	var u, v, w, cosetsquare fr.Element
 	u.Mul(&zu, &beta)
 	v.Mul(&beta, &s1).Add(&v, &l).Add(&v, &gamma)
 	w.Mul(&beta, &s2).Add(&w, &r).Add(&w, &gamma)
-	_s1.Mul(&u, &v).Mul(&_s1, &w).Mul(&_s1, &alpha) // \alpha*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*\beta
+	_s1.Mul(&u, &v).Mul(&_s1, &w).Mul(&_s1, &alpha) // α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
 
 	// CORRECT
 	cosetsquare.Square(&vk.CosetShift)
 	u.Mul(&beta, &zeta).Add(&u, &l).Add(&u, &gamma)                         // (l(ζ)+β*ζ+γ)
-	v.Mul(&beta, &zeta).Mul(&v, &vk.CosetShift).Add(&v, &r).Add(&v, &gamma) // (r(ζ)+β*\mu*ζ+γ)
-	w.Mul(&beta, &zeta).Mul(&w, &cosetsquare).Add(&w, &o).Add(&w, &gamma)   // (o(ζ)+β*\mu^{2}*ζ+γ)
+	v.Mul(&beta, &zeta).Mul(&v, &vk.CosetShift).Add(&v, &r).Add(&v, &gamma) // (r(ζ)+β*μ*ζ+γ)
+	w.Mul(&beta, &zeta).Mul(&w, &cosetsquare).Add(&w, &o).Add(&w, &gamma)   // (o(ζ)+β*μ²*ζ+γ)
 	_s2.Mul(&u, &v).Mul(&_s2, &w).Neg(&_s2)                                 // -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
 	// note since third part =  α²*L₁(ζ)*Z
-	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -\alpha*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
 	points := []curve.G1Affine{
 		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
