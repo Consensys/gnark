@@ -101,20 +101,17 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
-	n := len(b) - 1
 	res := Point{}
-	res.X = api.Select(b[n], p1.X, 0)
-	res.Y = api.Select(b[n], p1.Y, 1)
-
 	tmp := Point{}
 	A := Point{}
-	A.Double(api, p1, curve)
 	B := Point{}
+
+	A.Double(api, p1, curve)
 	B.Add(api, &A, p1, curve)
 
-	if n%2 == 0 {
-		n += 1
-	}
+	n := len(b) - 1
+	res.X = api.Lookup2(b[n], b[n-1], 0, A.X, p1.X, B.X)
+	res.Y = api.Lookup2(b[n], b[n-1], 1, A.Y, p1.Y, B.Y)
 
 	for i := n - 2; i >= 1; i -= 2 {
 		res.Double(api, &res, curve).
@@ -122,6 +119,13 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 		tmp.X = api.Lookup2(b[i], b[i-1], 0, A.X, p1.X, B.X)
 		tmp.Y = api.Lookup2(b[i], b[i-1], 1, A.Y, p1.Y, B.Y)
 		res.Add(api, &res, &tmp, curve)
+	}
+
+	if n%2 == 0 {
+		res.Double(api, &res, curve)
+		tmp.Add(api, &res, p1, curve)
+		res.X = api.Select(b[0], tmp.X, res.X)
+		res.Y = api.Select(b[0], tmp.Y, res.Y)
 	}
 
 	p.X = res.X
