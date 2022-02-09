@@ -42,8 +42,8 @@ type NewBuilder func(ecc.ID) (Builder, error)
 // from the declarative code
 //
 // 3. finally, it converts that to a ConstraintSystem.
-// 		if zkpID == backend.GROTH16	--> R1CS
-//		if zkpID == backend.PLONK 	--> SparseR1CS
+// 		if zkpID == backend.GROTH16	→ R1CS
+//		if zkpID == backend.PLONK 	→ SparseR1CS
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.

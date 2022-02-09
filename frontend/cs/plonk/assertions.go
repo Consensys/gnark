@@ -63,7 +63,7 @@ func (system *sparseR1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
-// AssertIsBoolean fails if v != 0 || v != 1
+// AssertIsBoolean fails if v != 0 ∥ v != 1
 func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
@@ -125,7 +125,7 @@ func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		l := system.Sub(1, t, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
-		// --> this is a boolean constraint
+		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
@@ -172,7 +172,7 @@ func (system *sparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 	}
 
 	p := make([]frontend.Variable, nbBits+1)
-	// p[i] == 1 --> a[j] == c[j] for all j >= i
+	// p[i] == 1 → a[j] == c[j] for all j ⩾ i
 	p[nbBits] = 1
 
 	for i := nbBits - 1; i >= t; i-- {

@@ -41,7 +41,7 @@ func (system *r1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
-// AssertIsBoolean adds an assertion in the constraint system (v == 0 || v == 1)
+// AssertIsBoolean adds an assertion in the constraint system (v == 0 ∥ v == 1)
 func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
@@ -69,7 +69,7 @@ func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 	system.addConstraint(newR1C(v, _v, o), debug)
 }
 
-// AssertIsLessOrEqual adds assertion in constraint system  (v <= bound)
+// AssertIsLessOrEqual adds assertion in constraint system  (v ⩽ bound)
 //
 // bound can be a constant or a Variable
 //
@@ -120,7 +120,7 @@ func (system *r1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
 		l = system.Sub(l, t, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
-		// --> this is a boolean constraint
+		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		system.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
 
@@ -158,7 +158,7 @@ func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 	}
 
 	p := make([]frontend.Variable, nbBits+1)
-	// p[i] == 1 --> a[j] == c[j] for all j >= i
+	// p[i] == 1 → a[j] == c[j] for all j ⩾ i
 	p[nbBits] = system.constant(1)
 
 	for i := nbBits - 1; i >= t; i-- {

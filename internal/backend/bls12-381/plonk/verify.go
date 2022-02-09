@@ -63,7 +63,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 		return err
 	}
 
-	// evaluation of Z=X**m-1 at zeta
+	// evaluation of Z=Xⁿ⁻¹ at ζ
 	var zetaPowerM, zzeta fr.Element
 	var bExpo big.Int
 	one := fr.One()
@@ -71,20 +71,20 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 	zetaPowerM.Exp(zeta, &bExpo)
 	zzeta.Sub(&zetaPowerM, &one)
 
-	// ccompute PI = Sum_i<n L_i*w_i
+	// ccompute PI = ∑_{i<n} Lᵢ*wᵢ
 	// TODO use batch inversion
 	var pi, den, lagrangeOne, xiLi fr.Element
-	lagrange := zzeta // zeta**m-1
+	lagrange := zzeta // ζⁿ⁻¹
 	acc := fr.One()
 	den.Sub(&zeta, &acc)
-	lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // 1/n*(zeta**n-1)/(zeta-1)
+	lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // (1/n)*(ζⁿ⁻¹)/(ζ-1)
 	lagrangeOne.Set(&lagrange)                                // save it for later
 	for i := 0; i < len(publicWitness); i++ {
 
 		xiLi.Mul(&lagrange, &publicWitness[i])
 		pi.Add(&pi, &xiLi)
 
-		// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)
+		// use Lᵢ₊₁ = w*L_i*(X-zⁱ)/(X-zⁱ⁺¹)
 		lagrange.Mul(&lagrange, &vk.Generator).
 			Mul(&lagrange, &den)
 		acc.Mul(&acc, &vk.Generator)
@@ -92,45 +92,50 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 		lagrange.Div(&lagrange, &den)
 	}
 
-	// linearizedpolynomial + pi(zeta) + (Z(u*zeta))*(a+s1+gamma)*(b+s2+gamma)*(c+gamma)*alpha - alpha**2*L1(zeta)
+	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
 	var _s1, _s2, _o, alphaSquareLagrange fr.Element
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
+	claimedQuotient := proof.BatchedProof.ClaimedValues[0]          // CORRECT
+	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1] // CORRECT
+	l := proof.BatchedProof.ClaimedValues[2]                        // CORRECT
+	r := proof.BatchedProof.ClaimedValues[3]                        // CORRECT
+	o := proof.BatchedProof.ClaimedValues[4]                        // CORRECT
+	s1 := proof.BatchedProof.ClaimedValues[5]                       // CORRECT
+	s2 := proof.BatchedProof.ClaimedValues[6]                       // CORRECT
 
-	_s1.Add(&l, &s1).Add(&_s1, &gamma) // (a+s1+gamma)
-	_s2.Add(&r, &s2).Add(&_s2, &gamma) // (b+s2+gamma)
-	_o.Add(&o, &gamma)                 // (c+gamma)
+	var beta fr.Element
+	beta.SetUint64(10)
+
+	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
+	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
+	_o.Add(&o, &gamma)                                  // (o(ζ)+γ)
 
 	_s1.Mul(&_s1, &_s2).
 		Mul(&_s1, &_o).
 		Mul(&_s1, &alpha).
-		Mul(&_s1, &zu) // alpha*Z(u*zeta)*(a+s1+gamma)*(b+s2+gamma)*(c+gamma)
+		Mul(&_s1, &zu) //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
 
 	alphaSquareLagrange.Mul(&lagrangeOne, &alpha).
-		Mul(&alphaSquareLagrange, &alpha) // alpha**2*L1(zeta)
-	linearizedPolynomialZeta.Add(&linearizedPolynomialZeta, &pi). // linearizedpolynomial + pi(zeta)
-									Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+alpha*Z(u*zeta)*(a+s1+gamma)*(b+s2+gamma)*(c+gamma)
-									Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+(Z(u*zeta))*(a+s1+gamma)*(b+s2+gamma)*(c+gamma)*alpha-alpha**2*L1(zeta)
+		Mul(&alphaSquareLagrange, &alpha) // α²*L₁(ζ)
 
-	// Compute H(zeta) using the previous result: H(zeta) = prev_result/(zeta**n-1)
+	linearizedPolynomialZeta.
+		Add(&linearizedPolynomialZeta, &pi).                 // linearizedpolynomial + pi(zeta)
+		Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+		Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
+
+	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
 	var zetaPowerMMinusOne fr.Element
 	zetaPowerMMinusOne.Sub(&zetaPowerM, &one)
 	linearizedPolynomialZeta.Div(&linearizedPolynomialZeta, &zetaPowerMMinusOne)
 
-	// check that H(zeta) is as claimed
+	// check that H(ζ) is as claimed
 	if !claimedQuotient.Equal(&linearizedPolynomialZeta) {
 		return errWrongClaimedQuotient
 	}
 
-	// compute the folded commitment to H: Comm(h1) + zeta**m*Comm(h2) + zeta**2m*Comm(h3)
+	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
 	mPlusTwo := big.NewInt(int64(vk.Size) + 2)
 	var zetaMPlusTwo fr.Element
 	zetaMPlusTwo.Exp(zeta, mPlusTwo)
@@ -144,31 +149,33 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l*ql+r*qr+rl*qm+o*qo+qk +
-	// 		alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) ) +
-	// 		alpha**2*L1(zeta)*Z
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk +
+	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
+	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
 	var rl fr.Element
 	rl.Mul(&l, &r)
 
 	var linearizedPolynomialDigest curve.G1Affine
 
-	// second part: alpha*( Z(uzeta)(a+s1+gamma)*(b+s2+gamma)*s3(X)-Z(X)(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma) )
-	var t fr.Element
-	_s1.Add(&l, &s1).Add(&_s1, &gamma)
-	t.Add(&r, &s2).Add(&t, &gamma)
-	_s1.Mul(&_s1, &t).
-		Mul(&_s1, &zu).
-		Mul(&_s1, &alpha) // alpha*(Z(uzeta)(a+s1+gamma)*(b+s2+gamma))
-	_s2.Add(&l, &zeta).Add(&_s2, &gamma)
-	t.Mul(&zeta, &vk.Shifter[0]).Add(&t, &r).Add(&t, &gamma)
-	_s2.Mul(&t, &_s2)
-	t.Mul(&zeta, &vk.Shifter[1]).Add(&t, &o).Add(&t, &gamma)
-	_s2.Mul(&t, &_s2).
-		Mul(&_s2, &alpha) // alpha*(a+zeta+gamma)*(b+uzeta+gamma)*(c+u**2*zeta+gamma)
-	_s2.Sub(&alphaSquareLagrange, &_s2)
-	// note since third part =  alpha**2*L1(zeta)*Z
-	// we add alphaSquareLagrange to _s2
+	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
+
+	// CORRECT
+	var u, v, w, cosetsquare fr.Element
+	u.Mul(&zu, &beta)
+	v.Mul(&beta, &s1).Add(&v, &l).Add(&v, &gamma)
+	w.Mul(&beta, &s2).Add(&w, &r).Add(&w, &gamma)
+	_s1.Mul(&u, &v).Mul(&_s1, &w).Mul(&_s1, &alpha) // α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
+
+	// CORRECT
+	cosetsquare.Square(&vk.CosetShift)
+	u.Mul(&beta, &zeta).Add(&u, &l).Add(&u, &gamma)                         // (l(ζ)+β*ζ+γ)
+	v.Mul(&beta, &zeta).Mul(&v, &vk.CosetShift).Add(&v, &r).Add(&v, &gamma) // (r(ζ)+β*μ*ζ+γ)
+	w.Mul(&beta, &zeta).Mul(&w, &cosetsquare).Add(&w, &o).Add(&w, &gamma)   // (o(ζ)+β*μ²*ζ+γ)
+	_s2.Mul(&u, &v).Mul(&_s2, &w).Neg(&_s2)                                 // -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+
+	// note since third part =  α²*L₁(ζ)*Z
+	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
 	points := []curve.G1Affine{
 		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part

@@ -32,7 +32,6 @@ func TestProvingKeySerialization(t *testing.T) {
 	var vk VerifyingKey
 	vk.Size = 42
 	vk.SizeInv = fr.One()
-	vk.Shifter[1].SetUint64(12)
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen
@@ -48,14 +47,14 @@ func TestProvingKeySerialization(t *testing.T) {
 	// random pk
 	var pk ProvingKey
 	pk.Vk = &vk
-	pk.DomainNum = *fft.NewDomain(42)
-	pk.DomainH = *fft.NewDomain(4 * 42)
-	pk.Ql = make([]fr.Element, pk.DomainNum.Cardinality)
-	pk.Qr = make([]fr.Element, pk.DomainNum.Cardinality)
-	pk.Qm = make([]fr.Element, pk.DomainNum.Cardinality)
-	pk.Qo = make([]fr.Element, pk.DomainNum.Cardinality)
-	pk.CQk = make([]fr.Element, pk.DomainNum.Cardinality)
-	pk.LQk = make([]fr.Element, pk.DomainNum.Cardinality)
+	pk.DomainSmall = *fft.NewDomain(42)
+	pk.DomainBig = *fft.NewDomain(4 * 42)
+	pk.Ql = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.Qr = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.Qm = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.Qo = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.CQk = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.LQk = make([]fr.Element, pk.DomainSmall.Cardinality)
 
 	for i := 0; i < 12; i++ {
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
@@ -63,7 +62,7 @@ func TestProvingKeySerialization(t *testing.T) {
 		pk.Qo[i].SetUint64(42)
 	}
 
-	pk.Permutation = make([]int64, 3*pk.DomainNum.Cardinality)
+	pk.Permutation = make([]int64, 3*pk.DomainSmall.Cardinality)
 	pk.Permutation[0] = -12
 	pk.Permutation[len(pk.Permutation)-1] = 8888
 
@@ -94,7 +93,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	var vk VerifyingKey
 	vk.Size = 42
 	vk.SizeInv = fr.One()
-	vk.Shifter[1].SetUint64(12)
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen

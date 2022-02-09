@@ -28,7 +28,7 @@ type Point struct {
 }
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
-// a*x^2 + y^2 = 1 + d*x^2*y^2.
+// a*x² + y² = 1 + d*x²*y².
 func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 
 	one := big.NewInt(1)

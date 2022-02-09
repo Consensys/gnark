@@ -159,7 +159,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 // verifySignatureTransfer ensures that the signature of the transfer is valid
 func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
 
-	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
+	// the signature is on h(nonce ∥ amount ∥ senderpubKey (x&y) ∥ receiverPubkey(x&y))
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 	htransfer := hFunc.Sum()
 
