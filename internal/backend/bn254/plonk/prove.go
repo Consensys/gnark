@@ -843,7 +843,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	rl.Mul(&rZeta, &lZeta)
 
 	// second part:
-	// Z(μζ)(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*s3(X)-Z(X)(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ)
+	// Z(μζ)(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*\beta*s3(X)-Z(X)(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ)
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
@@ -854,7 +854,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	tmp := eval(pk.S2Canonical, zeta)                        // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1
-	s1.Mul(&s1, &tmp).Mul(&s1, &zu) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*Z(μζ) // CORRECT
+	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*\beta*Z(μζ) // CORRECT
 
 	var uzeta, uuzeta fr.Element
 	uzeta.Mul(&zeta, &pk.Vk.CosetShift)
@@ -895,8 +895,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 			if i < len(pk.S3Canonical) {
 
-				t0.Mul(&pk.S3Canonical[i], &s1).
-					Mul(&t0, &beta) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*\beta*s3(X)
+				t0.Mul(&pk.S3Canonical[i], &s1) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*\beta*s3(X)
 
 				linPol[i].Add(&linPol[i], &t0)
 			}
