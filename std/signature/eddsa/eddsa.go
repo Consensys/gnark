@@ -68,26 +68,24 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 	cofactor := pubKey.Curve.Cofactor.Uint64()
 	lhs := twistededwards.Point{}
 	lhs.ScalarMul(api, &base, sig.S, pubKey.Curve)
-	lhs.MustBeOnCurve(api, pubKey.Curve)
 
 	// rhs = R+[H(R,A,M)]*A
 	rhs := twistededwards.Point{}
 	rhs.ScalarMul(api, &pubKey.A, hramConstant, pubKey.Curve).
 		Add(api, &rhs, &sig.R, pubKey.Curve)
-	// rhs.MustBeOnCurve(api, pubKey.Curve)
+	rhs.MustBeOnCurve(api, pubKey.Curve)
 
-	// [cofactor]*lhs and [cofactor]*rhs
+	// lhs-rhs
+	rhs.Neg(api, &rhs).Add(api, &lhs, &rhs, pubKey.Curve)
+
+	// [cofactor]*(lhs-rhs)
 	switch cofactor {
 	case 4:
 		rhs.Double(api, &rhs, pubKey.Curve).
 			Double(api, &rhs, pubKey.Curve)
-		lhs.Double(api, &lhs, pubKey.Curve).
-			Double(api, &lhs, pubKey.Curve)
 	case 8:
 		rhs.Double(api, &rhs, pubKey.Curve).
 			Double(api, &rhs, pubKey.Curve).Double(api, &rhs, pubKey.Curve)
-		lhs.Double(api, &lhs, pubKey.Curve).
-			Double(api, &lhs, pubKey.Curve).Double(api, &lhs, pubKey.Curve)
 	}
 
 	api.AssertIsEqual(rhs.X, lhs.X)
