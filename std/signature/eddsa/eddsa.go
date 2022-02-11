@@ -64,32 +64,29 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 	base.X = pubKey.Curve.Base.X
 	base.Y = pubKey.Curve.Base.Y
 
-	// lhs = [S]G
+	//[S]G-[H(R,A,M)]*A
 	cofactor := pubKey.Curve.Cofactor.Uint64()
-	lhs := twistededwards.Point{}
-	lhs.ScalarMul(api, &base, sig.S, pubKey.Curve)
+	Q := twistededwards.Point{}
+	_A := twistededwards.Point{}
+	_A.Neg(api, &pubKey.A)
+	Q.DoubleBaseScalarMul(api, &base, &_A, sig.S, hramConstant, pubKey.Curve)
+	Q.MustBeOnCurve(api, pubKey.Curve)
 
-	// rhs = R+[H(R,A,M)]*A
-	rhs := twistededwards.Point{}
-	rhs.ScalarMul(api, &pubKey.A, hramConstant, pubKey.Curve).
-		Add(api, &rhs, &sig.R, pubKey.Curve)
-	rhs.MustBeOnCurve(api, pubKey.Curve)
-
-	// lhs-rhs
-	rhs.Neg(api, &rhs).Add(api, &lhs, &rhs, pubKey.Curve)
+	//[S]G-[H(R,A,M)]*A-R
+	Q.Neg(api, &Q).Add(api, &Q, &sig.R, pubKey.Curve)
 
 	// [cofactor]*(lhs-rhs)
 	switch cofactor {
 	case 4:
-		rhs.Double(api, &rhs, pubKey.Curve).
-			Double(api, &rhs, pubKey.Curve)
+		Q.Double(api, &Q, pubKey.Curve).
+			Double(api, &Q, pubKey.Curve)
 	case 8:
-		rhs.Double(api, &rhs, pubKey.Curve).
-			Double(api, &rhs, pubKey.Curve).Double(api, &rhs, pubKey.Curve)
+		Q.Double(api, &Q, pubKey.Curve).
+			Double(api, &Q, pubKey.Curve).Double(api, &Q, pubKey.Curve)
 	}
 
-	api.AssertIsEqual(rhs.X, lhs.X)
-	api.AssertIsEqual(rhs.Y, lhs.Y)
+	api.AssertIsEqual(Q.X, 0)
+	api.AssertIsEqual(Q.Y, 1)
 
 	return nil
 }
