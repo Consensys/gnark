@@ -27,6 +27,13 @@ type Point struct {
 	X, Y frontend.Variable
 }
 
+// Neg computes the negative of a point in SNARK coordinates
+func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
+	p.X = api.Neg(p1.X)
+	p.Y = p1.Y
+	return p
+}
+
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
 // a*x² + y² = 1 + d*x²*y².
 func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
@@ -134,9 +141,33 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	return p
 }
 
-// Neg computes the negative of a point in SNARK coordinates
-func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
-	p.X = api.Neg(p1.X)
-	p.Y = p1.Y
+// DoubleBaseScalarMul computes s1*P1+s2*P2
+// where P1 and P2 are points on a twisted Edwards curve
+// and s1, s2 scalars.
+func (p *Point) DoubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve EdCurve) *Point {
+
+	// first unpack the scalars
+	b1 := api.ToBinary(s1)
+	b2 := api.ToBinary(s2)
+
+	res := Point{}
+	tmp := Point{}
+	sum := Point{}
+	sum.Add(api, p1, p2, curve)
+
+	n := len(b1)
+	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, p1.X, p2.X, sum.X)
+	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, p1.Y, p2.Y, sum.Y)
+
+	for i := n - 2; i >= 0; i-- {
+		res.Double(api, &res, curve)
+		tmp.X = api.Lookup2(b1[i], b2[i], 0, p1.X, p2.X, sum.X)
+		tmp.Y = api.Lookup2(b1[i], b2[i], 1, p1.Y, p2.Y, sum.Y)
+		res.Add(api, &res, &tmp, curve)
+	}
+
+	p.X = res.X
+	p.Y = res.Y
+
 	return p
 }
