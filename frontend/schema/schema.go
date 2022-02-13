@@ -268,6 +268,11 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", getFullName(parentGoName, name, nameTag), visibility.String())
 			}
 
+			// inherit parent visibility
+			if visibility == Unset {
+				visibility = parentVisibility
+			}
+
 			fValue := tValue.FieldByIndex(f.Index)
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
