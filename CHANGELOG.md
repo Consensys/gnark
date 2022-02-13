@@ -1,3 +1,24 @@
+<a name="v0.6.3"></a>
+
+## [v0.6.3] - 2022-02-13
+
+### Feat
+- MiMC changes: api doesn't take a "seed" parameter. MiMC impl matches Ethereum one. 
+
+### Fix
+- fixes [#255](https://github.com/consensys/gnark/issues/255) variable visibility inheritance regression
+- counter was set with PLONK backend ID in R1CS
+- R1CS Solver was incorrectly calling a "MulByCoeff" instead of "DivByCoeff" (no impact, coeff was always 1 or -1)
+- SparseR1CS cbor unmarshal failed [#247](https://github.com/consensys/gnark/issues/247) for compiled.Term
+
+
+### Pull Requests
+- Merge pull request [#256](https://github.com/consensys/gnark/issues/256) from ConsenSys/fix-bug-compile-visibility
+- Merge pull request [#249](https://github.com/consensys/gnark/issues/249) from ConsenSys/perf-ccs-hint
+- Merge pull request [#248](https://github.com/consensys/gnark/issues/248) from ConsenSys/perf-ccs-solver
+- Merge pull request [#247](https://github.com/consensys/gnark/issues/247) from ConsenSys/fix/plonk_cbor
+
+
 <a name="v0.6.1"></a>
 
 ## [v0.6.1] - 2022-01-28
