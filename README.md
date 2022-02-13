@@ -86,11 +86,13 @@ ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
 pk, vk, err := groth16.Setup(ccs)
 
 // witness definition
-witness := CubicCircuit{X: 3, Y: 35}
+assignment := CubicCircuit{X: 3, Y: 35}
+witness, err := frontend.NewWitness(&assignment, ecc.BN254)
+publicWitness, _ := witness.Public()
 
 // groth16: Prove & Verify
-proof, err := groth16.Prove(ccs, pk, &witness)
-err := groth16.Verify(proof, vk, &witness)
+proof, err := groth16.Prove(ccs, pk, witness)
+err := groth16.Verify(proof, vk, publicWitness)
 ```
 
 
