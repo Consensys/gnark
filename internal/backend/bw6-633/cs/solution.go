@@ -20,10 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
-	"runtime"
-	"sync"
 	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -277,101 +274,4 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
-}
-
-func parallelSolve(levels [][]int, solveConstraint func(cID int) error) error {
-	// minWorkPerCPU is the minimum target number of constraint a task should hold
-	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
-	// sequentially without sync.
-	const minWorkPerCPU = 50.0
-
-	// cs.Levels has a list of levels, where all constraints in a level l(n) are independent
-	// and may only have dependencies on previous levels
-
-	var wg sync.WaitGroup
-	chTasks := make(chan []int, runtime.NumCPU())
-	chError := make(chan error, runtime.NumCPU())
-
-	// start a worker pool
-	// each worker wait on chTasks
-	// a task is a slice of constraint indexes to be solved
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go func() {
-			for t := range chTasks {
-				for _, i := range t {
-					if err := solveConstraint(i); err != nil {
-						chError <- err
-						wg.Done()
-						return
-					}
-				}
-				wg.Done()
-			}
-		}()
-	}
-
-	// clean up pool go routines
-	defer func() {
-		close(chTasks)
-		close(chError)
-	}()
-
-	// for each level, we push the tasks
-	for _, level := range levels {
-
-		// max CPU to use
-		maxCPU := float64(len(level)) / minWorkPerCPU
-
-		if maxCPU <= 1.0 {
-			// we do it sequentially
-			for _, i := range level {
-				if err := solveConstraint(i); err != nil {
-					return err
-				}
-			}
-			continue
-		}
-
-		// number of tasks for this level is set to num cpus
-		// but if we don't have enough work for all our CPUS, it can be lower.
-		nbTasks := runtime.NumCPU()
-		maxTasks := int(math.Ceil(maxCPU))
-		if nbTasks > maxTasks {
-			nbTasks = maxTasks
-		}
-		nbIterationsPerCpus := len(level) / nbTasks
-
-		// more CPUs than tasks: a CPU will work on exactly one iteration
-		// note: this depends on minWorkPerCPU constant
-		if nbIterationsPerCpus < 1 {
-			nbIterationsPerCpus = 1
-			nbTasks = len(level)
-		}
-
-		extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
-		extraTasksOffset := 0
-
-		for i := 0; i < nbTasks; i++ {
-			wg.Add(1)
-			_start := i*nbIterationsPerCpus + extraTasksOffset
-			_end := _start + nbIterationsPerCpus
-			if extraTasks > 0 {
-				_end++
-				extraTasks--
-				extraTasksOffset++
-			}
-			// since we're never pushing more than num CPU tasks
-			// we will never be blocked here
-			chTasks <- level[_start:_end]
-		}
-
-		// wait for the level to be done
-		wg.Wait()
-
-		if len(chError) > 0 {
-			return <-chError
-		}
-	}
-
-	return nil
 }
