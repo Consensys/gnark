@@ -14,6 +14,8 @@ import (
 	{{ template "import_curve" . }}
 )
 
+var errUnsatisfiedConstraint = errors.New("unsatisfied")
+
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
