@@ -47,8 +47,7 @@ func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s), IsBoolean: &t}
 
 	for _, v := range vars {
-		l := v.Clone()
-		res.LinExp = append(res.LinExp, l.LinExp...)
+		res.LinExp = append(res.LinExp, v.LinExp...)
 	}
 
 	res = system.reduce(res)
@@ -85,11 +84,17 @@ func (system *r1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) front
 		IsBoolean: &t,
 	}
 
-	c := vars[0].Clone()
-	res.LinExp = append(res.LinExp, c.LinExp...)
+	var lambda big.Int
+
+	res.LinExp = append(res.LinExp, vars[0].LinExp...)
 	for i := 1; i < len(vars); i++ {
-		negLinExp := system.negateLinExp(vars[i].LinExp)
-		res.LinExp = append(res.LinExp, negLinExp...)
+		// negate vars[i].LinExp
+		for _, t := range vars[i].LinExp {
+			cID, vID, visibility := t.Unpack()
+			lambda.Neg(&system.Coeffs[cID])
+			cID = system.CoeffID(&lambda)
+			res.LinExp = append(res.LinExp, compiled.Pack(vID, cID, visibility))
+		}
 	}
 
 	// reduce linear expression
@@ -140,7 +145,9 @@ func (system *r1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variable {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
-	res := v1.Clone()
+	res := compiled.Variable{
+		LinExp: make(compiled.LinearExpression, len(v1.LinExp)),
+	}
 	lambda := system.constantValue(constant)
 
 	for i, t := range v1.LinExp {
