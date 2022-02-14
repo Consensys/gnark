@@ -137,9 +137,9 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
 						if dID, ok := cs.MDebug[i]; ok {
 							debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-							err = fmt.Errorf("%w: %s", err, debugInfoStr)
+							err = fmt.Errorf("%w - %s", err, debugInfoStr)
 						}
-						chError <- err
+						chError <- fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
 						wg.Done()
 						return
 					}
@@ -167,9 +167,9 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
 					if dID, ok := cs.MDebug[int(i)]; ok {
 						debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-						err = fmt.Errorf("%w: %s", err, debugInfoStr)
+						err = fmt.Errorf("%w - %s", err, debugInfoStr)
 					}
-					return err
+					return fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
 				}
 			}
 			continue
