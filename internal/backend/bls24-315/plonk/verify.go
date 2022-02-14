@@ -103,13 +103,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	claimedQuotient := proof.BatchedProof.ClaimedValues[0]          // CORRECT
-	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1] // CORRECT
-	l := proof.BatchedProof.ClaimedValues[2]                        // CORRECT
-	r := proof.BatchedProof.ClaimedValues[3]                        // CORRECT
-	o := proof.BatchedProof.ClaimedValues[4]                        // CORRECT
-	s1 := proof.BatchedProof.ClaimedValues[5]                       // CORRECT
-	s2 := proof.BatchedProof.ClaimedValues[6]                       // CORRECT
+	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
+	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
+	l := proof.BatchedProof.ClaimedValues[2]
+	r := proof.BatchedProof.ClaimedValues[3]
+	o := proof.BatchedProof.ClaimedValues[4]
+	s1 := proof.BatchedProof.ClaimedValues[5]
+	s2 := proof.BatchedProof.ClaimedValues[6]
 
 	// var beta fr.Element
 	// beta.SetUint64(10)
@@ -166,14 +166,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 
 	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
 
-	// CORRECT
 	var u, v, w, cosetsquare fr.Element
 	u.Mul(&zu, &beta)
 	v.Mul(&beta, &s1).Add(&v, &l).Add(&v, &gamma)
 	w.Mul(&beta, &s2).Add(&w, &r).Add(&w, &gamma)
 	_s1.Mul(&u, &v).Mul(&_s1, &w).Mul(&_s1, &alpha) // α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
 
-	// CORRECT
 	cosetsquare.Square(&vk.CosetShift)
 	u.Mul(&beta, &zeta).Add(&u, &l).Add(&u, &gamma)                         // (l(ζ)+β*ζ+γ)
 	v.Mul(&beta, &zeta).Mul(&v, &vk.CosetShift).Add(&v, &r).Add(&v, &gamma) // (r(ζ)+β*μ*ζ+γ)

@@ -45,8 +45,11 @@ type ProvingKey struct {
 	// Storing LQk in Lagrange basis saves a fft...
 	CQk, LQk []fr.Element
 
-	// Domains used for the FFTs
-	DomainSmall, DomainBig fft.Domain
+	// Domains used for the FFTs.
+	// Domain[0] = small Domain
+	// Domain[1] = big Domain
+	Domain [2]fft.Domain
+	// Domain[0], Domain[1] fft.Domain
 
 	// Permutation polynomials
 	EvaluationPermutationBigDomainBitReversed []fr.Element
@@ -94,21 +97,21 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainSmall = *fft.NewDomain(sizeSystem)
-	pk.Vk.CosetShift.Set(&pk.DomainSmall.FrMultiplicativeGen)
+	pk.Domain[0] = *fft.NewDomain(sizeSystem)
+	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
 	// except when n<6.
 	if sizeSystem < 6 {
-		pk.DomainBig = *fft.NewDomain(8 * sizeSystem)
+		pk.Domain[1] = *fft.NewDomain(8 * sizeSystem)
 	} else {
-		pk.DomainBig = *fft.NewDomain(4 * sizeSystem)
+		pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
 	}
 
-	vk.Size = pk.DomainSmall.Cardinality
+	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.DomainSmall.Generator)
+	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
 	if err := pk.InitKZG(srs); err != nil {
@@ -116,12 +119,12 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	}
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
-	pk.Ql = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qr = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qm = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qo = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQk = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.LQk = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
 	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
@@ -143,11 +146,11 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 
-	pk.DomainSmall.FFTInverse(pk.Ql, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.Qr, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.Qm, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.Qo, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.CQk, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.Qr, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.Qm, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.Qo, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.CQk, fft.DIF)
 	fft.BitReverse(pk.Ql)
 	fft.BitReverse(pk.Qr)
 	fft.BitReverse(pk.Qm)
@@ -206,7 +209,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
-	sizeSolution := int(pk.DomainSmall.Cardinality)
+	sizeSolution := int(pk.Domain[0].Cardinality)
 
 	// init permutation
 	pk.Permutation = make([]int64, 3*sizeSolution)
@@ -262,10 +265,10 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
 func ccomputePermutationPolynomials(pk *ProvingKey) {
 
-	nbElmts := int(pk.DomainSmall.Cardinality)
+	nbElmts := int(pk.Domain[0].Cardinality)
 
 	// Lagrange form of ID
-	evaluationIDSmallDomain := getIDSmallDomain(&pk.DomainSmall)
+	evaluationIDSmallDomain := getIDSmallDomain(&pk.Domain[0])
 
 	// Lagrange form of S1, S2, S3
 	pk.S1Canonical = make([]fr.Element, nbElmts)
@@ -278,21 +281,21 @@ func ccomputePermutationPolynomials(pk *ProvingKey) {
 	}
 
 	// Canonical form of S1, S2, S3
-	pk.DomainSmall.FFTInverse(pk.S1Canonical, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.S2Canonical, fft.DIF)
-	pk.DomainSmall.FFTInverse(pk.S3Canonical, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.S1Canonical, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.S2Canonical, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.S3Canonical, fft.DIF)
 	fft.BitReverse(pk.S1Canonical)
 	fft.BitReverse(pk.S2Canonical)
 	fft.BitReverse(pk.S3Canonical)
 
 	// evaluation of permutation on the big domain
-	pk.EvaluationPermutationBigDomainBitReversed = make([]fr.Element, 3*pk.DomainBig.Cardinality)
+	pk.EvaluationPermutationBigDomainBitReversed = make([]fr.Element, 3*pk.Domain[1].Cardinality)
 	copy(pk.EvaluationPermutationBigDomainBitReversed, pk.S1Canonical)
-	copy(pk.EvaluationPermutationBigDomainBitReversed[pk.DomainBig.Cardinality:], pk.S2Canonical)
-	copy(pk.EvaluationPermutationBigDomainBitReversed[2*pk.DomainBig.Cardinality:], pk.S3Canonical)
-	pk.DomainBig.FFT(pk.EvaluationPermutationBigDomainBitReversed[:pk.DomainBig.Cardinality], fft.DIF, true)
-	pk.DomainBig.FFT(pk.EvaluationPermutationBigDomainBitReversed[pk.DomainBig.Cardinality:2*pk.DomainBig.Cardinality], fft.DIF, true)
-	pk.DomainBig.FFT(pk.EvaluationPermutationBigDomainBitReversed[2*pk.DomainBig.Cardinality:], fft.DIF, true)
+	copy(pk.EvaluationPermutationBigDomainBitReversed[pk.Domain[1].Cardinality:], pk.S2Canonical)
+	copy(pk.EvaluationPermutationBigDomainBitReversed[2*pk.Domain[1].Cardinality:], pk.S3Canonical)
+	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[:pk.Domain[1].Cardinality], fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[pk.Domain[1].Cardinality:2*pk.Domain[1].Cardinality], fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[2*pk.Domain[1].Cardinality:], fft.DIF, true)
 
 }
 
@@ -314,7 +317,7 @@ func getIDSmallDomain(domain *fft.Domain) []fr.Element {
 	return res
 }
 
-// InitKZG inits pk.Vk.KZG using pk.DomainSmall cardinality and provided SRS
+// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
 //
 // This should be used after deserializing a ProvingKey
 // as pk.Vk.KZG is NOT serialized

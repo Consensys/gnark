@@ -47,14 +47,14 @@ func TestProvingKeySerialization(t *testing.T) {
 	// random pk
 	var pk ProvingKey
 	pk.Vk = &vk
-	pk.DomainSmall = *fft.NewDomain(42)
-	pk.DomainBig = *fft.NewDomain(4 * 42)
-	pk.Ql = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qr = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qm = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.Qo = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQk = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.LQk = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.Domain[0] = *fft.NewDomain(42)
+	pk.Domain[1] = *fft.NewDomain(4 * 42)
+	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
 	for i := 0; i < 12; i++ {
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
@@ -62,7 +62,7 @@ func TestProvingKeySerialization(t *testing.T) {
 		pk.Qo[i].SetUint64(42)
 	}
 
-	pk.Permutation = make([]int64, 3*pk.DomainSmall.Cardinality)
+	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.Permutation[0] = -12
 	pk.Permutation[len(pk.Permutation)-1] = 8888
 
