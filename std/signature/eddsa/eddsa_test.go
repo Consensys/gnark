@@ -253,10 +253,3 @@ func TestEddsa(t *testing.T) {
 
 	}
 }
-
-// Bench
-func BenchmarkEdDSA(b *testing.B) {
-	var c eddsaCircuit
-	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
