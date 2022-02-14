@@ -36,6 +36,8 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
+var errUnsatisfiedConstraint = errors.New("unsatisfied constraint")
+
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {

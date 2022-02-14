@@ -95,9 +95,15 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	err = parallelSolve(cs.Levels, func(i int) error {
 		if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
-			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				err = fmt.Errorf("%w - %s", err, debugInfoStr)
+			// error can be from the hint functions, or because the constraint is not satisfied
+			// if the constraint is not satisfied, format the error either with debug info or with
+			// the inequality
+			if err == errUnsatisfiedConstraint {
+				if dID, ok := cs.MDebug[i]; ok {
+					err = errors.New(solution.logValue(cs.DebugInfo[dID]))
+				} else {
+					err = fmt.Errorf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
+				}
 			}
 			return fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
 		}
@@ -211,7 +217,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.
 		// or if we solved the unsolved wires with hint functions
 		var check fr.Element
 		if !check.Mul(a, b).Equal(c) {
-			return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+			return errUnsatisfiedConstraint
 		}
 		return nil
 	}
@@ -232,7 +238,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.
 			// we didn't actually ensure that a * b == c
 			var check fr.Element
 			if !check.Mul(a, b).Equal(c) {
-				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+				return errUnsatisfiedConstraint
 			}
 		}
 	case 2:
@@ -243,7 +249,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.
 		} else {
 			var check fr.Element
 			if !check.Mul(a, b).Equal(c) {
-				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+				return errUnsatisfiedConstraint
 			}
 		}
 	case 3:
