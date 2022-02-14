@@ -819,28 +819,3 @@ func TestNeg(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
-
-// Bench
-func BenchmarkDouble(b *testing.B) {
-	var c double
-	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkAddGeneric(b *testing.B) {
-	var c addGeneric
-	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkAddFixedPoint(b *testing.B) {
-	var c add
-	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkMustBeOnCurve(b *testing.B) {
-	var c mustBeOnCurve
-	ccsBench, _ := frontend.Compile(ecc.BN254, backend.GROTH16, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
