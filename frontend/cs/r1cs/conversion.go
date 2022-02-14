@@ -122,12 +122,14 @@ HINTLOOP:
 		}
 	}
 	for i := 0; i < len(cs.DebugInfo); i++ {
-
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
 			res.DebugInfo[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
 		}
 	}
+
+	// build levels
+	res.Levels = buildLevels(res)
 
 	switch cs.CurveID {
 	case ecc.BLS12_377:
@@ -145,6 +147,85 @@ HINTLOOP:
 	default:
 		panic("not implemtented")
 	}
+}
+
+func processLE(ccs compiled.R1CS, l compiled.LinearExpression, mWireToNode, mLevels map[int]int, nodeLevels []int, nodeLevel, cID int) int {
+	nbInputs := ccs.NbPublicVariables + ccs.NbSecretVariables
+
+	for _, t := range l {
+		wID := t.WireID()
+		if wID < nbInputs {
+			// it's a input, we ignore it
+			continue
+		}
+
+		// if we know a which constraint solves this wire, then it's a dependency
+		n, ok := mWireToNode[wID]
+		if ok {
+			if n != cID { // can happen with hints...
+				// we add a dependency, check if we need to increment our current level
+				if nodeLevels[n] >= nodeLevel {
+					nodeLevel = nodeLevels[n] + 1 // we are at the next level at least since we depend on it
+				}
+			}
+			continue
+		}
+
+		// check if it's a hint and mark all the output wires
+		if h, ok := ccs.MHints[wID]; ok {
+
+			for _, in := range h.Inputs {
+				switch t := in.(type) {
+				case compiled.Variable:
+					nodeLevel = processLE(ccs, t.LinExp, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+				case compiled.LinearExpression:
+					nodeLevel = processLE(ccs, t, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+				case compiled.Term:
+					nodeLevel = processLE(ccs, compiled.LinearExpression{t}, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+				}
+			}
+
+			for _, hwid := range h.Wires {
+				mWireToNode[hwid] = cID
+			}
+			continue
+		}
+
+		// mark this wire solved by current node
+		mWireToNode[wID] = cID
+	}
+
+	return nodeLevel
+}
+
+func buildLevels(ccs compiled.R1CS) [][]int {
+
+	mWireToNode := make(map[int]int, ccs.NbInternalVariables) // at which node we resolved which wire
+	nodeLevels := make([]int, len(ccs.Constraints))           // level of a node
+	mLevels := make(map[int]int)                              // level counts
+
+	for cID, c := range ccs.Constraints {
+
+		nodeLevel := 0
+
+		nodeLevel = processLE(ccs, c.L.LinExp, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+		nodeLevel = processLE(ccs, c.R.LinExp, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+		nodeLevel = processLE(ccs, c.O.LinExp, mWireToNode, mLevels, nodeLevels, nodeLevel, cID)
+		nodeLevels[cID] = nodeLevel
+		mLevels[nodeLevel]++
+
+	}
+
+	levels := make([][]int, len(mLevels))
+	for i := 0; i < len(levels); i++ {
+		levels[i] = make([]int, 0, mLevels[i])
+	}
+
+	for n, l := range nodeLevels {
+		levels[l] = append(levels[l], n)
+	}
+
+	return levels
 }
 
 func (cs *r1CS) SetSchema(s *schema.Schema) {

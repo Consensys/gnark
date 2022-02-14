@@ -84,11 +84,6 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		return solution.values, err
 	}
 
-	defer func() {
-		// release memory
-		solution.tmpHintsIO = nil
-	}()
-
 	// solution.values = [publicInputs | secretInputs | internalVariables ] -> we fill publicInputs | secretInputs
 	copy(solution.values, witness)
 	for i := 0; i < len(witness); i++ {
@@ -97,7 +92,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
 	// we instantiated all wires
-	solution.nbSolved += len(witness)
+	solution.nbSolved += uint64(len(witness))
 
 	// defer log printing once all solution.values are computed
 	defer solution.printLogs(opt.LoggerOut, cs.Logs)

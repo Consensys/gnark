@@ -18,6 +18,11 @@ package compiled
 type R1CS struct {
 	CS
 	Constraints []R1C
+
+	// each level contains independent constraints and can be parallelized
+	// it is guaranteed that all dependncies for constraints in a level l are solved
+	// in previous levels
+	Levels [][]int
 }
 
 // GetNbConstraints returns the number of constraints

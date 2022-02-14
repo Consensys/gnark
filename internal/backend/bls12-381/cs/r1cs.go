@@ -19,11 +19,12 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
+	"runtime"
 	"strings"
-
-	"github.com/fxamacker/cbor/v2"
+	"sync"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
@@ -32,6 +33,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"math"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
@@ -70,11 +72,6 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 		return make([]fr.Element, nbWires), err
 	}
 
-	defer func() {
-		// release memory
-		solution.tmpHintsIO = nil
-	}()
-
 	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
 		return solution.values, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
 	}
@@ -93,45 +90,117 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
 	// we instantiated all wires
-	solution.nbSolved += len(witness) + 1
+	solution.nbSolved += uint64(len(witness) + 1)
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
 	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
-	// check if there is an inconsistant constraint
-	var check fr.Element
-	var solved bool
+	if len(cs.Levels) != 0 {
 
-	// for each constraint
-	// we are guaranteed that each R1C contains at most one unsolved wire
-	// first we solve the unsolved wire (if any)
-	// then we check that the constraint is valid
-	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-	for i := 0; i < len(cs.Constraints); i++ {
-		// solve the constraint, this will compute the missing wire of the gate
-		solved, a[i], b[i], c[i], err = cs.solveConstraint(cs.Constraints[i], &solution)
-		if err != nil {
-			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
-			}
-			return solution.values, err
+		var wg sync.WaitGroup
+		chTasks := make(chan []int, runtime.NumCPU())
+		chError := make(chan error, runtime.NumCPU())
+
+		// start a pool
+		for i := 0; i < runtime.NumCPU(); i++ {
+			go func() {
+				for t := range chTasks {
+					for _, i := range t {
+						if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
+							if dID, ok := cs.MDebug[i]; ok {
+								debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+								err = fmt.Errorf("%w: %s", err, debugInfoStr)
+							}
+							chError <- err
+							wg.Done()
+							return
+						}
+					}
+					wg.Done()
+				}
+			}()
 		}
 
-		if solved {
-			// a[i] * b[i] == c[i], since we just computed it.
-			continue
-		}
+		// for each level, we push the tasks
+		for _, level := range cs.Levels {
 
-		// ensure a[i] * b[i] == c[i]
-		check.Mul(&a[i], &b[i])
-		if !check.Equal(&c[i]) {
-			errMsg := fmt.Sprintf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
-			if dID, ok := cs.MDebug[i]; ok {
-				errMsg = solution.logValue(cs.DebugInfo[dID])
+			const minWorkPerCPU = 50.0
+
+			// max CPU to use
+			maxCPU := float64(len(level)) / minWorkPerCPU
+			if maxCPU <= 1.0 {
+				// we do it sequentially
+				for _, n := range level {
+					i := n
+					if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
+						if dID, ok := cs.MDebug[int(i)]; ok {
+							debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+							err = fmt.Errorf("%w: %s", err, debugInfoStr)
+						}
+
+						close(chTasks)
+						close(chError)
+						return solution.values, err
+					}
+				}
+				continue
 			}
-			return solution.values, fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
+
+			nbTasks := runtime.NumCPU()
+			mm := int(math.Ceil(maxCPU))
+			if nbTasks > mm {
+				nbTasks = mm
+			}
+			nbIterationsPerCpus := len(level) / nbTasks
+
+			// more CPUs than tasks: a CPU will work on exactly one iteration
+			if nbIterationsPerCpus < 1 {
+				nbIterationsPerCpus = 1
+				nbTasks = len(level)
+			}
+
+			extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
+			extraTasksOffset := 0
+
+			for i := 0; i < nbTasks; i++ {
+				wg.Add(1)
+				_start := i*nbIterationsPerCpus + extraTasksOffset
+				_end := _start + nbIterationsPerCpus
+				if extraTasks > 0 {
+					_end++
+					extraTasks--
+					extraTasksOffset++
+				}
+				chTasks <- level[_start:_end]
+			}
+
+			wg.Wait()
+			if len(chError) > 0 {
+				close(chTasks)
+				close(chError)
+				return solution.values, <-chError
+			}
+		}
+		close(chTasks)
+		close(chError)
+
+	} else {
+
+		// for each constraint
+		// we are guaranteed that each R1C contains at most one unsolved wire
+		// first we solve the unsolved wire (if any)
+		// then we check that the constraint is valid
+		// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
+		for i := 0; i < len(cs.Constraints); i++ {
+			// solve the constraint, this will compute the missing wire of the gate
+			if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
+				if dID, ok := cs.MDebug[i]; ok {
+					debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+					return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
+				}
+				return solution.values, err
+			}
 		}
 	}
 
@@ -183,7 +252,7 @@ func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 // returns false, nil if there was no wire to solve
 // returns true, nil if exactly one wire was solved. In that case, it is redundant to check that
 // the constraint is satisfied later.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool, a, b, c fr.Element, err error) {
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.Element) error {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
@@ -220,28 +289,31 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool
 		return nil
 	}
 
-	if err = processLExp(r.L.LinExp, &a, 1); err != nil {
-		return
+	if err := processLExp(r.L.LinExp, a, 1); err != nil {
+		return err
 	}
 
-	if err = processLExp(r.R.LinExp, &b, 2); err != nil {
-		return
+	if err := processLExp(r.R.LinExp, b, 2); err != nil {
+		return err
 	}
 
-	if err = processLExp(r.O.LinExp, &c, 3); err != nil {
-		return
+	if err := processLExp(r.O.LinExp, c, 3); err != nil {
+		return err
 	}
 
 	if loc == 0 {
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
-		return
+		var check fr.Element
+		if !check.Mul(a, b).Equal(c) {
+			return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+		}
+		return nil
 	}
 
 	// we compute the wire value and instantiate it
-	solved = true
-	vID := termToCompute.WireID()
+	wID := termToCompute.WireID()
 
 	// solver result
 	var wire fr.Element
@@ -249,36 +321,41 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) (solved bool
 	switch loc {
 	case 1:
 		if !b.IsZero() {
-			wire.Div(&c, &b).
-				Sub(&wire, &a)
-			a.Add(&a, &wire)
+			wire.Div(c, b).
+				Sub(&wire, a)
+			a.Add(a, &wire)
 		} else {
 			// we didn't actually ensure that a * b == c
-			solved = false
+			var check fr.Element
+			if !check.Mul(a, b).Equal(c) {
+				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+			}
 		}
 	case 2:
 		if !a.IsZero() {
-			wire.Div(&c, &a).
-				Sub(&wire, &b)
-			b.Add(&b, &wire)
+			wire.Div(c, a).
+				Sub(&wire, b)
+			b.Add(b, &wire)
 		} else {
-			// we didn't actually ensure that a * b == c
-			solved = false
+			var check fr.Element
+			if !check.Mul(a, b).Equal(c) {
+				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+			}
 		}
 	case 3:
-		wire.Mul(&a, &b).
-			Sub(&wire, &c)
+		wire.Mul(a, b).
+			Sub(&wire, c)
 
-		c.Add(&c, &wire)
+		c.Add(c, &wire)
 	}
 
 	// wire is the term (coeff * value)
 	// but in the solution we want to store the value only
 	// note that in gnark frontend, coeff here is always 1 or -1
 	cs.divByCoeff(&wire, termToCompute)
-	solution.set(vID, wire)
+	solution.set(wID, wire)
 
-	return
+	return nil
 }
 
 // GetConstraints return a list of constraint formatted as L⋅R == O
