@@ -9,7 +9,7 @@ import (
 )
 
 // ShallowClone clones given circuit
-// this is actually a shallow copy --> if the circuits contains maps or slices
+// this is actually a shallow copy → if the circuits contains maps or slices
 // only the reference is copied.
 func ShallowClone(circuit frontend.Circuit) frontend.Circuit {
 

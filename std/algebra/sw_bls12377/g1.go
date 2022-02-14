@@ -137,7 +137,7 @@ func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
 	S = api.Sub(S, XX)
 	S = api.Sub(S, YYYY)
 	S = api.Add(S, S)
-	M = api.Mul(XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
+	M = api.Mul(XX, 3) // M = 3*XX+a*ZZ², here a=0 (we suppose sw has j invariant 0)
 	p.Z = api.Add(p.Z, p.Y)
 	p.Z = api.Mul(p.Z, p.Z)
 	p.Z = api.Sub(p.Z, YY)

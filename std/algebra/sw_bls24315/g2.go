@@ -183,7 +183,7 @@ func (p *G2Jac) Double(api frontend.API, p1 *G2Jac, ext fields_bls24315.Extensio
 	S.Sub(api, S, XX)
 	S.Sub(api, S, YYYY)
 	S.Add(api, S, S)
-	M.MulByFp(api, XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
+	M.MulByFp(api, XX, 3) // M = 3*XX+a*ZZ², here a=0 (we suppose sw has j invariant 0)
 	p.Z.Add(api, p.Z, p.Y)
 	p.Z.Square(api, p.Z, ext)
 	p.Z.Sub(api, p.Z, YY)

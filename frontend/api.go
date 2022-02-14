@@ -101,7 +101,7 @@ type API interface {
 	// AssertIsDifferent fails if i1 == i2
 	AssertIsDifferent(i1, i2 Variable)
 
-	// AssertIsBoolean fails if v != 0 || v != 1
+	// AssertIsBoolean fails if v != 0 ∥ v != 1
 	AssertIsBoolean(i1 Variable)
 
 	// AssertIsLessOrEqual fails if  v > bound

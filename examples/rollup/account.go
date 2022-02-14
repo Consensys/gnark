@@ -25,7 +25,7 @@ import (
 
 var (
 	// SizeAccount byte size of a serialized account (5*32bytes)
-	// index || nonce || balance || pubkeyX || pubkeyY, each chunk is 32 bytes
+	// index ∥ nonce ∥ balance ∥ pubkeyX ∥ pubkeyY, each chunk is 32 bytes
 	SizeAccount = 160
 )
 
@@ -48,7 +48,7 @@ func (ac *Account) Reset() {
 
 // Serialize serializes the account as a concatenation of 5 chunks of 256 bits
 // one chunk per field (pubKey has 2 chunks), except index and nonce that are concatenated in a single 256 bits chunk
-// index || nonce || balance || pubkeyX || pubkeyY, each chunk is 256 bits
+// index ∥ nonce ∥ balance ∥ pubkeyX ∥ pubkeyY, each chunk is 256 bits
 func (ac *Account) Serialize() []byte {
 
 	//var buffer bytes.Buffer

@@ -146,7 +146,7 @@ func (system *r1CS) one() compiled.Variable {
 
 // reduces redundancy in linear expression
 // It factorizes Variable that appears multiple times with != coeff Ids
-// To ensure the determinism in the compile process, Variables are stored as public||secret||internal||unset
+// To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
 func (system *r1CS) reduce(l compiled.Variable) compiled.Variable {
 	// ensure our linear expression is sorted, by visibility and by Variable ID
@@ -311,7 +311,7 @@ func (system *r1CS) CheckVariables() error {
 		sbb.WriteString(strconv.Itoa(cptHints))
 		sbb.WriteString(" unconstrained hints")
 		sbb.WriteByte('\n')
-		// TODO we may add more debug info here --> idea, in NewHint, take the debug stack, and store in the hint map some
+		// TODO we may add more debug info here → idea, in NewHint, take the debug stack, and store in the hint map some
 		// debugInfo to find where a hint was declared (and not constrained)
 	}
 	return errors.New(sbb.String())
