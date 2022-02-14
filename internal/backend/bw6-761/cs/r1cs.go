@@ -83,7 +83,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	solution.solved[0] = true // ONE_WIRE
 	solution.values[0].SetOne()
-	copy(solution.values[1:], witness) // TODO factorize
+	copy(solution.values[1:], witness)
 	for i := 0; i < len(witness); i++ {
 		solution.solved[i+1] = true
 	}
@@ -96,112 +96,8 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	// (or sooner, if a constraint is not satisfied)
 	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
-	if len(cs.Levels) != 0 {
-
-		var wg sync.WaitGroup
-		chTasks := make(chan []int, runtime.NumCPU())
-		chError := make(chan error, runtime.NumCPU())
-
-		// start a pool
-		for i := 0; i < runtime.NumCPU(); i++ {
-			go func() {
-				for t := range chTasks {
-					for _, i := range t {
-						if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
-							if dID, ok := cs.MDebug[i]; ok {
-								debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-								err = fmt.Errorf("%w: %s", err, debugInfoStr)
-							}
-							chError <- err
-							wg.Done()
-							return
-						}
-					}
-					wg.Done()
-				}
-			}()
-		}
-
-		// for each level, we push the tasks
-		for _, level := range cs.Levels {
-
-			const minWorkPerCPU = 50.0
-
-			// max CPU to use
-			maxCPU := float64(len(level)) / minWorkPerCPU
-			if maxCPU <= 1.0 {
-				// we do it sequentially
-				for _, n := range level {
-					i := n
-					if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
-						if dID, ok := cs.MDebug[int(i)]; ok {
-							debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-							err = fmt.Errorf("%w: %s", err, debugInfoStr)
-						}
-
-						close(chTasks)
-						close(chError)
-						return solution.values, err
-					}
-				}
-				continue
-			}
-
-			nbTasks := runtime.NumCPU()
-			mm := int(math.Ceil(maxCPU))
-			if nbTasks > mm {
-				nbTasks = mm
-			}
-			nbIterationsPerCpus := len(level) / nbTasks
-
-			// more CPUs than tasks: a CPU will work on exactly one iteration
-			if nbIterationsPerCpus < 1 {
-				nbIterationsPerCpus = 1
-				nbTasks = len(level)
-			}
-
-			extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
-			extraTasksOffset := 0
-
-			for i := 0; i < nbTasks; i++ {
-				wg.Add(1)
-				_start := i*nbIterationsPerCpus + extraTasksOffset
-				_end := _start + nbIterationsPerCpus
-				if extraTasks > 0 {
-					_end++
-					extraTasks--
-					extraTasksOffset++
-				}
-				chTasks <- level[_start:_end]
-			}
-
-			wg.Wait()
-			if len(chError) > 0 {
-				close(chTasks)
-				close(chError)
-				return solution.values, <-chError
-			}
-		}
-		close(chTasks)
-		close(chError)
-
-	} else {
-
-		// for each constraint
-		// we are guaranteed that each R1C contains at most one unsolved wire
-		// first we solve the unsolved wire (if any)
-		// then we check that the constraint is valid
-		// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-		for i := 0; i < len(cs.Constraints); i++ {
-			// solve the constraint, this will compute the missing wire of the gate
-			if err := cs.solveConstraint(cs.Constraints[i], &solution, &a[i], &b[i], &c[i]); err != nil {
-				if dID, ok := cs.MDebug[i]; ok {
-					debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-					return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
-				}
-				return solution.values, err
-			}
-		}
+	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
+		return solution.values, err
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
@@ -210,6 +106,117 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	}
 
 	return solution.values, nil
+}
+
+func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
+	// minWorkPerCPU is the minimum target number of constraint a task should hold
+	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
+	// sequentially without sync.
+	const minWorkPerCPU = 50.0
+
+	// cs.Levels has a list of levels, where all constraints in a level l(n) are independent
+	// and may only have dependencies on previous levels
+	// for each constraint
+	// we are guaranteed that each R1C contains at most one unsolved wire
+	// first we solve the unsolved wire (if any)
+	// then we check that the constraint is valid
+	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
+
+	var wg sync.WaitGroup
+	chTasks := make(chan []int, runtime.NumCPU())
+	chError := make(chan error, runtime.NumCPU())
+
+	// start a worker pool
+	// each worker wait on chTasks
+	// a task is a slice of constraint indexes to be solved
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go func() {
+			for t := range chTasks {
+				for _, i := range t {
+					// for each constraint in the task, solve it.
+					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+						if dID, ok := cs.MDebug[i]; ok {
+							debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+							err = fmt.Errorf("%w: %s", err, debugInfoStr)
+						}
+						chError <- err
+						wg.Done()
+						return
+					}
+				}
+				wg.Done()
+			}
+		}()
+	}
+
+	// clean up pool go routines
+	defer func() {
+		close(chTasks)
+		close(chError)
+	}()
+
+	// for each level, we push the tasks
+	for _, level := range cs.Levels {
+
+		// max CPU to use
+		maxCPU := float64(len(level)) / minWorkPerCPU
+
+		if maxCPU <= 1.0 {
+			// we do it sequentially
+			for _, i := range level {
+				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+					if dID, ok := cs.MDebug[int(i)]; ok {
+						debugInfoStr := solution.logValue(cs.DebugInfo[dID])
+						err = fmt.Errorf("%w: %s", err, debugInfoStr)
+					}
+					return err
+				}
+			}
+			continue
+		}
+
+		// number of tasks for this level is set to num cpus
+		// but if we don't have enough work for all our CPUS, it can be lower.
+		nbTasks := runtime.NumCPU()
+		maxTasks := int(math.Ceil(maxCPU))
+		if nbTasks > maxTasks {
+			nbTasks = maxTasks
+		}
+		nbIterationsPerCpus := len(level) / nbTasks
+
+		// more CPUs than tasks: a CPU will work on exactly one iteration
+		// note: this depends on minWorkPerCPU constant
+		if nbIterationsPerCpus < 1 {
+			nbIterationsPerCpus = 1
+			nbTasks = len(level)
+		}
+
+		extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
+		extraTasksOffset := 0
+
+		for i := 0; i < nbTasks; i++ {
+			wg.Add(1)
+			_start := i*nbIterationsPerCpus + extraTasksOffset
+			_end := _start + nbIterationsPerCpus
+			if extraTasks > 0 {
+				_end++
+				extraTasks--
+				extraTasksOffset++
+			}
+			// since we're never pushing more than num CPU tasks
+			// we will never be blocked here
+			chTasks <- level[_start:_end]
+		}
+
+		// wait for the level to be done
+		wg.Wait()
+
+		if len(chError) > 0 {
+			return <-chError
+		}
+	}
+
+	return nil
 }
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
