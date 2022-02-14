@@ -148,7 +148,7 @@ func buildLevels(ccs compiled.SparseR1CS) [][]int {
 		mWireToNode: make(map[int]int, ccs.NbInternalVariables), // at which node we resolved which wire
 		nodeLevels:  make([]int, len(ccs.Constraints)),          // level of a node
 		mLevels:     make(map[int]int),                          // level counts
-		ccs:         ccs.CS,
+		ccs:         ccs,
 		nbInputs:    ccs.NbPublicVariables + ccs.NbSecretVariables,
 	}
 
@@ -183,7 +183,7 @@ func buildLevels(ccs compiled.SparseR1CS) [][]int {
 }
 
 type levelBuilder struct {
-	ccs      compiled.CS
+	ccs      compiled.SparseR1CS
 	nbInputs int
 
 	mWireToNode map[int]int // at which node we resolved which wire
