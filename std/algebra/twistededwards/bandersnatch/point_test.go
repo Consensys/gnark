@@ -55,8 +55,8 @@ func TestIsOnCurve(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	witness.P.X = (params.BaseX)
-	witness.P.Y = (params.BaseY)
+	witness.P.X = (params.Base.X)
+	witness.P.Y = (params.Base.Y)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
 
@@ -74,7 +74,10 @@ func (circuit *add) Define(api frontend.API) error {
 		return err
 	}
 
-	res := circuit.P.AddFixedPoint(api, &circuit.P, params.BaseX, params.BaseY, params)
+	p := Point{}
+	p.X = params.Base.X
+	p.Y = params.Base.Y
+	res := circuit.P.Add(api, &circuit.P, &p, params)
 
 	api.AssertIsEqual(res.X, circuit.E.X)
 	api.AssertIsEqual(res.Y, circuit.E.Y)
@@ -94,8 +97,8 @@ func TestAddFixedPoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, point, expected bandersnatch.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	point.Set(&base)
 	r := big.NewInt(5)
 	point.ScalarMul(&point, r)
@@ -112,6 +115,9 @@ func TestAddFixedPoint(t *testing.T) {
 
 }
 
+//-------------------------------------------------------------
+// addGeneric
+
 type addGeneric struct {
 	P1, P2, E Point
 }
@@ -124,7 +130,7 @@ func (circuit *addGeneric) Define(api frontend.API) error {
 		return err
 	}
 
-	res := circuit.P1.AddGeneric(api, &circuit.P1, &circuit.P2, params)
+	res := circuit.P1.Add(api, &circuit.P1, &circuit.P2, params)
 
 	api.AssertIsEqual(res.X, circuit.E.X)
 	api.AssertIsEqual(res.Y, circuit.E.Y)
@@ -143,8 +149,8 @@ func TestAddGeneric(t *testing.T) {
 		t.Fatal(err)
 	}
 	var point1, point2, expected bandersnatch.PointAffine
-	point1.X.SetBigInt(&params.BaseX)
-	point1.Y.SetBigInt(&params.BaseY)
+	point1.X.SetBigInt(&params.Base.X)
+	point1.Y.SetBigInt(&params.Base.Y)
 	point2.Set(&point1)
 	r1 := big.NewInt(5)
 	r2 := big.NewInt(12)
@@ -165,6 +171,8 @@ func TestAddGeneric(t *testing.T) {
 
 }
 
+//-------------------------------------------------------------
+// Double
 type double struct {
 	P, E Point
 }
@@ -197,8 +205,8 @@ func TestDouble(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, expected bandersnatch.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	expected.Double(&base)
 
 	// populate witness
@@ -225,8 +233,10 @@ func (circuit *scalarMulFixed) Define(api frontend.API) error {
 		return err
 	}
 
-	var resFixed Point
-	resFixed.ScalarMulFixedBase(api, params.BaseX, params.BaseY, circuit.S, params)
+	var resFixed, p Point
+	p.X = params.Base.X
+	p.Y = params.Base.Y
+	resFixed.ScalarMul(api, &p, circuit.S, params)
 
 	api.AssertIsEqual(resFixed.X, circuit.E.X)
 	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
@@ -246,8 +256,8 @@ func TestScalarMulFixed(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, expected bandersnatch.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	r := big.NewInt(928323002)
 	expected.ScalarMul(&base, r)
 
@@ -274,7 +284,7 @@ func (circuit *scalarMulGeneric) Define(api frontend.API) error {
 		return err
 	}
 
-	resGeneric := circuit.P.ScalarMulNonFixedBase(api, &circuit.P, circuit.S, params)
+	resGeneric := circuit.P.ScalarMul(api, &circuit.P, circuit.S, params)
 
 	api.AssertIsEqual(resGeneric.X, circuit.E.X)
 	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
@@ -294,8 +304,8 @@ func TestScalarMulGeneric(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, point, expected bandersnatch.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	s := big.NewInt(902)
 	point.ScalarMul(&base, s) // random point
 	r := big.NewInt(230928302)
@@ -336,8 +346,8 @@ func TestNeg(t *testing.T) {
 		t.Fatal(err)
 	}
 	var base, expected bandersnatch.PointAffine
-	base.X.SetBigInt(&params.BaseX)
-	base.Y.SetBigInt(&params.BaseY)
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
 	expected.Neg(&base)
 
 	// generate witness
@@ -351,25 +361,39 @@ func TestNeg(t *testing.T) {
 
 }
 
-// benches
-
-var ccsBench frontend.CompiledConstraintSystem
-
-func BenchmarkScalarMulG1(b *testing.B) {
-	var c scalarMulGeneric
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
-		}
-
-	})
+// Bench
+func BenchmarkDouble(b *testing.B) {
+	var c double
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BLS12_381, backend.PLONK, &c)
-		}
+}
 
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
+func BenchmarkAddGeneric(b *testing.B) {
+	var c addGeneric
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
 
+func BenchmarkAddFixedPoint(b *testing.B) {
+	var c add
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkMustBeOnCurve(b *testing.B) {
+	var c mustBeOnCurve
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkScalarMulGeneric(b *testing.B) {
+	var c scalarMulGeneric
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkScalarMulFixed(b *testing.B) {
+	var c scalarMulFixed
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
 }
