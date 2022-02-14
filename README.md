@@ -13,6 +13,7 @@ src="logo_new.png">
 ## Useful Links
 
 * [`gnark` User Documentation]
+* [`gnark` Playground]
 * [`gnark` Issues]
 * [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
 
@@ -29,6 +30,8 @@ You can also get in touch directly: gnark@consensys.net
 
 
 To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
+
+Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
 
 
 ## Release Notes
@@ -136,6 +139,7 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 
 
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
+[`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/en/latest/
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
 [Proving schemes and curves]: https://docs.gnark.consensys.net/en/latest/Concepts/schemes_curves/
