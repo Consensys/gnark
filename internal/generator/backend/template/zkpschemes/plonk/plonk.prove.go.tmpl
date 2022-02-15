@@ -7,7 +7,6 @@ import (
 
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
-	{{ template "import_polynomial" . }}
 	{{ template "import_kzg" . }}
 	{{ template "import_fft" . }}
 	{{ template "import_witness" . }}
@@ -247,8 +246,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
 		blindedZCanonical,
-		&zetaShifted,
-		&pk.Domain[1],
+		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {
@@ -317,7 +315,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 
 	// Batch open the first list of polynomials
 	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		[]polynomial.Polynomial{
+		[][]fr.Element{
 			foldedH,
 			linearizedPolynomialCanonical,
 			blindedLCanonical,
@@ -335,9 +333,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 			pk.Vk.S[0],
 			pk.Vk.S[1],
 		},
-		&zeta,
+		zeta,
 		hFunc,
-		&pk.Domain[1],
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {
