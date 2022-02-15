@@ -38,6 +38,11 @@ type CS struct {
 	MHints map[int]*Hint
 
 	Schema *schema.Schema
+
+	// each level contains independent constraints and can be parallelized
+	// it is guaranteed that all dependncies for constraints in a level l are solved
+	// in previous levels
+	Levels [][]int
 }
 
 // Hint represents a solver hint

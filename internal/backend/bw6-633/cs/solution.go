@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
@@ -32,14 +33,15 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 )
 
+var errUnsatisfiedConstraint = errors.New("unsatisfied")
+
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
-	nbSolved             int
+	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function
-	tmpHintsIO           []*big.Int
 }
 
 func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
@@ -49,7 +51,6 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
-		tmpHintsIO:      make([]*big.Int, 0),
 	}
 
 	for _, h := range hintFunctions {
@@ -68,11 +69,12 @@ func (s *solution) set(id int, value fr.Element) {
 	}
 	s.values[id] = value
 	s.solved[id] = true
-	s.nbSolved++
+	atomic.AddUint64(&s.nbSolved, 1)
+	// s.nbSolved++
 }
 
 func (s *solution) isValid() bool {
-	return s.nbSolved == len(s.values)
+	return int(s.nbSolved) == len(s.values)
 }
 
 // computeTerm computes coef*variable
@@ -147,15 +149,21 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
 	nbOutputs := f.NbOutputs(curve.ID, len(h.Inputs))
-	m := len(s.tmpHintsIO)
-	if m < (nbInputs + nbOutputs) {
-		s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs+nbInputs)-m)...)
-		for i := m; i < len(s.tmpHintsIO); i++ {
-			s.tmpHintsIO[i] = big.NewInt(0)
-		}
+	// m := len(s.tmpHintsIO)
+	// if m < (nbInputs + nbOutputs) {
+	// 	s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs + nbInputs) - m)...)
+	// 	for i := m; i < len(s.tmpHintsIO); i++ {
+	// 		s.tmpHintsIO[i] = big.NewInt(0)
+	// 	}
+	// }
+	inputs := make([]*big.Int, nbInputs)
+	outputs := make([]*big.Int, nbOutputs)
+	for i := 0; i < nbInputs; i++ {
+		inputs[i] = big.NewInt(0)
 	}
-	inputs := s.tmpHintsIO[:nbInputs]
-	outputs := s.tmpHintsIO[nbInputs : nbInputs+nbOutputs]
+	for i := 0; i < nbOutputs; i++ {
+		outputs[i] = big.NewInt(0)
+	}
 
 	q := fr.Modulus()
 
