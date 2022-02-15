@@ -95,7 +95,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(len(r1cs.Constraints)), 1, true)
+	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -415,7 +415,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	nbConstraints := len(r1cs.Constraints)
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(nbConstraints), 1, true)
+	domain := fft.NewDomain(uint64(nbConstraints))
 
 	// count number of infinity points we would have had we a normal setup
 	// in pk.G1.A, pk.G1.B, and pk.G2.B

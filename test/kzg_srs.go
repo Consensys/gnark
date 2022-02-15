@@ -34,7 +34,7 @@ import (
 const srsCachedSize = (1 << 14) + 3
 
 // NewKZGSRS uses ccs nb variables and nb constraints to initialize a kzg srs
-// for sizes < 2^15, returns a pre-computed cached SRS
+// for sizes < 2¹⁵, returns a pre-computed cached SRS
 //
 // /!\ warning /!\: this method is here for convenience only: in production, a SRS generated through MPC should be used.
 func NewKZGSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {

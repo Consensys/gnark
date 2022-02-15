@@ -281,18 +281,18 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	c = append(c, padding...)
 	n = len(a)
 
-	domain.FFTInverse(a, fft.DIF, 0)
-	domain.FFTInverse(b, fft.DIF, 0)
-	domain.FFTInverse(c, fft.DIF, 0)
+	domain.FFTInverse(a, fft.DIF)
+	domain.FFTInverse(b, fft.DIF)
+	domain.FFTInverse(c, fft.DIF)
 
-	domain.FFT(a, fft.DIT, 1)
-	domain.FFT(b, fft.DIT, 1)
-	domain.FFT(c, fft.DIT, 1)
+	domain.FFT(a, fft.DIT, true)
+	domain.FFT(b, fft.DIT, true)
+	domain.FFT(c, fft.DIT, true)
 
-	var minusTwoInv fr.Element
-	minusTwoInv.SetUint64(2)
-	minusTwoInv.Neg(&minusTwoInv).
-		Inverse(&minusTwoInv)
+	var den, one fr.Element
+	one.SetOne()
+	den.Exp(domain.FrMultiplicativeGen, big.NewInt(int64(domain.Cardinality)))
+	den.Sub(&den, &one).Inverse(&den)
 
 	// h = ifft_coset(ca o cb - cc)
 	// reusing a to avoid unecessary memalloc
@@ -300,12 +300,12 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).
 				Sub(&a[i], &c[i]).
-				Mul(&a[i], &minusTwoInv)
+				Mul(&a[i], &den)
 		}
 	})
 
 	// ifft_coset
-	domain.FFTInverse(a, fft.DIF, 1)
+	domain.FFTInverse(a, fft.DIF, true)
 
 	utils.Parallelize(len(a), func(start, end int) {
 		for i := start; i < end; i++ {

@@ -109,7 +109,7 @@ func (e *E12) MulByFp2(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
 	return e
 }
 
-// MulByNonResidue multiplies e by the imaginary elmt of Fp12 (noted a+bV+cV where V**3 in F^2)
+// MulByNonResidue multiplies e by the imaginary elmt of Fp12 (noted a+bV+cV where V**3 in F²)
 func (e *E12) MulByNonResidue(api frontend.API, e1 E12, ext Extension) *E12 {
 	res := E12{}
 	res.C0.MulByNonResidue(api, e1.C2, ext)
