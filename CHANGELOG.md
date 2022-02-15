@@ -1,11 +1,41 @@
+<a name="v0.6.4"></a>
+
+## [v0.6.4] - 2022-02-15
+
+### Build
+
+- update to gnark-crpto v0.6.1
+
+### Feat
+
+- Constraint system solvers (Groth16 and PlonK) now run in parallel
+
+### Fix
+
+- `api.DivUnchecked` with PlonK between 2 constants was incorrect
+
+### Perf
+
+- **EdDSA:** `std/algebra/twistededwards` takes ~2K less constraints (Groth16). Bandersnatch benefits from same improvments.
+
+
+### Pull Requests
+
+- Merge pull request [#259](https://github.com/consensys/gnark/issues/259) from ConsenSys/perf-parallel-solver
+- Merge pull request [#261](https://github.com/consensys/gnark/issues/261) from ConsenSys/feat/kzg_updated
+- Merge pull request [#257](https://github.com/consensys/gnark/issues/257) from ConsenSys/perf/EdDSA
+- Merge pull request [#253](https://github.com/consensys/gnark/issues/253) from ConsenSys/feat/fft_cosets
+
 <a name="v0.6.3"></a>
 
 ## [v0.6.3] - 2022-02-13
 
 ### Feat
+
 - MiMC changes: api doesn't take a "seed" parameter. MiMC impl matches Ethereum one. 
 
 ### Fix
+
 - fixes [#255](https://github.com/consensys/gnark/issues/255) variable visibility inheritance regression
 - counter was set with PLONK backend ID in R1CS
 - R1CS Solver was incorrectly calling a "MulByCoeff" instead of "DivByCoeff" (no impact, coeff was always 1 or -1)
@@ -13,6 +43,7 @@
 
 
 ### Pull Requests
+
 - Merge pull request [#256](https://github.com/consensys/gnark/issues/256) from ConsenSys/fix-bug-compile-visibility
 - Merge pull request [#249](https://github.com/consensys/gnark/issues/249) from ConsenSys/perf-ccs-hint
 - Merge pull request [#248](https://github.com/consensys/gnark/issues/248) from ConsenSys/perf-ccs-solver
@@ -24,9 +55,11 @@
 ## [v0.6.1] - 2022-01-28
 
 ### Build
+
 - go version dependency bumped from 1.16 to 1.17
 
 ### Feat
+
 - added witness.MarshalJSON and witness.MarshalBinary
 - added `ccs.GetSchema()` - the schema of a circuit is required for witness json (de)serialization
 - added `ccs.GetConstraints()` - returns a list of human-readable constraints
@@ -35,6 +68,7 @@
 - addition of `Cmp` in the circuit API
 
 ### Refactor
+
 - compiled.Visbility -> schema.Visibiility
 - witness.WriteSequence -> schema.WriteSequence
 - killed `ReadAndProve` and `ReadAndVerify` (plonk)
@@ -42,11 +76,13 @@
 - remove embbed struct tag for frontend.Variable fields
 
 ### Docs
+
 - **backend:** unify documentation for options
 - **frontend:** unify docs for options
 - **test:** unify documentation for options
 
 ### Pull Requests
+
 - Merge pull request [#244](https://github.com/consensys/gnark/issues/244) from ConsenSys/plonk-human-readable
 - Merge pull request [#237](https://github.com/consensys/gnark/issues/237) from ConsenSys/ccs-get-constraints
 - Merge pull request [#233](https://github.com/consensys/gnark/issues/233) from ConsenSys/feat/api_cmp
