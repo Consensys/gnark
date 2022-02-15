@@ -205,6 +205,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		vk.S[1],
 	},
 		&proof.BatchedProof,
+		zeta,
 		hFunc,
 	)
 	if err != nil {
@@ -212,6 +213,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	}
 
 	// Batch verify
+	var shiftedZeta fr.Element
+	shiftedZeta.Mul(&zeta, &vk.Generator)
 	return kzg.BatchVerifyMultiPoints([]kzg.Digest{
 		foldedDigest,
 		proof.Z,
@@ -219,6 +222,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		[]kzg.OpeningProof{
 			foldedProof,
 			proof.ZShiftedOpening,
+		},
+		[]fr.Element{
+			zeta,
+			shiftedZeta,
 		},
 		vk.KZGSRS,
 	)
