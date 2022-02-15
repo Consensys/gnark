@@ -120,7 +120,7 @@ func (system *sparseR1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variab
 		q := system.CurveID.Info().Fr.Modulus()
 		return r.ModInverse(&r, q).
 			Mul(&l, &r).
-			Mod(&l, q)
+			Mod(&r, q)
 	}
 	if system.IsConstant(i2) {
 		c := utils.FromInterface(i2)

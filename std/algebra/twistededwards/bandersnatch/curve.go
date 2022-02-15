@@ -25,10 +25,16 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// Coordinates of a point on a twisted Edwards curve
+type Coord struct {
+	X, Y big.Int
+}
+
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
-	A, D, Cofactor, Order, BaseX, BaseY big.Int
-	ID                                  ecc.ID
+	A, D, Cofactor, Order big.Int
+	Base                  Coord
+	ID                    ecc.ID
 }
 
 var constructors map[ecc.ID]func() EdCurve
@@ -60,9 +66,11 @@ func newBandersnatch() EdCurve {
 		D:        utils.FromInterface(edcurve.D),
 		Cofactor: utils.FromInterface(edcurve.Cofactor),
 		Order:    utils.FromInterface(edcurve.Order),
-		BaseX:    utils.FromInterface(edcurve.Base.X),
-		BaseY:    utils.FromInterface(edcurve.Base.Y),
-		ID:       ecc.BLS12_381,
+		Base: Coord{
+			X: utils.FromInterface(edcurve.Base.X),
+			Y: utils.FromInterface(edcurve.Base.Y),
+		},
+		ID: ecc.BLS12_381,
 	}
 
 }
