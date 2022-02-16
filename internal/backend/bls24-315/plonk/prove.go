@@ -27,8 +27,6 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
-
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
@@ -270,8 +268,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
 		blindedZCanonical,
-		&zetaShifted,
-		&pk.Domain[1],
+		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {
@@ -340,7 +337,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 
 	// Batch open the first list of polynomials
 	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		[]polynomial.Polynomial{
+		[][]fr.Element{
 			foldedH,
 			linearizedPolynomialCanonical,
 			blindedLCanonical,
@@ -358,9 +355,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 			pk.Vk.S[0],
 			pk.Vk.S[1],
 		},
-		&zeta,
+		zeta,
 		hFunc,
-		&pk.Domain[1],
 		pk.Vk.KZGSRS,
 	)
 	if err != nil {

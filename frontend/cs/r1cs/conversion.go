@@ -122,12 +122,14 @@ HINTLOOP:
 		}
 	}
 	for i := 0; i < len(cs.DebugInfo); i++ {
-
 		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
 			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
 			res.DebugInfo[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
 		}
 	}
+
+	// build levels
+	res.Levels = buildLevels(res)
 
 	switch cs.CurveID {
 	case ecc.BLS12_377:
@@ -149,4 +151,100 @@ HINTLOOP:
 
 func (cs *r1CS) SetSchema(s *schema.Schema) {
 	cs.Schema = s
+}
+
+func buildLevels(ccs compiled.R1CS) [][]int {
+
+	b := levelBuilder{
+		mWireToNode: make(map[int]int, ccs.NbInternalVariables), // at which node we resolved which wire
+		nodeLevels:  make([]int, len(ccs.Constraints)),          // level of a node
+		mLevels:     make(map[int]int),                          // level counts
+		ccs:         ccs,
+		nbInputs:    ccs.NbPublicVariables + ccs.NbSecretVariables,
+	}
+
+	// for each constraint, we're going to find its direct dependencies
+	// that is, wires (solved by previous constraints) on which it depends
+	// each of these dependencies is tagged with a level
+	// current constraint will be tagged with max(level) + 1
+	for cID, c := range ccs.Constraints {
+
+		b.nodeLevel = 0
+
+		b.processLE(c.L.LinExp, cID)
+		b.processLE(c.R.LinExp, cID)
+		b.processLE(c.O.LinExp, cID)
+		b.nodeLevels[cID] = b.nodeLevel
+		b.mLevels[b.nodeLevel]++
+
+	}
+
+	levels := make([][]int, len(b.mLevels))
+	for i := 0; i < len(levels); i++ {
+		// allocate memory
+		levels[i] = make([]int, 0, b.mLevels[i])
+	}
+
+	for n, l := range b.nodeLevels {
+		levels[l] = append(levels[l], n)
+	}
+
+	return levels
+}
+
+type levelBuilder struct {
+	ccs      compiled.R1CS
+	nbInputs int
+
+	mWireToNode map[int]int // at which node we resolved which wire
+	nodeLevels  []int       // level per node
+	mLevels     map[int]int // number of constraint per level
+
+	nodeLevel int // current level
+}
+
+func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
+
+	for _, t := range l {
+		wID := t.WireID()
+		if wID < b.nbInputs {
+			// it's a input, we ignore it
+			continue
+		}
+
+		// if we know a which constraint solves this wire, then it's a dependency
+		n, ok := b.mWireToNode[wID]
+		if ok {
+			if n != cID { // can happen with hints...
+				// we add a dependency, check if we need to increment our current level
+				if b.nodeLevels[n] >= b.nodeLevel {
+					b.nodeLevel = b.nodeLevels[n] + 1 // we are at the next level at least since we depend on it
+				}
+			}
+			continue
+		}
+
+		// check if it's a hint and mark all the output wires
+		if h, ok := b.ccs.MHints[wID]; ok {
+
+			for _, in := range h.Inputs {
+				switch t := in.(type) {
+				case compiled.Variable:
+					b.processLE(t.LinExp, cID)
+				case compiled.LinearExpression:
+					b.processLE(t, cID)
+				case compiled.Term:
+					b.processLE(compiled.LinearExpression{t}, cID)
+				}
+			}
+
+			for _, hwid := range h.Wires {
+				b.mWireToNode[hwid] = cID
+			}
+			continue
+		}
+
+		// mark this wire solved by current node
+		b.mWireToNode[wID] = cID
+	}
 }
