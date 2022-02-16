@@ -323,6 +323,114 @@ func TestScalarMulGeneric(t *testing.T) {
 
 }
 
+type endomorphism struct {
+	P, E Point
+}
+
+func (circuit *endomorphism) Define(api frontend.API) error {
+
+	// get edwards curve params
+	params, err := NewEdCurve(api.Curve())
+	if err != nil {
+		return err
+	}
+
+	res := circuit.P.phi(api, &circuit.P, params)
+
+	api.AssertIsEqual(res.X, circuit.E.X)
+	api.AssertIsEqual(res.Y, circuit.E.Y)
+
+	return nil
+}
+
+func TestEndomorphism(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	var circuit, witness endomorphism
+
+	// generate witness data
+	params, err := NewEdCurve(ecc.BLS12_381)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base, point, expected bandersnatch.PointAffine
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
+	s := big.NewInt(9027)
+	point.ScalarMul(&base, s) // random point
+	expected.ScalarMul(&point, &params.lambda)
+
+	// populate witness
+	witness.P.X = (point.X.String())
+	witness.P.Y = (point.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
+
+	// creates r1cs
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
+
+}
+
+type doubleScalarMulGeneric struct {
+	P1, P2, E Point
+	S1, S2    frontend.Variable
+}
+
+func (circuit *doubleScalarMulGeneric) Define(api frontend.API) error {
+
+	// get edwards curve params
+	params, err := NewEdCurve(api.Curve())
+	if err != nil {
+		return err
+	}
+
+	resGeneric := circuit.P1.DoubleBaseScalarMul(api, &circuit.P1, &circuit.P2, circuit.S1, circuit.S2, params)
+
+	api.AssertIsEqual(resGeneric.X, circuit.E.X)
+	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
+
+	return nil
+}
+
+func TestDoubleScalarMulGeneric(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	var circuit, witness doubleScalarMulGeneric
+
+	params, err := NewEdCurve(ecc.BLS12_381)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var base, point1, point2, tmp, expected bandersnatch.PointAffine
+	base.X.SetBigInt(&params.Base.X)
+	base.Y.SetBigInt(&params.Base.Y)
+	s1 := big.NewInt(902)
+	s2 := big.NewInt(891)
+	point1.ScalarMul(&base, s1) // random point
+	point2.ScalarMul(&base, s2) // random point
+	r1 := big.NewInt(230928303)
+	r2 := big.NewInt(2830309)
+	tmp.ScalarMul(&point1, r1)
+	expected.ScalarMul(&point2, r2).
+		Add(&expected, &tmp)
+
+	// populate witness
+	witness.P1.X = (point1.X.String())
+	witness.P1.Y = (point1.Y.String())
+	witness.P2.X = (point2.X.String())
+	witness.P2.Y = (point2.Y.String())
+	witness.E.X = (expected.X.String())
+	witness.E.Y = (expected.Y.String())
+	witness.S1 = (r1)
+	witness.S2 = (r2)
+
+	// creates r1cs
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_381))
+}
+
 type neg struct {
 	P, E Point
 }
@@ -394,6 +502,12 @@ func BenchmarkScalarMulGeneric(b *testing.B) {
 
 func BenchmarkScalarMulFixed(b *testing.B) {
 	var c scalarMulFixed
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkDoubleBaseScalarMul(b *testing.B) {
+	var c doubleScalarMulGeneric
 	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

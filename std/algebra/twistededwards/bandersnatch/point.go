@@ -19,6 +19,8 @@ package bandersnatch
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -27,9 +29,16 @@ type Point struct {
 	X, Y frontend.Variable
 }
 
+// Set a point to a point
+func (p *Point) Set(api frontend.API, p1 *Point) *Point {
+	p.X = p1.X
+	p.Y = p1.Y
+	return p
+}
+
 // Neg computes the negative of a point in SNARK coordinates
 func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
-	p.X = api.Neg(p1.X)
+	p.X = api.Sub(0, p1.X)
 	p.Y = p1.Y
 	return p
 }
@@ -98,41 +107,87 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 	return p
 }
 
+// phi endomorphism √-2 ∈ 𝒪₋₈
+// (x,y) → λ × (x,y) s.t. λ² = -2 mod Order
+func (p *Point) phi(api frontend.API, p1 *Point, curve EdCurve) *Point {
+
+	xy := api.Mul(p1.X, p1.Y)
+	yy := api.Mul(p1.Y, p1.Y)
+	f := api.Sub(1, yy)
+	f = api.Mul(f, curve.endo1)
+	g := api.Add(yy, curve.endo0)
+	g = api.Mul(g, curve.endo0)
+	h := api.Sub(yy, curve.endo0)
+
+	p.X = api.DivUnchecked(f, xy)
+	p.Y = api.DivUnchecked(g, h)
+
+	return p
+}
+
+var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	// TODO: handle properly negative scalars
+	var lambda, order big.Int
+	var glvBasis ecc.Lattice
+	lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+	order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+	ecc.PrecomputeLattice(&order, &lambda, &glvBasis)
+	sp := ecc.SplitScalar(inputs[0], &glvBasis)
+	res[0].Neg(&(sp[0])) // Set
+	res[1].Set(&(sp[1]))
+
+	// figure out how many times we have overflowed
+	// res[2].Mul(res[1], &lambda).Add(res[2], res[0])
+	res[2].Mul(res[1], &lambda).Sub(res[2], res[0])
+	res[2].Sub(res[2], inputs[0])
+	res[2].Div(res[2], &order)
+
+	return nil
+}, 1, 3)
+
+func init() {
+	hint.Register(scalarDecompositionHint)
+}
+
 // ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
 func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
-
-	// first unpack the scalar
-	b := api.ToBinary(scalar)
-
-	res := Point{}
-	tmp := Point{}
-	A := Point{}
-	B := Point{}
-
-	A.Double(api, p1, curve)
-	B.Add(api, &A, p1, curve)
-
-	n := len(b) - 1
-	res.X = api.Lookup2(b[n], b[n-1], 0, A.X, p1.X, B.X)
-	res.Y = api.Lookup2(b[n], b[n-1], 1, A.Y, p1.Y, B.Y)
-
-	for i := n - 2; i >= 1; i -= 2 {
-		res.Double(api, &res, curve).
-			Double(api, &res, curve)
-		tmp.X = api.Lookup2(b[i], b[i-1], 0, A.X, p1.X, B.X)
-		tmp.Y = api.Lookup2(b[i], b[i-1], 1, A.Y, p1.Y, B.Y)
-		res.Add(api, &res, &tmp, curve)
+	// the hints allow to decompose the scalar s into s1 and s2 such that
+	// s1 + λ * s2 == s mod r,
+	// with λ s.t. λ² = -2 mod Order.
+	sd, err := api.NewHint(scalarDecompositionHint, scalar)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
 	}
 
-	if n%2 == 0 {
+	s1, s2 := sd[0], sd[1]
+
+	// s1 + λ * s2 == s + k*r
+	// api.AssertIsEqual(api.Add(s1, api.Mul(s2, &curve.lambda)), api.Add(scalar, api.Mul(&curve.Order, sd[2])))
+	api.AssertIsEqual(api.Sub(api.Mul(s2, &curve.lambda), s1), api.Add(scalar, api.Mul(&curve.Order, sd[2])))
+
+	n := curve.lambda.BitLen()/2 + 2
+
+	b1 := api.ToBinary(s1, n)
+	b2 := api.ToBinary(s2, n)
+
+	var res, _p1, p2, p3, tmp Point
+	_p1.Neg(api, p1)
+	p2.phi(api, p1, curve)
+	p3.Add(api, &_p1, &p2, curve)
+
+	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, _p1.X, p2.X, p3.X)
+	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, _p1.Y, p2.Y, p3.Y)
+
+	for i := n - 2; i >= 0; i-- {
 		res.Double(api, &res, curve)
-		tmp.Add(api, &res, p1, curve)
-		res.X = api.Select(b[0], tmp.X, res.X)
-		res.Y = api.Select(b[0], tmp.Y, res.Y)
+		tmp.X = api.Lookup2(b1[i], b2[i], 0, _p1.X, p2.X, p3.X)
+		tmp.Y = api.Lookup2(b1[i], b2[i], 1, _p1.Y, p2.Y, p3.Y)
+		res.Add(api, &res, &tmp, curve)
 	}
 
 	p.X = res.X

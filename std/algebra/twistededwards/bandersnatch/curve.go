@@ -32,9 +32,10 @@ type Coord struct {
 
 // EdCurve stores the info on the chosen edwards curve
 type EdCurve struct {
-	A, D, Cofactor, Order big.Int
-	Base                  Coord
-	ID                    ecc.ID
+	A, D, Cofactor, Order, endo0, endo1 big.Int
+	Base                                Coord
+	ID                                  ecc.ID
+	lambda                              big.Int
 }
 
 var constructors map[ecc.ID]func() EdCurve
@@ -70,7 +71,9 @@ func newBandersnatch() EdCurve {
 			X: utils.FromInterface(edcurve.Base.X),
 			Y: utils.FromInterface(edcurve.Base.Y),
 		},
-		ID: ecc.BLS12_381,
+		ID:     ecc.BLS12_381,
+		lambda: utils.FromInterface("8913659658109529928382530854484400854125314752504019737736543920008458395397"),
+		endo0:  utils.FromInterface("37446463827641770816307242315180085052603635617490163568005256780843403514036"),
+		endo1:  utils.FromInterface("49199877423542878313146170939139662862850515542392585932876811575731455068989"),
 	}
-
 }
