@@ -17,7 +17,7 @@ limitations under the License.
 package bandersnatch
 
 import (
-	"math/big"
+	"crypto/rand"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -100,7 +100,7 @@ func TestAddFixedPoint(t *testing.T) {
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
 	point.Set(&base)
-	r := big.NewInt(5)
+	r, _ := rand.Int(rand.Reader, &params.Order)
 	point.ScalarMul(&point, r)
 	expected.Add(&base, &point)
 
@@ -152,8 +152,8 @@ func TestAddGeneric(t *testing.T) {
 	point1.X.SetBigInt(&params.Base.X)
 	point1.Y.SetBigInt(&params.Base.Y)
 	point2.Set(&point1)
-	r1 := big.NewInt(5)
-	r2 := big.NewInt(12)
+	r1, _ := rand.Int(rand.Reader, &params.Order)
+	r2, _ := rand.Int(rand.Reader, &params.Order)
 	point1.ScalarMul(&point1, r1)
 	point2.ScalarMul(&point2, r2)
 	expected.Add(&point1, &point2)
@@ -258,7 +258,7 @@ func TestScalarMulFixed(t *testing.T) {
 	var base, expected bandersnatch.PointAffine
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
-	r := big.NewInt(928323002)
+	r, _ := rand.Int(rand.Reader, &params.Order)
 	expected.ScalarMul(&base, r)
 
 	// populate witness
@@ -306,9 +306,9 @@ func TestScalarMulGeneric(t *testing.T) {
 	var base, point, expected bandersnatch.PointAffine
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
-	s := big.NewInt(902)
+	s, _ := rand.Int(rand.Reader, &params.Order)
 	point.ScalarMul(&base, s) // random point
-	r := big.NewInt(230928302)
+	r, _ := rand.Int(rand.Reader, &params.Order)
 	expected.ScalarMul(&point, r)
 
 	// populate witness
@@ -357,7 +357,7 @@ func TestEndomorphism(t *testing.T) {
 	var base, point, expected bandersnatch.PointAffine
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
-	s := big.NewInt(9027)
+	s, _ := rand.Int(rand.Reader, &params.Order)
 	point.ScalarMul(&base, s) // random point
 	expected.ScalarMul(&point, &params.lambda)
 
@@ -407,12 +407,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 	var base, point1, point2, tmp, expected bandersnatch.PointAffine
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
-	s1 := big.NewInt(902)
-	s2 := big.NewInt(891)
+	s1, _ := rand.Int(rand.Reader, &params.Order)
+	s2, _ := rand.Int(rand.Reader, &params.Order)
 	point1.ScalarMul(&base, s1) // random point
 	point2.ScalarMul(&base, s2) // random point
-	r1 := big.NewInt(230928303)
-	r2 := big.NewInt(2830309)
+	r1, _ := rand.Int(rand.Reader, &params.Order)
+	r2, _ := rand.Int(rand.Reader, &params.Order)
 	tmp.ScalarMul(&point1, r1)
 	expected.ScalarMul(&point2, r2).
 		Add(&expected, &tmp)

@@ -17,7 +17,7 @@ limitations under the License.
 package twistededwards
 
 import (
-	"math/big"
+	"crypto/rand"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -105,7 +105,7 @@ func TestAddFixedPoint(t *testing.T) {
 	base.X.SetBigInt(&params.Base.X)
 	base.Y.SetBigInt(&params.Base.Y)
 	point.Set(&base)
-	r := big.NewInt(5)
+	r, _ := rand.Int(rand.Reader, &params.Order)
 	point.ScalarMul(&point, r)
 	expected.Add(&base, &point)
 
@@ -162,8 +162,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -178,8 +178,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -194,8 +194,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -210,8 +210,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -226,8 +226,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -242,8 +242,8 @@ func TestAddGeneric(t *testing.T) {
 			op1.X.SetBigInt(&params.Base.X)
 			op1.Y.SetBigInt(&params.Base.Y)
 			op2.Set(&op1)
-			r1 := big.NewInt(5)
-			r2 := big.NewInt(12)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			op1.ScalarMul(&op1, r1)
 			op2.ScalarMul(&op2, r2)
 			expected.Add(&op1, &op2)
@@ -407,7 +407,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbn254.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -416,7 +416,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbls12381.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -425,7 +425,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbls12377.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -434,7 +434,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbls24315.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -443,7 +443,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbw6633.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -452,7 +452,7 @@ func TestScalarMulFixed(t *testing.T) {
 			var base, expected tbw6761.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			r := big.NewInt(928323002)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&base, r)
 			witness.E.X = (expected.X.String())
 			witness.E.Y = (expected.Y.String())
@@ -505,9 +505,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbn254.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -520,9 +520,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbls12377.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -535,9 +535,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbls12381.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -550,9 +550,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbls24315.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -565,9 +565,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbw6761.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -580,9 +580,9 @@ func TestScalarMulGeneric(t *testing.T) {
 			var base, point, expected tbw6633.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s := big.NewInt(902)
+			s, _ := rand.Int(rand.Reader, &params.Order)
 			point.ScalarMul(&base, s) // random point
-			r := big.NewInt(230928302)
+			r, _ := rand.Int(rand.Reader, &params.Order)
 			expected.ScalarMul(&point, r)
 
 			// populate witness
@@ -640,12 +640,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbn254.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
@@ -663,12 +663,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbls12377.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
@@ -686,12 +686,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbls12381.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
@@ -709,12 +709,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbls24315.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
@@ -732,12 +732,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbw6761.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
@@ -755,12 +755,12 @@ func TestDoubleScalarMulGeneric(t *testing.T) {
 			var base, point1, point2, tmp, expected tbw6633.PointAffine
 			base.X.SetBigInt(&params.Base.X)
 			base.Y.SetBigInt(&params.Base.Y)
-			s1 := big.NewInt(902)
-			s2 := big.NewInt(891)
+			s1, _ := rand.Int(rand.Reader, &params.Order)
+			s2, _ := rand.Int(rand.Reader, &params.Order)
 			point1.ScalarMul(&base, s1) // random point
 			point2.ScalarMul(&base, s2) // random point
-			r1 := big.NewInt(230928303)
-			r2 := big.NewInt(2830309)
+			r1, _ := rand.Int(rand.Reader, &params.Order)
+			r2, _ := rand.Int(rand.Reader, &params.Order)
 			tmp.ScalarMul(&point1, r1)
 			expected.ScalarMul(&point2, r2).
 				Add(&expected, &tmp)
