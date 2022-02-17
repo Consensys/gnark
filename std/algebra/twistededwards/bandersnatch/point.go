@@ -132,7 +132,6 @@ type glvParams struct {
 }
 
 var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
-	curve = ecc.BLS12_381
 	var glv glvParams
 	var init sync.Once
 	init.Do(func() {
