@@ -18,6 +18,7 @@ package bandersnatch
 
 import (
 	"math/big"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
@@ -38,7 +39,7 @@ func (p *Point) Set(api frontend.API, p1 *Point) *Point {
 
 // Neg computes the negative of a point in SNARK coordinates
 func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
-	p.X = api.Sub(0, p1.X)
+	p.X = api.Neg(p1.X)
 	p.Y = p1.Y
 	return p
 }
@@ -125,22 +126,34 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve EdCurve) *Point {
 	return p
 }
 
+type glvParams struct {
+	lambda, order big.Int
+	glvBasis      ecc.Lattice
+}
+
 var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	curve = ecc.BLS12_381
+	var glv glvParams
+	var init sync.Once
+	init.Do(func() {
+		glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+		glv.order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
+	})
+
 	// TODO: handle properly negative scalars
-	var lambda, order big.Int
-	var glvBasis ecc.Lattice
-	lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
-	order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
-	ecc.PrecomputeLattice(&order, &lambda, &glvBasis)
-	sp := ecc.SplitScalar(inputs[0], &glvBasis)
+	// lambda.nbits() = scalar_max.nbits() = 253
+	// sp[0] is always negative (as a big.Int)?
+	// thus taking -sp[0] here and negating the point in ScalarMul.
+	sp := ecc.SplitScalar(inputs[0], &glv.glvBasis)
 	res[0].Neg(&(sp[0])) // Set
 	res[1].Set(&(sp[1]))
 
 	// figure out how many times we have overflowed
 	// res[2].Mul(res[1], &lambda).Add(res[2], res[0])
-	res[2].Mul(res[1], &lambda).Sub(res[2], res[0])
+	res[2].Mul(res[1], &glv.lambda).Sub(res[2], res[0])
 	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], &order)
+	res[2].Div(res[2], &glv.order)
 
 	return nil
 }, 1, 3)
