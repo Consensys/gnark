@@ -342,7 +342,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
-	var Acc, B, negQ, negPhiQ, phiQ G1Affine
+	var Acc, negQ, negPhiQ, phiQ G1Affine
 	cc := innerCurve(api.Curve())
 	s.Mod(s, cc.fr)
 	cc.phi(api, &phiQ, &Q)
@@ -381,9 +381,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		B.X = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].X, table[1].X, table[2].X, table[3].X)
-		B.Y = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].Y, table[1].Y, table[2].Y, table[3].Y)
-		Acc.DoubleAndAdd(api, &Acc, &B)
+		Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
 	}
 
 	negQ.AddAssign(api, Acc)

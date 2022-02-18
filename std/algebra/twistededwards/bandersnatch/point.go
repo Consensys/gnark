@@ -68,24 +68,30 @@ func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
 func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 
-	// https://eprint.iacr.org/2008/013.pdf
+	// u = (x1 + y1) * (x2 + y2)
+	u1 := api.Mul(p1.X, &curve.A)
+	u1 = api.Sub(p1.Y, u1)
+	u2 := api.Add(p2.X, p2.Y)
+	u := api.Mul(u1, u2)
 
-	n11 := api.Mul(p1.X, p2.Y)
-	n12 := api.Mul(p1.Y, p2.X)
-	n1 := api.Add(n11, n12)
+	// v0 = x1 * y2
+	v0 := api.Mul(p2.Y, p1.X)
 
-	n21 := api.Mul(p1.Y, p2.Y)
-	n22 := api.Mul(p1.X, p2.X)
-	an22 := api.Mul(n22, &curve.A)
-	n2 := api.Sub(n21, an22)
+	// v1 = x2 * y1
+	v1 := api.Mul(p2.X, p1.Y)
 
-	d11 := api.Mul(curve.D, n11, n12)
-	d1 := api.Add(1, d11)
+	// v2 = d * v0 * v1
+	v2 := api.Mul(&curve.D, v0, v1)
 
-	d2 := api.Sub(1, d11)
+	// x = (v0 + v1) / (1 + v2)
+	p.X = api.Add(v0, v1)
+	p.X = api.DivUnchecked(p.X, api.Add(1, v2))
 
-	p.X = api.DivUnchecked(n1, d1)
-	p.Y = api.DivUnchecked(n2, d2)
+	// y = (u + a * v0 - v1) / (1 - v2)
+	p.Y = api.Mul(&curve.A, v0)
+	p.Y = api.Sub(p.Y, v1)
+	p.Y = api.Add(p.Y, u)
+	p.Y = api.DivUnchecked(p.Y, api.Sub(1, v2))
 
 	return p
 }
