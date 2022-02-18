@@ -17,6 +17,7 @@ limitations under the License.
 package bandersnatch
 
 import (
+	"errors"
 	"math/big"
 	"sync"
 
@@ -132,6 +133,10 @@ type glvParams struct {
 }
 
 var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	// the efficient endomorphism exists on Bandersnatch only
+	if curve != ecc.BLS12_381 {
+		return errors.New("no efficient endomorphism is available on this curve")
+	}
 	var glv glvParams
 	var init sync.Once
 	init.Do(func() {
