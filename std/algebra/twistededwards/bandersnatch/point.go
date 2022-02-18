@@ -151,16 +151,17 @@ var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*bi
 		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
 	})
 
-	// TODO: handle properly negative scalars
 	// lambda.nbits() = scalar_max.nbits() = 253
 	// sp[0] is always negative (as a big.Int)?
 	// thus taking -sp[0] here and negating the point in ScalarMul.
+	// If we keep -sp[0] it will be reduced mod r (the BLS12-381 prime order)
+	// and not the Bandersnatch prime order (Order) and the result will be incorrect.
+	// Also, if we reduce it mod Order, we can't use api.ToBinary(sp[0], 128)
 	sp := ecc.SplitScalar(inputs[0], &glv.glvBasis)
-	res[0].Neg(&(sp[0])) // Set
+	res[0].Neg(&(sp[0]))
 	res[1].Set(&(sp[1]))
 
 	// figure out how many times we have overflowed
-	// res[2].Mul(res[1], &lambda).Add(res[2], res[0])
 	res[2].Mul(res[1], &glv.lambda).Sub(res[2], res[0])
 	res[2].Sub(res[2], inputs[0])
 	res[2].Div(res[2], &glv.order)
@@ -189,8 +190,7 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 
 	s1, s2 := sd[0], sd[1]
 
-	// s1 + λ * s2 == s + k*r
-	// api.AssertIsEqual(api.Add(s1, api.Mul(s2, &curve.lambda)), api.Add(scalar, api.Mul(&curve.Order, sd[2])))
+	// -s1 + λ * s2 == s + k*Order
 	api.AssertIsEqual(api.Sub(api.Mul(s2, &curve.lambda), s1), api.Add(scalar, api.Mul(&curve.Order, sd[2])))
 
 	n := curve.lambda.BitLen()/2 + 2
