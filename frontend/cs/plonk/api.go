@@ -203,20 +203,20 @@ func (system *sparseR1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Va
 func (system *sparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
 
 	// allocate the resulting frontend.Variables and bit-constraint them
-	b := make([]frontend.Variable, nbBits)
 	sb := make([]frontend.Variable, nbBits)
 	var c big.Int
 	c.SetUint64(1)
+
+	bits, err := system.NewHint(hint.NBits, nbBits, a)
+	if err != nil {
+		panic(err)
+	}
+
 	for i := 0; i < nbBits; i++ {
-		res, err := system.NewHint(hint.IthBit, 1, a, i)
-		if err != nil {
-			panic(err)
-		}
-		b[i] = res[0]
-		sb[i] = system.Mul(b[i], c)
+		sb[i] = system.Mul(bits[i], c)
 		c.Lsh(&c, 1)
 		if !unsafe {
-			system.AssertIsBoolean(b[i])
+			system.AssertIsBoolean(bits[i])
 		}
 	}
 
@@ -233,7 +233,7 @@ func (system *sparseR1CS) toBinary(a compiled.Term, nbBits int, unsafe bool) []f
 	system.AssertIsEqual(Σbi, a)
 
 	// record the constraint Σ (2**i * b[i]) == a
-	return b
+	return bits
 
 }
 

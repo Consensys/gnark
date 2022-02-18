@@ -133,29 +133,24 @@ func UUID(fn StaticFunction, ctx ...uint64) ID {
 // staticArgumentsFunction defines a function where the number of inputs and
 // outputs is constant.
 type staticArgumentsFunction struct {
-	fn   StaticFunction
-	nIn  int
-	nOut int
+	fn  StaticFunction
+	nIn int
 }
 
 // NewStaticHint returns an Function where the number of inputs and outputs is
 // constant. UUID is computed by combining fn, nIn and nOut and thus it is legal
 // to defined multiple AnnotatedFunctions on the same fn with different nIn and
 // nOut.
-func NewStaticHint(fn StaticFunction, nIn, nOut int) Function {
+func NewStaticHint(fn StaticFunction, nIn int) Function {
 	return &staticArgumentsFunction{
-		fn:   fn,
-		nIn:  nIn,
-		nOut: nOut,
+		fn:  fn,
+		nIn: nIn,
 	}
 }
 
 func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	if len(inputs) != h.nIn {
 		return fmt.Errorf("input has %d elements, expected %d", len(inputs), h.nIn)
-	}
-	if len(res) != h.nOut {
-		return fmt.Errorf("result has %d elements, expected %d", len(res), h.nOut)
 	}
 	return h.fn(curveID, inputs, res)
 }
@@ -165,11 +160,11 @@ func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []
 // }
 
 func (h *staticArgumentsFunction) UUID() ID {
-	return UUID(h.fn, uint64(h.nIn), uint64(h.nOut))
+	return UUID(h.fn, uint64(h.nIn))
 }
 
 func (h *staticArgumentsFunction) String() string {
 	fnptr := reflect.ValueOf(h.fn).Pointer()
 	name := runtime.FuncForPC(fnptr).Name()
-	return fmt.Sprintf("%s([%d]*big.Int, [%d]*big.Int) at (%x)", name, h.nIn, h.nOut, fnptr)
+	return fmt.Sprintf("%s([%d]*big.Int, [?]*big.Int) at (%x)", name, h.nIn, fnptr)
 }

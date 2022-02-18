@@ -11,10 +11,12 @@ var initBuiltinOnce sync.Once
 
 func init() {
 	initBuiltinOnce.Do(func() {
-		IsZero = NewStaticHint(builtinIsZero, 1, 1)
+		IsZero = NewStaticHint(builtinIsZero, 1)
 		Register(IsZero)
-		IthBit = NewStaticHint(builtinIthBit, 2, 1)
+		IthBit = NewStaticHint(builtinIthBit, 2)
 		Register(IthBit)
+		NBits = NewStaticHint(builtinNBits, 1)
+		Register(NBits)
 	})
 }
 
@@ -30,6 +32,9 @@ var (
 	// integer inputs i and n, takes the little-endian bit representation of n and
 	// returns its i-th bit.
 	IthBit Function
+
+	// NBits returns the n first bits of the input. Expects one argument: n.
+	NBits Function
 )
 
 func builtinIsZero(curveID ecc.ID, inputs []*big.Int, results []*big.Int) error {
@@ -61,5 +66,13 @@ func builtinIthBit(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
 	}
 
 	result.SetUint64(uint64(inputs[0].Bit(int(inputs[1].Uint64()))))
+	return nil
+}
+
+func builtinNBits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+	n := inputs[0]
+	for i := 0; i < len(results); i++ {
+		results[i].SetUint64(uint64(n.Bit(i)))
+	}
 	return nil
 }
