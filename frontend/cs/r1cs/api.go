@@ -306,7 +306,7 @@ func (system *r1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []fro
 	var c big.Int
 	c.SetUint64(1)
 	for i := 0; i < nbBits; i++ {
-		res, err := system.NewHint(hint.IthBit, a, i)
+		res, err := system.NewHint(hint.IthBit, 1, a, i)
 		if err != nil {
 			panic(err)
 		}
@@ -523,7 +523,7 @@ func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 
 	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	res, err := system.NewHint(hint.IsZero, a)
+	res, err := system.NewHint(hint.IsZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
@@ -709,9 +709,9 @@ func (system *r1CS) AddCounter(from, to frontend.Tag) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (system *r1CS) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
-	if f.NbOutputs(system.Curve(), len(inputs)) <= 0 {
+	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 	hintInputs := make([]interface{}, len(inputs))
@@ -732,7 +732,7 @@ func (system *r1CS) NewHint(f hint.Function, inputs ...frontend.Variable) ([]fro
 	}
 
 	// prepare wires
-	varIDs := make([]int, f.NbOutputs(system.Curve(), len(inputs)))
+	varIDs := make([]int, nbOutputs)
 	res := make([]frontend.Variable, len(varIDs))
 	for i := range varIDs {
 		r := system.newInternalVariable()

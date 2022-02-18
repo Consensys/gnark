@@ -254,7 +254,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.NewHint(scalarDecompositionHintBLS24315, s)
+	sd, err := api.NewHint(scalarDecompositionHintBLS24315, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

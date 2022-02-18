@@ -96,10 +96,13 @@ type Function interface {
 	// obtained from cache). A returned non-nil error will be propagated.
 	Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error
 
-	// NbOutputs returns the total number of outputs by the function when
+	// NbOutputs returns the MAX total number of outputs by the function when
+	// TODO @gbotrel @ivokub --> this should be used at compile time only.
+	// at solving time, what makes law is the number of wires associated with the hints
+	// assuming they were correctly allocated in the compile phase.
 	// invoked on the curveID with nInputs number of inputs. The number of
 	// outputs must be at least one and the framework errors otherwise.
-	NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int)
+	// NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int)
 
 	// String returns a human-readable description of the function used in logs
 	// and debug messages.
@@ -157,9 +160,9 @@ func (h *staticArgumentsFunction) Call(curveID ecc.ID, inputs []*big.Int, res []
 	return h.fn(curveID, inputs, res)
 }
 
-func (h *staticArgumentsFunction) NbOutputs(_ ecc.ID, _ int) int {
-	return h.nOut
-}
+// func (h *staticArgumentsFunction) NbOutputs(_ ecc.ID, _ int) int {
+// 	return h.nOut
+// }
 
 func (h *staticArgumentsFunction) UUID() ID {
 	return UUID(h.fn, uint64(h.nIn), uint64(h.nOut))

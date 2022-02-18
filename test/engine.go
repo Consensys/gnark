@@ -325,9 +325,9 @@ func (e *engine) Println(a ...frontend.Variable) {
 	fmt.Println(sbb.String())
 }
 
-func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
-	if f.NbOutputs(e.Curve(), len(inputs)) <= 0 {
+	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
@@ -337,7 +337,7 @@ func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]fronte
 		v := e.toBigInt(inputs[i])
 		in[i] = &v
 	}
-	res := make([]*big.Int, f.NbOutputs(e.Curve(), len(inputs)))
+	res := make([]*big.Int, nbOutputs)
 	for i := range res {
 		res[i] = new(big.Int)
 	}
