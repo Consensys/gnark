@@ -173,7 +173,7 @@ func init() {
 // Standard left to right double and add
 func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
 	// the hints allow to decompose the scalar s into s1 and s2 such that
-	// s1 + λ * s2 == s mod r,
+	// s1 + λ * s2 == s mod Order,
 	// with λ s.t. λ² = -2 mod Order.
 	sd, err := api.NewHint(scalarDecompositionHint, scalar)
 	if err != nil {
