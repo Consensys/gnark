@@ -151,12 +151,13 @@ var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*bi
 		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
 	})
 
-	// lambda.nbits() = scalar_max.nbits() = 253
-	// sp[0] is always negative (as a big.Int)?
-	// thus taking -sp[0] here and negating the point in ScalarMul.
+	// sp[0] is always negative because, in SplitScalar(), we always round above
+	// the determinant/2 computed in PrecomputeLattice() which is negative for Bandersnatch.
+	// Thus taking -sp[0] here and negating the point in ScalarMul().
 	// If we keep -sp[0] it will be reduced mod r (the BLS12-381 prime order)
 	// and not the Bandersnatch prime order (Order) and the result will be incorrect.
-	// Also, if we reduce it mod Order, we can't use api.ToBinary(sp[0], 128)
+	// Also, if we reduce it mod Order here, we can't use api.ToBinary(sp[0], 129)
+	// and hence we can't reduce optimally the number of constraints.
 	sp := ecc.SplitScalar(inputs[0], &glv.glvBasis)
 	res[0].Neg(&(sp[0]))
 	res[1].Set(&(sp[1]))
@@ -193,7 +194,10 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	// -s1 + λ * s2 == s + k*Order
 	api.AssertIsEqual(api.Sub(api.Mul(s2, &curve.lambda), s1), api.Add(scalar, api.Mul(&curve.Order, sd[2])))
 
-	n := curve.lambda.BitLen()/2 + 2
+	// Normally s1 and s2 are of the max size sqrt(Order) = 128
+	// But in a circuit, we force s1 to be negative by rounding always above.
+	// This changes the size bounds to 2*sqrt(Order) = 129.
+	n := 129
 
 	b1 := api.ToBinary(s1, n)
 	b2 := api.ToBinary(s2, n)
