@@ -91,9 +91,7 @@ type Function interface {
 	UUID() ID
 
 	// Call is invoked by the framework to obtain the result from inputs.
-	// The length of res is NbOutputs() and every element is
-	// already initialized (but not necessarily to zero as the elements may be
-	// obtained from cache). A returned non-nil error will be propagated.
+	// Elements in outputs are not guaranteed to be initialized to 0
 	Call(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
 
 	// String returns a human-readable description of the function used in logs
