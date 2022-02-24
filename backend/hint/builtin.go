@@ -11,11 +11,11 @@ var initBuiltinOnce sync.Once
 
 func init() {
 	initBuiltinOnce.Do(func() {
-		IsZero = NewStaticHint(builtinIsZero, 1)
+		IsZero = NewStaticHint(builtinIsZero)
 		Register(IsZero)
-		IthBit = NewStaticHint(builtinIthBit, 2)
+		IthBit = NewStaticHint(builtinIthBit)
 		Register(IthBit)
-		NBits = NewStaticHint(builtinNBits, 1)
+		NBits = NewStaticHint(builtinNBits)
 		Register(NBits)
 	})
 }

@@ -225,7 +225,7 @@ var scalarDecompositionHintBLS24315 = hint.NewStaticHint(func(curve ecc.ID, inpu
 	res[2].Div(res[2], cc.fr)
 
 	return nil
-}, 1)
+})
 
 func init() {
 	hint.Register(scalarDecompositionHintBLS24315)

@@ -101,12 +101,12 @@ func init() {
 var mulBy7 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.Info().Fr.Modulus())
 	return nil
-}, 1)
+})
 
 var make3 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].SetUint64(3)
 	return nil
-}, 0)
+})
 
 var dvHint = &doubleVector{}
 
