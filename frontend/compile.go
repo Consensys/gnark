@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 )
@@ -47,7 +46,7 @@ type NewBuilder func(ecc.ID) (Builder, error)
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	// setup option
 	opt := compileConfig{}
 	for _, o := range opts {
@@ -55,16 +54,7 @@ func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...CompileO
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
-	newBuilder := opt.newBuilder
-	if newBuilder == nil {
-		var ok bool
-		backendsM.RLock()
-		newBuilder, ok = backends[zkpID]
-		backendsM.RUnlock()
-		if !ok {
-			return nil, fmt.Errorf("no default constraint builder registered nor set as option")
-		}
-	}
+
 	builder, err := newBuilder(curveID)
 	if err != nil {
 		return nil, fmt.Errorf("new builder: %w", err)
@@ -143,7 +133,6 @@ type CompileOption func(opt *compileConfig) error
 type compileConfig struct {
 	capacity                  int
 	ignoreUnconstrainedInputs bool
-	newBuilder                NewBuilder
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -166,17 +155,6 @@ func WithCapacity(capacity int) CompileOption {
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *compileConfig) error {
 		opt.ignoreUnconstrainedInputs = true
-		return nil
-	}
-}
-
-// WithBuilder is a compile option which enables the compiler to build the
-// constraint system with a user-defined builder.
-//
-// /!\ This is highly experimental and may change in upcoming releases /!\
-func WithBuilder(builder NewBuilder) CompileOption {
-	return func(opt *compileConfig) error {
-		opt.newBuilder = builder
 		return nil
 	}
 }

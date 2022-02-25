@@ -22,8 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -364,36 +364,36 @@ func TestNeg(t *testing.T) {
 // Bench
 func BenchmarkDouble(b *testing.B) {
 	var c double
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddGeneric(b *testing.B) {
 	var c addGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddFixedPoint(b *testing.B) {
 	var c add
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkMustBeOnCurve(b *testing.B) {
 	var c mustBeOnCurve
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulGeneric(b *testing.B) {
 	var c scalarMulGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulFixed(b *testing.B) {
 	var c scalarMulFixed
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

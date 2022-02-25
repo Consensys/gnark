@@ -83,7 +83,7 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 
 // compiles our circuit into a R1CS
 var circuit CubicCircuit
-ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
 
 // groth16 zkSNARK: Setup
 pk, vk, err := groth16.Setup(ccs)

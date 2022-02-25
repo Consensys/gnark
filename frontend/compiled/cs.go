@@ -2,7 +2,6 @@ package compiled
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -56,30 +55,10 @@ func (cs *ConstraintSystem) GetNbVariables() (internal, secret, public int) {
 	return cs.NbInternalVariables, cs.NbSecretVariables, cs.NbPublicVariables
 }
 
-// FrSize panics
-func (cs *ConstraintSystem) FrSize() int { panic("not implemented") }
-
-// GetNbCoefficients panics
-func (cs *ConstraintSystem) GetNbCoefficients() int { panic("not implemented") }
-
-// // CurveID returns ecc.UNKNOWN
-// func (cs *CS) CurveID() ecc.ID { return ecc.UNKNOWN }
-
-// WriteTo panics
-func (cs *ConstraintSystem) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
-
-// ReadFrom panics
-func (cs *ConstraintSystem) ReadFrom(r io.Reader) (n int64, err error) { panic("not implemented") }
-
-// ToHTML panics
-func (cs *ConstraintSystem) ToHTML(w io.Writer) error { panic("not implemtened") }
-
 // GetCounters return the collected constraint counters, if any
 func (cs *ConstraintSystem) GetCounters() []Counter { return cs.Counters }
 
 func (cs *ConstraintSystem) GetSchema() *schema.Schema { return cs.Schema }
-
-func (cs *ConstraintSystem) GetConstraints() [][]string { panic("not implemented") }
 
 // Counter contains measurements of useful statistics between two Tag
 type Counter struct {

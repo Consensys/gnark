@@ -19,8 +19,8 @@ import (
 	"log"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	"github.com/consensys/gnark/test"
 
@@ -73,7 +73,7 @@ func main() {
 	var circuit Circuit
 
 	// // building the circuit...
-	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+	ccs, err := frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
 	if err != nil {
 		fmt.Println("circuit compilation error")
 	}

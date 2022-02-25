@@ -23,8 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -156,7 +156,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+		ccs, _ = frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }
