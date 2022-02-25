@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
+func NewCompiler(curve ecc.ID) (frontend.Compiler, error) {
 	return newR1CS(curve), nil
 }
 
@@ -56,7 +56,7 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 			MHints: make(map[int]*compiled.Hint),
 		},
 		Constraints: make([]compiled.R1C, 0, capacity),
-		builder:     cs.NewBuilder(),
+		builder:     cs.NewCompiler(),
 	}
 
 	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -92,8 +92,11 @@ func (system *r1CS) newInternalVariable() compiled.Variable {
 	}
 }
 
-// NewPublicVariable creates a new public Variable
-func (system *r1CS) NewPublicVariable(name string) frontend.Variable {
+// AddPublicVariable creates a new public Variable
+func (system *r1CS) AddPublicVariable(name string) frontend.Variable {
+	if system.Schema != nil {
+		panic("do not call AddPublicVariable in circuit.Define()")
+	}
 	t := false
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
@@ -104,8 +107,11 @@ func (system *r1CS) NewPublicVariable(name string) frontend.Variable {
 	return res
 }
 
-// NewSecretVariable creates a new secret Variable
-func (system *r1CS) NewSecretVariable(name string) frontend.Variable {
+// AddSecretVariable creates a new secret Variable
+func (system *r1CS) AddSecretVariable(name string) frontend.Variable {
+	if system.Schema != nil {
+		panic("do not call AddSecretVariable in circuit.Define()")
+	}
 	t := false
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
@@ -210,7 +216,7 @@ func (system *r1CS) markBoolean(v compiled.Variable) bool {
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (system *r1CS) CheckVariables() error {
+func (system *r1CS) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 

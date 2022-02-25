@@ -30,7 +30,14 @@ import (
 )
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *r1CS) Compile() (frontend.CompiledConstraintSystem, error) {
+func (cs *r1CS) Compile(opt frontend.CompileConfig) (frontend.CompiledConstraintSystem, error) {
+
+	// ensure all inputs and hints are constrained
+	if !opt.IgnoreUnconstrainedInputs {
+		if err := cs.checkVariables(); err != nil {
+			return nil, err
+		}
+	}
 
 	// wires = public wires  | secret wires | internal wires
 

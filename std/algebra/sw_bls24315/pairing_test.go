@@ -214,6 +214,6 @@ func TestTriplePairingBLS24315(t *testing.T) {
 
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

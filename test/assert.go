@@ -400,13 +400,13 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return ccs, nil
 	}
 
-	var newBuilder frontend.NewBuilder
+	var newBuilder frontend.NewCompiler
 
 	switch backendID {
 	case backend.GROTH16:
-		newBuilder = r1cs.NewBuilder
+		newBuilder = r1cs.NewCompiler
 	case backend.PLONK:
-		newBuilder = scs.NewBuilder
+		newBuilder = scs.NewCompiler
 	default:
 		panic("not implemented")
 	}

@@ -200,7 +200,7 @@ func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+		frontend.Compile(ecc.BW6_761, scs.NewCompiler, &c)
 	}
 	// ccsBench, _ = compiler.Compile(ecc.BW6_761, backend.GROTH16, &c)
 	// b.Log("groth16", ccsBench.GetNbConstraints())

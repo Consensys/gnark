@@ -33,18 +33,18 @@ func TestCircuitStatistics(t *testing.T) {
 				// copy the circuit now in case assert calls t.Parallel()
 				tData := circuits.Circuits[k]
 				assert.Run(func(assert *test.Assert) {
-					var newBuilder frontend.NewBuilder
+					var newCompiler frontend.NewCompiler
 
 					switch backendID {
 					case backend.GROTH16:
-						newBuilder = r1cs.NewBuilder
+						newCompiler = r1cs.NewCompiler
 					case backend.PLONK:
-						newBuilder = scs.NewBuilder
+						newCompiler = scs.NewCompiler
 					default:
 						panic("not implemented")
 					}
 
-					ccs, err := frontend.Compile(curve, newBuilder, tData.Circuit)
+					ccs, err := frontend.Compile(curve, newCompiler, tData.Circuit)
 					assert.NoError(err)
 
 					// ensure we didn't introduce regressions that make circuits less efficient

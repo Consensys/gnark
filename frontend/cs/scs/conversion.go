@@ -29,7 +29,14 @@ import (
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 
-func (cs *sparseR1CS) Compile() (frontend.CompiledConstraintSystem, error) {
+func (cs *sparseR1CS) Compile(opt frontend.CompileConfig) (frontend.CompiledConstraintSystem, error) {
+
+	// ensure all inputs and hints are constrained
+	if !opt.IgnoreUnconstrainedInputs {
+		if err := cs.checkVariables(); err != nil {
+			return nil, err
+		}
+	}
 
 	res := compiled.SparseR1CS{
 		ConstraintSystem: cs.ConstraintSystem,

@@ -364,36 +364,36 @@ func TestNeg(t *testing.T) {
 // Bench
 func BenchmarkDouble(b *testing.B) {
 	var c double
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddGeneric(b *testing.B) {
 	var c addGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddFixedPoint(b *testing.B) {
 	var c add
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkMustBeOnCurve(b *testing.B) {
 	var c mustBeOnCurve
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulGeneric(b *testing.B) {
 	var c scalarMulGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulFixed(b *testing.B) {
 	var c scalarMulFixed
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

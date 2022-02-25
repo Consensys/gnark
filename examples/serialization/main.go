@@ -17,7 +17,7 @@ func main() {
 	var circuit cubic.Circuit
 
 	// compile a circuit
-	_r1cs, _ := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
+	_r1cs, _ := frontend.Compile(ecc.BN254, r1cs.NewCompiler, &circuit)
 
 	// R1CS implements io.WriterTo and io.ReaderFrom
 	var buf bytes.Buffer

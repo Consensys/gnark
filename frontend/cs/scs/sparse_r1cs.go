@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
+func NewCompiler(curve ecc.ID) (frontend.Compiler, error) {
 	return newSparseR1CS(curve), nil
 }
 
@@ -56,7 +56,7 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 			MHints: make(map[int]*compiled.Hint),
 		},
 		Constraints: make([]compiled.SparseR1C, 0, capacity),
-		builder:     cs.NewBuilder(),
+		builder:     cs.NewCompiler(),
 	}
 
 	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -109,15 +109,21 @@ func (system *sparseR1CS) newInternalVariable() compiled.Term {
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
 }
 
-// NewPublicVariable creates a new Public Variable
-func (system *sparseR1CS) NewPublicVariable(name string) frontend.Variable {
+// AddPublicVariable creates a new Public Variable
+func (system *sparseR1CS) AddPublicVariable(name string) frontend.Variable {
+	if system.Schema != nil {
+		panic("do not call AddPublicVariable in circuit.Define()")
+	}
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
 }
 
-// NewPublicVariable creates a new Secret Variable
-func (system *sparseR1CS) NewSecretVariable(name string) frontend.Variable {
+// AddSecretVariable creates a new Secret Variable
+func (system *sparseR1CS) AddSecretVariable(name string) frontend.Variable {
+	if system.Schema != nil {
+		panic("do not call AddSecretVariable in circuit.Define()")
+	}
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
@@ -170,7 +176,7 @@ func (system *sparseR1CS) markBoolean(t compiled.Term) {
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (system *sparseR1CS) CheckVariables() error {
+func (system *sparseR1CS) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 
