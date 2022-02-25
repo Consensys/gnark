@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -71,10 +73,10 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, o
 	// then, we set all the variables values to the ones from the witness
 
 	// clone the circuit
-	c := utils.ShallowClone(circuit)
+	c := shallowClone(circuit)
 
 	// set the witness values
-	utils.CopyWitness(c, witness)
+	copyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -407,4 +409,56 @@ func (e *engine) Curve() ecc.ID {
 
 func (e *engine) Backend() backend.ID {
 	return e.backendID
+}
+
+// shallowClone clones given circuit
+// this is actually a shallow copy → if the circuits contains maps or slices
+// only the reference is copied.
+func shallowClone(circuit frontend.Circuit) frontend.Circuit {
+
+	cValue := reflect.ValueOf(circuit).Elem()
+	newCircuit := reflect.New(cValue.Type())
+	newCircuit.Elem().Set(cValue)
+
+	circuitCopy, ok := newCircuit.Interface().(frontend.Circuit)
+	if !ok {
+		panic("couldn't clone the circuit")
+	}
+
+	if !reflect.DeepEqual(circuitCopy, circuit) {
+		panic("clone failed")
+	}
+
+	return circuitCopy
+}
+
+func copyWitness(to, from frontend.Circuit) {
+	var wValues []interface{}
+
+	var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		v := tInput.Interface().(frontend.Variable)
+
+		if visibility == schema.Secret || visibility == schema.Public {
+			if v == nil {
+				return fmt.Errorf("when parsing variable %s: missing assignment", name)
+			}
+			wValues = append(wValues, v)
+		}
+		return nil
+	}
+	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
+		panic(err)
+	}
+
+	i := 0
+	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		if visibility == schema.Secret || visibility == schema.Public {
+			tInput.Set(reflect.ValueOf((wValues[i])))
+			i++
+		}
+		return nil
+	}
+	// this can't error.
+	_, _ = schema.Parse(to, tVariable, setHandler)
+
 }

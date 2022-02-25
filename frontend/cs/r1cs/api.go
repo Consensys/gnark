@@ -28,8 +28,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -156,10 +156,10 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 		case compiled.CoeffIdTwo:
 			newCoeff.Add(lambda, lambda)
 		default:
-			coeff := system.Coeffs[cID]
+			coeff := system.builder.Coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		res.LinExp[i] = compiled.Pack(vID, system.CoeffID(&newCoeff), visibility)
+		res.LinExp[i] = compiled.Pack(vID, system.builder.CoeffID(&newCoeff), visibility)
 	}
 	t := false
 	res.IsBoolean = &t
@@ -796,8 +796,8 @@ func (system *r1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 	var lambda big.Int
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
-		lambda.Neg(&system.Coeffs[cID])
-		cID = system.CoeffID(&lambda)
+		lambda.Neg(&system.builder.Coeffs[cID])
+		cID = system.builder.CoeffID(&lambda)
 		res[i] = compiled.Pack(vID, cID, visibility)
 	}
 	return res

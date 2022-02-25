@@ -26,9 +26,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
@@ -36,9 +36,10 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 }
 
 type r1CS struct {
-	cs.ConstraintSystem
-
+	compiled.ConstraintSystem
 	Constraints []compiled.R1C
+
+	builder cs.Builder
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -49,35 +50,25 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 		capacity = initialCapacity[0]
 	}
 	system := r1CS{
-		ConstraintSystem: cs.ConstraintSystem{
+		ConstraintSystem: compiled.ConstraintSystem{
 
-			CS: compiled.CS{
-				MDebug: make(map[int]int),
-				MHints: make(map[int]*compiled.Hint),
-			},
-
-			Coeffs:         make([]big.Int, 4),
-			CoeffsIDsLarge: make(map[string]int),
-			CoeffsIDsInt64: make(map[int64]int, 4),
+			MDebug: make(map[int]int),
+			MHints: make(map[int]*compiled.Hint),
 		},
 		Constraints: make([]compiled.R1C, 0, capacity),
-
-		// Counters:          make([]Counter, 0),
+		builder:     cs.NewBuilder(),
 	}
 
-	system.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.builder.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.builder.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.builder.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	system.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.builder.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.builder.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.builder.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.builder.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
-	// system.public.variables = make([]Variable, 0)
-	// system.secret.variables = make([]Variable, 0)
-	// system.internal = make([]Variable, 0, capacity)
 	system.Public = make([]string, 1)
 	system.Secret = make([]string, 0)
 
@@ -85,7 +76,6 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 	system.Public[0] = "one"
 
 	system.CurveID = curveID
-	// system.BackendID = backendID
 
 	return &system
 }
@@ -133,7 +123,7 @@ func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
 	if !v.IsConstant() {
 		panic("can't get big.Int value on a non-constant variable")
 	}
-	return new(big.Int).Set(&system.Coeffs[v.LinExp[0].CoeffID()])
+	return new(big.Int).Set(&system.builder.Coeffs[v.LinExp[0].CoeffID()])
 }
 
 func (system *r1CS) one() compiled.Variable {
@@ -161,9 +151,9 @@ func (system *r1CS) reduce(l compiled.Variable) compiled.Variable {
 		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
+			c.Add(&system.builder.Coeffs[pcID], &system.builder.Coeffs[ccID])
 			c.Mod(c, mod)
-			l.LinExp[i-1].SetCoeffID(system.CoeffID(c))
+			l.LinExp[i-1].SetCoeffID(system.builder.CoeffID(c))
 			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
@@ -202,7 +192,7 @@ func (system *r1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
 // func (system *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
 func (system *r1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
-	return compiled.Pack(vID, system.CoeffID(coeff), vVis)
+	return compiled.Pack(vID, system.builder.CoeffID(coeff), vVis)
 }
 
 // markBoolean marks the Variable as boolean and return true

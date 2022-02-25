@@ -24,8 +24,8 @@ import (
 	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"

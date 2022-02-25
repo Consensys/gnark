@@ -30,8 +30,8 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"

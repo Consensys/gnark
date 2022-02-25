@@ -52,6 +52,7 @@ type API interface {
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
+	// TODO @gbotrel move bit operations in std/math/bits
 
 	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)

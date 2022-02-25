@@ -25,8 +25,6 @@ import (
 // errNoValue triggered when trying to access a variable that was not allocated
 var errNoValue = errors.New("can't determine API input value")
 
-type LinearExpression []Term
-
 // Variable represent a linear expression of wires
 type Variable struct {
 	LinExp    LinearExpression
@@ -40,44 +38,6 @@ func (v Variable) Clone() Variable {
 	res.LinExp = make([]Term, len(v.LinExp))
 	copy(res.LinExp, v.LinExp)
 	return res
-}
-
-// Len return the lenght of the Variable (implements Sort interface)
-func (v LinearExpression) Len() int {
-	return len(v)
-}
-
-// Equals returns true if both SORTED expressions are the same
-//
-// pre conditions: l and o are sorted
-func (v LinearExpression) Equal(o LinearExpression) bool {
-	if len(v) != len(o) {
-		return false
-	}
-	if (v == nil) != (o == nil) {
-		return false
-	}
-	for i := 0; i < len(v); i++ {
-		if v[i] != o[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// Swap swaps terms in the Variable (implements Sort interface)
-func (v LinearExpression) Swap(i, j int) {
-	v[i], v[j] = v[j], v[i]
-}
-
-// Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
-func (v LinearExpression) Less(i, j int) bool {
-	_, iID, iVis := v[i].Unpack()
-	_, jID, jVis := v[j].Unpack()
-	if iVis == jVis {
-		return iID < jID
-	}
-	return iVis > jVis
 }
 
 func (v Variable) string(sbb *strings.Builder, coeffs []big.Int) {

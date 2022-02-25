@@ -21,7 +21,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 )
 

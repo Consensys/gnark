@@ -29,8 +29,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/stretchr/testify/require"
 )
 
@@ -340,7 +339,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 	// first we clone the circuit
 	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
-	w := utils.ShallowClone(circuit)
+	w := shallowClone(circuit)
 
 	fillers := []filler{randomFiller, binaryFiller, seedFiller}
 

@@ -26,9 +26,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
@@ -36,9 +36,10 @@ func NewBuilder(curve ecc.ID) (frontend.Builder, error) {
 }
 
 type sparseR1CS struct {
-	cs.ConstraintSystem
-
+	compiled.ConstraintSystem
 	Constraints []compiled.SparseR1C
+
+	builder cs.Builder
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -49,30 +50,24 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 		capacity = initialCapacity[0]
 	}
 	system := sparseR1CS{
-		ConstraintSystem: cs.ConstraintSystem{
+		ConstraintSystem: compiled.ConstraintSystem{
 
-			CS: compiled.CS{
-				MDebug: make(map[int]int),
-				MHints: make(map[int]*compiled.Hint),
-			},
-
-			Coeffs:         make([]big.Int, 4),
-			CoeffsIDsLarge: make(map[string]int),
-			CoeffsIDsInt64: make(map[int64]int, 4),
-			MTBooleans:     make(map[int]struct{}),
+			MDebug: make(map[int]int),
+			MHints: make(map[int]*compiled.Hint),
 		},
 		Constraints: make([]compiled.SparseR1C, 0, capacity),
+		builder:     cs.NewBuilder(),
 	}
 
-	system.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.builder.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.builder.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.builder.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	system.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.builder.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.builder.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.builder.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.builder.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
 	// system.public.variables = make([]Variable, 0)
 	// system.secret.variables = make([]Variable, 0)
@@ -144,9 +139,9 @@ func (system *sparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&system.Coeffs[pcID], &system.Coeffs[ccID])
+			c.Add(&system.builder.Coeffs[pcID], &system.builder.Coeffs[ccID])
 			c.Mod(c, mod)
-			l[i-1].SetCoeffID(system.CoeffID(c))
+			l[i-1].SetCoeffID(system.builder.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)
 			i--
 		}
@@ -162,13 +157,13 @@ func (system *sparseR1CS) zero() compiled.Term {
 
 // returns true if a variable is already boolean
 func (system *sparseR1CS) isBoolean(t compiled.Term) bool {
-	_, ok := system.MTBooleans[int(t)]
+	_, ok := system.builder.MTBooleans[int(t)]
 	return ok
 }
 
 // markBoolean records t in the map to not boolean constrain it twice
 func (system *sparseR1CS) markBoolean(t compiled.Term) {
-	system.MTBooleans[int(t)] = struct{}{}
+	system.builder.MTBooleans[int(t)] = struct{}{}
 }
 
 // checkVariables perform post compilation checks on the Variables

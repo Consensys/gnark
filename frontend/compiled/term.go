@@ -22,12 +22,13 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-// Term lightweight version of a term, no pointers
-// first 4 bits are reserved
-// next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
-// next 30 bits represent the constraint used to compute the wire
-// if we support more than 1 billion constraints, this breaks (not so soon.)
+// Term lightweight version of a term, no pointers. A term packs wireID, coeffID, visibility and
+// some metadata associated with the term, in a uint64.
+// note: if we support more than 1 billion constraints, this breaks (not so soon.)
 type Term uint64
+
+// A linear expression is a linear combination of Term
+type LinearExpression []Term
 
 // ids of the coefficients with simple values in any cs.coeffs slice.
 const (
@@ -177,4 +178,42 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 		panic("not implemented")
 	}
 	sbb.WriteString(strconv.Itoa(t.WireID()))
+}
+
+// Len return the lenght of the Variable (implements Sort interface)
+func (v LinearExpression) Len() int {
+	return len(v)
+}
+
+// Equals returns true if both SORTED expressions are the same
+//
+// pre conditions: l and o are sorted
+func (v LinearExpression) Equal(o LinearExpression) bool {
+	if len(v) != len(o) {
+		return false
+	}
+	if (v == nil) != (o == nil) {
+		return false
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] != o[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Swap swaps terms in the Variable (implements Sort interface)
+func (v LinearExpression) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
+}
+
+// Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
+func (v LinearExpression) Less(i, j int) bool {
+	_, iID, iVis := v[i].Unpack()
+	_, jID, jVis := v[j].Unpack()
+	if iVis == jVis {
+		return iID < jID
+	}
+	return iVis > jVis
 }

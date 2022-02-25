@@ -21,7 +21,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -45,7 +45,7 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 		k := utils.FromInterface(i2)
 		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(&k)
-		_k := system.CoeffID(&k)
+		_k := system.builder.CoeffID(&k)
 		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 		return
 	}
@@ -77,12 +77,12 @@ func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	system.markBoolean(t)
-	system.MTBooleans[int(t)] = struct{}{}
+	system.builder.MTBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
 	var mCoef big.Int
-	mCoef.Neg(&system.Coeffs[cID])
-	mcID := system.CoeffID(&mCoef)
+	mCoef.Neg(&system.builder.Coeffs[cID])
+	mcID := system.builder.CoeffID(&mCoef)
 	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 

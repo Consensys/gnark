@@ -20,6 +20,8 @@ func init() {
 	})
 }
 
+// TODO FIXME these may be redefined easily by an external package
+
 // The package provides the following built-in hint functions. All built-in hint
 // functions are registered in the registry.
 var (

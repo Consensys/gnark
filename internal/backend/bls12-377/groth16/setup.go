@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"math/big"
 	"math/bits"
 )

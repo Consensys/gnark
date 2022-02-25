@@ -19,6 +19,7 @@ package r1cs
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
@@ -26,7 +27,6 @@ import (
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 // Compile constructs a rank-1 constraint sytem
@@ -36,8 +36,8 @@ func (cs *r1CS) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// setting up the result
 	res := compiled.R1CS{
-		CS:          cs.CS,
-		Constraints: cs.Constraints,
+		ConstraintSystem: cs.ConstraintSystem,
+		Constraints:      cs.Constraints,
 	}
 	res.NbPublicVariables = len(cs.Public)
 	res.NbSecretVariables = len(cs.Secret)
@@ -133,17 +133,17 @@ HINTLOOP:
 
 	switch cs.CurveID {
 	case ecc.BLS12_377:
-		return bls12377r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bls12377r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	case ecc.BLS12_381:
-		return bls12381r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bls12381r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	case ecc.BN254:
-		return bn254r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bn254r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	case ecc.BW6_761:
-		return bw6761r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bw6761r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	case ecc.BW6_633:
-		return bw6633r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bw6633r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	case ecc.BLS24_315:
-		return bls24315r1cs.NewR1CS(res, cs.Coeffs), nil
+		return bls24315r1cs.NewR1CS(res, cs.builder.Coeffs), nil
 	default:
 		panic("not implemtented")
 	}
