@@ -45,7 +45,7 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 		k := utils.FromInterface(i2)
 		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(&k)
-		_k := system.builder.CoeffID(&k)
+		_k := system.st.CoeffID(&k)
 		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 		return
 	}
@@ -77,12 +77,12 @@ func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	system.markBoolean(t)
-	system.builder.MTBooleans[int(t)] = struct{}{}
+	system.mtBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
 	var mCoef big.Int
-	mCoef.Neg(&system.builder.Coeffs[cID])
-	mcID := system.builder.CoeffID(&mCoef)
+	mCoef.Neg(&system.st.Coeffs[cID])
+	mcID := system.st.CoeffID(&mCoef)
 	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 

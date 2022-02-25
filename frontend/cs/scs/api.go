@@ -46,7 +46,7 @@ func (system *sparseR1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable)
 		return system.splitSum(vars[0], vars[1:])
 	}
 	cl, _, _ := vars[0].Unpack()
-	kID := system.builder.CoeffID(&k)
+	kID := system.st.CoeffID(&k)
 	o := system.newInternalVariable()
 	system.addPlonkConstraint(vars[0], system.zero(), o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
 	return system.splitSum(o, vars[1:])
@@ -80,9 +80,9 @@ func (system *sparseR1CS) Neg(i1 frontend.Variable) frontend.Variable {
 		v := i1.(compiled.Term)
 		c, _, _ := v.Unpack()
 		var coef big.Int
-		coef.Set(&system.builder.Coeffs[c])
+		coef.Set(&system.st.Coeffs[c])
 		coef.Neg(&coef)
-		c = system.builder.CoeffID(&coef)
+		c = system.st.CoeffID(&coef)
 		v.SetCoeffID(c)
 		return v
 	}
@@ -104,9 +104,9 @@ func (system *sparseR1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable)
 func (system *sparseR1CS) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
-	coef.Set(&system.builder.Coeffs[cid])
+	coef.Set(&system.st.Coeffs[cid])
 	coef.Mul(m, &coef).Mod(&coef, system.CurveID.Info().Fr.Modulus())
-	cid = system.builder.CoeffID(&coef)
+	cid = system.st.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
 }
@@ -274,7 +274,7 @@ func (system *sparseR1CS) Xor(a, b frontend.Variable) frontend.Variable {
 		_b := utils.FromInterface(b)
 		one := big.NewInt(1)
 		_b.Lsh(&_b, 1).Sub(&_b, one)
-		idl := system.builder.CoeffID(&_b)
+		idl := system.st.CoeffID(&_b)
 		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}
@@ -314,7 +314,7 @@ func (system *sparseR1CS) Or(a, b frontend.Variable) frontend.Variable {
 
 		one := big.NewInt(1)
 		_b.Sub(&_b, one)
-		idl := system.builder.CoeffID(&_b)
+		idl := system.st.CoeffID(&_b)
 		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}

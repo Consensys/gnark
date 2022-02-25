@@ -40,7 +40,7 @@ import (
 func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
-	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+	vars, s := system.ToSymbols(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
 	t := false
@@ -58,7 +58,7 @@ func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 // Neg returns -i
 func (system *r1CS) Neg(i frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i)
+	vars, _ := system.ToSymbols(i)
 
 	if vars[0].IsConstant() {
 		n := system.constantValue(vars[0])
@@ -76,7 +76,7 @@ func (system *r1CS) Neg(i frontend.Variable) frontend.Variable {
 func (system *r1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
-	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+	vars, s := system.ToSymbols(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
 	t := false
@@ -100,7 +100,7 @@ func (system *r1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 // Mul returns res = i1 * i2 * ... in
 func (system *r1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+	vars, _ := system.ToSymbols(append([]frontend.Variable{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
 
@@ -156,10 +156,10 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 		case compiled.CoeffIdTwo:
 			newCoeff.Add(lambda, lambda)
 		default:
-			coeff := system.builder.Coeffs[cID]
+			coeff := system.st.Coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		res.LinExp[i] = compiled.Pack(vID, system.builder.CoeffID(&newCoeff), visibility)
+		res.LinExp[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
 	}
 	t := false
 	res.IsBoolean = &t
@@ -167,7 +167,7 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 }
 
 func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1, i2)
+	vars, _ := system.ToSymbols(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
@@ -199,7 +199,7 @@ func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 
 // Div returns res = i1 / i2
 func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1, i2)
+	vars, _ := system.ToSymbols(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
@@ -233,7 +233,7 @@ func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 // Inverse returns res = inverse(v)
 func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1)
+	vars, _ := system.ToSymbols(i1)
 
 	if vars[0].IsConstant() {
 		// c := vars[0].constantValue(cs)
@@ -274,7 +274,7 @@ func (system *r1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 		}
 	}
 
-	vars, _ := system.toVariables(i1)
+	vars, _ := system.ToSymbols(i1)
 	a := vars[0]
 
 	// if a is a constant, work with the big int value.
@@ -345,7 +345,7 @@ func toSliceOfVariables(v []compiled.Variable) []frontend.Variable {
 
 // FromBinary packs b, seen as a fr.Element in little endian
 func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
-	b, _ := system.toVariables(_b...)
+	b, _ := system.ToSymbols(_b...)
 
 	// ensure inputs are set
 	for i := 0; i < len(b); i++ {
@@ -374,7 +374,7 @@ func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 // Xor compute the XOR between two frontend.Variables
 func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(_a, _b)
+	vars, _ := system.ToSymbols(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
@@ -398,7 +398,7 @@ func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
 
 // Or compute the OR between two frontend.Variables
 func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
+	vars, _ := system.ToSymbols(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
@@ -421,7 +421,7 @@ func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
 
 // And compute the AND between two frontend.Variables
 func (system *r1CS) And(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
+	vars, _ := system.ToSymbols(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
@@ -440,7 +440,7 @@ func (system *r1CS) And(_a, _b frontend.Variable) frontend.Variable {
 // Select if i0 is true, yields i1 else yields i2
 func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(i0, i1, i2)
+	vars, _ := system.ToSymbols(i0, i1, i2)
 	b := vars[0]
 
 	// ensures that b is boolean
@@ -474,7 +474,7 @@ func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
 func (system *r1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
+	vars, _ := system.ToSymbols(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
 
@@ -505,7 +505,7 @@ func (system *r1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
 func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1)
+	vars, _ := system.ToSymbols(i1)
 	a := vars[0]
 	if a.IsConstant() {
 		// c := a.constantValue(cs)
@@ -540,7 +540,7 @@ func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (system *r1CS) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(i1, i2)
+	vars, _ := system.ToSymbols(i1, i2)
 	bi1 := system.ToBinary(vars[0], system.BitLen())
 	bi2 := system.ToBinary(vars[1], system.BitLen())
 
@@ -773,8 +773,8 @@ func (system *r1CS) constant(input frontend.Variable) frontend.Variable {
 	}
 }
 
-// toVariables return frontend.Variable corresponding to inputs and the total size of the linear expressions
-func (system *r1CS) toVariables(in ...frontend.Variable) ([]compiled.Variable, int) {
+// ToSymbols return frontend.Variable corresponding to inputs and the total size of the linear expressions
+func (system *r1CS) ToSymbols(in ...frontend.Variable) ([]compiled.Variable, int) {
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
 	e := func(i frontend.Variable) {
@@ -796,8 +796,8 @@ func (system *r1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 	var lambda big.Int
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
-		lambda.Neg(&system.builder.Coeffs[cID])
-		cID = system.builder.CoeffID(&lambda)
+		lambda.Neg(&system.st.Coeffs[cID])
+		cID = system.st.CoeffID(&lambda)
 		res[i] = compiled.Pack(vID, cID, visibility)
 	}
 	return res

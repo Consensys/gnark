@@ -140,17 +140,17 @@ HINTLOOP:
 
 	switch cs.CurveID {
 	case ecc.BLS12_377:
-		return bls12377r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bls12377r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS12_381:
-		return bls12381r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bls12381r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	case ecc.BN254:
-		return bn254r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bn254r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_761:
-		return bw6761r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bw6761r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_633:
-		return bw6633r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bw6633r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS24_315:
-		return bls24315r1cs.NewR1CS(res, cs.builder.Coeffs), nil
+		return bls24315r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	default:
 		panic("not implemtented")
 	}

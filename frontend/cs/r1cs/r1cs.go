@@ -39,7 +39,7 @@ type r1CS struct {
 	compiled.ConstraintSystem
 	Constraints []compiled.R1C
 
-	builder cs.Builder
+	st cs.CoeffTable
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -56,18 +56,18 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 			MHints: make(map[int]*compiled.Hint),
 		},
 		Constraints: make([]compiled.R1C, 0, capacity),
-		builder:     cs.NewCompiler(),
+		st:          cs.NewCoeffTable(),
 	}
 
-	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.builder.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.builder.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.builder.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	system.builder.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.builder.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.builder.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.builder.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.st.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
 	system.Public = make([]string, 1)
 	system.Secret = make([]string, 0)
@@ -123,13 +123,13 @@ func (system *r1CS) AddSecretVariable(name string) frontend.Variable {
 }
 
 // func (v *variable) constantValue(system *R1CS) *big.Int {
-func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
+func (system *r1CS) constantValue(v compiled.Symbol) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.IsConstant() {
 		panic("can't get big.Int value on a non-constant variable")
 	}
-	return new(big.Int).Set(&system.builder.Coeffs[v.LinExp[0].CoeffID()])
+	return new(big.Int).Set(&system.st.Coeffs[v.(compiled.Variable).LinExp[0].CoeffID()])
 }
 
 func (system *r1CS) one() compiled.Variable {
@@ -157,9 +157,9 @@ func (system *r1CS) reduce(l compiled.Variable) compiled.Variable {
 		ccID, cvID, cVis := l.LinExp[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&system.builder.Coeffs[pcID], &system.builder.Coeffs[ccID])
+			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
 			c.Mod(c, mod)
-			l.LinExp[i-1].SetCoeffID(system.builder.CoeffID(c))
+			l.LinExp[i-1].SetCoeffID(system.st.CoeffID(c))
 			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
 			i--
 		}
@@ -198,7 +198,7 @@ func (system *r1CS) addConstraint(r1c compiled.R1C, debugID ...int) {
 // func (system *R1CSRefactor) setCoeff(v Variable, coeff *big.Int) Term {
 func (system *r1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	_, vID, vVis := v.Unpack()
-	return compiled.Pack(vID, system.builder.CoeffID(coeff), vVis)
+	return compiled.Pack(vID, system.st.CoeffID(coeff), vVis)
 }
 
 // markBoolean marks the Variable as boolean and return true

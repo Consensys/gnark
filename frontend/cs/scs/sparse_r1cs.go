@@ -39,7 +39,10 @@ type sparseR1CS struct {
 	compiled.ConstraintSystem
 	Constraints []compiled.SparseR1C
 
-	builder cs.Builder
+	st cs.CoeffTable
+
+	// map for recording boolean constrained variables (to not constrain them twice)
+	mtBooleans map[int]struct{}
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -55,19 +58,20 @@ func newSparseR1CS(curveID ecc.ID, initialCapacity ...int) *sparseR1CS {
 			MDebug: make(map[int]int),
 			MHints: make(map[int]*compiled.Hint),
 		},
+		mtBooleans:  make(map[int]struct{}),
 		Constraints: make([]compiled.SparseR1C, 0, capacity),
-		builder:     cs.NewCompiler(),
+		st:          cs.NewCoeffTable(),
 	}
 
-	system.builder.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.builder.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.builder.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.builder.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	system.st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	system.st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	system.st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	system.st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
 
-	system.builder.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.builder.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.builder.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.builder.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+	system.st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	system.st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	system.st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	system.st.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
 
 	// system.public.variables = make([]Variable, 0)
 	// system.secret.variables = make([]Variable, 0)
@@ -145,9 +149,9 @@ func (system *sparseR1CS) reduce(l compiled.LinearExpression) compiled.LinearExp
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&system.builder.Coeffs[pcID], &system.builder.Coeffs[ccID])
+			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
 			c.Mod(c, mod)
-			l[i-1].SetCoeffID(system.builder.CoeffID(c))
+			l[i-1].SetCoeffID(system.st.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)
 			i--
 		}
@@ -163,13 +167,13 @@ func (system *sparseR1CS) zero() compiled.Term {
 
 // returns true if a variable is already boolean
 func (system *sparseR1CS) isBoolean(t compiled.Term) bool {
-	_, ok := system.builder.MTBooleans[int(t)]
+	_, ok := system.mtBooleans[int(t)]
 	return ok
 }
 
 // markBoolean records t in the map to not boolean constrain it twice
 func (system *sparseR1CS) markBoolean(t compiled.Term) {
-	system.builder.MTBooleans[int(t)] = struct{}{}
+	system.mtBooleans[int(t)] = struct{}{}
 }
 
 // checkVariables perform post compilation checks on the Variables

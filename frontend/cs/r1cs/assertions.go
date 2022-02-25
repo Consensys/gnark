@@ -44,7 +44,7 @@ func (system *r1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 ∥ v == 1)
 func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 
-	vars, _ := system.toVariables(i1)
+	vars, _ := system.ToSymbols(i1)
 	v := vars[0]
 
 	if *v.IsBoolean {
@@ -76,7 +76,7 @@ func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
 func (system *r1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
-	v, _ := system.toVariables(_v)
+	v, _ := system.ToSymbols(_v)
 
 	switch b := bound.(type) {
 	case compiled.Variable:

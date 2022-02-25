@@ -63,7 +63,7 @@ func (v Variable) AssertIsSet() {
 }
 
 // isConstant returns true if the variable is ONE_WIRE * coeff
-func (v *Variable) IsConstant() bool {
+func (v Variable) IsConstant() bool {
 	if len(v.LinExp) != 1 {
 		return false
 	}
