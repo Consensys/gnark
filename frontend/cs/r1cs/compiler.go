@@ -76,16 +76,6 @@ func newCompiler(curveID ecc.ID, initialCapacity ...int) *compiler {
 		mtBooleans:  make(map[uint64][]compiled.LinearExpression),
 	}
 
-	system.st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
-
-	system.st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.st.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
-
 	system.Public = make([]string, 1)
 	system.Secret = make([]string, 0)
 

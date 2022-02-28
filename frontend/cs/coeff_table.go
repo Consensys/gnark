@@ -2,6 +2,8 @@ package cs
 
 import (
 	"math/big"
+
+	"github.com/consensys/gnark/frontend/compiled"
 )
 
 // CoeffTable helps build a constraint system but need not be serialized after compilation
@@ -13,11 +15,22 @@ type CoeffTable struct {
 }
 
 func NewCoeffTable() CoeffTable {
-	return CoeffTable{
+	st := CoeffTable{
 		Coeffs:         make([]big.Int, 4),
 		CoeffsIDsLarge: make(map[string]int),
 		CoeffsIDsInt64: make(map[int64]int, 4),
 	}
+
+	st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
+	st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
+	st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
+	st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
+	st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
+	st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
+	st.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
+
+	return st
 }
 
 // CoeffID tries to fetch the entry where b is if it exits, otherwise appends b to

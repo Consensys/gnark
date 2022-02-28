@@ -75,19 +75,6 @@ func newCompiler(curveID ecc.ID, initialCapacity ...int) *compiler {
 		st:          cs.NewCoeffTable(),
 	}
 
-	system.st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	system.st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	system.st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	system.st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
-
-	system.st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
-	system.st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
-	system.st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
-	system.st.CoeffsIDsInt64[-1] = compiled.CoeffIdMinusOne
-
-	// system.public.variables = make([]Variable, 0)
-	// system.secret.variables = make([]Variable, 0)
-	// system.internal = make([]Variable, 0, capacity)
 	system.Public = make([]string, 0)
 	system.Secret = make([]string, 0)
 
