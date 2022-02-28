@@ -32,7 +32,7 @@ func (r1cs *R1CS) GetNbConstraints() int {
 
 // R1C used to compute the wires
 type R1C struct {
-	L, R, O Variable
+	L, R, O LinearExpression
 }
 
 func (r1c *R1C) String(coeffs []big.Int) string {

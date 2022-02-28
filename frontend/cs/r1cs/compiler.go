@@ -87,11 +87,11 @@ func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *compiler {
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (system *compiler) newInternalVariable() compiled.Variable {
+func (system *compiler) newInternalVariable() compiled.LinearExpression {
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
-	return compiled.Variable{
-		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)},
+	return compiled.LinearExpression{
+		compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal),
 	}
 }
 
@@ -102,10 +102,9 @@ func (system *compiler) AddPublicVariable(name string) frontend.Variable {
 	}
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
-	res := compiled.Variable{
-		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)},
+	return compiled.LinearExpression{
+		compiled.Pack(idx, compiled.CoeffIdOne, schema.Public),
 	}
-	return res
 }
 
 // AddSecretVariable creates a new secret Variable
@@ -115,15 +114,14 @@ func (system *compiler) AddSecretVariable(name string) frontend.Variable {
 	}
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
-	res := compiled.Variable{
-		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)},
+	return compiled.LinearExpression{
+		compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret),
 	}
-	return res
 }
 
-func (system *compiler) one() compiled.Variable {
-	return compiled.Variable{
-		LinExp: compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, schema.Public)},
+func (system *compiler) one() compiled.LinearExpression {
+	return compiled.LinearExpression{
+		compiled.Pack(0, compiled.CoeffIdOne, schema.Public),
 	}
 }
 
@@ -131,23 +129,23 @@ func (system *compiler) one() compiled.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (system *compiler) reduce(l compiled.Variable) compiled.Variable {
+func (system *compiler) reduce(l compiled.LinearExpression) compiled.LinearExpression {
 	// ensure our linear expression is sorted, by visibility and by Variable ID
-	if !sort.IsSorted(l.LinExp) { // may not help
-		sort.Sort(l.LinExp)
+	if !sort.IsSorted(l) { // may not help
+		sort.Sort(l)
 	}
 
 	mod := system.CurveID.Info().Fr.Modulus()
 	c := new(big.Int)
-	for i := 1; i < len(l.LinExp); i++ {
-		pcID, pvID, pVis := l.LinExp[i-1].Unpack()
-		ccID, cvID, cVis := l.LinExp[i].Unpack()
+	for i := 1; i < len(l); i++ {
+		pcID, pvID, pVis := l[i-1].Unpack()
+		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
 			c.Mod(c, mod)
-			l.LinExp[i-1].SetCoeffID(system.st.CoeffID(c))
-			l.LinExp = append(l.LinExp[:i], l.LinExp[i+1:]...)
+			l[i-1].SetCoeffID(system.st.CoeffID(c))
+			l = append(l[:i], l[i+1:]...)
 			i--
 		}
 	}
@@ -157,9 +155,9 @@ func (system *compiler) reduce(l compiled.Variable) compiled.Variable {
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
 func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
-	l := _l.(compiled.Variable)
-	r := _r.(compiled.Variable)
-	o := _o.(compiled.Variable)
+	l := _l.(compiled.LinearExpression)
+	r := _r.(compiled.LinearExpression)
+	o := _o.(compiled.LinearExpression)
 
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
@@ -167,7 +165,7 @@ func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 	// the "r" linear expression is going to end up in the B matrix
 	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(l.LinExp) > len(r.LinExp) {
+	if len(l) > len(r) {
 		l, r = r, l
 	}
 
@@ -199,7 +197,7 @@ func (system *compiler) MarkBoolean(v frontend.Variable) {
 		return
 	}
 	// v is a linear expression
-	l := v.(compiled.Variable).LinExp
+	l := v.(compiled.LinearExpression)
 	if !sort.IsSorted(l) {
 		sort.Sort(l)
 	}
@@ -218,7 +216,7 @@ func (system *compiler) IsBoolean(v frontend.Variable) bool {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
 	// v is a linear expression
-	l := v.(compiled.Variable).LinExp
+	l := v.(compiled.LinearExpression)
 	if !sort.IsSorted(l) {
 		sort.Sort(l)
 	}
@@ -258,8 +256,8 @@ func (system *compiler) checkVariables() error {
 	mHintsConstrained := make(map[int]bool)
 
 	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
-	processLinearExpression := func(l compiled.Variable) {
-		for _, t := range l.LinExp {
+	processLinearExpression := func(l compiled.LinearExpression) {
+		for _, t := range l {
 			if t.CoeffID() == compiled.CoeffIdZero {
 				// ignore zero coefficient, as it does not constraint the Variable
 				// though, we may want to flag that IF the Variable doesn't appear else where
@@ -390,9 +388,9 @@ func (cs *compiler) Compile() (frontend.CompiledConstraintSystem, error) {
 	}
 
 	for i := 0; i < len(res.Constraints); i++ {
-		offsetIDs(res.Constraints[i].L.LinExp)
-		offsetIDs(res.Constraints[i].R.LinExp)
-		offsetIDs(res.Constraints[i].O.LinExp)
+		offsetIDs(res.Constraints[i].L)
+		offsetIDs(res.Constraints[i].R)
+		offsetIDs(res.Constraints[i].O)
 	}
 
 	// we need to offset the ids in the hints
@@ -414,11 +412,6 @@ HINTLOOP:
 		copy(inputs, hint.Inputs)
 		for j := 0; j < len(inputs); j++ {
 			switch t := inputs[j].(type) {
-			case compiled.Variable:
-				tmp := make(compiled.LinearExpression, len(t.LinExp))
-				copy(tmp, t.LinExp)
-				offsetIDs(tmp)
-				inputs[j] = tmp
 			case compiled.LinearExpression:
 				tmp := make(compiled.LinearExpression, len(t))
 				copy(tmp, t)
@@ -496,9 +489,9 @@ func buildLevels(ccs compiled.R1CS) [][]int {
 
 		b.nodeLevel = 0
 
-		b.processLE(c.L.LinExp, cID)
-		b.processLE(c.R.LinExp, cID)
-		b.processLE(c.O.LinExp, cID)
+		b.processLE(c.L, cID)
+		b.processLE(c.R, cID)
+		b.processLE(c.O, cID)
 		b.nodeLevels[cID] = b.nodeLevel
 		b.mLevels[b.nodeLevel]++
 
@@ -554,8 +547,6 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 
 			for _, in := range h.Inputs {
 				switch t := in.(type) {
-				case compiled.Variable:
-					b.processLE(t.LinExp, cID)
 				case compiled.LinearExpression:
 					b.processLE(t, cID)
 				case compiled.Term:
@@ -577,13 +568,13 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
 func (system *compiler) ConstantValue(v frontend.Variable) (*big.Int, bool) {
-	if _v, ok := v.(compiled.Variable); ok {
+	if _v, ok := v.(compiled.LinearExpression); ok {
 		_v.AssertIsSet()
 
-		if len(_v.LinExp) != 1 {
+		if len(_v) != 1 {
 			return nil, false
 		}
-		cID, vID, visibility := _v.LinExp[0].Unpack()
+		cID, vID, visibility := _v[0].Unpack()
 		if !(vID == 0 && visibility == schema.Public) {
 			return nil, false
 		}
@@ -597,14 +588,14 @@ func (system *compiler) Backend() backend.ID {
 	return backend.GROTH16
 }
 
-// toVariable will return (and allocate if neccesary) a compiled.Variable from given value
+// toVariable will return (and allocate if neccesary) a compiled.LinearExpression from given value
 //
-// if input is already a compiled.Variable, does nothing
-// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a toVariable compiled.Variable
+// if input is already a compiled.LinearExpression, does nothing
+// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a toVariable compiled.LinearExpression
 func (system *compiler) toVariable(input interface{}) frontend.Variable {
 
 	switch t := input.(type) {
-	case compiled.Variable:
+	case compiled.LinearExpression:
 		t.AssertIsSet()
 		return t
 	default:
@@ -613,19 +604,19 @@ func (system *compiler) toVariable(input interface{}) frontend.Variable {
 			return system.one()
 		}
 		r := system.one()
-		r.LinExp[0] = system.setCoeff(r.LinExp[0], &n)
+		r[0] = system.setCoeff(r[0], &n)
 		return r
 	}
 }
 
 // toVariables return frontend.Variable corresponding to inputs and the total size of the linear expressions
-func (system *compiler) toVariables(in ...frontend.Variable) ([]compiled.Variable, int) {
-	r := make([]compiled.Variable, 0, len(in))
+func (system *compiler) toVariables(in ...frontend.Variable) ([]compiled.LinearExpression, int) {
+	r := make([]compiled.LinearExpression, 0, len(in))
 	s := 0
 	e := func(i frontend.Variable) {
-		v := system.toVariable(i).(compiled.Variable)
+		v := system.toVariable(i).(compiled.LinearExpression)
 		r = append(r, v)
-		s += len(v.LinExp)
+		s += len(v)
 	}
 	// e(i1)
 	// e(i2)
@@ -681,9 +672,6 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		switch t := in.(type) {
-		case compiled.Variable:
-			tmp := t.Clone()
-			hintInputs[i] = tmp.LinExp
 		case compiled.LinearExpression:
 			tmp := make(compiled.LinearExpression, len(t))
 			copy(tmp, t)
@@ -698,7 +686,7 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	res := make([]frontend.Variable, len(varIDs))
 	for i := range varIDs {
 		r := system.newInternalVariable()
-		_, vID, _ := r.LinExp[0].Unpack()
+		_, vID, _ := r[0].Unpack()
 		varIDs[i] = vID
 		res[i] = r
 	}

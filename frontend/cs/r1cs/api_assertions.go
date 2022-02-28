@@ -28,8 +28,8 @@ import (
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
 func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
-	r := system.toVariable(i1).(compiled.Variable)
-	o := system.toVariable(i2).(compiled.Variable)
+	r := system.toVariable(i1).(compiled.LinearExpression)
+	o := system.toVariable(i2).(compiled.LinearExpression)
 
 	debug := system.AddDebugInfo("assertIsEqual", r, " == ", o)
 
@@ -55,7 +55,7 @@ func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
 	}
 
 	if system.IsBoolean(v) {
-		return // compiled.Variable is already constrained
+		return // compiled.LinearExpression is already constrained
 	}
 	system.MarkBoolean(v)
 
@@ -78,7 +78,7 @@ func (system *compiler) AssertIsLessOrEqual(_v frontend.Variable, bound frontend
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
-	case compiled.Variable:
+	case compiled.LinearExpression:
 		b.AssertIsSet()
 		system.mustBeLessOrEqVar(v[0], b)
 	default:
@@ -87,7 +87,7 @@ func (system *compiler) AssertIsLessOrEqual(_v frontend.Variable, bound frontend
 
 }
 
-func (system *compiler) mustBeLessOrEqVar(a, bound compiled.Variable) {
+func (system *compiler) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := system.BitLen()
@@ -121,14 +121,14 @@ func (system *compiler) mustBeLessOrEqVar(a, bound compiled.Variable) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.MarkBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.LinearExpression)) // this does not create a constraint
 
 		system.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (system *compiler) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+func (system *compiler) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
 
 	nbBits := system.BitLen()
 
@@ -175,7 +175,7 @@ func (system *compiler) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 			l = system.Sub(l, aBits[i])
 
 			system.addConstraint(newR1C(l, aBits[i], system.toVariable(0)), debug)
-			system.MarkBoolean(aBits[i].(compiled.Variable))
+			system.MarkBoolean(aBits[i].(compiled.LinearExpression))
 		} else {
 			system.AssertIsBoolean(aBits[i])
 		}

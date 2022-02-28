@@ -170,9 +170,6 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
-		case compiled.Variable:
-			v := s.computeLinearExpression(t.LinExp)
-			v.ToBigIntRegular(inputs[i])
 		case compiled.LinearExpression:
 			v := s.computeLinearExpression(t)
 			v.ToBigIntRegular(inputs[i])

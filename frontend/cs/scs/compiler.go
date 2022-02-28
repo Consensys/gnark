@@ -492,10 +492,6 @@ func (b *levelBuilder) processTerm(t compiled.Term, cID int) {
 
 		for _, in := range h.Inputs {
 			switch t := in.(type) {
-			case compiled.Variable:
-				for _, tt := range t.LinExp {
-					b.processTerm(tt, cID)
-				}
 			case compiled.LinearExpression:
 				for _, tt := range t {
 					b.processTerm(tt, cID)
@@ -608,8 +604,8 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *compiler) filterConstantSum(in []frontend.Variable) ([]compiled.Term, big.Int) {
-	res := make([]compiled.Term, 0, len(in))
+func (system *compiler) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
+	res := make(compiled.LinearExpression, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
@@ -624,8 +620,8 @@ func (system *compiler) filterConstantSum(in []frontend.Variable) ([]compiled.Te
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *compiler) filterConstantProd(in []frontend.Variable) ([]compiled.Term, big.Int) {
-	res := make([]compiled.Term, 0, len(in))
+func (system *compiler) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
+	res := make(compiled.LinearExpression, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
 	for i := 0; i < len(in); i++ {
@@ -640,7 +636,7 @@ func (system *compiler) filterConstantProd(in []frontend.Variable) ([]compiled.T
 	return res, b
 }
 
-func (system *compiler) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (system *compiler) splitSum(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -654,7 +650,7 @@ func (system *compiler) splitSum(acc compiled.Term, r []compiled.Term) compiled.
 	return system.splitSum(o, r[1:])
 }
 
-func (system *compiler) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
+func (system *compiler) splitProd(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {

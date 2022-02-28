@@ -90,12 +90,12 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 	for _, _i := range i {
 		switch v := _i.(type) {
-		case Variable:
-			if len(v.LinExp) > 1 {
+		case LinearExpression:
+			if len(v) > 1 {
 				sbb.WriteString("(")
 			}
 			l.WriteVariable(v, &sbb)
-			if len(v.LinExp) > 1 {
+			if len(v) > 1 {
 				sbb.WriteString(")")
 			}
 		case string:

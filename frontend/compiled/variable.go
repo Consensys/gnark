@@ -23,23 +23,17 @@ import (
 // errNoValue triggered when trying to access a variable that was not allocated
 var errNoValue = errors.New("can't determine API input value")
 
-// Variable represent a linear expression of wires
-type Variable struct {
-	LinExp LinearExpression
-}
-
 // Clone returns a copy of the underlying slice
-func (v Variable) Clone() Variable {
-	var res Variable
-	res.LinExp = make([]Term, len(v.LinExp))
-	copy(res.LinExp, v.LinExp)
+func (v LinearExpression) Clone() LinearExpression {
+	res := make(LinearExpression, len(v))
+	copy(res, v)
 	return res
 }
 
-func (v Variable) string(sbb *strings.Builder, coeffs []big.Int) {
-	for i := 0; i < len(v.LinExp); i++ {
-		v.LinExp[i].string(sbb, coeffs)
-		if i+1 < len(v.LinExp) {
+func (v LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
+	for i := 0; i < len(v); i++ {
+		v[i].string(sbb, coeffs)
+		if i+1 < len(v) {
 			sbb.WriteString(" + ")
 		}
 	}
@@ -50,9 +44,9 @@ func (v Variable) string(sbb *strings.Builder, coeffs []big.Int) {
 // var a variable
 // cs.Mul(a, 1)
 // since a was not in the circuit struct it is not a secret variable
-func (v Variable) AssertIsSet() {
+func (v LinearExpression) AssertIsSet() {
 
-	if len(v.LinExp) == 0 {
+	if len(v) == 0 {
 		panic(errNoValue)
 	}
 

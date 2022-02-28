@@ -24,9 +24,6 @@ func (h Hint) inputsCBORTags() (cbor.TagSet, error) {
 	if err := tags.Add(defTagOpts, reflect.TypeOf(LinearExpression{}), 25443); err != nil {
 		return nil, fmt.Errorf("new LE tag: %w", err)
 	}
-	if err := tags.Add(defTagOpts, reflect.TypeOf(Variable{}), 25444); err != nil {
-		return nil, fmt.Errorf("new variable tag: %w", err)
-	}
 	if err := tags.Add(defTagOpts, reflect.TypeOf(Term(0)), 25445); err != nil {
 		return nil, fmt.Errorf("new term tag: %w", err)
 	}
@@ -100,12 +97,6 @@ func (h *Hint) UnmarshalCBOR(b []byte) error {
 				return fmt.Errorf("unmarshal linear expression: %w", err)
 			}
 			inputs[i] = LinearExpression(v)
-		case 25444:
-			var v Variable
-			if err := dec.Unmarshal(vin.Content, &v); err != nil {
-				return fmt.Errorf("unmarshal variable: %w", err)
-			}
-			inputs[i] = v
 		case 25445:
 			var v uint64
 			if err := dec.Unmarshal(vin.Content, &v); err != nil {

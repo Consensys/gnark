@@ -63,10 +63,10 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.Variable)
+	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression)
 
 	// check sizes
-	if len(toTest.LinExp) != 3 {
+	if len(toTest) != 3 {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 

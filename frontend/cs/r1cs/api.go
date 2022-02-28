@@ -41,11 +41,11 @@ func (system *compiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
-	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s)}
+	res := make(compiled.LinearExpression, 0, s)
 
 	for _, v := range vars {
 		l := v.Clone()
-		res.LinExp = append(res.LinExp, l.LinExp...)
+		res = append(res, l...)
 	}
 
 	res = system.reduce(res)
@@ -62,9 +62,7 @@ func (system *compiler) Neg(i frontend.Variable) frontend.Variable {
 		return system.toVariable(n)
 	}
 
-	res := compiled.Variable{LinExp: system.negateLinExp(vars[0].LinExp)}
-
-	return res
+	return system.negateLinExp(vars[0])
 }
 
 // Sub returns res = i1 - i2
@@ -74,15 +72,13 @@ func (system *compiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
-	res := compiled.Variable{
-		LinExp: make([]compiled.Term, 0, s),
-	}
+	res := make(compiled.LinearExpression, 0, s)
 
 	c := vars[0].Clone()
-	res.LinExp = append(res.LinExp, c.LinExp...)
+	res = append(res, c...)
 	for i := 1; i < len(vars); i++ {
-		negLinExp := system.negateLinExp(vars[i].LinExp)
-		res.LinExp = append(res.LinExp, negLinExp...)
+		negLinExp := system.negateLinExp(vars[i])
+		res = append(res, negLinExp...)
 	}
 
 	// reduce linear expression
@@ -95,7 +91,7 @@ func (system *compiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) f
 func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
-	mul := func(v1, v2 compiled.Variable) compiled.Variable {
+	mul := func(v1, v2 compiled.LinearExpression) compiled.LinearExpression {
 
 		n1, v1Constant := system.ConstantValue(v1)
 		n2, v2Constant := system.ConstantValue(v2)
@@ -110,7 +106,7 @@ func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
 			n1.Mul(n1, n2).Mod(n1, system.CurveID.Info().Fr.Modulus())
-			return system.toVariable(n1).(compiled.Variable)
+			return system.toVariable(n1).(compiled.LinearExpression)
 		}
 
 		// ensure v2 is the constant
@@ -130,13 +126,13 @@ func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	return res
 }
 
-func (system *compiler) mulConstant(v1, constant compiled.Variable) compiled.Variable {
+func (system *compiler) mulConstant(v1, constant compiled.LinearExpression) compiled.LinearExpression {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
 	res := v1.Clone()
 	lambda, _ := system.ConstantValue(constant)
 
-	for i, t := range v1.LinExp {
+	for i, t := range v1 {
 		cID, vID, visibility := t.Unpack()
 		var newCoeff big.Int
 		switch cID {
@@ -152,7 +148,7 @@ func (system *compiler) mulConstant(v1, constant compiled.Variable) compiled.Var
 			coeff := system.st.Coeffs[cID]
 			newCoeff.Mul(&coeff, lambda)
 		}
-		res.LinExp[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
+		res[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
 	}
 	return res
 }
@@ -187,7 +183,7 @@ func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.toVariable(n2).(compiled.Variable))
+	return system.mulConstant(v1, system.toVariable(n2).(compiled.LinearExpression))
 }
 
 // Div returns res = i1 / i2
@@ -223,7 +219,7 @@ func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.toVariable(n2).(compiled.Variable))
+	return system.mulConstant(v1, system.toVariable(n2).(compiled.LinearExpression))
 }
 
 // Inverse returns res = inverse(v)
@@ -283,7 +279,7 @@ func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (system *compiler) toBinary(a compiled.Variable, nbBits int, unsafe bool) []frontend.Variable {
+func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe bool) []frontend.Variable {
 
 	if _, ok := system.ConstantValue(a); ok {
 		return system.ToBinary(a, nbBits)
@@ -310,7 +306,7 @@ func (system *compiler) toBinary(a compiled.Variable, nbBits int, unsafe bool) [
 		}
 	}
 
-	//var Σbi compiled.Variable
+	//var Σbi compiled.LinearExpression
 	var Σbi frontend.Variable
 	if nbBits == 1 {
 		system.AssertIsEqual(sb[0], a)
@@ -343,7 +339,7 @@ func (system *compiler) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	var c big.Int
 	c.SetUint64(1)
 
-	L := make([]compiled.Term, len(b))
+	L := make(compiled.LinearExpression, len(b))
 	for i := 0; i < len(L); i++ {
 		v = system.Mul(c, b[i])      // no constraint is recorded
 		res = system.Add(v, res)     // no constraint is recorded
@@ -368,8 +364,8 @@ func (system *compiler) Xor(_a, _b frontend.Variable) frontend.Variable {
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := system.newInternalVariable()
 	system.MarkBoolean(res)
-	c := system.Neg(res).(compiled.Variable)
-	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	c := system.Neg(res).(compiled.LinearExpression)
+	c = append(c, a[0], b[0])
 	aa := system.Mul(a, 2)
 	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
 
@@ -389,8 +385,8 @@ func (system *compiler) Or(_a, _b frontend.Variable) frontend.Variable {
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := system.newInternalVariable()
 	system.MarkBoolean(res)
-	c := system.Neg(res).(compiled.Variable)
-	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
+	c := system.Neg(res).(compiled.LinearExpression)
+	c = append(c, a[0], b[0])
 	system.Constraints = append(system.Constraints, newR1C(a, b, c))
 
 	return res
@@ -559,14 +555,14 @@ func (system *compiler) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(compiled.Variable); ok {
+		if v, ok := arg.(compiled.LinearExpression); ok {
 			v.AssertIsSet()
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v.LinExp...)
+			log.ToResolve = append(log.ToResolve, v...)
 			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		} else {
 			printArg(&log, &sbb, arg)
@@ -606,11 +602,11 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(compiled.Variable)
+		v := tValue.Interface().(compiled.LinearExpression)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		log.ToResolve = append(log.ToResolve, v.LinExp...)
+		log.ToResolve = append(log.ToResolve, v...)
 		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
 		return nil
 	}
@@ -620,8 +616,8 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 }
 
 // returns -le, the result is a copy
-func (system *compiler) negateLinExp(l []compiled.Term) []compiled.Term {
-	res := make([]compiled.Term, len(l))
+func (system *compiler) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
+	res := make(compiled.LinearExpression, len(l))
 	var lambda big.Int
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
