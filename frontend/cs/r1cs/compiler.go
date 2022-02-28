@@ -44,15 +44,16 @@ import (
 )
 
 // NewCompiler returns a new R1CS compiler
-func NewCompiler(curve ecc.ID) (frontend.Builder, error) {
-	return newCompiler(curve), nil
+func NewCompiler(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
+	return newCompiler(curve, config), nil
 }
 
 type compiler struct {
 	compiled.ConstraintSystem
 	Constraints []compiled.R1C
 
-	st cs.CoeffTable
+	st     cs.CoeffTable
+	config frontend.CompileConfig
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]compiled.LinearExpression
@@ -60,20 +61,17 @@ type compiler struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newCompiler(curveID ecc.ID, initialCapacity ...int) *compiler {
-	capacity := 0
-	if len(initialCapacity) > 0 {
-		capacity = initialCapacity[0]
-	}
+func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *compiler {
 	system := compiler{
 		ConstraintSystem: compiled.ConstraintSystem{
 
 			MDebug: make(map[int]int),
 			MHints: make(map[int]*compiled.Hint),
 		},
-		Constraints: make([]compiled.R1C, 0, capacity),
+		Constraints: make([]compiled.R1C, 0, config.Capacity),
 		st:          cs.NewCoeffTable(),
 		mtBooleans:  make(map[uint64][]compiled.LinearExpression),
+		config:      config,
 	}
 
 	system.Public = make([]string, 1)
@@ -347,10 +345,10 @@ func init() {
 }
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *compiler) Compile(opt frontend.CompileConfig) (frontend.CompiledConstraintSystem, error) {
+func (cs *compiler) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// ensure all inputs and hints are constrained
-	if !opt.IgnoreUnconstrainedInputs {
+	if !cs.config.IgnoreUnconstrainedInputs {
 		if err := cs.checkVariables(); err != nil {
 			return nil, err
 		}

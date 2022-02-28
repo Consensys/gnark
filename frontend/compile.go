@@ -18,7 +18,7 @@ type Builder interface {
 	Compiler
 
 	// Compile is called after circuit.Define() to produce a final IR (CompiledConstraintSystem)
-	Compile(opt CompileConfig) (CompiledConstraintSystem, error)
+	Compile() (CompiledConstraintSystem, error)
 
 	// SetSchema is used internally by frontend.Compile to set the circuit schema
 	SetSchema(*schema.Schema)
@@ -81,7 +81,7 @@ type Compiler interface {
 	Backend() backend.ID
 }
 
-type NewCompiler func(ecc.ID) (Builder, error)
+type NewCompiler func(ecc.ID, CompileConfig) (Builder, error)
 
 // Compile will generate a ConstraintSystem from the given circuit
 //
@@ -111,7 +111,7 @@ func Compile(curveID ecc.ID, newCompiler NewCompiler, circuit Circuit, opts ...C
 	}
 
 	// instantiate new compiler
-	compiler, err := newCompiler(curveID)
+	compiler, err := newCompiler(curveID, opt)
 	if err != nil {
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
@@ -124,7 +124,7 @@ func Compile(curveID ecc.ID, newCompiler NewCompiler, circuit Circuit, opts ...C
 	}
 
 	// compile the circuit into its final form
-	return compiler.Compile(opt)
+	return compiler.Compile()
 }
 
 func parseCircuit(builder Builder, circuit Circuit) (err error) {
