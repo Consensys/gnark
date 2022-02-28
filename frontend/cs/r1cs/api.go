@@ -309,7 +309,7 @@ func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe
 	//var Σbi compiled.LinearExpression
 	var Σbi frontend.Variable
 	if nbBits == 1 {
-		system.AssertIsEqual(sb[0], a)
+		Σbi = sb[0]
 	} else if nbBits == 2 {
 		Σbi = system.Add(sb[0], sb[1])
 	} else {

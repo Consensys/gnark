@@ -673,6 +673,7 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case compiled.LinearExpression:
+			t.AssertIsSet()
 			tmp := make(compiled.LinearExpression, len(t))
 			copy(tmp, t)
 			hintInputs[i] = tmp

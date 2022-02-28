@@ -221,7 +221,7 @@ func (system *compiler) toBinary(a compiled.Term, nbBits int, unsafe bool) []fro
 	// TODO we can save a constraint here
 	var Σbi frontend.Variable
 	if nbBits == 1 {
-		system.AssertIsEqual(sb[0], a)
+		Σbi = sb[0]
 	} else if nbBits == 2 {
 		Σbi = system.Add(sb[0], sb[1])
 	} else {

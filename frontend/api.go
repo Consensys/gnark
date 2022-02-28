@@ -117,14 +117,6 @@ type API interface {
 
 	// Deprecated APIs
 
-	// MarkBoolean is a shorcut to api.Compiler().MarkBoolean()
-	// Deprecated: use api.Compiler().MarkBoolean() instead
-	MarkBoolean(v Variable)
-
-	// IsBoolean is a shorcut to api.Compiler().IsBoolean()
-	// Deprecated: use api.Compiler().IsBoolean() instead
-	IsBoolean(v Variable) bool
-
 	// NewHint is a shorcut to api.Compiler().NewHint()
 	// Deprecated: use api.Compiler().NewHint() instead
 	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
