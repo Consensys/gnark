@@ -270,7 +270,7 @@ func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 	if c, ok := system.ConstantValue(a); ok {
 		b := make([]frontend.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
-			b[i] = system.toVariable(c.Bit(i))
+			b[i] = c.Bit(i) // system.toVariable(c.Bit(i))
 		}
 		return b
 	}
