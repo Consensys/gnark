@@ -43,7 +43,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// get the challenges
-	alpha, beta, gamma := getChallenges(api.Curve())
+	alpha, beta, gamma := getChallenges(api.Compiler().Curve())
 
 	// New transcript with 3 challenges to be derived
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)

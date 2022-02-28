@@ -146,6 +146,9 @@ HINTLOOP:
 }
 
 func (cs *sparseR1CS) SetSchema(s *schema.Schema) {
+	if cs.Schema != nil {
+		panic("SetSchema called multiple times")
+	}
 	cs.Schema = s
 }
 

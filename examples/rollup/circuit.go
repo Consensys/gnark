@@ -88,7 +88,7 @@ type TransferConstraints struct {
 
 func (circuit *Circuit) postInit(api frontend.API) error {
 	// edward curve params
-	params, err := twistededwards.NewEdCurve(api.Curve())
+	params, err := twistededwards.NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}

@@ -59,8 +59,7 @@ func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 func (system *r1CS) Neg(i frontend.Variable) frontend.Variable {
 	vars, _ := system.ToSymbols(i)
 
-	if vars[0].IsConstant() {
-		n := system.constantValue(vars[0])
+	if n, ok := system.ConstantValue(vars[0]); ok {
 		n.Neg(n)
 		return system.ToVariable(n)
 	}
@@ -100,24 +99,24 @@ func (system *r1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 	mul := func(v1, v2 compiled.Variable) compiled.Variable {
 
+		n1, v1Constant := system.ConstantValue(v1)
+		n2, v2Constant := system.ConstantValue(v2)
+
 		// v1 and v2 are both unknown, this is the only case we add a constraint
-		if !v1.IsConstant() && !v2.IsConstant() {
+		if !v1Constant && !v2Constant {
 			res := system.newInternalVariable()
 			system.Constraints = append(system.Constraints, newR1C(v1, v2, res))
 			return res
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
-		if v1.IsConstant() && v2.IsConstant() {
-			b1 := system.constantValue(v1)
-			b2 := system.constantValue(v2)
-
-			b1.Mul(b1, b2).Mod(b1, system.CurveID.Info().Fr.Modulus())
-			return system.ToVariable(b1).(compiled.Variable)
+		if v1Constant && v2Constant {
+			n1.Mul(n1, n2).Mod(n1, system.CurveID.Info().Fr.Modulus())
+			return system.ToVariable(n1).(compiled.Variable)
 		}
 
 		// ensure v2 is the constant
-		if v1.IsConstant() {
+		if v1Constant {
 			v1, v2 = v2, v1
 		}
 
@@ -137,7 +136,7 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
 	res := v1.Clone()
-	lambda := system.constantValue(constant)
+	lambda, _ := system.ConstantValue(constant)
 
 	for i, t := range v1.LinExp {
 		cID, vID, visibility := t.Unpack()
@@ -166,7 +165,10 @@ func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	v1 := vars[0]
 	v2 := vars[1]
 
-	if !v2.IsConstant() {
+	n1, v1Constant := system.ConstantValue(v1)
+	n2, v2Constant := system.ConstantValue(v2)
+
+	if !v2Constant {
 		res := system.newInternalVariable()
 		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
 		// note that here we don't ensure that divisor is != 0
@@ -175,20 +177,19 @@ func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	}
 
 	// v2 is constant
-	b2 := system.constantValue(v2)
-	if b2.IsUint64() && b2.Uint64() == 0 {
+	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
 	q := system.CurveID.Info().Fr.Modulus()
-	b2.ModInverse(b2, q)
+	n2.ModInverse(n2, q)
 
-	if v1.IsConstant() {
-		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
-		return system.ToVariable(b2)
+	if v1Constant {
+		n2.Mul(n2, n1).Mod(n2, q)
+		return system.ToVariable(n2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.ToVariable(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.ToVariable(n2).(compiled.Variable))
 }
 
 // Div returns res = i1 / i2
@@ -198,7 +199,10 @@ func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 	v1 := vars[0]
 	v2 := vars[1]
 
-	if !v2.IsConstant() {
+	n1, v1Constant := system.ConstantValue(v1)
+	n2, v2Constant := system.ConstantValue(v2)
+
+	if !v2Constant {
 		res := system.newInternalVariable()
 		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := system.newInternalVariable()
@@ -209,29 +213,26 @@ func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 	}
 
 	// v2 is constant
-	b2 := system.constantValue(v2)
-	if b2.IsUint64() && b2.Uint64() == 0 {
+	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
 	q := system.CurveID.Info().Fr.Modulus()
-	b2.ModInverse(b2, q)
+	n2.ModInverse(n2, q)
 
-	if v1.IsConstant() {
-		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
-		return system.ToVariable(b2)
+	if v1Constant {
+		n2.Mul(n2, n1).Mod(n2, q)
+		return system.ToVariable(n2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.ToVariable(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.ToVariable(n2).(compiled.Variable))
 }
 
 // Inverse returns res = inverse(v)
 func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.ToSymbols(i1)
 
-	if vars[0].IsConstant() {
-		// c := vars[0].constantValue(cs)
-		c := system.constantValue(vars[0])
+	if c, ok := system.ConstantValue(vars[0]); ok {
 		if c.IsUint64() && c.Uint64() == 0 {
 			panic("inverse by constant(0)")
 		}
@@ -272,8 +273,7 @@ func (system *r1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 	a := vars[0]
 
 	// if a is a constant, work with the big int value.
-	if a.IsConstant() {
-		c := system.constantValue(a)
+	if c, ok := system.ConstantValue(a); ok {
 		b := make([]frontend.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
 			b[i] = system.ToVariable(c.Bit(i))
@@ -287,7 +287,7 @@ func (system *r1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
 func (system *r1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []frontend.Variable {
 
-	if a.IsConstant() {
+	if _, ok := system.ConstantValue(a); ok {
 		return system.ToBinary(a, nbBits)
 	}
 
@@ -424,10 +424,10 @@ func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	// ensures that b is boolean
 	system.AssertIsBoolean(b)
+	n1, ok1 := system.ConstantValue(vars[1])
+	n2, ok2 := system.ConstantValue(vars[2])
 
-	if vars[1].IsConstant() && vars[2].IsConstant() {
-		n1 := system.constantValue(vars[1])
-		n2 := system.constantValue(vars[2])
+	if ok1 && ok2 {
 		diff := n1.Sub(n1, n2)
 		res := system.Mul(b, diff)     // no constraint is recorded
 		res = system.Add(res, vars[2]) // no constraint is recorded
@@ -435,8 +435,7 @@ func (system *r1CS) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 	}
 
 	// special case appearing in AssertIsLessOrEq
-	if vars[1].IsConstant() {
-		n1 := system.constantValue(vars[1])
+	if ok1 {
 		if n1.IsUint64() && n1.Uint64() == 0 {
 			v := system.Sub(1, vars[0])
 			return system.Mul(v, vars[2])
@@ -486,9 +485,7 @@ func (system *r1CS) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.ToSymbols(i1)
 	a := vars[0]
-	if a.IsConstant() {
-		// c := a.constantValue(cs)
-		c := system.constantValue(a)
+	if c, ok := system.ConstantValue(a); ok {
 		if c.IsUint64() && c.Uint64() == 0 {
 			return system.ToVariable(1)
 		}
@@ -545,25 +542,23 @@ func (system *r1CS) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // ---------------------------------------------------------------------------------------------
 // Assertions
 
-// IsConstant returns true if v is a constant known at compile time
-func (system *r1CS) IsConstant(v frontend.Variable) bool {
-	if _v, ok := v.(compiled.Variable); ok {
-		return _v.IsConstant()
-	}
-	// it's not a wire, it's another golang type, we consider it constant.
-	// TODO we may want to use the struct parser to ensure this frontend.Variable interface doesn't contain fields which are
-	// frontend.Variable
-	return true
-}
-
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
-func (system *r1CS) ConstantValue(v frontend.Variable) *big.Int {
+func (system *r1CS) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	if _v, ok := v.(compiled.Variable); ok {
-		return system.constantValue(_v)
+		_v.AssertIsSet()
+
+		if len(_v.LinExp) != 1 {
+			return nil, false
+		}
+		cID, vID, visibility := _v.LinExp[0].Unpack()
+		if !(vID == 0 && visibility == schema.Public) {
+			return nil, false
+		}
+		return new(big.Int).Set(&system.st.Coeffs[cID]), true
 	}
 	r := utils.FromInterface(v)
-	return &r
+	return &r, true
 }
 
 func (system *r1CS) Backend() backend.ID {
@@ -780,4 +775,8 @@ func (system *r1CS) negateLinExp(l []compiled.Term) []compiled.Term {
 		res[i] = compiled.Pack(vID, cID, visibility)
 	}
 	return res
+}
+
+func (system *r1CS) Compiler() frontend.Compiler {
+	return system
 }

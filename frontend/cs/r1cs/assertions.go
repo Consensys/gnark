@@ -47,8 +47,7 @@ func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 	vars, _ := system.ToSymbols(i1)
 	v := vars[0]
 
-	if v.IsConstant() {
-		c := system.constantValue(v)
+	if c, ok := system.ConstantValue(v); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}

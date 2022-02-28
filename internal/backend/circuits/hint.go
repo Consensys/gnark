@@ -14,7 +14,7 @@ type hintCircuit struct {
 }
 
 func (circuit *hintCircuit) Define(api frontend.API) error {
-	res, err := api.NewHint(mulBy7, 1, circuit.A)
+	res, err := api.Compiler().NewHint(mulBy7, 1, circuit.A)
 	if err != nil {
 		return fmt.Errorf("mulBy7: %w", err)
 	}
@@ -23,7 +23,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 
 	api.AssertIsEqual(a7, _a7)
 	api.AssertIsEqual(a7, circuit.B)
-	res, err = api.NewHint(make3, 1)
+	res, err = api.Compiler().NewHint(make3, 1)
 	if err != nil {
 		return fmt.Errorf("make3: %w", err)
 	}
@@ -39,7 +39,7 @@ type vectorDoubleCircuit struct {
 }
 
 func (c *vectorDoubleCircuit) Define(api frontend.API) error {
-	res, err := api.NewHint(dvHint, len(c.B), c.A...)
+	res, err := api.Compiler().NewHint(dvHint, len(c.B), c.A...)
 	if err != nil {
 		return fmt.Errorf("double newhint: %w", err)
 	}

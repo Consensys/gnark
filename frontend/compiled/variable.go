@@ -18,8 +18,6 @@ import (
 	"errors"
 	"math/big"
 	"strings"
-
-	"github.com/consensys/gnark/frontend/schema"
 )
 
 // errNoValue triggered when trying to access a variable that was not allocated
@@ -58,13 +56,4 @@ func (v Variable) AssertIsSet() {
 		panic(errNoValue)
 	}
 
-}
-
-// isConstant returns true if the variable is ONE_WIRE * coeff
-func (v Variable) IsConstant() bool {
-	if len(v.LinExp) != 1 {
-		return false
-	}
-	_, vID, visibility := v.LinExp[0].Unpack()
-	return vID == 0 && visibility == schema.Public
 }

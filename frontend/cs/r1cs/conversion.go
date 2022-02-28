@@ -157,6 +157,9 @@ HINTLOOP:
 }
 
 func (cs *r1CS) SetSchema(s *schema.Schema) {
+	if cs.Schema != nil {
+		panic("SetSchema called multiple times")
+	}
 	cs.Schema = s
 }
 

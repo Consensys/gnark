@@ -72,10 +72,10 @@ func (system *sparseR1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable)
 
 // Neg returns -i
 func (system *sparseR1CS) Neg(i1 frontend.Variable) frontend.Variable {
-	if system.IsConstant(i1) {
-		k := system.ConstantValue(i1)
-		k.Neg(k)
-		return *k
+	if n, ok := system.ConstantValue(i1); ok {
+		n.Neg(n)
+		// TODO shouldn't that go through variable conversion?
+		return *n
 	} else {
 		v := i1.(compiled.Term)
 		c, _, _ := v.Unpack()
@@ -622,12 +622,14 @@ func (system *sparseR1CS) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (system *sparseR1CS) ConstantValue(v frontend.Variable) *big.Int {
-	if !system.IsConstant(v) {
-		panic("v should be a constant")
+func (system *sparseR1CS) ConstantValue(v frontend.Variable) (*big.Int, bool) {
+	switch t := v.(type) {
+	case compiled.Term:
+		return nil, false
+	default:
+		res := utils.FromInterface(t)
+		return &res, true
 	}
-	res := utils.FromInterface(v)
-	return &res
 }
 
 func (system *sparseR1CS) Backend() backend.ID {
@@ -693,4 +695,8 @@ func (system *sparseR1CS) splitProd(acc compiled.Term, r []compiled.Term) compil
 	o := system.newInternalVariable()
 	system.addPlonkConstraint(acc, r[0], o, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
 	return system.splitProd(o, r[1:])
+}
+
+func (system *sparseR1CS) Compiler() frontend.Compiler {
+	return system
 }

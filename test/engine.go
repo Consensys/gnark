@@ -368,9 +368,20 @@ func (e *engine) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v
 // will panic if v.IsConstant() == false
-func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
+func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
-	return &r
+	return &r, true
+}
+
+func (e *engine) IsBoolean(v frontend.Variable) bool {
+	r := e.toBigInt(v)
+	return r.IsUint64() && r.Uint64() <= 1
+}
+
+func (e *engine) MarkBoolean(v frontend.Variable) {
+	if !e.IsBoolean(v) {
+		panic("mark boolean a non-boolean value")
+	}
 }
 
 func (e *engine) Tag(name string) frontend.Tag {
@@ -461,4 +472,8 @@ func copyWitness(to, from frontend.Circuit) {
 	// this can't error.
 	_, _ = schema.Parse(to, tVariable, setHandler)
 
+}
+
+func (e *engine) Compiler() frontend.Compiler {
+	return e
 }

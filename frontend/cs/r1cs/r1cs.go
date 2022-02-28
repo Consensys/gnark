@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-func NewCompiler(curve ecc.ID) (frontend.Compiler, error) {
+func NewCompiler(curve ecc.ID) (frontend.Builder, error) {
 	return newR1CS(curve), nil
 }
 
@@ -120,16 +120,6 @@ func (system *r1CS) AddSecretVariable(name string) frontend.Variable {
 	return res
 }
 
-// func (v *variable) constantValue(system *R1CS) *big.Int {
-func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
-	// TODO this might be a good place to start hunting useless allocations.
-	// maybe through a big.Int pool.
-	if !v.IsConstant() {
-		panic("can't get big.Int value on a non-constant variable")
-	}
-	return new(big.Int).Set(&system.st.Coeffs[v.LinExp[0].CoeffID()])
-}
-
 func (system *r1CS) one() compiled.Variable {
 	return compiled.Variable{
 		LinExp: compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, schema.Public)},
@@ -201,7 +191,7 @@ func (system *r1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 func (system *r1CS) MarkBoolean(v frontend.Variable) {
-	if system.IsConstant(v) {
+	if _, ok := system.ConstantValue(v); ok {
 		return
 	}
 	// v is a linear expression
@@ -220,8 +210,7 @@ func (system *r1CS) MarkBoolean(v frontend.Variable) {
 // Use with care; variable may not have been **constrained** to be boolean
 // This returns true if the v is a constant and v == 0 || v == 1.
 func (system *r1CS) IsBoolean(v frontend.Variable) bool {
-	if system.IsConstant(v) {
-		b := system.ConstantValue(v)
+	if b, ok := system.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
 	// v is a linear expression

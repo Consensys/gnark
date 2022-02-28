@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-func NewCompiler(curve ecc.ID) (frontend.Compiler, error) {
+func NewCompiler(curve ecc.ID) (frontend.Builder, error) {
 	return newSparseR1CS(curve), nil
 }
 
@@ -169,8 +169,7 @@ func (system *sparseR1CS) zero() compiled.Term {
 // Use with care; variable may not have been **constrained** to be boolean
 // This returns true if the v is a constant and v == 0 || v == 1.
 func (system *sparseR1CS) IsBoolean(v frontend.Variable) bool {
-	if system.IsConstant(v) {
-		b := system.ConstantValue(v)
+	if b, ok := system.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
 	_, ok := system.mtBooleans[int(v.(compiled.Term))]
