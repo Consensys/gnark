@@ -43,8 +43,7 @@ func (system *r1CS) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	vars, s := system.ToSymbols(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
-	t := false
-	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s), IsBoolean: &t}
+	res := compiled.Variable{LinExp: make([]compiled.Term, 0, s)}
 
 	for _, v := range vars {
 		l := v.Clone()
@@ -63,11 +62,10 @@ func (system *r1CS) Neg(i frontend.Variable) frontend.Variable {
 	if vars[0].IsConstant() {
 		n := system.constantValue(vars[0])
 		n.Neg(n)
-		return system.constant(n)
+		return system.ToVariable(n)
 	}
 
-	// ok to pass pointer since if i is boolean constrained later, so must be res
-	res := compiled.Variable{LinExp: system.negateLinExp(vars[0].LinExp), IsBoolean: vars[0].IsBoolean}
+	res := compiled.Variable{LinExp: system.negateLinExp(vars[0].LinExp)}
 
 	return res
 }
@@ -79,10 +77,8 @@ func (system *r1CS) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	vars, s := system.ToSymbols(append([]frontend.Variable{i1, i2}, in...)...)
 
 	// allocate resulting frontend.Variable
-	t := false
 	res := compiled.Variable{
-		LinExp:    make([]compiled.Term, 0, s),
-		IsBoolean: &t,
+		LinExp: make([]compiled.Term, 0, s),
 	}
 
 	c := vars[0].Clone()
@@ -117,7 +113,7 @@ func (system *r1CS) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 			b2 := system.constantValue(v2)
 
 			b1.Mul(b1, b2).Mod(b1, system.CurveID.Info().Fr.Modulus())
-			return system.constant(b1).(compiled.Variable)
+			return system.ToVariable(b1).(compiled.Variable)
 		}
 
 		// ensure v2 is the constant
@@ -161,8 +157,6 @@ func (system *r1CS) mulConstant(v1, constant compiled.Variable) compiled.Variabl
 		}
 		res.LinExp[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
 	}
-	t := false
-	res.IsBoolean = &t
 	return res
 }
 
@@ -190,11 +184,11 @@ func (system *r1CS) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 
 	if v1.IsConstant() {
 		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
-		return system.constant(b2)
+		return system.ToVariable(b2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.ToVariable(b2).(compiled.Variable))
 }
 
 // Div returns res = i1 / i2
@@ -224,11 +218,11 @@ func (system *r1CS) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	if v1.IsConstant() {
 		b2.Mul(b2, system.constantValue(v1)).Mod(b2, q)
-		return system.constant(b2)
+		return system.ToVariable(b2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.constant(b2).(compiled.Variable))
+	return system.mulConstant(v1, system.ToVariable(b2).(compiled.Variable))
 }
 
 // Inverse returns res = inverse(v)
@@ -243,7 +237,7 @@ func (system *r1CS) Inverse(i1 frontend.Variable) frontend.Variable {
 		}
 
 		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
-		return system.constant(c)
+		return system.ToVariable(c)
 	}
 
 	// allocate resulting frontend.Variable
@@ -280,11 +274,11 @@ func (system *r1CS) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 	// if a is a constant, work with the big int value.
 	if a.IsConstant() {
 		c := system.constantValue(a)
-		b := make([]compiled.Variable, nbBits)
+		b := make([]frontend.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
-			b[i] = system.constant(c.Bit(i)).(compiled.Variable)
+			b[i] = system.ToVariable(c.Bit(i))
 		}
-		return toSliceOfVariables(b)
+		return b
 	}
 
 	return system.toBinary(a, nbBits, false)
@@ -334,15 +328,6 @@ func (system *r1CS) toBinary(a compiled.Variable, nbBits int, unsafe bool) []fro
 
 }
 
-func toSliceOfVariables(v []compiled.Variable) []frontend.Variable {
-	// TODO this is ugly.
-	r := make([]frontend.Variable, len(v))
-	for i := 0; i < len(v); i++ {
-		r[i] = v[i]
-	}
-	return r
-}
-
 // FromBinary packs b, seen as a fr.Element in little endian
 func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.ToSymbols(_b...)
@@ -355,7 +340,7 @@ func (system *r1CS) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	// res = Σ (2**i * b[i])
 
 	var res, v frontend.Variable
-	res = system.constant(0) // no constraint is recorded
+	res = system.ToVariable(0) // no constraint is recorded
 
 	var c big.Int
 	c.SetUint64(1)
@@ -384,11 +369,8 @@ func (system *r1CS) Xor(_a, _b frontend.Variable) frontend.Variable {
 
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := system.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
+	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
 	aa := system.Mul(a, 2)
 	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
@@ -408,11 +390,8 @@ func (system *r1CS) Or(_a, _b frontend.Variable) frontend.Variable {
 
 	// the formulation used is for easing up the conversion to sparse r1cs
 	res := system.newInternalVariable()
-	res.IsBoolean = new(bool)
-	*res.IsBoolean = true
+	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.Variable)
-	c.IsBoolean = new(bool)
-	*c.IsBoolean = false
 	c.LinExp = append(c.LinExp, a.LinExp[0], b.LinExp[0])
 	system.Constraints = append(system.Constraints, newR1C(a, b, c))
 
@@ -511,9 +490,9 @@ func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 		// c := a.constantValue(cs)
 		c := system.constantValue(a)
 		if c.IsUint64() && c.Uint64() == 0 {
-			return system.constant(1)
+			return system.ToVariable(1)
 		}
-		return system.constant(0)
+		return system.ToVariable(0)
 	}
 
 	debug := system.AddDebugInfo("isZero", a)
@@ -529,7 +508,7 @@ func (system *r1CS) IsZero(i1 frontend.Variable) frontend.Variable {
 		panic(err)
 	}
 	m := res[0]
-	system.addConstraint(newR1C(a, m, system.constant(0)), debug)
+	system.addConstraint(newR1C(a, m, system.ToVariable(0)), debug)
 
 	system.AssertIsBoolean(m)
 	ma := system.Add(m, a)
@@ -544,7 +523,7 @@ func (system *r1CS) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 	bi1 := system.ToBinary(vars[0], system.BitLen())
 	bi2 := system.ToBinary(vars[1], system.BitLen())
 
-	res := system.constant(0)
+	res := system.ToVariable(0)
 
 	for i := system.BitLen() - 1; i >= 0; i-- {
 
@@ -749,14 +728,14 @@ func (system *r1CS) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	return res, nil
 }
 
-// constant will return (and allocate if neccesary) a frontend.Variable from given value
+// ToVariable will return (and allocate if neccesary) a frontend.Variable from given value
 //
 // if input is already a frontend.Variable, does nothing
-// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a constant frontend.Variable
+// else, attempts to convert input to a big.Int (see utils.FromInterface) and returns a ToVariable frontend.Variable
 //
-// a constant frontend.Variable does NOT necessary allocate a frontend.Variable in the ConstraintSystem
+// a ToVariable frontend.Variable does NOT necessary allocate a frontend.Variable in the ConstraintSystem
 // it is in the form ONE_WIRE * coeff
-func (system *r1CS) constant(input frontend.Variable) frontend.Variable {
+func (system *r1CS) ToVariable(input interface{}) frontend.Variable {
 
 	switch t := input.(type) {
 	case compiled.Variable:
@@ -778,7 +757,7 @@ func (system *r1CS) ToSymbols(in ...frontend.Variable) ([]compiled.Variable, int
 	r := make([]compiled.Variable, 0, len(in))
 	s := 0
 	e := func(i frontend.Variable) {
-		v := system.constant(i).(compiled.Variable)
+		v := system.ToVariable(i).(compiled.Variable)
 		r = append(r, v)
 		s += len(v.LinExp)
 	}

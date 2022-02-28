@@ -165,15 +165,26 @@ func (system *sparseR1CS) zero() compiled.Term {
 	return a
 }
 
-// returns true if a variable is already boolean
-func (system *sparseR1CS) isBoolean(t compiled.Term) bool {
-	_, ok := system.mtBooleans[int(t)]
+// IsBoolean returns true if given variable was marked as boolean in the compiler (see MarkBoolean)
+// Use with care; variable may not have been **constrained** to be boolean
+// This returns true if the v is a constant and v == 0 || v == 1.
+func (system *sparseR1CS) IsBoolean(v frontend.Variable) bool {
+	if system.IsConstant(v) {
+		b := system.ConstantValue(v)
+		return b.IsUint64() && b.Uint64() <= 1
+	}
+	_, ok := system.mtBooleans[int(v.(compiled.Term))]
 	return ok
 }
 
-// markBoolean records t in the map to not boolean constrain it twice
-func (system *sparseR1CS) markBoolean(t compiled.Term) {
-	system.mtBooleans[int(t)] = struct{}{}
+// MarkBoolean sets (but do not constraint!) v to be boolean
+// This is useful in scenarios where a variable is known to be boolean through a constraint
+// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
+func (system *sparseR1CS) MarkBoolean(v frontend.Variable) {
+	if system.IsConstant(v) {
+		return
+	}
+	system.mtBooleans[int(v.(compiled.Term))] = struct{}{}
 }
 
 // checkVariables perform post compilation checks on the Variables

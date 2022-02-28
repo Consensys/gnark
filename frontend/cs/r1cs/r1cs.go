@@ -40,6 +40,9 @@ type r1CS struct {
 	Constraints []compiled.R1C
 
 	st cs.CoeffTable
+
+	// map for recording boolean constrained variables (to not constrain them twice)
+	mtBooleans map[uint64][]compiled.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -57,6 +60,7 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 		},
 		Constraints: make([]compiled.R1C, 0, capacity),
 		st:          cs.NewCoeffTable(),
+		mtBooleans:  make(map[uint64][]compiled.LinearExpression),
 	}
 
 	system.st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
@@ -83,12 +87,10 @@ func newR1CS(curveID ecc.ID, initialCapacity ...int) *r1CS {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (system *r1CS) newInternalVariable() compiled.Variable {
-	t := false
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
 	return compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)},
-		IsBoolean: &t,
+		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)},
 	}
 }
 
@@ -97,12 +99,10 @@ func (system *r1CS) AddPublicVariable(name string) frontend.Variable {
 	if system.Schema != nil {
 		panic("do not call AddPublicVariable in circuit.Define()")
 	}
-	t := false
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	res := compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)},
-		IsBoolean: &t,
+		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)},
 	}
 	return res
 }
@@ -112,31 +112,27 @@ func (system *r1CS) AddSecretVariable(name string) frontend.Variable {
 	if system.Schema != nil {
 		panic("do not call AddSecretVariable in circuit.Define()")
 	}
-	t := false
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	res := compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)},
-		IsBoolean: &t,
+		LinExp: compiled.LinearExpression{compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)},
 	}
 	return res
 }
 
 // func (v *variable) constantValue(system *R1CS) *big.Int {
-func (system *r1CS) constantValue(v compiled.Symbol) *big.Int {
+func (system *r1CS) constantValue(v compiled.Variable) *big.Int {
 	// TODO this might be a good place to start hunting useless allocations.
 	// maybe through a big.Int pool.
 	if !v.IsConstant() {
 		panic("can't get big.Int value on a non-constant variable")
 	}
-	return new(big.Int).Set(&system.st.Coeffs[v.(compiled.Variable).LinExp[0].CoeffID()])
+	return new(big.Int).Set(&system.st.Coeffs[v.LinExp[0].CoeffID()])
 }
 
 func (system *r1CS) one() compiled.Variable {
-	t := false
 	return compiled.Variable{
-		LinExp:    compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, schema.Public)},
-		IsBoolean: &t,
+		LinExp: compiled.LinearExpression{compiled.Pack(0, compiled.CoeffIdOne, schema.Public)},
 	}
 }
 
@@ -201,15 +197,51 @@ func (system *r1CS) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term {
 	return compiled.Pack(vID, system.st.CoeffID(coeff), vVis)
 }
 
-// markBoolean marks the Variable as boolean and return true
-// if a constraint was added, false if the Variable was already
-// constrained as a boolean
-func (system *r1CS) markBoolean(v compiled.Variable) bool {
-	if *v.IsBoolean {
+// MarkBoolean sets (but do not **constraint**!) v to be boolean
+// This is useful in scenarios where a variable is known to be boolean through a constraint
+// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
+func (system *r1CS) MarkBoolean(v frontend.Variable) {
+	if system.IsConstant(v) {
+		return
+	}
+	// v is a linear expression
+	l := v.(compiled.Variable).LinExp
+	if !sort.IsSorted(l) {
+		sort.Sort(l)
+	}
+
+	key := l.HashCode()
+	list := system.mtBooleans[key]
+	list = append(list, l)
+	system.mtBooleans[key] = list
+}
+
+// IsBoolean returns true if given variable was marked as boolean in the compiler (see MarkBoolean)
+// Use with care; variable may not have been **constrained** to be boolean
+// This returns true if the v is a constant and v == 0 || v == 1.
+func (system *r1CS) IsBoolean(v frontend.Variable) bool {
+	if system.IsConstant(v) {
+		b := system.ConstantValue(v)
+		return b.IsUint64() && b.Uint64() <= 1
+	}
+	// v is a linear expression
+	l := v.(compiled.Variable).LinExp
+	if !sort.IsSorted(l) {
+		sort.Sort(l)
+	}
+
+	key := l.HashCode()
+	list, ok := system.mtBooleans[key]
+	if !ok {
 		return false
 	}
-	*v.IsBoolean = true
-	return true
+
+	for _, v := range list {
+		if v.Equal(l) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkVariables perform post compilation checks on the Variables

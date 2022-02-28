@@ -28,6 +28,16 @@ type Compiler interface {
 	// AddSecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
 	AddSecretVariable(name string) Variable
+
+	// MarkBoolean sets (but do not constraint!) v to be boolean
+	// This is useful in scenarios where a variable is known to be boolean through a constraint
+	// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
+	MarkBoolean(v Variable)
+
+	// IsBoolean returns true if given variable was marked as boolean in the compiler (see MarkBoolean)
+	// Use with care; variable may not have been **constrained** to be boolean
+	// This returns true if the v is a constant and v == 0 || v == 1.
+	IsBoolean(v Variable) bool
 }
 
 type NewCompiler func(ecc.ID) (Compiler, error)

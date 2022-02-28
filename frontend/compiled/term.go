@@ -217,3 +217,13 @@ func (v LinearExpression) Less(i, j int) bool {
 	}
 	return iVis > jVis
 }
+
+// HashCode returns a fast-to-compute but NOT collision resistant hash code identifier for the linear
+// expression
+func (v LinearExpression) HashCode() uint64 {
+	h := uint64(17)
+	for _, val := range v {
+		h = h*23 + uint64(val)
+	}
+	return h
+}

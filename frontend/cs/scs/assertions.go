@@ -73,10 +73,10 @@ func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	t := i1.(compiled.Term)
-	if system.isBoolean(t) {
+	if system.IsBoolean(t) {
 		return
 	}
-	system.markBoolean(t)
+	system.MarkBoolean(t)
 	system.mtBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
@@ -127,7 +127,7 @@ func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
 		system.addPlonkConstraint(
 			l.(compiled.Term),

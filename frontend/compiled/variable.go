@@ -27,14 +27,12 @@ var errNoValue = errors.New("can't determine API input value")
 
 // Variable represent a linear expression of wires
 type Variable struct {
-	LinExp    LinearExpression
-	IsBoolean *bool
+	LinExp LinearExpression
 }
 
 // Clone returns a copy of the underlying slice
 func (v Variable) Clone() Variable {
 	var res Variable
-	res.IsBoolean = v.IsBoolean
 	res.LinExp = make([]Term, len(v.LinExp))
 	copy(res.LinExp, v.LinExp)
 	return res
