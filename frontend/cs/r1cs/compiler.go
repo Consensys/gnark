@@ -569,7 +569,7 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 // Will panic if v.IsConstant() == false
 func (system *compiler) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	if _v, ok := v.(compiled.LinearExpression); ok {
-		_v.AssertIsSet()
+		assertIsSet(_v)
 
 		if len(_v) != 1 {
 			return nil, false
@@ -596,7 +596,7 @@ func (system *compiler) toVariable(input interface{}) frontend.Variable {
 
 	switch t := input.(type) {
 	case compiled.LinearExpression:
-		t.AssertIsSet()
+		assertIsSet(t)
 		return t
 	default:
 		n := utils.FromInterface(t)
@@ -673,7 +673,7 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case compiled.LinearExpression:
-			t.AssertIsSet()
+			assertIsSet(t)
 			tmp := make(compiled.LinearExpression, len(t))
 			copy(tmp, t)
 			hintInputs[i] = tmp
@@ -698,4 +698,19 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	}
 
 	return res, nil
+}
+
+// assertIsSet panics if the variable is unset
+// this may happen if inside a Define we have
+// var a variable
+// cs.Mul(a, 1)
+// since a was not in the circuit struct it is not a secret variable
+func assertIsSet(l compiled.LinearExpression) {
+	// TODO PlonK scs doesn't have a similar check with compiled.Term == 0
+	if len(l) == 0 {
+		// errNoValue triggered when trying to access a variable that was not allocated
+		errNoValue := errors.New("can't determine API input value")
+		panic(errNoValue)
+	}
+
 }

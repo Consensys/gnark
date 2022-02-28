@@ -285,9 +285,6 @@ func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe
 		return system.ToBinary(a, nbBits)
 	}
 
-	// ensure a is set
-	a.AssertIsSet()
-
 	// allocate the resulting frontend.Variables and bit-constraint them
 	sb := make([]frontend.Variable, nbBits)
 	var c big.Int
@@ -325,11 +322,6 @@ func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe
 // FromBinary packs b, seen as a fr.Element in little endian
 func (system *compiler) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.toVariables(_b...)
-
-	// ensure inputs are set
-	for i := 0; i < len(b); i++ {
-		b[i].AssertIsSet()
-	}
 
 	// res = Σ (2**i * b[i])
 
@@ -556,7 +548,7 @@ func (system *compiler) Println(a ...frontend.Variable) {
 			sbb.WriteByte(' ')
 		}
 		if v, ok := arg.(compiled.LinearExpression); ok {
-			v.AssertIsSet()
+			assertIsSet(v)
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer

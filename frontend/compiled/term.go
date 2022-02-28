@@ -27,9 +27,6 @@ import (
 // note: if we support more than 1 billion constraints, this breaks (not so soon.)
 type Term uint64
 
-// A linear expression is a linear combination of Term
-type LinearExpression []Term
-
 // ids of the coefficients with simple values in any cs.coeffs slice.
 const (
 	CoeffIdZero     = 0
@@ -178,52 +175,4 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 		panic("not implemented")
 	}
 	sbb.WriteString(strconv.Itoa(t.WireID()))
-}
-
-// Len return the lenght of the Variable (implements Sort interface)
-func (v LinearExpression) Len() int {
-	return len(v)
-}
-
-// Equals returns true if both SORTED expressions are the same
-//
-// pre conditions: l and o are sorted
-func (v LinearExpression) Equal(o LinearExpression) bool {
-	if len(v) != len(o) {
-		return false
-	}
-	if (v == nil) != (o == nil) {
-		return false
-	}
-	for i := 0; i < len(v); i++ {
-		if v[i] != o[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// Swap swaps terms in the Variable (implements Sort interface)
-func (v LinearExpression) Swap(i, j int) {
-	v[i], v[j] = v[j], v[i]
-}
-
-// Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
-func (v LinearExpression) Less(i, j int) bool {
-	_, iID, iVis := v[i].Unpack()
-	_, jID, jVis := v[j].Unpack()
-	if iVis == jVis {
-		return iID < jID
-	}
-	return iVis > jVis
-}
-
-// HashCode returns a fast-to-compute but NOT collision resistant hash code identifier for the linear
-// expression
-func (v LinearExpression) HashCode() uint64 {
-	h := uint64(17)
-	for _, val := range v {
-		h = h*23 + uint64(val)
-	}
-	return h
 }

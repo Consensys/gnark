@@ -79,7 +79,7 @@ func (system *compiler) AssertIsLessOrEqual(_v frontend.Variable, bound frontend
 
 	switch b := bound.(type) {
 	case compiled.LinearExpression:
-		b.AssertIsSet()
+		assertIsSet(b)
 		system.mustBeLessOrEqVar(v[0], b)
 	default:
 		system.mustBeLessOrEqCst(v[0], utils.FromInterface(b))
