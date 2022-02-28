@@ -192,8 +192,10 @@ func (system *compiler) IsBoolean(v frontend.Variable) bool {
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 func (system *compiler) MarkBoolean(v frontend.Variable) {
-	if system.IsConstant(v) {
-		return
+	if b, ok := system.ConstantValue(v); ok {
+		if !(b.IsUint64() && b.Uint64() <= 1) {
+			panic("MarkBoolean called a non-boolean constant")
+		}
 	}
 	system.mtBooleans[int(v.(compiled.Term))] = struct{}{}
 }

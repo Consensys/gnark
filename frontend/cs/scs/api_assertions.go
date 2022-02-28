@@ -28,24 +28,27 @@ import (
 // AssertIsEqual fails if i1 != i2
 func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
 
-	if system.IsConstant(i1) && system.IsConstant(i2) {
-		a := utils.FromInterface(i1)
-		b := utils.FromInterface(i2)
-		if a.Cmp(&b) != 0 {
+	c1, i1Constant := system.ConstantValue(i1)
+	c2, i2Constant := system.ConstantValue(i2)
+
+	if i1Constant && i2Constant {
+		if c1.Cmp(c2) != 0 {
 			panic("i1, i2 should be equal")
 		}
 		return
 	}
-	if system.IsConstant(i1) {
+	if i1Constant {
 		i1, i2 = i2, i1
+		i2Constant = i1Constant
+		c2 = c1
 	}
-	if system.IsConstant(i2) {
+	if i2Constant {
 		l := i1.(compiled.Term)
 		lc, _, _ := l.Unpack()
-		k := utils.FromInterface(i2)
+		k := c2
 		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
-		k.Neg(&k)
-		_k := system.st.CoeffID(&k)
+		k.Neg(k)
+		_k := system.st.CoeffID(k)
 		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 		return
 	}
@@ -65,8 +68,7 @@ func (system *compiler) AssertIsDifferent(i1, i2 frontend.Variable) {
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
 func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
-	if system.IsConstant(i1) {
-		c := utils.FromInterface(i1)
+	if c, ok := system.ConstantValue(i1); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}

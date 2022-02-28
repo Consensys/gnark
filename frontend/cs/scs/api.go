@@ -29,7 +29,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/utils"
 )
 
 // Add returns res = i1+i2+...in
@@ -112,25 +111,26 @@ func (system *compiler) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
 func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+	c1, i1Constant := system.ConstantValue(i1)
+	c2, i2Constant := system.ConstantValue(i2)
 
-	if system.IsConstant(i1) && system.IsConstant(i2) {
-		l := utils.FromInterface(i1)
-		r := utils.FromInterface(i2)
+	if i1Constant && i2Constant {
+		l := c1
+		r := c2
 		q := system.CurveID.Info().Fr.Modulus()
-		return r.ModInverse(&r, q).
-			Mul(&l, &r).
-			Mod(&r, q)
+		return r.ModInverse(r, q).
+			Mul(l, r).
+			Mod(r, q)
 	}
-	if system.IsConstant(i2) {
-		c := utils.FromInterface(i2)
+	if i2Constant {
+		c := c2
 		m := system.CurveID.Info().Fr.Modulus()
-		c.ModInverse(&c, m)
-		return system.mulConstant(i1.(compiled.Term), &c)
+		c.ModInverse(c, m)
+		return system.mulConstant(i1.(compiled.Term), c)
 	}
-	if system.IsConstant(i1) {
+	if i1Constant {
 		res := system.Inverse(i2)
-		m := utils.FromInterface(i1)
-		return system.mulConstant(res.(compiled.Term), &m)
+		return system.mulConstant(res.(compiled.Term), c1)
 	}
 
 	res := system.newInternalVariable()
@@ -153,9 +153,8 @@ func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 // Inverse returns res = 1 / i1
 func (system *compiler) Inverse(i1 frontend.Variable) frontend.Variable {
-	if system.IsConstant(i1) {
-		c := utils.FromInterface(i1)
-		c.ModInverse(&c, system.CurveID.Info().Fr.Modulus())
+	if c, ok := system.ConstantValue(i1); ok {
+		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
 		return c
 	}
 	t := i1.(compiled.Term)
@@ -186,8 +185,7 @@ func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 	}
 
 	// if a is a constant, work with the big int value.
-	if system.IsConstant(i1) {
-		c := utils.FromInterface(i1)
+	if c, ok := system.ConstantValue(i1); ok {
 		b := make([]frontend.Variable, nbBits)
 		for i := 0; i < len(b); i++ {
 			b[i] = c.Bit(i)
@@ -257,23 +255,25 @@ func (system *compiler) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (system *compiler) Xor(a, b frontend.Variable) frontend.Variable {
-	if system.IsConstant(a) && system.IsConstant(b) {
-		_a := utils.FromInterface(a)
-		_b := utils.FromInterface(b)
-		_a.Xor(&_a, &_b)
+	_a, aConstant := system.ConstantValue(a)
+	_b, bConstant := system.ConstantValue(b)
+
+	if aConstant && bConstant {
+		_a.Xor(_a, _b)
 		return _a
 	}
 	res := system.newInternalVariable()
-	if system.IsConstant(a) {
+	if aConstant {
 		a, b = b, a
+		bConstant = aConstant
+		_b = _a
 	}
-	if system.IsConstant(b) {
+	if bConstant {
 		l := a.(compiled.Term)
 		r := l
-		_b := utils.FromInterface(b)
 		one := big.NewInt(1)
-		_b.Lsh(&_b, 1).Sub(&_b, one)
-		idl := system.st.CoeffID(&_b)
+		_b.Lsh(_b, 1).Sub(_b, one)
+		idl := system.st.CoeffID(_b)
 		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}
@@ -286,34 +286,31 @@ func (system *compiler) Xor(a, b frontend.Variable) frontend.Variable {
 // Or returns a | b
 // a and b must be 0 or 1
 func (system *compiler) Or(a, b frontend.Variable) frontend.Variable {
+	_a, aConstant := system.ConstantValue(a)
+	_b, bConstant := system.ConstantValue(b)
 
-	var zero, one big.Int
-	one.SetUint64(1)
-
-	if system.IsConstant(a) && system.IsConstant(b) {
-		_a := utils.FromInterface(a)
-		_b := utils.FromInterface(b)
-		_a.Or(&_a, &_b)
+	if aConstant && bConstant {
+		_a.Or(_a, _b)
 		return _a
 	}
 	res := system.newInternalVariable()
-	if system.IsConstant(a) {
+	if aConstant {
 		a, b = b, a
+		_b = _a
+		bConstant = aConstant
 	}
-	if system.IsConstant(b) {
-		_b := utils.FromInterface(b)
-
+	if bConstant {
 		l := a.(compiled.Term)
 		r := l
 
-		if _b.Cmp(&one) != 0 && _b.Cmp(&zero) != 0 {
+		if !(_b.IsUint64() && (_b.Uint64() <= 1)) {
 			panic(fmt.Sprintf("%s should be 0 or 1", _b.String()))
 		}
 		system.AssertIsBoolean(a)
 
 		one := big.NewInt(1)
-		_b.Sub(&_b, one)
-		idl := system.st.CoeffID(&_b)
+		_b.Sub(_b, one)
+		idl := system.st.CoeffID(_b)
 		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
 		return res
 	}
@@ -338,15 +335,13 @@ func (system *compiler) And(a, b frontend.Variable) frontend.Variable {
 
 // Select if b is true, yields i1 else yields i2
 func (system *compiler) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+	_b, bConstant := system.ConstantValue(b)
 
-	if system.IsConstant(b) {
-		_b := utils.FromInterface(b)
-		var t big.Int
-		one := big.NewInt(1)
-		if _b.Cmp(&t) != 0 && _b.Cmp(one) != 0 {
-			panic("b should be a boolean")
+	if bConstant {
+		if !(_b.IsUint64() && (_b.Uint64() <= 1)) {
+			panic(fmt.Sprintf("%s should be 0 or 1", _b.String()))
 		}
-		if _b.Cmp(&t) == 0 {
+		if _b.Uint64() == 0 {
 			return i2
 		}
 		return i1
@@ -398,11 +393,8 @@ func (system *compiler) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 
 // IsZero returns 1 if a is zero, 0 otherwise
 func (system *compiler) IsZero(i1 frontend.Variable) frontend.Variable {
-
-	if system.IsConstant(i1) {
-		a := utils.FromInterface(i1)
-		var zero big.Int
-		if a.Cmp(&zero) != 0 {
+	if a, ok := system.ConstantValue(i1); ok {
+		if !(a.IsUint64() && a.Uint64() == 0) {
 			panic("input should be zero")
 		}
 		return 1
@@ -532,17 +524,6 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	// ignoring error, printer() doesn't return errors
 	_, _ = schema.Parse(a, tVariable, printer)
 	sbb.WriteByte('}')
-}
-
-// IsConstant returns true if v is a constant known at compile time
-func (system *compiler) IsConstant(v frontend.Variable) bool {
-	switch t := v.(type) {
-	case compiled.Term:
-		return false
-	default:
-		utils.FromInterface(t)
-		return true
-	}
 }
 
 func (system *compiler) Compiler() frontend.Compiler {

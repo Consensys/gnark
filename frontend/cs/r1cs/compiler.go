@@ -204,7 +204,10 @@ func (system *compiler) setCoeff(v compiled.Term, coeff *big.Int) compiled.Term 
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 func (system *compiler) MarkBoolean(v frontend.Variable) {
-	if _, ok := system.ConstantValue(v); ok {
+	if b, ok := system.ConstantValue(v); ok {
+		if !(b.IsUint64() && b.Uint64() <= 1) {
+			panic("MarkBoolean called a non-boolean constant")
+		}
 		return
 	}
 	// v is a linear expression
