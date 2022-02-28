@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	if system.IsConstant(i1) && system.IsConstant(i2) {
 		a := utils.FromInterface(i1)
@@ -59,12 +59,12 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *sparseR1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *compiler) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
+func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
 	if system.IsConstant(i1) {
 		c := utils.FromInterface(i1)
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
@@ -87,7 +87,7 @@ func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *sparseR1CS) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (system *compiler) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case compiled.Term:
 		system.mustBeLessOrEqVar(v.(compiled.Term), b)
@@ -96,7 +96,7 @@ func (system *sparseR1CS) AssertIsLessOrEqual(v frontend.Variable, bound fronten
 	}
 }
 
-func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+func (system *compiler) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -143,7 +143,7 @@ func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 
 }
 
-func (system *sparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+func (system *compiler) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
 	nbBits := system.BitLen()
 

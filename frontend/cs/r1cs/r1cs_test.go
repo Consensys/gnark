@@ -50,7 +50,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newR1CS(ecc.BN254)
+	cs := newCompiler(ecc.BN254)
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
