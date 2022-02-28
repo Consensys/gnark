@@ -16,6 +16,14 @@ limitations under the License.
 
 package frontend
 
+import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/hint"
+)
+
 // API represents the available functions to circuit developers
 type API interface {
 	// ---------------------------------------------------------------------------------------------
@@ -106,4 +114,38 @@ type API interface {
 
 	// Compiler returns the compiler object for advanced circuit development
 	Compiler() Compiler
+
+	// Deprecated APIs
+
+	// MarkBoolean is a shorcut to api.Compiler().MarkBoolean()
+	// Deprecated: use api.Compiler().MarkBoolean() instead
+	MarkBoolean(v Variable)
+
+	// IsBoolean is a shorcut to api.Compiler().IsBoolean()
+	// Deprecated: use api.Compiler().IsBoolean() instead
+	IsBoolean(v Variable) bool
+
+	// NewHint is a shorcut to api.Compiler().NewHint()
+	// Deprecated: use api.Compiler().NewHint() instead
+	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
+
+	// Tag is a shorcut to api.Compiler().Tag()
+	// Deprecated: use api.Compiler().Tag() instead
+	Tag(name string) Tag
+
+	// AddCounter is a shorcut to api.Compiler().AddCounter()
+	// Deprecated: use api.Compiler().AddCounter() instead
+	AddCounter(from, to Tag)
+
+	// ConstantValue is a shorcut to api.Compiler().ConstantValue()
+	// Deprecated: use api.Compiler().ConstantValue() instead
+	ConstantValue(v Variable) (*big.Int, bool)
+
+	// Curve is a shorcut to api.Compiler().Curve()
+	// Deprecated: use api.Compiler().Curve() instead
+	Curve() ecc.ID
+
+	// Backend is a shorcut to api.Compiler().Backend()
+	// Deprecated: use api.Compiler().Backend() instead
+	Backend() backend.ID
 }
