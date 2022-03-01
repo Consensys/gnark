@@ -22,8 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -34,7 +34,7 @@ type mustBeOnCurve struct {
 func (circuit *mustBeOnCurve) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ type add struct {
 func (circuit *add) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ type addGeneric struct {
 func (circuit *addGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ type double struct {
 func (circuit *double) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ type scalarMulFixed struct {
 func (circuit *scalarMulFixed) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ type scalarMulGeneric struct {
 func (circuit *scalarMulGeneric) Define(api frontend.API) error {
 
 	// get edwards curve params
-	params, err := NewEdCurve(api.Curve())
+	params, err := NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -364,36 +364,36 @@ func TestNeg(t *testing.T) {
 // Bench
 func BenchmarkDouble(b *testing.B) {
 	var c double
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddGeneric(b *testing.B) {
 	var c addGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkAddFixedPoint(b *testing.B) {
 	var c add
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkMustBeOnCurve(b *testing.B) {
 	var c mustBeOnCurve
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulGeneric(b *testing.B) {
 	var c scalarMulGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkScalarMulFixed(b *testing.B) {
 	var c scalarMulFixed
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"math/big"
 	"math/bits"
 )
@@ -336,13 +336,13 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
-		for _, t := range c.L.LinExp {
+		for _, t := range c.L {
 			accumulate(&A[t.WireID()], t, &L)
 		}
-		for _, t := range c.R.LinExp {
+		for _, t := range c.R {
 			accumulate(&B[t.WireID()], t, &L)
 		}
-		for _, t := range c.O.LinExp {
+		for _, t := range c.O {
 			accumulate(&C[t.WireID()], t, &L)
 		}
 
@@ -491,10 +491,10 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
 	for _, c := range r1cs.Constraints {
-		for _, t := range c.L.LinExp {
+		for _, t := range c.L {
 			A[t.WireID()] = true
 		}
-		for _, t := range c.R.LinExp {
+		for _, t := range c.R {
 			B[t.WireID()] = true
 		}
 	}

@@ -14,38 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plonk
+package scs
 
 import (
 	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 
-	if system.IsConstant(i1) && system.IsConstant(i2) {
-		a := utils.FromInterface(i1)
-		b := utils.FromInterface(i2)
-		if a.Cmp(&b) != 0 {
+	c1, i1Constant := system.ConstantValue(i1)
+	c2, i2Constant := system.ConstantValue(i2)
+
+	if i1Constant && i2Constant {
+		if c1.Cmp(c2) != 0 {
 			panic("i1, i2 should be equal")
 		}
 		return
 	}
-	if system.IsConstant(i1) {
+	if i1Constant {
 		i1, i2 = i2, i1
+		i2Constant = i1Constant
+		c2 = c1
 	}
-	if system.IsConstant(i2) {
+	if i2Constant {
 		l := i1.(compiled.Term)
 		lc, _, _ := l.Unpack()
-		k := utils.FromInterface(i2)
+		k := c2
 		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
-		k.Neg(&k)
-		_k := system.CoeffID(&k)
+		k.Neg(k)
+		_k := system.st.CoeffID(k)
 		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
 		return
 	}
@@ -59,35 +62,34 @@ func (system *sparseR1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *sparseR1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (system *sparseR1CS) AssertIsBoolean(i1 frontend.Variable) {
-	if system.IsConstant(i1) {
-		c := utils.FromInterface(i1)
+func (system *scs) AssertIsBoolean(i1 frontend.Variable) {
+	if c, ok := system.ConstantValue(i1); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 		return
 	}
 	t := i1.(compiled.Term)
-	if system.isBoolean(t) {
+	if system.IsBoolean(t) {
 		return
 	}
-	system.markBoolean(t)
-	system.MTBooleans[int(t)] = struct{}{}
+	system.MarkBoolean(t)
+	system.mtBooleans[int(t)] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
 	var mCoef big.Int
-	mCoef.Neg(&system.Coeffs[cID])
-	mcID := system.CoeffID(&mCoef)
+	mCoef.Neg(&system.st.Coeffs[cID])
+	mcID := system.st.CoeffID(&mCoef)
 	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *sparseR1CS) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (system *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case compiled.Term:
 		system.mustBeLessOrEqVar(v.(compiled.Term), b)
@@ -96,7 +98,7 @@ func (system *sparseR1CS) AssertIsLessOrEqual(v frontend.Variable, bound fronten
 	}
 }
 
-func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -127,7 +129,7 @@ func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.markBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
 
 		system.addPlonkConstraint(
 			l.(compiled.Term),
@@ -143,7 +145,7 @@ func (system *sparseR1CS) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term
 
 }
 
-func (system *sparseR1CS) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
 	nbBits := system.BitLen()
 

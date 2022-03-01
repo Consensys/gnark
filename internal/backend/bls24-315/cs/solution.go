@@ -24,8 +24,8 @@ import (
 	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -148,7 +148,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
-	nbOutputs := f.NbOutputs(curve.ID, len(h.Inputs))
+	nbOutputs := len(h.Wires)
 	// m := len(s.tmpHintsIO)
 	// if m < (nbInputs + nbOutputs) {
 	// 	s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs + nbInputs) - m)...)
@@ -170,9 +170,6 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
-		case compiled.Variable:
-			v := s.computeLinearExpression(t.LinExp)
-			v.ToBigIntRegular(inputs[i])
 		case compiled.LinearExpression:
 			v := s.computeLinearExpression(t)
 			v.ToBigIntRegular(inputs[i])

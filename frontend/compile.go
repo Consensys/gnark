@@ -6,28 +6,9 @@ import (
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 )
-
-var tVariable reflect.Type
-
-func init() {
-	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
-}
-
-// Builder represents a constraint system builder
-type Builder interface {
-	API
-	CheckVariables() error
-	NewPublicVariable(name string) Variable
-	NewSecretVariable(name string) Variable
-	Compile() (CompiledConstraintSystem, error)
-	SetSchema(*schema.Schema)
-}
-
-type NewBuilder func(ecc.ID) (Builder, error)
 
 // Compile will generate a ConstraintSystem from the given circuit
 //
@@ -47,49 +28,33 @@ type NewBuilder func(ecc.ID) (Builder, error)
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, zkpID backend.ID, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
-	// setup option
-	opt := compileConfig{}
+func Compile(curveID ecc.ID, newCompiler NewCompiler, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+	// parse options
+	opt := CompileConfig{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
-	newBuilder := opt.newBuilder
-	if newBuilder == nil {
-		var ok bool
-		backendsM.RLock()
-		newBuilder, ok = backends[zkpID]
-		backendsM.RUnlock()
-		if !ok {
-			return nil, fmt.Errorf("no default constraint builder registered nor set as option")
-		}
-	}
-	builder, err := newBuilder(curveID)
+
+	// instantiate new compiler
+	compiler, err := newCompiler(curveID, opt)
 	if err != nil {
-		return nil, fmt.Errorf("new builder: %w", err)
+		return nil, fmt.Errorf("new compiler: %w", err)
 	}
 
-	if err = bootstrap(builder, circuit); err != nil {
-		return nil, fmt.Errorf("bootstrap: %w", err)
+	// parse the circuit builds a schema of the circuit
+	// and call circuit.Define() method to initialize a list of constraints in the compiler
+	if err = parseCircuit(compiler, circuit); err != nil {
+		return nil, fmt.Errorf("parse circuit: %w", err)
 
 	}
 
-	// ensure all inputs and hints are constrained
-	if !opt.ignoreUnconstrainedInputs {
-		if err := builder.CheckVariables(); err != nil {
-			return nil, err
-		}
-	}
-
-	ccs, err := builder.Compile()
-	if err != nil {
-		return nil, fmt.Errorf("compile system: %w", err)
-	}
-	return ccs, nil
+	// compile the circuit into its final form
+	return compiler.Compile()
 }
 
-func bootstrap(builder Builder, circuit Circuit) (err error) {
+func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	// ensure circuit.Define has pointer receiver
 	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
@@ -101,9 +66,9 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 		if tInput.CanSet() {
 			switch visibility {
 			case schema.Secret:
-				tInput.Set(reflect.ValueOf(builder.NewSecretVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
 			case schema.Public:
-				tInput.Set(reflect.ValueOf(builder.NewPublicVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(name)))
 			case schema.Unset:
 				return errors.New("can't set val " + name + " visibility is unset")
 			}
@@ -138,20 +103,19 @@ func bootstrap(builder Builder, circuit Circuit) (err error) {
 // CompileOption defines option for altering the behaviour of the Compile
 // method. See the descriptions of the functions returning instances of this
 // type for available options.
-type CompileOption func(opt *compileConfig) error
+type CompileOption func(opt *CompileConfig) error
 
-type compileConfig struct {
-	capacity                  int
-	ignoreUnconstrainedInputs bool
-	newBuilder                NewBuilder
+type CompileConfig struct {
+	Capacity                  int
+	IgnoreUnconstrainedInputs bool
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
 // for internal variables and constraints. If not set, then the initial capacity
 // is 0 and is dynamically allocated as needed.
 func WithCapacity(capacity int) CompileOption {
-	return func(opt *compileConfig) error {
-		opt.capacity = capacity
+	return func(opt *CompileConfig) error {
+		opt.Capacity = capacity
 		return nil
 	}
 }
@@ -164,19 +128,14 @@ func WithCapacity(capacity int) CompileOption {
 // production settings as it means that there is a potential error in the
 // circuit definition or that it is possible to optimize witness size.
 func IgnoreUnconstrainedInputs() CompileOption {
-	return func(opt *compileConfig) error {
-		opt.ignoreUnconstrainedInputs = true
+	return func(opt *CompileConfig) error {
+		opt.IgnoreUnconstrainedInputs = true
 		return nil
 	}
 }
 
-// WithBuilder is a compile option which enables the compiler to build the
-// constraint system with a user-defined builder.
-//
-// /!\ This is highly experimental and may change in upcoming releases /!\
-func WithBuilder(builder NewBuilder) CompileOption {
-	return func(opt *compileConfig) error {
-		opt.newBuilder = builder
-		return nil
-	}
+var tVariable reflect.Type
+
+func init() {
+	tVariable = reflect.ValueOf(struct{ A Variable }{}).FieldByName("A").Type()
 }

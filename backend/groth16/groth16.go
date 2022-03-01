@@ -27,7 +27,6 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	backend_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
@@ -51,10 +50,6 @@ import (
 	groth16_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/groth16"
 	groth16_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 )
-
-func init() {
-	frontend.RegisterDefaultBuilder(backend.GROTH16, r1cs.NewBuilder)
-}
 
 // TODO @gbotrel document hint functions here and in assert
 

@@ -52,6 +52,7 @@ type API interface {
 
 	// ---------------------------------------------------------------------------------------------
 	// Bit operations
+	// TODO @gbotrel move bit operations in std/math/bits
 
 	// ToBinary unpacks a Variable in binary,
 	// n is the number of bits to select (starting from lsb)
@@ -111,39 +112,32 @@ type API interface {
 	// whose value will be resolved at runtime when computed by the solver
 	Println(a ...Variable)
 
-	// NewHint initializes internal variables whose value will be evaluated
-	// using the provided hint function at run time from the inputs. Inputs must
-	// be either variables or convertible to *big.Int. The function returns an
-	// error if the number of inputs is not compatible with f.
-	//
-	// The hint function is provided at the proof creation time and is not
-	// embedded into the circuit. From the backend point of view, the variable
-	// returned by the hint function is equivalent to the user-supplied witness,
-	// but its actual value is assigned by the solver, not the caller.
-	//
-	// No new constraints are added to the newly created wire and must be added
-	// manually in the circuit. Failing to do so leads to solver failure.
-	NewHint(f hint.Function, inputs ...Variable) ([]Variable, error)
+	// Compiler returns the compiler object for advanced circuit development
+	Compiler() Compiler
 
-	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
-	// measure constraints, variables and coefficients creations through AddCounter
+	// Deprecated APIs
+
+	// NewHint is a shorcut to api.Compiler().NewHint()
+	// Deprecated: use api.Compiler().NewHint() instead
+	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
+
+	// Tag is a shorcut to api.Compiler().Tag()
+	// Deprecated: use api.Compiler().Tag() instead
 	Tag(name string) Tag
 
-	// AddCounter measures the number of constraints, variables and coefficients created between two tags
-	// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
-	// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
+	// AddCounter is a shorcut to api.Compiler().AddCounter()
+	// Deprecated: use api.Compiler().AddCounter() instead
 	AddCounter(from, to Tag)
 
-	// IsConstant returns true if v is a constant known at compile time
-	IsConstant(v Variable) bool
+	// ConstantValue is a shorcut to api.Compiler().ConstantValue()
+	// Deprecated: use api.Compiler().ConstantValue() instead
+	ConstantValue(v Variable) (*big.Int, bool)
 
-	// ConstantValue returns the big.Int value of v. It
-	// panics if v.IsConstant() == false
-	ConstantValue(v Variable) *big.Int
-
-	// CurveID returns the ecc.ID injected by the compiler
+	// Curve is a shorcut to api.Compiler().Curve()
+	// Deprecated: use api.Compiler().Curve() instead
 	Curve() ecc.ID
 
-	// Backend returns the backend.ID injected by the compiler
+	// Backend is a shorcut to api.Compiler().Backend()
+	// Deprecated: use api.Compiler().Backend() instead
 	Backend() backend.ID
 }
