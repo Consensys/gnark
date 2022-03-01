@@ -32,7 +32,7 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (system *compiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	zero := big.NewInt(0)
 	vars, k := system.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
@@ -52,7 +52,7 @@ func (system *compiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 // neg returns -in
-func (system *compiler) neg(in []frontend.Variable) []frontend.Variable {
+func (system *scs) neg(in []frontend.Variable) []frontend.Variable {
 
 	res := make([]frontend.Variable, len(in))
 
@@ -63,13 +63,13 @@ func (system *compiler) neg(in []frontend.Variable) []frontend.Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (system *compiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	r := system.neg(append([]frontend.Variable{i2}, in...))
 	return system.Add(i1, r[0], r[1:]...)
 }
 
 // Neg returns -i
-func (system *compiler) Neg(i1 frontend.Variable) frontend.Variable {
+func (system *scs) Neg(i1 frontend.Variable) frontend.Variable {
 	if n, ok := system.ConstantValue(i1); ok {
 		n.Neg(n)
 		// TODO shouldn't that go through variable conversion?
@@ -87,7 +87,7 @@ func (system *compiler) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	vars, k := system.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
@@ -99,7 +99,7 @@ func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 // returns t*m
-func (system *compiler) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
 	coef.Set(&system.st.Coeffs[cid])
@@ -110,7 +110,7 @@ func (system *compiler) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	c1, i1Constant := system.ConstantValue(i1)
 	c2, i2Constant := system.ConstantValue(i2)
 
@@ -143,7 +143,7 @@ func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 }
 
 // Div returns i1 / i2
-func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	system.Inverse(i2)
@@ -152,7 +152,7 @@ func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Inverse returns res = 1 / i1
-func (system *compiler) Inverse(i1 frontend.Variable) frontend.Variable {
+func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := system.ConstantValue(i1); ok {
 		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
 		return c
@@ -173,7 +173,7 @@ func (system *compiler) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := system.BitLen()
@@ -197,7 +197,7 @@ func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 	return system.toBinary(a, nbBits, false)
 }
 
-func (system *compiler) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
+func (system *scs) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
 
 	// allocate the resulting frontend.Variables and bit-constraint them
 	sb := make([]frontend.Variable, nbBits)
@@ -235,7 +235,7 @@ func (system *compiler) toBinary(a compiled.Term, nbBits int, unsafe bool) []fro
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *compiler) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 	_b := make([]frontend.Variable, len(b))
 	var c big.Int
 	c.SetUint64(1)
@@ -254,7 +254,7 @@ func (system *compiler) FromBinary(b ...frontend.Variable) frontend.Variable {
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (system *compiler) Xor(a, b frontend.Variable) frontend.Variable {
+func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -285,7 +285,7 @@ func (system *compiler) Xor(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (system *compiler) Or(a, b frontend.Variable) frontend.Variable {
+func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -324,7 +324,7 @@ func (system *compiler) Or(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (system *compiler) And(a, b frontend.Variable) frontend.Variable {
+func (system *scs) And(a, b frontend.Variable) frontend.Variable {
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
 	return system.Mul(a, b)
@@ -334,7 +334,7 @@ func (system *compiler) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (system *compiler) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
 	_b, bConstant := system.ConstantValue(b)
 
 	if bConstant {
@@ -356,7 +356,7 @@ func (system *compiler) Select(b frontend.Variable, i1, i2 frontend.Variable) fr
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *compiler) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 
 	// vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	// s0, s1 := vars[0], vars[1]
@@ -392,7 +392,7 @@ func (system *compiler) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (system *compiler) IsZero(i1 frontend.Variable) frontend.Variable {
+func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	if a, ok := system.ConstantValue(i1); ok {
 		if !(a.IsUint64() && a.Uint64() == 0) {
 			panic("input should be zero")
@@ -418,7 +418,7 @@ func (system *compiler) IsZero(i1 frontend.Variable) frontend.Variable {
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (system *compiler) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	bi1 := system.ToBinary(i1, system.BitLen())
 	bi2 := system.ToBinary(i2, system.BitLen())
@@ -450,7 +450,7 @@ func (system *compiler) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *compiler) Println(a ...frontend.Variable) {
+func (system *scs) Println(a ...frontend.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -526,6 +526,6 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	sbb.WriteByte('}')
 }
 
-func (system *compiler) Compiler() frontend.Compiler {
+func (system *scs) Compiler() frontend.Compiler {
 	return system
 }

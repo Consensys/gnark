@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *r1cs) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
 	r := system.toVariable(i1).(compiled.LinearExpression)
 	o := system.toVariable(i2).(compiled.LinearExpression)
@@ -37,12 +37,12 @@ func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *compiler) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *r1cs) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 ∥ v == 1)
-func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
+func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
@@ -74,7 +74,7 @@ func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *compiler) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
+func (system *r1cs) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
@@ -87,7 +87,7 @@ func (system *compiler) AssertIsLessOrEqual(_v frontend.Variable, bound frontend
 
 }
 
-func (system *compiler) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
+func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := system.BitLen()
@@ -128,7 +128,7 @@ func (system *compiler) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 
 }
 
-func (system *compiler) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
+func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
 
 	nbBits := system.BitLen()
 
