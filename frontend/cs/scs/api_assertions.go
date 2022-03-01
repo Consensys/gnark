@@ -26,7 +26,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := system.ConstantValue(i1)
 	c2, i2Constant := system.ConstantValue(i2)
@@ -62,12 +62,12 @@ func (system *compiler) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *compiler) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
+func (system *scs) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := system.ConstantValue(i1); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
@@ -89,7 +89,7 @@ func (system *compiler) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *compiler) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (system *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case compiled.Term:
 		system.mustBeLessOrEqVar(v.(compiled.Term), b)
@@ -98,7 +98,7 @@ func (system *compiler) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 	}
 }
 
-func (system *compiler) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -145,7 +145,7 @@ func (system *compiler) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) 
 
 }
 
-func (system *compiler) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
 	nbBits := system.BitLen()
 

@@ -35,7 +35,7 @@ import (
 // Arithmetic
 
 // Add returns res = i1+i2+...in
-func (system *compiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1cs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
@@ -54,7 +54,7 @@ func (system *compiler) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 // Neg returns -i
-func (system *compiler) Neg(i frontend.Variable) frontend.Variable {
+func (system *r1cs) Neg(i frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i)
 
 	if n, ok := system.ConstantValue(vars[0]); ok {
@@ -66,7 +66,7 @@ func (system *compiler) Neg(i frontend.Variable) frontend.Variable {
 }
 
 // Sub returns res = i1 - i2
-func (system *compiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1cs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	// extract frontend.Variables from input
 	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
@@ -88,7 +88,7 @@ func (system *compiler) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 
 	mul := func(v1, v2 compiled.LinearExpression) compiled.LinearExpression {
@@ -126,7 +126,7 @@ func (system *compiler) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	return res
 }
 
-func (system *compiler) mulConstant(v1, constant compiled.LinearExpression) compiled.LinearExpression {
+func (system *r1cs) mulConstant(v1, constant compiled.LinearExpression) compiled.LinearExpression {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
 	res := v1.Clone()
@@ -153,7 +153,7 @@ func (system *compiler) mulConstant(v1, constant compiled.LinearExpression) comp
 	return res
 }
 
-func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1cs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -187,7 +187,7 @@ func (system *compiler) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 }
 
 // Div returns res = i1 / i2
-func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1cs) Div(i1, i2 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1, i2)
 
 	v1 := vars[0]
@@ -223,7 +223,7 @@ func (system *compiler) Div(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Inverse returns res = inverse(v)
-func (system *compiler) Inverse(i1 frontend.Variable) frontend.Variable {
+func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 
 	if c, ok := system.ConstantValue(vars[0]); ok {
@@ -252,7 +252,7 @@ func (system *compiler) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
 	nbBits := system.BitLen()
@@ -279,7 +279,7 @@ func (system *compiler) ToBinary(i1 frontend.Variable, n ...int) []frontend.Vari
 }
 
 // toBinary is equivalent to ToBinary, exept the returned bits are NOT boolean constrained.
-func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe bool) []frontend.Variable {
+func (system *r1cs) toBinary(a compiled.LinearExpression, nbBits int, unsafe bool) []frontend.Variable {
 
 	if _, ok := system.ConstantValue(a); ok {
 		return system.ToBinary(a, nbBits)
@@ -320,7 +320,7 @@ func (system *compiler) toBinary(a compiled.LinearExpression, nbBits int, unsafe
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *compiler) FromBinary(_b ...frontend.Variable) frontend.Variable {
+func (system *r1cs) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.toVariables(_b...)
 
 	// res = Σ (2**i * b[i])
@@ -343,7 +343,7 @@ func (system *compiler) FromBinary(_b ...frontend.Variable) frontend.Variable {
 }
 
 // Xor compute the XOR between two frontend.Variables
-func (system *compiler) Xor(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1cs) Xor(_a, _b frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(_a, _b)
 
@@ -365,7 +365,7 @@ func (system *compiler) Xor(_a, _b frontend.Variable) frontend.Variable {
 }
 
 // Or compute the OR between two frontend.Variables
-func (system *compiler) Or(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1cs) Or(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -385,7 +385,7 @@ func (system *compiler) Or(_a, _b frontend.Variable) frontend.Variable {
 }
 
 // And compute the AND between two frontend.Variables
-func (system *compiler) And(_a, _b frontend.Variable) frontend.Variable {
+func (system *r1cs) And(_a, _b frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(_a, _b)
 
 	a := vars[0]
@@ -403,7 +403,7 @@ func (system *compiler) And(_a, _b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if i0 is true, yields i1 else yields i2
-func (system *compiler) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1cs) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i0, i1, i2)
 	b := vars[0]
@@ -437,7 +437,7 @@ func (system *compiler) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *compiler) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (system *r1cs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
@@ -468,7 +468,7 @@ func (system *compiler) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *compiler) IsZero(i1 frontend.Variable) frontend.Variable {
+func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 	vars, _ := system.toVariables(i1)
 	a := vars[0]
 	if c, ok := system.ConstantValue(a); ok {
@@ -500,7 +500,7 @@ func (system *compiler) IsZero(i1 frontend.Variable) frontend.Variable {
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (system *compiler) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i1, i2)
 	bi1 := system.ToBinary(vars[0], system.BitLen())
@@ -530,7 +530,7 @@ func (system *compiler) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *compiler) Println(a ...frontend.Variable) {
+func (system *r1cs) Println(a ...frontend.Variable) {
 	var sbb strings.Builder
 
 	// prefix log line with file.go:line
@@ -608,7 +608,7 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 }
 
 // returns -le, the result is a copy
-func (system *compiler) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
+func (system *r1cs) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
 	res := make(compiled.LinearExpression, len(l))
 	var lambda big.Int
 	for i, t := range l {
@@ -620,6 +620,6 @@ func (system *compiler) negateLinExp(l compiled.LinearExpression) compiled.Linea
 	return res
 }
 
-func (system *compiler) Compiler() frontend.Compiler {
+func (system *r1cs) Compiler() frontend.Compiler {
 	return system
 }

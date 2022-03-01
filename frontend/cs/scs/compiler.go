@@ -47,7 +47,7 @@ func NewCompiler(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder,
 	return newCompiler(curve, config), nil
 }
 
-type compiler struct {
+type scs struct {
 	compiled.ConstraintSystem
 	Constraints []compiled.SparseR1C
 
@@ -60,8 +60,8 @@ type compiler struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *compiler {
-	system := compiler{
+func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *scs {
+	system := scs{
 		ConstraintSystem: compiled.ConstraintSystem{
 
 			MDebug: make(map[int]int),
@@ -83,7 +83,7 @@ func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *compiler {
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
 //func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-func (system *compiler) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
@@ -104,14 +104,14 @@ func (system *compiler) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, ci
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (system *compiler) newInternalVariable() compiled.Term {
+func (system *scs) newInternalVariable() compiled.Term {
 	idx := system.NbInternalVariables
 	system.NbInternalVariables++
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
 }
 
 // AddPublicVariable creates a new Public Variable
-func (system *compiler) AddPublicVariable(name string) frontend.Variable {
+func (system *scs) AddPublicVariable(name string) frontend.Variable {
 	if system.Schema != nil {
 		panic("do not call AddPublicVariable in circuit.Define()")
 	}
@@ -121,7 +121,7 @@ func (system *compiler) AddPublicVariable(name string) frontend.Variable {
 }
 
 // AddSecretVariable creates a new Secret Variable
-func (system *compiler) AddSecretVariable(name string) frontend.Variable {
+func (system *scs) AddSecretVariable(name string) frontend.Variable {
 	if system.Schema != nil {
 		panic("do not call AddSecretVariable in circuit.Define()")
 	}
@@ -134,7 +134,7 @@ func (system *compiler) AddSecretVariable(name string) frontend.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (system *compiler) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression {
 
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
@@ -157,7 +157,7 @@ func (system *compiler) reduce(l compiled.LinearExpression) compiled.LinearExpre
 }
 
 // to handle wires that don't exist (=coef 0) in a sparse constraint
-func (system *compiler) zero() compiled.Term {
+func (system *scs) zero() compiled.Term {
 	var a compiled.Term
 	return a
 }
@@ -165,7 +165,7 @@ func (system *compiler) zero() compiled.Term {
 // IsBoolean returns true if given variable was marked as boolean in the compiler (see MarkBoolean)
 // Use with care; variable may not have been **constrained** to be boolean
 // This returns true if the v is a constant and v == 0 || v == 1.
-func (system *compiler) IsBoolean(v frontend.Variable) bool {
+func (system *scs) IsBoolean(v frontend.Variable) bool {
 	if b, ok := system.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
@@ -176,7 +176,7 @@ func (system *compiler) IsBoolean(v frontend.Variable) bool {
 // MarkBoolean sets (but do not constraint!) v to be boolean
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
-func (system *compiler) MarkBoolean(v frontend.Variable) {
+func (system *scs) MarkBoolean(v frontend.Variable) {
 	if b, ok := system.ConstantValue(v); ok {
 		if !(b.IsUint64() && b.Uint64() <= 1) {
 			panic("MarkBoolean called a non-boolean constant")
@@ -189,7 +189,7 @@ func (system *compiler) MarkBoolean(v frontend.Variable) {
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (system *compiler) checkVariables() error {
+func (system *scs) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 
@@ -294,7 +294,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
 
-func (cs *compiler) Compile() (frontend.CompiledConstraintSystem, error) {
+func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// ensure all inputs and hints are constrained
 	if !cs.config.IgnoreUnconstrainedInputs {
@@ -410,7 +410,7 @@ HINTLOOP:
 
 }
 
-func (cs *compiler) SetSchema(s *schema.Schema) {
+func (cs *scs) SetSchema(s *schema.Schema) {
 	if cs.Schema != nil {
 		panic("SetSchema called multiple times")
 	}
@@ -515,7 +515,7 @@ func (b *levelBuilder) processTerm(t compiled.Term, cID int) {
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (system *compiler) ConstantValue(v frontend.Variable) (*big.Int, bool) {
+func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	switch t := v.(type) {
 	case compiled.Term:
 		return nil, false
@@ -525,13 +525,13 @@ func (system *compiler) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (system *compiler) Backend() backend.ID {
+func (system *scs) Backend() backend.ID {
 	return backend.PLONK
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
-func (system *compiler) Tag(name string) frontend.Tag {
+func (system *scs) Tag(name string) frontend.Tag {
 	_, file, line, _ := runtime.Caller(1)
 
 	return frontend.Tag{
@@ -544,7 +544,7 @@ func (system *compiler) Tag(name string) frontend.Tag {
 // AddCounter measures the number of constraints, variables and coefficients created between two tags
 // note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
 // are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (system *compiler) AddCounter(from, to frontend.Tag) {
+func (system *scs) AddCounter(from, to frontend.Tag) {
 	system.Counters = append(system.Counters, compiled.Counter{
 		From:          from.Name,
 		To:            to.Name,
@@ -567,7 +567,7 @@ func (system *compiler) AddCounter(from, to frontend.Tag) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
@@ -604,7 +604,7 @@ func (system *compiler) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *compiler) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
+func (system *scs) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
 	res := make(compiled.LinearExpression, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
@@ -620,7 +620,7 @@ func (system *compiler) filterConstantSum(in []frontend.Variable) (compiled.Line
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *compiler) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
+func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
 	res := make(compiled.LinearExpression, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
@@ -636,7 +636,7 @@ func (system *compiler) filterConstantProd(in []frontend.Variable) (compiled.Lin
 	return res, b
 }
 
-func (system *compiler) splitSum(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs) splitSum(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -650,7 +650,7 @@ func (system *compiler) splitSum(acc compiled.Term, r compiled.LinearExpression)
 	return system.splitSum(o, r[1:])
 }
 
-func (system *compiler) splitProd(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
