@@ -63,9 +63,9 @@ type scs struct {
 func newCompiler(curveID ecc.ID, config frontend.CompileConfig) *scs {
 	system := scs{
 		ConstraintSystem: compiled.ConstraintSystem{
-
-			MDebug: make(map[int]int),
-			MHints: make(map[int]*compiled.Hint),
+			MDebug:             make(map[int]int),
+			MHints:             make(map[int]*compiled.Hint),
+			MHintsDependencies: make(map[hint.ID]string),
 		},
 		mtBooleans:  make(map[int]struct{}),
 		Constraints: make([]compiled.SparseR1C, 0, config.Capacity),
@@ -568,9 +568,19 @@ func (system *scs) AddCounter(from, to frontend.Tag) {
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
+	}
+
+	// register the hint as dependency
+	hintUUID, hintID := f.UUID(), f.String()
+	if id, ok := system.MHintsDependencies[hintUUID]; ok {
+		// hint already registered, let's ensure string id matches
+		if id != hintID {
+			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", hintID, id)
+		}
+	} else {
+		system.MHintsDependencies[hintUUID] = hintID
 	}
 
 	hintInputs := make([]interface{}, len(inputs))

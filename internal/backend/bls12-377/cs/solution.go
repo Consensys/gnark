@@ -44,7 +44,7 @@ type solution struct {
 	mHintsFunctions      map[hint.ID]hint.Function
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions []hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 		values:          make([]fr.Element, nbWires),
@@ -55,9 +55,21 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 
 	for _, h := range hintFunctions {
 		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
-			return solution{}, fmt.Errorf("duplicate hint function %s", h)
+			return s, fmt.Errorf("duplicate hint function %s", h)
 		}
 		s.mHintsFunctions[h.UUID()] = h
+	}
+
+	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
+	var missing []string
+	for hintUUID, hintID := range hintsDependencies {
+		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
+			missing = append(missing, hintID)
+		}
+	}
+
+	if len(missing) > 0 {
+		return s, fmt.Errorf("solver missing hint(s): %v", missing)
 	}
 
 	return s, nil

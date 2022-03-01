@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 
 	"math"
@@ -50,7 +51,7 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}

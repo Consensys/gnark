@@ -23,7 +23,6 @@ import (
 	"io"
 
 	"github.com/consensys/gnark-crypto/ecc"
-
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"

@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/backend/witness"
 
@@ -68,7 +69,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 
 	// keep track of wire that have a value
-	solution, err  := newSolution(nbVariables, opt.HintFunctions, cs.Coefficients)
+	solution, err  := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.Coefficients)
 	if err != nil {
 		return solution.values, err
 	}
