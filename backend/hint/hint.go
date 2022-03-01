@@ -65,8 +65,6 @@ the hint function hintFn to register a hint function in the package registry.
 package hint
 
 import (
-	"encoding/binary"
-	"fmt"
 	"hash/fnv"
 	"math/big"
 	"reflect"
@@ -103,24 +101,17 @@ func NewStaticHint(fn StaticFunction) Function {
 	return fn
 }
 
-// UUID is a reference function for computing the hint ID based on a function
-// and additional context values ctx. A change in any of the inputs modifies the
-// returned value and thus this function can be used to compute the hint ID for
-// same function in different contexts (for example, for different number of
-// inputs and outputs).
-func UUID(fn StaticFunction, ctx ...uint64) ID {
-	var buf [8]byte
+// UUID is a reference function for computing the hint ID based on a function name
+func UUID(fn StaticFunction) ID {
 	hf := fnv.New32a()
 	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 	// using a name for identifying different hints should be enough as we get a
 	// solve-time error when there are duplicate hints with the same signature.
+
+	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, wil be package.glob..funcN
+	// and if new anonymous functions are added in the package, N may change, so will UUID.
 	hf.Write([]byte(name)) // #nosec G104 -- does not err
-	// also feed all context values into the checksum do differentiate different
-	// hints based on the same function.
-	for _, ct := range ctx {
-		binary.BigEndian.PutUint64(buf[:], uint64(ct))
-		hf.Write(buf[:]) // #nosec G104 -- does not err
-	}
+
 	return ID(hf.Sum32())
 }
 
@@ -134,6 +125,5 @@ func (h StaticFunction) UUID() ID {
 
 func (h StaticFunction) String() string {
 	fnptr := reflect.ValueOf(h).Pointer()
-	name := runtime.FuncForPC(fnptr).Name()
-	return fmt.Sprintf("%s([?]*big.Int, [?]*big.Int) at (%x)", name, fnptr)
+	return runtime.FuncForPC(fnptr).Name()
 }

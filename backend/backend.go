@@ -48,18 +48,6 @@ func (id ID) String() string {
 	}
 }
 
-// NewProverConfig returns a default ProverConfig with given prover options opts
-// applied.
-func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
-	opt := ProverConfig{LoggerOut: os.Stdout, HintFunctions: hint.GetAll()}
-	for _, option := range opts {
-		if err := option(&opt); err != nil {
-			return ProverConfig{}, err
-		}
-	}
-	return opt, nil
-}
-
 // ProverOption defines option for altering the behaviour of the prover in
 // Prove, ReadAndProve and IsSolved methods. See the descriptions of functions
 // returning instances of this type for implemented options.
@@ -70,6 +58,18 @@ type ProverConfig struct {
 	Force         bool            // defaults to false
 	HintFunctions []hint.Function // defaults to all built-in hint functions
 	LoggerOut     io.Writer       // defaults to os.Stdout
+}
+
+// NewProverConfig returns a default ProverConfig with given prover options opts
+// applied.
+func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
+	opt := ProverConfig{LoggerOut: os.Stdout, HintFunctions: hint.GetAll()}
+	for _, option := range opts {
+		if err := option(&opt); err != nil {
+			return ProverConfig{}, err
+		}
+	}
+	return opt, nil
 }
 
 // IgnoreSolverError is a prover option that indicates that the Prove algorithm
