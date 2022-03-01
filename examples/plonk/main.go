@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
@@ -65,28 +64,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	api.AssertIsEqual(circuit.Y, output)
-
-	return nil
-}
-
-func builtinIsZero(curveID ecc.ID, inputs []*big.Int, results []*big.Int) error {
-	// fake one
-	result := results[0]
-
-	// get fr modulus
-	q := curveID.Info().Fr.Modulus()
-
-	// save input
-	result.Set(inputs[0])
-
-	// reuse input to compute q - 1
-	qMinusOne := inputs[0].SetUint64(1)
-	qMinusOne.Sub(q, qMinusOne)
-
-	// result =  1 - input**(q-1)
-	result.Exp(result, qMinusOne, q)
-	inputs[0].SetUint64(1)
-	result.Sub(inputs[0], result).Mod(result, q)
 
 	return nil
 }
