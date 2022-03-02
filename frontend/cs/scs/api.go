@@ -238,20 +238,7 @@ func (system *scs) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend
 // FromBinary packs b, seen as a fr.Element in little endian
 // Deprecated: use std/math/bits instead
 func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
-	_b := make([]frontend.Variable, len(b))
-	var c big.Int
-	c.SetUint64(1)
-	for i := 0; i < len(b); i++ {
-		_b[i] = system.Mul(b[i], c)
-		c.Lsh(&c, 1)
-	}
-	if len(b) == 1 {
-		return b[0]
-	}
-	if len(b) == 1 {
-		return system.Add(_b[0], _b[1])
-	}
-	return system.Add(_b[0], _b[1], _b[2:]...)
+	panic("Deprecated: use std/math/bits instead")
 }
 
 // Xor returns a ^ b

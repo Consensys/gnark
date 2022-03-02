@@ -15,9 +15,7 @@ type toBinaryCircuit struct {
 func (c *toBinaryCircuit) Define(api frontend.API) error {
 	// binary decomposition
 	nA := FromBinary(api, c.B0, c.B1, c.B2)
-	oA := api.FromBinary(c.B0, c.B1, c.B2)
 
-	api.AssertIsEqual(nA, oA)
 	api.AssertIsEqual(nA, c.A)
 
 	// to binary

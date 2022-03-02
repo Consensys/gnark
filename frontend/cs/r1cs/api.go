@@ -323,25 +323,7 @@ func (system *r1cs) toBinary(a compiled.LinearExpression, nbBits int, unsafe boo
 // FromBinary packs b, seen as a fr.Element in little endian
 // Deprecated: use std/math/bits instead
 func (system *r1cs) FromBinary(_b ...frontend.Variable) frontend.Variable {
-	b, _ := system.toVariables(_b...)
-
-	// res = Σ (2**i * b[i])
-
-	var res, v frontend.Variable
-	res = system.toVariable(0) // no constraint is recorded
-
-	var c big.Int
-	c.SetUint64(1)
-
-	L := make(compiled.LinearExpression, len(b))
-	for i := 0; i < len(L); i++ {
-		v = system.Mul(c, b[i])      // no constraint is recorded
-		res = system.Add(v, res)     // no constraint is recorded
-		system.AssertIsBoolean(b[i]) // ensures the b[i]'s are boolean
-		c.Lsh(&c, 1)
-	}
-
-	return res
+	panic("Deprecated: use std/math/bits instead")
 }
 
 // Xor compute the XOR between two frontend.Variables
