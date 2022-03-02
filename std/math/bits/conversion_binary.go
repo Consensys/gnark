@@ -55,8 +55,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		return bits
 	}
 
-	var c big.Int
-	c.SetUint64(1)
+	c := big.NewInt(1)
 
 	bits, err := api.Compiler().NewHint(hint.NBits, cfg.NbDigits, v)
 	if err != nil {
@@ -67,7 +66,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	Σbi = 0
 	for i := 0; i < cfg.NbDigits; i++ {
 		Σbi = api.Add(Σbi, api.Mul(bits[i], c))
-		c.Lsh(&c, 1)
+		c.Lsh(c, 1)
 		if !cfg.Unconstrained {
 			api.AssertIsBoolean(bits[i])
 		}

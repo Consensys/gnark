@@ -28,9 +28,31 @@ func (c *toBinaryCircuit) Define(api frontend.API) error {
 }
 
 func TestToBinary(t *testing.T) {
-	// TODO
-
 	assert := test.NewAssert(t)
-
 	assert.ProverSucceeded(&toBinaryCircuit{}, &toBinaryCircuit{A: 5, B0: 1, B1: 0, B2: 1})
+}
+
+type toTernaryCircuit struct {
+	A          frontend.Variable
+	T0, T1, T2 frontend.Variable
+}
+
+func (c *toTernaryCircuit) Define(api frontend.API) error {
+	// ternary decomposition
+	nA := FromTernary(api, c.T0, c.T1, c.T2)
+
+	api.AssertIsEqual(nA, c.A)
+
+	// to ternary
+	t := ToTernary(api, c.A, WithNbDigits(3))
+	api.AssertIsEqual(t[0], c.T0)
+	api.AssertIsEqual(t[1], c.T1)
+	api.AssertIsEqual(t[2], c.T2)
+
+	return nil
+}
+
+func TestToTernary(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.ProverSucceeded(&toTernaryCircuit{}, &toTernaryCircuit{A: 5, T0: 2, T1: 1, T2: 0})
 }

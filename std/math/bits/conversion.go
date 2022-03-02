@@ -19,6 +19,8 @@ func ToBase(api frontend.API, base Base, v frontend.Variable, opts ...BaseConver
 	switch base {
 	case Binary:
 		return toBinary(api, v, opts...)
+	case Ternary:
+		return toTernary(api, v, opts...)
 	default:
 		panic("not implemented")
 	}
@@ -33,6 +35,8 @@ func FromBase(api frontend.API, base Base, digits ...frontend.Variable) frontend
 	switch base {
 	case Binary:
 		return fromBinary(api, digits)
+	case Ternary:
+		return fromTernary(api, digits)
 	default:
 		panic("not implemented")
 	}
