@@ -18,17 +18,52 @@ const (
 
 // ToBinary is an alias of ToBase(... Binary ...)
 func ToBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
-	return ToBase(api, v, Binary, opts...)
+	return ToBase(api, Binary, v, opts...)
+}
+
+// FromBinary is an alias of FromBase(... Binary ...)
+func FromBinary(api frontend.API, digits ...frontend.Variable) frontend.Variable {
+	return FromBase(api, Binary, digits...)
 }
 
 // ToBase converts b in given base
-func ToBase(api frontend.API, v frontend.Variable, base Base, opts ...BaseConversionOption) []frontend.Variable {
+func ToBase(api frontend.API, base Base, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	switch base {
 	case Binary:
 		return toBinary(api, v, opts...)
 	default:
 		panic("not implemented")
 	}
+}
+
+// FromBase compute from a set of digits its canonical representation
+// For example for base 2, it returns Σbi = Σ (2**i * b[i])
+func FromBase(api frontend.API, base Base, digits ...frontend.Variable) frontend.Variable {
+	if len(digits) == 0 {
+		panic("FromBase needs at least 1 digit")
+	}
+	switch base {
+	case Binary:
+		return fromBinary(api, digits)
+	default:
+		panic("not implemented")
+	}
+}
+
+func fromBinary(api frontend.API, digits []frontend.Variable) frontend.Variable {
+	// Σbi = Σ (2**i * b[i])
+	Σbi := frontend.Variable(0)
+
+	c := big.NewInt(1)
+
+	for i := 0; i < len(digits); i++ {
+		// TODO do we want to keep this AssertIsBoolean here?
+		api.AssertIsBoolean(digits[i])            // ensures the digits are actual bits
+		Σbi = api.Add(Σbi, api.Mul(c, digits[i])) // no constraint is recorded
+		c.Lsh(c, 1)
+	}
+
+	return Σbi
 }
 
 func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {

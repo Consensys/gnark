@@ -321,6 +321,7 @@ func (system *r1cs) toBinary(a compiled.LinearExpression, nbBits int, unsafe boo
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
+// Deprecated: use std/math/bits instead
 func (system *r1cs) FromBinary(_b ...frontend.Variable) frontend.Variable {
 	b, _ := system.toVariables(_b...)
 

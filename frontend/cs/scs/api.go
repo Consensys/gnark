@@ -236,6 +236,7 @@ func (system *scs) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
+// Deprecated: use std/math/bits instead
 func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 	_b := make([]frontend.Variable, len(b))
 	var c big.Int

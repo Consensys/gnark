@@ -63,6 +63,7 @@ type API interface {
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
+	// Deprecated: use std/math/bits instead
 	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b

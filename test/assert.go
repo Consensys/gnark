@@ -432,6 +432,9 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	assert.compiled[key] = ccs
 
 	// fmt.Println(key, ccs.GetNbConstraints())
+	// for _, c := range ccs.GetCounters() {
+	// 	fmt.Println(c.String())
+	// }
 
 	return ccs, nil
 }
