@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewCompiler func(ecc.ID, CompileConfig) (Builder, error)
+type NewBuilder func(ecc.ID, CompileConfig) (Builder, error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
