@@ -28,7 +28,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newCompiler NewCompiler, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(curveID ecc.ID, newCompiler NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
