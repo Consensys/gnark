@@ -392,7 +392,7 @@ func BenchmarkConstScalarMulG1(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewCompiler, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -400,7 +400,7 @@ func BenchmarkConstScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewCompiler, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -421,7 +421,7 @@ func BenchmarkVarScalarMulG1(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewCompiler, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -429,7 +429,7 @@ func BenchmarkVarScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewCompiler, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}
