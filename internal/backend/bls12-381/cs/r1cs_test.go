@@ -36,7 +36,7 @@ func TestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 
-			r1cs1, err := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, tc.Circuit)
+			r1cs1, err := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -45,7 +45,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// copmpile a second time to ensure determinism
-			r1cs2, err := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, tc.Circuit)
+			r1cs2, err := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -134,7 +134,7 @@ func (circuit *circuit) Define(api frontend.API) error {
 func BenchmarkSolve(b *testing.B) {
 
 	var c circuit
-	ccs, err := frontend.Compile(ecc.BLS12_381, r1cs.NewCompiler, &c)
+	ccs, err := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	if err != nil {
 		b.Fatal(err)
 	}

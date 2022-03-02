@@ -33,13 +33,13 @@ func TestCircuitStatistics(t *testing.T) {
 				// copy the circuit now in case assert calls t.Parallel()
 				tData := circuits.Circuits[k]
 				assert.Run(func(assert *test.Assert) {
-					var newCompiler frontend.NewCompiler
+					var newCompiler frontend.NewBuilder
 
 					switch backendID {
 					case backend.GROTH16:
-						newCompiler = r1cs.NewCompiler
+						newCompiler = r1cs.NewBuilder
 					case backend.PLONK:
-						newCompiler = scs.NewCompiler
+						newCompiler = scs.NewBuilder
 					default:
 						panic("not implemented")
 					}

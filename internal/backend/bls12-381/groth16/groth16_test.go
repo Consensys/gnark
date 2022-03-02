@@ -58,7 +58,7 @@ func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	r1cs, err := frontend.Compile(curve.ID, r1cs.NewCompiler, &circuit)
+	r1cs, err := frontend.Compile(curve.ID, r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	}

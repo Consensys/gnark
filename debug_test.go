@@ -174,7 +174,7 @@ func TestTraceNotBoolean(t *testing.T) {
 }
 
 func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, scs.NewCompiler, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, scs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -198,7 +198,7 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 }
 
 func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, r1cs.NewCompiler, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
