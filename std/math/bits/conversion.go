@@ -21,21 +21,29 @@ func ToBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	return ToBase(api, v, Binary, opts...)
 }
 
+// ToBase converts b in given base
 func ToBase(api frontend.API, v frontend.Variable, base Base, opts ...BaseConversionOption) []frontend.Variable {
-	// parse options
-	cfg := BaseConversionConfig{
-		NbDigits:      api.Compiler().Curve().Info().Fr.Bits,
-		Unconstrained: false,
-	}
 	switch base {
 	case Binary:
-		return toBinary(api, v, cfg)
+		return toBinary(api, v, opts...)
 	default:
 		panic("not implemented")
 	}
 }
 
-func toBinary(api frontend.API, v frontend.Variable, cfg BaseConversionConfig) []frontend.Variable {
+func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
+	// parse options
+	cfg := BaseConversionConfig{
+		NbDigits:      api.Compiler().Curve().Info().Fr.Bits,
+		Unconstrained: false,
+	}
+
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			panic(err)
+		}
+	}
+
 	// if a is a constant, work with the big int value.
 	if c, ok := api.Compiler().ConstantValue(v); ok {
 		bits := make([]frontend.Variable, cfg.NbDigits)
@@ -69,13 +77,15 @@ func toBinary(api frontend.API, v frontend.Variable, cfg BaseConversionConfig) [
 	return bits
 }
 
-type BaseConversionOption func(opt *BaseConversionConfig) error
-
 type BaseConversionConfig struct {
 	NbDigits      int
 	Unconstrained bool
 }
 
+type BaseConversionOption func(opt *BaseConversionConfig) error
+
+// WithNbDigits set the resulting number of digits to be used in the base conversion
+// nbDigits must be > 0
 func WithNbDigits(nbDigits int) BaseConversionOption {
 	return func(opt *BaseConversionConfig) error {
 		if nbDigits <= 0 {

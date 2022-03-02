@@ -173,6 +173,7 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
+// Deprecated: use std/math/bits instead
 func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 
 	// nbBits
