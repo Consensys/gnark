@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/utils"
@@ -38,9 +39,8 @@ type ConstraintSystem struct {
 
 	Counters []Counter // TODO @gbotrel no point in serializing these
 
-	// maps wire id to hint
-	// a wire may point to at most one hint
-	MHints map[int]*Hint
+	MHints             map[int]*Hint      // maps wireID to hint
+	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
 	// it is guaranteed that all dependncies for constraints in a level l are solved

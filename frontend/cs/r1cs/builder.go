@@ -64,9 +64,9 @@ type r1cs struct {
 func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *r1cs {
 	system := r1cs{
 		ConstraintSystem: compiled.ConstraintSystem{
-
-			MDebug: make(map[int]int),
-			MHints: make(map[int]*compiled.Hint),
+			MDebug:             make(map[int]int),
+			MHints:             make(map[int]*compiled.Hint),
+			MHintsDependencies: make(map[hint.ID]string),
 		},
 		Constraints: make([]compiled.R1C, 0, config.Capacity),
 		st:          cs.NewCoeffTable(),
@@ -663,10 +663,21 @@ func (system *r1cs) AddCounter(from, to frontend.Tag) {
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (system *r1cs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
+
+	// register the hint as dependency
+	hintUUID, hintID := f.UUID(), f.String()
+	if id, ok := system.MHintsDependencies[hintUUID]; ok {
+		// hint already registered, let's ensure string id matches
+		if id != hintID {
+			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", hintID, id)
+		}
+	} else {
+		system.MHintsDependencies[hintUUID] = hintID
+	}
+
 	hintInputs := make([]interface{}, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
