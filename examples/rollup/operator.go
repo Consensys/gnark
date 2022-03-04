@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/std/accumulator/merkle"
 )
 
-var hFunc = mimc.NewMiMC("seed")
+var hFunc = mimc.NewMiMC()
 
 // BatchSize size of a batch of transactions to put in a snark
 var BatchSize = 10
@@ -46,8 +46,8 @@ func NewQueue(batchSize int) Queue {
 
 // Operator represents a rollup operator
 type Operator struct {
-	State      []byte            // list of accounts: index || nonce || balance || pubkeyX || pubkeyY, each chunk is 256 bits
-	HashState  []byte            // Hashed version of the state, each chunk is 256bits: ... || H(index || nonce || balance || pubkeyX || pubkeyY)) || ...
+	State      []byte            // list of accounts: index ∥ nonce ∥ balance ∥ pubkeyX ∥ pubkeyY, each chunk is 256 bits
+	HashState  []byte            // Hashed version of the state, each chunk is 256bits: ... ∥ H(index ∥ nonce ∥ balance ∥ pubkeyX ∥ pubkeyY)) ∥ ...
 	AccountMap map[string]uint64 // hashmap of all available accounts (the key is the account.pubkey.X), the value is the index of the account in the state
 	nbAccounts int               // number of accounts managed by this operator
 	h          hash.Hash         // hash function used to build the Merkle Tree
@@ -178,7 +178,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	o.witnesses.Transfers[numTransfer].Signature.S = t.signature.S[:]
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
-	// nonce || amount || senderpubKey(x&y) || receiverPubkey(x&y)
+	// nonce ∥ amount ∥ senderpubKey(x&y) ∥ receiverPubkey(x&y)
 	resSig, err := t.Verify(o.h)
 	if err != nil {
 		return err

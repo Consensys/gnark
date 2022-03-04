@@ -43,3 +43,34 @@ func newVector(curveID ecc.ID) (Vector, error) {
 	}
 	return w, nil
 }
+
+func newFrom(from Vector, n int) (Vector, error) {
+	switch wt := from.(type) {
+	case *witness_bn254.Witness:
+		a := make(witness_bn254.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bls12377.Witness:
+		a := make(witness_bls12377.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bls12381.Witness:
+		a := make(witness_bls12381.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bw6761.Witness:
+		a := make(witness_bw6761.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bls24315.Witness:
+		a := make(witness_bls24315.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bw6633.Witness:
+		a := make(witness_bw6633.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	default:
+		return nil, errMissingCurveID
+	}
+}

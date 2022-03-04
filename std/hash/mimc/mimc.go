@@ -35,9 +35,9 @@ type MiMC struct {
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(seed string, api frontend.API) (MiMC, error) {
-	if constructor, ok := newMimc[api.Curve()]; ok {
-		return constructor(seed, api), nil
+func NewMiMC(api frontend.API) (MiMC, error) {
+	if constructor, ok := newMimc[api.Compiler().Curve()]; ok {
+		return constructor(api), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
 }
@@ -59,10 +59,10 @@ func (h *MiMC) Reset() {
 // See github.com/consensys/gnark-crypto for reference implementation.
 func (h *MiMC) Sum() frontend.Variable {
 
-	//h.Write(data...)
+	//h.Write(data...)s
 	for _, stream := range h.data {
-		h.h = encryptFuncs[h.id](h.api, *h, stream, h.h)
-		h.h = h.api.Add(h.h, stream)
+		r := encryptFuncs[h.id](*h, stream)
+		h.h = h.api.Add(h.h, r, stream)
 	}
 
 	h.data = nil // flush the data already hashed

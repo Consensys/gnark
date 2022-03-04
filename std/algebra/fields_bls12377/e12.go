@@ -163,25 +163,25 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension)
 
 	var t [7]E2
 
-	// t0 = g1^2
+	// t0 = g1²
 	t[0].Square(api, x.C0.B1, ext)
-	// t1 = g5^2
+	// t1 = g5²
 	t[1].Square(api, x.C1.B2, ext)
 	// t5 = g1 + g5
 	t[5].Add(api, x.C0.B1, x.C1.B2)
-	// t2 = (g1 + g5)^2
+	// t2 = (g1 + g5)²
 	t[2].Square(api, t[5], ext)
 
-	// t3 = g1^2 + g5^2
+	// t3 = g1² + g5²
 	t[3].Add(api, t[0], t[1])
 	// t5 = 2 * g1 * g5
 	t[5].Sub(api, t[2], t[3])
 
 	// t6 = g3 + g2
 	t[6].Add(api, x.C1.B0, x.C0.B2)
-	// t3 = (g3 + g2)^2
+	// t3 = (g3 + g2)²
 	t[3].Square(api, t[6], ext)
-	// t2 = g3^2
+	// t2 = g3²
 	t[2].Square(api, x.C1.B0, ext)
 
 	// t6 = 2 * nr * g1 * g5
@@ -192,33 +192,33 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12, ext Extension)
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
 	e.C1.B0.Add(api, t[5], t[6])
 
-	// t4 = nr * g5^2
+	// t4 = nr * g5²
 	t[4].MulByNonResidue(api, t[1], ext)
-	// t5 = nr * g5^2 + g1^2
+	// t5 = nr * g5² + g1²
 	t[5].Add(api, t[0], t[4])
-	// t6 = nr * g5^2 + g1^2 - g2
+	// t6 = nr * g5² + g1² - g2
 	t[6].Sub(api, t[5], x.C0.B2)
 
-	// t1 = g2^2
+	// t1 = g2²
 	t[1].Square(api, x.C0.B2, ext)
 
-	// t6 = 2 * nr * g5^2 + 2 * g1^2 - 2*g2
+	// t6 = 2 * nr * g5² + 2 * g1² - 2*g2
 	t[6].Double(api, t[6])
-	// z2 = 3 * nr * g5^2 + 3 * g1^2 - 2*g2
+	// z2 = 3 * nr * g5² + 3 * g1² - 2*g2
 	e.C0.B2.Add(api, t[6], t[5])
 
-	// t4 = nr * g2^2
+	// t4 = nr * g2²
 	t[4].MulByNonResidue(api, t[1], ext)
-	// t5 = g3^2 + nr * g2^2
+	// t5 = g3² + nr * g2²
 	t[5].Add(api, t[2], t[4])
-	// t6 = g3^2 + nr * g2^2 - g1
+	// t6 = g3² + nr * g2² - g1
 	t[6].Sub(api, t[5], x.C0.B1)
-	// t6 = 2 * g3^2 + 2 * nr * g2^2 - 2 * g1
+	// t6 = 2 * g3² + 2 * nr * g2² - 2 * g1
 	t[6].Double(api, t[6])
-	// z1 = 3 * g3^2 + 3 * nr * g2^2 - 2 * g1
+	// z1 = 3 * g3² + 3 * nr * g2² - 2 * g1
 	e.C0.B1.Add(api, t[6], t[5])
 
-	// t0 = g2^2 + g3^2
+	// t0 = g2² + g3²
 	t[0].Add(api, t[2], t[1])
 	// t5 = 2 * g3 * g2
 	t[5].Sub(api, t[3], t[0])
@@ -239,13 +239,13 @@ func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
 	var one E2
 	one.SetOne(api)
 
-	// t0 = g1^2
+	// t0 = g1²
 	t[0].Square(api, x.C0.B1, ext)
-	// t1 = 3 * g1^2 - 2 * g2
+	// t1 = 3 * g1² - 2 * g2
 	t[1].Sub(api, t[0], x.C0.B2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-		// t0 = E * g5^2 + t1
+		// t0 = E * g5² + t1
 	t[2].Square(api, x.C1.B2, ext)
 	t[0].MulByNonResidue(api, t[2], ext).
 		Add(api, t[0], t[1])
@@ -258,14 +258,14 @@ func (e *E12) Decompress(api frontend.API, x E12, ext Extension) *E12 {
 
 	// t1 = g2 * g1
 	t[1].Mul(api, x.C0.B2, x.C0.B1, ext)
-	// t2 = 2 * g4^2 - 3 * g2 * g1
+	// t2 = 2 * g4² - 3 * g2 * g1
 	t[2].Square(api, e.C1.B1, ext).
 		Sub(api, t[2], t[1]).
 		Double(api, t[2]).
 		Sub(api, t[2], t[1])
 	// t1 = g3 * g5
 	t[1].Mul(api, x.C1.B0, x.C1.B2, ext)
-	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
+	// c₀ = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1
 	t[2].Add(api, t[2], t[1])
 	e.C0.B0.MulByNonResidue(api, t[2], ext).
 		Add(api, e.C0.B0, one)
@@ -296,9 +296,9 @@ func (e *E12) CyclotomicSquare(api frontend.API, x E12, ext Extension) *E12 {
 	t[5].Square(api, x.C0.B1, ext)
 	t[8].Add(api, x.C1.B2, x.C0.B1).Square(api, t[8], ext).Sub(api, t[8], t[4]).Sub(api, t[8], t[5]).MulByNonResidue(api, t[8], ext) // 2*x5*x1*u
 
-	t[0].MulByNonResidue(api, t[0], ext).Add(api, t[0], t[1]) // x4^2*u + x0^2
-	t[2].MulByNonResidue(api, t[2], ext).Add(api, t[2], t[3]) // x2^2*u + x3^2
-	t[4].MulByNonResidue(api, t[4], ext).Add(api, t[4], t[5]) // x5^2*u + x1^2
+	t[0].MulByNonResidue(api, t[0], ext).Add(api, t[0], t[1]) // x4²*u + x0²
+	t[2].MulByNonResidue(api, t[2], ext).Add(api, t[2], t[3]) // x2²*u + x3²
+	t[4].MulByNonResidue(api, t[4], ext).Add(api, t[4], t[5]) // x5²*u + x1²
 
 	e.C0.B0.Sub(api, t[0], x.C0.B0).Add(api, e.C0.B0, e.C0.B0).Add(api, e.C0.B0, t[0])
 	e.C0.B1.Sub(api, t[2], x.C0.B1).Add(api, e.C0.B1, e.C0.B1).Add(api, e.C0.B1, t[2])

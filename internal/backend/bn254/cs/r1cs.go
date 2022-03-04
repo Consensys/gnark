@@ -19,20 +19,21 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
+	"runtime"
 	"strings"
-
-	"github.com/fxamacker/cbor/v2"
+	"sync"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"text/template"
+	"math"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -66,7 +67,7 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}
@@ -82,49 +83,21 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	solution.solved[0] = true // ONE_WIRE
 	solution.values[0].SetOne()
-	copy(solution.values[1:], witness) // TODO factorize
+	copy(solution.values[1:], witness)
 	for i := 0; i < len(witness); i++ {
 		solution.solved[i+1] = true
 	}
 
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
 	// we instantiated all wires
-	solution.nbSolved += len(witness) + 1
+	solution.nbSolved += uint64(len(witness) + 1)
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
 	defer solution.printLogs(opt.LoggerOut, cs.Logs)
 
-	// check if there is an inconsistant constraint
-	var check fr.Element
-
-	// for each constraint
-	// we are guaranteed that each R1C contains at most one unsolved wire
-	// first we solve the unsolved wire (if any)
-	// then we check that the constraint is valid
-	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
-	for i := 0; i < len(cs.Constraints); i++ {
-		// solve the constraint, this will compute the missing wire of the gate
-		if err := cs.solveConstraint(cs.Constraints[i], &solution); err != nil {
-			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", err, debugInfoStr)
-			}
-			return solution.values, err
-		}
-
-		// compute values for the R1C (ie value * coeff)
-		a[i], b[i], c[i] = cs.instantiateR1C(cs.Constraints[i], &solution)
-
-		// ensure a[i] * b[i] == c[i]
-		check.Mul(&a[i], &b[i])
-		if !check.Equal(&c[i]) {
-			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
-			}
-			return solution.values, ErrUnsatisfiedConstraint
-		}
+	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
+		return solution.values, err
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
@@ -133,6 +106,123 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	}
 
 	return solution.values, nil
+}
+
+func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
+	// minWorkPerCPU is the minimum target number of constraint a task should hold
+	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
+	// sequentially without sync.
+	const minWorkPerCPU = 50.0
+
+	// cs.Levels has a list of levels, where all constraints in a level l(n) are independent
+	// and may only have dependencies on previous levels
+	// for each constraint
+	// we are guaranteed that each R1C contains at most one unsolved wire
+	// first we solve the unsolved wire (if any)
+	// then we check that the constraint is valid
+	// if a[i] * b[i] != c[i]; it means the constraint is not satisfied
+
+	var wg sync.WaitGroup
+	chTasks := make(chan []int, runtime.NumCPU())
+	chError := make(chan error, runtime.NumCPU())
+
+	// start a worker pool
+	// each worker wait on chTasks
+	// a task is a slice of constraint indexes to be solved
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go func() {
+			for t := range chTasks {
+				for _, i := range t {
+					// for each constraint in the task, solve it.
+					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+						if err == errUnsatisfiedConstraint {
+							if dID, ok := cs.MDebug[int(i)]; ok {
+								err = errors.New(solution.logValue(cs.DebugInfo[dID]))
+							} else {
+								err = fmt.Errorf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
+							}
+						}
+						chError <- fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+						wg.Done()
+						return
+					}
+				}
+				wg.Done()
+			}
+		}()
+	}
+
+	// clean up pool go routines
+	defer func() {
+		close(chTasks)
+		close(chError)
+	}()
+
+	// for each level, we push the tasks
+	for _, level := range cs.Levels {
+
+		// max CPU to use
+		maxCPU := float64(len(level)) / minWorkPerCPU
+
+		if maxCPU <= 1.0 {
+			// we do it sequentially
+			for _, i := range level {
+				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+					if err == errUnsatisfiedConstraint {
+						if dID, ok := cs.MDebug[int(i)]; ok {
+							err = errors.New(solution.logValue(cs.DebugInfo[dID]))
+						} else {
+							err = fmt.Errorf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
+						}
+					}
+					return fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+				}
+			}
+			continue
+		}
+
+		// number of tasks for this level is set to num cpus
+		// but if we don't have enough work for all our CPUS, it can be lower.
+		nbTasks := runtime.NumCPU()
+		maxTasks := int(math.Ceil(maxCPU))
+		if nbTasks > maxTasks {
+			nbTasks = maxTasks
+		}
+		nbIterationsPerCpus := len(level) / nbTasks
+
+		// more CPUs than tasks: a CPU will work on exactly one iteration
+		// note: this depends on minWorkPerCPU constant
+		if nbIterationsPerCpus < 1 {
+			nbIterationsPerCpus = 1
+			nbTasks = len(level)
+		}
+
+		extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
+		extraTasksOffset := 0
+
+		for i := 0; i < nbTasks; i++ {
+			wg.Add(1)
+			_start := i*nbIterationsPerCpus + extraTasksOffset
+			_end := _start + nbIterationsPerCpus
+			if extraTasks > 0 {
+				_end++
+				extraTasks--
+				extraTasksOffset++
+			}
+			// since we're never pushing more than num CPU tasks
+			// we will never be blocked here
+			chTasks <- level[_start:_end]
+		}
+
+		// wait for the level to be done
+		wg.Wait()
+
+		if len(chError) > 0 {
+			return <-chError
+		}
+	}
+
+	return nil
 }
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
@@ -151,8 +241,8 @@ func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption)
 	return err
 }
 
-// mulByCoeff sets res = res * t.Coeff
-func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term) {
+// divByCoeff sets res = res / t.Coeff
+func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 	cID := t.CoeffID()
 	switch cID {
 	case compiled.CoeffIdOne:
@@ -160,107 +250,83 @@ func (cs *R1CS) mulByCoeff(res *fr.Element, t compiled.Term) {
 	case compiled.CoeffIdMinusOne:
 		res.Neg(res)
 	case compiled.CoeffIdZero:
-		res.SetZero()
-	case compiled.CoeffIdTwo:
-		res.Double(res)
+		panic("division by 0")
 	default:
-		res.Mul(res, &cs.Coefficients[cID])
+		// this is slow, but shouldn't happen as divByCoeff is called to
+		// remove the coeff of an unsolved wire
+		// but unsolved wires are (in gnark frontend) systematically set with a coeff == 1 or -1
+		res.Div(res, &cs.Coefficients[cID])
 	}
 }
 
-// compute left, right, o part of a cs constraint
-// this function is called when all the wires have been computed
-// it instantiates the l, r o part of a R1C
-func (cs *R1CS) instantiateR1C(r compiled.R1C, solution *solution) (a, b, c fr.Element) {
-	var v fr.Element
-	for _, t := range r.L.LinExp {
-		v = solution.computeTerm(t)
-		a.Add(&a, &v)
-	}
-	for _, t := range r.R.LinExp {
-		v = solution.computeTerm(t)
-		b.Add(&b, &v)
-	}
-	for _, t := range r.O.LinExp {
-		v = solution.computeTerm(t)
-		c.Add(&c, &v)
-	}
-	return
-}
-
-// solveR1c computes a wire by solving a cs
-// the function searches for the unset wire (either the unset wire is
-// alone, or it can be computed without ambiguity using the other computed wires
-// , eg when doing a binary decomposition: either way the missing wire can
-// be computed without ambiguity because the cs is correctly ordered)
+// solveConstraint compute unsolved wires in the constraint, if any and set the solution accordingly
 //
-// It returns the 1 if the the position to solve is in the quadratic part (it
-// means that there is a division and serves to navigate in the log info for the
-// computational constraints), and 0 otherwise.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
+// returns an error if the solver called a hint function that errored
+// returns false, nil if there was no wire to solve
+// returns true, nil if exactly one wire was solved. In that case, it is redundant to check that
+// the constraint is satisfied later.
+func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.Element) error {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 
-	var a, b, c fr.Element
 	var termToCompute compiled.Term
 
-	processTerm := func(t compiled.Term, val *fr.Element, locValue uint8) error {
-		vID := t.WireID()
+	processLExp := func(l compiled.LinearExpression, val *fr.Element, locValue uint8) error {
+		for _, t := range l {
+			vID := t.WireID()
 
-		// wire is already computed, we just accumulate in val
-		if solution.solved[vID] {
-			v := solution.computeTerm(t)
-			val.Add(val, &v)
-			return nil
-		}
-
-		// first we check if this is a hint wire
-		if hint, ok := cs.MHints[vID]; ok {
-			if err := solution.solveWithHint(vID, hint); err != nil {
-				return err
+			// wire is already computed, we just accumulate in val
+			if solution.solved[vID] {
+				solution.accumulateInto(t, val)
+				continue
 			}
-			v := solution.computeTerm(t)
-			val.Add(val, &v)
-			return nil
-		}
 
-		if loc != 0 {
-			panic("found more than one wire to instantiate")
+			// first we check if this is a hint wire
+			if hint, ok := cs.MHints[vID]; ok {
+				if err := solution.solveWithHint(vID, hint); err != nil {
+					return err
+				}
+				// now that the wire is saved, accumulate it into a, b or c
+				solution.accumulateInto(t, val)
+				continue
+			}
+
+			if loc != 0 {
+				panic("found more than one wire to instantiate")
+			}
+			termToCompute = t
+			loc = locValue
 		}
-		termToCompute = t
-		loc = locValue
 		return nil
 	}
 
-	for _, t := range r.L.LinExp {
-		if err := processTerm(t, &a, 1); err != nil {
-			return err
-		}
+	if err := processLExp(r.L, a, 1); err != nil {
+		return err
 	}
 
-	for _, t := range r.R.LinExp {
-		if err := processTerm(t, &b, 2); err != nil {
-			return err
-		}
+	if err := processLExp(r.R, b, 2); err != nil {
+		return err
 	}
 
-	for _, t := range r.O.LinExp {
-		if err := processTerm(t, &c, 3); err != nil {
-			return err
-		}
+	if err := processLExp(r.O, c, 3); err != nil {
+		return err
 	}
 
 	if loc == 0 {
 		// there is nothing to solve, may happen if we have an assertion
 		// (ie a constraints that doesn't yield any output)
 		// or if we solved the unsolved wires with hint functions
+		var check fr.Element
+		if !check.Mul(a, b).Equal(c) {
+			return errUnsatisfiedConstraint
+		}
 		return nil
 	}
 
 	// we compute the wire value and instantiate it
-	vID := termToCompute.WireID()
+	wID := termToCompute.WireID()
 
 	// solver result
 	var wire fr.Element
@@ -268,102 +334,105 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution) error {
 	switch loc {
 	case 1:
 		if !b.IsZero() {
-			wire.Div(&c, &b).
-				Sub(&wire, &a)
-			cs.mulByCoeff(&wire, termToCompute)
+			wire.Div(c, b).
+				Sub(&wire, a)
+			a.Add(a, &wire)
+		} else {
+			// we didn't actually ensure that a * b == c
+			var check fr.Element
+			if !check.Mul(a, b).Equal(c) {
+				return errUnsatisfiedConstraint
+			}
 		}
 	case 2:
 		if !a.IsZero() {
-			wire.Div(&c, &a).
-				Sub(&wire, &b)
-			cs.mulByCoeff(&wire, termToCompute)
+			wire.Div(c, a).
+				Sub(&wire, b)
+			b.Add(b, &wire)
+		} else {
+			var check fr.Element
+			if !check.Mul(a, b).Equal(c) {
+				return errUnsatisfiedConstraint
+			}
 		}
 	case 3:
-		wire.Mul(&a, &b).
-			Sub(&wire, &c)
-		cs.mulByCoeff(&wire, termToCompute)
+		wire.Mul(a, b).
+			Sub(&wire, c)
+
+		c.Add(c, &wire)
 	}
 
-	solution.set(vID, wire)
+	// wire is the term (coeff * value)
+	// but in the solution we want to store the value only
+	// note that in gnark frontend, coeff here is always 1 or -1
+	cs.divByCoeff(&wire, termToCompute)
+	solution.set(wID, wire)
 
 	return nil
 }
 
-// TODO @gbotrel clean logs and html see https://github.com/ConsenSys/gnark/issues/140
-
-// ToHTML returns an HTML human-readable representation of the constraint system
-func (cs *R1CS) ToHTML(w io.Writer) error {
-	t, err := template.New("cs.html").Funcs(template.FuncMap{
-		"toHTML": toHTML,
-		"add":    add,
-		"sub":    sub,
-	}).Parse(compiled.R1CSTemplate)
-	if err != nil {
-		return err
+// GetConstraints return a list of constraint formatted as L⋅R == O
+// such that [0] -> L, [1] -> R, [2] -> O
+func (cs *R1CS) GetConstraints() [][]string {
+	r := make([][]string, 0, len(cs.Constraints))
+	for _, c := range cs.Constraints {
+		// for each constraint, we build a string representation of it's L, R and O part
+		// if we are worried about perf for large cs, we could do a string builder + csv format.
+		var line [3]string
+		line[0] = cs.vtoString(c.L)
+		line[1] = cs.vtoString(c.R)
+		line[2] = cs.vtoString(c.O)
+		r = append(r, line[:])
 	}
-
-	return t.Execute(w, cs)
+	return r
 }
 
-func add(a, b int) int {
-	return a + b
-}
-
-func sub(a, b int) int {
-	return a - b
-}
-
-func toHTML(l compiled.Variable, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
+func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
 	var sbb strings.Builder
-	for i := 0; i < len(l.LinExp); i++ {
-		termToHTML(l.LinExp[i], &sbb, coeffs, MHints, false)
-		if i+1 < len(l.LinExp) {
+	for i := 0; i < len(l); i++ {
+		cs.termToString(l[i], &sbb)
+		if i+1 < len(l) {
 			sbb.WriteString(" + ")
 		}
 	}
 	return sbb.String()
 }
 
-func termToHTML(t compiled.Term, sbb *strings.Builder, coeffs []fr.Element, MHints map[int]compiled.Hint, offset bool) {
+func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 	tID := t.CoeffID()
 	if tID == compiled.CoeffIdOne {
 		// do nothing, just print the variable
 	} else if tID == compiled.CoeffIdMinusOne {
 		// print neg sign
-		sbb.WriteString("<span class=\"coefficient\">-</span>")
+		sbb.WriteByte('-')
 	} else if tID == compiled.CoeffIdZero {
-		sbb.WriteString("<span class=\"coefficient\">0</span>")
+		sbb.WriteByte('0')
 		return
 	} else {
-		sbb.WriteString("<span class=\"coefficient\">")
-		sbb.WriteString(coeffs[tID].String())
-		sbb.WriteString("</span>*")
+		sbb.WriteString(cs.Coefficients[tID].String())
+		sbb.WriteString("⋅")
 	}
-
 	vID := t.WireID()
-	class := ""
-	switch t.VariableVisibility() {
+	visibility := t.VariableVisibility()
+
+	switch visibility {
 	case schema.Internal:
-		class = "internal"
-		if _, ok := MHints[vID]; ok {
-			class = "hint"
+		if _, isHint := cs.MHints[vID]; isHint {
+			sbb.WriteString(fmt.Sprintf("hv%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
+		} else {
+			sbb.WriteString(fmt.Sprintf("v%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
 		}
 	case schema.Public:
-		class = "public"
+		if vID == 0 {
+			sbb.WriteByte('1') // one wire
+		} else {
+			sbb.WriteString(fmt.Sprintf("p%d", vID-1))
+		}
 	case schema.Secret:
-		class = "secret"
-	case schema.Virtual:
-		class = "virtual"
-	case schema.Unset:
-		class = "unset"
+		sbb.WriteString(fmt.Sprintf("s%d", vID-cs.NbPublicVariables))
 	default:
-		panic("not implemented")
+		sbb.WriteString("<?>")
 	}
-	if offset {
-		vID++ // for sparse R1CS, we offset to have same variable numbers as in R1CS
-	}
-	sbb.WriteString(fmt.Sprintf("<span class=\"%s\">v%d</span>", class, vID))
-
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

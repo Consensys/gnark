@@ -19,7 +19,6 @@ package cs_test
 import (
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
@@ -37,7 +36,7 @@ func TestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 
-			r1cs1, err := frontend.Compile(ecc.BW6_633, backend.UNKNOWN, tc.Circuit, frontend.WithBuilder(r1cs.NewBuilder))
+			r1cs1, err := frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,7 +45,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// copmpile a second time to ensure determinism
-			r1cs2, err := frontend.Compile(ecc.BW6_633, backend.UNKNOWN, tc.Circuit, frontend.WithBuilder(r1cs.NewBuilder))
+			r1cs2, err := frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -114,5 +113,42 @@ func TestSerialization(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+const n = 10000
+
+type circuit struct {
+	X frontend.Variable
+	Y frontend.Variable `gnark:",public"`
+}
+
+func (circuit *circuit) Define(api frontend.API) error {
+	for i := 0; i < n; i++ {
+		circuit.X = api.Add(api.Mul(circuit.X, circuit.X), circuit.X, 42)
+	}
+	api.AssertIsEqual(circuit.X, circuit.Y)
+	return nil
+}
+
+func BenchmarkSolve(b *testing.B) {
+
+	var c circuit
+	ccs, err := frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	var w circuit
+	w.X = 1
+	w.Y = 1
+	witness, err := frontend.NewWitness(&w, ecc.BW6_633)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ccs.IsSolved(witness)
 	}
 }

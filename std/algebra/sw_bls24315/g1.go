@@ -137,7 +137,7 @@ func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
 	S = api.Sub(S, XX)
 	S = api.Sub(S, YYYY)
 	S = api.Add(S, S)
-	M = api.Mul(XX, 3) // M = 3*XX+a*ZZ^2, here a=0 (we suppose sw has j invariant 0)
+	M = api.Mul(XX, 3) // M = 3*XX+a*ZZ², here a=0 (we suppose sw has j invariant 0)
 	p.Z = api.Add(p.Z, p.Y)
 	p.Z = api.Mul(p.Z, p.Z)
 	p.Z = api.Sub(p.Z, YY)
@@ -199,14 +199,14 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
 func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Affine {
-	if api.IsConstant(s) {
-		return P.constScalarMul(api, Q, api.ConstantValue(s))
+	if n, ok := api.Compiler().ConstantValue(s); ok {
+		return P.constScalarMul(api, Q, n)
 	} else {
 		return P.varScalarMul(api, Q, s)
 	}
 }
 
-var scalarDecompositionHintBLS24315 = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DecomposeScalar = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	cc := innerCurve(curve)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))
@@ -225,10 +225,10 @@ var scalarDecompositionHintBLS24315 = hint.NewStaticHint(func(curve ecc.ID, inpu
 	res[2].Div(res[2], cc.fr)
 
 	return nil
-}, 1, 3)
+})
 
 func init() {
-	hint.Register(scalarDecompositionHintBLS24315)
+	hint.Register(DecomposeScalar)
 }
 
 // varScalarMul sets P = [s] Q and returns P.
@@ -249,12 +249,12 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// points and the operations on the points are performed on the `inner`
 	// curve of the outer curve. We require some parameters from the inner
 	// curve.
-	cc := innerCurve(api.Curve())
+	cc := innerCurve(api.Compiler().Curve())
 
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.NewHint(scalarDecompositionHintBLS24315, s)
+	sd, err := api.Compiler().NewHint(DecomposeScalar, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -342,8 +342,8 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
-	var Acc, B, negQ, negPhiQ, phiQ G1Affine
-	cc := innerCurve(api.Curve())
+	var Acc, negQ, negPhiQ, phiQ G1Affine
+	cc := innerCurve(api.Compiler().Curve())
 	s.Mod(s, cc.fr)
 	cc.phi(api, &phiQ, &Q)
 
@@ -381,9 +381,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		B.X = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].X, table[1].X, table[2].X, table[3].X)
-		B.Y = api.Lookup2(k[0].Bit(i), k[1].Bit(i), table[0].Y, table[1].Y, table[2].Y, table[3].Y)
-		Acc.DoubleAndAdd(api, &Acc, &B)
+		Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
 	}
 
 	negQ.AddAssign(api, Acc)

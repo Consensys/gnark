@@ -121,6 +121,51 @@ func TestSchemaCorrectness(t *testing.T) {
 	assert.Equal(expectedBuf.String(), instanceBuf.String())
 }
 
+type circuitInherit1 struct {
+	X variable `gnark:"x"`
+	Y struct {
+		U, V variable
+	} `gnark:",public"`
+}
+
+type circuitInherit2 struct {
+	X struct {
+		A variable `gnark:"x,secret"`
+	}
+	Y struct {
+		U variable `gnark:",public"`
+		V struct {
+			Z variable
+			W variable
+		}
+	} `gnark:",public"`
+}
+
+func TestSchemaInherit(t *testing.T) {
+	assert := require.New(t)
+
+	{
+		var c circuitInherit1
+
+		s, err := Parse(&c, tVariable, nil)
+		assert.NoError(err)
+
+		assert.Equal(2, s.NbPublic)
+		assert.Equal(1, s.NbSecret)
+	}
+
+	{
+		var c circuitInherit2
+
+		s, err := Parse(&c, tVariable, nil)
+		assert.NoError(err)
+
+		assert.Equal(3, s.NbPublic)
+		assert.Equal(1, s.NbSecret)
+	}
+
+}
+
 var tVariable reflect.Type
 
 func init() {

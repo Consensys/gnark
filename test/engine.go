@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -71,10 +73,10 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, o
 	// then, we set all the variables values to the ones from the witness
 
 	// clone the circuit
-	c := utils.ShallowClone(circuit)
+	c := shallowClone(circuit)
 
 	// set the witness values
-	utils.CopyWitness(c, witness)
+	copyWitness(c, witness)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -266,6 +268,13 @@ func (e *engine) IsZero(i1 frontend.Variable) frontend.Variable {
 	return (0)
 }
 
+// Cmp returns 1 if i1>i2, 0 if i1==i2, -1 if i1<i2
+func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+	b1 := e.toBigInt(i1)
+	b2 := e.toBigInt(i2)
+	return e.toBigInt(b1.Cmp(&b2))
+}
+
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(&b2) != 0 {
@@ -318,9 +327,9 @@ func (e *engine) Println(a ...frontend.Variable) {
 	fmt.Println(sbb.String())
 }
 
-func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
-	if f.NbOutputs(e.Curve(), len(inputs)) <= 0 {
+	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
@@ -330,7 +339,7 @@ func (e *engine) NewHint(f hint.Function, inputs ...frontend.Variable) ([]fronte
 		v := e.toBigInt(inputs[i])
 		in[i] = &v
 	}
-	res := make([]*big.Int, f.NbOutputs(e.Curve(), len(inputs)))
+	res := make([]*big.Int, nbOutputs)
 	for i := range res {
 		res[i] = new(big.Int)
 	}
@@ -359,9 +368,20 @@ func (e *engine) IsConstant(v frontend.Variable) bool {
 
 // ConstantValue returns the big.Int value of v
 // will panic if v.IsConstant() == false
-func (e *engine) ConstantValue(v frontend.Variable) *big.Int {
+func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
-	return &r
+	return &r, true
+}
+
+func (e *engine) IsBoolean(v frontend.Variable) bool {
+	r := e.toBigInt(v)
+	return r.IsUint64() && r.Uint64() <= 1
+}
+
+func (e *engine) MarkBoolean(v frontend.Variable) {
+	if !e.IsBoolean(v) {
+		panic("mark boolean a non-boolean value")
+	}
 }
 
 func (e *engine) Tag(name string) frontend.Tag {
@@ -400,4 +420,60 @@ func (e *engine) Curve() ecc.ID {
 
 func (e *engine) Backend() backend.ID {
 	return e.backendID
+}
+
+// shallowClone clones given circuit
+// this is actually a shallow copy → if the circuits contains maps or slices
+// only the reference is copied.
+func shallowClone(circuit frontend.Circuit) frontend.Circuit {
+
+	cValue := reflect.ValueOf(circuit).Elem()
+	newCircuit := reflect.New(cValue.Type())
+	newCircuit.Elem().Set(cValue)
+
+	circuitCopy, ok := newCircuit.Interface().(frontend.Circuit)
+	if !ok {
+		panic("couldn't clone the circuit")
+	}
+
+	if !reflect.DeepEqual(circuitCopy, circuit) {
+		panic("clone failed")
+	}
+
+	return circuitCopy
+}
+
+func copyWitness(to, from frontend.Circuit) {
+	var wValues []interface{}
+
+	var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		v := tInput.Interface().(frontend.Variable)
+
+		if visibility == schema.Secret || visibility == schema.Public {
+			if v == nil {
+				return fmt.Errorf("when parsing variable %s: missing assignment", name)
+			}
+			wValues = append(wValues, v)
+		}
+		return nil
+	}
+	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
+		panic(err)
+	}
+
+	i := 0
+	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+		if visibility == schema.Secret || visibility == schema.Public {
+			tInput.Set(reflect.ValueOf((wValues[i])))
+			i++
+		}
+		return nil
+	}
+	// this can't error.
+	_, _ = schema.Parse(to, tVariable, setHandler)
+
+}
+
+func (e *engine) Compiler() frontend.Compiler {
+	return e
 }

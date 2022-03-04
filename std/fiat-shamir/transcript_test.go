@@ -23,8 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -37,13 +37,13 @@ type FiatShamirCircuit struct {
 func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 
 	// create the hash function
-	hSnark, err := mimc.NewMiMC("seed", api)
+	hSnark, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
 
 	// get the challenges
-	alpha, beta, gamma := getChallenges(api.Curve())
+	alpha, beta, gamma := getChallenges(api.Compiler().Curve())
 
 	// New transcript with 3 challenges to be derived
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
@@ -110,7 +110,7 @@ func TestFiatShamir(t *testing.T) {
 		alpha, beta, gamma := getChallenges(curveID)
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New("seed"), alpha, beta, gamma)
+		ts := fiatshamir.NewTranscript(h.New(), alpha, beta, gamma)
 
 		var bindings [3][4]big.Int
 		for i := 0; i < 3; i++ {
@@ -156,7 +156,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BN254, backend.PLONK, &circuit)
+		ccs, _ = frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

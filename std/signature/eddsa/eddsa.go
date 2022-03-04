@@ -53,42 +53,40 @@ func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey Publi
 		msg,
 	}
 
-	hash, err := mimc.NewMiMC("seed", api)
+	hash, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
 	hash.Write(data...)
-	//hramConstant := hash.Sum(data...)
 	hramConstant := hash.Sum()
 
-	// lhs = [S]G
+	base := twistededwards.Point{}
+	base.X = pubKey.Curve.Base.X
+	base.Y = pubKey.Curve.Base.Y
+
+	//[S]G-[H(R,A,M)]*A
 	cofactor := pubKey.Curve.Cofactor.Uint64()
-	lhs := twistededwards.Point{}
-	lhs.ScalarMulFixedBase(api, pubKey.Curve.BaseX, pubKey.Curve.BaseY, sig.S, pubKey.Curve)
-	lhs.MustBeOnCurve(api, pubKey.Curve)
+	Q := twistededwards.Point{}
+	_A := twistededwards.Point{}
+	_A.Neg(api, &pubKey.A)
+	Q.DoubleBaseScalarMul(api, &base, &_A, sig.S, hramConstant, pubKey.Curve)
+	Q.MustBeOnCurve(api, pubKey.Curve)
 
-	// rhs = R+[H(R,A,M)]*A
-	rhs := twistededwards.Point{}
-	rhs.ScalarMulNonFixedBase(api, &pubKey.A, hramConstant, pubKey.Curve).
-		AddGeneric(api, &rhs, &sig.R, pubKey.Curve)
-	rhs.MustBeOnCurve(api, pubKey.Curve)
+	//[S]G-[H(R,A,M)]*A-R
+	Q.Neg(api, &Q).Add(api, &Q, &sig.R, pubKey.Curve)
 
-	// lhs-rhs
-	rhs.Neg(api, &rhs).AddGeneric(api, &lhs, &rhs, pubKey.Curve)
-
-	// [cofactor](lhs-rhs)
+	// [cofactor]*(lhs-rhs)
 	switch cofactor {
 	case 4:
-		rhs.Double(api, &rhs, pubKey.Curve).
-			Double(api, &rhs, pubKey.Curve)
+		Q.Double(api, &Q, pubKey.Curve).
+			Double(api, &Q, pubKey.Curve)
 	case 8:
-		rhs.Double(api, &rhs, pubKey.Curve).
-			Double(api, &rhs, pubKey.Curve).Double(api, &rhs, pubKey.Curve)
+		Q.Double(api, &Q, pubKey.Curve).
+			Double(api, &Q, pubKey.Curve).Double(api, &Q, pubKey.Curve)
 	}
 
-	//rhs.MustBeOnCurve(api, pubKey.Curve)
-	api.AssertIsEqual(rhs.X, 0)
-	api.AssertIsEqual(rhs.Y, 1)
+	api.AssertIsEqual(Q.X, 0)
+	api.AssertIsEqual(Q.Y, 1)
 
 	return nil
 }

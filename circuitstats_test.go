@@ -9,6 +9,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
 )
@@ -26,19 +28,30 @@ func TestCircuitStatistics(t *testing.T) {
 		for _, curve := range ecc.Implemented() {
 			for _, b := range backend.Implemented() {
 				curve := curve
-				b := b
+				backendID := b
 				name := k
 				// copy the circuit now in case assert calls t.Parallel()
 				tData := circuits.Circuits[k]
 				assert.Run(func(assert *test.Assert) {
-					ccs, err := frontend.Compile(curve, b, tData.Circuit)
+					var newCompiler frontend.NewBuilder
+
+					switch backendID {
+					case backend.GROTH16:
+						newCompiler = r1cs.NewBuilder
+					case backend.PLONK:
+						newCompiler = scs.NewBuilder
+					default:
+						panic("not implemented")
+					}
+
+					ccs, err := frontend.Compile(curve, newCompiler, tData.Circuit)
 					assert.NoError(err)
 
 					// ensure we didn't introduce regressions that make circuits less efficient
 					nbConstraints := ccs.GetNbConstraints()
 					internal, secret, public := ccs.GetNbVariables()
-					checkStats(assert, name, nbConstraints, internal, secret, public, curve, b)
-				}, name, curve.String(), b.String())
+					checkStats(assert, name, nbConstraints, internal, secret, public, curve, backendID)
+				}, name, curve.String(), backendID.String())
 			}
 		}
 

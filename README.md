@@ -2,7 +2,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ConsenSys/gnark)](https://goreportcard.com/badge/github.com/ConsenSys/gnark)
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
-[![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5819105.svg)](https://doi.org/10.5281/zenodo.5819105)
+[![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6093969.svg)](https://doi.org/10.5281/zenodo.6093969)
 
 <img  width="100px"
 src="logo_new.png">
@@ -13,6 +13,7 @@ src="logo_new.png">
 ## Useful Links
 
 * [`gnark` User Documentation]
+* [`gnark` Playground]
 * [`gnark` Issues]
 * [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
 
@@ -29,6 +30,8 @@ You can also get in touch directly: gnark@consensys.net
 
 
 To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
+
+Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
 
 
 ## Release Notes
@@ -80,17 +83,19 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 
 // compiles our circuit into a R1CS
 var circuit CubicCircuit
-ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, &circuit)
+ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
 
 // groth16 zkSNARK: Setup
 pk, vk, err := groth16.Setup(ccs)
 
 // witness definition
-witness := CubicCircuit{X: 3, Y: 35}
+assignment := CubicCircuit{X: 3, Y: 35}
+witness, err := frontend.NewWitness(&assignment, ecc.BN254)
+publicWitness, _ := witness.Public()
 
 // groth16: Prove & Verify
-proof, err := groth16.Prove(ccs, pk, &witness)
-err := groth16.Verify(proof, vk, &witness)
+proof, err := groth16.Prove(ccs, pk, witness)
+err := groth16.Verify(proof, vk, publicWitness)
 ```
 
 
@@ -102,19 +107,19 @@ If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.6,
+@software{gnark-v0.6.4,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.6.0},
-  month        = jan,
+  title        = {ConsenSys/gnark: v0.6.4},
+  month        = feb,
   year         = 2022,
   publisher    = {Zenodo},
-  version      = {v0.6.0},
-  doi          = {10.5281/zenodo.5819105},
-  url          = {https://doi.org/10.5281/zenodo.5819105}
+  version      = {v0.6.4},
+  doi          = {10.5281/zenodo.6093969},
+  url          = {https://doi.org/10.5281/zenodo.6093969}
 }
 ```
 
@@ -134,6 +139,7 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 
 
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
+[`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/en/latest/
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
 [Proving schemes and curves]: https://docs.gnark.consensys.net/en/latest/Concepts/schemes_curves/

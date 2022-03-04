@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"math/big"
 	"math/bits"
 )
@@ -95,7 +95,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(len(r1cs.Constraints)), 1, true)
+	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -336,13 +336,13 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// A, B or C at the indice of the variable
 	for i, c := range r1cs.Constraints {
 
-		for _, t := range c.L.LinExp {
+		for _, t := range c.L {
 			accumulate(&A[t.WireID()], t, &L)
 		}
-		for _, t := range c.R.LinExp {
+		for _, t := range c.R {
 			accumulate(&B[t.WireID()], t, &L)
 		}
-		for _, t := range c.O.LinExp {
+		for _, t := range c.O {
 			accumulate(&C[t.WireID()], t, &L)
 		}
 
@@ -415,7 +415,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	nbConstraints := len(r1cs.Constraints)
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(nbConstraints), 1, true)
+	domain := fft.NewDomain(uint64(nbConstraints))
 
 	// count number of infinity points we would have had we a normal setup
 	// in pk.G1.A, pk.G1.B, and pk.G2.B
@@ -491,10 +491,10 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
 	for _, c := range r1cs.Constraints {
-		for _, t := range c.L.LinExp {
+		for _, t := range c.L {
 			A[t.WireID()] = true
 		}
-		for _, t := range c.R.LinExp {
+		for _, t := range c.R {
 			B[t.WireID()] = true
 		}
 	}

@@ -29,8 +29,9 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -340,7 +341,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 	// first we clone the circuit
 	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
-	w := utils.ShallowClone(circuit)
+	w := shallowClone(circuit)
 
 	fillers := []filler{randomFiller, binaryFiller, seedFiller}
 
@@ -398,14 +399,26 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		// TODO we may want to check that it was compiled with the same compile options here
 		return ccs, nil
 	}
+
+	var newBuilder frontend.NewBuilder
+
+	switch backendID {
+	case backend.GROTH16:
+		newBuilder = r1cs.NewBuilder
+	case backend.PLONK:
+		newBuilder = scs.NewBuilder
+	default:
+		panic("not implemented")
+	}
+
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
 	// ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	_ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
 	// _ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)

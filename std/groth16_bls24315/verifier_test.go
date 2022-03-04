@@ -24,6 +24,7 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/internal/backend/bls24-315/witness"
@@ -37,7 +38,7 @@ import (
 // utils
 
 const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-const publicHash string = "3718771881240184991188517086989383268708326752185784029396612181634328520985"
+const publicHash string = "740442171083661049659184837119506324904268940878674425328909705936292585001"
 
 type mimcCircuit struct {
 	Data frontend.Variable
@@ -45,7 +46,7 @@ type mimcCircuit struct {
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
-	mimc, err := mimc.NewMiMC("seed", api)
+	mimc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -62,7 +63,7 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, w mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS24_315, backend.GROTH16, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS24_315, r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +202,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_633, backend.GROTH16, &circuit)
+		ccs, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

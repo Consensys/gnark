@@ -88,7 +88,7 @@ type TransferConstraints struct {
 
 func (circuit *Circuit) postInit(api frontend.API) error {
 	// edward curve params
-	params, err := twistededwards.NewEdCurve(api.Curve())
+	params, err := twistededwards.NewEdCurve(api.Compiler().Curve())
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return err
 	}
 	// hash function for the merkle proof and the eddsa signature
-	hFunc, err := mimc.NewMiMC("seed", api)
+	hFunc, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 // verifySignatureTransfer ensures that the signature of the transfer is valid
 func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
 
-	// the signature is on h(nonce || amount || senderpubKey (x&y) || receiverPubkey(x&y))
+	// the signature is on h(nonce ∥ amount ∥ senderpubKey (x&y) ∥ receiverPubkey(x&y))
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 	htransfer := hFunc.Sum()
 

@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"sync"
+	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -33,19 +33,18 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
-// ErrUnsatisfiedConstraint can be generated when solving a R1CS
-var ErrUnsatisfiedConstraint = errors.New("constraint is not satisfied")
+var errUnsatisfiedConstraint = errors.New("unsatisfied")
 
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
-	nbSolved             int
+	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions []hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 		values:          make([]fr.Element, nbWires),
@@ -56,9 +55,21 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 
 	for _, h := range hintFunctions {
 		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
-			return solution{}, fmt.Errorf("duplicate hint function %s", h)
+			return s, fmt.Errorf("duplicate hint function %s", h)
 		}
 		s.mHintsFunctions[h.UUID()] = h
+	}
+
+	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
+	var missing []string
+	for hintUUID, hintID := range hintsDependencies {
+		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
+			missing = append(missing, hintID)
+		}
+	}
+
+	if len(missing) > 0 {
+		return s, fmt.Errorf("solver missing hint(s): %v", missing)
 	}
 
 	return s, nil
@@ -70,11 +81,12 @@ func (s *solution) set(id int, value fr.Element) {
 	}
 	s.values[id] = value
 	s.solved[id] = true
-	s.nbSolved++
+	atomic.AddUint64(&s.nbSolved, 1)
+	// s.nbSolved++
 }
 
 func (s *solution) isValid() bool {
-	return s.nbSolved == len(s.values)
+	return int(s.nbSolved) == len(s.values)
 }
 
 // computeTerm computes coef*variable
@@ -103,11 +115,32 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 	}
 }
 
+// r += (t.coeff*t.value)
+func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
+	cID := t.CoeffID()
+	vID := t.WireID()
+	switch cID {
+	case compiled.CoeffIdZero:
+		return
+	case compiled.CoeffIdOne:
+		r.Add(r, &s.values[vID])
+	case compiled.CoeffIdTwo:
+		var res fr.Element
+		res.Double(&s.values[vID])
+		r.Add(r, &res)
+	case compiled.CoeffIdMinusOne:
+		r.Sub(r, &s.values[vID])
+	default:
+		var res fr.Element
+		res.Mul(&s.coefficients[cID], &s.values[vID])
+		r.Add(r, &res)
+	}
+}
+
 func (s *solution) computeLinearExpression(l compiled.LinearExpression) fr.Element {
 	var res fr.Element
-	for i := 0; i < len(l); i++ {
-		v := s.computeTerm(l[i])
-		res.Add(&res, &v)
+	for _, t := range l {
+		s.accumulateInto(t, &res)
 	}
 	return res
 }
@@ -125,19 +158,30 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		return errors.New("missing hint function")
 	}
 
-	// compute values for all inputs.
-	inputs := make([]*big.Int, len(h.Inputs))
-	for i := 0; i < len(inputs); i++ {
-		inputs[i] = bigIntPool.Get().(*big.Int)
-		inputs[i].SetUint64(0)
+	// tmp IO big int memory
+	nbInputs := len(h.Inputs)
+	nbOutputs := len(h.Wires)
+	// m := len(s.tmpHintsIO)
+	// if m < (nbInputs + nbOutputs) {
+	// 	s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs + nbInputs) - m)...)
+	// 	for i := m; i < len(s.tmpHintsIO); i++ {
+	// 		s.tmpHintsIO[i] = big.NewInt(0)
+	// 	}
+	// }
+	inputs := make([]*big.Int, nbInputs)
+	outputs := make([]*big.Int, nbOutputs)
+	for i := 0; i < nbInputs; i++ {
+		inputs[i] = big.NewInt(0)
+	}
+	for i := 0; i < nbOutputs; i++ {
+		outputs[i] = big.NewInt(0)
 	}
 
-	for i := 0; i < len(h.Inputs); i++ {
+	q := fr.Modulus()
+
+	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
-		case compiled.Variable:
-			v := s.computeLinearExpression(t.LinExp)
-			v.ToBigIntRegular(inputs[i])
 		case compiled.LinearExpression:
 			v := s.computeLinearExpression(t)
 			v.ToBigIntRegular(inputs[i])
@@ -147,20 +191,10 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		default:
 			v := utils.FromInterface(t)
 			inputs[i] = &v
+
+			// here we have no guarantee that v < q, so we mod reduce
+			inputs[i].Mod(inputs[i], q)
 		}
-	}
-
-	outputs := make([]*big.Int, f.NbOutputs(curve.ID, len(inputs)))
-	for i := 0; i < len(outputs); i++ {
-		outputs[i] = bigIntPool.Get().(*big.Int)
-	}
-
-	// ensure our inputs are mod q
-	q := fr.Modulus()
-	for i := 0; i < len(inputs); i++ {
-		// note since we're only doing additions up there, we may want to avoid the use of Mod
-		// here in favor of Cmp & Sub
-		inputs[i].Mod(inputs[i], q)
 	}
 
 	err := f.Call(curve.ID, inputs, outputs)
@@ -171,20 +205,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		s.set(h.Wires[i], v)
 	}
 
-	// release objects into pool
-	for i := 0; i < len(inputs); i++ {
-		bigIntPool.Put(inputs[i])
-	}
-
-	for i := 0; i < len(outputs); i++ {
-		bigIntPool.Put(outputs[i])
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
@@ -262,10 +283,4 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
-}
-
-var bigIntPool = sync.Pool{
-	New: func() interface{} {
-		return new(big.Int)
-	},
 }

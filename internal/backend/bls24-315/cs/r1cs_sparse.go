@@ -21,14 +21,17 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/fxamacker/cbor/v2"
 	"io"
+	"math"
 	"math/big"
 	"os"
+	"runtime"
 	"strings"
-	"text/template"
+	"sync"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
@@ -79,7 +82,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	}
 
 	// keep track of wire that have a value
-	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.Coefficients)
 	if err != nil {
 		return solution.values, err
 	}
@@ -92,7 +95,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
 	// we instantiated all wires
-	solution.nbSolved += len(witness)
+	solution.nbSolved += uint64(len(witness))
 
 	// defer log printing once all solution.values are computed
 	defer solution.printLogs(opt.LoggerOut, cs.Logs)
@@ -103,18 +106,8 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		coefficientsNegInv[i].Neg(&coefficientsNegInv[i])
 	}
 
-	// loop through the constraints to solve the variables
-	for i := 0; i < len(cs.Constraints); i++ {
-		if err := cs.solveConstraint(cs.Constraints[i], &solution, coefficientsNegInv); err != nil {
-			return solution.values, fmt.Errorf("constraint %d: %w", i, err)
-		}
-		if err := cs.checkConstraint(cs.Constraints[i], &solution); err != nil {
-			if dID, ok := cs.MDebug[i]; ok {
-				debugInfoStr := solution.logValue(cs.DebugInfo[dID])
-				return solution.values, fmt.Errorf("%w: %s", ErrUnsatisfiedConstraint, debugInfoStr)
-			}
-			return solution.values, ErrUnsatisfiedConstraint
-		}
+	if err := cs.parallelSolve(&solution, coefficientsNegInv); err != nil {
+		return solution.values, err
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
@@ -124,6 +117,120 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 	return solution.values, nil
 
+}
+
+func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.Element) error {
+	// minWorkPerCPU is the minimum target number of constraint a task should hold
+	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
+	// sequentially without sync.
+	const minWorkPerCPU = 50.0
+
+	// cs.Levels has a list of levels, where all constraints in a level l(n) are independent
+	// and may only have dependencies on previous levels
+
+	var wg sync.WaitGroup
+	chTasks := make(chan []int, runtime.NumCPU())
+	chError := make(chan error, runtime.NumCPU())
+
+	// start a worker pool
+	// each worker wait on chTasks
+	// a task is a slice of constraint indexes to be solved
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go func() {
+			for t := range chTasks {
+				for _, i := range t {
+					// for each constraint in the task, solve it.
+					if err := cs.solveConstraint(cs.Constraints[i], solution, coefficientsNegInv); err != nil {
+						chError <- fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+						wg.Done()
+						return
+					}
+					if err := cs.checkConstraint(cs.Constraints[i], solution); err != nil {
+						errMsg := err.Error()
+						if dID, ok := cs.MDebug[i]; ok {
+							errMsg = solution.logValue(cs.DebugInfo[dID])
+						}
+						chError <- fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
+						wg.Done()
+						return
+					}
+				}
+				wg.Done()
+			}
+		}()
+	}
+
+	// clean up pool go routines
+	defer func() {
+		close(chTasks)
+		close(chError)
+	}()
+
+	// for each level, we push the tasks
+	for _, level := range cs.Levels {
+
+		// max CPU to use
+		maxCPU := float64(len(level)) / minWorkPerCPU
+
+		if maxCPU <= 1.0 {
+			// we do it sequentially
+			for _, i := range level {
+				if err := cs.solveConstraint(cs.Constraints[i], solution, coefficientsNegInv); err != nil {
+					return fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+				}
+				if err := cs.checkConstraint(cs.Constraints[i], solution); err != nil {
+					errMsg := err.Error()
+					if dID, ok := cs.MDebug[i]; ok {
+						errMsg = solution.logValue(cs.DebugInfo[dID])
+					}
+					return fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
+				}
+			}
+			continue
+		}
+
+		// number of tasks for this level is set to num cpus
+		// but if we don't have enough work for all our CPUS, it can be lower.
+		nbTasks := runtime.NumCPU()
+		maxTasks := int(math.Ceil(maxCPU))
+		if nbTasks > maxTasks {
+			nbTasks = maxTasks
+		}
+		nbIterationsPerCpus := len(level) / nbTasks
+
+		// more CPUs than tasks: a CPU will work on exactly one iteration
+		// note: this depends on minWorkPerCPU constant
+		if nbIterationsPerCpus < 1 {
+			nbIterationsPerCpus = 1
+			nbTasks = len(level)
+		}
+
+		extraTasks := len(level) - (nbTasks * nbIterationsPerCpus)
+		extraTasksOffset := 0
+
+		for i := 0; i < nbTasks; i++ {
+			wg.Add(1)
+			_start := i*nbIterationsPerCpus + extraTasksOffset
+			_end := _start + nbIterationsPerCpus
+			if extraTasks > 0 {
+				_end++
+				extraTasks--
+				extraTasksOffset++
+			}
+			// since we're never pushing more than num CPU tasks
+			// we will never be blocked here
+			chTasks <- level[_start:_end]
+		}
+
+		// wait for the level to be done
+		wg.Wait()
+
+		if len(chError) > 0 {
+			return <-chError
+		}
+	}
+
+	return nil
 }
 
 // computeHints computes wires associated with a hint function, if any
@@ -254,6 +361,100 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 	return err
 }
 
+// GetConstraints return a list of constraint formatted as in the paper
+// https://eprint.iacr.org/2019/953.pdf section 6 such that
+// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
+// each constraint is thus decomposed in [5]string with
+// 		[0] = qL⋅xa
+//		[1] = qR⋅xb
+//		[2] = qO⋅xc
+//		[3] = qM⋅(xaxb)
+//		[4] = qC
+func (cs *SparseR1CS) GetConstraints() [][]string {
+	r := make([][]string, 0, len(cs.Constraints))
+	for _, c := range cs.Constraints {
+		fc := cs.formatConstraint(c)
+		r = append(r, fc[:])
+	}
+	return r
+}
+
+// r[0] = qL⋅xa
+// r[1] = qR⋅xb
+// r[2] = qO⋅xc
+// r[3] = qM⋅(xaxb)
+// r[4] = qC
+func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
+	isZeroM := (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
+
+	var sbb strings.Builder
+	cs.termToString(c.L, &sbb, false)
+	r[0] = sbb.String()
+
+	sbb.Reset()
+	cs.termToString(c.R, &sbb, false)
+	r[1] = sbb.String()
+
+	sbb.Reset()
+	cs.termToString(c.O, &sbb, false)
+	r[2] = sbb.String()
+
+	if isZeroM {
+		r[3] = "0"
+	} else {
+		sbb.Reset()
+		sbb.WriteString(cs.Coefficients[c.M[0].CoeffID()].String())
+		sbb.WriteString("⋅")
+		sbb.WriteByte('(')
+		cs.termToString(c.M[0], &sbb, true)
+		sbb.WriteString(" × ")
+		cs.termToString(c.M[1], &sbb, true)
+		sbb.WriteByte(')')
+		r[3] = sbb.String()
+	}
+
+	r[4] = cs.Coefficients[c.K].String()
+
+	return
+}
+
+func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly bool) {
+	if !vOnly {
+		tID := t.CoeffID()
+		if tID == compiled.CoeffIdOne {
+			// do nothing, just print the variable
+			sbb.WriteString("1")
+		} else if tID == compiled.CoeffIdMinusOne {
+			// print neg sign
+			sbb.WriteString("-1")
+		} else if tID == compiled.CoeffIdZero {
+			sbb.WriteByte('0')
+			return
+		} else {
+			sbb.WriteString(cs.Coefficients[tID].String())
+		}
+		sbb.WriteString("⋅")
+	}
+
+	vID := t.WireID()
+	visibility := t.VariableVisibility()
+
+	switch visibility {
+	case schema.Internal:
+		if _, isHint := cs.MHints[vID]; isHint {
+			sbb.WriteString(fmt.Sprintf("hv%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
+		} else {
+			sbb.WriteString(fmt.Sprintf("v%d", vID-cs.NbPublicVariables-cs.NbSecretVariables))
+		}
+	case schema.Public:
+		sbb.WriteString(fmt.Sprintf("p%d", vID))
+	case schema.Secret:
+		sbb.WriteString(fmt.Sprintf("s%d", vID-cs.NbPublicVariables))
+	default:
+		sbb.WriteString("<?>")
+	}
+}
+
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) error {
 	l := solution.computeTerm(c.L)
@@ -266,50 +467,17 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 	var t fr.Element
 	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
 	if !t.IsZero() {
-		return fmt.Errorf("%w\n%s + %s + (%s * %s) + %s + %s != 0", ErrUnsatisfiedConstraint,
+		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + (%s × %s) + %s != 0",
 			l.String(),
 			r.String(),
+			o.String(),
 			m0.String(),
 			m1.String(),
-			o.String(),
 			cs.Coefficients[c.K].String(),
 		)
 	}
 	return nil
 
-}
-
-// ToHTML returns an HTML human-readable representation of the constraint system
-func (cs *SparseR1CS) ToHTML(w io.Writer) error {
-	t, err := template.New("scs.html").Funcs(template.FuncMap{
-		"toHTML":      toHTMLTerm,
-		"toHTMLCoeff": toHTMLCoeff,
-		"add":         add,
-		"sub":         sub,
-	}).Parse(compiled.SparseR1CSTemplate)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(w, cs)
-}
-
-func toHTMLTerm(t compiled.Term, coeffs []fr.Element, MHints map[int]compiled.Hint) string {
-	var sbb strings.Builder
-	termToHTML(t, &sbb, coeffs, MHints, true)
-	return sbb.String()
-}
-
-func toHTMLCoeff(cID int, coeffs []fr.Element) string {
-	if cID == compiled.CoeffIdMinusOne {
-		// print neg sign
-		return "<span class=\"coefficient\">-1</span>"
-	}
-	var sbb strings.Builder
-	sbb.WriteString("<span class=\"coefficient\">")
-	sbb.WriteString(coeffs[cID].String())
-	sbb.WriteString("</span>")
-	return sbb.String()
 }
 
 // FrSize return fr.Limbs * 8, size in byte of a fr element
