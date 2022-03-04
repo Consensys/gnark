@@ -79,8 +79,7 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 		Σti = api.Add(Σti, api.Mul(trits[i], c))
 		c.Mul(c, b)
 		if !cfg.Unconstrained {
-			// TODO assert == 0, 1, 2
-			// api.AssertIsBoolean(trits[i])
+			AssertIsTrit(api, trits[i])
 		}
 	}
 
@@ -88,4 +87,19 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	api.AssertIsEqual(Σti, v)
 
 	return trits
+}
+
+// AssertIsTrit constrain digit to be 0, 1 or 2
+func AssertIsTrit(api frontend.API, v frontend.Variable) {
+	if c, ok := api.Compiler().ConstantValue(v); ok {
+		if c.IsUint64() && c.Uint64() <= 2 {
+			return
+		}
+		panic("value " + c.String() + " is not 0, 1 or 2")
+	}
+
+	// v * (1 - v) * (2 - v) == 0
+	// TODO this adds 3 constraint, not 2. Need api.Compiler().AddConstraint(...)
+	y := api.Mul(api.Sub(1, v), api.Sub(2, v))
+	api.AssertIsEqual(api.Mul(v, y), 0)
 }
