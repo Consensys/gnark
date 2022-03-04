@@ -477,3 +477,35 @@ func copyWitness(to, from frontend.Circuit) {
 func (e *engine) Compiler() frontend.Compiler {
 	return e
 }
+
+// AddQuadraticConstraint adds a constraint to the constraint system in the form
+// (a * b) + c == res
+// Experimental: this API should rarely (if at all) be used
+func (e *engine) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
+	ba := e.toBigInt(a)
+	bb := e.toBigInt(b)
+	bc := e.toBigInt(c)
+	bres := e.toBigInt(res)
+
+	ba.Mul(&ba, &bb).Add(&ba, &bc).Sub(&ba, &bres)
+
+	if !(ba.IsUint64() && ba.Uint64() == 0) {
+		panic("(a * b) + c != res")
+	}
+}
+
+// AddLinearConstraint adds a constraint to the constraint system in the form
+// a + b + c == res
+// Experimental: this API should rarely (if at all) be used
+func (e *engine) AddLinearConstraint(a, b, c, res frontend.Variable) {
+	ba := e.toBigInt(a)
+	bb := e.toBigInt(b)
+	bc := e.toBigInt(c)
+	bres := e.toBigInt(res)
+
+	ba.Add(&ba, &bb).Add(&ba, &bc).Sub(&ba, &bres)
+
+	if !(ba.IsUint64() && ba.Uint64() == 0) {
+		panic("a + b + c != res")
+	}
+}

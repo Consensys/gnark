@@ -81,25 +81,25 @@ func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *scs {
 	return &system
 }
 
-// addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-//func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+// addPlonkConstraint creates a constraint in the form
+// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
+func (system *scs) addPlonkConstraint(xa, xb, xc compiled.Term, qL, qR, qM0, qM1, qO, qC int, debugID ...int) {
 
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
 	}
 
-	l.SetCoeffID(cidl)
-	r.SetCoeffID(cidr)
-	o.SetCoeffID(cido)
+	xa.SetCoeffID(qL)
+	xb.SetCoeffID(qR)
+	xc.SetCoeffID(qO)
 
-	u := l
-	v := r
-	u.SetCoeffID(cidm1)
-	v.SetCoeffID(cidm2)
+	u := xa
+	v := xb
+	u.SetCoeffID(qM0)
+	v.SetCoeffID(qM1)
 
 	//system.Constraints = append(system.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
-	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: l, R: r, O: o, M: [2]compiled.Term{u, v}, K: k})
+	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: xa, R: xb, O: xc, M: [2]compiled.Term{u, v}, K: qC})
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -614,8 +614,8 @@ func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Va
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *scs) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
-	res := make(compiled.LinearExpression, 0, len(in))
+func (system *scs) filterConstantSum(in []frontend.Variable) ([]compiled.Term, big.Int) {
+	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
@@ -630,8 +630,8 @@ func (system *scs) filterConstantSum(in []frontend.Variable) (compiled.LinearExp
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
-	res := make(compiled.LinearExpression, 0, len(in))
+func (system *scs) filterConstantProd(in []frontend.Variable) ([]compiled.Term, big.Int) {
+	res := make([]compiled.Term, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
 	for i := 0; i < len(in); i++ {
@@ -646,7 +646,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 	return res, b
 }
 
-func (system *scs) splitSum(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs) splitSum(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -660,7 +660,7 @@ func (system *scs) splitSum(acc compiled.Term, r compiled.LinearExpression) comp
 	return system.splitSum(o, r[1:])
 }
 
-func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term {
 
 	// floor case
 	if len(r) == 0 {
@@ -672,4 +672,84 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 	o := system.newInternalVariable()
 	system.addPlonkConstraint(acc, r[0], o, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
 	return system.splitProd(o, r[1:])
+}
+
+// AddQuadraticConstraint adds a constraint to the constraint system in the form
+// (a * b) + c == res
+// Experimental: this API should rarely (if at all) be used
+func (system *scs) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
+
+	// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
+	qC, ok := system.ConstantValue(c)
+	if !ok {
+		panic("c must be constant")
+	}
+
+	var xa, xb, xc compiled.Term
+
+	qO := compiled.CoeffIdZero
+	if cr, resConstant := system.ConstantValue(res); resConstant {
+		qC.Sub(qC, cr)
+	} else {
+		tr := system.Neg(res).(compiled.Term)
+		qO = tr.CoeffID()
+		xc = tr
+	}
+
+	qM0 := compiled.CoeffIdZero
+	qM1 := compiled.CoeffIdZero
+	qa, aIsConstant := system.ConstantValue(a)
+	qb, bIsConstant := system.ConstantValue(b)
+
+	if aIsConstant {
+		qC.Add(qC, qa)
+	} else {
+		xa = a.(compiled.Term)
+		qM0 = xa.CoeffID()
+	}
+	if bIsConstant {
+		qC.Add(qC, qb)
+	} else {
+		xb = b.(compiled.Term)
+		qM1 = xb.CoeffID()
+	}
+
+	m := system.CurveID.Info().Fr.Modulus()
+	qC.Mod(qC, m)
+
+	system.addPlonkConstraint(xa, xb, xc, compiled.CoeffIdZero, compiled.CoeffIdZero, qM0, qM1, qO, system.st.CoeffID(qC))
+}
+
+// AddLinearConstraint adds a constraint to the constraint system in the form
+// a + b + c == res
+// Experimental: this API should rarely (if at all) be used
+func (system *scs) AddLinearConstraint(a, b, c, res frontend.Variable) {
+
+	vars, k := system.filterConstantSum([]frontend.Variable{a, b, c, system.Neg(res)})
+
+	if len(vars) == 0 {
+		// linear expression is a constant
+		if !k.IsUint64() && k.Uint64() == 0 {
+			panic("linear constraint can't be satisfied; " + k.String() + " != 0")
+		}
+		// nothing to do, this path doesn't add a constraint.
+		return
+	}
+
+	xc := vars[0]
+	qO := xc.CoeffID()
+	qC := system.st.CoeffID(&k)
+	qL := compiled.CoeffIdZero
+	qR := compiled.CoeffIdZero
+	xa, xb := compiled.Term(0), compiled.Term(0)
+	if len(vars) >= 2 {
+		xa = vars[1]
+		qL = xa.CoeffID()
+		if len(vars) == 3 {
+			xb = vars[2]
+			qR = xb.CoeffID()
+		}
+	}
+
+	system.addPlonkConstraint(xa, xb, xc, qL, qR, compiled.CoeffIdZero, compiled.CoeffIdZero, qO, qC)
 }

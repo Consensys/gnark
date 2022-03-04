@@ -725,3 +725,20 @@ func assertIsSet(l compiled.LinearExpression) {
 	}
 
 }
+
+// AddQuadraticConstraint adds a constraint to the constraint system in the form
+// (a * b) + c == res
+// Experimental: this API should rarely (if at all) be used
+func (system *r1cs) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
+	v, _ := system.toVariables(a, b)
+	o := system.Sub(res, c)
+	system.addConstraint(newR1C(v[0], v[1], o))
+}
+
+// AddLinearConstraint adds a constraint to the constraint system in the form
+// a + b + c == res
+// Experimental: this API should rarely (if at all) be used
+func (system *r1cs) AddLinearConstraint(a, b, c, res frontend.Variable) {
+	o := system.Add(a, b, c)
+	system.AssertIsEqual(res, o)
+}

@@ -58,6 +58,16 @@ type Compiler interface {
 
 	// Backend returns the backend.ID injected by the compiler
 	Backend() backend.ID
+
+	// AddQuadraticConstraint adds a constraint to the constraint system in the form
+	// (a * b) + c == res
+	// Experimental: this API should rarely (if at all) be used
+	AddQuadraticConstraint(a, b, c, res Variable)
+
+	// AddLinearConstraint adds a constraint to the constraint system in the form
+	// a + b + c == res
+	// Experimental: this API should rarely (if at all) be used
+	AddLinearConstraint(a, b, c, res Variable)
 }
 
 // Builder represents a constraint system builder
