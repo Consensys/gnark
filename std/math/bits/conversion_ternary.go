@@ -4,9 +4,16 @@ import (
 	"math"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
+
+var NTrits = hint.NewStaticHint(nTrits)
+
+func init() {
+	hint.Register(NTrits)
+}
 
 // ToTernary is an alias of ToBase(... Ternary ...)
 func ToTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
@@ -68,7 +75,7 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	c := big.NewInt(1)
 	b := big.NewInt(3)
 
-	trits, err := api.Compiler().NewHint(hint.NTrits, cfg.NbDigits, v)
+	trits, err := api.Compiler().NewHint(NTrits, cfg.NbDigits, v)
 	if err != nil {
 		panic(err)
 	}
@@ -102,4 +109,20 @@ func AssertIsTrit(api frontend.API, v frontend.Variable) {
 	// TODO this adds 3 constraint, not 2. Need api.Compiler().AddConstraint(...)
 	y := api.Mul(api.Sub(1, v), api.Sub(2, v))
 	api.AssertIsEqual(api.Mul(v, y), 0)
+}
+
+func nTrits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+	n := inputs[0]
+	// TODO using big.Int Text method is likely not cheap
+	base3 := n.Text(3)
+	i := 0
+	for j := len(base3) - 1; j >= 0 && i < len(results); j-- {
+		results[i].SetUint64(uint64(base3[j] - 48))
+		i++
+	}
+	for ; i < len(results); i++ {
+		results[i].SetUint64(0)
+	}
+
+	return nil
 }
