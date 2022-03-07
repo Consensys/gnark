@@ -100,6 +100,10 @@ func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) fronte
 
 // returns t*m
 func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+	if m == nil {
+		t.SetCoeffID(compiled.CoeffIdZero)
+		return t
+	}
 	var coef big.Int
 	cid, _, _ := t.Unpack()
 	coef.Set(&system.st.Coeffs[cid])

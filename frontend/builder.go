@@ -60,9 +60,17 @@ type Compiler interface {
 	CSType() cs.ID
 
 	// AddQuadraticConstraint adds a constraint to the constraint system in the form
-	// (a * b) + c == res
+	// a * b == c
 	// Experimental: this API should rarely (if at all) be used
-	AddQuadraticConstraint(a, b, c, res Variable)
+	AddQuadraticConstraint(a, b, c Variable)
+
+	// AddPlonkishConstraint adds a constraint to the constraint system in the form
+	// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
+	// Experimental: this API should rarely (if at all) be used
+	// note: a R1CS builder may combine the linear expression on one side and record:
+	// qM⋅(xaxb) == -(qL⋅xa + qR⋅xb + qO⋅xc + qC)
+	// if any of the coefficients are nil, they are ignored (== 0)
+	AddPlonkishConstraint(xa, xb, xc Variable, qL, qR, qO, qM, qC *big.Int)
 }
 
 // Builder represents a constraint system builder

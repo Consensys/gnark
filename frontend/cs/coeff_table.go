@@ -36,6 +36,9 @@ func NewCoeffTable() CoeffTable {
 // CoeffID tries to fetch the entry where b is if it exits, otherwise appends b to
 // the list of Coeffs and returns the corresponding entry
 func (t *CoeffTable) CoeffID(v *big.Int) int {
+	if v == nil {
+		return compiled.CoeffIdZero
+	}
 
 	// if the coeff is a int64 we have a fast path.
 	if v.IsInt64() {

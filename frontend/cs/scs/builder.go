@@ -526,7 +526,7 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (system *scs) CSType() cs.ID {
-	return cs.SCS
+	return cs.PLONK
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
@@ -674,48 +674,76 @@ func (system *scs) splitProd(acc compiled.Term, r []compiled.Term) compiled.Term
 	return system.splitProd(o, r[1:])
 }
 
-// AddQuadraticConstraint adds a constraint to the constraint system in the form
-// (a * b) + c == res
+// AddPlonkishConstraint adds a constraint to the constraint system in the form
+// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
 // Experimental: this API should rarely (if at all) be used
-func (system *scs) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
+// if any of the coefficients are nil, they are ignored (== 0)
+func (system *scs) AddPlonkishConstraint(xa, xb, xc frontend.Variable, qL, qR, qO, qM, qC *big.Int) {
+	_, xaIsConstant := system.ConstantValue(xa)
+	_, xbIsConstant := system.ConstantValue(xb)
+	_, xcIsConstant := system.ConstantValue(xc)
+	if xaIsConstant || xbIsConstant || xcIsConstant {
+		panic("xa, xb, xc can't be constant")
+		// TODO extract constant part, add it to qC
+	}
+	_xa := xa.(compiled.Term)
+	_xb := xb.(compiled.Term)
+	_xc := xc.(compiled.Term)
+	lxa := system.mulConstant(_xa, qL)
+	lxb := system.mulConstant(_xb, qR)
+	lxc := system.mulConstant(_xc, qO)
+	iqL := lxa.CoeffID()
+	iqR := lxb.CoeffID()
+	iqO := lxc.CoeffID()
+
+	qm0 := system.st.Coeffs[_xa.CoeffID()]
+	if qM != nil && !(qM.IsUint64() && qM.Uint64() == 0) {
+		qm0.Mul(&qm0, qM).Mod(&qm0, system.CurveID.Info().Fr.Modulus())
+	}
+	system.addPlonkConstraint(_xa, _xb, _xc, iqL, iqR, system.st.CoeffID(&qm0), _xb.CoeffID(), iqO, system.st.CoeffID(qC))
+}
+
+// AddQuadraticConstraint adds a constraint to the constraint system in the form
+// a * b == c
+// Experimental: this API should rarely (if at all) be used
+func (system *scs) AddQuadraticConstraint(a, b, c frontend.Variable) {
 
 	// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
-	qC, ok := system.ConstantValue(c)
-	if !ok {
-		panic("c must be constant")
-	}
 
 	var xa, xb, xc compiled.Term
 
 	qO := compiled.CoeffIdZero
-	if cr, resConstant := system.ConstantValue(res); resConstant {
-		qC.Sub(qC, cr)
+	qM0 := compiled.CoeffIdZero
+	qM1 := compiled.CoeffIdZero
+
+	var qC big.Int
+
+	if qc, cIsConstant := system.ConstantValue(c); cIsConstant {
+		qC.Sub(&qC, qc)
 	} else {
-		tr := system.Neg(res).(compiled.Term)
+		tr := system.Neg(c).(compiled.Term)
 		qO = tr.CoeffID()
 		xc = tr
 	}
 
-	qM0 := compiled.CoeffIdZero
-	qM1 := compiled.CoeffIdZero
 	qa, aIsConstant := system.ConstantValue(a)
 	qb, bIsConstant := system.ConstantValue(b)
 
 	if aIsConstant {
-		qC.Add(qC, qa)
+		qC.Add(&qC, qa)
 	} else {
 		xa = a.(compiled.Term)
 		qM0 = xa.CoeffID()
 	}
 	if bIsConstant {
-		qC.Add(qC, qb)
+		qC.Add(&qC, qb)
 	} else {
 		xb = b.(compiled.Term)
 		qM1 = xb.CoeffID()
 	}
 
 	m := system.CurveID.Info().Fr.Modulus()
-	qC.Mod(qC, m)
+	qC.Mod(&qC, m)
 
-	system.addPlonkConstraint(xa, xb, xc, compiled.CoeffIdZero, compiled.CoeffIdZero, qM0, qM1, qO, system.st.CoeffID(qC))
+	system.addPlonkConstraint(xa, xb, xc, compiled.CoeffIdZero, compiled.CoeffIdZero, qM0, qM1, qO, system.st.CoeffID(&qC))
 }

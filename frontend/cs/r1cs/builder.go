@@ -727,10 +727,42 @@ func assertIsSet(l compiled.LinearExpression) {
 }
 
 // AddQuadraticConstraint adds a constraint to the constraint system in the form
-// (a * b) + c == res
+// a * b == c
 // Experimental: this API should rarely (if at all) be used
-func (system *r1cs) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
-	v, _ := system.toVariables(a, b)
-	o := system.Sub(res, c)
-	system.addConstraint(newR1C(v[0], v[1], o))
+func (system *r1cs) AddQuadraticConstraint(a, b, c frontend.Variable) {
+	v, _ := system.toVariables(a, b, c)
+	system.addConstraint(newR1C(v[0], v[1], v[2]))
+}
+
+// AddPlonkishConstraint adds a constraint to the constraint system in the form
+// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
+// Experimental: this API should rarely (if at all) be used
+// note: a R1CS builder may combine the linear expression on one side and record:
+// qM⋅(xaxb) == -(qL⋅xa + qR⋅xb + qO⋅xc + qC)
+// if any of the coefficients are nil, they are ignored (== 0)
+func (system *r1cs) AddPlonkishConstraint(xa, xb, xc frontend.Variable, qL, qR, qO, qM, qC *big.Int) {
+	left := frontend.Variable(0)
+
+	isZero := func(v *big.Int) bool {
+		return v == nil || (v.IsUint64() && v.Uint64() == 0)
+	}
+	if !isZero(qM) {
+		left = system.Mul(xa, qM) // does not add a constraint
+	}
+
+	right := frontend.Variable(0)
+	if !isZero(qL) {
+		right = system.Add(right, system.Mul(qL, xa))
+	}
+	if !isZero(qR) {
+		right = system.Add(right, system.Mul(qR, xb))
+	}
+	if !isZero(qO) {
+		right = system.Add(right, system.Mul(qO, xc))
+	}
+	if !isZero(qC) {
+		right = system.Add(right, qC)
+	}
+	right = system.Neg(right)
+	system.addConstraint(newR1C(left, xb, right))
 }

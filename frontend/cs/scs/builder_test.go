@@ -15,7 +15,7 @@ func TestAddQuadraticConstraint(t *testing.T) {
 
 	// x must be 0, 1 or 2
 	// x * (1 -x ) * (2 -x) == 0
-	cs.AddQuadraticConstraint(x, cs.Mul(cs.Sub(1, x), cs.Sub(2, x)), 0, 0)
+	cs.AddQuadraticConstraint(x, cs.Mul(cs.Sub(1, x), cs.Sub(2, x)), 0)
 
 	assert.Equal(4, len(cs.Constraints), "expected 4 constraints")
 

@@ -482,16 +482,51 @@ func (e *engine) Compiler() frontend.Compiler {
 // AddQuadraticConstraint adds a constraint to the constraint system in the form
 // (a * b) + c == res
 // Experimental: this API should rarely (if at all) be used
-func (e *engine) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
+func (e *engine) AddQuadraticConstraint(a, b, c frontend.Variable) {
 	ba := e.toBigInt(a)
 	bb := e.toBigInt(b)
 	bc := e.toBigInt(c)
-	bres := e.toBigInt(res)
 
-	ba.Mul(&ba, &bb).Add(&ba, &bc).Sub(&ba, &bres)
+	ba.Mul(&ba, &bb).Sub(&ba, &bc)
 
 	if !(ba.IsUint64() && ba.Uint64() == 0) {
-		panic("(a * b) + c != res")
+		panic("(a * b)  != c")
+	}
+}
+
+// AddPlonkishConstraint adds a constraint to the constraint system in the form
+// [ qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0 ]
+// Experimental: this API should rarely (if at all) be used
+// if any of the coefficients are nil, they are ignored (== 0)
+func (e *engine) AddPlonkishConstraint(xa, xb, xc frontend.Variable, qL, qR, qO, qM, qC *big.Int) {
+	ba := e.toBigInt(xa)
+	bb := e.toBigInt(xb)
+	bc := e.toBigInt(xc)
+
+	isZero := func(v *big.Int) bool {
+		return v == nil || (v.IsUint64() && v.Uint64() == 0)
+	}
+
+	t := big.NewInt(0)
+	if !isZero(qL) {
+		t.Add(t, qL.Mul(qL, &ba))
+	}
+	if !isZero(qR) {
+		t.Add(t, qR.Mul(qR, &bb))
+	}
+	if !isZero(qO) {
+		t.Add(t, qO.Mul(qO, &bc))
+	}
+	if !isZero(qM) {
+		qM.Mul(qM, &bb).Mul(qM, &ba)
+		t.Add(t, qM)
+	}
+	if !isZero(qC) {
+		t.Add(t, qC)
+	}
+
+	if !isZero(t) {
+		panic("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0")
 	}
 }
 
