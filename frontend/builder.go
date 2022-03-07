@@ -4,8 +4,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -53,11 +53,11 @@ type Compiler interface {
 	// replacing *big.Int with fr.Element
 	ConstantValue(v Variable) (*big.Int, bool)
 
-	// CurveID returns the ecc.ID injected by the compiler
+	// Curve returns the curve identifier
 	Curve() ecc.ID
 
-	// Backend returns the backend.ID injected by the compiler
-	Backend() backend.ID
+	// CSType returns the constraint system type
+	CSType() cs.ID
 
 	// AddQuadraticConstraint adds a constraint to the constraint system in the form
 	// (a * b) + c == res

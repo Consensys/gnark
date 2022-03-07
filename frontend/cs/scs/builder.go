@@ -525,8 +525,8 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (system *scs) Backend() backend.ID {
-	return backend.PLONK
+func (system *scs) CSType() cs.ID {
+	return cs.SCS
 }
 
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to

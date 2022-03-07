@@ -20,8 +20,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/cs"
 )
 
 // API represents the available functions to circuit developers
@@ -137,7 +137,7 @@ type API interface {
 	// Deprecated: use api.Compiler().Curve() instead
 	Curve() ecc.ID
 
-	// Backend is a shorcut to api.Compiler().Backend()
-	// Deprecated: use api.Compiler().Backend() instead
-	Backend() backend.ID
+	// CSType returns the constraint system type
+	// Deprecated: use api.Compiler().CSType() instead
+	CSType() cs.ID
 }

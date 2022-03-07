@@ -584,8 +584,8 @@ func (system *r1cs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	return &r, true
 }
 
-func (system *r1cs) Backend() backend.ID {
-	return backend.GROTH16
+func (system *r1cs) CSType() cs.ID {
+	return cs.R1CS
 }
 
 // toVariable will return (and allocate if neccesary) a compiled.LinearExpression from given value

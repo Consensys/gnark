@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -418,8 +419,8 @@ func (e *engine) Curve() ecc.ID {
 	return e.curveID
 }
 
-func (e *engine) Backend() backend.ID {
-	return e.backendID
+func (e *engine) CSType() cs.ID {
+	return cs.UNKNOWN
 }
 
 // shallowClone clones given circuit
