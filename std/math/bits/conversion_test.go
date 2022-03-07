@@ -1,9 +1,10 @@
-package bits
+package bits_test
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/test"
 )
 
@@ -14,12 +15,12 @@ type toBinaryCircuit struct {
 
 func (c *toBinaryCircuit) Define(api frontend.API) error {
 	// binary decomposition
-	nA := FromBinary(api, c.B0, c.B1, c.B2)
+	nA := bits.FromBinary(api, c.B0, c.B1, c.B2)
 
 	api.AssertIsEqual(nA, c.A)
 
 	// to binary
-	b := ToBinary(api, c.A, WithNbDigits(3))
+	b := bits.ToBinary(api, c.A, bits.WithNbDigits(3))
 	api.AssertIsEqual(b[0], c.B0)
 	api.AssertIsEqual(b[1], c.B1)
 	api.AssertIsEqual(b[2], c.B2)
@@ -39,12 +40,12 @@ type toTernaryCircuit struct {
 
 func (c *toTernaryCircuit) Define(api frontend.API) error {
 	// ternary decomposition
-	nA := FromTernary(api, c.T0, c.T1, c.T2)
+	nA := bits.FromTernary(api, c.T0, c.T1, c.T2)
 
 	api.AssertIsEqual(nA, c.A)
 
 	// to ternary
-	t := ToTernary(api, c.A, WithNbDigits(3))
+	t := bits.ToTernary(api, c.A, bits.WithNbDigits(3))
 	api.AssertIsEqual(t[0], c.T0)
 	api.AssertIsEqual(t[1], c.T1)
 	api.AssertIsEqual(t[2], c.T2)

@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Add returns res = i1+i2+...in
@@ -173,9 +174,7 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-// Deprecated: use std/math/bits instead
 func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-
 	// nbBits
 	nbBits := system.BitLen()
 	if len(n) == 1 {
@@ -185,60 +184,12 @@ func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 		}
 	}
 
-	// if a is a constant, work with the big int value.
-	if c, ok := system.ConstantValue(i1); ok {
-		b := make([]frontend.Variable, nbBits)
-		for i := 0; i < len(b); i++ {
-			b[i] = c.Bit(i)
-		}
-		return b
-	}
-
-	a := i1.(compiled.Term)
-	return system.toBinary(a, nbBits, false)
-}
-
-func (system *scs) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
-
-	// allocate the resulting frontend.Variables and bit-constraint them
-	sb := make([]frontend.Variable, nbBits)
-	var c big.Int
-	c.SetUint64(1)
-
-	bits, err := system.NewHint(hint.NBits, nbBits, a)
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < nbBits; i++ {
-		sb[i] = system.Mul(bits[i], c)
-		c.Lsh(&c, 1)
-		if !unsafe {
-			system.AssertIsBoolean(bits[i])
-		}
-	}
-
-	//var Σbi compiled.Term
-	// TODO we can save a constraint here
-	var Σbi frontend.Variable
-	if nbBits == 1 {
-		Σbi = sb[0]
-	} else if nbBits == 2 {
-		Σbi = system.Add(sb[0], sb[1])
-	} else {
-		Σbi = system.Add(sb[0], sb[1], sb[2:]...)
-	}
-	system.AssertIsEqual(Σbi, a)
-
-	// record the constraint Σ (2**i * b[i]) == a
-	return bits
-
+	return bits.ToBinary(system, i1, bits.WithNbDigits(nbBits))
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-// Deprecated: use std/math/bits instead
 func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
-	panic("Deprecated: use std/math/bits instead")
+	return bits.FromBinary(system, b...)
 }
 
 // Xor returns a ^ b

@@ -59,11 +59,9 @@ type API interface {
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
 	// The result in in little endian (first bit= lsb)
-	// Deprecated: use std/math/bits instead
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
-	// Deprecated: use std/math/bits instead
 	FromBinary(b ...Variable) Variable
 
 	// Xor returns a ^ b
