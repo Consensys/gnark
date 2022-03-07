@@ -719,37 +719,3 @@ func (system *scs) AddQuadraticConstraint(a, b, c, res frontend.Variable) {
 
 	system.addPlonkConstraint(xa, xb, xc, compiled.CoeffIdZero, compiled.CoeffIdZero, qM0, qM1, qO, system.st.CoeffID(qC))
 }
-
-// AddLinearConstraint adds a constraint to the constraint system in the form
-// a + b + c == res
-// Experimental: this API should rarely (if at all) be used
-func (system *scs) AddLinearConstraint(a, b, c, res frontend.Variable) {
-
-	vars, k := system.filterConstantSum([]frontend.Variable{a, b, c, system.Neg(res)})
-
-	if len(vars) == 0 {
-		// linear expression is a constant
-		if !k.IsUint64() && k.Uint64() == 0 {
-			panic("linear constraint can't be satisfied; " + k.String() + " != 0")
-		}
-		// nothing to do, this path doesn't add a constraint.
-		return
-	}
-
-	xc := vars[0]
-	qO := xc.CoeffID()
-	qC := system.st.CoeffID(&k)
-	qL := compiled.CoeffIdZero
-	qR := compiled.CoeffIdZero
-	xa, xb := compiled.Term(0), compiled.Term(0)
-	if len(vars) >= 2 {
-		xa = vars[1]
-		qL = xa.CoeffID()
-		if len(vars) == 3 {
-			xb = vars[2]
-			qR = xb.CoeffID()
-		}
-	}
-
-	system.addPlonkConstraint(xa, xb, xc, qL, qR, compiled.CoeffIdZero, compiled.CoeffIdZero, qO, qC)
-}
