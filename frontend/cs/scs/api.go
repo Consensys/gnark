@@ -189,7 +189,7 @@ func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 
 // FromBinary packs b, seen as a fr.Element in little endian
 func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
-	return bits.FromBinary(system, b...)
+	return bits.FromBinary(system, b)
 }
 
 // Xor returns a ^ b

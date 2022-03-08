@@ -365,8 +365,6 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 					}
 				}
 
-				// fmt.Println(reflect.TypeOf(circuit).String(), valid)
-
 			}, curve.String(), b.String())
 
 		}
@@ -431,11 +429,6 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	// add the compiled circuit to the cache
 	assert.compiled[key] = ccs
 
-	// fmt.Println(key, ccs.GetNbConstraints())
-	// for _, c := range ccs.GetCounters() {
-	// 	fmt.Println(c.String())
-	// }
-
 	return ccs, nil
 }
 
@@ -457,7 +450,6 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 		if reflect.DeepEqual(opt.curves, ecc.Implemented()) {
 			opt.curves = []ecc.ID{ecc.BN254}
 		}
-		// opt.witnessSerialization = false
 	}
 	return opt
 }

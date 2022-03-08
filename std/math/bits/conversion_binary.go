@@ -14,7 +14,8 @@ var (
 	// returns its i-th bit.
 	IthBit = hint.NewStaticHint(ithBit)
 
-	// NBits returns the n first bits of the input. Expects one argument: n.
+	// NBits returns the first bits of the input. The number of returned bits is
+	// defined by the length of the results slice.
 	NBits = hint.NewStaticHint(nBits)
 )
 
@@ -23,25 +24,36 @@ func init() {
 	hint.Register(NBits)
 }
 
-// ToBinary is an alias of ToBase(... Binary ...)
+// ToBinary is an alias of ToBase(api, Binary, v, opts)
 func ToBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	return ToBase(api, Binary, v, opts...)
 }
 
-// FromBinary is an alias of FromBase(... Binary ...)
-func FromBinary(api frontend.API, digits ...frontend.Variable) frontend.Variable {
-	return FromBase(api, Binary, digits...)
+// FromBinary is an alias of FromBase(api, Binary, digits)
+func FromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConversionOption) frontend.Variable {
+	return FromBase(api, Binary, digits, opts...)
 }
 
-func fromBinary(api frontend.API, digits []frontend.Variable) frontend.Variable {
+func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConversionOption) frontend.Variable {
+
+	cfg := baseConversionConfig{}
+
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			panic(err)
+		}
+	}
+
 	// Σbi = Σ (2**i * b[i])
 	Σbi := frontend.Variable(0)
 
 	c := big.NewInt(1)
 
 	for i := 0; i < len(digits); i++ {
-		// TODO do we want to keep this AssertIsBoolean here?
-		api.AssertIsBoolean(digits[i])            // ensures the digits are actual bits
+		if !cfg.UnconstrainedInputs {
+			api.AssertIsBoolean(digits[i]) // ensures the digits are actual bits
+		}
+
 		Σbi = api.Add(Σbi, api.Mul(c, digits[i])) // no constraint is recorded
 		c.Lsh(c, 1)
 	}
@@ -51,9 +63,9 @@ func fromBinary(api frontend.API, digits []frontend.Variable) frontend.Variable 
 
 func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
-	cfg := BaseConversionConfig{
-		NbDigits:      api.Compiler().Curve().Info().Fr.Bits,
-		Unconstrained: false,
+	cfg := baseConversionConfig{
+		NbDigits:             api.Compiler().Curve().Info().Fr.Bits,
+		UnconstrainedOutputs: false,
 	}
 
 	for _, o := range opts {
@@ -83,7 +95,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	for i := 0; i < cfg.NbDigits; i++ {
 		Σbi = api.Add(Σbi, api.Mul(bits[i], c))
 		c.Lsh(c, 1)
-		if !cfg.Unconstrained {
+		if !cfg.UnconstrainedOutputs {
 			api.AssertIsBoolean(bits[i])
 		}
 	}

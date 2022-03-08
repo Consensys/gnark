@@ -9,23 +9,33 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// NTrits returns the first trits of the input. The number of returned trits is
+// defined by the length of the results slice.
 var NTrits = hint.NewStaticHint(nTrits)
 
 func init() {
 	hint.Register(NTrits)
 }
 
-// ToTernary is an alias of ToBase(... Ternary ...)
+// ToTernary is an alias of ToBase(api, Ternary, v, opts...)
 func ToTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	return ToBase(api, Ternary, v, opts...)
 }
 
-// FromTernary is an alias of FromBase(... Ternary ...)
-func FromTernary(api frontend.API, digits ...frontend.Variable) frontend.Variable {
-	return FromBase(api, Ternary, digits...)
+// FromTernary is an alias of FromBase(api, Ternary, digits)
+func FromTernary(api frontend.API, digits []frontend.Variable, opts ...BaseConversionOption) frontend.Variable {
+	return FromBase(api, Ternary, digits, opts...)
 }
 
-func fromTernary(api frontend.API, digits []frontend.Variable) frontend.Variable {
+func fromTernary(api frontend.API, digits []frontend.Variable, opts ...BaseConversionOption) frontend.Variable {
+	cfg := baseConversionConfig{}
+
+	for _, o := range opts {
+		if err := o(&cfg); err != nil {
+			panic(err)
+		}
+	}
+
 	// Σti = Σ (3**i * b[i])
 	Σti := frontend.Variable(0)
 
@@ -33,7 +43,10 @@ func fromTernary(api frontend.API, digits []frontend.Variable) frontend.Variable
 	base := big.NewInt(3)
 
 	for i := 0; i < len(digits); i++ {
-		// TODO ensures the digits are actual trits
+		if !cfg.UnconstrainedInputs {
+			// TODO ensures the digits are actual trits
+			AssertIsTrit(api, digits[i])
+		}
 		Σti = api.Add(Σti, api.Mul(c, digits[i])) // no constraint is recorded
 		c.Mul(c, base)
 	}
@@ -45,9 +58,8 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	// parse options
 	nbBits := api.Compiler().Curve().Info().Fr.Bits
 	nbTrits := int(float64(nbBits)/math.Log2(3.0)) + 1
-	cfg := BaseConversionConfig{
-		NbDigits:      nbTrits,
-		Unconstrained: false,
+	cfg := baseConversionConfig{
+		NbDigits: nbTrits,
 	}
 
 	for _, o := range opts {
@@ -85,7 +97,7 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	for i := 0; i < cfg.NbDigits; i++ {
 		Σti = api.Add(Σti, api.Mul(trits[i], c))
 		c.Mul(c, b)
-		if !cfg.Unconstrained {
+		if !cfg.UnconstrainedOutputs {
 			AssertIsTrit(api, trits[i])
 		}
 	}
@@ -96,7 +108,7 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	return trits
 }
 
-// AssertIsTrit constrain digit to be 0, 1 or 2
+// AssertIsTrit constrains digit to be 0, 1 or 2.
 func AssertIsTrit(api frontend.API, v frontend.Variable) {
 	if c, ok := api.Compiler().ConstantValue(v); ok {
 		if c.IsUint64() && c.Uint64() <= 2 {

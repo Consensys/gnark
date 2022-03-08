@@ -15,7 +15,7 @@ type toBinaryCircuit struct {
 
 func (c *toBinaryCircuit) Define(api frontend.API) error {
 	// binary decomposition
-	nA := bits.FromBinary(api, c.B0, c.B1, c.B2)
+	nA := bits.FromBinary(api, []frontend.Variable{c.B0, c.B1, c.B2})
 
 	api.AssertIsEqual(nA, c.A)
 
@@ -40,7 +40,7 @@ type toTernaryCircuit struct {
 
 func (c *toTernaryCircuit) Define(api frontend.API) error {
 	// ternary decomposition
-	nA := bits.FromTernary(api, c.T0, c.T1, c.T2)
+	nA := bits.FromTernary(api, []frontend.Variable{c.T0, c.T1, c.T2})
 
 	api.AssertIsEqual(nA, c.A)
 
