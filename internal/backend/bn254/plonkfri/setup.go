@@ -72,19 +72,23 @@ type ProvingKey struct {
 	Vk *VerifyingKey
 
 	// qr,ql,qm,qo and Qk incomplete (Ls=Lagrange basis big domain, L=Lagrange basis small domain, C=canonical basis)
-	LsQl, LsQr, LsQm, LsQo, LQkIncomplete []fr.Element
-	CQl, CQr, CQm, CQo, CQkIncomplete     []fr.Element
+	EvaluationQlDomainBigBitReversed  []fr.Element
+	EvaluationQrDomainBigBitReversed  []fr.Element
+	EvaluationQmDomainBigBitReversed  []fr.Element
+	EvaluationQoDomainBigBitReversed  []fr.Element
+	LQkIncompleteDomainSmall          []fr.Element
+	CQl, CQr, CQm, CQo, CQkIncomplete []fr.Element
 
 	// commitment scheme
 	Cscheme MockCommitment
 
 	// Domains used for the FFTs
-	DomainSmall, DomainBig fft.Domain
+	Domain [2]fft.Domain
 
 	// s1, s2, s3 (L=Lagrange basis small domain, C=canonical basis, Ls=Lagrange Shifted big domain)
-	LId                 []fr.Element
-	LsId1, LsId2, LsId3 []fr.Element
-	LsS1, LsS2, LsS3    []fr.Element
+	LId                                                                    []fr.Element
+	EvaluationId1BigDomain, EvaluationId2BigDomain, EvaluationId3BigDomain []fr.Element
+	EvaluationS1BigDomain, EvaluationS2BigDomain, EvaluationS3BigDomain    []fr.Element
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int64
@@ -102,6 +106,9 @@ type VerifyingKey struct {
 	SizeInv           fr.Element
 	Generator         fr.Element
 	NbPublicVariables uint64
+
+	// cosetShift generator of the coset on the small domain
+	CosetShift fr.Element
 
 	// commitment scheme
 	Cscheme MockCommitment
@@ -130,80 +137,81 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 
 	// fft domains
 	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
-	pk.DomainSmall = *fft.NewDomain(sizeSystem, 0, false)
+	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
 	// except when n<6.
 	if sizeSystem < 6 {
-		pk.DomainBig = *fft.NewDomain(8*sizeSystem, 1, false)
+		pk.Domain[1] = *fft.NewDomain(8 * sizeSystem)
 	} else {
-		pk.DomainBig = *fft.NewDomain(4*sizeSystem, 1, false)
+		pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
 	}
+	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
-	vk.Size = pk.DomainSmall.Cardinality
+	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.DomainSmall.Generator)
+	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
-	pk.LsQl = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsQr = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsQm = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsQo = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LQkIncomplete = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQkIncomplete = make([]fr.Element, pk.DomainSmall.Cardinality)
+	pk.EvaluationQlDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationQrDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationQmDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationQoDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.LQkIncompleteDomainSmall = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQkIncomplete = make([]fr.Element, pk.Domain[0].Cardinality)
 
 	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
-		pk.LsQl[i].SetOne().Neg(&pk.LsQl[i])
-		pk.LsQr[i].SetZero()
-		pk.LsQm[i].SetZero()
-		pk.LsQo[i].SetZero()
-		pk.LQkIncomplete[i].SetZero()                 // --> to be completed by the prover
-		pk.CQkIncomplete[i].Set(&pk.LQkIncomplete[i]) // --> to be completed by the prover
+		pk.EvaluationQlDomainBigBitReversed[i].SetOne().Neg(&pk.EvaluationQlDomainBigBitReversed[i])
+		pk.EvaluationQrDomainBigBitReversed[i].SetZero()
+		pk.EvaluationQmDomainBigBitReversed[i].SetZero()
+		pk.EvaluationQoDomainBigBitReversed[i].SetZero()
+		pk.LQkIncompleteDomainSmall[i].SetZero()                 // --> to be completed by the prover
+		pk.CQkIncomplete[i].Set(&pk.LQkIncompleteDomainSmall[i]) // --> to be completed by the prover
 	}
 	offset := spr.NbPublicVariables
 	for i := 0; i < nbConstraints; i++ { // constraints
 
-		pk.LsQl[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		pk.LsQr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		pk.LsQm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&pk.LsQm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		pk.LsQo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		pk.LQkIncomplete[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
-		pk.CQkIncomplete[offset+i].Set(&pk.LQkIncomplete[offset+i])
+		pk.EvaluationQlDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		pk.EvaluationQrDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		pk.EvaluationQmDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&pk.EvaluationQmDomainBigBitReversed[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		pk.EvaluationQoDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
+		pk.LQkIncompleteDomainSmall[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+		pk.CQkIncomplete[offset+i].Set(&pk.LQkIncompleteDomainSmall[offset+i])
 	}
 
-	pk.DomainSmall.FFTInverse(pk.LsQl[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsQr[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsQm[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsQo[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.CQkIncomplete, fft.DIF, 0)
-	fft.BitReverse(pk.LsQl[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsQr[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsQm[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsQo[:pk.DomainSmall.Cardinality])
+	pk.Domain[0].FFTInverse(pk.EvaluationQlDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationQrDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationQmDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationQoDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.CQkIncomplete, fft.DIF)
+	fft.BitReverse(pk.EvaluationQlDomainBigBitReversed[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationQrDomainBigBitReversed[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationQmDomainBigBitReversed[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationQoDomainBigBitReversed[:pk.Domain[0].Cardinality])
 	fft.BitReverse(pk.CQkIncomplete)
 
 	// Commit to the polynomials to set up the verifying key
-	pk.CQl = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQr = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQm = make([]fr.Element, pk.DomainSmall.Cardinality)
-	pk.CQo = make([]fr.Element, pk.DomainSmall.Cardinality)
-	copy(pk.CQl, pk.LsQl)
-	copy(pk.CQr, pk.LsQr)
-	copy(pk.CQm, pk.LsQm)
-	copy(pk.CQo, pk.LsQo)
+	pk.CQl = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQr = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQm = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.CQo = make([]fr.Element, pk.Domain[0].Cardinality)
+	copy(pk.CQl, pk.EvaluationQlDomainBigBitReversed)
+	copy(pk.CQr, pk.EvaluationQrDomainBigBitReversed)
+	copy(pk.CQm, pk.EvaluationQmDomainBigBitReversed)
+	copy(pk.CQo, pk.EvaluationQoDomainBigBitReversed)
 	vk.Ql = vk.Cscheme.Commit(pk.CQl)
 	vk.Qr = vk.Cscheme.Commit(pk.CQr)
 	vk.Qm = vk.Cscheme.Commit(pk.CQm)
 	vk.Qo = vk.Cscheme.Commit(pk.CQo)
 	vk.QkIncomplete = vk.Cscheme.Commit(pk.CQkIncomplete)
 
-	pk.DomainBig.FFT(pk.LsQl, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsQr, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsQm, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsQo, fft.DIF, 1)
+	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationQmDomainBigBitReversed, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationQoDomainBigBitReversed, fft.DIF, true)
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &pk)
@@ -230,7 +238,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
-	sizeSolution := int(pk.DomainSmall.Cardinality)
+	sizeSolution := int(pk.Domain[0].Cardinality)
 
 	// init permutation
 	pk.Permutation = make([]int64, 3*sizeSolution)
@@ -286,69 +294,76 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
 func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) {
 
-	nbElmt := int(pk.DomainSmall.Cardinality)
+	nbElmt := int(pk.Domain[0].Cardinality)
 
 	// sID = [0,..,n-1,n,..2n-1,2n,..,3n-1]
-	pk.LId = make([]fr.Element, 3*nbElmt)
-	pk.LId[0].SetZero()
-	pk.LId[nbElmt].SetUint64(pk.DomainSmall.Cardinality)
-	pk.LId[2*nbElmt].Double(&pk.LId[nbElmt])
-
-	var one fr.Element
-	one.SetOne()
-	for i := 1; i < nbElmt; i++ {
-		pk.LId[i].Add(&pk.LId[i-1], &one)
-		pk.LId[i+nbElmt].Add(&pk.LId[nbElmt+i-1], &one)
-		pk.LId[i+2*nbElmt].Add(&pk.LId[2*nbElmt+i-1], &one)
-	}
+	pk.LId = getIDSmallDomain(&pk.Domain[0])
 
 	// canonical form of S1, S2, S3
-	pk.LsS1 = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsS2 = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsS3 = make([]fr.Element, pk.DomainBig.Cardinality)
+	pk.EvaluationS1BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationS2BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationS3BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
 	for i := 0; i < nbElmt; i++ {
-		pk.LsS1[i].Set(&pk.LId[pk.Permutation[i]])
-		pk.LsS2[i].Set(&pk.LId[pk.Permutation[nbElmt+i]])
-		pk.LsS3[i].Set(&pk.LId[pk.Permutation[2*nbElmt+i]])
+		pk.EvaluationS1BigDomain[i].Set(&pk.LId[pk.Permutation[i]])
+		pk.EvaluationS2BigDomain[i].Set(&pk.LId[pk.Permutation[nbElmt+i]])
+		pk.EvaluationS3BigDomain[i].Set(&pk.LId[pk.Permutation[2*nbElmt+i]])
 	}
 
-	// Evaluations of Sid1, Sid2, Sid3 on cosets of DomainBig
-	pk.LsId1 = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsId2 = make([]fr.Element, pk.DomainBig.Cardinality)
-	pk.LsId3 = make([]fr.Element, pk.DomainBig.Cardinality)
-	copy(pk.LsId1, pk.LId[:nbElmt])
-	copy(pk.LsId2, pk.LId[nbElmt:2*nbElmt])
-	copy(pk.LsId3, pk.LId[2*nbElmt:])
-	pk.DomainSmall.FFTInverse(pk.LsId1[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsId2[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsId3[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	fft.BitReverse(pk.LsId1[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsId2[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsId3[:pk.DomainSmall.Cardinality])
-	vk.Id[0] = vk.Cscheme.Commit(pk.LsId1)
-	vk.Id[1] = vk.Cscheme.Commit(pk.LsId2)
-	vk.Id[2] = vk.Cscheme.Commit(pk.LsId3)
-	pk.DomainBig.FFT(pk.LsId1, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsId2, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsId3, fft.DIF, 1)
+	// Evaluations of Sid1, Sid2, Sid3 on cosets of Domain[1]
+	pk.EvaluationId1BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationId2BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
+	pk.EvaluationId3BigDomain = make([]fr.Element, pk.Domain[1].Cardinality)
+	copy(pk.EvaluationId1BigDomain, pk.LId[:nbElmt])
+	copy(pk.EvaluationId2BigDomain, pk.LId[nbElmt:2*nbElmt])
+	copy(pk.EvaluationId3BigDomain, pk.LId[2*nbElmt:])
+	pk.Domain[0].FFTInverse(pk.EvaluationId1BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationId2BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationId3BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	fft.BitReverse(pk.EvaluationId1BigDomain[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationId2BigDomain[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationId3BigDomain[:pk.Domain[0].Cardinality])
+	vk.Id[0] = vk.Cscheme.Commit(pk.EvaluationId1BigDomain)
+	vk.Id[1] = vk.Cscheme.Commit(pk.EvaluationId2BigDomain)
+	vk.Id[2] = vk.Cscheme.Commit(pk.EvaluationId3BigDomain)
+	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, true)
 
-	pk.DomainSmall.FFTInverse(pk.LsS1[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsS2[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	pk.DomainSmall.FFTInverse(pk.LsS3[:pk.DomainSmall.Cardinality], fft.DIF, 0)
-	fft.BitReverse(pk.LsS1[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsS2[:pk.DomainSmall.Cardinality])
-	fft.BitReverse(pk.LsS3[:pk.DomainSmall.Cardinality])
+	pk.Domain[0].FFTInverse(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	pk.Domain[0].FFTInverse(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
+	fft.BitReverse(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	fft.BitReverse(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
 
 	// commit S1, S2, S3
-	vk.S[0] = vk.Cscheme.Commit(pk.LsS1[:pk.DomainSmall.Cardinality])
-	vk.S[1] = vk.Cscheme.Commit(pk.LsS2[:pk.DomainSmall.Cardinality])
-	vk.S[2] = vk.Cscheme.Commit(pk.LsS3[:pk.DomainSmall.Cardinality])
+	vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
 
 	// compute Lagrange shifted forms of S1, S2, S3 (bit reversed)
-	pk.DomainBig.FFT(pk.LsS1, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsS2, fft.DIF, 1)
-	pk.DomainBig.FFT(pk.LsS3, fft.DIF, 1)
+	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, true)
 
+}
+
+// getIDSmallDomain returns the Lagrange form of ID on the small domain
+func getIDSmallDomain(domain *fft.Domain) []fr.Element {
+
+	res := make([]fr.Element, 3*domain.Cardinality)
+
+	res[0].SetOne()
+	res[domain.Cardinality].Set(&domain.FrMultiplicativeGen)
+	res[2*domain.Cardinality].Square(&domain.FrMultiplicativeGen)
+
+	for i := uint64(1); i < domain.Cardinality; i++ {
+		res[i].Mul(&res[i-1], &domain.Generator)
+		res[domain.Cardinality+i].Mul(&res[domain.Cardinality+i-1], &domain.Generator)
+		res[2*domain.Cardinality+i].Mul(&res[2*domain.Cardinality+i-1], &domain.Generator)
+	}
+
+	return res
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
