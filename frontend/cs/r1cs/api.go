@@ -406,16 +406,25 @@ func (system *r1cs) And(_a, _b frontend.Variable) frontend.Variable {
 func (system *r1cs) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i0, i1, i2)
-	b := vars[0]
+	cond := vars[0]
 
-	// ensures that b is boolean
-	system.AssertIsBoolean(b)
+	// ensures that cond is boolean
+	system.AssertIsBoolean(cond)
+
+	if c, ok := system.ConstantValue(cond); ok {
+		// condition is a constant return i1 if true, i2 if false
+		if c.Uint64() == 1 {
+			return vars[1]
+		}
+		return vars[2]
+	}
+
 	n1, ok1 := system.ConstantValue(vars[1])
 	n2, ok2 := system.ConstantValue(vars[2])
 
 	if ok1 && ok2 {
 		diff := n1.Sub(n1, n2)
-		res := system.Mul(b, diff)     // no constraint is recorded
+		res := system.Mul(cond, diff)  // no constraint is recorded
 		res = system.Add(res, vars[2]) // no constraint is recorded
 		return res
 	}
@@ -429,7 +438,7 @@ func (system *r1cs) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 	}
 
 	v := system.Sub(vars[1], vars[2]) // no constraint is recorded
-	w := system.Mul(b, v)
+	w := system.Mul(cond, v)
 	return system.Add(w, vars[2])
 
 }
@@ -446,6 +455,25 @@ func (system *r1cs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 	// are already constrained.
 	system.AssertIsBoolean(s0)
 	system.AssertIsBoolean(s1)
+
+	c0, b0IsConstant := system.ConstantValue(s0)
+	c1, b1IsConstant := system.ConstantValue(s1)
+
+	if b0IsConstant && b1IsConstant {
+		b0 := c0.Uint64() == 1
+		b1 := c1.Uint64() == 1
+
+		if !b0 && !b1 {
+			return in0
+		}
+		if b0 && !b1 {
+			return in1
+		}
+		if b0 && b1 {
+			return in3
+		}
+		return in2
+	}
 
 	// two-bit lookup for the general case can be done with three constraints as
 	// following:
