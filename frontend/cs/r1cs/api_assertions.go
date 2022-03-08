@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
@@ -92,7 +93,7 @@ func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 
 	nbBits := system.BitLen()
 
-	aBits := system.toBinary(a, nbBits, true)
+	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 	boundBits := system.ToBinary(bound, nbBits)
 
 	p := make([]frontend.Variable, nbBits+1)
@@ -145,7 +146,7 @@ func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)
-	aBits := system.toBinary(a, nbBits, true)
+	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 
 	// t trailing bits in the bound
 	t := 0

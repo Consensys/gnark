@@ -16,6 +16,7 @@ package exponentiate
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Circuit y == x**e
@@ -38,7 +39,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 	// specify constraints
 	output := frontend.Variable(1)
-	bits := api.ToBinary(circuit.E, bitSize)
+	bits := bits.ToBinary(api, circuit.E, bits.WithNbDigits(bitSize))
 
 	for i := 0; i < len(bits); i++ {
 		if i != 0 {
