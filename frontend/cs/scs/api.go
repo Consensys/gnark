@@ -367,6 +367,25 @@ func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Var
 	system.AssertIsBoolean(b0)
 	system.AssertIsBoolean(b1)
 
+	c0, b0IsConstant := system.ConstantValue(b0)
+	c1, b1IsConstant := system.ConstantValue(b1)
+
+	if b0IsConstant && b1IsConstant {
+		b0 := c0.Uint64() == 1
+		b1 := c1.Uint64() == 1
+
+		if !b0 && !b1 {
+			return i0
+		}
+		if b0 && !b1 {
+			return i1
+		}
+		if b0 && b1 {
+			return i3
+		}
+		return i2
+	}
+
 	// two-bit lookup for the general case can be done with three constraints as
 	// following:
 	//    (1) (in3 - in2 - in1 + in0) * s1 = tmp1 - in1 + in0
