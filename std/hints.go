@@ -9,5 +9,12 @@ import (
 
 // GetHints return std hints that are always injected in gnark solvers
 func GetHints() []hint.Function {
-	return []hint.Function{sw_bls24315.DecomposeScalar, sw_bls12377.DecomposeScalar, bits.NTrits, bits.NNAF}
+	return []hint.Function{
+		sw_bls24315.DecomposeScalar,
+		sw_bls12377.DecomposeScalar,
+		bits.NTrits,
+		bits.NNAF,
+		bits.IthBit,
+		bits.NBits,
+	}
 }

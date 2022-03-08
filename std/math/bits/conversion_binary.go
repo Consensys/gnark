@@ -3,9 +3,25 @@ package bits
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
+
+var (
+	// IthBit returns the i-tb bit the input. The function expects exactly two
+	// integer inputs i and n, takes the little-endian bit representation of n and
+	// returns its i-th bit.
+	IthBit = hint.NewStaticHint(ithBit)
+
+	// NBits returns the n first bits of the input. Expects one argument: n.
+	NBits = hint.NewStaticHint(nBits)
+)
+
+func init() {
+	hint.Register(IthBit)
+	hint.Register(NBits)
+}
 
 // ToBinary is an alias of ToBase(... Binary ...)
 func ToBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
@@ -57,7 +73,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 
 	c := big.NewInt(1)
 
-	bits, err := api.Compiler().NewHint(hint.NBits, cfg.NbDigits, v)
+	bits, err := api.Compiler().NewHint(NBits, cfg.NbDigits, v)
 	if err != nil {
 		panic(err)
 	}
@@ -76,4 +92,23 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	api.AssertIsEqual(Σbi, v)
 
 	return bits
+}
+
+func ithBit(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+	result := results[0]
+	if !inputs[1].IsUint64() {
+		result.SetUint64(0)
+		return nil
+	}
+
+	result.SetUint64(uint64(inputs[0].Bit(int(inputs[1].Uint64()))))
+	return nil
+}
+
+func nBits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+	n := inputs[0]
+	for i := 0; i < len(results); i++ {
+		results[i].SetUint64(uint64(n.Bit(i)))
+	}
+	return nil
 }
