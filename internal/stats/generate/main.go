@@ -34,7 +34,7 @@ func main() {
 	// for each circuit, on each curve, on each backend
 	// compare with reference stats
 	var wg sync.WaitGroup
-	for name, c := range stats.AllCircuits {
+	for name, c := range stats.Snippets {
 		if r != nil && !r.MatchString(name) {
 			continue
 		}
@@ -43,7 +43,7 @@ func main() {
 			defer wg.Done()
 			for _, curve := range circuit.Curves {
 				for _, backendID := range backend.Implemented() {
-					cs, err := stats.NewCircuitStats(curve, backendID, circuit.Circuit)
+					cs, err := stats.NewSnippetStats(curve, backendID, circuit.Circuit)
 					if err != nil {
 						log.Fatalf("building stats for circuit %s %v", name, err)
 					}
@@ -56,7 +56,7 @@ func main() {
 
 	if *fVerbose {
 		fmt.Println("id,curve,backend,nbConstraints,nbWires")
-		for name, c := range stats.AllCircuits {
+		for name, c := range stats.Snippets {
 			if r != nil && !r.MatchString(name) {
 				continue
 			}

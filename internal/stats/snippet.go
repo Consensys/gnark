@@ -1,6 +1,8 @@
 package stats
 
 import (
+	"math"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
@@ -14,16 +16,33 @@ import (
 type snippet func(frontend.API, frontend.Variable)
 
 func registerSnippet(name string, snippet snippet, curves ...ecc.ID) {
-	if _, ok := AllCircuits[name]; ok {
+	if _, ok := Snippets[name]; ok {
 		panic("circuit " + name + " already registered")
 	}
 	if len(curves) == 0 {
 		curves = ecc.Implemented()
 	}
-	AllCircuits[name] = Circuit{makeSnippetCircuit(snippet), curves}
+	Snippets[name] = Circuit{makeSnippetCircuit(snippet), curves}
 }
 
 func init() {
+	// add api snippets
+	registerSnippet("api/IsZero", func(api frontend.API, v frontend.Variable) {
+		_ = api.IsZero(v)
+	})
+
+	registerSnippet("api/Lookup2", func(api frontend.API, v frontend.Variable) {
+		_ = api.Lookup2(v, v, v, v, v, v)
+	})
+
+	registerSnippet("api/AssertIsLessOrEqual", func(api frontend.API, v frontend.Variable) {
+		api.AssertIsLessOrEqual(v, v)
+	})
+	registerSnippet("api/AssertIsLessOrEqual/constant_bound_64_bits", func(api frontend.API, v frontend.Variable) {
+		bound := uint64(math.MaxUint64)
+		api.AssertIsLessOrEqual(v, bound)
+	})
+
 	// add std snippets
 	registerSnippet("math/bits.ToBinary", func(api frontend.API, v frontend.Variable) {
 		_ = bits.ToBinary(api, v)

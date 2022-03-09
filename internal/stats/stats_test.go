@@ -17,7 +17,7 @@ func TestCircuitStatistics(t *testing.T) {
 
 	// for each circuit, on each curve, on each backend
 	// compare with reference stats
-	for name, c := range AllCircuits {
+	for name, c := range Snippets {
 		// check that we have it.
 		ref, ok := reference.Stats[name]
 		if !ok {
@@ -34,7 +34,7 @@ func TestCircuitStatistics(t *testing.T) {
 				assert.Run(func(assert *test.Assert) {
 					rs := ref[backendID][curve]
 
-					s, err := NewCircuitStats(curve, backendID, circuit)
+					s, err := NewSnippetStats(curve, backendID, circuit)
 					assert.NoError(err, "building stats for circuit "+name)
 
 					if s != rs {

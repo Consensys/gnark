@@ -13,11 +13,11 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
-var AllCircuits = make(map[string]Circuit)
+var Snippets = make(map[string]Circuit)
 
 func NewGlobalStats() *globalStats {
 	return &globalStats{
-		Stats: make(map[string][backend.PLONK + 1][ecc.BW6_633 + 1]circuitStats),
+		Stats: make(map[string][backend.PLONK + 1][ecc.BW6_633 + 1]snippetStats),
 	}
 }
 
@@ -45,7 +45,7 @@ func (s *globalStats) Load(path string) error {
 	return err
 }
 
-func NewCircuitStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circuit) (circuitStats, error) {
+func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circuit) (snippetStats, error) {
 	var newCompiler frontend.NewBuilder
 
 	switch backendID {
@@ -59,17 +59,17 @@ func NewCircuitStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 
 	ccs, err := frontend.Compile(curve, newCompiler, circuit)
 	if err != nil {
-		return circuitStats{}, err
+		return snippetStats{}, err
 	}
 
 	// ensure we didn't introduce regressions that make circuits less efficient
 	nbConstraints := ccs.GetNbConstraints()
 	internal, _, _ := ccs.GetNbVariables()
 
-	return circuitStats{nbConstraints, internal}, nil
+	return snippetStats{nbConstraints, internal}, nil
 }
 
-func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs circuitStats, circuitName string) {
+func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs snippetStats, circuitName string) {
 	s.Lock()
 	defer s.Unlock()
 	rs := s.Stats[circuitName]
@@ -84,13 +84,13 @@ type Circuit struct {
 
 type globalStats struct {
 	sync.RWMutex
-	Stats map[string][backend.PLONK + 1][ecc.BW6_633 + 1]circuitStats
+	Stats map[string][backend.PLONK + 1][ecc.BW6_633 + 1]snippetStats
 }
 
-type circuitStats struct {
+type snippetStats struct {
 	NbConstraints, NbInternalWires int
 }
 
-func (cs circuitStats) String() string {
+func (cs snippetStats) String() string {
 	return fmt.Sprintf("nbConstraints: %d, nbInternalWires: %d", cs.NbConstraints, cs.NbInternalWires)
 }
