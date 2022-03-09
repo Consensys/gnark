@@ -26,20 +26,23 @@ func (s *globalStats) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	defer fStats.Close()
 
 	encoder := gob.NewEncoder(fStats)
-	return encoder.Encode(s.Stats)
+	err = encoder.Encode(s.Stats)
+	_ = fStats.Close()
+	return err
 }
 
 func (s *globalStats) Load(path string) error {
-	fStats, err := os.Open(path)
+	fStats, err := os.Open(path) //#nosec G304 -- ignoring internal package
 	if err != nil {
 		return err
 	}
-	defer fStats.Close()
+
 	decoder := gob.NewDecoder(fStats)
-	return decoder.Decode(&s.Stats)
+	err = decoder.Decode(&s.Stats)
+	_ = fStats.Close()
+	return err
 }
 
 func NewCircuitStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circuit) (circuitStats, error) {
