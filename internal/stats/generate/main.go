@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"regexp"
 	"sync"
 
 	"github.com/consensys/gnark/backend"
@@ -13,12 +14,18 @@ import (
 var (
 	fSave    = flag.Bool("s", false, "save new stats in file ")
 	fVerbose = flag.Bool("v", false, "verbose")
+	fFilter  = flag.String("run", "", "filter runs with regexp; example 'pairing*'")
 )
 
 func main() {
 	flag.Parse()
 	if !*fSave && !*fVerbose {
 		log.Fatal("no flag defined (-s or -v)")
+	}
+
+	var r *regexp.Regexp
+	if *fFilter != "" {
+		r = regexp.MustCompile(*fFilter)
 	}
 
 	s := stats.NewGlobalStats()
@@ -28,6 +35,9 @@ func main() {
 	// compare with reference stats
 	var wg sync.WaitGroup
 	for name, c := range stats.AllCircuits {
+		if r != nil && !r.MatchString(name) {
+			continue
+		}
 		wg.Add(1)
 		go func(name string, circuit stats.Circuit) {
 			defer wg.Done()
@@ -47,6 +57,9 @@ func main() {
 	if *fVerbose {
 		fmt.Println("id,curve,backend,nbConstraints,nbWires")
 		for name, c := range stats.AllCircuits {
+			if r != nil && !r.MatchString(name) {
+				continue
+			}
 			ss := s.Stats[name]
 			for _, curve := range c.Curves {
 				for _, backendID := range backend.Implemented() {

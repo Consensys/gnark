@@ -66,7 +66,7 @@ func init() {
 
 		var resMillerLoop fields_bls12377.E12
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{dummyG1, dummyG1, dummyG1}, [3]sw_bls12377.G2Affine{dummyG2, dummyG2, dummyG2}, &resMillerLoop, pairingInfo)
+		sw_bls12377.MillerLoop(api, dummyG1, dummyG2, &resMillerLoop, pairingInfo)
 
 		// performs the final expo
 		var resPairing fields_bls12377.E12
@@ -93,7 +93,7 @@ func init() {
 
 		var resMillerLoop fields_bls24315.E24
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		sw_bls24315.TripleMillerLoop(api, [3]sw_bls24315.G1Affine{dummyG1, dummyG1, dummyG1}, [3]sw_bls24315.G2Affine{dummyG2, dummyG2, dummyG2}, &resMillerLoop, pairingInfo)
+		sw_bls24315.MillerLoop(api, dummyG1, dummyG2, &resMillerLoop, pairingInfo)
 
 		// performs the final expo
 		var resPairing fields_bls24315.E24
