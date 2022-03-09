@@ -2,6 +2,7 @@ package stats
 
 import (
 	"math"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -13,19 +14,29 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 )
 
+var (
+	initOnce sync.Once
+	snippets = make(map[string]Circuit)
+)
+
+func GetSnippets() map[string]Circuit {
+	initOnce.Do(initSnippets)
+	return snippets
+}
+
 type snippet func(frontend.API, frontend.Variable)
 
 func registerSnippet(name string, snippet snippet, curves ...ecc.ID) {
-	if _, ok := Snippets[name]; ok {
+	if _, ok := snippets[name]; ok {
 		panic("circuit " + name + " already registered")
 	}
 	if len(curves) == 0 {
 		curves = ecc.Implemented()
 	}
-	Snippets[name] = Circuit{makeSnippetCircuit(snippet), curves}
+	snippets[name] = Circuit{makeSnippetCircuit(snippet), curves}
 }
 
-func init() {
+func initSnippets() {
 	// add api snippets
 	registerSnippet("api/IsZero", func(api frontend.API, v frontend.Variable) {
 		_ = api.IsZero(v)

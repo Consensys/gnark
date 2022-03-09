@@ -13,8 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
-var Snippets = make(map[string]Circuit)
-
 func NewGlobalStats() *globalStats {
 	return &globalStats{
 		Stats: make(map[string][backend.PLONK + 1][ecc.BW6_633 + 1]snippetStats),

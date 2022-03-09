@@ -12,16 +12,12 @@ import (
 )
 
 var (
-	fSave    = flag.Bool("s", false, "save new stats in file ")
-	fVerbose = flag.Bool("v", false, "verbose")
-	fFilter  = flag.String("run", "", "filter runs with regexp; example 'pairing*'")
+	fSave   = flag.Bool("s", false, "save new stats in file ")
+	fFilter = flag.String("run", "", "filter runs with regexp; example 'pairing*'")
 )
 
 func main() {
 	flag.Parse()
-	if !*fSave && !*fVerbose {
-		log.Fatal("no flag defined (-s or -v)")
-	}
 
 	var r *regexp.Regexp
 	if *fFilter != "" {
@@ -33,8 +29,9 @@ func main() {
 	// load reference objects
 	// for each circuit, on each curve, on each backend
 	// compare with reference stats
+	snippets := stats.GetSnippets()
 	var wg sync.WaitGroup
-	for name, c := range stats.Snippets {
+	for name, c := range snippets {
 		if r != nil && !r.MatchString(name) {
 			continue
 		}
@@ -54,18 +51,16 @@ func main() {
 	}
 	wg.Wait()
 
-	if *fVerbose {
-		fmt.Println("id,curve,backend,nbConstraints,nbWires")
-		for name, c := range stats.Snippets {
-			if r != nil && !r.MatchString(name) {
-				continue
-			}
-			ss := s.Stats[name]
-			for _, curve := range c.Curves {
-				for _, backendID := range backend.Implemented() {
-					cs := ss[backendID][curve]
-					fmt.Printf("%s,%s,%s,%d,%d\n", name, curve, backendID, cs.NbConstraints, cs.NbInternalWires)
-				}
+	fmt.Println("id,curve,backend,nbConstraints,nbWires")
+	for name, c := range snippets {
+		if r != nil && !r.MatchString(name) {
+			continue
+		}
+		ss := s.Stats[name]
+		for _, curve := range c.Curves {
+			for _, backendID := range backend.Implemented() {
+				cs := ss[backendID][curve]
+				fmt.Printf("%s,%s,%s,%d,%d\n", name, curve, backendID, cs.NbConstraints, cs.NbInternalWires)
 			}
 		}
 	}

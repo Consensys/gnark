@@ -15,9 +15,10 @@ func TestCircuitStatistics(t *testing.T) {
 	reference := NewGlobalStats()
 	assert.NoError(reference.Load(refPath))
 
+	snippets := GetSnippets()
 	// for each circuit, on each curve, on each backend
 	// compare with reference stats
-	for name, c := range Snippets {
+	for name, c := range snippets {
 		// check that we have it.
 		ref, ok := reference.Stats[name]
 		if !ok {
