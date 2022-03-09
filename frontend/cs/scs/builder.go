@@ -112,9 +112,6 @@ func (system *scs) newInternalVariable() compiled.Term {
 
 // AddPublicVariable creates a new Public Variable
 func (system *scs) AddPublicVariable(name string) frontend.Variable {
-	if system.Schema != nil {
-		panic("do not call AddPublicVariable in circuit.Define()")
-	}
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
@@ -122,9 +119,6 @@ func (system *scs) AddPublicVariable(name string) frontend.Variable {
 
 // AddSecretVariable creates a new Secret Variable
 func (system *scs) AddSecretVariable(name string) frontend.Variable {
-	if system.Schema != nil {
-		panic("do not call AddSecretVariable in circuit.Define()")
-	}
 	idx := len(system.Secret)
 	system.Secret = append(system.Secret, name)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
