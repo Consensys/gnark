@@ -88,7 +88,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	s, err = schema.Parse(circuit, tVariable, handler)
+	_, err = schema.Parse(circuit, tVariable, handler)
 	if err != nil {
 		return err
 	}
