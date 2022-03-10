@@ -28,7 +28,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newCompiler NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
@@ -37,21 +37,21 @@ func Compile(curveID ecc.ID, newCompiler NewBuilder, circuit Circuit, opts ...Co
 		}
 	}
 
-	// instantiate new compiler
-	compiler, err := newCompiler(curveID, opt)
+	// instantiate new builder
+	builder, err := newBuilder(curveID, opt)
 	if err != nil {
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
-	if err = parseCircuit(compiler, circuit); err != nil {
+	if err = parseCircuit(builder, circuit); err != nil {
 		return nil, fmt.Errorf("parse circuit: %w", err)
 
 	}
 
 	// compile the circuit into its final form
-	return compiler.Compile()
+	return builder.Compile()
 }
 
 func parseCircuit(builder Builder, circuit Circuit) (err error) {
@@ -59,6 +59,15 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if reflect.ValueOf(circuit).Kind() != reflect.Ptr {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
+
+	// parse the schema, to count the number of public and secret variables
+	s, err := schema.Parse(circuit, tVariable, nil)
+	if err != nil {
+		return err
+	}
+
+	// this not only set the schema, but sets the wire offsets for public, secret and internal wires
+	builder.SetSchema(s)
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
@@ -79,11 +88,10 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	s, err := schema.Parse(circuit, tVariable, handler)
+	_, err = schema.Parse(circuit, tVariable, handler)
 	if err != nil {
 		return err
 	}
-	builder.SetSchema(s)
 
 	// recover from panics to print user-friendlier messages
 	defer func() {
