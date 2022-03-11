@@ -78,7 +78,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer solution.printLogs(opt.LoggerOut, cs.Logs)
+	defer solution.printLogs(opt.Logger, cs.Logs)
 
 	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
 		return solution.values, err

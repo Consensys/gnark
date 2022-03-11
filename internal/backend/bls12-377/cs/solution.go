@@ -19,7 +19,6 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"sync/atomic"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
@@ -208,14 +208,14 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err
 }
 
-func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
-	if w == nil {
+func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		_, _ = io.WriteString(w, logLine)
+		log.Debug().Str(zerolog.CallerFieldName, fmt.Sprintf("%s:%d", logs[i].File, logs[i].Line)).Msg(logLine)
 	}
 }
 

@@ -23,7 +23,6 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -44,7 +43,6 @@ type SparseR1CS struct {
 	compiled.SparseR1CS
 
 	Coefficients []fr.Element // coefficients in the constraints
-	loggerOut    io.Writer
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
@@ -52,7 +50,6 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 	cs := SparseR1CS{
 		SparseR1CS:   ccs,
 		Coefficients: make([]fr.Element, len(coefficients)),
-		loggerOut:    os.Stdout,
 	}
 	for i := 0; i < len(coefficients); i++ {
 		cs.Coefficients[i].SetBigInt(&coefficients[i])
@@ -98,7 +95,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	solution.nbSolved += uint64(len(witness))
 
 	// defer log printing once all solution.values are computed
-	defer solution.printLogs(opt.LoggerOut, cs.Logs)
+	defer solution.printLogs(opt.Logger, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
@@ -521,11 +518,4 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	decoder := dm.NewDecoder(r)
 	err = decoder.Decode(cs)
 	return int64(decoder.NumBytesRead()), err
-}
-
-// SetLoggerOutput replace existing logger output with provided one
-// default uses os.Stdout
-// if nil is provided, logs are not printed
-func (cs *SparseR1CS) SetLoggerOutput(w io.Writer) {
-	cs.loggerOut = w
 }
