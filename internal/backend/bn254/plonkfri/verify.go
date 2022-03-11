@@ -15,6 +15,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	zeta.SetUint64(12)
 
 	// 1 - verify that the commitments are low degree polynomials
+
+	// l, r, o
 	err := vk.Iopp.VerifyProofOfProximity(proof.LROpp[0])
 	if err != nil {
 		return err
@@ -27,7 +29,43 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	if err != nil {
 		return err
 	}
-	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[2])
+	err = vk.Iopp.VerifyProofOfProximity(proof.Zpp)
+	if err != nil {
+		return err
+	}
+
+	// ql, qr, qm, qo, qkIncomplete
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[2])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[3])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[4])
+	if err != nil {
+		return err
+	}
+
+	// s1, s2, s3
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[2])
 	if err != nil {
 		return err
 	}

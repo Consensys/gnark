@@ -117,7 +117,8 @@ type VerifyingKey struct {
 	Cscheme MockCommitment
 
 	// S commitments to S1, S2, S3
-	S [3]Commitment
+	S   [3]Commitment
+	Spp [3]fri.ProofOfProximity
 
 	// Id commitments to Id1, Id2, Id3
 	Id [3]Commitment
@@ -125,6 +126,7 @@ type VerifyingKey struct {
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, QkIncomplete Commitment
+	Qpp                          [5]fri.ProofOfProximity // Ql, Qr, Qm, Qo, Qk
 
 	// Iopp scheme (currently one for each size of polynomial)
 	Iopp fri.Iopp
@@ -216,6 +218,27 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	vk.Qm = vk.Cscheme.Commit(pk.CQm)
 	vk.Qo = vk.Cscheme.Commit(pk.CQo)
 	vk.QkIncomplete = vk.Cscheme.Commit(pk.CQkIncomplete)
+	var err error
+	vk.Qpp[0], err = vk.Iopp.BuildProofOfProximity(vk.Ql)
+	if err != nil {
+		return &pk, &vk, err
+	}
+	vk.Qpp[1], err = vk.Iopp.BuildProofOfProximity(vk.Qr)
+	if err != nil {
+		return &pk, &vk, err
+	}
+	vk.Qpp[2], err = vk.Iopp.BuildProofOfProximity(vk.Qm)
+	if err != nil {
+		return &pk, &vk, err
+	}
+	vk.Qpp[3], err = vk.Iopp.BuildProofOfProximity(vk.Qo)
+	if err != nil {
+		return &pk, &vk, err
+	}
+	vk.Qpp[4], err = vk.Iopp.BuildProofOfProximity(vk.QkIncomplete)
+	if err != nil {
+		return &pk, &vk, err
+	}
 
 	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, true)
@@ -226,7 +249,10 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	buildPermutation(spr, &pk)
 
 	// set s1, s2, s3
-	computePermutationPolynomials(&pk, &vk)
+	err = computePermutationPolynomials(&pk, &vk)
+	if err != nil {
+		return &pk, &vk, err
+	}
 
 	return &pk, &vk, nil
 
@@ -301,11 +327,11 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // s00  s01 ..   s0n-1	   s10 s11 	 ..		s1n-1 		s20 	s21 	..		s2n-1	 v
 // \---------------/       \--------------------/        \------------------------/
 // 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
-func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) {
+func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 
 	nbElmt := int(pk.Domain[0].Cardinality)
 
-	// sID = [0,..,n-1,n,..2n-1,2n,..,3n-1]
+	// sID = [1,..,g^{n-1},s,..,s*g^{n-1},s^2,..,s^2*g^{n-1}]
 	pk.LId = getIDSmallDomain(&pk.Domain[0])
 
 	// canonical form of S1, S2, S3
@@ -349,11 +375,26 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) {
 	vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
 	vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
 	vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
+	var err error
+	vk.Spp[0], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	if err != nil {
+		return err
+	}
+	vk.Spp[1], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	if err != nil {
+		return err
+	}
+	vk.Spp[2], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
+	if err != nil {
+		return err
+	}
 
 	// compute Lagrange shifted forms of S1, S2, S3 (bit reversed)
 	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, true)
+
+	return nil
 
 }
 

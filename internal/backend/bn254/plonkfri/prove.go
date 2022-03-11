@@ -260,6 +260,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	return &proof, nil
 }
 
+// sort orders the evaluation of a polynomial on a domain
+// such that contiguous entries are in the same fiber.
+// TODO it's a copy paste of a function in gnark-crypto, should be exported directly
+func sort(evaluations []fr.Element) []fr.Element {
+	q := make([]fr.Element, len(evaluations))
+	n := len(evaluations) / 2
+	for i := 0; i < len(evaluations)/2; i++ {
+		q[2*i].Set(&evaluations[i])
+		q[2*i+1].Set(&evaluations[i+n])
+	}
+	return q
+}
+
 // evaluateOrderingDomainBigBitReversed computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
 // cosets of the big domain.
 //
