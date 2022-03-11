@@ -2,6 +2,10 @@ github.com/consensys/bavard v0.1.9 h1:t9wg3/7Ko73yE+eKcavgMYcPMO1hinadJGlbSCdXTi
 github.com/consensys/bavard v0.1.9/go.mod h1:9ItSMtA/dXMAiL7BG6bqW2m3NdSEObYWoH223nGHukI=
 github.com/consensys/gnark-crypto v0.6.1 h1:MuWaJyWzSw8wQUOfiZOlRwYjfweIj8dM/u2NN6m0O04=
 github.com/consensys/gnark-crypto v0.6.1/go.mod h1:s41Bl3YIpNgu/zdvlSzf/xZkyV8MUmoBY96RmuB8x70=
+github.com/consensys/gnark-crypto v0.6.2-0.20220221101305-e62ed112b152 h1:vF5O4If3NAtJU71wXuOzwQbSjGeUU+fb5/c+SGoHZws=
+github.com/consensys/gnark-crypto v0.6.2-0.20220221101305-e62ed112b152/go.mod h1:s41Bl3YIpNgu/zdvlSzf/xZkyV8MUmoBY96RmuB8x70=
+github.com/consensys/gnark-crypto v0.6.2-0.20220310110059-84a99d368579 h1:Rz8091mj1ZLEkndysORfo0K7UBqXGmJX64HsfgnrTpw=
+github.com/consensys/gnark-crypto v0.6.2-0.20220310110059-84a99d368579/go.mod h1:s41Bl3YIpNgu/zdvlSzf/xZkyV8MUmoBY96RmuB8x70=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

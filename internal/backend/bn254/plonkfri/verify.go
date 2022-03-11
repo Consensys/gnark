@@ -14,6 +14,24 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	var zeta fr.Element
 	zeta.SetUint64(12)
 
+	// 1 - verify that the commitments are low degree polynomials
+	err := vk.Iopp.VerifyProofOfProximity(proof.LROpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[2])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[2])
+	if err != nil {
+		return err
+	}
+
 	// 1 - verify all the openings
 	vk.Cscheme.Verify(vk.Ql, proof.OpeningsQlQrQmQoQkincomplete[0], zeta)
 	vk.Cscheme.Verify(vk.Qr, proof.OpeningsQlQrQmQoQkincomplete[1], zeta)
@@ -42,7 +60,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	zetaShifted.Mul(&vk.Generator, &zeta)
 	vk.Cscheme.Verify(proof.Z, proof.OpeningsZ[1], zetaShifted)
 
-	// 2 - compute the LHS: (ql*l+..+qk)+ \alpha*(z(ux)*(l+\beta*s1+\gamma)*..-z*(l+\beta*id1+\gamma))+\alpha^2*z*(l1-1)
+	// 2 - compute the LHS: (ql*l+..+qk)+ α*(z(μx)*(l+β*s₁+γ)*..-z*(l+β*id1+γ))+α²*z*(l1-1)
 	var alpha, beta, gamma fr.Element
 	beta.SetUint64(9)
 	gamma.SetUint64(10)
@@ -62,7 +80,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	tmp.Add(&proof.OpeningsQlQrQmQoQkincomplete[4].Val, &tmp)
 	t1.Add(&tmp, &t1)
 
-	// 2.2 (z(ux)*(l+\beta*s1+\gamma)*..-z*(l+\beta*id1+\gamma))
+	// 2.2 (z(ux)*(l+β*s1+γ)*..-z*(l+β*id1+γ))
 	t2.Mul(&beta, &proof.OpeningsS1S2S3[0].Val).Add(&t2, &proof.OpeningsLRO[0].Val).Add(&t2, &gamma)
 	tmp.Mul(&beta, &proof.OpeningsS1S2S3[1].Val).Add(&tmp, &proof.OpeningsLRO[1].Val).Add(&tmp, &gamma)
 	t2.Mul(&tmp, &t2)
@@ -86,7 +104,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 	tmp.Sub(&proof.OpeningsZ[0].Val, &one)
 	t3.Mul(&tmp, &t3)
 
-	// 2.4 (ql*l+\dots+qk) + \alpha*(z(ux)*(l+\beta*s1+\gamma)*\dots-z*(l+\beta*id1+\gamma))+ \alpha^2*z*(l1-1)
+	// 2.4 (ql*l+̇s+qk) + α*(z(ux)*(l+β*s1+γ)*̇s-z*(l+β*id1+γ))+ α²*z*(l1-1)
 	lhs.Set(&t3).Mul(&lhs, &alpha).Add(&lhs, &t2).Mul(&lhs, &alpha).Add(&lhs, &t1)
 
 	// 3 - compute the RHS
@@ -109,7 +127,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 
 }
 
-// completeQk returns \sum_{i<nb_public_inputs}w_i*L_i
+// completeQk returns ∑_{i<nb_public_inputs}w_i*L_i
 func completeQk(publicWitness witness.Witness, vk *VerifyingKey, zeta fr.Element) fr.Element {
 
 	var res fr.Element

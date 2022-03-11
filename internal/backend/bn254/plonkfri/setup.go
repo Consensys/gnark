@@ -15,8 +15,11 @@
 package plonkfri
 
 import (
+	"crypto/sha256"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 )
 
@@ -122,6 +125,9 @@ type VerifyingKey struct {
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, QkIncomplete Commitment
+
+	// Iopp scheme (currently one for each size of polynomial)
+	Iopp fri.Iopp
 }
 
 // Setup sets proving and verifying keys
@@ -153,6 +159,9 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
+
+	// IOP schemes
+	vk.Iopp = fri.RADIX_2_FRI.New(pk.Domain[0].Cardinality, sha256.New())
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.EvaluationQlDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)

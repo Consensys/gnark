@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
@@ -31,31 +32,40 @@ import (
 type Proof struct {
 
 	// commitments to the solution vectors
-	LRO [3]Commitment
+	LRO   [3]Commitment
+	LROpp [3]fri.ProofOfProximity
 
 	// commitment to Z (permutation polynomial)
-	Z Commitment
+	Z   Commitment
+	Zpp fri.ProofOfProximity
 
 	// commitment to h1,h2,h3 such that h = h1 + X**n*h2 + X**2nh3 the quotient polynomial
-	H [3]Commitment
+	H   [3]Commitment
+	Hpp [3]fri.ProofOfProximity
 
 	// opening proofs for L, R, O
 	OpeningsLRO [3]OpeningProof
+	// → Merkle Proof
 
 	// opening proofs for Z, Zu
 	OpeningsZ [2]OpeningProof
+	// → Merkle Proof
 
 	// opening proof for H
 	OpeningsH [3]OpeningProof
+	// → Merkle Proof
 
 	// opening proofs for ql, qr, qm, qo, qk
 	OpeningsQlQrQmQoQkincomplete [5]OpeningProof
+	// → Merkle Proof
 
 	// openings of S1, S2, S3
 	OpeningsS1S2S3 [3]OpeningProof
+	// → Merkle Proof
 
 	// openings of Id1, Id2, Id3
 	OpeningsId1Id2Id3 [3]OpeningProof
+	// → MerkleProof
 }
 
 func printVector(name string, v []fr.Element, bitreverse bool) {
@@ -121,6 +131,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return nil, err
 	}
+	proof.LROpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(blindedLCanonical)
+	if err != nil {
+		return nil, err
+	}
+	proof.LROpp[1], err = pk.Vk.Iopp.BuildProofOfProximity(blindedRCanonical)
+	if err != nil {
+		return nil, err
+	}
+	proof.LROpp[2], err = pk.Vk.Iopp.BuildProofOfProximity(blindedOCanonical)
+	if err != nil {
+		return nil, err
+	}
 
 	// 2 - commit to lro
 	proof.LRO[0] = pk.Cscheme.Commit(blindedLCanonical)
@@ -136,6 +158,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		evaluationRDomainSmall,
 		evaluationODomainSmall,
 		pk, beta, gamma)
+	if err != nil {
+		return nil, err
+	}
+	proof.Zpp, err = pk.Vk.Iopp.BuildProofOfProximity(blindedZCanonical)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +208,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		evaluationOrderingDomainBigBitReversed,
 		evaluationBlindedZDomainBigBitReversed,
 		alpha) // CORRECT
+	proof.Hpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(h1)
+	if err != nil {
+		return nil, err
+	}
+	proof.Hpp[1], err = pk.Vk.Iopp.BuildProofOfProximity(h2)
+	if err != nil {
+		return nil, err
+	}
+	proof.Hpp[2], err = pk.Vk.Iopp.BuildProofOfProximity(h3)
+	if err != nil {
+		return nil, err
+	}
 
 	// 6 - commit to H
 	proof.H[0] = pk.Cscheme.Commit(h1)
@@ -364,7 +402,7 @@ func evaluateXnMinusOneDomainBigCoset(domainBig, domainSmall *fft.Domain) []fr.E
 	return res
 }
 
-// computeQuotientCanonical computes h in canonical form, split as h1+X^mh2+X^2mh3 such that
+// computeQuotientCanonical computes h in canonical form, split as h1+X^mh2+X²mh3 such that
 //
 // qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3-z*f1*f2*f3) + alpha**2*L1*(z-1)= h.Z
 // \------------------/         \------------------------/             \-----/
@@ -379,7 +417,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 	evaluationXnMinusOneInverse := evaluateXnMinusOneDomainBigCoset(&pk.Domain[1], &pk.Domain[0])
 	evaluationXnMinusOneInverse = fr.BatchInvert(evaluationXnMinusOneInverse)
 
-	// computes L_1 (canonical form)
+	// computes L₁ (canonical form)
 	startsAtOne := make([]fr.Element, pk.Domain[1].Cardinality)
 	for i := 0; i < int(pk.Domain[0].Cardinality); i++ {
 		startsAtOne[i].Set(&pk.Domain[0].CardinalityInv)
@@ -566,8 +604,8 @@ func computeBlindedLROCanonical(
 // * bo blinding order,  it's the degree of Q, where the blinding is Q(X)*(X**degree-1)
 //
 // WARNING:
-// pre condition degree(cp) <= rou + bo
-// pre condition cap(cp) >= int(totalDegree + 1)
+// pre condition degree(cp) ⩽ rou + bo
+// pre condition cap(cp) ⩾ int(totalDegree + 1)
 func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 
 	// degree of the blinded polynomial is max(rou+order, cp.Degree)
