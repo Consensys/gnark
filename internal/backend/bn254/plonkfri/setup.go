@@ -86,7 +86,10 @@ type ProvingKey struct {
 	Cscheme MockCommitment
 
 	// Domains used for the FFTs
-	Domain [2]fft.Domain
+	// 0 -> "small" domain, used for individual polynomials
+	// 1 -> "big" domain, used for the computation of the quotient
+	// 2 -> domain of the same size than the one used for the IOP, used for opening Merkle paths at a point of evaluation
+	Domain [3]fft.Domain
 
 	// s1, s2, s3 (L=Lagrange basis small domain, C=canonical basis, Ls=Lagrange Shifted big domain)
 	LId                                                                    []fr.Element
@@ -121,7 +124,8 @@ type VerifyingKey struct {
 	Spp [3]fri.ProofOfProximity
 
 	// Id commitments to Id1, Id2, Id3
-	Id [3]Commitment
+	Id   [3]Commitment
+	Idpp [3]fri.ProofOfProximity
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
@@ -156,6 +160,9 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 		pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
 	}
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
+
+	// TODO 8 is a harcoded value from fri in gnark-crypto (rho). This should be exposed
+	pk.Domain[2] = *fft.NewDomain(8 * sizeSystem)
 
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
@@ -360,6 +367,19 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	vk.Id[0] = vk.Cscheme.Commit(pk.EvaluationId1BigDomain)
 	vk.Id[1] = vk.Cscheme.Commit(pk.EvaluationId2BigDomain)
 	vk.Id[2] = vk.Cscheme.Commit(pk.EvaluationId3BigDomain)
+	var err error
+	vk.Idpp[0], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationId1BigDomain)
+	if err != nil {
+		return err
+	}
+	vk.Idpp[1], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationId2BigDomain)
+	if err != nil {
+		return err
+	}
+	vk.Idpp[2], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationId3BigDomain)
+	if err != nil {
+		return err
+	}
 	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, true)
@@ -375,7 +395,6 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
 	vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
 	vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
-	var err error
 	vk.Spp[0], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
 	if err != nil {
 		return err

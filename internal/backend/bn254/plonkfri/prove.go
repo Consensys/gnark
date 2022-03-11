@@ -15,11 +15,13 @@
 package plonkfri
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
 
+	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
@@ -44,28 +46,42 @@ type Proof struct {
 	Hpp [3]fri.ProofOfProximity
 
 	// opening proofs for L, R, O
-	OpeningsLRO [3]OpeningProof
+	OpeningsLRO   [3]OpeningProof
+	OpeningsLROmp [3]MerkleProof
 	// → Merkle Proof
 
 	// opening proofs for Z, Zu
-	OpeningsZ [2]OpeningProof
+	OpeningsZ   [2]OpeningProof
+	OpeningsZmp [2]MerkleProof
 	// → Merkle Proof
 
 	// opening proof for H
-	OpeningsH [3]OpeningProof
+	OpeningsH   [3]OpeningProof
+	OpeningsHmp [3]OpeningProof
 	// → Merkle Proof
 
 	// opening proofs for ql, qr, qm, qo, qk
-	OpeningsQlQrQmQoQkincomplete [5]OpeningProof
+	OpeningsQlQrQmQoQkincomplete   [5]OpeningProof
+	OpeningsQlQrQmQoQkincompletemp [5]MerkleProof
 	// → Merkle Proof
 
 	// openings of S1, S2, S3
-	OpeningsS1S2S3 [3]OpeningProof
+	OpeningsS1S2S3   [3]OpeningProof
+	OpeningsS1S2S3mp [3]MerkleProof
 	// → Merkle Proof
 
 	// openings of Id1, Id2, Id3
-	OpeningsId1Id2Id3 [3]OpeningProof
+	OpeningsId1Id2Id3   [3]OpeningProof
+	OpeningsId1Id2Id3mt [3]MerkleProof
 	// → MerkleProof
+}
+
+// MerkleProof used to open a polynomial
+type MerkleProof struct {
+	root      []byte
+	proofSet  [][]byte
+	numLeaves uint64
+	index     uint64
 }
 
 func printVector(name string, v []fr.Element, bitreverse bool) {
@@ -258,19 +274,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	proof.OpeningsZ[1] = pk.Cscheme.Open(blindedZCanonical, zetaShifted)
 
 	return &proof, nil
-}
-
-// sort orders the evaluation of a polynomial on a domain
-// such that contiguous entries are in the same fiber.
-// TODO it's a copy paste of a function in gnark-crypto, should be exported directly
-func sort(evaluations []fr.Element) []fr.Element {
-	q := make([]fr.Element, len(evaluations))
-	n := len(evaluations) / 2
-	for i := 0; i < len(evaluations)/2; i++ {
-		q[2*i].Set(&evaluations[i])
-		q[2*i+1].Set(&evaluations[i+n])
-	}
-	return q
 }
 
 // evaluateOrderingDomainBigBitReversed computes the evaluation of Z(uX)g1g2g3-Z(X)f1f2f3 on the odd
@@ -644,4 +647,41 @@ func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 	}
 
 	return res, nil
+}
+
+// sort orders the evaluation of a polynomial on a domain
+// such that contiguous entries are in the same fiber.
+// TODO it's a copy paste of a function in gnark-crypto, should be exported directly
+func sort(evaluations []fr.Element) []fr.Element {
+	q := make([]fr.Element, len(evaluations))
+	n := len(evaluations) / 2
+	for i := 0; i < len(evaluations)/2; i++ {
+		q[2*i].Set(&evaluations[i])
+		q[2*i+1].Set(&evaluations[i+n])
+	}
+	return q
+}
+
+// open opens a polynomial at d.Gen**index
+// * The domain d is the one used in FRI (so it's rho*size_polynomial)
+// * The MerkleProof path corresponding to the opening is done on
+// the evaluated polynomial, reordered to be compliant with the
+// order of the FRI proof. It means that the entries of the evaluations
+// of p are such that two consecutives entries are in the same fiber
+// of x -> x^2.
+func openMerklPath(p []fr.Element, d *fft.Domain, index uint64) MerkleProof {
+
+	q := make([]fr.Element, d.Cardinality)
+	copy(q, p)
+	d.FFT(q, fft.DIF)
+	fft.BitReverse(q)
+	q = sort(q)
+	tree := merkletree.New(sha256.New())
+	tree.SetIndex(index)
+	for i := 0; i < len(q); i++ {
+		tree.Push(q[i].Marshal())
+	}
+	var res MerkleProof
+	res.root, res.proofSet, res.index, res.numLeaves = tree.Prove()
+	return res
 }

@@ -70,6 +70,20 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error
 		return err
 	}
 
+	// id1, id2, id3
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[2])
+	if err != nil {
+		return err
+	}
+
 	// 1 - verify all the openings
 	vk.Cscheme.Verify(vk.Ql, proof.OpeningsQlQrQmQoQkincomplete[0], zeta)
 	vk.Cscheme.Verify(vk.Qr, proof.OpeningsQlQrQmQoQkincomplete[1], zeta)
