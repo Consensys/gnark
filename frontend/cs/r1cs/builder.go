@@ -44,8 +44,6 @@ import (
 	"github.com/consensys/gnark/logger"
 )
 
-var log = logger.Logger()
-
 // NewBuilder returns a new R1CS compiler
 func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(curve, config), nil
@@ -346,7 +344,7 @@ func init() {
 
 // Compile constructs a rank-1 constraint sytem
 func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
-
+	log := logger.Logger()
 	log.Info().
 		Str("curve", cs.CurveID.String()).
 		Int("nbConstraints", len(cs.Constraints)).

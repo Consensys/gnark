@@ -28,10 +28,12 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,6 +63,11 @@ func NewAssert(t *testing.T) *Assert {
 // Run runs the test function fn as a subtest. The subtest is parametrized by
 // the description strings descs.
 func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
+	if !debug.Debug {
+		log := logger.Logger()
+		logger.Disable()
+		defer logger.Set(log)
+	}
 	desc := strings.Join(descs, "/")
 	assert.t.Run(desc, func(t *testing.T) {
 		// TODO(ivokub): access to compiled cache is not synchronized -- running
@@ -86,6 +93,12 @@ func (assert *Assert) Log(v ...interface{}) {
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
+	if !debug.Debug {
+		log := logger.Logger()
+		logger.Disable()
+		defer logger.Set(log)
+	}
+
 	opt := assert.options(opts...)
 
 	// for each {curve, backend} tuple
@@ -177,6 +190,12 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
+	if !debug.Debug {
+		log := logger.Logger()
+		logger.Disable()
+		defer logger.Set(log)
+	}
+
 	opt := assert.options(opts...)
 
 	popts := append(opt.proverOpts, backend.IgnoreSolverError())
@@ -238,6 +257,12 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 }
 
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
+	if !debug.Debug {
+		log := logger.Logger()
+		logger.Disable()
+		defer logger.Set(log)
+	}
+
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {
@@ -272,6 +297,11 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 }
 
 func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...TestingOption) {
+	if !debug.Debug {
+		log := logger.Logger()
+		logger.Disable()
+		defer logger.Set(log)
+	}
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {

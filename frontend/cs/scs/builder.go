@@ -44,8 +44,6 @@ import (
 	"github.com/consensys/gnark/logger"
 )
 
-var log = logger.Logger()
-
 func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(curve, config), nil
 }
@@ -297,6 +295,7 @@ func init() {
 }
 
 func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
+	log := logger.Logger()
 	log.Info().
 		Str("curve", cs.CurveID.String()).
 		Int("nbConstraints", len(cs.Constraints)).

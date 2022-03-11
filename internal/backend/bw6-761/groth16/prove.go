@@ -30,8 +30,10 @@ import (
 	"github.com/consensys/gnark/backend"
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 	"math/big"
 	"runtime"
+	"time"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -55,8 +57,10 @@ func (proof *Proof) CurveID() ecc.ID {
 // Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, opt backend.ProverConfig) (*Proof, error) {
 	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
+		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}
+
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
 	// solve the R1CS and compute the a, b, c vectors
 	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
@@ -77,6 +81,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, opt ba
 			}
 		}
 	}
+	start := time.Now()
 
 	// set the wire values in regular form
 	utils.Parallelize(len(wireValues), func(start, end int) {
@@ -261,6 +266,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, opt ba
 	if err := <-chKrsDone; err != nil {
 		return nil, err
 	}
+
+	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("prover done")
 
 	return proof, nil
 }

@@ -18,10 +18,12 @@ package plonk
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 )
 
 type Proof struct {
@@ -60,7 +63,8 @@ type Proof struct {
 
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witness, opt backend.ProverConfig) (*Proof, error) {
-
+	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
+	start := time.Now()
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
 
@@ -359,6 +363,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 		hFunc,
 		pk.Vk.KZGSRS,
 	)
+
+	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("prover done")
+
 	if err != nil {
 		return nil, err
 	}

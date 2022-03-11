@@ -17,6 +17,7 @@
 package cs
 
 import (
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/fxamacker/cbor/v2"
@@ -26,12 +27,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/ioutils"
+	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 
@@ -63,9 +66,12 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // witness: contains the input variables
 // it returns the full slice of wires
 func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+	log := logger.Logger().With().Str("curve", cs.CurveID().String()).Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
+
+	start := time.Now()
 
 	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
 	if len(witness) != expectedWitnessSize {
@@ -104,13 +110,21 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	}
 
 	if err := cs.parallelSolve(&solution, coefficientsNegInv); err != nil {
+		if unsatisfiedErr, ok := err.(*UnsatisfiedConstraintError); ok {
+			log.Err(errors.New("unsatisfied constraint")).Int("id", unsatisfiedErr.CID).Send()
+		} else {
+			log.Err(err).Send()
+		}
 		return solution.values, err
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
 	if !solution.isValid() {
+		log.Err(errors.New("solver didn't instantiate all wires")).Send()
 		panic("solver didn't instantiate all wires")
 	}
+
+	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("constraint system solver done")
 
 	return solution.values, nil
 
@@ -127,7 +141,7 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.
 
 	var wg sync.WaitGroup
 	chTasks := make(chan []int, runtime.NumCPU())
-	chError := make(chan error, runtime.NumCPU())
+	chError := make(chan *UnsatisfiedConstraintError, runtime.NumCPU())
 
 	// start a worker pool
 	// each worker wait on chTasks
@@ -138,16 +152,17 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.
 				for _, i := range t {
 					// for each constraint in the task, solve it.
 					if err := cs.solveConstraint(cs.Constraints[i], solution, coefficientsNegInv); err != nil {
-						chError <- fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+						chError <- &UnsatisfiedConstraintError{CID: i, Err: err}
 						wg.Done()
 						return
 					}
 					if err := cs.checkConstraint(cs.Constraints[i], solution); err != nil {
-						errMsg := err.Error()
 						if dID, ok := cs.MDebug[i]; ok {
-							errMsg = solution.logValue(cs.DebugInfo[dID])
+							errMsg := solution.logValue(cs.DebugInfo[dID])
+							chError <- &UnsatisfiedConstraintError{CID: i, DebugInfo: &errMsg}
+						} else {
+							chError <- &UnsatisfiedConstraintError{CID: i, Err: err}
 						}
-						chError <- fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
 						wg.Done()
 						return
 					}
@@ -173,14 +188,14 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.
 			// we do it sequentially
 			for _, i := range level {
 				if err := cs.solveConstraint(cs.Constraints[i], solution, coefficientsNegInv); err != nil {
-					return fmt.Errorf("constraint #%d is not satisfied: %w", i, err)
+					return &UnsatisfiedConstraintError{CID: i, Err: err}
 				}
 				if err := cs.checkConstraint(cs.Constraints[i], solution); err != nil {
-					errMsg := err.Error()
 					if dID, ok := cs.MDebug[i]; ok {
-						errMsg = solution.logValue(cs.DebugInfo[dID])
+						errMsg := solution.logValue(cs.DebugInfo[dID])
+						return &UnsatisfiedConstraintError{CID: i, DebugInfo: &errMsg}
 					}
-					return fmt.Errorf("constraint #%d is not satisfied: %s", i, errMsg)
+					return &UnsatisfiedConstraintError{CID: i, Err: err}
 				}
 			}
 			continue

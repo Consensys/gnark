@@ -11,8 +11,6 @@ import (
 	"github.com/consensys/gnark/logger"
 )
 
-var log = logger.Logger()
-
 // Compile will generate a ConstraintSystem from the given circuit
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
@@ -32,6 +30,7 @@ var log = logger.Logger()
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
 func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+	log := logger.Logger()
 	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
 	// parse options
 	opt := CompileConfig{}
@@ -72,6 +71,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err != nil {
 		return err
 	}
+	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
 	// this not only set the schema, but sets the wire offsets for public, secret and internal wires

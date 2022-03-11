@@ -33,8 +33,6 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
-var errUnsatisfiedConstraint = errors.New("unsatisfied")
-
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
@@ -283,4 +281,18 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
+}
+
+// UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
+type UnsatisfiedConstraintError struct {
+	Err       error
+	CID       int     // constraint ID
+	DebugInfo *string // optional debug info
+}
+
+func (r *UnsatisfiedConstraintError) Error() string {
+	if r.DebugInfo != nil {
+		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
+	}
+	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }
