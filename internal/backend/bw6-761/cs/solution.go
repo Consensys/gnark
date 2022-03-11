@@ -215,7 +215,7 @@ func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		log.Debug().Str(zerolog.CallerFieldName, fmt.Sprintf("%s:%d", logs[i].File, logs[i].Line)).Msg(logLine)
+		log.Debug().Str(zerolog.CallerFieldName, logs[i].Caller).Msg(logLine)
 	}
 }
 

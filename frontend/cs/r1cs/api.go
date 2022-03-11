@@ -491,8 +491,7 @@ func (system *r1cs) Println(a ...frontend.Variable) {
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
-		log.File = filepath.Base(file)
-		log.Line = line
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
 	}
 
 	var sbb strings.Builder

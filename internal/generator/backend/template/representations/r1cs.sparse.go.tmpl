@@ -82,7 +82,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	solution.nbSolved += uint64(len(witness))
 
 	// defer log printing once all solution.values are computed
-	defer solution.printLogs(opt.Logger, cs.Logs)
+	defer solution.printLogs(opt.CircuitLogger, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)

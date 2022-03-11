@@ -56,14 +56,14 @@ type ProverOption func(*ProverConfig) error
 type ProverConfig struct {
 	Force         bool            // defaults to false
 	HintFunctions []hint.Function // defaults to all built-in hint functions
-	Logger        zerolog.Logger  // defaults to gnark.Logger
+	CircuitLogger zerolog.Logger  // defaults to gnark.Logger
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
 // applied.
 func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 	log := logger.Logger()
-	opt := ProverConfig{Logger: log, HintFunctions: hint.GetAll()}
+	opt := ProverConfig{CircuitLogger: log, HintFunctions: hint.GetAll()}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
 			return ProverConfig{}, err
@@ -94,12 +94,12 @@ func WithHints(hintFunctions ...hint.Function) ProverOption {
 	}
 }
 
-// WithLogger is a prover option that specifies zerolog.Logger as a destination for the
+// WithCircuitLogger is a prover option that specifies zerolog.Logger as a destination for the
 // logs printed by api.Println(). By default, uses gnark/logger.
 // zerolog.Nop() will disable logging
-func WithLogger(l zerolog.Logger) ProverOption {
+func WithCircuitLogger(l zerolog.Logger) ProverOption {
 	return func(opt *ProverConfig) error {
-		opt.Logger = l
+		opt.CircuitLogger = l
 		return nil
 	}
 }
