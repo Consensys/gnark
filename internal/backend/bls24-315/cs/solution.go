@@ -19,7 +19,6 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"sync/atomic"
 
@@ -27,13 +26,12 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
-
-var errUnsatisfiedConstraint = errors.New("unsatisfied")
 
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
@@ -208,14 +206,14 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err
 }
 
-func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
-	if w == nil {
+func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		_, _ = io.WriteString(w, logLine)
+		log.Debug().Str(zerolog.CallerFieldName, logs[i].Caller).Msg(logLine)
 	}
 }
 
@@ -283,4 +281,18 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
+}
+
+// UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
+type UnsatisfiedConstraintError struct {
+	Err       error
+	CID       int     // constraint ID
+	DebugInfo *string // optional debug info
+}
+
+func (r *UnsatisfiedConstraintError) Error() string {
+	if r.DebugInfo != nil {
+		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
+	}
+	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }

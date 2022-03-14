@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -488,17 +487,14 @@ func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
 func (system *r1cs) Println(a ...frontend.Variable) {
-	var sbb strings.Builder
+	var log compiled.LogEntry
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
 	}
 
-	var log compiled.LogEntry
+	var sbb strings.Builder
 
 	for i, arg := range a {
 		if i > 0 {
@@ -517,7 +513,6 @@ func (system *r1cs) Println(a ...frontend.Variable) {
 			printArg(&log, &sbb, arg)
 		}
 	}
-	sbb.WriteByte('\n')
 
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()

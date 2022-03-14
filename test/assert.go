@@ -86,6 +86,7 @@ func (assert *Assert) Log(v ...interface{}) {
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	// for each {curve, backend} tuple
@@ -177,6 +178,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	popts := append(opt.proverOpts, backend.IgnoreSolverError())
@@ -238,6 +240,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 }
 
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {

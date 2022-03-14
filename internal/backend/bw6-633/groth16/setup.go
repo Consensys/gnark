@@ -78,7 +78,6 @@ type VerifyingKey struct {
 
 // Setup constructs the SRS
 func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
-
 	/*
 		Setup
 		-----

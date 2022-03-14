@@ -50,8 +50,6 @@ import (
 	groth16_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
 )
 
-// TODO @gbotrel document hint functions here and in assert
-
 type groth16Object interface {
 	gnarkio.WriterRawTo
 	io.WriterTo

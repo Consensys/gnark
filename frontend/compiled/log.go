@@ -24,6 +24,7 @@ import (
 // to represent string values (in logs or debug info) where a value is not known at compile time
 // (which is the case for variables that need to be resolved in the R1CS)
 type LogEntry struct {
+	Caller    string
 	Format    string
 	ToResolve []Term
 }

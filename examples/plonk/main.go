@@ -46,7 +46,7 @@ type Circuit struct {
 func (circuit *Circuit) Define(api frontend.API) error {
 
 	// number of bits of exponent
-	const bitSize = 4
+	const bitSize = 4000
 
 	// specify constraints
 	output := frontend.Variable(1)

@@ -41,6 +41,7 @@ import (
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 )
 
 func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
@@ -294,10 +295,17 @@ func init() {
 }
 
 func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
+	log := logger.Logger()
+	log.Info().
+		Str("curve", cs.CurveID.String()).
+		Int("nbConstraints", len(cs.Constraints)).
+		Msg("building constraint system")
 
 	// ensure all inputs and hints are constrained
-	if !cs.config.IgnoreUnconstrainedInputs {
-		if err := cs.checkVariables(); err != nil {
+	err := cs.checkVariables()
+	if err != nil {
+		log.Warn().Msg("circuit has unconstrained inputs")
+		if !cs.config.IgnoreUnconstrainedInputs {
 			return nil, err
 		}
 	}

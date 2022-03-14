@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 )
 
 // Compile will generate a ConstraintSystem from the given circuit
@@ -29,10 +30,13 @@ import (
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
 func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+	log := logger.Logger()
+	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
+			log.Err(err).Msg("applying compile option")
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
@@ -40,12 +44,14 @@ func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	// instantiate new builder
 	builder, err := newBuilder(curveID, opt)
 	if err != nil {
+		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
 	if err = parseCircuit(builder, circuit); err != nil {
+		log.Err(err).Msg("parsing circuit")
 		return nil, fmt.Errorf("parse circuit: %w", err)
 
 	}
@@ -65,6 +71,8 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err != nil {
 		return err
 	}
+	log := logger.Logger()
+	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
 	// this not only set the schema, but sets the wire offsets for public, secret and internal wires
 	builder.SetSchema(s)
