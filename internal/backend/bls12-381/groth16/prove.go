@@ -267,7 +267,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 		return nil, err
 	}
 
-	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("prover done")
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	return proof, nil
 }

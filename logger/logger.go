@@ -1,4 +1,5 @@
 // Package logger provides a configurable logger accross gnark components
+//
 // The root logger defined by default uses github.com/rs/zerolog with a console writer
 package logger
 

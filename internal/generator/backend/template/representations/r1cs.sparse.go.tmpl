@@ -107,7 +107,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 		panic("solver didn't instantiate all wires")
 	}
 
-	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("constraint system solver done")
+	log.Debug().Dur("took", time.Since(start)).Msg("constraint system solver done")
 
 	return solution.values, nil
 

@@ -5,7 +5,6 @@ import (
 	"sync"
 	"runtime"
 	"time"
-	"fmt"
 
 	{{ template "import_fr" . }}
 	{{ template "import_curve" . }}
@@ -342,7 +341,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 		pk.Vk.KZGSRS,
 	)
 
-	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("prover done")
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	if err != nil {
 		return nil, err

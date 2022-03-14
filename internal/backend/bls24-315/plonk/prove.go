@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"crypto/sha256"
-	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -364,7 +363,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witn
 		pk.Vk.KZGSRS,
 	)
 
-	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("prover done")
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	if err != nil {
 		return nil, err

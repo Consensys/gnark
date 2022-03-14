@@ -86,7 +86,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		return errPairingCheckFailed
 	}
 
-	log.Debug().Str("took", fmt.Sprintf("%dms", time.Since(start).Milliseconds())).Msg("verifier done")
+	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
 	return nil
 }
 
