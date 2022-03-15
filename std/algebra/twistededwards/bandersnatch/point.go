@@ -138,7 +138,7 @@ type glvParams struct {
 	glvBasis      ecc.Lattice
 }
 
-var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DecomposeScalar = hint.NewStaticHint(func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	// the efficient endomorphism exists on Bandersnatch only
 	if curve != ecc.BLS12_381 {
 		return errors.New("no efficient endomorphism is available on this curve")
@@ -168,10 +168,10 @@ var scalarDecompositionHint = hint.NewStaticHint(func(curve ecc.ID, inputs []*bi
 	res[2].Div(res[2], &glv.order)
 
 	return nil
-}, 1, 3)
+})
 
 func init() {
-	hint.Register(scalarDecompositionHint)
+	hint.Register(DecomposeScalar)
 }
 
 // ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
@@ -183,7 +183,7 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + λ * s2 == s mod Order,
 	// with λ s.t. λ² = -2 mod Order.
-	sd, err := api.NewHint(scalarDecompositionHint, scalar)
+	sd, err := api.NewHint(DecomposeScalar, 3, scalar)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

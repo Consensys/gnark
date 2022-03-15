@@ -508,6 +508,6 @@ func BenchmarkScalarMulFixed(b *testing.B) {
 
 func BenchmarkDoubleBaseScalarMul(b *testing.B) {
 	var c doubleScalarMulGeneric
-	ccsBench, _ := frontend.Compile(ecc.BLS12_381, backend.GROTH16, &c)
+	ccsBench, _ := frontend.Compile(ecc.BLS12_381, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
