@@ -22,8 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/test"
 
@@ -272,7 +272,7 @@ func BenchmarkDoubleAffineG2(b *testing.B) {
 	var c g2DoubleAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -283,7 +283,7 @@ func BenchmarkAddAssignAffineG2(b *testing.B) {
 	var c g2AddAssignAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -294,7 +294,7 @@ func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 	var c g2DoubleAndAddAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, backend.GROTH16, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
 		}
 
 	})

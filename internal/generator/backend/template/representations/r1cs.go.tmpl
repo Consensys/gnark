@@ -4,14 +4,16 @@ import (
 	"io"
 	"math/big"
 	"runtime"
+	"time"
 	"strings"
 	"sync"
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/internal/backend/ioutils"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/backend/witness"
 
 	"math"
@@ -48,21 +50,27 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+	log := logger.Logger().With().Str("curve", cs.CurveID().String()).Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
+
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.Coefficients)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}
-	
+	start := time.Now()
 
 	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
-		return solution.values, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public - ONE_WIRE) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
+		err = fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
+		log.Err(err).Send()
+		return solution.values, err 
 	}
 
 	// compute the wires and the a, b, c polynomials
 	if len(a) != len(cs.Constraints) || len(b) != len(cs.Constraints) || len(c) != len(cs.Constraints) {
-		return solution.values, errors.New("invalid input size: len(a, b, c) == len(Constraints)")
+		err = errors.New("invalid input size: len(a, b, c) == len(Constraints)")
+		log.Err(err).Send()
+		return solution.values, err
 	}
 
 	solution.solved[0] = true // ONE_WIRE
@@ -78,16 +86,25 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer solution.printLogs(opt.LoggerOut, cs.Logs)
+	defer solution.printLogs(opt.CircuitLogger, cs.Logs)
 
 	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
+		if unsatisfiedErr, ok := err.(*UnsatisfiedConstraintError); ok {
+			log.Err(errors.New("unsatisfied constraint")).Int("id", unsatisfiedErr.CID).Send()
+		} else {
+			log.Err(err).Send()
+		}
 		return solution.values, err
 	}
 
 	// sanity check; ensure all wires are marked as "instantiated"
 	if !solution.isValid() {
+		log.Err(errors.New("solver didn't instantiate all wires")).Send()
 		panic("solver didn't instantiate all wires")
 	}
+
+
+	log.Debug().Dur("took", time.Since(start)).Msg("constraint system solver done")
 
 	return solution.values, nil
 }
@@ -111,7 +128,7 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 
 	var wg sync.WaitGroup 
 	chTasks := make(chan []int, runtime.NumCPU())
-	chError := make(chan error, runtime.NumCPU())
+	chError := make(chan *UnsatisfiedConstraintError, runtime.NumCPU())
 
 	// start a worker pool
 	// each worker wait on chTasks
@@ -122,14 +139,12 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 				for _, i := range t {
 					// for each constraint in the task, solve it.
 					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
-						if err == errUnsatisfiedConstraint {
-							if dID, ok := cs.MDebug[int(i)]; ok {
-								err = errors.New(solution.logValue(cs.DebugInfo[dID]))
-							} else {
-								err = fmt.Errorf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
-							}
+						var debugInfo *string 
+						if dID, ok := cs.MDebug[int(i)]; ok {
+							debugInfo = new(string)
+							*debugInfo = solution.logValue(cs.DebugInfo[dID])
 						}
-						chError <- fmt.Errorf("constraint #%d is not satisfied: %w",i, err)
+						chError <- &UnsatisfiedConstraintError{CID: i, Err: err, DebugInfo: debugInfo}
 						wg.Done()
 						return 
 					}
@@ -155,14 +170,12 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 			// we do it sequentially 
 			for _, i := range level {
 				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
-					if err == errUnsatisfiedConstraint {
-						if dID, ok := cs.MDebug[int(i)]; ok {
-							err = errors.New(solution.logValue(cs.DebugInfo[dID]))
-						} else {
-							err = fmt.Errorf("%s ⋅ %s != %s", a[i].String(), b[i].String(), c[i].String())
-						}
+					var debugInfo *string 
+					if dID, ok := cs.MDebug[int(i)]; ok {
+						debugInfo = new(string)
+						*debugInfo = solution.logValue(cs.DebugInfo[dID])
 					}
-					return fmt.Errorf("constraint #%d is not satisfied: %w",i, err) 
+					return &UnsatisfiedConstraintError{CID: i, Err: err, DebugInfo: debugInfo}
 				}
 			}
 			continue 
@@ -292,15 +305,15 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a,b,c *fr.El
 		return nil
 	}
 
-	if err := processLExp(r.L.LinExp, a, 1); err != nil {
+	if err := processLExp(r.L, a, 1); err != nil {
 		return err
 	}
 
-	if err := processLExp(r.R.LinExp, b, 2); err != nil {
+	if err := processLExp(r.R, b, 2); err != nil {
 		return err
 	}
 
-	if err := processLExp(r.O.LinExp, c, 3); err != nil {
+	if err := processLExp(r.O, c, 3); err != nil {
 		return err
 	}
 
@@ -310,7 +323,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a,b,c *fr.El
 		// or if we solved the unsolved wires with hint functions
 		var check fr.Element 
 		if !check.Mul(a, b).Equal(c) {
-			return errUnsatisfiedConstraint
+			return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
 		}
 		return nil
 	}
@@ -332,7 +345,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a,b,c *fr.El
 			// we didn't actually ensure that a * b == c 
 			var check fr.Element 
 			if !check.Mul(a, b).Equal(c) {
-				return errUnsatisfiedConstraint
+				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
 			}
 		}
 	case 2:
@@ -343,7 +356,7 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a,b,c *fr.El
 		} else {
 			var check fr.Element 
 			if !check.Mul(a, b).Equal(c) {
-				return errUnsatisfiedConstraint
+				return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
 			}
 		}
 	case 3:
@@ -379,11 +392,11 @@ func (cs *R1CS) GetConstraints() [][]string {
 	return r
 }
 
-func (cs *R1CS) vtoString(l compiled.Variable) string {
+func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
 	var sbb strings.Builder
-	for i := 0; i < len(l.LinExp); i++ {
-		cs.termToString(l.LinExp[i], &sbb)
-		if i+1 < len(l.LinExp) {
+	for i := 0; i < len(l); i++ {
+		cs.termToString(l[i], &sbb)
+		if i+1 < len(l) {
 			sbb.WriteString(" + ")
 		}
 	}

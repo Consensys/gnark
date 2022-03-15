@@ -22,11 +22,9 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-// Term lightweight version of a term, no pointers
-// first 4 bits are reserved
-// next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
-// next 30 bits represent the constraint used to compute the wire
-// if we support more than 1 billion constraints, this breaks (not so soon.)
+// Term lightweight version of a term, no pointers. A term packs wireID, coeffID, visibility and
+// some metadata associated with the term, in a uint64.
+// note: if we support more than 1 billion constraints, this breaks (not so soon.)
 type Term uint64
 
 // ids of the coefficients with simple values in any cs.coeffs slice.

@@ -16,10 +16,9 @@
 package backend
 
 import (
-	"io"
-	"os"
-
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/logger"
+	"github.com/rs/zerolog"
 )
 
 // ID represent a unique ID for a proving scheme
@@ -48,18 +47,6 @@ func (id ID) String() string {
 	}
 }
 
-// NewProverConfig returns a default ProverConfig with given prover options opts
-// applied.
-func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
-	opt := ProverConfig{LoggerOut: os.Stdout, HintFunctions: hint.GetAll()}
-	for _, option := range opts {
-		if err := option(&opt); err != nil {
-			return ProverConfig{}, err
-		}
-	}
-	return opt, nil
-}
-
 // ProverOption defines option for altering the behaviour of the prover in
 // Prove, ReadAndProve and IsSolved methods. See the descriptions of functions
 // returning instances of this type for implemented options.
@@ -69,7 +56,20 @@ type ProverOption func(*ProverConfig) error
 type ProverConfig struct {
 	Force         bool            // defaults to false
 	HintFunctions []hint.Function // defaults to all built-in hint functions
-	LoggerOut     io.Writer       // defaults to os.Stdout
+	CircuitLogger zerolog.Logger  // defaults to gnark.Logger
+}
+
+// NewProverConfig returns a default ProverConfig with given prover options opts
+// applied.
+func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
+	log := logger.Logger()
+	opt := ProverConfig{CircuitLogger: log, HintFunctions: hint.GetAll()}
+	for _, option := range opts {
+		if err := option(&opt); err != nil {
+			return ProverConfig{}, err
+		}
+	}
+	return opt, nil
 }
 
 // IgnoreSolverError is a prover option that indicates that the Prove algorithm
@@ -94,11 +94,12 @@ func WithHints(hintFunctions ...hint.Function) ProverOption {
 	}
 }
 
-// WithOutput is a prover option that specifies an io.Writer as destination for
-// logs printed by api.Println(). If set to nil, no logs are printed.
-func WithOutput(w io.Writer) ProverOption {
+// WithCircuitLogger is a prover option that specifies zerolog.Logger as a destination for the
+// logs printed by api.Println(). By default, uses gnark/logger.
+// zerolog.Nop() will disable logging
+func WithCircuitLogger(l zerolog.Logger) ProverOption {
 	return func(opt *ProverConfig) error {
-		opt.LoggerOut = w
+		opt.CircuitLogger = l
 		return nil
 	}
 }

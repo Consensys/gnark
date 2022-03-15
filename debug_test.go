@@ -10,7 +10,10 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,11 +46,11 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:25 13 is the addition\n")
-	expected.WriteString("debug_test.go:27 26 42\n")
-	expected.WriteString("debug_test.go:29 bits 1\n")
-	expected.WriteString("debug_test.go:30 circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:34 m .*\n")
+	expected.WriteString("debug_test.go:28 > 13 is the addition\n")
+	expected.WriteString("debug_test.go:30 > 26 42\n")
+	expected.WriteString("debug_test.go:32 > bits 1\n")
+	expected.WriteString("debug_test.go:33 > circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:37 > m .*\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -172,7 +175,7 @@ func TestTraceNotBoolean(t *testing.T) {
 }
 
 func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, backend.PLONK, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, scs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -191,12 +194,13 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, err = plonk.Prove(ccs, pk, sw, backend.WithOutput(&buf))
+	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
+	_, err = plonk.Prove(ccs, pk, sw, backend.WithCircuitLogger(log))
 	return buf.String(), err
 }
 
 func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, backend.GROTH16, circuit)
+	ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -211,6 +215,7 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, err = groth16.Prove(ccs, pk, sw, backend.WithOutput(&buf))
+	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
+	_, err = groth16.Prove(ccs, pk, sw, backend.WithCircuitLogger(log))
 	return buf.String(), err
 }

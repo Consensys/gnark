@@ -25,8 +25,11 @@ import (
 	"fmt"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"io"
+	"time"
 
 	"text/template"
+
+	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -40,6 +43,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	if len(publicWitness) != (len(vk.G1.K) - 1) {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
+	log := logger.Logger().With().Str("curve", vk.CurveID().String()).Str("backend", "groth16").Logger()
+	start := time.Now()
 
 	// check that the points in the proof are in the correct subgroup
 	if !proof.isValid() {
@@ -80,6 +85,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	if !vk.e.Equal(&right) {
 		return errPairingCheckFailed
 	}
+
+	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
 	return nil
 }
 

@@ -24,18 +24,19 @@ import (
 // to represent string values (in logs or debug info) where a value is not known at compile time
 // (which is the case for variables that need to be resolved in the R1CS)
 type LogEntry struct {
+	Caller    string
 	Format    string
 	ToResolve []Term
 }
 
-func (l *LogEntry) WriteVariable(le Variable, sbb *strings.Builder) {
-	sbb.Grow(len(le.LinExp) * len(" + (xx + xxxxxxxxxxxx"))
+func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {
+	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
 
-	for i := 0; i < len(le.LinExp); i++ {
+	for i := 0; i < len(le); i++ {
 		if i > 0 {
 			sbb.WriteString(" + ")
 		}
-		l.WriteTerm(le.LinExp[i], sbb)
+		l.WriteTerm(le[i], sbb)
 	}
 }
 

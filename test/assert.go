@@ -29,8 +29,9 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,6 +86,7 @@ func (assert *Assert) Log(v ...interface{}) {
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	// for each {curve, backend} tuple
@@ -176,6 +178,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 //
 // By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	popts := append(opt.proverOpts, backend.IgnoreSolverError())
@@ -237,6 +240,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 }
 
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
+
 	opt := assert.options(opts...)
 
 	for _, curve := range opt.curves {
@@ -340,7 +344,7 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 	// first we clone the circuit
 	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
 	// (% of allocations to be tuned)
-	w := utils.ShallowClone(circuit)
+	w := shallowClone(circuit)
 
 	fillers := []filler{randomFiller, binaryFiller, seedFiller}
 
@@ -363,8 +367,6 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 						valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
 					}
 				}
-
-				// fmt.Println(reflect.TypeOf(circuit).String(), valid)
 
 			}, curve.String(), b.String())
 
@@ -398,14 +400,26 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		// TODO we may want to check that it was compiled with the same compile options here
 		return ccs, nil
 	}
+
+	var newBuilder frontend.NewBuilder
+
+	switch backendID {
+	case backend.GROTH16:
+		newBuilder = r1cs.NewBuilder
+	case backend.PLONK:
+		newBuilder = scs.NewBuilder
+	default:
+		panic("not implemented")
+	}
+
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
 	// ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, backendID, circuit, compileOpts...)
+	_ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
 	// _ccs, err := compiler.Compile(curveID, backendID, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
@@ -417,8 +431,6 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 
 	// add the compiled circuit to the cache
 	assert.compiled[key] = ccs
-
-	// fmt.Println(key, ccs.GetNbConstraints())
 
 	return ccs, nil
 }
@@ -441,7 +453,6 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 		if reflect.DeepEqual(opt.curves, ecc.Implemented()) {
 			opt.curves = []ecc.ID{ecc.BN254}
 		}
-		// opt.witnessSerialization = false
 	}
 	return opt
 }

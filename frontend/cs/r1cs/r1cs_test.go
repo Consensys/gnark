@@ -21,8 +21,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 )
 
 func TestQuickSort(t *testing.T) {
@@ -50,7 +51,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newR1CS(ecc.BN254)
+	cs := newBuilder(ecc.BN254, frontend.CompileConfig{})
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
@@ -62,10 +63,10 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.Variable)
+	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression)
 
 	// check sizes
-	if len(toTest.LinExp) != 3 {
+	if len(toTest) != 3 {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 

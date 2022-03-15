@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math/big"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -38,6 +40,8 @@ var (
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witness) error {
+	log := logger.Logger().With().Str("curve", "bls12_381").Str("backend", "plonk").Logger()
+	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)
 	hFunc := sha256.New()
@@ -215,7 +219,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 	// Batch verify
 	var shiftedZeta fr.Element
 	shiftedZeta.Mul(&zeta, &vk.Generator)
-	return kzg.BatchVerifyMultiPoints([]kzg.Digest{
+	err = kzg.BatchVerifyMultiPoints([]kzg.Digest{
 		foldedDigest,
 		proof.Z,
 	},
@@ -229,6 +233,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 		},
 		vk.KZGSRS,
 	)
+
+	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
+
+	return err
 }
 
 func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*curve.G1Affine) (fr.Element, error) {

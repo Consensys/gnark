@@ -19,21 +19,19 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/compiled"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
-
-var errUnsatisfiedConstraint = errors.New("unsatisfied")
 
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
@@ -44,7 +42,7 @@ type solution struct {
 	mHintsFunctions      map[hint.ID]hint.Function
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions []hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 		values:          make([]fr.Element, nbWires),
@@ -55,9 +53,21 @@ func newSolution(nbWires int, hintFunctions []hint.Function, coefficients []fr.E
 
 	for _, h := range hintFunctions {
 		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
-			return solution{}, fmt.Errorf("duplicate hint function %s", h)
+			return s, fmt.Errorf("duplicate hint function %s", h)
 		}
 		s.mHintsFunctions[h.UUID()] = h
+	}
+
+	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
+	var missing []string
+	for hintUUID, hintID := range hintsDependencies {
+		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
+			missing = append(missing, hintID)
+		}
+	}
+
+	if len(missing) > 0 {
+		return s, fmt.Errorf("solver missing hint(s): %v", missing)
 	}
 
 	return s, nil
@@ -148,7 +158,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
-	nbOutputs := f.NbOutputs(curve.ID, len(h.Inputs))
+	nbOutputs := len(h.Wires)
 	// m := len(s.tmpHintsIO)
 	// if m < (nbInputs + nbOutputs) {
 	// 	s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs + nbInputs) - m)...)
@@ -170,9 +180,6 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	for i := 0; i < nbInputs; i++ {
 
 		switch t := h.Inputs[i].(type) {
-		case compiled.Variable:
-			v := s.computeLinearExpression(t.LinExp)
-			v.ToBigIntRegular(inputs[i])
 		case compiled.LinearExpression:
 			v := s.computeLinearExpression(t)
 			v.ToBigIntRegular(inputs[i])
@@ -199,14 +206,14 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err
 }
 
-func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
-	if w == nil {
+func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		_, _ = io.WriteString(w, logLine)
+		log.Debug().Str(zerolog.CallerFieldName, logs[i].Caller).Msg(logLine)
 	}
 }
 
@@ -274,4 +281,18 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
+}
+
+// UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
+type UnsatisfiedConstraintError struct {
+	Err       error
+	CID       int     // constraint ID
+	DebugInfo *string // optional debug info
+}
+
+func (r *UnsatisfiedConstraintError) Error() string {
+	if r.DebugInfo != nil {
+		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
+	}
+	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }

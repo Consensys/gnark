@@ -21,15 +21,16 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/compiled"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *r1CS) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *r1cs) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
-	r := system.constant(i1).(compiled.Variable)
-	o := system.constant(i2).(compiled.Variable)
+	r := system.toVariable(i1).(compiled.LinearExpression)
+	o := system.toVariable(i2).(compiled.LinearExpression)
 
 	debug := system.AddDebugInfo("assertIsEqual", r, " == ", o)
 
@@ -37,32 +38,31 @@ func (system *r1CS) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *r1CS) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *r1cs) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 ∥ v == 1)
-func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
+func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
 
-	if *v.IsBoolean {
-		return // compiled.Variable is already constrained
-	}
-	*v.IsBoolean = true
-
-	if v.IsConstant() {
-		c := system.constantValue(v)
+	if c, ok := system.ConstantValue(v); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 		return
 	}
 
+	if system.IsBoolean(v) {
+		return // compiled.LinearExpression is already constrained
+	}
+	system.MarkBoolean(v)
+
 	debug := system.AddDebugInfo("assertIsBoolean", v, " == (0|1)")
 
-	o := system.constant(0)
+	o := system.toVariable(0)
 
 	// ensure v * (1 - v) == 0
 	_v := system.Sub(1, v)
@@ -75,12 +75,12 @@ func (system *r1CS) AssertIsBoolean(i1 frontend.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *r1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
+func (system *r1cs) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
-	case compiled.Variable:
-		b.AssertIsSet()
+	case compiled.LinearExpression:
+		assertIsSet(b)
 		system.mustBeLessOrEqVar(v[0], b)
 	default:
 		system.mustBeLessOrEqCst(v[0], utils.FromInterface(b))
@@ -88,18 +88,18 @@ func (system *r1CS) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Var
 
 }
 
-func (system *r1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
+func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := system.BitLen()
 
-	aBits := system.toBinary(a, nbBits, true)
+	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 	boundBits := system.ToBinary(bound, nbBits)
 
 	p := make([]frontend.Variable, nbBits+1)
-	p[nbBits] = system.constant(1)
+	p[nbBits] = system.toVariable(1)
 
-	zero := system.constant(0)
+	zero := system.toVariable(0)
 
 	for i := nbBits - 1; i >= 0; i-- {
 
@@ -122,14 +122,14 @@ func (system *r1CS) mustBeLessOrEqVar(a, bound compiled.Variable) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.markBoolean(aBits[i].(compiled.Variable)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.LinearExpression)) // this does not create a constraint
 
 		system.addConstraint(newR1C(l, aBits[i], zero), debug)
 	}
 
 }
 
-func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
+func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
 
 	nbBits := system.BitLen()
 
@@ -142,11 +142,11 @@ func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 	}
 
 	// debug info
-	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", system.constant(bound))
+	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", system.toVariable(bound))
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)
-	aBits := system.toBinary(a, nbBits, true)
+	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 
 	// t trailing bits in the bound
 	t := 0
@@ -159,7 +159,7 @@ func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 
 	p := make([]frontend.Variable, nbBits+1)
 	// p[i] == 1 → a[j] == c[j] for all j ⩾ i
-	p[nbBits] = system.constant(1)
+	p[nbBits] = system.toVariable(1)
 
 	for i := nbBits - 1; i >= t; i-- {
 		if bound.Bit(i) == 0 {
@@ -175,8 +175,8 @@ func (system *r1CS) mustBeLessOrEqCst(a compiled.Variable, bound big.Int) {
 			l := system.Sub(1, p[i+1])
 			l = system.Sub(l, aBits[i])
 
-			system.addConstraint(newR1C(l, aBits[i], system.constant(0)), debug)
-			system.markBoolean(aBits[i].(compiled.Variable))
+			system.addConstraint(newR1C(l, aBits[i], system.toVariable(0)), debug)
+			system.MarkBoolean(aBits[i].(compiled.LinearExpression))
 		} else {
 			system.AssertIsBoolean(aBits[i])
 		}

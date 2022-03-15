@@ -14,7 +14,7 @@ type hintCircuit struct {
 }
 
 func (circuit *hintCircuit) Define(api frontend.API) error {
-	res, err := api.NewHint(mulBy7, circuit.A)
+	res, err := api.Compiler().NewHint(mulBy7, 1, circuit.A)
 	if err != nil {
 		return fmt.Errorf("mulBy7: %w", err)
 	}
@@ -23,7 +23,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 
 	api.AssertIsEqual(a7, _a7)
 	api.AssertIsEqual(a7, circuit.B)
-	res, err = api.NewHint(make3)
+	res, err = api.Compiler().NewHint(make3, 1)
 	if err != nil {
 		return fmt.Errorf("make3: %w", err)
 	}
@@ -39,7 +39,7 @@ type vectorDoubleCircuit struct {
 }
 
 func (c *vectorDoubleCircuit) Define(api frontend.API) error {
-	res, err := api.NewHint(dvHint, c.A...)
+	res, err := api.Compiler().NewHint(dvHint, len(c.B), c.A...)
 	if err != nil {
 		return fmt.Errorf("double newhint: %w", err)
 	}
@@ -101,12 +101,12 @@ func init() {
 var mulBy7 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.Info().Fr.Modulus())
 	return nil
-}, 1, 1)
+})
 
 var make3 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].SetUint64(3)
 	return nil
-}, 0, 1)
+})
 
 var dvHint = &doubleVector{}
 
