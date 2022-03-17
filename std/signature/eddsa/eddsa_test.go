@@ -22,13 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
-	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature/eddsa"
@@ -43,95 +36,6 @@ type eddsaCircuit struct {
 	PublicKey PublicKey         `gnark:",public"`
 	Signature Signature         `gnark:",public"`
 	Message   frontend.Variable `gnark:",public"`
-}
-
-//func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
-func parseSignature(id ecc.ID, buf []byte) ([]byte, []byte, []byte) {
-
-	var pointbn254 edwardsbn254.PointAffine
-	var pointbls12381 edwardsbls12381.PointAffine
-	var pointbls12377 edwardsbls12377.PointAffine
-	var pointbw6761 edwardsbw6761.PointAffine
-	var pointbls24315 edwardsbls24315.PointAffine
-	var pointbw6633 edwardsbw6633.PointAffine
-
-	switch id {
-	case ecc.BN254:
-		pointbn254.SetBytes(buf[:32])
-		a, b := parsePoint(id, buf)
-		s := buf[32:]
-		return a[:], b[:], s
-	case ecc.BLS12_381:
-		pointbls12381.SetBytes(buf[:32])
-		a, b := parsePoint(id, buf)
-		s := buf[32:]
-		return a[:], b[:], s
-	case ecc.BLS12_377:
-		pointbls12377.SetBytes(buf[:32])
-		a, b := parsePoint(id, buf)
-		s := buf[32:]
-		return a[:], b[:], s
-	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48])
-		a, b := parsePoint(id, buf)
-		s := buf[48:]
-		return a[:], b[:], s
-	case ecc.BLS24_315:
-		pointbls24315.SetBytes(buf[:32])
-		a, b := parsePoint(id, buf)
-		s := buf[32:]
-		return a[:], b[:], s
-	case ecc.BW6_633:
-		pointbw6633.SetBytes(buf[:40])
-		a, b := parsePoint(id, buf)
-		s := buf[40:]
-		return a[:], b[:], s
-	default:
-		return buf, buf, buf
-	}
-}
-
-func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
-	var pointbn254 edwardsbn254.PointAffine
-	var pointbls12381 edwardsbls12381.PointAffine
-	var pointbls12377 edwardsbls12377.PointAffine
-	var pointbw6761 edwardsbw6761.PointAffine
-	var pointbls24315 edwardsbls24315.PointAffine
-	var pointbw6633 edwardsbw6633.PointAffine
-	switch id {
-	case ecc.BN254:
-		pointbn254.SetBytes(buf[:32])
-		a := pointbn254.X.Bytes()
-		b := pointbn254.Y.Bytes()
-		return a[:], b[:]
-	case ecc.BLS12_381:
-		pointbls12381.SetBytes(buf[:32])
-		a := pointbls12381.X.Bytes()
-		b := pointbls12381.Y.Bytes()
-		return a[:], b[:]
-	case ecc.BLS12_377:
-		pointbls12377.SetBytes(buf[:32])
-		a := pointbls12377.X.Bytes()
-		b := pointbls12377.Y.Bytes()
-		return a[:], b[:]
-	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48])
-		a := pointbw6761.X.Bytes()
-		b := pointbw6761.Y.Bytes()
-		return a[:], b[:]
-	case ecc.BLS24_315:
-		pointbls24315.SetBytes(buf[:32])
-		a := pointbls24315.X.Bytes()
-		b := pointbls24315.Y.Bytes()
-		return a[:], b[:]
-	case ecc.BW6_633:
-		pointbw6633.SetBytes(buf[:40])
-		a := pointbw6633.X.Bytes()
-		b := pointbw6633.Y.Bytes()
-		return a[:], b[:]
-	default:
-		return buf, buf
-	}
 }
 
 func (circuit *eddsaCircuit) Define(api frontend.API) error {
@@ -212,15 +116,8 @@ func TestEddsa(t *testing.T) {
 			{
 				var witness eddsaCircuit
 				witness.Message = msg
-
-				pubkeyAx, pubkeyAy := parsePoint(snarkCurve, pubKey.Bytes())
-				witness.PublicKey.A.X = pubkeyAx
-				witness.PublicKey.A.Y = pubkeyAy
-
-				sigRx, sigRy, sigS := parseSignature(snarkCurve, signature)
-				witness.Signature.R.X = sigRx
-				witness.Signature.R.Y = sigRy
-				witness.Signature.S = sigS
+				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
+				witness.Signature.Assign(snarkCurve, signature)
 
 				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
 			}
@@ -228,17 +125,11 @@ func TestEddsa(t *testing.T) {
 			// verification with incorrect Message
 			{
 				var witness eddsaCircuit
+
 				msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
 				witness.Message = msg
-
-				pubkeyAx, pubkeyAy := parsePoint(snarkCurve, pubKey.Bytes())
-				witness.PublicKey.A.X = pubkeyAx
-				witness.PublicKey.A.Y = pubkeyAy
-
-				sigRx, sigRy, sigS := parseSignature(snarkCurve, signature)
-				witness.Signature.R.X = sigRx
-				witness.Signature.R.Y = sigRy
-				witness.Signature.S = sigS
+				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
+				witness.Signature.Assign(snarkCurve, signature)
 
 				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
 			}

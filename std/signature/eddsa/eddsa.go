@@ -20,11 +20,19 @@ package eddsa
 import (
 	"errors"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
+
+	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
+	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 )
 
 // PublicKey stores an eddsa public key (to be used in gnark circuit)
@@ -89,4 +97,109 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 	curve.API().AssertIsEqual(Q.Y, 1)
 
 	return nil
+}
+
+// Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
+func (p *PublicKey) Assign(curveID ecc.ID, buf []byte) {
+	ax, ay := parsePoint(curveID, buf)
+	p.A.X = ax
+	p.A.Y = ay
+}
+
+// Assign is a helper to assigned a compressed binary signature representation into its uncompressed form
+func (s *Signature) Assign(curveID ecc.ID, buf []byte) {
+	rx, ry, S := parseSignature(curveID, buf)
+	s.R.X = rx
+	s.R.Y = ry
+	s.S = S
+}
+
+// parseSignature parses a compressed binary signature into uncompressed R.X, R.Y and S
+func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte) {
+
+	var pointbn254 edwardsbn254.PointAffine
+	var pointbls12381 edwardsbls12381.PointAffine
+	var pointbls12377 edwardsbls12377.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
+	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbw6633 edwardsbw6633.PointAffine
+
+	switch curveID {
+	case ecc.BN254:
+		pointbn254.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BLS12_381:
+		pointbls12381.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BLS12_377:
+		pointbls12377.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BW6_761:
+		pointbw6761.SetBytes(buf[:48])
+		a, b := parsePoint(curveID, buf)
+		s := buf[48:]
+		return a, b, s
+	case ecc.BLS24_315:
+		pointbls24315.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BW6_633:
+		pointbw6633.SetBytes(buf[:40])
+		a, b := parsePoint(curveID, buf)
+		s := buf[40:]
+		return a, b, s
+	default:
+		panic("not implemented")
+	}
+}
+
+// parsePoint parses a compressed binary point into uncompressed P.X and P.Y
+func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte) {
+	var pointbn254 edwardsbn254.PointAffine
+	var pointbls12381 edwardsbls12381.PointAffine
+	var pointbls12377 edwardsbls12377.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
+	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbw6633 edwardsbw6633.PointAffine
+	switch curveID {
+	case ecc.BN254:
+		pointbn254.SetBytes(buf[:32])
+		a := pointbn254.X.Bytes()
+		b := pointbn254.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS12_381:
+		pointbls12381.SetBytes(buf[:32])
+		a := pointbls12381.X.Bytes()
+		b := pointbls12381.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS12_377:
+		pointbls12377.SetBytes(buf[:32])
+		a := pointbls12377.X.Bytes()
+		b := pointbls12377.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BW6_761:
+		pointbw6761.SetBytes(buf[:48])
+		a := pointbw6761.X.Bytes()
+		b := pointbw6761.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS24_315:
+		pointbls24315.SetBytes(buf[:32])
+		a := pointbls24315.X.Bytes()
+		b := pointbls24315.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BW6_633:
+		pointbw6633.SetBytes(buf[:40])
+		a := pointbw6633.X.Bytes()
+		b := pointbw6633.Y.Bytes()
+		return a[:], b[:]
+	default:
+		panic("not implemented")
+	}
 }
