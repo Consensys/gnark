@@ -22,30 +22,30 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-// Point point on a twisted Edwards curve in a Snark cs
-type Point struct {
-	X, Y frontend.Variable
+// jubjubPoint point on a twisted Edwards curve in a Snark cs
+type jubjubPoint struct {
+	Point
 }
 
 // Neg computes the negative of a point in SNARK coordinates
-func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
+func (p *jubjubPoint) Neg(api frontend.API, p1 *jubjubPoint) *jubjubPoint {
 	p.X = api.Neg(p1.X)
 	p.Y = p1.Y
 	return p
 }
 
-// MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
+// AssertIsOnCurve checks if a point is on the reduced twisted Edwards curve
 // a*x² + y² = 1 + d*x²*y².
-func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
+func (p *jubjubPoint) AssertIsOnCurve(api frontend.API, curve *CurveParams) {
 
 	one := big.NewInt(1)
 
 	xx := api.Mul(p.X, p.X)
 	yy := api.Mul(p.Y, p.Y)
-	axx := api.Mul(xx, &curve.A)
+	axx := api.Mul(xx, curve.A)
 	lhs := api.Add(axx, yy)
 
-	dxx := api.Mul(xx, &curve.D)
+	dxx := api.Mul(xx, curve.D)
 	dxxyy := api.Mul(dxx, yy)
 	rhs := api.Add(dxxyy, one)
 
@@ -55,10 +55,10 @@ func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 
 // Add Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
+func (p *jubjubPoint) Add(api frontend.API, p1, p2 *jubjubPoint, curve *CurveParams) *jubjubPoint {
 
 	// u = (x1 + y1) * (x2 + y2)
-	u1 := api.Mul(p1.X, &curve.A)
+	u1 := api.Mul(p1.X, curve.A)
 	u1 = api.Sub(p1.Y, u1)
 	u2 := api.Add(p2.X, p2.Y)
 	u := api.Mul(u1, u2)
@@ -70,14 +70,14 @@ func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 	v1 := api.Mul(p2.X, p1.Y)
 
 	// v2 = d * v0 * v1
-	v2 := api.Mul(&curve.D, v0, v1)
+	v2 := api.Mul(curve.D, v0, v1)
 
 	// x = (v0 + v1) / (1 + v2)
 	p.X = api.Add(v0, v1)
 	p.X = api.DivUnchecked(p.X, api.Add(1, v2))
 
 	// y = (u + a * v0 - v1) / (1 - v2)
-	p.Y = api.Mul(&curve.A, v0)
+	p.Y = api.Mul(curve.A, v0)
 	p.Y = api.Sub(p.Y, v1)
 	p.Y = api.Add(p.Y, u)
 	p.Y = api.DivUnchecked(p.Y, api.Sub(1, v2))
@@ -86,14 +86,14 @@ func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 }
 
 // Double doubles a points in SNARK coordinates
-func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
+func (p *jubjubPoint) Double(api frontend.API, p1 *jubjubPoint, curve *CurveParams) *jubjubPoint {
 
 	u := api.Mul(p1.X, p1.Y)
 	v := api.Mul(p1.X, p1.X)
 	w := api.Mul(p1.Y, p1.Y)
 
 	n1 := api.Mul(2, u)
-	av := api.Mul(v, &curve.A)
+	av := api.Mul(v, curve.A)
 	n2 := api.Sub(w, av)
 	d1 := api.Add(w, av)
 	d2 := api.Sub(2, d1)
@@ -109,15 +109,15 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *jubjubPoint) ScalarMul(api frontend.API, p1 *jubjubPoint, scalar frontend.Variable, curve *CurveParams) *jubjubPoint {
 
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
-	res := Point{}
-	tmp := Point{}
-	A := Point{}
-	B := Point{}
+	res := jubjubPoint{}
+	tmp := jubjubPoint{}
+	A := jubjubPoint{}
+	B := jubjubPoint{}
 
 	A.Double(api, p1, curve)
 	B.Add(api, &A, p1, curve)
@@ -150,15 +150,15 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 // DoubleBaseScalarMul computes s1*P1+s2*P2
 // where P1 and P2 are points on a twisted Edwards curve
 // and s1, s2 scalars.
-func (p *Point) DoubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve EdCurve) *Point {
+func (p *jubjubPoint) DoubleBaseScalarMul(api frontend.API, p1, p2 *jubjubPoint, s1, s2 frontend.Variable, curve *CurveParams) *jubjubPoint {
 
 	// first unpack the scalars
 	b1 := api.ToBinary(s1)
 	b2 := api.ToBinary(s2)
 
-	res := Point{}
-	tmp := Point{}
-	sum := Point{}
+	res := jubjubPoint{}
+	tmp := jubjubPoint{}
+	sum := jubjubPoint{}
 	sum.Add(api, p1, p2, curve)
 
 	n := len(b1)

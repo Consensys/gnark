@@ -17,6 +17,7 @@ limitations under the License.
 package rollup
 
 import (
+	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
@@ -87,18 +88,8 @@ type TransferConstraints struct {
 }
 
 func (circuit *Circuit) postInit(api frontend.API) error {
-	// edward curve params
-	params, err := twistededwards.NewEdCurve(api.Compiler().Curve())
-	if err != nil {
-		return err
-	}
 
 	for i := 0; i < batchSize; i++ {
-		// setting sender public key
-		circuit.PublicKeysSender[i].Curve = params
-
-		// setting receiver public key
-		circuit.PublicKeysReceiver[i].Curve = params
 
 		// setting the sender accounts before update
 		circuit.SenderAccountsBefore[i].PubKey = circuit.PublicKeysSender[i]
@@ -163,7 +154,13 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 	htransfer := hFunc.Sum()
 
-	err := eddsa.Verify(api, t.Signature, htransfer, t.SenderPubKey)
+	curve, err := twistededwards.NewEdCurve(api, tedwards.BN254)
+	if err != nil {
+		return err
+	}
+
+	hFunc.Reset()
+	err = eddsa.Verify(curve, t.Signature, htransfer, t.SenderPubKey, &hFunc)
 	if err != nil {
 		return err
 	}

@@ -30,39 +30,39 @@ type Coord struct {
 	X, Y big.Int
 }
 
-// EdCurve stores the info on the chosen edwards curve
-type EdCurve struct {
+// EdCurveTOREFACTOR_BANDERSNATCH stores the info on the chosen edwards curve
+type EdCurveTOREFACTOR_BANDERSNATCH struct {
 	A, D, Cofactor, Order, endo0, endo1 big.Int
 	Base                                Coord
 	ID                                  ecc.ID
 	lambda                              big.Int
 }
 
-var constructors map[ecc.ID]func() EdCurve
+var constructors map[ecc.ID]func() EdCurveTOREFACTOR_BANDERSNATCH
 
 func init() {
-	constructors = map[ecc.ID]func() EdCurve{
+	constructors = map[ecc.ID]func() EdCurveTOREFACTOR_BANDERSNATCH{
 		ecc.BLS12_381: newBandersnatch,
 	}
 }
 
 // NewEdCurve returns an Edwards curve parameters
-func NewEdCurve(id ecc.ID) (EdCurve, error) {
+func NewEdCurve(id ecc.ID) (EdCurveTOREFACTOR_BANDERSNATCH, error) {
 	if constructor, ok := constructors[id]; ok {
 		return constructor(), nil
 	}
-	return EdCurve{}, errors.New("unknown curve id")
+	return EdCurveTOREFACTOR_BANDERSNATCH{}, errors.New("unknown curve id")
 }
 
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newBandersnatch() EdCurve {
+func newBandersnatch() EdCurveTOREFACTOR_BANDERSNATCH {
 
 	edcurve := bandersnatch.GetEdwardsCurve()
 	edcurve.Cofactor.FromMont()
 
-	return EdCurve{
+	return EdCurveTOREFACTOR_BANDERSNATCH{
 		A:        utils.FromInterface(edcurve.A),
 		D:        utils.FromInterface(edcurve.D),
 		Cofactor: utils.FromInterface(edcurve.Cofactor),

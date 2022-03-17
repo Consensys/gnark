@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
@@ -33,10 +34,12 @@ import (
 	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
 
 type eddsaCircuit struct {
+	curveID   tedwards.ID
 	PublicKey PublicKey         `gnark:",public"`
 	Signature Signature         `gnark:",public"`
 	Message   frontend.Variable `gnark:",public"`
@@ -133,105 +136,114 @@ func parsePoint(id ecc.ID, buf []byte) ([]byte, []byte) {
 
 func (circuit *eddsaCircuit) Define(api frontend.API) error {
 
-	params, err := twistededwards.NewEdCurve(api.Compiler().Curve())
+	curve, err := twistededwards.NewEdCurve(api, circuit.curveID)
 	if err != nil {
 		return err
 	}
-	circuit.PublicKey.Curve = params
+
+	mimc, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
+	}
 
 	// verify the signature in the cs
-	Verify(api, circuit.Signature, circuit.Message, circuit.PublicKey)
-
-	return nil
+	return Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
 
 func TestEddsa(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	type confSig struct {
-		h     hash.Hash
-		s     tedwards.ID
-		curve ecc.ID
+	type testData struct {
+		hash  hash.Hash
+		curve tedwards.ID
 	}
 
-	confs := []confSig{
-		{hash.MIMC_BN254, tedwards.BN254, ecc.BN254},
-		{hash.MIMC_BLS12_381, tedwards.BLS12_381, ecc.BLS12_381},
-		{hash.MIMC_BLS12_381, tedwards.BLS12_381_BANDERSNATCH, ecc.BLS12_381},
-		{hash.MIMC_BLS12_377, tedwards.BLS12_377, ecc.BLS12_377},
-		{hash.MIMC_BW6_761, tedwards.BW6_761, ecc.BW6_761},
-		{hash.MIMC_BLS24_315, tedwards.BLS24_315, ecc.BLS24_315},
-		{hash.MIMC_BW6_633, tedwards.BW6_633, ecc.BW6_633},
+	confs := []testData{
+		{hash.MIMC_BN254, tedwards.BN254},
+		{hash.MIMC_BLS12_381, tedwards.BLS12_381},
+		// {hash.MIMC_BLS12_381, tedwards.BLS12_381_BANDERSNATCH},
+		{hash.MIMC_BLS12_377, tedwards.BLS12_377},
+		{hash.MIMC_BW6_761, tedwards.BW6_761},
+		{hash.MIMC_BLS24_315, tedwards.BLS24_315},
+		{hash.MIMC_BW6_633, tedwards.BW6_633},
 	}
-	for _, conf := range confs {
 
-		// generate parameters for the signatures
-		hFunc := conf.h.New()
-		src := rand.NewSource(0)
-		r := rand.New(src)
-		privKey, err := eddsa.New(conf.s, r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		pubKey := privKey.Public()
-
-		// pick a message to sign
-		var frMsg big.Int
-		frMsg.SetString("44717650746155748460101257525078853138837311576962212923649547644148297035978", 10)
-		msgBin := frMsg.Bytes()
-
-		// generate signature
-		signature, err := privKey.Sign(msgBin[:], hFunc)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// check if there is no problem in the signature
-		checkSig, err := pubKey.Verify(signature, msgBin[:], hFunc)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !checkSig {
-			t.Fatal("Unexpected failed signature verification")
-		}
-
-		// create and compile the circuit for signature verification
-		var circuit eddsaCircuit
-
-		// verification with the correct Message
-		{
-			var witness eddsaCircuit
-			witness.Message = frMsg
-
-			pubkeyAx, pubkeyAy := parsePoint(conf.curve, pubKey.Bytes())
-			witness.PublicKey.A.X = pubkeyAx
-			witness.PublicKey.A.Y = pubkeyAy
-
-			sigRx, sigRy, sigS := parseSignature(conf.curve, signature)
-			witness.Signature.R.X = sigRx
-			witness.Signature.R.Y = sigRy
-			witness.Signature.S = sigS
-
-			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(conf.curve))
-		}
-
-		// verification with incorrect Message
-		{
-			var witness eddsaCircuit
-			witness.Message = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
-
-			pubkeyAx, pubkeyAy := parsePoint(conf.curve, pubKey.Bytes())
-			witness.PublicKey.A.X = pubkeyAx
-			witness.PublicKey.A.Y = pubkeyAy
-
-			sigRx, sigRy, sigS := parseSignature(conf.curve, signature)
-			witness.Signature.R.X = sigRx
-			witness.Signature.R.Y = sigRy
-			witness.Signature.S = sigS
-
-			assert.SolvingFailed(&circuit, &witness, test.WithCurves(conf.curve))
-		}
-
+	bound := 5
+	if testing.Short() {
+		bound = 1
 	}
+
+	for i := 0; i < bound; i++ {
+		seed := time.Now().Unix()
+		t.Logf("setting seed in rand %d", seed)
+		randomness := rand.New(rand.NewSource(seed))
+
+		for _, conf := range confs {
+
+			snarkCurve, err := twistededwards.GetSnarkCurve(conf.curve)
+			assert.NoError(err)
+
+			// generate parameters for the signatures
+			privKey, err := eddsa.New(conf.curve, randomness)
+			assert.NoError(err, "generating eddsa key pair")
+
+			// pick a message to sign
+			var msg big.Int
+			msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+			t.Log("msg to sign", msg.String())
+			msgData := msg.Bytes()
+
+			// generate signature
+			signature, err := privKey.Sign(msgData[:], conf.hash.New())
+			assert.NoError(err, "signing message")
+
+			// check if there is no problem in the signature
+			pubKey := privKey.Public()
+			checkSig, err := pubKey.Verify(signature, msgData[:], conf.hash.New())
+			assert.NoError(err, "verifying signature")
+			assert.True(checkSig, "signature verification failed")
+
+			// create and compile the circuit for signature verification
+			var circuit eddsaCircuit
+			circuit.curveID = conf.curve
+
+			// verification with the correct Message
+			{
+				var witness eddsaCircuit
+				witness.Message = msg
+
+				pubkeyAx, pubkeyAy := parsePoint(snarkCurve, pubKey.Bytes())
+				witness.PublicKey.A.X = pubkeyAx
+				witness.PublicKey.A.Y = pubkeyAy
+
+				sigRx, sigRy, sigS := parseSignature(snarkCurve, signature)
+				witness.Signature.R.X = sigRx
+				witness.Signature.R.Y = sigRy
+				witness.Signature.S = sigS
+
+				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
+			}
+
+			// verification with incorrect Message
+			{
+				var witness eddsaCircuit
+				msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+				witness.Message = msg
+
+				pubkeyAx, pubkeyAy := parsePoint(snarkCurve, pubKey.Bytes())
+				witness.PublicKey.A.X = pubkeyAx
+				witness.PublicKey.A.Y = pubkeyAy
+
+				sigRx, sigRy, sigS := parseSignature(snarkCurve, signature)
+				witness.Signature.R.X = sigRx
+				witness.Signature.R.Y = sigRy
+				witness.Signature.S = sigS
+
+				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
+			}
+
+		}
+	}
+
 }

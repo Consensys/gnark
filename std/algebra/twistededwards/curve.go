@@ -27,150 +27,205 @@ import (
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark-crypto/ecc/twistededwards"
+	"github.com/consensys/gnark/frontend"
 )
 
+// Curve methods implemented by a twisted edwards curve inside a circuit
+type Curve interface {
+	Params() *CurveParams
+	Endo() *EndoParams
+	Add(p1, p2 Point) Point
+	Double(p1 Point) Point
+	Neg(p1 Point) Point
+	AssertIsOnCurve(p1 Point)
+	ScalarMul(p1 Point, scalar frontend.Variable) Point
+	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
+	API() frontend.API
+}
+
+// Point represent a pair of X, Y coordinates inside a circuit
+type Point struct {
+	X, Y frontend.Variable
+}
+
+// CurveParams twisted edwards curve parameters ax^2 + y^2 = 1 + d*x^2*y^2
+// Matches gnark-crypto curve specific params
+type CurveParams struct {
+	A, D, Cofactor, Order *big.Int
+	Base                  [2]*big.Int // base point coordinates
+}
+
+// EndoParams endomorphism parameters for the curve, if they exist
+type EndoParams struct {
+	Endo   []*big.Int
+	Lambda *big.Int
+}
+
 // Coordinates of a point on a twisted Edwards curve
-type Coord struct {
+type CoordTOREFACTOR struct {
 	X, Y big.Int
 }
 
-// EdCurve stores the info on the chosen edwards curve
-// note that all curves implemented in gnark-crypto have A = -1
-type EdCurve struct {
-	A, D, Cofactor, Order big.Int
-	Base                  Coord
-	ID                    ecc.ID
-}
-
-var constructors map[ecc.ID]func() EdCurve
-
-func init() {
-	constructors = map[ecc.ID]func() EdCurve{
-		ecc.BLS12_381: newEdBLS381,
-		ecc.BN254:     newEdBN254,
-		ecc.BLS12_377: newEdBLS377,
-		ecc.BW6_761:   newEdBW761,
-		ecc.BLS24_315: newEdBLS315,
-		ecc.BW6_633:   newEdBW633,
-	}
-}
-
 // NewEdCurve returns an Edwards curve parameters
-func NewEdCurve(id ecc.ID) (EdCurve, error) {
-	if constructor, ok := constructors[id]; ok {
-		return constructor(), nil
+func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
+	snarkCurve, err := GetSnarkCurve(id)
+	if err != nil {
+		return nil, err
 	}
-	return EdCurve{}, errors.New("unknown curve id")
+	if api.Curve() != snarkCurve {
+		return nil, errors.New("invalid curve pair; snark field doesn't match twisted edwards field")
+	}
+	params, err := GetCurveParams(id)
+	if err != nil {
+		return nil, err
+	}
+	return &jubjubCurve{api: api, params: params}, nil
+}
+
+func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {
+	var params *CurveParams
+	switch id {
+	case twistededwards.BN254:
+		params = newEdBN254()
+	case twistededwards.BLS12_377:
+		params = newEdBLS12_377()
+	case twistededwards.BLS12_381:
+		params = newEdBLS12_381()
+	case twistededwards.BLS12_381_BANDERSNATCH:
+		panic("not implemented")
+	case twistededwards.BLS24_315:
+		params = newEdBLS24_315()
+	case twistededwards.BW6_761:
+		params = newEdBW6_761()
+	case twistededwards.BW6_633:
+		params = newEdBW6_633()
+	default:
+		return nil, errors.New("unknown twisted edwards curve id")
+	}
+	return params, nil
+}
+
+// GetSnarkCurve returns the matching snark curve for a twisted edwards curve
+func GetSnarkCurve(id twistededwards.ID) (ecc.ID, error) {
+	switch id {
+	case twistededwards.BN254:
+		return ecc.BN254, nil
+	case twistededwards.BLS12_377:
+		return ecc.BLS12_377, nil
+	case twistededwards.BLS12_381:
+		return ecc.BLS12_381, nil
+	case twistededwards.BLS12_381_BANDERSNATCH:
+		return ecc.BLS12_381, nil
+	case twistededwards.BLS24_315:
+		return ecc.BLS24_315, nil
+	case twistededwards.BW6_761:
+		return ecc.BW6_761, nil
+	case twistededwards.BW6_633:
+		return ecc.BW6_633, nil
+	default:
+		return ecc.UNKNOWN, errors.New("unknown twisted edwards curve id")
+	}
 }
 
 // -------------------------------------------------------------------------------------------------
 // constructors
 
-func newEdBN254() EdCurve {
+func newCurveParams() *CurveParams {
+	return &CurveParams{
+		A:        new(big.Int),
+		D:        new(big.Int),
+		Cofactor: new(big.Int),
+		Order:    new(big.Int),
+		Base:     [2]*big.Int{new(big.Int), new(big.Int)},
+	}
+}
+
+func newEdBN254() *CurveParams {
 
 	edcurve := edbn254.GetEdwardsCurve()
-
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BN254,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }
 
-func newEdBLS381() EdCurve {
+func newEdBLS12_381() *CurveParams {
 
 	edcurve := edbls12381.GetEdwardsCurve()
 
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BLS12_381,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }
 
-func newEdBLS377() EdCurve {
+func newEdBLS12_377() *CurveParams {
 
 	edcurve := edbls12377.GetEdwardsCurve()
 
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BLS12_377,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }
 
-func newEdBW633() EdCurve {
+func newEdBW6_633() *CurveParams {
 
 	edcurve := edbw6633.GetEdwardsCurve()
 
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BW6_633,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }
 
-func newEdBW761() EdCurve {
+func newEdBW6_761() *CurveParams {
 
 	edcurve := edbw6761.GetEdwardsCurve()
 
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BW6_761,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }
 
-func newEdBLS315() EdCurve {
+func newEdBLS24_315() *CurveParams {
 
 	edcurve := edbls24315.GetEdwardsCurve()
 
-	return EdCurve{
-		A:        utils.FromInterface(edcurve.A),
-		D:        utils.FromInterface(edcurve.D),
-		Cofactor: utils.FromInterface(edcurve.Cofactor),
-		Order:    utils.FromInterface(edcurve.Order),
-		Base: Coord{
-			X: utils.FromInterface(edcurve.Base.X),
-			Y: utils.FromInterface(edcurve.Base.Y),
-		},
-		ID: ecc.BLS24_315,
-	}
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
 
 }

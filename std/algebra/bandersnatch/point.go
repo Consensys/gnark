@@ -47,7 +47,7 @@ func (p *Point) Neg(api frontend.API, p1 *Point) *Point {
 
 // MustBeOnCurve checks if a point is on the reduced twisted Edwards curve
 // a*x² + y² = 1 + d*x²*y².
-func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
+func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurveTOREFACTOR_BANDERSNATCH) {
 
 	one := big.NewInt(1)
 
@@ -66,7 +66,7 @@ func (p *Point) MustBeOnCurve(api frontend.API, curve EdCurve) {
 
 // Add Adds two points on a twisted edwards curve (eg jubjub)
 // p1, p2, c are respectively: the point to add, a known base point, and the parameters of the twisted edwards curve
-func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
+func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurveTOREFACTOR_BANDERSNATCH) *Point {
 
 	// u = (x1 + y1) * (x2 + y2)
 	u1 := api.Mul(p1.X, &curve.A)
@@ -97,7 +97,7 @@ func (p *Point) Add(api frontend.API, p1, p2 *Point, curve EdCurve) *Point {
 }
 
 // Double doubles a points in SNARK coordinates
-func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
+func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurveTOREFACTOR_BANDERSNATCH) *Point {
 
 	u := api.Mul(p1.X, p1.Y)
 	v := api.Mul(p1.X, p1.X)
@@ -117,7 +117,7 @@ func (p *Point) Double(api frontend.API, p1 *Point, curve EdCurve) *Point {
 
 // phi endomorphism √-2 ∈ 𝒪₋₈
 // (x,y) → λ × (x,y) s.t. λ² = -2 mod Order
-func (p *Point) phi(api frontend.API, p1 *Point, curve EdCurve) *Point {
+func (p *Point) phi(api frontend.API, p1 *Point, curve EdCurveTOREFACTOR_BANDERSNATCH) *Point {
 
 	xy := api.Mul(p1.X, p1.Y)
 	yy := api.Mul(p1.Y, p1.Y)
@@ -179,7 +179,7 @@ func init() {
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurve) *Point {
+func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve EdCurveTOREFACTOR_BANDERSNATCH) *Point {
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + λ * s2 == s mod Order,
 	// with λ s.t. λ² = -2 mod Order.
@@ -226,7 +226,7 @@ func (p *Point) ScalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 // DoubleBaseScalarMul computes s1*P1+s2*P2
 // where P1 and P2 are points on a twisted Edwards curve
 // and s1, s2 scalars.
-func (p *Point) DoubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve EdCurve) *Point {
+func (p *Point) DoubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve EdCurveTOREFACTOR_BANDERSNATCH) *Point {
 
 	// first unpack the scalars
 	b1 := api.ToBinary(s1)

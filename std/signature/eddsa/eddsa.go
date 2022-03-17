@@ -18,15 +18,18 @@ limitations under the License.
 package eddsa
 
 import (
+	"errors"
+
+	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/hash"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
-	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // PublicKey stores an eddsa public key (to be used in gnark circuit)
 type PublicKey struct {
-	A     twistededwards.Point
-	Curve twistededwards.EdCurve
+	A twistededwards.Point
 }
 
 // Signature stores a signature  (to be used in gnark circuit)
@@ -40,53 +43,50 @@ type Signature struct {
 	S frontend.Variable
 }
 
-// Verify verifies an eddsa signature
+// Verify verifies an eddsa signature using MiMC hash function
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
+func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.Hash) error {
 
-	// compute H(R, A, M), all parameters in data are in Montgomery form
-	data := []frontend.Variable{
-		sig.R.X,
-		sig.R.Y,
-		pubKey.A.X,
-		pubKey.A.Y,
-		msg,
+	// compute H(R, A, M)
+	hash.Write(sig.R.X)
+	hash.Write(sig.R.Y)
+	hash.Write(pubKey.A.X)
+	hash.Write(pubKey.A.Y)
+	hash.Write(msg)
+	hRAM := hash.Sum()
+
+	base := twistededwards.Point{
+		X: curve.Params().Base[0],
+		Y: curve.Params().Base[1],
 	}
-
-	hash, err := mimc.NewMiMC(api)
-	if err != nil {
-		return err
-	}
-	hash.Write(data...)
-	hramConstant := hash.Sum()
-
-	base := twistededwards.Point{}
-	base.X = pubKey.Curve.Base.X
-	base.Y = pubKey.Curve.Base.Y
 
 	//[S]G-[H(R,A,M)]*A
-	cofactor := pubKey.Curve.Cofactor.Uint64()
-	Q := twistededwards.Point{}
-	_A := twistededwards.Point{}
-	_A.Neg(api, &pubKey.A)
-	Q.DoubleBaseScalarMul(api, &base, &_A, sig.S, hramConstant, pubKey.Curve)
-	Q.MustBeOnCurve(api, pubKey.Curve)
+	_A := curve.Neg(pubKey.A)
+	Q := curve.DoubleBaseScalarMul(base, _A, sig.S, hRAM)
+	curve.AssertIsOnCurve(Q)
 
 	//[S]G-[H(R,A,M)]*A-R
-	Q.Neg(api, &Q).Add(api, &Q, &sig.R, pubKey.Curve)
+	Q = curve.Add(curve.Neg(Q), sig.R)
 
 	// [cofactor]*(lhs-rhs)
+	log := logger.Logger()
+	if !curve.Params().Cofactor.IsUint64() {
+		err := errors.New("invalid cofactor")
+		log.Err(err).Str("cofactor", curve.Params().Cofactor.String()).Send()
+		return err
+	}
+	cofactor := curve.Params().Cofactor.Uint64()
 	switch cofactor {
 	case 4:
-		Q.Double(api, &Q, pubKey.Curve).
-			Double(api, &Q, pubKey.Curve)
+		Q = curve.Double(curve.Double(Q))
 	case 8:
-		Q.Double(api, &Q, pubKey.Curve).
-			Double(api, &Q, pubKey.Curve).Double(api, &Q, pubKey.Curve)
+		Q = curve.Double(curve.Double(curve.Double(Q)))
+	default:
+		log.Warn().Str("cofactor", curve.Params().Cofactor.String()).Msg("curve cofactor is not implemented")
 	}
 
-	api.AssertIsEqual(Q.X, 0)
-	api.AssertIsEqual(Q.Y, 1)
+	curve.API().AssertIsEqual(Q.X, 0)
+	curve.API().AssertIsEqual(Q.Y, 1)
 
 	return nil
 }
