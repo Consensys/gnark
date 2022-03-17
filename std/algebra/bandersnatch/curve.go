@@ -21,7 +21,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	"github.com/consensys/gnark/internal/utils"
 )
 

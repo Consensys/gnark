@@ -2,9 +2,9 @@ package std
 
 import (
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/std/algebra/bandersnatch"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
-	"github.com/consensys/gnark/std/algebra/twistededwards/bandersnatch"
 	"github.com/consensys/gnark/std/math/bits"
 )
 

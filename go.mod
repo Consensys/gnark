@@ -3,8 +3,8 @@ module github.com/consensys/gnark
 go 1.17
 
 require (
-	github.com/consensys/bavard v0.1.9
-	github.com/consensys/gnark-crypto v0.6.1
+	github.com/consensys/bavard v0.1.10
+	github.com/consensys/gnark-crypto v0.6.2-0.20220316194412-123a014c517f
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.26.1

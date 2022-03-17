@@ -23,19 +23,13 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	eddsabls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards/eddsa"
 	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	eddsabls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/eddsa"
 	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	eddsabls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards/eddsa"
 	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	eddsabn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
-	eddsabw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards/eddsa"
 	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	eddsabw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards/eddsa"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/signature"
+	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/test"
@@ -155,26 +149,21 @@ func TestEddsa(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	type confSig struct {
-		h hash.Hash
-		s signature.SignatureScheme
+		h     hash.Hash
+		s     eddsa.SignatureScheme
+		curve ecc.ID
 	}
 
-	signature.Register(signature.EDDSA_BN254, eddsabn254.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BLS12_381, eddsabls12381.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BLS12_377, eddsabls12377.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BW6_761, eddsabw6761.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BLS24_315, eddsabls24315.GenerateKeyInterfaces)
-	signature.Register(signature.EDDSA_BW6_633, eddsabw6633.GenerateKeyInterfaces)
-
-	confs := map[ecc.ID]confSig{
-		ecc.BN254:     {hash.MIMC_BN254, signature.EDDSA_BN254},
-		ecc.BLS12_381: {hash.MIMC_BLS12_381, signature.EDDSA_BLS12_381},
-		ecc.BLS12_377: {hash.MIMC_BLS12_377, signature.EDDSA_BLS12_377},
-		ecc.BW6_761:   {hash.MIMC_BW6_761, signature.EDDSA_BW6_761},
-		ecc.BLS24_315: {hash.MIMC_BLS24_315, signature.EDDSA_BLS24_315},
-		ecc.BW6_633:   {hash.MIMC_BW6_633, signature.EDDSA_BW6_633},
+	confs := []confSig{
+		{hash.MIMC_BN254, eddsa.BN254, ecc.BN254},
+		{hash.MIMC_BLS12_381, eddsa.BLS12_381, ecc.BLS12_381},
+		{hash.MIMC_BLS12_381, eddsa.BLS12_381_BANDERSNATCH, ecc.BLS12_381},
+		{hash.MIMC_BLS12_377, eddsa.BLS12_377, ecc.BLS12_377},
+		{hash.MIMC_BW6_761, eddsa.BW6_761, ecc.BW6_761},
+		{hash.MIMC_BLS24_315, eddsa.BLS24_315, ecc.BLS24_315},
+		{hash.MIMC_BW6_633, eddsa.BW6_633, ecc.BW6_633},
 	}
-	for id, conf := range confs {
+	for _, conf := range confs {
 
 		// generate parameters for the signatures
 		hFunc := conf.h.New()
@@ -214,22 +203,16 @@ func TestEddsa(t *testing.T) {
 			var witness eddsaCircuit
 			witness.Message = frMsg
 
-			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
-			var pbAx, pbAy big.Int
-			pbAx.SetBytes(pubkeyAx)
-			pbAy.SetBytes(pubkeyAy)
+			pubkeyAx, pubkeyAy := parsePoint(conf.curve, pubKey.Bytes())
 			witness.PublicKey.A.X = pubkeyAx
 			witness.PublicKey.A.Y = pubkeyAy
 
-			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
-			sigRx, sigRy, sigS := parseSignature(id, signature)
+			sigRx, sigRy, sigS := parseSignature(conf.curve, signature)
 			witness.Signature.R.X = sigRx
 			witness.Signature.R.Y = sigRy
-			// witness.Signature.S1 = sigS1
-			// witness.Signature.S2 = sigS2
 			witness.Signature.S = sigS
 
-			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
+			assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(conf.curve))
 		}
 
 		// verification with incorrect Message
@@ -237,17 +220,16 @@ func TestEddsa(t *testing.T) {
 			var witness eddsaCircuit
 			witness.Message = "44717650746155748460101257525078853138837311576962212923649547644148297035979"
 
-			pubkeyAx, pubkeyAy := parsePoint(id, pubKey.Bytes())
+			pubkeyAx, pubkeyAy := parsePoint(conf.curve, pubKey.Bytes())
 			witness.PublicKey.A.X = pubkeyAx
 			witness.PublicKey.A.Y = pubkeyAy
 
-			// sigRx, sigRy, sigS1, sigS2 := parseSignature(id, signature)
-			sigRx, sigRy, sigS := parseSignature(id, signature)
+			sigRx, sigRy, sigS := parseSignature(conf.curve, signature)
 			witness.Signature.R.X = sigRx
 			witness.Signature.R.Y = sigRy
 			witness.Signature.S = sigS
 
-			assert.SolvingFailed(&circuit, &witness, test.WithCurves(id))
+			assert.SolvingFailed(&circuit, &witness, test.WithCurves(conf.curve))
 		}
 
 	}

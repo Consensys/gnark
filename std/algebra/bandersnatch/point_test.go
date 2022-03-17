@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards/bandersnatch"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"

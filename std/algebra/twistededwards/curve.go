@@ -70,7 +70,6 @@ func NewEdCurve(id ecc.ID) (EdCurve, error) {
 func newEdBN254() EdCurve {
 
 	edcurve := edbn254.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
@@ -89,7 +88,6 @@ func newEdBN254() EdCurve {
 func newEdBLS381() EdCurve {
 
 	edcurve := edbls12381.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
@@ -108,7 +106,6 @@ func newEdBLS381() EdCurve {
 func newEdBLS377() EdCurve {
 
 	edcurve := edbls12377.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
@@ -127,7 +124,6 @@ func newEdBLS377() EdCurve {
 func newEdBW633() EdCurve {
 
 	edcurve := edbw6633.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
@@ -146,7 +142,6 @@ func newEdBW633() EdCurve {
 func newEdBW761() EdCurve {
 
 	edcurve := edbw6761.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
@@ -165,7 +160,6 @@ func newEdBW761() EdCurve {
 func newEdBLS315() EdCurve {
 
 	edcurve := edbls24315.GetEdwardsCurve()
-	edcurve.Cofactor.FromMont()
 
 	return EdCurve{
 		A:        utils.FromInterface(edcurve.A),
