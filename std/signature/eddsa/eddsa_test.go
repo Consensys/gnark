@@ -28,6 +28,7 @@ import (
 	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
@@ -150,18 +151,18 @@ func TestEddsa(t *testing.T) {
 
 	type confSig struct {
 		h     hash.Hash
-		s     eddsa.SignatureScheme
+		s     tedwards.ID
 		curve ecc.ID
 	}
 
 	confs := []confSig{
-		{hash.MIMC_BN254, eddsa.BN254, ecc.BN254},
-		{hash.MIMC_BLS12_381, eddsa.BLS12_381, ecc.BLS12_381},
-		{hash.MIMC_BLS12_381, eddsa.BLS12_381_BANDERSNATCH, ecc.BLS12_381},
-		{hash.MIMC_BLS12_377, eddsa.BLS12_377, ecc.BLS12_377},
-		{hash.MIMC_BW6_761, eddsa.BW6_761, ecc.BW6_761},
-		{hash.MIMC_BLS24_315, eddsa.BLS24_315, ecc.BLS24_315},
-		{hash.MIMC_BW6_633, eddsa.BW6_633, ecc.BW6_633},
+		{hash.MIMC_BN254, tedwards.BN254, ecc.BN254},
+		{hash.MIMC_BLS12_381, tedwards.BLS12_381, ecc.BLS12_381},
+		{hash.MIMC_BLS12_381, tedwards.BLS12_381_BANDERSNATCH, ecc.BLS12_381},
+		{hash.MIMC_BLS12_377, tedwards.BLS12_377, ecc.BLS12_377},
+		{hash.MIMC_BW6_761, tedwards.BW6_761, ecc.BW6_761},
+		{hash.MIMC_BLS24_315, tedwards.BLS24_315, ecc.BLS24_315},
+		{hash.MIMC_BW6_633, tedwards.BW6_633, ecc.BW6_633},
 	}
 	for _, conf := range confs {
 
@@ -169,7 +170,7 @@ func TestEddsa(t *testing.T) {
 		hFunc := conf.h.New()
 		src := rand.NewSource(0)
 		r := rand.New(src)
-		privKey, err := conf.s.New(r)
+		privKey, err := eddsa.New(conf.s, r)
 		if err != nil {
 			t.Fatal(err)
 		}
