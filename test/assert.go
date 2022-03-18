@@ -400,7 +400,7 @@ func (assert *Assert) getCircuitAddr(circuit frontend.Circuit) (uintptr, error) 
 	if vCircuit.Kind() != reflect.Ptr {
 		return 0, errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
-	return vCircuit.UnsafeAddr(), nil
+	return vCircuit.Pointer(), nil
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
