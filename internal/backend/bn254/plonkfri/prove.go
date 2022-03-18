@@ -15,13 +15,11 @@
 package plonkfri
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
 
-	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
@@ -47,41 +45,27 @@ type Proof struct {
 
 	// opening proofs for L, R, O
 	OpeningsLRO   [3]OpeningProof
-	OpeningsLROmp [3]MerkleProof
-	// → Merkle Proof
+	OpeningsLROmp [3]fri.OpeningProof
 
 	// opening proofs for Z, Zu
 	OpeningsZ   [2]OpeningProof
-	OpeningsZmp [2]MerkleProof
-	// → Merkle Proof
+	OpeningsZmp [2]fri.OpeningProof
 
 	// opening proof for H
 	OpeningsH   [3]OpeningProof
-	OpeningsHmp [3]OpeningProof
-	// → Merkle Proof
+	OpeningsHmp [3]fri.OpeningProof
 
 	// opening proofs for ql, qr, qm, qo, qk
 	OpeningsQlQrQmQoQkincomplete   [5]OpeningProof
-	OpeningsQlQrQmQoQkincompletemp [5]MerkleProof
-	// → Merkle Proof
+	OpeningsQlQrQmQoQkincompletemp [5]fri.OpeningProof
 
 	// openings of S1, S2, S3
 	OpeningsS1S2S3   [3]OpeningProof
-	OpeningsS1S2S3mp [3]MerkleProof
-	// → Merkle Proof
+	OpeningsS1S2S3mp [3]fri.OpeningProof
 
 	// openings of Id1, Id2, Id3
 	OpeningsId1Id2Id3   [3]OpeningProof
-	OpeningsId1Id2Id3mt [3]MerkleProof
-	// → MerkleProof
-}
-
-// MerkleProof used to open a polynomial
-type MerkleProof struct {
-	root      []byte
-	proofSet  [][]byte
-	numLeaves uint64
-	index     uint64
+	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
 func printVector(name string, v []fr.Element, bitreverse bool) {
@@ -139,6 +123,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
 
+	// 2 - commit to lro
 	blindedLCanonical, blindedRCanonical, blindedOCanonical, err := computeBlindedLROCanonical(
 		evaluationLDomainSmall,
 		evaluationRDomainSmall,
@@ -160,7 +145,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
-	// 2 - commit to lro
 	proof.LRO[0] = pk.Cscheme.Commit(blindedLCanonical)
 	proof.LRO[1] = pk.Cscheme.Commit(blindedRCanonical)
 	proof.LRO[2] = pk.Cscheme.Commit(blindedOCanonical)
@@ -224,6 +208,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		evaluationOrderingDomainBigBitReversed,
 		evaluationBlindedZDomainBigBitReversed,
 		alpha) // CORRECT
+
+	// 6 - commit to H
 	proof.Hpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(h1)
 	if err != nil {
 		return nil, err
@@ -236,8 +222,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return nil, err
 	}
-
-	// 6 - commit to H
 	proof.H[0] = pk.Cscheme.Commit(h1)
 	proof.H[1] = pk.Cscheme.Commit(h2)
 	proof.H[2] = pk.Cscheme.Commit(h3) // CORRECT
@@ -246,32 +230,122 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	var zeta fr.Element
 	zeta.SetUint64(12)
 
-	proof.OpeningsH[0] = pk.Cscheme.Open(proof.H[0], zeta)
-	proof.OpeningsH[1] = pk.Cscheme.Open(proof.H[1], zeta)
-	proof.OpeningsH[2] = pk.Cscheme.Open(proof.H[2], zeta)
+	// derive a query position, which is 0<=i<domain[1].Size
+	openingPosition := uint64(0)
 
-	proof.OpeningsLRO[0] = pk.Cscheme.Open(blindedLCanonical, zeta)
-	proof.OpeningsLRO[1] = pk.Cscheme.Open(blindedRCanonical, zeta)
-	proof.OpeningsLRO[2] = pk.Cscheme.Open(blindedOCanonical, zeta)
-
-	proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
-	proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
-	proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
-
-	proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
-	proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
-	proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
-
+	// ql, qr, qm, qo, qkIncomplete
 	proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
 	proof.OpeningsQlQrQmQoQkincomplete[1] = pk.Cscheme.Open(pk.CQr, zeta)
 	proof.OpeningsQlQrQmQoQkincomplete[2] = pk.Cscheme.Open(pk.CQm, zeta)
 	proof.OpeningsQlQrQmQoQkincomplete[3] = pk.Cscheme.Open(pk.CQo, zeta)
 	proof.OpeningsQlQrQmQoQkincomplete[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
+	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsQlQrQmQoQkincompletemp[1], err = pk.Vk.Iopp.Open(pk.CQr, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsQlQrQmQoQkincompletemp[2], err = pk.Vk.Iopp.Open(pk.CQm, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsQlQrQmQoQkincompletemp[3], err = pk.Vk.Iopp.Open(pk.CQo, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsQlQrQmQoQkincompletemp[4], err = pk.Vk.Iopp.Open(pk.CQkIncomplete, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
 
-	proof.OpeningsZ[0] = pk.Cscheme.Open(blindedZCanonical, zeta)
+	// l, r, o
+	proof.OpeningsLRO[0] = pk.Cscheme.Open(blindedLCanonical, zeta)
+	proof.OpeningsLRO[1] = pk.Cscheme.Open(blindedRCanonical, zeta)
+	proof.OpeningsLRO[2] = pk.Cscheme.Open(blindedOCanonical, zeta)
+	proof.OpeningsLROmp[0], err = pk.Vk.Iopp.Open(blindedLCanonical, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsLROmp[1], err = pk.Vk.Iopp.Open(blindedRCanonical, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsLROmp[2], err = pk.Vk.Iopp.Open(blindedOCanonical, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+
+	// h0, h1, h2
+	proof.OpeningsH[0] = pk.Cscheme.Open(proof.H[0], zeta)
+	proof.OpeningsH[1] = pk.Cscheme.Open(proof.H[1], zeta)
+	proof.OpeningsH[2] = pk.Cscheme.Open(proof.H[2], zeta)
+	proof.OpeningsHmp[0], err = pk.Vk.Iopp.Open(proof.H[0], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsHmp[1], err = pk.Vk.Iopp.Open(proof.H[1], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsHmp[2], err = pk.Vk.Iopp.Open(proof.H[2], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+
+	// s0, s1, s2
+	proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
+	proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
+	proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
+	proof.OpeningsS1S2S3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.S[0], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsS1S2S3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.S[1], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsS1S2S3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.S[2], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+
+	// id0, id1, id2
+	proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
+	proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
+	proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
+	proof.OpeningsId1Id2Id3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.Id[0], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsId1Id2Id3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.Id[1], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsId1Id2Id3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.Id[2], openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&pk.Vk.Generator, &zeta)
+	proof.OpeningsZ[0] = pk.Cscheme.Open(blindedZCanonical, zeta)
 	proof.OpeningsZ[1] = pk.Cscheme.Open(blindedZCanonical, zetaShifted)
+
+	// zeta is shifted by g, the generator of Z/nZ where n is the number of constraints. We need
+	// to query the "rho" factor from FRI to know by what should be shifted the opening position.
+	rho := uint64(fri.GetRho())
+	friSize := rho * pk.Vk.Size
+	shiftedOpeningPosition := (openingPosition + uint64(rho)) % friSize
+	proof.OpeningsZmp[0], err = pk.Vk.Iopp.Open(blindedZCanonical, openingPosition)
+	if err != nil {
+		return &proof, err
+	}
+	proof.OpeningsZmp[1], err = pk.Vk.Iopp.Open(blindedZCanonical, shiftedOpeningPosition)
+	if err != nil {
+		return &proof, err
+	}
 
 	return &proof, nil
 }
@@ -647,41 +721,4 @@ func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 	}
 
 	return res, nil
-}
-
-// sort orders the evaluation of a polynomial on a domain
-// such that contiguous entries are in the same fiber.
-// TODO it's a copy paste of a function in gnark-crypto, should be exported directly
-func sort(evaluations []fr.Element) []fr.Element {
-	q := make([]fr.Element, len(evaluations))
-	n := len(evaluations) / 2
-	for i := 0; i < len(evaluations)/2; i++ {
-		q[2*i].Set(&evaluations[i])
-		q[2*i+1].Set(&evaluations[i+n])
-	}
-	return q
-}
-
-// open opens a polynomial at d.Gen**index
-// * The domain d is the one used in FRI (so it's rho*size_polynomial)
-// * The MerkleProof path corresponding to the opening is done on
-// the evaluated polynomial, reordered to be compliant with the
-// order of the FRI proof. It means that the entries of the evaluations
-// of p are such that two consecutives entries are in the same fiber
-// of x -> x^2.
-func openMerklPath(p []fr.Element, d *fft.Domain, index uint64) MerkleProof {
-
-	q := make([]fr.Element, d.Cardinality)
-	copy(q, p)
-	d.FFT(q, fft.DIF)
-	fft.BitReverse(q)
-	q = sort(q)
-	tree := merkletree.New(sha256.New())
-	tree.SetIndex(index)
-	for i := 0; i < len(q); i++ {
-		tree.Push(q[i].Marshal())
-	}
-	var res MerkleProof
-	res.root, res.proofSet, res.index, res.numLeaves = tree.Prove()
-	return res
 }

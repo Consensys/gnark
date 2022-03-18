@@ -8,6 +8,177 @@ import (
 	"github.com/consensys/gnark/internal/backend/bn254/witness"
 )
 
+func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error {
+
+	// 1 - verify that the commitments are low degree polynomials
+
+	// ql, qr, qm, qo, qkIncomplete
+	err := vk.Iopp.VerifyProofOfProximity(vk.Qpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[2])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[3])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[4])
+	if err != nil {
+		return err
+	}
+
+	// l, r, o
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.LROpp[2])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.Zpp)
+	if err != nil {
+		return err
+	}
+
+	// h0, h1, h2
+	err = vk.Iopp.VerifyProofOfProximity(proof.Hpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.Hpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(proof.Hpp[2])
+	if err != nil {
+		return err
+	}
+
+	// s1, s2, s3
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Spp[2])
+	if err != nil {
+		return err
+	}
+
+	// id1, id2, id3
+	err = vk.Iopp.VerifyProofOfProximity(vk.Idpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Idpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyProofOfProximity(vk.Idpp[2])
+	if err != nil {
+		return err
+	}
+
+	// 2 - verify the openings
+
+	// ql, qr, qm, qo, qkIncomplete
+	openingPosition := uint64(0)
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[0], vk.Qpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[1], vk.Qpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[2], vk.Qpp[2])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[3], vk.Qpp[3])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[4], vk.Qpp[4])
+	if err != nil {
+		return err
+	}
+
+	// l, r, o
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsLROmp[0], proof.LROpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsLROmp[1], proof.LROpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsLROmp[2], proof.LROpp[2])
+	if err != nil {
+		return err
+	}
+
+	// h0, h1, h2
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsHmp[0], proof.Hpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsHmp[1], proof.Hpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsHmp[2], proof.Hpp[2])
+	if err != nil {
+		return err
+	}
+
+	// s0, s1, s2
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsS1S2S3mp[0], vk.Spp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsS1S2S3mp[1], vk.Spp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsS1S2S3mp[2], vk.Spp[2])
+	if err != nil {
+		return err
+	}
+
+	// id0, id1, id2
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsId1Id2Id3mp[0], vk.Idpp[0])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsId1Id2Id3mp[1], vk.Idpp[1])
+	if err != nil {
+		return err
+	}
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsId1Id2Id3mp[2], vk.Idpp[2])
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error {
 
 	// 0 - derive the point of evaluation

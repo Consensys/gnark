@@ -88,8 +88,7 @@ type ProvingKey struct {
 	// Domains used for the FFTs
 	// 0 -> "small" domain, used for individual polynomials
 	// 1 -> "big" domain, used for the computation of the quotient
-	// 2 -> domain of the same size than the one used for the IOP, used for opening Merkle paths at a point of evaluation
-	Domain [3]fft.Domain
+	Domain [2]fft.Domain
 
 	// s1, s2, s3 (L=Lagrange basis small domain, C=canonical basis, Ls=Lagrange Shifted big domain)
 	LId                                                                    []fr.Element
@@ -161,16 +160,14 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	}
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
-	// TODO 8 is a harcoded value from fri in gnark-crypto (rho). This should be exposed
-	pk.Domain[2] = *fft.NewDomain(8 * sizeSystem)
-
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
-	// IOP schemes
-	vk.Iopp = fri.RADIX_2_FRI.New(pk.Domain[0].Cardinality, sha256.New())
+	// IOP schemess
+	// The +2 is to handle the blinding. I
+	vk.Iopp = fri.RADIX_2_FRI.New(pk.Domain[0].Cardinality+2, sha256.New())
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.EvaluationQlDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
@@ -407,8 +404,6 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	if err != nil {
 		return err
 	}
-
-	// compute Lagrange shifted forms of S1, S2, S3 (bit reversed)
 	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, true)
 	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, true)
