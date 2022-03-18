@@ -81,7 +81,6 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
-			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
 			switch visibility {
 			case schema.Secret:
 				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
