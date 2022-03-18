@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
 	"github.com/consensys/gnark/internal/backend/bn254/witness"
 )
 
@@ -94,6 +95,12 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 		return err
 	}
 
+	// Z
+	err = vk.Iopp.VerifyProofOfProximity(proof.Zpp)
+	if err != nil {
+		return err
+	}
+
 	// 2 - verify the openings
 
 	// ql, qr, qm, qo, qkIncomplete
@@ -171,6 +178,20 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 		return err
 	}
 	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsId1Id2Id3mp[2], vk.Idpp[2])
+	if err != nil {
+		return err
+	}
+
+	// Z, Zshift
+	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsZmp[0], proof.Zpp)
+	if err != nil {
+		return err
+	}
+
+	rho := uint64(fri.GetRho())
+	friSize := rho * vk.Size
+	shiftedOpeningPosition := (openingPosition + uint64(rho)) % friSize
+	err = vk.Iopp.VerifyOpening(shiftedOpeningPosition, proof.OpeningsZmp[1], proof.Zpp)
 	if err != nil {
 		return err
 	}
