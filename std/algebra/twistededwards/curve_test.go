@@ -84,8 +84,15 @@ func TestIsOnCurve(t *testing.T) {
 }
 
 type addCircuit struct {
-	curveID   twistededwards.ID
-	P1, P2, R Point
+	curveID               twistededwards.ID
+	P1, P2                Point
+	AddResult             Point
+	DoubleResult          Point
+	ScalarMulResult       Point
+	DoubleScalarMulResult Point
+	NegResult             Point
+	S1, S2                frontend.Variable
+	fixedPoint            Point
 }
 
 func (circuit *addCircuit) Define(api frontend.API) error {
@@ -96,23 +103,63 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	res := curve.Add(circuit.P1, circuit.P2)
+	{
+		// addition 2 variable points
+		res := curve.Add(circuit.P1, circuit.P2)
+		api.AssertIsEqual(res.X, circuit.AddResult.X)
+		api.AssertIsEqual(res.Y, circuit.AddResult.Y)
+	}
 
-	api.AssertIsEqual(res.X, circuit.R.X)
-	api.AssertIsEqual(res.Y, circuit.R.Y)
+	{
+		// addition 1 fixed + 1 variable point
+		res := curve.Add(circuit.fixedPoint, circuit.P1)
+		api.AssertIsEqual(res.X, circuit.AddResult.X)
+		api.AssertIsEqual(res.Y, circuit.AddResult.Y)
+	}
+
+	{
+		// doubling
+		res := curve.Double(circuit.P1)
+		api.AssertIsEqual(res.X, circuit.DoubleResult.X)
+		api.AssertIsEqual(res.Y, circuit.DoubleResult.Y)
+	}
+
+	{
+		// Neg
+		res := curve.Neg(circuit.P2)
+		api.AssertIsEqual(res.X, circuit.NegResult.X)
+		api.AssertIsEqual(res.Y, circuit.NegResult.Y)
+	}
+
+	{
+		// scalar mul
+		res := curve.ScalarMul(circuit.P2, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.ScalarMulResult.X)
+		api.AssertIsEqual(res.Y, circuit.ScalarMulResult.Y)
+	}
+
+	{
+		// scalar mul fixed
+		res := curve.ScalarMul(circuit.fixedPoint, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.ScalarMulResult.X)
+		api.AssertIsEqual(res.Y, circuit.ScalarMulResult.Y)
+	}
+
+	{
+		// double scalar mul
+		res := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, circuit.S1, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.DoubleScalarMulResult.X)
+		api.AssertIsEqual(res.Y, circuit.DoubleScalarMulResult.Y)
+	}
 
 	return nil
 }
 
-func TestAddPoint(t *testing.T) {
+func TestCurve(t *testing.T) {
 	assert := test.NewAssert(t)
 	for _, curve := range curves {
 		var circuit, witness addCircuit
 		circuit.curveID = curve
-
-		if curve == twistededwards.BLS12_381_BANDERSNATCH {
-			continue
-		}
 
 		// get matching snark curve
 		snarkCurve, err := GetSnarkCurve(curve)
@@ -122,7 +169,16 @@ func TestAddPoint(t *testing.T) {
 		params, err := GetCurveParams(curve)
 		assert.NoError(err)
 
-		witness.P1.X, witness.P1.Y, witness.P2.X, witness.P2.Y, witness.R.X, witness.R.Y = add(params, curve)
+		witness.P1,
+			witness.P2,
+			witness.AddResult,
+			witness.DoubleResult,
+			witness.ScalarMulResult,
+			witness.DoubleScalarMulResult,
+			witness.NegResult,
+			witness.S1, witness.S2 = testData(params, curve)
+
+		circuit.fixedPoint = witness.P2
 
 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
 
@@ -130,829 +186,196 @@ func TestAddPoint(t *testing.T) {
 
 		assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
 	}
-
 }
 
-// add generates random test data for given curve and returns p1, p2 and r such that p1 + p2 == r
-func add(params *CurveParams, curveID twistededwards.ID) (p1X, p1Y, p2X, p2Y, rX, rY frontend.Variable) {
-	s1 := params.randomScalar()
-	s2 := params.randomScalar()
+// testData generates random test data for given curve
+// returns p1, p2 and r, d such that p1 + p2 == r and p1 + p1 == d
+// returns rs1, rs12, s1, s2 such that rs1 = p2 * s2 and rs12 = p1*s1 + p2 * s2
+// retunrs n such that n = -p2
+func testData(params *CurveParams, curveID twistededwards.ID) (
+	_p1,
+	_p2,
+	_r,
+	_d,
+	_rs1,
+	_rs12,
+	_n Point,
+	s1, s2 frontend.Variable) {
+	scalar1 := params.randomScalar()
+	scalar2 := params.randomScalar()
 
 	switch curveID {
 	case twistededwards.BN254:
-		var p1, p2, r tbn254.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbn254.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BLS12_381:
-		var p1, p2, r tbls12381.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbls12381.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BLS12_381_BANDERSNATCH:
-		var p1, p2, r tbls12381_bandersnatch.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbls12381_bandersnatch.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BLS12_377:
-		var p1, p2, r tbls12377.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbls12377.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BLS24_315:
-		var p1, p2, r tbls24315.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbls24315.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BW6_633:
-		var p1, p2, r tbw6633.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbw6633.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	case twistededwards.BW6_761:
-		var p1, p2, r tbw6761.PointAffine
+		var p1, p2, r, d, rs1, rs12, n tbw6761.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, s1)
-		p2.ScalarMul(&p2, s2)
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
 		r.Add(&p1, &p2)
-		p1X = p1.X
-		p1Y = p1.Y
-		p2X = p2.X
-		p2Y = p2.Y
-		rX = r.X
-		rY = r.Y
-		return
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
 	default:
 		panic("not implemented")
 	}
 }
-
-// //-------------------------------------------------------------
-// // addGeneric
-
-// type addGeneric struct {
-// 	P1, P2, E JubjubPoint
-// }
-
-// func (circuit *addGeneric) Define(api frontend.API) error {
-
-// 	// get edwards curve params
-// 	params, err := NewEdCurve(api.Compiler().Curve())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	res := circuit.P1.Add(api, &circuit.P1, &circuit.P2, params)
-
-// 	api.AssertIsEqual(res.X, circuit.E.X)
-// 	api.AssertIsEqual(res.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestAddGeneric(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-// 	var circuit, witness addGeneric
-
-// 	// generate witness data
-// 	for _, id := range twistededwards.Implemented() {
-
-// 		params, err := NewEdCurve(id)
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-
-// 		switch id {
-// 		case twistededwards.BN254:
-// 			var p1, p2, r tbn254.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS12_381:
-// 			var p1, p2, r tbls12381.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS12_377:
-// 			var p1, p2, r tbls12377.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS24_315:
-// 			var p1, p2, r tbls24315.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BW6_633:
-// 			var p1, p2, r tbw6633.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BW6_761:
-// 			var p1, p2, r tbw6761.PointAffine
-// 			p1.X.SetBigInt(params.Base[0])
-// 			p1.Y.SetBigInt(params.Base[1])
-// 			p2.Set(&p1)
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			p1.ScalarMul(&p1, s1)
-// 			p2.ScalarMul(&p2, s2)
-// 			r.Add(&p1, &p2)
-// 			witness.P1.X = (p1.X.String())
-// 			witness.P1.Y = (p1.Y.String())
-// 			witness.P2.X = (p2.X.String())
-// 			witness.P2.Y = (p2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		}
-
-// 		// creates r1cs
-// 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
-// 	}
-
-// }
-
-// //-------------------------------------------------------------
-// // Double
-
-// type double struct {
-// 	P, E JubjubPoint
-// }
-
-// func (circuit *double) Define(api frontend.API) error {
-
-// 	// get edwards curve params
-// 	params, err := NewEdCurve(api.Compiler().Curve())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	res := circuit.P.Double(api, &circuit.P, params)
-
-// 	api.AssertIsEqual(res.X, circuit.E.X)
-// 	api.AssertIsEqual(res.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestDouble(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-
-// 	var circuit, witness double
-
-// 	// generate witness data
-// 	for _, id := range twistededwards.Implemented() {
-
-// 		params, err := NewEdCurve(id)
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-
-// 		switch id {
-// 		case twistededwards.BN254:
-// 			var base, r tbn254.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS12_381:
-// 			var base, r tbls12381.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS12_377:
-// 			var base, r tbls12377.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BLS24_315:
-// 			var base, r tbls24315.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BW6_633:
-// 			var base, r tbw6633.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		case twistededwards.BW6_761:
-// 			var base, r tbw6761.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r.Double(&base)
-// 			witness.P.X = (base.X.String())
-// 			witness.P.Y = (base.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 		}
-
-// 		// creates r1cs
-// 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
-// 	}
-
-// }
-
-// //-------------------------------------------------------------
-// // scalarMulFixed
-
-// type scalarMulFixed struct {
-// 	E JubjubPoint
-// 	S frontend.Variable
-// }
-
-// func (circuit *scalarMulFixed) Define(api frontend.API) error {
-
-// 	// get edwards curve params
-// 	params, err := NewEdCurve(api.Compiler().Curve())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	var resFixed, p JubjubPoint
-// 	p.X = params.Base.X
-// 	p.Y = params.Base.Y
-// 	resFixed.ScalarMul(api, &p, circuit.S, params)
-
-// 	api.AssertIsEqual(resFixed.X, circuit.E.X)
-// 	api.AssertIsEqual(resFixed.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestScalarMulFixed(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-
-// 	var circuit, witness scalarMulFixed
-
-// 	// generate witness data
-// 	for _, id := range twistededwards.Implemented() {
-
-// 		params, err := NewEdCurve(id)
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-
-// 		switch id {
-// 		case twistededwards.BN254:
-// 			var base, r tbn254.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS12_381:
-// 			var base, r tbls12381.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS12_377:
-// 			var base, r tbls12377.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS24_315:
-// 			var base, r tbls24315.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BW6_633:
-// 			var base, r tbw6633.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BW6_761:
-// 			var base, r tbw6761.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&base, r)
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		}
-
-// 		// creates r1cs
-// 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
-// 	}
-
-// }
-
-// type scalarMulGeneric struct {
-// 	P, E JubjubPoint
-// 	S    frontend.Variable
-// }
-
-// func (circuit *scalarMulGeneric) Define(api frontend.API) error {
-
-// 	// get edwards curve params
-// 	params, err := NewEdCurve(api.Compiler().Curve())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	resGeneric := circuit.P.ScalarMul(api, &circuit.P, circuit.S, params)
-
-// 	api.AssertIsEqual(resGeneric.X, circuit.E.X)
-// 	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestScalarMulGeneric(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-
-// 	var circuit, witness scalarMulGeneric
-
-// 	// generate witness data
-// 	for _, id := range twistededwards.Implemented() {
-
-// 		params, err := NewEdCurve(id)
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-
-// 		switch id {
-// 		case twistededwards.BN254:
-// 			var base, point, r tbn254.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS12_377:
-// 			var base, point, r tbls12377.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS12_381:
-// 			var base, point, r tbls12381.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BLS24_315:
-// 			var base, point, r tbls24315.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BW6_761:
-// 			var base, point, r tbw6761.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		case twistededwards.BW6_633:
-// 			var base, point, r tbw6633.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s, _ := rand.Int(rand.Reader, &params.Order)
-// 			point.ScalarMul(&base, s) // random point
-// 			r, _ := rand.Int(rand.Reader, &params.Order)
-// 			r.ScalarMul(&point, r)
-
-// 			// populate witness
-// 			witness.P.X = (point.X.String())
-// 			witness.P.Y = (point.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S = (r)
-// 		}
-
-// 		// creates r1cs
-// 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
-// 	}
-// }
-
-// //
-
-// type doubleScalarMulGeneric struct {
-// 	P1, P2, E JubjubPoint
-// 	S1, S2    frontend.Variable
-// }
-
-// func (circuit *doubleScalarMulGeneric) Define(api frontend.API) error {
-
-// 	// get edwards curve params
-// 	params, err := NewEdCurve(api.Compiler().Curve())
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	resGeneric := circuit.P1.DoubleBaseScalarMul(api, &circuit.P1, &circuit.P2, circuit.S1, circuit.S2, params)
-
-// 	api.AssertIsEqual(resGeneric.X, circuit.E.X)
-// 	api.AssertIsEqual(resGeneric.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestDoubleScalarMulGeneric(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-
-// 	var circuit, witness doubleScalarMulGeneric
-
-// 	// generate witness data
-// 	for _, id := range twistededwards.Implemented() {
-
-// 		params, err := NewEdCurve(id)
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-
-// 		switch id {
-// 		case twistededwards.BN254:
-// 			var base, point1, point2, tmp, r tbn254.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		case twistededwards.BLS12_377:
-// 			var base, point1, point2, tmp, r tbls12377.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		case twistededwards.BLS12_381:
-// 			var base, point1, point2, tmp, r tbls12381.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		case twistededwards.BLS24_315:
-// 			var base, point1, point2, tmp, r tbls24315.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		case twistededwards.BW6_761:
-// 			var base, point1, point2, tmp, r tbw6761.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		case twistededwards.BW6_633:
-// 			var base, point1, point2, tmp, r tbw6633.PointAffine
-// 			base.X.SetBigInt(params.Base[0])
-// 			base.Y.SetBigInt(params.Base[1])
-// 			s1, _ := rand.Int(rand.Reader, &params.Order)
-// 			s2, _ := rand.Int(rand.Reader, &params.Order)
-// 			point1.ScalarMul(&base, s1) // random point
-// 			point2.ScalarMul(&base, s2) // random point
-// 			r1, _ := rand.Int(rand.Reader, &params.Order)
-// 			r2, _ := rand.Int(rand.Reader, &params.Order)
-// 			tmp.ScalarMul(&point1, r1)
-// 			r.ScalarMul(&point2, r2).
-// 				Add(&r, &tmp)
-
-// 			// populate witness
-// 			witness.P1.X = (point1.X.String())
-// 			witness.P1.Y = (point1.Y.String())
-// 			witness.P2.X = (point2.X.String())
-// 			witness.P2.Y = (point2.Y.String())
-// 			witness.E.X = (r.X.String())
-// 			witness.E.Y = (r.Y.String())
-// 			witness.S1 = (r1)
-// 			witness.S2 = (r2)
-// 		}
-
-// 		// creates r1cs
-// 		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(id))
-// 	}
-// }
-
-// type neg struct {
-// 	P, E JubjubPoint
-// }
-
-// func (circuit *neg) Define(api frontend.API) error {
-
-// 	circuit.P.Neg(api, &circuit.P)
-// 	api.AssertIsEqual(circuit.P.X, circuit.E.X)
-// 	api.AssertIsEqual(circuit.P.Y, circuit.E.Y)
-
-// 	return nil
-// }
-
-// func TestNeg(t *testing.T) {
-
-// 	assert := test.NewAssert(t)
-
-// 	// generate witness data
-// 	params, err := NewEdCurve(twistededwards.BN254)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	var base, r tbn254.PointAffine
-// 	base.X.SetBigInt(params.Base[0])
-// 	base.Y.SetBigInt(params.Base[1])
-// 	r.Neg(&base)
-
-// 	// generate witness
-// 	var circuit, witness neg
-// 	witness.P.X = (base.X)
-// 	witness.P.Y = (base.Y)
-// 	witness.E.X = (r.X)
-// 	witness.E.Y = (r.Y)
-
-// 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(twistededwards.BN254))
-
-// }
 
 // randomScalar returns a scalar <= p.Order
 func (p *CurveParams) randomScalar() *big.Int {
