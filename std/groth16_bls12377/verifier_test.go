@@ -113,8 +113,6 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 	ateLoop := uint64(9586122913090633729)
 	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
 	pairingInfo := sw_bls12377.PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = 0
-	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
 
 	// create the verifier cs
 	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
