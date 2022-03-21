@@ -38,17 +38,13 @@ type pairingBLS377 struct {
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-
 	milRes := fields_bls12377.E12{}
 	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
 	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
+	MillerLoop(api, circuit.P, circuit.Q, &milRes)
 
 	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -80,11 +76,8 @@ type finalExp struct {
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-
 	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
+	pairingRes.FinalExponentiation(api, circuit.ML)
 
 	mustbeEq(api, pairingRes, &circuit.R)
 
@@ -152,15 +145,11 @@ type triplePairingBLS377 struct {
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-
 	milRes := fields_bls12377.E12{}
-	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)
+	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes)
 
 	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
+	pairingRes.FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 

@@ -98,8 +98,8 @@ type fp24Mul struct {
 
 func (circuit *fp24Mul) Define(api frontend.API) error {
 	expected := E24{}
-	ext := GetBLS24315ExtensionFp24(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
+
+	expected.Mul(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -129,8 +129,8 @@ type fp24Square struct {
 }
 
 func (circuit *fp24Square) Define(api frontend.API) error {
-	ext := GetBLS24315ExtensionFp24(api)
-	s := circuit.A.Square(api, circuit.A, ext)
+
+	s := circuit.A.Square(api, circuit.A)
 	s.MustBeEqual(api, circuit.B)
 	return nil
 }
@@ -159,10 +159,10 @@ type fp24CycloSquare struct {
 }
 
 func (circuit *fp24CycloSquare) Define(api frontend.API) error {
-	ext := GetBLS24315ExtensionFp24(api)
+
 	var u, v E24
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquare(api, circuit.A, ext)
+	u.Square(api, circuit.A)
+	v.CyclotomicSquare(api, circuit.A)
 	u.MustBeEqual(api, v)
 	u.MustBeEqual(api, circuit.B)
 	return nil
@@ -199,11 +199,11 @@ type fp24CycloSquareCompressed struct {
 }
 
 func (circuit *fp24CycloSquareCompressed) Define(api frontend.API) error {
-	ext := GetBLS24315ExtensionFp24(api)
+
 	var u, v E24
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquareCompressed(api, circuit.A, ext)
-	v.Decompress(api, v, ext)
+	u.Square(api, circuit.A)
+	v.CyclotomicSquareCompressed(api, circuit.A)
+	v.Decompress(api, v)
 	u.MustBeEqual(api, v)
 	u.MustBeEqual(api, circuit.B)
 	return nil
@@ -271,8 +271,8 @@ type fp24Inverse struct {
 
 func (circuit *fp24Inverse) Define(api frontend.API) error {
 	expected := E24{}
-	ext := GetBLS24315ExtensionFp24(api)
-	expected.Inverse(api, circuit.A, ext)
+
+	expected.Inverse(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -301,8 +301,8 @@ type fp24MulBy034 struct {
 }
 
 func (circuit *fp24MulBy034) Define(api frontend.API) error {
-	ext := GetBLS24315ExtensionFp24(api)
-	circuit.A.MulBy034(api, circuit.B, circuit.C, ext)
+
+	circuit.A.MulBy034(api, circuit.B, circuit.C)
 	circuit.A.MustBeEqual(api, circuit.W)
 	return nil
 }
@@ -338,18 +338,17 @@ type fp24Frobenius struct {
 }
 
 func (circuit *fp24Frobenius) Define(api frontend.API) error {
-	ext := GetBLS24315ExtensionFp24(api)
 
 	fb := E24{}
-	fb.Frobenius(api, circuit.A, ext)
+	fb.Frobenius(api, circuit.A)
 	fb.MustBeEqual(api, circuit.C)
 
 	fbSquare := E24{}
-	fbSquare.FrobeniusSquare(api, circuit.A, ext)
+	fbSquare.FrobeniusSquare(api, circuit.A)
 	fbSquare.MustBeEqual(api, circuit.D)
 
 	fbQuad := E24{}
-	fbQuad.FrobeniusQuad(api, circuit.A, ext)
+	fbQuad.FrobeniusQuad(api, circuit.A)
 	fbQuad.MustBeEqual(api, circuit.E)
 
 	return nil
@@ -383,9 +382,8 @@ type fp24FinalExpo struct {
 
 func (circuit *fp24FinalExpo) Define(api frontend.API) error {
 	expected := E24{}
-	ext := GetBLS24315ExtensionFp24(api)
-	expo := uint64(3218079743)
-	expected.FinalExponentiation(api, circuit.A, expo, ext)
+
+	expected.FinalExponentiation(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }

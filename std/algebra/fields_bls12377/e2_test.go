@@ -91,8 +91,8 @@ type e2Mul struct {
 
 func (circuit *e2Mul) Define(api frontend.API) error {
 	var expected E2
-	ext := Extension{uSquare: -5}
-	expected.Mul(api, circuit.A, circuit.B, ext)
+
+	expected.Mul(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -186,9 +186,9 @@ type fp2Inverse struct {
 }
 
 func (circuit *fp2Inverse) Define(api frontend.API) error {
-	ext := Extension{uSquare: -5}
+
 	expected := E2{}
-	expected.Inverse(api, circuit.A, ext)
+	expected.Inverse(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -232,7 +232,7 @@ func TestMulByNonResidueFp2(t *testing.T) {
 	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
 
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
-	// fp2c.MulByNonResidue(&cs, &fp2a, ext)
+	// fp2c.MulByNonResidue(&cs, &fp2a)
 
 	// api.Tag(fp2c.X, "c0")
 	// api.Tag(fp2c.Y, "c1")
