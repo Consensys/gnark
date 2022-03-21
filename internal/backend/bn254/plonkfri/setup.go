@@ -133,6 +133,10 @@ type VerifyingKey struct {
 
 	// Iopp scheme (currently one for each size of polynomial)
 	Iopp fri.Iopp
+
+	// generator of the group on which the Iopp works. If i is the opening position,
+	// the polynomials will be opened at genOpening^{i}.
+	GenOpening fr.Element
 }
 
 // Setup sets proving and verifying keys
@@ -166,8 +170,16 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
 
 	// IOP schemess
-	// The +2 is to handle the blinding. I
-	vk.Iopp = fri.RADIX_2_FRI.New(pk.Domain[0].Cardinality+2, sha256.New())
+	// The +2 is to handle the blinding.
+	sizeIopp := pk.Domain[0].Cardinality + 2
+	vk.Iopp = fri.RADIX_2_FRI.New(sizeIopp, sha256.New())
+	// only there to access the group used in FRI...
+	rho := uint64(fri.GetRho())
+	// we multiply by 2 because the IOP is created with size pk.Domain[0].Cardinality + 2,
+	// so the domain will be rho*size_domain where size_domain is the next power of 2 after
+	// pk.Domain[0].Cardinality + 2, which is 2*rho*pk.Domain[0].Cardinality
+	tmpDomain := fft.NewDomain(2 * rho * pk.Domain[0].Cardinality)
+	vk.GenOpening.Set(&tmpDomain.Generator)
 
 	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
 	pk.EvaluationQlDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)

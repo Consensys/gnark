@@ -228,10 +228,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// 7 - build the opening proofs
 	var zeta fr.Element
-	zeta.SetUint64(12)
+	zeta.SetString("10359452186428527605436343203440067497552205259388878191021578220384701716497")
 
 	// derive a query position, which is 0<=i<domain[1].Size
-	openingPosition := uint64(0)
+	openingPosition := uint64(1)
 
 	// ql, qr, qm, qo, qkIncomplete
 	proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
@@ -335,9 +335,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// zeta is shifted by g, the generator of Z/nZ where n is the number of constraints. We need
 	// to query the "rho" factor from FRI to know by what should be shifted the opening position.
+	// We multiply by 2 because FRI is instantiated with pk.Domain[0].Cardinality+2, which makes
+	// the iop's domain of size rho*(2*pk.Domain[0].Cardinality).
 	rho := uint64(fri.GetRho())
-	friSize := rho * pk.Vk.Size
-	shiftedOpeningPosition := (openingPosition + uint64(rho)) % friSize
+	friSize := 2 * rho * pk.Vk.Size
+	shiftedOpeningPosition := (openingPosition + uint64(2*rho)) % friSize
 	proof.OpeningsZmp[0], err = pk.Vk.Iopp.Open(blindedZCanonical, openingPosition)
 	if err != nil {
 		return &proof, err
