@@ -56,6 +56,9 @@ func Verify(api frontend.API, pairingInfo sw_bls24315.PairingContext, innerVk Ve
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	// note this assumes ONE_WIRE is at position 0
+	if len(innerVk.G1) == 0 {
+		panic("innver verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
+	}
 	psi0.X = innerVk.G1[0].X
 	psi0.Y = innerVk.G1[0].Y
 

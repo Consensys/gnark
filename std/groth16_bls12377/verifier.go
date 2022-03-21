@@ -54,6 +54,10 @@ func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk Ve
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
 	var psi0, tmp sw_bls12377.G1Affine
 
+	if len(innerVk.G1) == 0 {
+		panic("innver verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
+	}
+
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	// note this assumes ONE_WIRE is at position 0
 	psi0.X = innerVk.G1[0].X
