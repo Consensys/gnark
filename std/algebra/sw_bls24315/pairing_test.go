@@ -39,11 +39,6 @@ func (circuit *finalExp) Define(api frontend.API) error {
 
 	ateLoop := uint64(9586122913090633729)
 	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.B0.A0 = 0
-	pairingInfo.BTwistCoeff.B0.A1 = 0
-	pairingInfo.BTwistCoeff.B1.A0 = 0
-	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
 
 	pairingRes := fields_bls24315.E24{}
 	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
@@ -77,10 +72,6 @@ func (circuit *pairingBLS24315) Define(api frontend.API) error {
 	ateLoop := uint64(3218079743)
 	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.B0.A0 = 0
-	pairingInfo.BTwistCoeff.B0.A1 = 0
-	pairingInfo.BTwistCoeff.B1.A0 = 0
-	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
 
 	milRes := fields_bls24315.E24{}
 	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
@@ -174,10 +165,6 @@ func (circuit *triplePairingBLS24315) Define(api frontend.API) error {
 	ateLoop := uint64(3218079743)
 	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
 	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.B0.A0 = 0
-	pairingInfo.BTwistCoeff.B0.A1 = 0
-	pairingInfo.BTwistCoeff.B1.A0 = 0
-	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
 
 	milRes := fields_bls24315.E24{}
 	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)

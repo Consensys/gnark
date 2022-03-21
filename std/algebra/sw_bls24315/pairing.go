@@ -26,9 +26,8 @@ import (
 
 // PairingContext contains useful info about the pairing
 type PairingContext struct {
-	AteLoop     uint64 // stores the ate loop
-	Extension   fields_bls24315.Extension
-	BTwistCoeff fields_bls24315.E4
+	AteLoop   uint64 // stores the ate loop
+	Extension fields_bls24315.Extension
 }
 
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
