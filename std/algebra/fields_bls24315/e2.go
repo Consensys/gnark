@@ -64,7 +64,7 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
+func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
 	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
@@ -89,7 +89,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 }
 
 // Square e2 elt
-func (e *E2) Square(api frontend.API, x E2, ext Extension) *E2 {
+func (e *E2) Square(api frontend.API, x E2) *E2 {
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 
 	c0 := api.Sub(x.A0, x.A1)
@@ -115,7 +115,7 @@ func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 
 // MulByNonResidue multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByNonResidue(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) MulByNonResidue(api frontend.API, e1 E2) *E2 {
 	e.A0, e.A1 = e1.A1, e1.A0
 	e.A0 = api.Mul(e.A0, ext.uSquare)
 	return e
@@ -129,7 +129,7 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 }
 
 // Inverse inverses an fp2elmt
-func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
 	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
 

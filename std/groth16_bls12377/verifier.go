@@ -48,7 +48,7 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
@@ -70,11 +70,11 @@ func Verify(api frontend.API, pairingInfo sw_bls12377.PairingContext, innerVk Ve
 
 	var resMillerLoop fields_bls12377.E12
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
+	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop)
 
 	// performs the final expo
 	var resPairing fields_bls12377.E12
-	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing.FinalExponentiation(api, resMillerLoop)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MustBeEqual(api, resPairing)
