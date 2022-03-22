@@ -1,29 +1,24 @@
 package hint
 
 import (
-	"fmt"
-	"strings"
 	"sync"
+
+	"github.com/consensys/gnark/logger"
 )
 
 var registry = make(map[ID]Function)
 var registryM sync.RWMutex
 
-// Register registers an annotated hint function in the global registry. It is an
-// error to register a single function twice and results in a panic.
+// Register registers an hint function in the global registry.
 func Register(hintFn Function) {
 	registryM.Lock()
 	defer registryM.Unlock()
 	key := UUID(hintFn)
 	name := Name(hintFn)
-	const lambda = ".glob.."
-	const definedOnInterface = "-"
 	if _, ok := registry[key]; ok {
-		// for gnark std hints, there is a special path
-		if strings.HasPrefix(name, "github.com/consensys/gnark/") {
-			return
-		}
-		panic(fmt.Sprintf("function %s registered twice", name))
+		log := logger.Logger()
+		log.Warn().Str("name", name).Msg("function registered multiple times")
+		return
 	}
 	registry[key] = hintFn
 }

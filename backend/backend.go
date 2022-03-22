@@ -96,7 +96,7 @@ func WithHints(hintFunctions ...hint.Function) ProverOption {
 		for _, h := range hintFunctions {
 			uuid := hint.UUID(h)
 			if _, ok := opt.HintFunctions[uuid]; ok {
-				log.Warn().Int("hintID", int(uuid)).Msg("duplicate hint function")
+				log.Warn().Int("hintID", int(uuid)).Str("name", hint.Name(h)).Msg("duplicate hint function")
 			} else {
 				opt.HintFunctions[uuid] = h
 			}

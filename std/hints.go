@@ -9,8 +9,7 @@ import (
 
 // RegisterHints register std hints that are always injected in gnark solvers
 func RegisterHints() {
-	// note that duplicate hints are not allowed in hint registry
-	// but hints from std have a special path (to not panic)
+	// note that importing these packages may already triggers a call to hint.Register(...)
 	hint.Register(sw_bls24315.DecomposeScalar)
 	hint.Register(sw_bls12377.DecomposeScalar)
 	hint.Register(bits.NTrits)

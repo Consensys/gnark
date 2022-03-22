@@ -76,17 +76,19 @@ import (
 // ID is a unique identifier for a hint function used for lookup.
 type ID uint32
 
-// StaticFunction is a function which takes a constant number of inputs and
-// returns a constant number of outputs. Use NewStaticHint() to construct an
-// instance compatible with Function interface.
+// Function defines an annotated hint function; the number of inputs and outputs injected at solving
+// time is defined in the circuit (compile time).
+//
+// For example:
+//	b := api.NewHint(hint, 2, a)
+//	--> at solving time, hint is going to be invoked with 1 input (a) and is expected to return 2 outputs
+//	b[0] and b[1].
 type Function func(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
 
 // UUID is a reference function for computing the hint ID based on a function name
 func UUID(fn Function) ID {
 	hf := fnv.New32a()
 	name := Name(fn)
-	// using a name for identifying different hints should be enough as we get a
-	// solve-time error when there are duplicate hints with the same signature.
 
 	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, wil be package.glob..funcN
 	// and if new anonymous functions are added in the package, N may change, so will UUID.
