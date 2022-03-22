@@ -20,7 +20,6 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/utils"
 )
 
 // E2 element in a quadratic extension
@@ -64,7 +63,7 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
+func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
 	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
@@ -81,19 +80,17 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 	e.A1 = api.Sub(u, l31)
 
 	// 1C
-	buSquare := utils.FromInterface(ext.uSquare)
-	l41 := api.Mul(bd, buSquare)
+	l41 := api.Mul(bd, ext.uSquare)
 	e.A0 = api.Add(ac, l41)
 
 	return e
 }
 
 // Square e2 elt
-func (e *E2) Square(api frontend.API, x E2, ext Extension) *E2 {
+func (e *E2) Square(api frontend.API, x E2) *E2 {
 	//algo 22 https://eprint.iacr.org/2010/354.pdf
 	c0 := api.Add(x.A0, x.A1)
-	buSquare := utils.FromInterface(ext.uSquare)
-	c2 := api.Mul(x.A1, buSquare)
+	c2 := api.Mul(x.A1, ext.uSquare)
 	c2 = api.Add(c2, x.A0)
 
 	c0 = api.Mul(c0, c2) // (x1+x2)*(x1+(u**2)x2)
@@ -115,7 +112,7 @@ func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 
 // MulByNonResidue multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByNonResidue(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) MulByNonResidue(api frontend.API, e1 E2) *E2 {
 	x := e1.A0
 	e.A0 = api.Mul(e1.A1, ext.uSquare)
 	e.A1 = x
@@ -130,7 +127,7 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 }
 
 // Inverse inverses an fp2elmt
-func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
 	var a0, a1, t0, t1, t1beta frontend.Variable
 

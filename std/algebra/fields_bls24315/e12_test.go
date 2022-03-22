@@ -25,12 +25,6 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-func getBLS24315ExtensionFp12(api frontend.API) Extension {
-	res := Extension{}
-	res.uSquare = 13
-	return res
-}
-
 //--------------------------------------------------------------------
 // test
 
@@ -103,8 +97,8 @@ type fp12Mul struct {
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
+
+	expected.Mul(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -135,8 +129,8 @@ type fp12MulByNonResidue struct {
 
 func (circuit *fp12MulByNonResidue) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.MulByNonResidue(api, circuit.A, ext)
+
+	expected.MulByNonResidue(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -167,8 +161,8 @@ type fp12Inverse struct {
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Inverse(api, circuit.A, ext)
+
+	expected.Inverse(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil

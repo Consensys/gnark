@@ -25,12 +25,6 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-func getBLS377ExtensionFp6(api frontend.API) Extension {
-	res := Extension{}
-	res.uSquare = -5
-	return res
-}
-
 //--------------------------------------------------------------------
 // test
 
@@ -103,8 +97,8 @@ type fp6Mul struct {
 
 func (circuit *fp6Mul) Define(api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
+
+	expected.Mul(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -135,8 +129,8 @@ type fp6MulByNonResidue struct {
 
 func (circuit *fp6MulByNonResidue) Define(api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.MulByNonResidue(api, circuit.A, ext)
+
+	expected.MulByNonResidue(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -167,8 +161,8 @@ type fp6Inverse struct {
 
 func (circuit *fp6Inverse) Define(api frontend.API) error {
 	expected := E6{}
-	ext := getBLS377ExtensionFp6(api)
-	expected.Inverse(api, circuit.A, ext)
+
+	expected.Inverse(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil
@@ -215,7 +209,7 @@ func TestMulByFp2Fp6(t *testing.T) {
 	// fp6a := newOperandFp6(&cs, "a")
 	// fp2b := newOperandFp2(&cs, "b")
 	// fp6c := NewFp6Elmt(&cs, nil, nil, nil, nil, nil, nil)
-	// fp6c.MulByFp2(&cs, &fp6a, &fp2b, ext)
+	// fp6c.MulByFp2(&cs, &fp6a, &fp2b)
 	// tagFp6Elmt(&cs, fp6c, "c")
 
 	// // assign the inputs
