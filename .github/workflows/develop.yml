@@ -38,11 +38,11 @@ jobs:
       run: go vet ./...
     - name: staticcheck
       run: |
-        go install honnef.co/go/tools/cmd/staticcheck@latest
+        go install honnef.co/go/tools/cmd/staticcheck@23e1086441d24fed9f668ad1cd4374245118b590
         staticcheck ./...
     - name: gosec
       run: |
-        go install github.com/securego/gosec/cmd/gosec@latest
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
         gosec -exclude G204 ./...
     - name: generated files should not be modified
       run: |
