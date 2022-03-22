@@ -91,8 +91,8 @@ type e4Square struct {
 
 func (circuit *e4Square) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Square(api, circuit.A, ext)
+
+	expected.Square(api, circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -119,8 +119,8 @@ type e4Mul struct {
 
 func (circuit *e4Mul) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Mul(api, circuit.A, circuit.B, ext)
+
+	expected.Mul(api, circuit.A, circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -215,8 +215,8 @@ type fp4Inverse struct {
 
 func (circuit *fp4Inverse) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Inverse(api, circuit.A, ext)
+
+	expected.Inverse(api, circuit.A)
 
 	expected.MustBeEqual(api, circuit.C)
 	return nil

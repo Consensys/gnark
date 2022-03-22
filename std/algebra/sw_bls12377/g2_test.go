@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -40,7 +39,7 @@ type g2AddAssign struct {
 
 func (circuit *g2AddAssign) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields_bls12377.GetBLS12377ExtensionFp12(api))
+	expected.AddAssign(api, &circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -77,7 +76,7 @@ type g2AddAssignAffine struct {
 
 func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B, fields_bls12377.GetBLS12377ExtensionFp12(api))
+	expected.AddAssign(api, &circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -118,7 +117,7 @@ type g2DoubleAssign struct {
 
 func (circuit *g2DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields_bls12377.GetBLS12377ExtensionFp12(api))
+	expected.Double(api, &circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -153,7 +152,7 @@ type g2DoubleAndAddAffine struct {
 
 func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.DoubleAndAdd(api, &circuit.A, &circuit.B, fields_bls12377.GetBLS12377ExtensionFp12(api))
+	expected.DoubleAndAdd(api, &circuit.A, &circuit.B)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
@@ -194,7 +193,7 @@ type g2DoubleAffine struct {
 
 func (circuit *g2DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A, fields_bls12377.GetBLS12377ExtensionFp12(api))
+	expected.Double(api, &circuit.A)
 	expected.MustBeEqual(api, circuit.C)
 	return nil
 }
