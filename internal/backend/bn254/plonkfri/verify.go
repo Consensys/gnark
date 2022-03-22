@@ -2,7 +2,6 @@ package plonkfri
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -209,49 +208,29 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 	qo.Set(&proof.OpeningsQlQrQmQoQkincompletemp[3].ClaimedValue)
 	qk.Set(&proof.OpeningsQlQrQmQoQkincompletemp[4].ClaimedValue) // -> to be completed
 
-	// fmt.Printf("ql(zeta): %s\n", ql.String())
-	// fmt.Printf("qr(zeta): %s\n", qr.String())
-	// fmt.Printf("qm(zeta): %s\n", qm.String())
-	// fmt.Printf("qo(zeta): %s\n", qo.String())
-	// fmt.Printf("qk(zeta): %s\n", qk.String())
-
 	var l, r, o fr.Element
 	l.Set(&proof.OpeningsLROmp[0].ClaimedValue)
 	r.Set(&proof.OpeningsLROmp[1].ClaimedValue)
 	o.Set(&proof.OpeningsLROmp[2].ClaimedValue)
-	// fmt.Printf("l(zeta): %s\n", l.String())
-	// fmt.Printf("r(zeta): %s\n", r.String())
-	// fmt.Printf("o(zeta): %s\n", o.String())
 
 	var h1, h2, h3 fr.Element
 	h1.Set(&proof.OpeningsHmp[0].ClaimedValue)
 	h2.Set(&proof.OpeningsHmp[1].ClaimedValue)
 	h3.Set(&proof.OpeningsHmp[2].ClaimedValue)
-	// fmt.Printf("h1(zeta): %s\n", h1.String())
-	// fmt.Printf("h2(zeta): %s\n", h2.String())
-	// fmt.Printf("h3(zeta): %s\n", h3.String())
 
 	var s1, s2, s3 fr.Element
 	s1.Set(&proof.OpeningsS1S2S3mp[0].ClaimedValue)
 	s2.Set(&proof.OpeningsS1S2S3mp[1].ClaimedValue)
 	s3.Set(&proof.OpeningsS1S2S3mp[2].ClaimedValue)
-	// fmt.Printf("s1(zeta): %s\n", proof.OpeningsS1S2S3mp[0].ClaimedValue.String())
-	// fmt.Printf("s2(zeta): %s\n", proof.OpeningsS1S2S3mp[1].ClaimedValue.String())
-	// fmt.Printf("s3(zeta): %s\n", proof.OpeningsS1S2S3mp[2].ClaimedValue.String())
 
 	var id1, id2, id3 fr.Element
 	id1.Set(&proof.OpeningsId1Id2Id3mp[0].ClaimedValue)
 	id2.Set(&proof.OpeningsId1Id2Id3mp[1].ClaimedValue)
 	id3.Set(&proof.OpeningsId1Id2Id3mp[2].ClaimedValue)
-	// fmt.Printf("id1(zeta): %s\n", proof.OpeningsId1Id2Id3mp[0].ClaimedValue.String())
-	// fmt.Printf("id2(zeta): %s\n", proof.OpeningsId1Id2Id3mp[1].ClaimedValue.String())
-	// fmt.Printf("id3(zeta): %s\n", proof.OpeningsId1Id2Id3mp[2].ClaimedValue.String())
 
 	var z, zshift fr.Element
 	z.Set(&proof.OpeningsZmp[0].ClaimedValue)
 	zshift.Set(&proof.OpeningsZmp[1].ClaimedValue)
-	fmt.Printf("z(zeta): %s\n", z.String())
-	fmt.Printf("z(u*zeta): %s\n", zshift.String())
 
 	// 2 - compute the LHS: (ql*l+..+qk)+ α*(z(μx)*(l+β*s₁+γ)*..-z*(l+β*id1+γ))+α²*z*(l1-1)
 	var alpha, beta, gamma fr.Element
