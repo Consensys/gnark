@@ -15,7 +15,6 @@
 package plonkfri
 
 import (
-	"fmt"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -32,7 +31,6 @@ import (
 type Proof struct {
 
 	// commitments to the solution vectors
-	// LRO   [3]Commitment
 	LROpp [3]fri.ProofOfProximity
 
 	// commitment to Z (permutation polynomial)
@@ -40,23 +38,18 @@ type Proof struct {
 	Zpp fri.ProofOfProximity
 
 	// commitment to h1,h2,h3 such that h = h1 + X**n*h2 + X**2nh3 the quotient polynomial
-	// H   [3]Commitment
 	Hpp [3]fri.ProofOfProximity
 
 	// opening proofs for L, R, O
-	// OpeningsLRO   [3]OpeningProof
 	OpeningsLROmp [3]fri.OpeningProof
 
 	// opening proofs for Z, Zu
-	// OpeningsZ   [2]OpeningProof
 	OpeningsZmp [2]fri.OpeningProof
 
 	// opening proof for H
-	// OpeningsH   [3]OpeningProof
 	OpeningsHmp [3]fri.OpeningProof
 
 	// opening proofs for ql, qr, qm, qo, qk
-	// OpeningsQlQrQmQoQkincomplete   [5]OpeningProof
 	OpeningsQlQrQmQoQkincompletemp [5]fri.OpeningProof
 
 	// openings of S1, S2, S3
@@ -64,40 +57,7 @@ type Proof struct {
 	OpeningsS1S2S3mp [3]fri.OpeningProof
 
 	// openings of Id1, Id2, Id3
-	// OpeningsId1Id2Id3   [3]OpeningProof
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
-}
-
-func printVector(name string, v []fr.Element, bitreverse bool) {
-
-	_v := make([]fr.Element, len(v))
-	copy(_v, v)
-	if bitreverse {
-		fft.BitReverse(_v)
-	}
-
-	fmt.Printf("%s = [", name)
-	for i := 0; i < len(_v); i++ {
-		fmt.Printf("%s, ", _v[i].String())
-	}
-	fmt.Println("]")
-
-}
-
-func printPoly(name string, v []fr.Element, bitreverse bool) {
-
-	_v := make([]fr.Element, len(v))
-	copy(_v, v)
-	if bitreverse {
-		fft.BitReverse(_v)
-	}
-
-	fmt.Printf("%s = ", name)
-	for i := 0; i < len(_v); i++ {
-		fmt.Printf("%s*x**%d+", _v[i].String(), i)
-	}
-	fmt.Println("")
-
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
@@ -145,10 +105,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
-	// proof.LRO[0] = pk.Cscheme.Commit(blindedLCanonical)
-	// proof.LRO[1] = pk.Cscheme.Commit(blindedRCanonical)
-	// proof.LRO[2] = pk.Cscheme.Commit(blindedOCanonical)
-
 	// 3 - compute Z
 	var beta, gamma fr.Element
 	beta.SetUint64(9)
@@ -161,13 +117,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return nil, err
 	}
+
+	// 4 - commit Z
 	proof.Zpp, err = pk.Vk.Iopp.BuildProofOfProximity(blindedZCanonical)
 	if err != nil {
 		return nil, err
 	}
-
-	// 4 - commit to Z
-	// proof.Z = pk.Cscheme.Commit(blindedZCanonical)
 
 	// 5 - compute H
 	var alpha fr.Element
@@ -222,23 +177,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return nil, err
 	}
-	// proof.H[0] = pk.Cscheme.Commit(h1)
-	// proof.H[1] = pk.Cscheme.Commit(h2)
-	// proof.H[2] = pk.Cscheme.Commit(h3) // CORRECT
 
 	// 7 - build the opening proofs
 	var zeta fr.Element
 	zeta.SetString("10359452186428527605436343203440067497552205259388878191021578220384701716497")
 
 	// derive a query position, which is 0<=i<domain[1].Size
-	openingPosition := uint64(1)
+	openingPosition := uint64(2)
 
 	// ql, qr, qm, qo, qkIncomplete
-	// proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
-	// proof.OpeningsQlQrQmQoQkincomplete[1] = pk.Cscheme.Open(pk.CQr, zeta)
-	// proof.OpeningsQlQrQmQoQkincomplete[2] = pk.Cscheme.Open(pk.CQm, zeta)
-	// proof.OpeningsQlQrQmQoQkincomplete[3] = pk.Cscheme.Open(pk.CQo, zeta)
-	// proof.OpeningsQlQrQmQoQkincomplete[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
 	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
 	if err != nil {
 		return &proof, err
@@ -261,9 +208,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// l, r, o
-	// proof.OpeningsLRO[0] = pk.Cscheme.Open(blindedLCanonical, zeta)
-	// proof.OpeningsLRO[1] = pk.Cscheme.Open(blindedRCanonical, zeta)
-	// proof.OpeningsLRO[2] = pk.Cscheme.Open(blindedOCanonical, zeta)
 	proof.OpeningsLROmp[0], err = pk.Vk.Iopp.Open(blindedLCanonical, openingPosition)
 	if err != nil {
 		return &proof, err
@@ -278,9 +222,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// h0, h1, h2
-	// proof.OpeningsH[0] = pk.Cscheme.Open(proof.H[0], zeta)
-	// proof.OpeningsH[1] = pk.Cscheme.Open(proof.H[1], zeta)
-	// proof.OpeningsH[2] = pk.Cscheme.Open(proof.H[2], zeta)
 	proof.OpeningsHmp[0], err = pk.Vk.Iopp.Open(h1Canonical, openingPosition)
 	if err != nil {
 		return &proof, err
@@ -295,9 +236,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// s0, s1, s2
-	// proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
-	// proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
-	// proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
 	proof.OpeningsS1S2S3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.SCanonical[0], openingPosition)
 	if err != nil {
 		return &proof, err
@@ -312,9 +250,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// id0, id1, id2
-	// proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
-	// proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
-	// proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
 	proof.OpeningsId1Id2Id3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.IdCanonical[0], openingPosition)
 	if err != nil {
 		return &proof, err
@@ -330,8 +265,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&pk.Vk.Generator, &zeta)
-	// proof.OpeningsZ[0] = pk.Cscheme.Open(blindedZCanonical, zeta)
-	// proof.OpeningsZ[1] = pk.Cscheme.Open(blindedZCanonical, zetaShifted)
 
 	// zeta is shifted by g, the generator of Z/nZ where n is the number of constraints. We need
 	// to query the "rho" factor from FRI to know by what should be shifted the opening position.

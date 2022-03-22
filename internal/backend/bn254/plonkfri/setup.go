@@ -23,44 +23,6 @@ import (
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 )
 
-// type Commitment []fr.Element
-
-// type OpeningProof struct {
-// 	Val fr.Element
-// }
-
-// type CommitmentScheme interface {
-// 	Commit(a []fr.Element) Commitment
-// 	Open(c Commitment, p fr.Element) OpeningProof
-// 	Verify(c Commitment, o OpeningProof, point fr.Element) bool
-// }
-
-// type MockCommitment struct{}
-
-// func (m MockCommitment) Commit(a []fr.Element) Commitment {
-// 	res := make([]fr.Element, len(a))
-// 	copy(res, a)
-// 	return res
-// }
-
-// func (m MockCommitment) Open(c Commitment, p fr.Element) OpeningProof {
-// 	var r fr.Element
-// 	for i := len(c) - 1; i >= 0; i-- {
-// 		r.Mul(&r, &p).Add(&r, &c[i])
-// 	}
-// 	return OpeningProof{
-// 		Val: r,
-// 	}
-// }
-
-// func (m MockCommitment) Verify(c Commitment, o OpeningProof, point fr.Element) bool {
-// 	var r fr.Element
-// 	for i := len(c) - 1; i >= 0; i-- {
-// 		r.Mul(&r, &point).Add(&r, &c[i])
-// 	}
-// 	return r.Equal(&o.Val)
-// }
-
 // ProvingKey stores the data needed to generate a proof:
 // * the commitment scheme
 // * ql, prepended with as many ones as they are public inputs
@@ -115,11 +77,7 @@ type VerifyingKey struct {
 	// cosetShift generator of the coset on the small domain
 	CosetShift fr.Element
 
-	// commitment scheme
-	// Cscheme MockCommitment
-
 	// S commitments to S1, S2, S3
-	// S   [3]Commitment
 	SCanonical [3][]fr.Element
 	Spp        [3]fri.ProofOfProximity
 
@@ -130,7 +88,6 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	// Ql, Qr, Qm, Qo, QkIncomplete Commitment
 	Qpp [5]fri.ProofOfProximity // Ql, Qr, Qm, Qo, Qk
 
 	// Iopp scheme (currently one for each size of polynomial)
@@ -231,11 +188,6 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	copy(pk.CQr, pk.EvaluationQrDomainBigBitReversed)
 	copy(pk.CQm, pk.EvaluationQmDomainBigBitReversed)
 	copy(pk.CQo, pk.EvaluationQoDomainBigBitReversed)
-	// vk.Ql = vk.Cscheme.Commit(pk.CQl)
-	// vk.Qr = vk.Cscheme.Commit(pk.CQr)
-	// vk.Qm = vk.Cscheme.Commit(pk.CQm)
-	// vk.Qo = vk.Cscheme.Commit(pk.CQo)
-	// vk.QkIncomplete = vk.Cscheme.Commit(pk.CQkIncomplete
 	var err error
 	vk.Qpp[0], err = vk.Iopp.BuildProofOfProximity(pk.CQl)
 	if err != nil {
@@ -375,9 +327,6 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	fft.BitReverse(pk.EvaluationId1BigDomain[:pk.Domain[0].Cardinality])
 	fft.BitReverse(pk.EvaluationId2BigDomain[:pk.Domain[0].Cardinality])
 	fft.BitReverse(pk.EvaluationId3BigDomain[:pk.Domain[0].Cardinality])
-	// vk.Id[0] = vk.Cscheme.Commit(pk.EvaluationId1BigDomain)
-	// vk.Id[1] = vk.Cscheme.Commit(pk.EvaluationId2BigDomain)
-	// vk.Id[2] = vk.Cscheme.Commit(pk.EvaluationId3BigDomain)
 	vk.IdCanonical[0] = make([]fr.Element, pk.Domain[0].Cardinality)
 	vk.IdCanonical[1] = make([]fr.Element, pk.Domain[0].Cardinality)
 	vk.IdCanonical[2] = make([]fr.Element, pk.Domain[0].Cardinality)
@@ -410,9 +359,6 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	fft.BitReverse(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
 
 	// commit S1, S2, S3
-	// vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
-	// vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
-	// vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
 	vk.SCanonical[0] = make([]fr.Element, pk.Domain[0].Cardinality)
 	vk.SCanonical[1] = make([]fr.Element, pk.Domain[0].Cardinality)
 	vk.SCanonical[2] = make([]fr.Element, pk.Domain[0].Cardinality)
