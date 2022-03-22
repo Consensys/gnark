@@ -101,21 +101,27 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 
 // Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
 func (p *PublicKey) Assign(curveID ecc.ID, buf []byte) {
-	ax, ay := parsePoint(curveID, buf)
+	ax, ay, err := parsePoint(curveID, buf)
+	if err != nil {
+		panic(err)
+	}
 	p.A.X = ax
 	p.A.Y = ay
 }
 
 // Assign is a helper to assigned a compressed binary signature representation into its uncompressed form
 func (s *Signature) Assign(curveID ecc.ID, buf []byte) {
-	rx, ry, S := parseSignature(curveID, buf)
+	rx, ry, S, err := parseSignature(curveID, buf)
+	if err != nil {
+		panic(err)
+	}
 	s.R.X = rx
 	s.R.Y = ry
 	s.S = S
 }
 
 // parseSignature parses a compressed binary signature into uncompressed R.X, R.Y and S
-func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte) {
+func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) {
 
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
@@ -126,42 +132,72 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte) {
 
 	switch curveID {
 	case ecc.BN254:
-		pointbn254.SetBytes(buf[:32])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbn254.SetBytes(buf[:32]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[32:]
-		return a, b, s
+		return a, b, s, nil
 	case ecc.BLS12_381:
-		pointbls12381.SetBytes(buf[:32])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbls12381.SetBytes(buf[:32]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[32:]
-		return a, b, s
+		return a, b, s, nil
 	case ecc.BLS12_377:
-		pointbls12377.SetBytes(buf[:32])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbls12377.SetBytes(buf[:32]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[32:]
-		return a, b, s
+		return a, b, s, nil
 	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbw6761.SetBytes(buf[:48]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[48:]
-		return a, b, s
+		return a, b, s, nil
 	case ecc.BLS24_315:
-		pointbls24315.SetBytes(buf[:32])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[32:]
-		return a, b, s
+		return a, b, s, nil
 	case ecc.BW6_633:
-		pointbw6633.SetBytes(buf[:40])
-		a, b := parsePoint(curveID, buf)
+		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		s := buf[40:]
-		return a, b, s
+		return a, b, s, nil
 	default:
 		panic("not implemented")
 	}
 }
 
 // parsePoint parses a compressed binary point into uncompressed P.X and P.Y
-func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte) {
+func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte, error) {
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
@@ -170,35 +206,47 @@ func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte) {
 	var pointbw6633 edwardsbw6633.PointAffine
 	switch curveID {
 	case ecc.BN254:
-		pointbn254.SetBytes(buf[:32])
+		if _, err := pointbn254.SetBytes(buf[:32]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbn254.X.Bytes()
 		b := pointbn254.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	case ecc.BLS12_381:
-		pointbls12381.SetBytes(buf[:32])
+		if _, err := pointbls12381.SetBytes(buf[:32]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbls12381.X.Bytes()
 		b := pointbls12381.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	case ecc.BLS12_377:
-		pointbls12377.SetBytes(buf[:32])
+		if _, err := pointbls12377.SetBytes(buf[:32]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbls12377.X.Bytes()
 		b := pointbls12377.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	case ecc.BW6_761:
-		pointbw6761.SetBytes(buf[:48])
+		if _, err := pointbw6761.SetBytes(buf[:48]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbw6761.X.Bytes()
 		b := pointbw6761.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	case ecc.BLS24_315:
-		pointbls24315.SetBytes(buf[:32])
+		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbls24315.X.Bytes()
 		b := pointbls24315.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	case ecc.BW6_633:
-		pointbw6633.SetBytes(buf[:40])
+		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
+			return nil, nil, err
+		}
 		a := pointbw6633.X.Bytes()
 		b := pointbw6633.Y.Bytes()
-		return a[:], b[:]
+		return a[:], b[:], nil
 	default:
 		panic("not implemented")
 	}
