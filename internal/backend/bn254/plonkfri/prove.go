@@ -32,39 +32,39 @@ import (
 type Proof struct {
 
 	// commitments to the solution vectors
-	LRO   [3]Commitment
+	// LRO   [3]Commitment
 	LROpp [3]fri.ProofOfProximity
 
 	// commitment to Z (permutation polynomial)
-	Z   Commitment
+	// Z   Commitment
 	Zpp fri.ProofOfProximity
 
 	// commitment to h1,h2,h3 such that h = h1 + X**n*h2 + X**2nh3 the quotient polynomial
-	H   [3]Commitment
+	// H   [3]Commitment
 	Hpp [3]fri.ProofOfProximity
 
 	// opening proofs for L, R, O
-	OpeningsLRO   [3]OpeningProof
+	// OpeningsLRO   [3]OpeningProof
 	OpeningsLROmp [3]fri.OpeningProof
 
 	// opening proofs for Z, Zu
-	OpeningsZ   [2]OpeningProof
+	// OpeningsZ   [2]OpeningProof
 	OpeningsZmp [2]fri.OpeningProof
 
 	// opening proof for H
-	OpeningsH   [3]OpeningProof
+	// OpeningsH   [3]OpeningProof
 	OpeningsHmp [3]fri.OpeningProof
 
 	// opening proofs for ql, qr, qm, qo, qk
-	OpeningsQlQrQmQoQkincomplete   [5]OpeningProof
+	// OpeningsQlQrQmQoQkincomplete   [5]OpeningProof
 	OpeningsQlQrQmQoQkincompletemp [5]fri.OpeningProof
 
 	// openings of S1, S2, S3
-	OpeningsS1S2S3   [3]OpeningProof
+	// OpeningsS1S2S3   [3]OpeningProof
 	OpeningsS1S2S3mp [3]fri.OpeningProof
 
 	// openings of Id1, Id2, Id3
-	OpeningsId1Id2Id3   [3]OpeningProof
+	// OpeningsId1Id2Id3   [3]OpeningProof
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
@@ -145,9 +145,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
-	proof.LRO[0] = pk.Cscheme.Commit(blindedLCanonical)
-	proof.LRO[1] = pk.Cscheme.Commit(blindedRCanonical)
-	proof.LRO[2] = pk.Cscheme.Commit(blindedOCanonical)
+	// proof.LRO[0] = pk.Cscheme.Commit(blindedLCanonical)
+	// proof.LRO[1] = pk.Cscheme.Commit(blindedRCanonical)
+	// proof.LRO[2] = pk.Cscheme.Commit(blindedOCanonical)
 
 	// 3 - compute Z
 	var beta, gamma fr.Element
@@ -167,7 +167,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// 4 - commit to Z
-	proof.Z = pk.Cscheme.Commit(blindedZCanonical)
+	// proof.Z = pk.Cscheme.Commit(blindedZCanonical)
 
 	// 5 - compute H
 	var alpha fr.Element
@@ -202,7 +202,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		evaluationBlindedODomainBigBitReversed,
 		beta, gamma) // CORRECT
 
-	h1, h2, h3 := computeQuotientCanonical(
+	h1Canonical, h2Canonical, h3Canonical := computeQuotientCanonical(
 		pk,
 		evaluationConstraintsDomainBigBitReversed,
 		evaluationOrderingDomainBigBitReversed,
@@ -210,21 +210,21 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		alpha) // CORRECT
 
 	// 6 - commit to H
-	proof.Hpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(h1)
+	proof.Hpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(h1Canonical)
 	if err != nil {
 		return nil, err
 	}
-	proof.Hpp[1], err = pk.Vk.Iopp.BuildProofOfProximity(h2)
+	proof.Hpp[1], err = pk.Vk.Iopp.BuildProofOfProximity(h2Canonical)
 	if err != nil {
 		return nil, err
 	}
-	proof.Hpp[2], err = pk.Vk.Iopp.BuildProofOfProximity(h3)
+	proof.Hpp[2], err = pk.Vk.Iopp.BuildProofOfProximity(h3Canonical)
 	if err != nil {
 		return nil, err
 	}
-	proof.H[0] = pk.Cscheme.Commit(h1)
-	proof.H[1] = pk.Cscheme.Commit(h2)
-	proof.H[2] = pk.Cscheme.Commit(h3) // CORRECT
+	// proof.H[0] = pk.Cscheme.Commit(h1)
+	// proof.H[1] = pk.Cscheme.Commit(h2)
+	// proof.H[2] = pk.Cscheme.Commit(h3) // CORRECT
 
 	// 7 - build the opening proofs
 	var zeta fr.Element
@@ -234,11 +234,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	openingPosition := uint64(1)
 
 	// ql, qr, qm, qo, qkIncomplete
-	proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
-	proof.OpeningsQlQrQmQoQkincomplete[1] = pk.Cscheme.Open(pk.CQr, zeta)
-	proof.OpeningsQlQrQmQoQkincomplete[2] = pk.Cscheme.Open(pk.CQm, zeta)
-	proof.OpeningsQlQrQmQoQkincomplete[3] = pk.Cscheme.Open(pk.CQo, zeta)
-	proof.OpeningsQlQrQmQoQkincomplete[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
+	// proof.OpeningsQlQrQmQoQkincomplete[0] = pk.Cscheme.Open(pk.CQl, zeta)
+	// proof.OpeningsQlQrQmQoQkincomplete[1] = pk.Cscheme.Open(pk.CQr, zeta)
+	// proof.OpeningsQlQrQmQoQkincomplete[2] = pk.Cscheme.Open(pk.CQm, zeta)
+	// proof.OpeningsQlQrQmQoQkincomplete[3] = pk.Cscheme.Open(pk.CQo, zeta)
+	// proof.OpeningsQlQrQmQoQkincomplete[4] = pk.Cscheme.Open(pk.CQkIncomplete, zeta)
 	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
 	if err != nil {
 		return &proof, err
@@ -261,9 +261,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// l, r, o
-	proof.OpeningsLRO[0] = pk.Cscheme.Open(blindedLCanonical, zeta)
-	proof.OpeningsLRO[1] = pk.Cscheme.Open(blindedRCanonical, zeta)
-	proof.OpeningsLRO[2] = pk.Cscheme.Open(blindedOCanonical, zeta)
+	// proof.OpeningsLRO[0] = pk.Cscheme.Open(blindedLCanonical, zeta)
+	// proof.OpeningsLRO[1] = pk.Cscheme.Open(blindedRCanonical, zeta)
+	// proof.OpeningsLRO[2] = pk.Cscheme.Open(blindedOCanonical, zeta)
 	proof.OpeningsLROmp[0], err = pk.Vk.Iopp.Open(blindedLCanonical, openingPosition)
 	if err != nil {
 		return &proof, err
@@ -278,60 +278,60 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// h0, h1, h2
-	proof.OpeningsH[0] = pk.Cscheme.Open(proof.H[0], zeta)
-	proof.OpeningsH[1] = pk.Cscheme.Open(proof.H[1], zeta)
-	proof.OpeningsH[2] = pk.Cscheme.Open(proof.H[2], zeta)
-	proof.OpeningsHmp[0], err = pk.Vk.Iopp.Open(proof.H[0], openingPosition)
+	// proof.OpeningsH[0] = pk.Cscheme.Open(proof.H[0], zeta)
+	// proof.OpeningsH[1] = pk.Cscheme.Open(proof.H[1], zeta)
+	// proof.OpeningsH[2] = pk.Cscheme.Open(proof.H[2], zeta)
+	proof.OpeningsHmp[0], err = pk.Vk.Iopp.Open(h1Canonical, openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsHmp[1], err = pk.Vk.Iopp.Open(proof.H[1], openingPosition)
+	proof.OpeningsHmp[1], err = pk.Vk.Iopp.Open(h2Canonical, openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsHmp[2], err = pk.Vk.Iopp.Open(proof.H[2], openingPosition)
+	proof.OpeningsHmp[2], err = pk.Vk.Iopp.Open(h3Canonical, openingPosition)
 	if err != nil {
 		return &proof, err
 	}
 
 	// s0, s1, s2
-	proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
-	proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
-	proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
-	proof.OpeningsS1S2S3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.S[0], openingPosition)
+	// proof.OpeningsS1S2S3[0] = pk.Cscheme.Open(pk.Vk.S[0], zeta)
+	// proof.OpeningsS1S2S3[1] = pk.Cscheme.Open(pk.Vk.S[1], zeta)
+	// proof.OpeningsS1S2S3[2] = pk.Cscheme.Open(pk.Vk.S[2], zeta)
+	proof.OpeningsS1S2S3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.SCanonical[0], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsS1S2S3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.S[1], openingPosition)
+	proof.OpeningsS1S2S3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.SCanonical[1], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsS1S2S3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.S[2], openingPosition)
+	proof.OpeningsS1S2S3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.SCanonical[2], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
 
 	// id0, id1, id2
-	proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
-	proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
-	proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
-	proof.OpeningsId1Id2Id3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.Id[0], openingPosition)
+	// proof.OpeningsId1Id2Id3[0] = pk.Cscheme.Open(pk.Vk.Id[0], zeta)
+	// proof.OpeningsId1Id2Id3[1] = pk.Cscheme.Open(pk.Vk.Id[1], zeta)
+	// proof.OpeningsId1Id2Id3[2] = pk.Cscheme.Open(pk.Vk.Id[2], zeta)
+	proof.OpeningsId1Id2Id3mp[0], err = pk.Vk.Iopp.Open(pk.Vk.IdCanonical[0], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsId1Id2Id3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.Id[1], openingPosition)
+	proof.OpeningsId1Id2Id3mp[1], err = pk.Vk.Iopp.Open(pk.Vk.IdCanonical[1], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
-	proof.OpeningsId1Id2Id3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.Id[2], openingPosition)
+	proof.OpeningsId1Id2Id3mp[2], err = pk.Vk.Iopp.Open(pk.Vk.IdCanonical[2], openingPosition)
 	if err != nil {
 		return &proof, err
 	}
 
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&pk.Vk.Generator, &zeta)
-	proof.OpeningsZ[0] = pk.Cscheme.Open(blindedZCanonical, zeta)
-	proof.OpeningsZ[1] = pk.Cscheme.Open(blindedZCanonical, zetaShifted)
+	// proof.OpeningsZ[0] = pk.Cscheme.Open(blindedZCanonical, zeta)
+	// proof.OpeningsZ[1] = pk.Cscheme.Open(blindedZCanonical, zetaShifted)
 
 	// zeta is shifted by g, the generator of Z/nZ where n is the number of constraints. We need
 	// to query the "rho" factor from FRI to know by what should be shifted the opening position.

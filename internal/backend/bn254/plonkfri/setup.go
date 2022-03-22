@@ -23,43 +23,43 @@ import (
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 )
 
-type Commitment []fr.Element
+// type Commitment []fr.Element
 
-type OpeningProof struct {
-	Val fr.Element
-}
+// type OpeningProof struct {
+// 	Val fr.Element
+// }
 
-type CommitmentScheme interface {
-	Commit(a []fr.Element) Commitment
-	Open(c Commitment, p fr.Element) OpeningProof
-	Verify(c Commitment, o OpeningProof, point fr.Element) bool
-}
+// type CommitmentScheme interface {
+// 	Commit(a []fr.Element) Commitment
+// 	Open(c Commitment, p fr.Element) OpeningProof
+// 	Verify(c Commitment, o OpeningProof, point fr.Element) bool
+// }
 
-type MockCommitment struct{}
+// type MockCommitment struct{}
 
-func (m MockCommitment) Commit(a []fr.Element) Commitment {
-	res := make([]fr.Element, len(a))
-	copy(res, a)
-	return res
-}
+// func (m MockCommitment) Commit(a []fr.Element) Commitment {
+// 	res := make([]fr.Element, len(a))
+// 	copy(res, a)
+// 	return res
+// }
 
-func (m MockCommitment) Open(c Commitment, p fr.Element) OpeningProof {
-	var r fr.Element
-	for i := len(c) - 1; i >= 0; i-- {
-		r.Mul(&r, &p).Add(&r, &c[i])
-	}
-	return OpeningProof{
-		Val: r,
-	}
-}
+// func (m MockCommitment) Open(c Commitment, p fr.Element) OpeningProof {
+// 	var r fr.Element
+// 	for i := len(c) - 1; i >= 0; i-- {
+// 		r.Mul(&r, &p).Add(&r, &c[i])
+// 	}
+// 	return OpeningProof{
+// 		Val: r,
+// 	}
+// }
 
-func (m MockCommitment) Verify(c Commitment, o OpeningProof, point fr.Element) bool {
-	var r fr.Element
-	for i := len(c) - 1; i >= 0; i-- {
-		r.Mul(&r, &point).Add(&r, &c[i])
-	}
-	return r.Equal(&o.Val)
-}
+// func (m MockCommitment) Verify(c Commitment, o OpeningProof, point fr.Element) bool {
+// 	var r fr.Element
+// 	for i := len(c) - 1; i >= 0; i-- {
+// 		r.Mul(&r, &point).Add(&r, &c[i])
+// 	}
+// 	return r.Equal(&o.Val)
+// }
 
 // ProvingKey stores the data needed to generate a proof:
 // * the commitment scheme
@@ -83,7 +83,7 @@ type ProvingKey struct {
 	CQl, CQr, CQm, CQo, CQkIncomplete []fr.Element
 
 	// commitment scheme
-	Cscheme MockCommitment
+	// Cscheme MockCommitment
 
 	// Domains used for the FFTs
 	// 0 -> "small" domain, used for individual polynomials
@@ -116,20 +116,22 @@ type VerifyingKey struct {
 	CosetShift fr.Element
 
 	// commitment scheme
-	Cscheme MockCommitment
+	// Cscheme MockCommitment
 
 	// S commitments to S1, S2, S3
-	S   [3]Commitment
-	Spp [3]fri.ProofOfProximity
+	// S   [3]Commitment
+	SCanonical [3][]fr.Element
+	Spp        [3]fri.ProofOfProximity
 
 	// Id commitments to Id1, Id2, Id3
-	Id   [3]Commitment
-	Idpp [3]fri.ProofOfProximity
+	// Id   [3]Commitment
+	IdCanonical [3][]fr.Element
+	Idpp        [3]fri.ProofOfProximity
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, QkIncomplete Commitment
-	Qpp                          [5]fri.ProofOfProximity // Ql, Qr, Qm, Qo, Qk
+	// Ql, Qr, Qm, Qo, QkIncomplete Commitment
+	Qpp [5]fri.ProofOfProximity // Ql, Qr, Qm, Qo, Qk
 
 	// Iopp scheme (currently one for each size of polynomial)
 	Iopp fri.Iopp
@@ -229,29 +231,29 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	copy(pk.CQr, pk.EvaluationQrDomainBigBitReversed)
 	copy(pk.CQm, pk.EvaluationQmDomainBigBitReversed)
 	copy(pk.CQo, pk.EvaluationQoDomainBigBitReversed)
-	vk.Ql = vk.Cscheme.Commit(pk.CQl)
-	vk.Qr = vk.Cscheme.Commit(pk.CQr)
-	vk.Qm = vk.Cscheme.Commit(pk.CQm)
-	vk.Qo = vk.Cscheme.Commit(pk.CQo)
-	vk.QkIncomplete = vk.Cscheme.Commit(pk.CQkIncomplete)
+	// vk.Ql = vk.Cscheme.Commit(pk.CQl)
+	// vk.Qr = vk.Cscheme.Commit(pk.CQr)
+	// vk.Qm = vk.Cscheme.Commit(pk.CQm)
+	// vk.Qo = vk.Cscheme.Commit(pk.CQo)
+	// vk.QkIncomplete = vk.Cscheme.Commit(pk.CQkIncomplete
 	var err error
-	vk.Qpp[0], err = vk.Iopp.BuildProofOfProximity(vk.Ql)
+	vk.Qpp[0], err = vk.Iopp.BuildProofOfProximity(pk.CQl)
 	if err != nil {
 		return &pk, &vk, err
 	}
-	vk.Qpp[1], err = vk.Iopp.BuildProofOfProximity(vk.Qr)
+	vk.Qpp[1], err = vk.Iopp.BuildProofOfProximity(pk.CQr)
 	if err != nil {
 		return &pk, &vk, err
 	}
-	vk.Qpp[2], err = vk.Iopp.BuildProofOfProximity(vk.Qm)
+	vk.Qpp[2], err = vk.Iopp.BuildProofOfProximity(pk.CQm)
 	if err != nil {
 		return &pk, &vk, err
 	}
-	vk.Qpp[3], err = vk.Iopp.BuildProofOfProximity(vk.Qo)
+	vk.Qpp[3], err = vk.Iopp.BuildProofOfProximity(pk.CQo)
 	if err != nil {
 		return &pk, &vk, err
 	}
-	vk.Qpp[4], err = vk.Iopp.BuildProofOfProximity(vk.QkIncomplete)
+	vk.Qpp[4], err = vk.Iopp.BuildProofOfProximity(pk.CQkIncomplete)
 	if err != nil {
 		return &pk, &vk, err
 	}
@@ -373,9 +375,16 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	fft.BitReverse(pk.EvaluationId1BigDomain[:pk.Domain[0].Cardinality])
 	fft.BitReverse(pk.EvaluationId2BigDomain[:pk.Domain[0].Cardinality])
 	fft.BitReverse(pk.EvaluationId3BigDomain[:pk.Domain[0].Cardinality])
-	vk.Id[0] = vk.Cscheme.Commit(pk.EvaluationId1BigDomain)
-	vk.Id[1] = vk.Cscheme.Commit(pk.EvaluationId2BigDomain)
-	vk.Id[2] = vk.Cscheme.Commit(pk.EvaluationId3BigDomain)
+	// vk.Id[0] = vk.Cscheme.Commit(pk.EvaluationId1BigDomain)
+	// vk.Id[1] = vk.Cscheme.Commit(pk.EvaluationId2BigDomain)
+	// vk.Id[2] = vk.Cscheme.Commit(pk.EvaluationId3BigDomain)
+	vk.IdCanonical[0] = make([]fr.Element, pk.Domain[0].Cardinality)
+	vk.IdCanonical[1] = make([]fr.Element, pk.Domain[0].Cardinality)
+	vk.IdCanonical[2] = make([]fr.Element, pk.Domain[0].Cardinality)
+	copy(vk.IdCanonical[0], pk.EvaluationId1BigDomain)
+	copy(vk.IdCanonical[1], pk.EvaluationId2BigDomain)
+	copy(vk.IdCanonical[2], pk.EvaluationId3BigDomain)
+
 	var err error
 	vk.Idpp[0], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationId1BigDomain)
 	if err != nil {
@@ -401,18 +410,24 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	fft.BitReverse(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
 
 	// commit S1, S2, S3
-	vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
-	vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
-	vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
-	vk.Spp[0], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	// vk.S[0] = vk.Cscheme.Commit(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	// vk.S[1] = vk.Cscheme.Commit(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	// vk.S[2] = vk.Cscheme.Commit(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
+	vk.SCanonical[0] = make([]fr.Element, pk.Domain[0].Cardinality)
+	vk.SCanonical[1] = make([]fr.Element, pk.Domain[0].Cardinality)
+	vk.SCanonical[2] = make([]fr.Element, pk.Domain[0].Cardinality)
+	copy(vk.SCanonical[0], pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality])
+	copy(vk.SCanonical[1], pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	copy(vk.SCanonical[2], pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
+	vk.Spp[0], err = vk.Iopp.BuildProofOfProximity(vk.SCanonical[0])
 	if err != nil {
 		return err
 	}
-	vk.Spp[1], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality])
+	vk.Spp[1], err = vk.Iopp.BuildProofOfProximity(vk.SCanonical[1])
 	if err != nil {
 		return err
 	}
-	vk.Spp[2], err = vk.Iopp.BuildProofOfProximity(pk.EvaluationS3BigDomain[:pk.Domain[0].Cardinality])
+	vk.Spp[2], err = vk.Iopp.BuildProofOfProximity(vk.SCanonical[2])
 	if err != nil {
 		return err
 	}
