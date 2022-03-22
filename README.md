@@ -17,6 +17,20 @@ src="logo_new.png">
 * [`gnark` Issues]
 * [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
 
+
+## `gnark` Users
+
+To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
+
+Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
+
+
+## Warning
+**`gnark` has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+
+`gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) and tested on Unix (Linux / macOS).
+
+
 ## Issues
 
 `gnark` issues are tracked [in the GitHub issues tab][`gnark` Issues].
@@ -26,18 +40,9 @@ If you have any questions, queries or comments, [GitHub discussions] is the plac
 You can also get in touch directly: gnark@consensys.net
 
 
-## `gnark` Users
-
-
-To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
-
-Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
-
-
 ## Release Notes
 
 [Release Notes](CHANGELOG.md)
-
 
 ## Proving schemes and curves
 
