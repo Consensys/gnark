@@ -642,12 +642,11 @@ func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 	// random polynomial
 	blindingPoly := make([]fr.Element, bo+1)
 
-	// TODO reactivate blinding, currently deactivated for testing purposes
-	// for i := uint64(0); i < bo+1; i++ {
-	// 	if _, err := blindingPoly[i].SetRandom(); err != nil {
-	// 		return nil, err
-	// 	}
-	// }
+	for i := uint64(0); i < bo+1; i++ {
+		if _, err := blindingPoly[i].SetRandom(); err != nil {
+			return nil, err
+		}
+	}
 
 	// blinding
 	for i := uint64(0); i < bo+1; i++ {
