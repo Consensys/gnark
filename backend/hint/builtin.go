@@ -10,7 +10,7 @@ var (
 	// IsZero computes the value 1 - a^(modulus-1) for the single input a. This
 	// corresponds to checking if a == 0 (for which the function returns 1) or a
 	// != 0 (for which the function returns 0).
-	IsZero = NewStaticHint(isZero)
+	IsZero = isZero
 )
 
 func init() {

@@ -601,7 +601,7 @@ func (system *r1cs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	}
 
 	// register the hint as dependency
-	hintUUID, hintID := f.UUID(), f.String()
+	hintUUID, hintID := hint.UUID(f), hint.Name(f)
 	if id, ok := system.MHintsDependencies[hintUUID]; ok {
 		// hint already registered, let's ensure string id matches
 		if id != hintID {
@@ -636,7 +636,7 @@ func (system *r1cs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 		res[i] = r
 	}
 
-	ch := &compiled.Hint{ID: f.UUID(), Inputs: hintInputs, Wires: varIDs}
+	ch := &compiled.Hint{ID: hintUUID, Inputs: hintInputs, Wires: varIDs}
 	for _, vID := range varIDs {
 		system.MHints[vID] = ch
 	}

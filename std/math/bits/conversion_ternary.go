@@ -11,7 +11,7 @@ import (
 
 // NTrits returns the first trits of the input. The number of returned trits is
 // defined by the length of the results slice.
-var NTrits = hint.NewStaticHint(nTrits)
+var NTrits = nTrits
 
 func init() {
 	hint.Register(NTrits)

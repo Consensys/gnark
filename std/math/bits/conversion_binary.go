@@ -12,11 +12,11 @@ var (
 	// IthBit returns the i-tb bit the input. The function expects exactly two
 	// integer inputs i and n, takes the little-endian bit representation of n and
 	// returns its i-th bit.
-	IthBit = hint.NewStaticHint(ithBit)
+	IthBit = ithBit
 
 	// NBits returns the first bits of the input. The number of returned bits is
 	// defined by the length of the results slice.
-	NBits = hint.NewStaticHint(nBits)
+	NBits = nBits
 )
 
 func init() {
