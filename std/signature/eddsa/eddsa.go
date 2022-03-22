@@ -18,15 +18,26 @@ limitations under the License.
 package eddsa
 
 import (
+	"errors"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/hash"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
-	"github.com/consensys/gnark/std/hash/mimc"
+
+	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
+	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
+	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
+	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
+	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
 )
 
 // PublicKey stores an eddsa public key (to be used in gnark circuit)
 type PublicKey struct {
-	A     twistededwards.Point
-	Curve twistededwards.EdCurve
+	A twistededwards.Point
 }
 
 // Signature stores a signature  (to be used in gnark circuit)
@@ -40,53 +51,155 @@ type Signature struct {
 	S frontend.Variable
 }
 
-// Verify verifies an eddsa signature
+// Verify verifies an eddsa signature using MiMC hash function
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(api frontend.API, sig Signature, msg frontend.Variable, pubKey PublicKey) error {
+func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.Hash) error {
 
-	// compute H(R, A, M), all parameters in data are in Montgomery form
-	data := []frontend.Variable{
-		sig.R.X,
-		sig.R.Y,
-		pubKey.A.X,
-		pubKey.A.Y,
-		msg,
+	// compute H(R, A, M)
+	hash.Write(sig.R.X)
+	hash.Write(sig.R.Y)
+	hash.Write(pubKey.A.X)
+	hash.Write(pubKey.A.Y)
+	hash.Write(msg)
+	hRAM := hash.Sum()
+
+	base := twistededwards.Point{
+		X: curve.Params().Base[0],
+		Y: curve.Params().Base[1],
 	}
-
-	hash, err := mimc.NewMiMC(api)
-	if err != nil {
-		return err
-	}
-	hash.Write(data...)
-	hramConstant := hash.Sum()
-
-	base := twistededwards.Point{}
-	base.X = pubKey.Curve.Base.X
-	base.Y = pubKey.Curve.Base.Y
 
 	//[S]G-[H(R,A,M)]*A
-	cofactor := pubKey.Curve.Cofactor.Uint64()
-	Q := twistededwards.Point{}
-	_A := twistededwards.Point{}
-	_A.Neg(api, &pubKey.A)
-	Q.DoubleBaseScalarMul(api, &base, &_A, sig.S, hramConstant, pubKey.Curve)
-	Q.MustBeOnCurve(api, pubKey.Curve)
+	_A := curve.Neg(pubKey.A)
+	Q := curve.DoubleBaseScalarMul(base, _A, sig.S, hRAM)
+	curve.AssertIsOnCurve(Q)
 
 	//[S]G-[H(R,A,M)]*A-R
-	Q.Neg(api, &Q).Add(api, &Q, &sig.R, pubKey.Curve)
+	Q = curve.Add(curve.Neg(Q), sig.R)
 
 	// [cofactor]*(lhs-rhs)
+	log := logger.Logger()
+	if !curve.Params().Cofactor.IsUint64() {
+		err := errors.New("invalid cofactor")
+		log.Err(err).Str("cofactor", curve.Params().Cofactor.String()).Send()
+		return err
+	}
+	cofactor := curve.Params().Cofactor.Uint64()
 	switch cofactor {
 	case 4:
-		Q.Double(api, &Q, pubKey.Curve).
-			Double(api, &Q, pubKey.Curve)
+		Q = curve.Double(curve.Double(Q))
 	case 8:
-		Q.Double(api, &Q, pubKey.Curve).
-			Double(api, &Q, pubKey.Curve).Double(api, &Q, pubKey.Curve)
+		Q = curve.Double(curve.Double(curve.Double(Q)))
+	default:
+		log.Warn().Str("cofactor", curve.Params().Cofactor.String()).Msg("curve cofactor is not implemented")
 	}
 
-	api.AssertIsEqual(Q.X, 0)
-	api.AssertIsEqual(Q.Y, 1)
+	curve.API().AssertIsEqual(Q.X, 0)
+	curve.API().AssertIsEqual(Q.Y, 1)
 
 	return nil
+}
+
+// Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
+func (p *PublicKey) Assign(curveID ecc.ID, buf []byte) {
+	ax, ay := parsePoint(curveID, buf)
+	p.A.X = ax
+	p.A.Y = ay
+}
+
+// Assign is a helper to assigned a compressed binary signature representation into its uncompressed form
+func (s *Signature) Assign(curveID ecc.ID, buf []byte) {
+	rx, ry, S := parseSignature(curveID, buf)
+	s.R.X = rx
+	s.R.Y = ry
+	s.S = S
+}
+
+// parseSignature parses a compressed binary signature into uncompressed R.X, R.Y and S
+func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte) {
+
+	var pointbn254 edwardsbn254.PointAffine
+	var pointbls12381 edwardsbls12381.PointAffine
+	var pointbls12377 edwardsbls12377.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
+	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbw6633 edwardsbw6633.PointAffine
+
+	switch curveID {
+	case ecc.BN254:
+		pointbn254.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BLS12_381:
+		pointbls12381.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BLS12_377:
+		pointbls12377.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BW6_761:
+		pointbw6761.SetBytes(buf[:48])
+		a, b := parsePoint(curveID, buf)
+		s := buf[48:]
+		return a, b, s
+	case ecc.BLS24_315:
+		pointbls24315.SetBytes(buf[:32])
+		a, b := parsePoint(curveID, buf)
+		s := buf[32:]
+		return a, b, s
+	case ecc.BW6_633:
+		pointbw6633.SetBytes(buf[:40])
+		a, b := parsePoint(curveID, buf)
+		s := buf[40:]
+		return a, b, s
+	default:
+		panic("not implemented")
+	}
+}
+
+// parsePoint parses a compressed binary point into uncompressed P.X and P.Y
+func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte) {
+	var pointbn254 edwardsbn254.PointAffine
+	var pointbls12381 edwardsbls12381.PointAffine
+	var pointbls12377 edwardsbls12377.PointAffine
+	var pointbw6761 edwardsbw6761.PointAffine
+	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbw6633 edwardsbw6633.PointAffine
+	switch curveID {
+	case ecc.BN254:
+		pointbn254.SetBytes(buf[:32])
+		a := pointbn254.X.Bytes()
+		b := pointbn254.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS12_381:
+		pointbls12381.SetBytes(buf[:32])
+		a := pointbls12381.X.Bytes()
+		b := pointbls12381.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS12_377:
+		pointbls12377.SetBytes(buf[:32])
+		a := pointbls12377.X.Bytes()
+		b := pointbls12377.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BW6_761:
+		pointbw6761.SetBytes(buf[:48])
+		a := pointbw6761.X.Bytes()
+		b := pointbw6761.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BLS24_315:
+		pointbls24315.SetBytes(buf[:32])
+		a := pointbls24315.X.Bytes()
+		b := pointbls24315.Y.Bytes()
+		return a[:], b[:]
+	case ecc.BW6_633:
+		pointbw6633.SetBytes(buf[:40])
+		a := pointbw6633.X.Bytes()
+		b := pointbw6633.Y.Bytes()
+		return a[:], b[:]
+	default:
+		panic("not implemented")
+	}
 }

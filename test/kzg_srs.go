@@ -18,6 +18,7 @@ package test
 
 import (
 	"crypto/rand"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
@@ -53,11 +54,15 @@ func NewKZGSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 }
 
 var srsCache map[ecc.ID]kzg.SRS
+var lock sync.Mutex
 
 func init() {
 	srsCache = make(map[ecc.ID]kzg.SRS)
 }
 func getCachedSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
+	lock.Lock()
+	defer lock.Unlock()
+
 	if srs, ok := srsCache[ccs.CurveID()]; ok {
 		return srs, nil
 	}
