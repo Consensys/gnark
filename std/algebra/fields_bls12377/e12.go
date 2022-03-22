@@ -442,14 +442,12 @@ func (e *E12) nSquareCompressed(api frontend.API, n int) {
 // and on 64 bits.
 func (e *E12) Expt(api frontend.API, e1 E12, exponent uint64) *E12 {
 
-	res := E12{}
-	x33 := E12{}
-	res = e1
+	res := e1
 
 	res.nSquareCompressed(api, 5)
 	res.Decompress(api, res)
 	res.Mul(api, res, e1)
-	x33 = res
+	x33 := res
 	res.nSquareCompressed(api, 7)
 	res.Decompress(api, res)
 	res.Mul(api, res, x33)
