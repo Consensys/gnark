@@ -63,11 +63,6 @@ type EndoParams struct {
 	Lambda *big.Int
 }
 
-// Coordinates of a point on a twisted Edwards curve
-type CoordTOREFACTOR struct {
-	X, Y big.Int
-}
-
 // NewEdCurve returns a new Edwards curve
 func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
 	snarkCurve, err := GetSnarkCurve(id)

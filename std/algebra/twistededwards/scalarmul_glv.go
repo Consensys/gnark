@@ -114,18 +114,18 @@ func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variab
 	b2 := api.ToBinary(s2, n)
 
 	var res, _p1, p2, p3, tmp Point
-	_p1.Neg(api, p1)
+	_p1.neg(api, p1)
 	p2.phi(api, p1, curve, endo)
-	p3.Add(api, &_p1, &p2, curve)
+	p3.add(api, &_p1, &p2, curve)
 
 	res.X = api.Lookup2(b1[n-1], b2[n-1], 0, _p1.X, p2.X, p3.X)
 	res.Y = api.Lookup2(b1[n-1], b2[n-1], 1, _p1.Y, p2.Y, p3.Y)
 
 	for i := n - 2; i >= 0; i-- {
-		res.Double(api, &res, curve)
+		res.double(api, &res, curve)
 		tmp.X = api.Lookup2(b1[i], b2[i], 0, _p1.X, p2.X, p3.X)
 		tmp.Y = api.Lookup2(b1[i], b2[i], 1, _p1.Y, p2.Y, p3.Y)
-		res.Add(api, &res, &tmp, curve)
+		res.add(api, &res, &tmp, curve)
 	}
 
 	p.X = res.X
