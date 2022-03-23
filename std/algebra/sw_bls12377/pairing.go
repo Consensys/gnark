@@ -194,7 +194,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 }
 
 // TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields_bls12377.E12) *fields_bls12377.E12 {
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls12377.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -203,6 +203,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
+	var res fields_bls12377.E12
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
@@ -216,7 +217,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 	}
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, *res)
+		res.Square(api, res)
 
 		if ateLoopBin[i] == 0 {
 			for k := 0; k < 3; k++ {

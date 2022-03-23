@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -112,13 +111,11 @@ func initSnippets() {
 		dummyG2.Y.B1.A0 = newVariable()
 		dummyG2.Y.B1.A1 = newVariable()
 
-		var resMillerLoop fields_bls24315.E24
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		sw_bls24315.MillerLoop(api, dummyG1, dummyG2, &resMillerLoop)
+		resMillerLoop := sw_bls24315.MillerLoop(api, dummyG1, dummyG2)
 
 		// performs the final expo
-		var resPairing fields_bls24315.E24
-		resPairing.FinalExponentiation(api, resMillerLoop)
+		_ = sw_bls24315.FinalExponentiation(api, resMillerLoop)
 	}, ecc.BW6_633)
 
 }

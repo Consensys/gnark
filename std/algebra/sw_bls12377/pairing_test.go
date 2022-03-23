@@ -139,8 +139,7 @@ type triplePairingBLS377 struct {
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-	milRes := fields_bls12377.E12{}
-	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes)
+	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
 	pairingRes := FinalExponentiation(api, milRes)
 

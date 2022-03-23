@@ -375,36 +375,6 @@ func TestFrobeniusFp24(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
-type fp24FinalExpo struct {
-	A E24
-	C E24 `gnark:",public"`
-}
-
-func (circuit *fp24FinalExpo) Define(api frontend.API) error {
-	expected := E24{}
-
-	expected.FinalExponentiation(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
-}
-
-func TestExpFinalExpoFp24(t *testing.T) {
-	var circuit, witness fp24FinalExpo
-
-	// witness values
-	var a, c bls24315.E24
-
-	a.SetRandom()
-	c = bls24315.FinalExponentiation(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-
-	// cs values
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
-}
-
 // benches
 var ccsBench frontend.CompiledConstraintSystem
 

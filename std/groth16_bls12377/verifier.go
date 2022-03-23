@@ -68,9 +68,8 @@ func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubIn
 		psi0.AddAssign(api, tmp)
 	}
 
-	var resMillerLoop fields_bls12377.E12
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop)
+	resMillerLoop := sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs})
 
 	// performs the final expo
 	resPairing := sw_bls12377.FinalExponentiation(api, resMillerLoop)
