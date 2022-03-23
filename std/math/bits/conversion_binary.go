@@ -8,18 +8,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-var (
-	// IthBit returns the i-tb bit the input. The function expects exactly two
-	// integer inputs i and n, takes the little-endian bit representation of n and
-	// returns its i-th bit.
-	IthBit = hint.NewStaticHint(ithBit)
-
-	// NBits returns the first bits of the input. The number of returned bits is
-	// defined by the length of the results slice.
-	NBits = hint.NewStaticHint(nBits)
-)
-
 func init() {
+	// register hints
 	hint.Register(IthBit)
 	hint.Register(NBits)
 }
@@ -106,7 +96,10 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	return bits
 }
 
-func ithBit(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+// IthBit returns the i-tb bit the input. The function expects exactly two
+// integer inputs i and n, takes the little-endian bit representation of n and
+// returns its i-th bit.
+func IthBit(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
 	result := results[0]
 	if !inputs[1].IsUint64() {
 		result.SetUint64(0)
@@ -117,7 +110,9 @@ func ithBit(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-func nBits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+// NBits returns the first bits of the input. The number of returned bits is
+// defined by the length of the results slice.
+func NBits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	for i := 0; i < len(results); i++ {
 		results[i].SetUint64(uint64(n.Bit(i)))

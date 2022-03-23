@@ -11,7 +11,7 @@ import (
 
 // NNAF returns the NAF decomposition of the input. The number of digits is
 // defined by the number of elements in the results slice.
-var NNAF = hint.NewStaticHint(nNaf)
+var NNAF = nNaf
 
 func init() {
 	hint.Register(NNAF)
