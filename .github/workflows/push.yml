@@ -3,11 +3,7 @@ on:
     branches:
       - 'master'
       - 'develop'
-  pull_request:
-    branches:
-      - 'master'
-      - 'develop'
-name: CI
+name: push_master_develop
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
@@ -85,10 +81,6 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         go test -v -timeout=50m -race -short ./...
-    # - name: Test (32bits)
-    #   if: matrix.os == 'ubuntu-latest'
-    #   run: |
-    #     GOARCH=386 go test -v -short ./internal/backend/bn254/...
   
   slack-workflow-status:
     if: always()
