@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -98,36 +97,20 @@ func init() {
 	}
 }
 
-var mulBy7 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
+var mulBy7 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.Info().Fr.Modulus())
 	return nil
-})
-
-var make3 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
-	result[0].SetUint64(3)
-	return nil
-})
-
-var dvHint = &doubleVector{}
-
-type doubleVector struct{}
-
-func (dv *doubleVector) UUID() hint.ID {
-	return hint.UUID(dv.Call)
 }
 
-func (dv *doubleVector) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var make3 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
+	result[0].SetUint64(3)
+	return nil
+}
+
+var dvHint = func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	two := big.NewInt(2)
 	for i := range inputs {
 		res[i].Mul(two, inputs[i])
 	}
 	return nil
-}
-
-func (dv *doubleVector) NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int) {
-	return nInputs
-}
-
-func (dv *doubleVector) String() string {
-	return "double"
 }

@@ -22,20 +22,13 @@ type solution struct {
 	mHintsFunctions      map[hint.ID]hint.Function
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 			values: make([]fr.Element, nbWires),
 			coefficients: coefficients,
 			solved: make([]bool, nbWires),
-			mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
-	}
-
-	for _, h := range hintFunctions {
-		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
-			return s, fmt.Errorf("duplicate hint function %s", h)
- 		}
-		s.mHintsFunctions[h.UUID()] = h
+			mHintsFunctions: hintFunctions,
 	}
 
 	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
@@ -176,7 +169,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	}
 
 
-	err := f.Call(curve.ID, inputs, outputs)
+	err := f(curve.ID, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {

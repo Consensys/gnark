@@ -54,16 +54,19 @@ type ProverOption func(*ProverConfig) error
 
 // ProverConfig is the configuration for the prover with the options applied.
 type ProverConfig struct {
-	Force         bool            // defaults to false
-	HintFunctions []hint.Function // defaults to all built-in hint functions
-	CircuitLogger zerolog.Logger  // defaults to gnark.Logger
+	Force         bool                      // defaults to false
+	HintFunctions map[hint.ID]hint.Function // defaults to all built-in hint functions
+	CircuitLogger zerolog.Logger            // defaults to gnark.Logger
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
 // applied.
 func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 	log := logger.Logger()
-	opt := ProverConfig{CircuitLogger: log, HintFunctions: hint.GetAll()}
+	opt := ProverConfig{CircuitLogger: log, HintFunctions: make(map[hint.ID]hint.Function)}
+	for _, v := range hint.GetRegistered() {
+		opt.HintFunctions[hint.UUID(v)] = v
+	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
 			return ProverConfig{}, err
@@ -86,10 +89,18 @@ func IgnoreSolverError() ProverOption {
 // WithHints is a prover option that specifies additional hint functions to be used
 // by the constraint solver.
 func WithHints(hintFunctions ...hint.Function) ProverOption {
+	log := logger.Logger()
 	return func(opt *ProverConfig) error {
 		// it is an error to register hint function several times, but as the
 		// prover already checks it then omit here.
-		opt.HintFunctions = append(opt.HintFunctions, hintFunctions...)
+		for _, h := range hintFunctions {
+			uuid := hint.UUID(h)
+			if _, ok := opt.HintFunctions[uuid]; ok {
+				log.Warn().Int("hintID", int(uuid)).Str("name", hint.Name(h)).Msg("duplicate hint function")
+			} else {
+				opt.HintFunctions[uuid] = h
+			}
+		}
 		return nil
 	}
 }
