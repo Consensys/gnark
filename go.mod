@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/consensys/bavard v0.1.9
-	github.com/consensys/gnark-crypto v0.6.2-0.20220318092300-12f0f27a25f0
+	github.com/consensys/gnark-crypto v0.6.2-0.20220323114628-60e60b24a321
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/leanovate/gopter v0.2.9
 	github.com/stretchr/testify v1.7.0

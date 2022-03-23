@@ -15,6 +15,7 @@
 package plonkfri
 
 import (
+	"crypto/sha256"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -22,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
@@ -64,6 +66,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	var proof Proof
 
+	// pick a hash function that will be used to derive the challenges
+	hFunc := sha256.New()
+
+	// 0 - Fiat Shamir
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
+
 	// 1 - solve the system
 	var solution []fr.Element
 	var err error
@@ -105,10 +113,32 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
-	// 3 - compute Z
-	var beta, gamma fr.Element
-	beta.SetUint64(9)
-	gamma.SetString("10")
+	// 3 - compute Z, challenges are derived using L, R, O + public inputs
+	dataFiatShamir := make([][]byte, spr.NbPublicVariables+3)
+	for i := 0; i < spr.NbPublicVariables; i++ {
+		dataFiatShamir[i] = make([]byte, len(fullWitness[i]))
+		copy(dataFiatShamir[i], fullWitness[i].Marshal())
+	}
+	dataFiatShamir[spr.NbPublicVariables] = make([]byte, fr.Bytes)
+	dataFiatShamir[spr.NbPublicVariables+1] = make([]byte, fr.Bytes)
+	dataFiatShamir[spr.NbPublicVariables+2] = make([]byte, fr.Bytes)
+	copy(dataFiatShamir[spr.NbPublicVariables], proof.LROpp[0].ID)
+	copy(dataFiatShamir[spr.NbPublicVariables+1], proof.LROpp[1].ID)
+	copy(dataFiatShamir[spr.NbPublicVariables+2], proof.LROpp[2].ID)
+
+	beta, err := deriveRandomness(&fs, "gamma", dataFiatShamir...)
+	if err != nil {
+		return nil, err
+	}
+
+	gamma, err := deriveRandomness(&fs, "beta", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	//var beta, gamma fr.Element
+	//beta.SetUint64(9)
+	// gamma.SetString("10")
 	blindedZCanonical, err := computeBlindedZCanonical(
 		evaluationLDomainSmall,
 		evaluationRDomainSmall,
@@ -125,8 +155,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// 5 - compute H
-	var alpha fr.Element
-	alpha.SetUint64(11)
+	// var alpha fr.Element
+	alpha, err := deriveRandomness(&fs, "alpha", proof.Zpp.ID)
+	if err != nil {
+		return nil, err
+	}
+	// alpha.SetUint64(11)
 
 	evaluationQkCompleteDomainBigBitReversed := make([]fr.Element, pk.Domain[1].Cardinality)
 	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:spr.NbPublicVariables])
@@ -179,11 +213,23 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// 7 - build the opening proofs
-	var zeta fr.Element
-	zeta.SetString("10359452186428527605436343203440067497552205259388878191021578220384701716497")
+	// compute the size of the domain of evaluation of the committed polynomial,
+	// the opening position. The challenge zeta will be g^{i} where i is the opening
+	// position, and g is the generator of the fri domain.
+	rho := uint64(fri.GetRho())
+	friSize := 2 * rho * pk.Vk.Size
+	var bFriSize big.Int
+	bFriSize.SetInt64(int64(friSize))
+	frOpeningPosition, err := deriveRandomness(&fs, "zeta", proof.Hpp[0].ID, proof.Hpp[1].ID, proof.Hpp[2].ID)
+	if err != nil {
+		return nil, err
+	}
+	var bOpeningPosition big.Int
+	bOpeningPosition.SetBytes(frOpeningPosition.Marshal()).Mod(&bOpeningPosition, &bFriSize)
+	openingPosition := bOpeningPosition.Uint64()
 
 	// derive a query position, which is 0<=i<domain[1].Size
-	openingPosition := uint64(2)
+	// openingPosition := uint64(2)
 
 	// ql, qr, qm, qo, qkIncomplete
 	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
@@ -263,15 +309,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return &proof, err
 	}
 
-	var zetaShifted fr.Element
-	zetaShifted.Mul(&pk.Vk.Generator, &zeta)
-
 	// zeta is shifted by g, the generator of Z/nZ where n is the number of constraints. We need
 	// to query the "rho" factor from FRI to know by what should be shifted the opening position.
 	// We multiply by 2 because FRI is instantiated with pk.Domain[0].Cardinality+2, which makes
 	// the iop's domain of size rho*(2*pk.Domain[0].Cardinality).
-	rho := uint64(fri.GetRho())
-	friSize := 2 * rho * pk.Vk.Size
 	shiftedOpeningPosition := (openingPosition + uint64(2*rho)) % friSize
 	proof.OpeningsZmp[0], err = pk.Vk.Iopp.Open(blindedZCanonical, openingPosition)
 	if err != nil {
@@ -619,7 +660,6 @@ func computeBlindedLROCanonical(
 	}
 	err = <-chDone
 	return
-
 }
 
 // blindPoly blinds a polynomial by adding a Q(X)*(X**degree-1), where deg Q = order.
@@ -655,4 +695,22 @@ func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 	}
 
 	return res, nil
+}
+
+func deriveRandomness(fs *fiatshamir.Transcript, challenge string, data ...[]byte) (fr.Element, error) {
+
+	var r fr.Element
+	for _, d := range data {
+		if err := fs.Bind(challenge, d); err != nil {
+			return r, err
+		}
+	}
+
+	b, err := fs.ComputeChallenge(challenge)
+	if err != nil {
+		return r, err
+	}
+	r.SetBytes(b)
+	return r, nil
+
 }

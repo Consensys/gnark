@@ -1,11 +1,13 @@
 package plonkfri
 
 import (
+	"crypto/sha256"
 	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/internal/backend/bn254/witness"
 )
 
@@ -13,10 +15,62 @@ var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
 func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) error {
 
+	// 0 - derive the challenges with Fiat Shamir
+	hFunc := sha256.New()
+	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
+
+	dataFiatShamir := make([][]byte, len(publicWitness)+3)
+	for i := 0; i < len(publicWitness); i++ {
+		dataFiatShamir[i] = make([]byte, len(publicWitness[i]))
+		copy(dataFiatShamir[i], publicWitness[i].Marshal())
+	}
+	dataFiatShamir[len(publicWitness)] = make([]byte, fr.Bytes)
+	dataFiatShamir[len(publicWitness)+1] = make([]byte, fr.Bytes)
+	dataFiatShamir[len(publicWitness)+2] = make([]byte, fr.Bytes)
+	copy(dataFiatShamir[len(publicWitness)], proof.LROpp[0].ID)
+	copy(dataFiatShamir[len(publicWitness)+1], proof.LROpp[1].ID)
+	copy(dataFiatShamir[len(publicWitness)+2], proof.LROpp[2].ID)
+
+	beta, err := deriveRandomness(&fs, "gamma", dataFiatShamir...)
+	if err != nil {
+		return err
+	}
+
+	gamma, err := deriveRandomness(&fs, "beta", nil)
+	if err != nil {
+		return err
+	}
+
+	alpha, err := deriveRandomness(&fs, "alpha", proof.Zpp.ID)
+	if err != nil {
+		return err
+	}
+
+	// compute the size of the domain of evaluation of the committed polynomial,
+	// the opening position. The challenge zeta will be g^{i} where i is the opening
+	// position, and g is the generator of the fri domain.
+	rho := uint64(fri.GetRho())
+	friSize := 2 * rho * vk.Size
+	var bFriSize big.Int
+	bFriSize.SetInt64(int64(friSize))
+	frOpeningPosition, err := deriveRandomness(&fs, "zeta", proof.Hpp[0].ID, proof.Hpp[1].ID, proof.Hpp[2].ID)
+	if err != nil {
+		return err
+	}
+	var bOpeningPosition big.Int
+	bOpeningPosition.SetBytes(frOpeningPosition.Marshal()).Mod(&bOpeningPosition, &bFriSize)
+	openingPosition := bOpeningPosition.Uint64()
+
+	shiftedOpeningPosition := (openingPosition + uint64(2*rho)) % friSize
+	err = vk.Iopp.VerifyOpening(shiftedOpeningPosition, proof.OpeningsZmp[1], proof.Zpp)
+	if err != nil {
+		return err
+	}
+
 	// 1 - verify that the commitments are low degree polynomials
 
 	// ql, qr, qm, qo, qkIncomplete
-	err := vk.Iopp.VerifyProofOfProximity(vk.Qpp[0])
+	err = vk.Iopp.VerifyProofOfProximity(vk.Qpp[0])
 	if err != nil {
 		return err
 	}
@@ -106,7 +160,7 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 	// 2 - verify the openings
 
 	// ql, qr, qm, qo, qkIncomplete
-	openingPosition := uint64(2)
+	// openingPosition := uint64(2)
 	err = vk.Iopp.VerifyOpening(openingPosition, proof.OpeningsQlQrQmQoQkincompletemp[0], vk.Qpp[0])
 	if err != nil {
 		return err
@@ -190,16 +244,6 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 		return err
 	}
 
-	rho := uint64(fri.GetRho())
-	// We multiply by 2 because FRI is instantiated with pk.Domain[0].Cardinality+2, which makes
-	// the iop's domain of size rho*(2*pk.Domain[0].Cardinality).
-	friSize := 2 * rho * vk.Size
-	shiftedOpeningPosition := (openingPosition + uint64(2*rho)) % friSize
-	err = vk.Iopp.VerifyOpening(shiftedOpeningPosition, proof.OpeningsZmp[1], proof.Zpp)
-	if err != nil {
-		return err
-	}
-
 	// verification of the algebraic relation
 	var ql, qr, qm, qo, qk fr.Element
 	ql.Set(&proof.OpeningsQlQrQmQoQkincompletemp[0].ClaimedValue)
@@ -233,15 +277,12 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness witness.Witness) er
 	zshift.Set(&proof.OpeningsZmp[1].ClaimedValue)
 
 	// 2 - compute the LHS: (ql*l+..+qk)+ α*(z(μx)*(l+β*s₁+γ)*..-z*(l+β*id1+γ))+α²*z*(l1-1)
-	var alpha, beta, gamma fr.Element
-	beta.SetUint64(9)
-	gamma.SetUint64(10)
-	alpha.SetUint64(11)
-
-	// point of evaluation
-	var zeta, zetaShifted fr.Element
-	zeta.Exp(vk.GenOpening, big.NewInt(int64(openingPosition)))
-	zetaShifted.Mul(&zeta, &vk.Generator)
+	// var alpha, beta, gamma fr.Element
+	// beta.SetUint64(9)
+	// gamma.SetUint64(10)
+	// alpha.SetUint64(11)
+	var zeta fr.Element
+	zeta.Exp(vk.GenOpening, &bOpeningPosition)
 
 	var lhs, t1, t2, t3, tmp, tmp2 fr.Element
 	// 2.1 (ql*l+..+qk)
