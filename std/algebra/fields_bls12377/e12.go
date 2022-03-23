@@ -466,50 +466,6 @@ func (e *E12) Expt(api frontend.API, e1 E12, exponent uint64) *E12 {
 
 }
 
-// FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
-func (e *E12) FinalExponentiation(api frontend.API, e1 E12) *E12 {
-	const ateLoop = 9586122913090633729
-	const genT = ateLoop
-
-	result := e1
-
-	// https://eprint.iacr.org/2016/130.pdf
-	var t [3]E12
-
-	// easy part
-	t[0].Conjugate(api, result)
-	result.Inverse(api, result)
-	t[0].Mul(api, t[0], result)
-	result.FrobeniusSquare(api, t[0]).
-		Mul(api, result, t[0])
-
-	// hard part (up to permutation)
-	// Daiki Hayashida and Kenichiro Hayasaka
-	// and Tadanori Teruya
-	// https://eprint.iacr.org/2020/875.pdf
-	t[0].CyclotomicSquare(api, result)
-	t[1].Expt(api, result, genT)
-	t[2].Conjugate(api, result)
-	t[1].Mul(api, t[1], t[2])
-	t[2].Expt(api, t[1], genT)
-	t[1].Conjugate(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	t[2].Expt(api, t[1], genT)
-	t[1].Frobenius(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	result.Mul(api, result, t[0])
-	t[0].Expt(api, t[1], genT)
-	t[2].Expt(api, t[0], genT)
-	t[0].FrobeniusSquare(api, t[1])
-	t[1].Conjugate(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	t[1].Mul(api, t[1], t[0])
-	result.Mul(api, result, t[1])
-
-	*e = result
-	return e
-}
-
 // Assign a value to self (witness assignment)
 func (e *E12) Assign(a *bls12377.E12) {
 	e.C0.Assign(&a.C0)

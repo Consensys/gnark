@@ -374,36 +374,6 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
-type fp12FinalExpo struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *fp12FinalExpo) Define(api frontend.API) error {
-	expected := E12{}
-
-	expected.FinalExponentiation(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
-}
-
-func TestExpFinalExpoFp12(t *testing.T) {
-	var circuit, witness fp12FinalExpo
-
-	// witness values
-	var a, c bls12377.E12
-
-	a.SetRandom()
-	c = bls12377.FinalExponentiation(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-
-	// cs values
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-}
-
 type fp12MulBy034 struct {
 	A    E12 `gnark:",public"`
 	W    E12

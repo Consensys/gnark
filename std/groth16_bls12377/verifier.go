@@ -73,8 +73,7 @@ func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubIn
 	sw_bls12377.TripleMillerLoop(api, [3]sw_bls12377.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls12377.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop)
 
 	// performs the final expo
-	var resPairing fields_bls12377.E12
-	resPairing.FinalExponentiation(api, resMillerLoop)
+	resPairing := sw_bls12377.FinalExponentiation(api, resMillerLoop)
 
 	// vk.E must be equal to resPairing
 	innerVk.E.MustBeEqual(api, resPairing)
