@@ -154,7 +154,12 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	src := rand.NewSource(int64(i))
 	r := rand.New(src)
 
-	privkey, _ = eddsa.GenerateKey(r)
+	pkey, err := eddsa.GenerateKey(r)
+	if err != nil {
+		panic(err)
+	}
+	privkey = *pkey
+
 	acc.pubKey = privkey.PublicKey
 
 	return acc, privkey

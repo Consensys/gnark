@@ -443,7 +443,7 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return nil, ErrCompilationNotDeterministic
 	}
 
-	// add the compiled circuit to the cache
+	// // add the compiled circuit to the cache
 	assert.compiled[key] = ccs
 
 	return ccs, nil
