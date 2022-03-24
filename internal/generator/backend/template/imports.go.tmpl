@@ -2,6 +2,10 @@
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"	
 {{- end }}
 
+{{- define "import_fri" }}
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fri"
+{{- end}}
+
 {{- define "import_curve" }}
 	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"	
 {{- end }}

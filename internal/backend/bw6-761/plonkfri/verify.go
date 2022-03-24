@@ -19,18 +19,18 @@ package plonkfri
 import (
 	"crypto/sha256"
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fri"
 	"math/big"
 
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) error {
+func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness) error {
 
 	// 0 - derive the challenges with Fiat Shamir
 	hFunc := sha256.New()
@@ -362,7 +362,7 @@ func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witnes
 }
 
 // completeQk returns ∑_{i<nb_public_inputs}w_i*L_i
-func completeQk(publicWitness bn254witness.Witness, vk *VerifyingKey, zeta fr.Element) fr.Element {
+func completeQk(publicWitness bw6_761witness.Witness, vk *VerifyingKey, zeta fr.Element) fr.Element {
 
 	var res fr.Element
 

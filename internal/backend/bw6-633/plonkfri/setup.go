@@ -18,10 +18,10 @@ package plonkfri
 
 import (
 	"crypto/sha256"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
+	"github.com/consensys/gnark/internal/backend/bw6-633/cs"
 )
 
 // ProvingKey stores the data needed to generate a proof:

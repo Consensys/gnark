@@ -22,15 +22,15 @@ import (
 	"math/bits"
 	"runtime"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
+	"github.com/consensys/gnark/internal/backend/bw6-633/cs"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
@@ -69,7 +69,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_633witness.Witness, opt backend.ProverConfig) (*Proof, error) {
 
 	var proof Proof
 
