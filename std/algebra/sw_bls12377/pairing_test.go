@@ -38,13 +38,9 @@ type pairingBLS377 struct {
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
-	milRes := fields_bls12377.E12{}
-	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	MillerLoop(api, circuit.P, circuit.Q, &milRes)
+	milRes := MillerLoop(api, circuit.P, circuit.Q)
 
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes)
+	pairingRes := FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -76,9 +72,7 @@ type finalExp struct {
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, circuit.ML)
-
+	pairingRes := FinalExponentiation(api, circuit.ML)
 	mustbeEq(api, pairingRes, &circuit.R)
 
 	return nil
@@ -145,11 +139,9 @@ type triplePairingBLS377 struct {
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-	milRes := fields_bls12377.E12{}
-	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes)
+	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes)
+	pairingRes := FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -176,6 +168,34 @@ func TestTriplePairingBLS377(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
+}
+
+type fp12FinalExpo struct {
+	A fields_bls12377.E12
+	C fields_bls12377.E12 `gnark:",public"`
+}
+
+func (circuit *fp12FinalExpo) Define(api frontend.API) error {
+	expected := FinalExponentiation(api, circuit.A)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestExpFinalExpoFp12(t *testing.T) {
+	var circuit, witness fp12FinalExpo
+
+	// witness values
+	var a, c bls12377.E12
+
+	a.SetRandom()
+	c = bls12377.FinalExponentiation(&a)
+
+	witness.A.Assign(&a)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 func BenchmarkPairing(b *testing.B) {

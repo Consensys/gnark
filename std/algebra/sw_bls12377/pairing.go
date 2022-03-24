@@ -31,8 +31,7 @@ type LineEvaluation struct {
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E12) *fields_bls12377.E12 {
-
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
 	ateLoopBigInt.SetUint64(ateLoop)
@@ -40,6 +39,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
+	var res fields_bls12377.E12
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
@@ -49,7 +49,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E
 	xOverY := api.DivUnchecked(P.X, P.Y)
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, *res)
+		res.Square(api, res)
 
 		if ateLoopBin[i] == 0 {
 			Qacc, l1 = DoubleStep(api, &Qacc)
@@ -69,6 +69,48 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls12377.E
 	}
 
 	return res
+}
+
+// FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
+func FinalExponentiation(api frontend.API, e1 fields_bls12377.E12) fields_bls12377.E12 {
+	const genT = ateLoop
+
+	result := e1
+
+	// https://eprint.iacr.org/2016/130.pdf
+	var t [3]fields_bls12377.E12
+
+	// easy part
+	t[0].Conjugate(api, result)
+	result.Inverse(api, result)
+	t[0].Mul(api, t[0], result)
+	result.FrobeniusSquare(api, t[0]).
+		Mul(api, result, t[0])
+
+	// hard part (up to permutation)
+	// Daiki Hayashida and Kenichiro Hayasaka
+	// and Tadanori Teruya
+	// https://eprint.iacr.org/2020/875.pdf
+	t[0].CyclotomicSquare(api, result)
+	t[1].Expt(api, result, genT)
+	t[2].Conjugate(api, result)
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Frobenius(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	result.Mul(api, result, t[0])
+	t[0].Expt(api, t[1], genT)
+	t[2].Expt(api, t[0], genT)
+	t[0].FrobeniusSquare(api, t[1])
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	t[1].Mul(api, t[1], t[0])
+	result.Mul(api, result, t[1])
+
+	return result
 }
 
 // DoubleAndAddStep
@@ -152,7 +194,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 }
 
 // TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields_bls12377.E12) *fields_bls12377.E12 {
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls12377.E12 {
 
 	var ateLoopBin [64]uint
 	var ateLoopBigInt big.Int
@@ -161,6 +203,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
+	var res fields_bls12377.E12
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
@@ -174,7 +217,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 	}
 
 	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, *res)
+		res.Square(api, res)
 
 		if ateLoopBin[i] == 0 {
 			for k := 0; k < 3; k++ {

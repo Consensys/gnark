@@ -30,12 +30,13 @@ type LineEvaluation struct {
 }
 
 // MillerLoop computes the miller loop
-func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls24315.E24) *fields_bls24315.E24 {
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls24315.E24 {
 
 	var ateLoop2NAF [33]int8
 	optimaAteLoop, _ := new(big.Int).SetString("3218079743", 10)
 	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
 
+	var res fields_bls24315.E24
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
@@ -46,7 +47,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls24315.E
 	xOverY := api.DivUnchecked(P.X, P.Y)
 
 	for i := len(ateLoop2NAF) - 2; i >= 0; i-- {
-		res.Square(api, *res)
+		res.Square(api, res)
 
 		if ateLoop2NAF[i] == 0 {
 			Qacc, l1 = DoubleStep(api, &Qacc)
@@ -72,9 +73,58 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine, res *fields_bls24315.E
 		}
 	}
 
-	res.Conjugate(api, *res)
+	res.Conjugate(api, res)
 
 	return res
+}
+
+// FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
+func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls24315.E24 {
+	const ateLoop = 3218079743
+	const genT = ateLoop
+	result := e1
+
+	// https://eprint.iacr.org/2012/232.pdf, section 7
+	var t [9]fields_bls24315.E24
+
+	// easy part
+	t[0].Conjugate(api, result)
+	result.Inverse(api, result)
+	t[0].Mul(api, t[0], result)
+	result.FrobeniusQuad(api, t[0]).
+		Mul(api, result, t[0])
+
+	// hard part (api, up to permutation)
+	// Daiki Hayashida and Kenichiro Hayasaka
+	// and Tadanori Teruya
+	// https://eprint.iacr.org/2020/875.pdf
+	// 3*Phi_24(api, p)/r = (api, u-1)² * (api, u+p) * (api, u²+p²) * (api, u⁴+p⁴-1) + 3
+	t[0].CyclotomicSquare(api, result)
+	t[1].Expt(api, result, genT)
+	t[2].Conjugate(api, result)
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Frobenius(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	result.Mul(api, result, t[0])
+	t[0].Expt(api, t[1], genT)
+	t[2].Expt(api, t[0], genT)
+	t[0].FrobeniusSquare(api, t[1])
+	t[2].Mul(api, t[0], t[2])
+	t[1].Expt(api, t[2], genT)
+	t[1].Expt(api, t[1], genT)
+	t[1].Expt(api, t[1], genT)
+	t[1].Expt(api, t[1], genT)
+	t[0].FrobeniusQuad(api, t[2])
+	t[0].Mul(api, t[0], t[1])
+	t[2].Conjugate(api, t[2])
+	t[0].Mul(api, t[0], t[2])
+	result.Mul(api, result, t[0])
+
+	return result
 }
 
 // DoubleAndAddStep
@@ -158,12 +208,13 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 }
 
 // TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *fields_bls24315.E24) *fields_bls24315.E24 {
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls24315.E24 {
 
 	var ateLoop2NAF [33]int8
 	optimaAteLoop, _ := new(big.Int).SetString("3218079743", 10)
 	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
 
+	var res fields_bls24315.E24
 	res.SetOne(api)
 
 	var l1, l2 LineEvaluation
@@ -179,7 +230,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 	}
 
 	for i := len(ateLoop2NAF) - 2; i >= 0; i-- {
-		res.Square(api, *res)
+		res.Square(api, res)
 
 		if ateLoop2NAF[i] == 0 {
 			for k := 0; k < 3; k++ {
@@ -211,7 +262,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine, res *field
 		}
 	}
 
-	res.Conjugate(api, *res)
+	res.Conjugate(api, res)
 
 	return res
 }

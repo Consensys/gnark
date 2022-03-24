@@ -37,8 +37,7 @@ type finalExp struct {
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
-	pairingRes := fields_bls24315.E24{}
-	pairingRes.FinalExponentiation(api, circuit.ML)
+	pairingRes := FinalExponentiation(api, circuit.ML)
 
 	mustbeEq(api, pairingRes, &circuit.R)
 
@@ -66,11 +65,9 @@ type pairingBLS24315 struct {
 
 func (circuit *pairingBLS24315) Define(api frontend.API) error {
 
-	milRes := fields_bls24315.E24{}
-	MillerLoop(api, circuit.P, circuit.Q, &milRes)
+	milRes := MillerLoop(api, circuit.P, circuit.Q)
 
-	pairingRes := fields_bls24315.E24{}
-	pairingRes.FinalExponentiation(api, milRes)
+	pairingRes := FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -155,11 +152,9 @@ type triplePairingBLS24315 struct {
 
 func (circuit *triplePairingBLS24315) Define(api frontend.API) error {
 
-	milRes := fields_bls24315.E24{}
-	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes)
+	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
-	pairingRes := fields_bls24315.E24{}
-	pairingRes.FinalExponentiation(api, milRes)
+	pairingRes := FinalExponentiation(api, milRes)
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -186,6 +181,34 @@ func TestTriplePairingBLS24315(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
 
+}
+
+type fp24FinalExpo struct {
+	A fields_bls24315.E24
+	C fields_bls24315.E24 `gnark:",public"`
+}
+
+func (circuit *fp24FinalExpo) Define(api frontend.API) error {
+	expected := FinalExponentiation(api, circuit.A)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestExpFinalExpoFp24(t *testing.T) {
+	var circuit, witness fp24FinalExpo
+
+	// witness values
+	var a, c bls24315.E24
+
+	a.SetRandom()
+	c = bls24315.FinalExponentiation(&a)
+
+	witness.A.Assign(&a)
+	witness.C.Assign(&c)
+
+	// cs values
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
 func BenchmarkPairing(b *testing.B) {
