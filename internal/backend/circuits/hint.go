@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 type hintCircuit struct {
@@ -29,6 +30,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 	c := res[0]
 	c = api.Mul(c, c)
 	api.AssertIsEqual(c, 9)
+
 	return nil
 }
 
@@ -52,7 +54,46 @@ func (c *vectorDoubleCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type recursiveHint struct {
+	A frontend.Variable
+}
+
+func (circuit *recursiveHint) Define(api frontend.API) error {
+	// first hint produces wire w1
+	w1, _ := api.Compiler().NewHint(make3, 1)
+
+	// this linear expression is not recorded in a R1CS just yet
+	linearExpression := api.Add(circuit.A, w1[0])
+
+	// api.ToBinary calls another hint (bits.NBits) with linearExpression as input
+	// however, when the solver will resolve bits[...] it will need to detect w1 as a dependency
+	// in order to compute the correct linearExpression value
+	bits := api.ToBinary(linearExpression, 10)
+
+	a := api.FromBinary(bits...)
+
+	api.AssertIsEqual(a, 45)
+
+	return nil
+}
+
 func init() {
+	{
+		good := []frontend.Circuit{
+			&recursiveHint{
+				A: 42,
+			},
+		}
+
+		bad := []frontend.Circuit{
+			&recursiveHint{
+				A: 1,
+			},
+		}
+
+		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, ecc.Implemented(), make3, bits.NBits)
+	}
+
 	{
 		good := []frontend.Circuit{
 			&hintCircuit{
