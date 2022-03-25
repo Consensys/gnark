@@ -30,7 +30,7 @@ import (
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func VerifyFri(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witness) error {
 
 	// 0 - derive the challenges with Fiat Shamir
 	hFunc := sha256.New()
