@@ -1,4 +1,4 @@
-package gnark
+package gnark_test
 
 import (
 	"bytes"

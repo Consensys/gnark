@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -13,9 +14,36 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
+const nbCurves = 6
+
+func CurveIdx(curve ecc.ID) int {
+	switch curve {
+	case ecc.BN254:
+		return 0
+	case ecc.BLS12_377:
+		return 1
+	case ecc.BLS12_381:
+		return 2
+	case ecc.BLS24_315:
+		return 3
+	case ecc.BW6_761:
+		return 4
+	case ecc.BW6_633:
+		return 5
+	default:
+		panic("not implemented")
+	}
+}
+
+func init() {
+	if nbCurves != len(gnark.Curves()) {
+		panic("expected nbCurves == len(gnark.Curves())")
+	}
+}
+
 func NewGlobalStats() *globalStats {
 	return &globalStats{
-		Stats: make(map[string][backend.PLONK + 1][ecc.BW6_633 + 1]snippetStats),
+		Stats: make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats),
 	}
 }
 
@@ -71,7 +99,7 @@ func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs snippetStats, c
 	s.Lock()
 	defer s.Unlock()
 	rs := s.Stats[circuitName]
-	rs[backendID][curve] = cs
+	rs[backendID][CurveIdx(curve)] = cs
 	s.Stats[circuitName] = rs
 }
 
@@ -82,7 +110,7 @@ type Circuit struct {
 
 type globalStats struct {
 	sync.RWMutex
-	Stats map[string][backend.PLONK + 1][ecc.BW6_633 + 1]snippetStats
+	Stats map[string][backend.PLONK + 1][nbCurves + 1]snippetStats
 }
 
 type snippetStats struct {

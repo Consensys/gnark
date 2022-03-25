@@ -59,7 +59,7 @@ func main() {
 		ss := s.Stats[name]
 		for _, curve := range c.Curves {
 			for _, backendID := range backend.Implemented() {
-				cs := ss[backendID][curve]
+				cs := ss[backendID][stats.CurveIdx(curve)]
 				fmt.Printf("%s,%s,%s,%d,%d\n", name, curve, backendID, cs.NbConstraints, cs.NbInternalWires)
 			}
 		}

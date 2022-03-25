@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -46,7 +46,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 }
 
 func TestBuiltinHints(t *testing.T) {
-	for _, curve := range ecc.Implemented() {
+	for _, curve := range gnark.Curves() {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b1000),
 			B: (0),

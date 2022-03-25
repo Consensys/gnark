@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
@@ -91,7 +92,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, ecc.Implemented(), make3, bits.NBits)
+		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, gnark.Curves(), make3, bits.NBits)
 	}
 
 	{
@@ -109,7 +110,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("hint", &hintCircuit{}, good, bad, ecc.Implemented(), mulBy7, make3)
+		addNewEntry("hint", &hintCircuit{}, good, bad, gnark.Curves(), mulBy7, make3)
 	}
 
 	{
@@ -134,7 +135,7 @@ func init() {
 				},
 			},
 		}
-		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, ecc.Implemented(), dvHint)
+		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, gnark.Curves(), dvHint)
 	}
 }
 

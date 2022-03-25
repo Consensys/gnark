@@ -1,3 +1,60 @@
+<a name="v0.7.0"></a>
+## [v0.7.0] - 2022-03-25
+
+### Build
+- go.mod: go version upgrade 1.16 --> go1.17
+- update to gnark-crpto v0.7.0
+
+### Feat
+- adds gnark logger. closes [#202](https://github.com/consensys/gnark/issues/202)
+- added internal/stats package: measure number of constraints of circuit snippets for regression
+- adds std/math/bits/ToNAF ToBinary ToTernary
+
+### Fix
+- enables recursive hints solving [#293](https://github.com/consensys/gnark/issues/293) and
+- move init() behind sync.Once. remove verbose option in stats binary
+- fixes [#266](https://github.com/consensys/gnark/issues/266) by adding constant path in Lookup2 and Select
+- incorrect handling of nbBits == 1 in api.ToBinary
+
+
+### Perf
+- restored frontend.WithCapacity option...
+- **plonk:** IsConstant -> ConstantValue
+- **sw:** no need for Lookup2 in constScalarMul
+- remove offset shifts in plonk compile
+- remove post-compile offset id in R1CS builder
+
+### Refactor
+- `frontend.Compile` now takes a builder instead of backendID as parameter
+- `std/signature/eddsa` `Verify` api now takes explicit hash and curve objects
+- make nboutputs of a hint explicit at compile time
+- std/pairing have more consistent apis
+- remove StaticHint wrapper, log duplicate hints ([#289](https://github.com/consensys/gnark/issues/289))
+- backend.WithOutput -> backend.WithCircuitLogger
+- remove all internal circuits from stats, keep important snippets only
+- frontend: split compiler, api and builder interface into interfaces
+- remove IsBoolean from R1CS variables
+- moved internal/compiled to frontend/compiled
+
+
+### Pull Requests
+- Merge pull request [#295](https://github.com/consensys/gnark/issues/295) from ConsenSys/fix/test-println
+- Merge pull request [#294](https://github.com/consensys/gnark/issues/294) from ConsenSys/fix/recursivehhints
+- Merge pull request [#291](https://github.com/consensys/gnark/issues/291) from ConsenSys/refactor/std/pairing
+- Merge pull request [#281](https://github.com/consensys/gnark/issues/281) from ConsenSys/feat/logger
+- Merge pull request [#280](https://github.com/consensys/gnark/issues/280) from ConsenSys/simplify-r1cs-compile
+- Merge pull request [#279](https://github.com/consensys/gnark/issues/279) from ConsenSys/feat/statistics
+- Merge pull request [#276](https://github.com/consensys/gnark/issues/276) from ConsenSys/feat-math-bits
+- Merge pull request [#278](https://github.com/consensys/gnark/issues/278) from ConsenSys/perf-constant-lookup2
+- Merge pull request [#272](https://github.com/consensys/gnark/issues/272) from ConsenSys/refactor-hint
+- Merge pull request [#275](https://github.com/consensys/gnark/issues/275) from ConsenSys/refactor-compiler-builder
+- Merge pull request [#271](https://github.com/consensys/gnark/issues/271) from ConsenSys/refactor-compiled
+- Merge pull request [#267](https://github.com/consensys/gnark/issues/267) from ConsenSys/perf/tEd-add
+- Merge pull request [#265](https://github.com/consensys/gnark/issues/265) from ConsenSys/perf/SW-constScalarMul
+
+
+
+
 <a name="v0.6.4"></a>
 
 ## [v0.6.4] - 2022-02-15
