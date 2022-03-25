@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/plonkfri"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
@@ -155,6 +156,17 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 					err = plonk.Verify(correctProof, vk, validPublicWitness)
 					checkError(err)
 
+				case backend.PLONKFRI:
+
+					pk, vk, err := plonkfri.Setup(ccs)
+					checkError(err)
+
+					correctProof, err := plonkfri.Prove(ccs, pk, validWitness, opt.proverOpts...)
+					checkError(err)
+
+					err = plonkfri.Verify(correctProof, vk, validPublicWitness)
+					checkError(err)
+
 				default:
 					panic("backend not implemented")
 				}
@@ -227,6 +239,15 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 
 					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
 					err = plonk.Verify(incorrectProof, vk, invalidPublicWitness)
+					mustError(err)
+
+				case backend.PLONKFRI:
+
+					pk, vk, err := plonkfri.Setup(ccs)
+					checkError(err)
+
+					incorrectProof, _ := plonkfri.Prove(ccs, pk, invalidWitness, popts...)
+					err = plonkfri.Verify(incorrectProof, vk, invalidPublicWitness)
 					mustError(err)
 
 				default:
@@ -406,6 +427,8 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	case backend.GROTH16:
 		newBuilder = r1cs.NewBuilder
 	case backend.PLONK:
+		newBuilder = scs.NewBuilder
+	case backend.PLONKFRI:
 		newBuilder = scs.NewBuilder
 	default:
 		panic("not implemented")
