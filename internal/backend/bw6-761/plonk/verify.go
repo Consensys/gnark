@@ -62,12 +62,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	var gamma fr.Element
 	gamma.SetBytes(bgamma)
 
-	// derive gamma from Comm(l), Comm(r), Comm(o)
-	// gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
-	// if err != nil {
-	// 	return err
-	// }
-
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := deriveRandomness(&fs, "beta")
 	if err != nil {
