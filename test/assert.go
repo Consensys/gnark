@@ -170,11 +170,13 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 		}
 	}
 
-	// TODO may not be the right place, but ensures all our tests call these minimal tests
-	// (like filling a witness with zeroes, or binary values, ...)
-	assert.Run(func(assert *Assert) {
-		assert.Fuzz(circuit, 5, opts...)
-	}, "fuzz")
+	if opt.fuzzing {
+		// TODO may not be the right place, but ensures all our tests call these minimal tests
+		// (like filling a witness with zeroes, or binary values, ...)
+		assert.Run(func(assert *Assert) {
+			assert.Fuzz(circuit, 5, opts...)
+		}, "fuzz")
+	}
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -458,6 +460,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 		witnessSerialization: true,
 		backends:             backend.Implemented(),
 		curves:               gnark.Curves(),
+		fuzzing:              true,
 	}
 	for _, option := range opts {
 		err := option(&opt)
