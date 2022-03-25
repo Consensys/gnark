@@ -52,7 +52,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_633witness.Witness
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	bindPublicData(&fs, "gamma", *vk, publicWitness)
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness); err != nil {
+		return err
+	}
 	bgamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return err
