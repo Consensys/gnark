@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
@@ -443,7 +444,7 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return nil, ErrCompilationNotDeterministic
 	}
 
-	// add the compiled circuit to the cache
+	// // add the compiled circuit to the cache
 	assert.compiled[key] = ccs
 
 	return ccs, nil
@@ -455,7 +456,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	opt := testingConfig{
 		witnessSerialization: true,
 		backends:             backend.Implemented(),
-		curves:               ecc.Implemented(),
+		curves:               gnark.Curves(),
 	}
 	for _, option := range opts {
 		err := option(&opt)
@@ -464,7 +465,7 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 
 	if testing.Short() {
 		// if curves are all there, we just test with bn254
-		if reflect.DeepEqual(opt.curves, ecc.Implemented()) {
+		if reflect.DeepEqual(opt.curves, gnark.Curves()) {
 			opt.curves = []ecc.ID{ecc.BN254}
 		}
 	}

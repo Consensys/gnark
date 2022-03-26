@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
@@ -23,7 +24,7 @@ func init() {
 	}
 
 	// moduli
-	for _, curve := range ecc.Implemented() {
+	for _, curve := range gnark.Curves() {
 		fp := curve.Info().Fp.Modulus()
 		fr := curve.Info().Fr.Modulus()
 		seedCorpus = append(seedCorpus, fp)

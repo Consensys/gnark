@@ -33,7 +33,7 @@ func TestCircuitStatistics(t *testing.T) {
 				// copy the circuit now in case assert calls t.Parallel()
 				circuit := c.Circuit
 				assert.Run(func(assert *test.Assert) {
-					rs := ref[backendID][curve]
+					rs := ref[backendID][CurveIdx(curve)]
 
 					s, err := NewSnippetStats(curve, backendID, circuit)
 					assert.NoError(err, "building stats for circuit "+name)

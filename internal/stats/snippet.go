@@ -4,6 +4,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
@@ -29,7 +30,7 @@ func registerSnippet(name string, snippet snippet, curves ...ecc.ID) {
 		panic("circuit " + name + " already registered")
 	}
 	if len(curves) == 0 {
-		curves = ecc.Implemented()
+		curves = gnark.Curves()
 	}
 	snippets[name] = Circuit{makeSnippetCircuit(snippet), curves}
 }

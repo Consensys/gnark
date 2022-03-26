@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -74,5 +74,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("or", &orCircuit{}, good, bad, ecc.Implemented())
+	addNewEntry("or", &orCircuit{}, good, bad, gnark.Curves())
 }
