@@ -115,6 +115,36 @@ func TestMulFp2(t *testing.T) {
 
 }
 
+type e2Div struct {
+	A, B, C E2
+}
+
+func (circuit *e2Div) Define(api frontend.API) error {
+	var expected E2
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp2(t *testing.T) {
+
+	// witness values
+	var a, b, c bls12377.E2
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e2Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e2Div{}, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp2MulByFp struct {
 	A E2
 	B frontend.Variable

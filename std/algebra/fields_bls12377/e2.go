@@ -17,9 +17,12 @@ limitations under the License.
 package fields_bls12377
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"math/big"
 )
 
 // E2 element in a quadratic extension
@@ -62,7 +65,7 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 	return e
 }
 
-// Mul e2 elmts: 5C
+// Mul e2 elmts
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
 	// 1C
@@ -75,11 +78,9 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 	ac := api.Mul(e1.A0, e2.A0)
 	bd := api.Mul(e1.A1, e2.A1)
 
-	// 1C
 	l31 := api.Add(ac, bd)
 	e.A1 = api.Sub(u, l31)
 
-	// 1C
 	l41 := api.Mul(bd, ext.uSquare)
 	e.A0 = api.Add(ac, l41)
 
@@ -142,6 +143,49 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 	e.A0 = api.DivUnchecked(a0, t0)
 	e.A1 = api.DivUnchecked(a1, t0)
 	e.A1 = api.Sub(0, e.A1)
+
+	return e
+}
+
+var DivHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls12377.E2
+
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+	b.A0.SetBigInt(inputs[2])
+	b.A1.SetBigInt(inputs[3])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivHint)
+}
+
+// DivUnchecked e2 elmts
+func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
+
+	res, err := api.NewHint(DivHint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E2
+	e3.A0 = res[0]
+	e3.A1 = res[1]
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.A0 = res[0]
+	e.A1 = res[1]
 
 	return e
 }
