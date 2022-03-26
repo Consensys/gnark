@@ -127,22 +127,44 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-// Inverse inverses an fp2elmt
+var InverseHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls12377.E2
+
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+
+	c.Inverse(&a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseHint)
+}
+
+// Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	var a0, a1, t0, t1, t1beta frontend.Variable
+	res, err := api.NewHint(InverseHint, 2, e1.A0, e1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	a0 = e1.A0
-	a1 = e1.A1
+	var e3, one E2
+	e3.A0 = res[0]
+	e3.A1 = res[1]
+	one.SetOne(api)
 
-	t0 = api.Mul(e1.A0, e1.A0)
-	t1 = api.Mul(e1.A1, e1.A1)
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
 
-	t1beta = api.Mul(t1, ext.uSquare)
-	t0 = api.Sub(t0, t1beta)
-	e.A0 = api.DivUnchecked(a0, t0)
-	e.A1 = api.DivUnchecked(a1, t0)
-	e.A1 = api.Sub(0, e.A1)
+	e.A0 = res[0]
+	e.A1 = res[1]
 
 	return e
 }
