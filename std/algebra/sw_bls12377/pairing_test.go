@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/test"
 )
@@ -202,8 +202,7 @@ func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
 	}
-	// ccsBench, _ = compiler.Compile(ecc.BW6_761, backend.GROTH16, &c)
-	// b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Log("groth16", ccsBench.GetNbConstraints())
 }

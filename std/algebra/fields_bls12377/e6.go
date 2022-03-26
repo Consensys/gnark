@@ -17,13 +17,32 @@ limitations under the License.
 package fields_bls12377
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"math/big"
 )
 
 // E6 element in a quadratic extension
 type E6 struct {
 	B0, B1, B2 E2
+}
+
+// SetZero returns a newly allocated element equal to 0
+func (e *E6) SetZero(api frontend.API) *E6 {
+	e.B0.SetZero(api)
+	e.B1.SetZero(api)
+	e.B2.SetZero(api)
+	return e
+}
+
+// SetOne returns a newly allocated element equal to 1
+func (e *E6) SetOne(api frontend.API) *E6 {
+	e.B0.SetOne(api)
+	e.B1.SetZero(api)
+	e.B2.SetZero(api)
+	return e
 }
 
 // Add creates a fp6elmt from fp elmts
@@ -140,44 +159,62 @@ func (e *E6) Square(api frontend.API, x E6) *E6 {
 	return e
 }
 
-// Inverse inverses an Fp6 elmt
+var InverseE6Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls12377.E6
+
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+	a.B2.A0.SetBigInt(inputs[4])
+	a.B2.A1.SetBigInt(inputs[5])
+
+	c.Inverse(&a)
+
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+	c.B2.A0.ToBigIntRegular(res[4])
+	c.B2.A1.ToBigIntRegular(res[5])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE6Hint)
+}
+
+// Inverse e6 elmts
 func (e *E6) Inverse(api frontend.API, e1 E6) *E6 {
 
-	var t [7]E2
-	var c [3]E2
-	var buf E2
+	res, err := api.NewHint(InverseE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	t[0].Square(api, e1.B0)
-	t[1].Square(api, e1.B1)
-	t[2].Square(api, e1.B2)
-	t[3].Mul(api, e1.B0, e1.B1)
-	t[4].Mul(api, e1.B0, e1.B2)
-	t[5].Mul(api, e1.B1, e1.B2)
+	var e3, one E6
+	e3.B0.A0 = res[0]
+	e3.B0.A1 = res[1]
+	e3.B1.A0 = res[2]
+	e3.B1.A1 = res[3]
+	e3.B2.A0 = res[4]
+	e3.B2.A1 = res[5]
+	one.SetOne(api)
 
-	c[0].MulByNonResidue(api, t[5])
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
 
-	c[0].Neg(api, c[0]).Add(api, c[0], t[0])
-
-	c[1].MulByNonResidue(api, t[2])
-
-	c[1].Sub(api, c[1], t[3])
-	c[2].Sub(api, t[1], t[4])
-	t[6].Mul(api, e1.B2, c[1])
-	buf.Mul(api, e1.B1, c[2])
-	t[6].Add(api, t[6], buf)
-
-	t[6].MulByNonResidue(api, t[6])
-
-	buf.Mul(api, e1.B0, c[0])
-	t[6].Add(api, t[6], buf)
-
-	t[6].Inverse(api, t[6])
-	e.B0.Mul(api, c[0], t[6])
-	e.B1.Mul(api, c[1], t[6])
-	e.B2.Mul(api, c[2], t[6])
+	e.B0.A0 = res[0]
+	e.B0.A1 = res[1]
+	e.B1.A0 = res[2]
+	e.B1.A1 = res[3]
+	e.B2.A0 = res[4]
+	e.B2.A1 = res[5]
 
 	return e
-
 }
 
 // Assign a value to self (witness assignment)

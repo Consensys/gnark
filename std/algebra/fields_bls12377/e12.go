@@ -19,7 +19,9 @@ package fields_bls12377
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -99,18 +101,8 @@ func getBLS12377ExtensionFp12() Extension {
 
 // SetOne returns a newly allocated element equal to 1
 func (e *E12) SetOne(api frontend.API) *E12 {
-	e.C0.B0.A0 = 1
-	e.C0.B0.A1 = 0
-	e.C0.B1.A0 = 0
-	e.C0.B1.A1 = 0
-	e.C0.B2.A0 = 0
-	e.C0.B2.A1 = 0
-	e.C1.B0.A0 = 0
-	e.C1.B0.A1 = 0
-	e.C1.B1.A0 = 0
-	e.C1.B1.A1 = 0
-	e.C1.B2.A0 = 0
-	e.C1.B2.A1 = 0
+	e.C0.SetOne(api)
+	e.C1.SetZero(api)
 	return e
 }
 
@@ -392,21 +384,85 @@ func (e *E12) FrobeniusCube(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-// Inverse inverse an elmt in Fp12
+var InverseE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls12377.E12
+
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C0.B2.A0.SetBigInt(inputs[4])
+	a.C0.B2.A1.SetBigInt(inputs[5])
+	a.C1.B0.A0.SetBigInt(inputs[6])
+	a.C1.B0.A1.SetBigInt(inputs[7])
+	a.C1.B1.A0.SetBigInt(inputs[8])
+	a.C1.B1.A1.SetBigInt(inputs[9])
+	a.C1.B2.A0.SetBigInt(inputs[10])
+	a.C1.B2.A1.SetBigInt(inputs[11])
+
+	c.Inverse(&a)
+
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C0.B2.A0.ToBigIntRegular(res[4])
+	c.C0.B2.A1.ToBigIntRegular(res[5])
+	c.C1.B0.A0.ToBigIntRegular(res[6])
+	c.C1.B0.A1.ToBigIntRegular(res[7])
+	c.C1.B1.A0.ToBigIntRegular(res[8])
+	c.C1.B1.A1.ToBigIntRegular(res[9])
+	c.C1.B2.A0.ToBigIntRegular(res[10])
+	c.C1.B2.A1.ToBigIntRegular(res[11])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE12Hint)
+}
+
+// Inverse e12 elmts
 func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
-	var t [2]E6
-	var buf E6
+	res, err := api.NewHint(InverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	t[0].Square(api, e1.C0)
-	t[1].Square(api, e1.C1)
+	var e3, one E12
+	e3.C0.B0.A0 = res[0]
+	e3.C0.B0.A1 = res[1]
+	e3.C0.B1.A0 = res[2]
+	e3.C0.B1.A1 = res[3]
+	e3.C0.B2.A0 = res[4]
+	e3.C0.B2.A1 = res[5]
+	e3.C1.B0.A0 = res[6]
+	e3.C1.B0.A1 = res[7]
+	e3.C1.B1.A0 = res[8]
+	e3.C1.B1.A1 = res[9]
+	e3.C1.B2.A0 = res[10]
+	e3.C1.B2.A1 = res[11]
 
-	buf.MulByNonResidue(api, t[1])
-	t[0].Sub(api, t[0], buf)
+	one.SetOne(api)
 
-	t[1].Inverse(api, t[0])
-	e.C0.Mul(api, e1.C0, t[1])
-	e.C1.Mul(api, e1.C1, t[1]).Neg(api, e.C1)
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
+
+	e.C0.B0.A0 = res[0]
+	e.C0.B0.A1 = res[1]
+	e.C0.B1.A0 = res[2]
+	e.C0.B1.A1 = res[3]
+	e.C0.B2.A0 = res[4]
+	e.C0.B2.A1 = res[5]
+	e.C1.B0.A0 = res[6]
+	e.C1.B0.A1 = res[7]
+	e.C1.B1.A0 = res[8]
+	e.C1.B1.A1 = res[9]
+	e.C1.B2.A0 = res[10]
+	e.C1.B2.A1 = res[11]
 
 	return e
 }

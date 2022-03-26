@@ -30,6 +30,13 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
+// SetZero returns a newly allocated element equal to 0
+func (e *E2) SetZero(api frontend.API) *E2 {
+	e.A0 = 0
+	e.A1 = 0
+	return e
+}
+
 // SetOne returns a newly allocated element equal to 1
 func (e *E2) SetOne(api frontend.API) *E2 {
 	e.A0 = 1
@@ -127,7 +134,7 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-var InverseHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var InverseE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -142,13 +149,13 @@ var InverseHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(InverseHint)
+	hint.Register(InverseE2Hint)
 }
 
 // Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	res, err := api.NewHint(InverseHint, 2, e1.A0, e1.A1)
+	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -169,7 +176,7 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-var DivHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DivE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls12377.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -186,13 +193,13 @@ var DivHint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(DivHint)
+	hint.Register(DivE2Hint)
 }
 
 // DivUnchecked e2 elmts
 func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 
-	res, err := api.NewHint(DivHint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
