@@ -186,6 +186,35 @@ func TestInverseFp6(t *testing.T) {
 
 }
 
+type e6Div struct {
+	A, B, C E6
+}
+
+func (circuit *e6Div) Define(api frontend.API) error {
+	var expected E6
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp6(t *testing.T) {
+
+	// witness values
+	var a, b, c bls12377.E6
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e6Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e6Div{}, &witness, test.WithCurves(ecc.BW6_761))
+}
+
 func TestMulByFp2Fp6(t *testing.T) {
 	// TODO fixme
 	t.Skip("missing e6.MulByE2")

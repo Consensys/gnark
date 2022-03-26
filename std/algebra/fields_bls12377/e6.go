@@ -159,6 +159,71 @@ func (e *E6) Square(api frontend.API, x E6) *E6 {
 	return e
 }
 
+var DivE6Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls12377.E6
+
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+	a.B2.A0.SetBigInt(inputs[4])
+	a.B2.A1.SetBigInt(inputs[5])
+
+	b.B0.A0.SetBigInt(inputs[6])
+	b.B0.A1.SetBigInt(inputs[7])
+	b.B1.A0.SetBigInt(inputs[8])
+	b.B1.A1.SetBigInt(inputs[9])
+	b.B2.A0.SetBigInt(inputs[10])
+	b.B2.A1.SetBigInt(inputs[11])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+	c.B2.A0.ToBigIntRegular(res[4])
+	c.B2.A1.ToBigIntRegular(res[5])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE6Hint)
+}
+
+// DivUnchecked e6 elmts
+func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
+
+	res, err := api.NewHint(DivE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1, e2.B2.A0, e2.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3, one E6
+	e3.B0.A0 = res[0]
+	e3.B0.A1 = res[1]
+	e3.B1.A0 = res[2]
+	e3.B1.A1 = res[3]
+	e3.B2.A0 = res[4]
+	e3.B2.A1 = res[5]
+	one.SetOne(api)
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.B0.A0 = res[0]
+	e.B0.A1 = res[1]
+	e.B1.A0 = res[2]
+	e.B1.A1 = res[3]
+	e.B2.A0 = res[4]
+	e.B2.A1 = res[5]
+
+	return e
+}
+
 var InverseE6Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E6
 

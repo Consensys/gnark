@@ -467,6 +467,100 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
+var DivE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls12377.E12
+
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C0.B2.A0.SetBigInt(inputs[4])
+	a.C0.B2.A1.SetBigInt(inputs[5])
+	a.C1.B0.A0.SetBigInt(inputs[6])
+	a.C1.B0.A1.SetBigInt(inputs[7])
+	a.C1.B1.A0.SetBigInt(inputs[8])
+	a.C1.B1.A1.SetBigInt(inputs[9])
+	a.C1.B2.A0.SetBigInt(inputs[10])
+	a.C1.B2.A1.SetBigInt(inputs[11])
+
+	b.C0.B0.A0.SetBigInt(inputs[12])
+	b.C0.B0.A1.SetBigInt(inputs[13])
+	b.C0.B1.A0.SetBigInt(inputs[14])
+	b.C0.B1.A1.SetBigInt(inputs[15])
+	b.C0.B2.A0.SetBigInt(inputs[16])
+	b.C0.B2.A1.SetBigInt(inputs[17])
+	b.C1.B0.A0.SetBigInt(inputs[18])
+	b.C1.B0.A1.SetBigInt(inputs[19])
+	b.C1.B1.A0.SetBigInt(inputs[20])
+	b.C1.B1.A1.SetBigInt(inputs[21])
+	b.C1.B2.A0.SetBigInt(inputs[22])
+	b.C1.B2.A1.SetBigInt(inputs[23])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C0.B2.A0.ToBigIntRegular(res[4])
+	c.C0.B2.A1.ToBigIntRegular(res[5])
+	c.C1.B0.A0.ToBigIntRegular(res[6])
+	c.C1.B0.A1.ToBigIntRegular(res[7])
+	c.C1.B1.A0.ToBigIntRegular(res[8])
+	c.C1.B1.A1.ToBigIntRegular(res[9])
+	c.C1.B2.A0.ToBigIntRegular(res[10])
+	c.C1.B2.A1.ToBigIntRegular(res[11])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE12Hint)
+}
+
+// DivUnchecked e12 elmts
+func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
+
+	res, err := api.NewHint(DivE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C0.B2.A0, e2.C0.B2.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C1.B2.A0, e2.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E12
+	e3.C0.B0.A0 = res[0]
+	e3.C0.B0.A1 = res[1]
+	e3.C0.B1.A0 = res[2]
+	e3.C0.B1.A1 = res[3]
+	e3.C0.B2.A0 = res[4]
+	e3.C0.B2.A1 = res[5]
+	e3.C1.B0.A0 = res[6]
+	e3.C1.B0.A1 = res[7]
+	e3.C1.B1.A0 = res[8]
+	e3.C1.B1.A1 = res[9]
+	e3.C1.B2.A0 = res[10]
+	e3.C1.B2.A1 = res[11]
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.C0.B0.A0 = res[0]
+	e.C0.B0.A1 = res[1]
+	e.C0.B1.A0 = res[2]
+	e.C0.B1.A1 = res[3]
+	e.C0.B2.A0 = res[4]
+	e.C0.B2.A1 = res[5]
+	e.C1.B0.A0 = res[6]
+	e.C1.B0.A1 = res[7]
+	e.C1.B1.A0 = res[8]
+	e.C1.B1.A1 = res[9]
+	e.C1.B2.A0 = res[10]
+	e.C1.B2.A1 = res[11]
+
+	return e
+}
+
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
