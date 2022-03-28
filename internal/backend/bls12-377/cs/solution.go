@@ -159,18 +159,15 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	// is the output of another hint.
 	// it is safe to recursively solve this with the parallel solver, since all hints-output wires
 	// that we can solve this way are marked to be solved with the current constraint we are processing.
-	solveOrPanic := func(t compiled.Term) {
+	recursiveSolve := func(t compiled.Term) error {
 		wID := t.WireID()
 		if s.solved[wID] {
-			return
+			return nil
 		}
 		// unsolved dependency
 		if h, ok := s.mHints[wID]; ok {
 			// solve recursively.
-			if err := s.solveWithHint(wID, h); err != nil {
-				panic(err)
-			}
-			return
+			return s.solveWithHint(wID, h)
 		}
 
 		// it's not a hint, we panic.
@@ -184,12 +181,16 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		case compiled.LinearExpression:
 			var v fr.Element
 			for _, term := range t {
-				solveOrPanic(term)
+				if err := recursiveSolve(term); err != nil {
+					return err
+				}
 				s.accumulateInto(term, &v)
 			}
 			v.ToBigIntRegular(inputs[i])
 		case compiled.Term:
-			solveOrPanic(t)
+			if err := recursiveSolve(t); err != nil {
+				return err
+			}
 			v := s.computeTerm(t)
 			v.ToBigIntRegular(inputs[i])
 		default:
