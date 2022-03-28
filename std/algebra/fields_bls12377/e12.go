@@ -255,12 +255,11 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 	t[2].Square(api, x.C1.B2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
-	// t1 = 1/(4 * g3)
+	// t1 = 4 * g3
 	t[1].Double(api, x.C1.B0).
-		Double(api, t[1]).
-		Inverse(api, t[1])
-	// z4 = g4
-	e.C1.B1.Mul(api, t[0], t[1])
+		Double(api, t[1])
+	// z4 = g4 / t1
+	e.C1.B1.DivUnchecked(api, t[0], t[1])
 
 	// t1 = g2 * g1
 	t[1].Mul(api, x.C0.B2, x.C0.B1)
