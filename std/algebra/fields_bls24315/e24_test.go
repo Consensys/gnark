@@ -264,6 +264,35 @@ func TestConjugateFp24(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
+type e24Div struct {
+	A, B, C E24
+}
+
+func (circuit *e24Div) Define(api frontend.API) error {
+	var expected E24
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp24(t *testing.T) {
+
+	// witness values
+	var a, b, c bls24315.E24
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e24Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e24Div{}, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type fp24Inverse struct {
 	A E24
 	C E24 `gnark:",public"`

@@ -17,10 +17,13 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	"math/big"
 )
 
 // E2 element in a quadratic extension
@@ -128,18 +131,87 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-// Inverse inverses an fp2elmt
+var DivE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E2
+
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+	b.A0.SetBigInt(inputs[2])
+	b.A1.SetBigInt(inputs[3])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE2Hint)
+}
+
+// DivUnchecked e2 elmts
+func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
+
+	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E2
+	e3.A0 = res[0]
+	e3.A1 = res[1]
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.A0 = res[0]
+	e.A1 = res[1]
+
+	return e
+}
+
+var InverseE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E2
+
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+
+	c.Inverse(&a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE2Hint)
+}
+
+// Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
+	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	t0 := api.Mul(e1.A0, e1.A0)
-	t1 := api.Mul(e1.A1, e1.A1)
-	tmp := api.Mul(t1, ext.uSquare)
-	t0 = api.Sub(t0, tmp)
-	e.A0 = api.DivUnchecked(e1.A0, t0)
-	e.A1 = api.DivUnchecked(e1.A1, t0)
-	e.A1 = api.Sub(0, e.A1)
+	var e3, one E2
+	e3.A0 = res[0]
+	e3.A1 = res[1]
+	one.SetOne(api)
+
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
+
+	e.A0 = res[0]
+	e.A1 = res[1]
 
 	return e
 }

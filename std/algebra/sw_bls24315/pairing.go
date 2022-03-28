@@ -89,8 +89,7 @@ func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls243
 
 	// easy part
 	t[0].Conjugate(api, result)
-	result.Inverse(api, result)
-	t[0].Mul(api, t[0], result)
+	t[0].DivUnchecked(api, t[0], result)
 	result.FrobeniusQuad(api, t[0]).
 		Mul(api, result, t[0])
 
@@ -137,7 +136,7 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
 	d.Sub(api, p1.X, p2.X)
-	l1.Inverse(api, d).Mul(api, l1, n)
+	l1.DivUnchecked(api, n, d)
 
 	// x3 =lambda1**2-p1.x-p2.x
 	x3.Square(api, l1).
@@ -153,7 +152,7 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
 	n.Double(api, p1.Y)
 	d.Sub(api, x3, p1.X)
-	l2.Inverse(api, d).Mul(api, l2, n)
+	l2.DivUnchecked(api, n, d)
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute x4 = lambda2**2-x1-x3
@@ -185,7 +184,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
 	d.MulByFp(api, p1.Y, 2)
-	l.Inverse(api, d).Mul(api, l, n)
+	l.DivUnchecked(api, n, d)
 
 	// xr = lambda**2-2*p1.x
 	xr.Square(api, l).

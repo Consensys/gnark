@@ -154,6 +154,35 @@ func TestMulByNonResidueFp12(t *testing.T) {
 
 }
 
+type e12Div struct {
+	A, B, C E12
+}
+
+func (circuit *e12Div) Define(api frontend.API) error {
+	var expected E12
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp12(t *testing.T) {
+
+	// witness values
+	var a, b, c bls24315.E12
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e12Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type fp12Inverse struct {
 	A E12
 	C E12 `gnark:",public"`

@@ -17,13 +17,24 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"math/big"
 )
 
 // E12 element in a quadratic extension
 type E12 struct {
 	C0, C1, C2 E4
+}
+
+// SetOne returns a newly allocated element equal to 1
+func (e *E12) SetOne(api frontend.API) *E12 {
+	e.C0.SetOne(api)
+	e.C1.SetZero(api)
+	e.C2.SetZero(api)
+	return e
 }
 
 // Add creates a fp12elmt from fp elmts
@@ -140,44 +151,181 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 	return e
 }
 
-// Inverse inverses an Fp12 elmt
+var InverseE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E12
+
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C1.B0.A0.SetBigInt(inputs[4])
+	a.C1.B0.A1.SetBigInt(inputs[5])
+	a.C1.B1.A0.SetBigInt(inputs[6])
+	a.C1.B1.A1.SetBigInt(inputs[7])
+	a.C2.B0.A0.SetBigInt(inputs[8])
+	a.C2.B0.A1.SetBigInt(inputs[9])
+	a.C2.B1.A0.SetBigInt(inputs[10])
+	a.C2.B1.A1.SetBigInt(inputs[11])
+
+	c.Inverse(&a)
+
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C1.B0.A0.ToBigIntRegular(res[4])
+	c.C1.B0.A1.ToBigIntRegular(res[5])
+	c.C1.B1.A0.ToBigIntRegular(res[6])
+	c.C1.B1.A1.ToBigIntRegular(res[7])
+	c.C2.B0.A0.ToBigIntRegular(res[8])
+	c.C2.B0.A1.ToBigIntRegular(res[9])
+	c.C2.B1.A0.ToBigIntRegular(res[10])
+	c.C2.B1.A1.ToBigIntRegular(res[11])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE12Hint)
+}
+
+// Inverse e12 elmts
 func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
-	var t [7]E4
-	var c [3]E4
-	var buf E4
+	res, err := api.NewHint(InverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	t[0].Square(api, e1.C0)
-	t[1].Square(api, e1.C1)
-	t[2].Square(api, e1.C2)
-	t[3].Mul(api, e1.C0, e1.C1)
-	t[4].Mul(api, e1.C0, e1.C2)
-	t[5].Mul(api, e1.C1, e1.C2)
+	var e3, one E12
+	e3.C0.B0.A0 = res[0]
+	e3.C0.B0.A1 = res[1]
+	e3.C0.B1.A0 = res[2]
+	e3.C0.B1.A1 = res[3]
+	e3.C1.B0.A0 = res[4]
+	e3.C1.B0.A1 = res[5]
+	e3.C1.B1.A0 = res[6]
+	e3.C1.B1.A1 = res[7]
+	e3.C2.B0.A0 = res[8]
+	e3.C2.B0.A1 = res[9]
+	e3.C2.B1.A0 = res[10]
+	e3.C2.B1.A1 = res[11]
 
-	c[0].MulByNonResidue(api, t[5])
+	one.SetOne(api)
 
-	c[0].Neg(api, c[0]).Add(api, c[0], t[0])
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
 
-	c[1].MulByNonResidue(api, t[2])
-
-	c[1].Sub(api, c[1], t[3])
-	c[2].Sub(api, t[1], t[4])
-	t[6].Mul(api, e1.C2, c[1])
-	buf.Mul(api, e1.C1, c[2])
-	t[6].Add(api, t[6], buf)
-
-	t[6].MulByNonResidue(api, t[6])
-
-	buf.Mul(api, e1.C0, c[0])
-	t[6].Add(api, t[6], buf)
-
-	t[6].Inverse(api, t[6])
-	e.C0.Mul(api, c[0], t[6])
-	e.C1.Mul(api, c[1], t[6])
-	e.C2.Mul(api, c[2], t[6])
+	e.C0.B0.A0 = res[0]
+	e.C0.B0.A1 = res[1]
+	e.C0.B1.A0 = res[2]
+	e.C0.B1.A1 = res[3]
+	e.C1.B0.A0 = res[4]
+	e.C1.B0.A1 = res[5]
+	e.C1.B1.A0 = res[6]
+	e.C1.B1.A1 = res[7]
+	e.C2.B0.A0 = res[8]
+	e.C2.B0.A1 = res[9]
+	e.C2.B1.A0 = res[10]
+	e.C2.B1.A1 = res[11]
 
 	return e
+}
 
+var DivE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E12
+
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C1.B0.A0.SetBigInt(inputs[4])
+	a.C1.B0.A1.SetBigInt(inputs[5])
+	a.C1.B1.A0.SetBigInt(inputs[6])
+	a.C1.B1.A1.SetBigInt(inputs[7])
+	a.C2.B0.A0.SetBigInt(inputs[8])
+	a.C2.B0.A1.SetBigInt(inputs[9])
+	a.C2.B1.A0.SetBigInt(inputs[10])
+	a.C2.B1.A1.SetBigInt(inputs[11])
+
+	b.C0.B0.A0.SetBigInt(inputs[12])
+	b.C0.B0.A1.SetBigInt(inputs[13])
+	b.C0.B1.A0.SetBigInt(inputs[14])
+	b.C0.B1.A1.SetBigInt(inputs[15])
+	b.C1.B0.A0.SetBigInt(inputs[16])
+	b.C1.B0.A1.SetBigInt(inputs[17])
+	b.C1.B1.A0.SetBigInt(inputs[18])
+	b.C1.B1.A1.SetBigInt(inputs[19])
+	b.C2.B0.A0.SetBigInt(inputs[20])
+	b.C2.B0.A1.SetBigInt(inputs[21])
+	b.C2.B1.A0.SetBigInt(inputs[22])
+	b.C2.B1.A1.SetBigInt(inputs[23])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C1.B0.A0.ToBigIntRegular(res[4])
+	c.C1.B0.A1.ToBigIntRegular(res[5])
+	c.C1.B1.A0.ToBigIntRegular(res[6])
+	c.C1.B1.A1.ToBigIntRegular(res[7])
+	c.C2.B0.A0.ToBigIntRegular(res[8])
+	c.C2.B0.A1.ToBigIntRegular(res[9])
+	c.C2.B1.A0.ToBigIntRegular(res[10])
+	c.C2.B1.A1.ToBigIntRegular(res[11])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE12Hint)
+}
+
+// DivUnchecked e12 elmts
+func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
+
+	res, err := api.NewHint(DivE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C2.B0.A0, e2.C2.B0.A1, e2.C2.B1.A0, e2.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E12
+	e3.C0.B0.A0 = res[0]
+	e3.C0.B0.A1 = res[1]
+	e3.C0.B1.A0 = res[2]
+	e3.C0.B1.A1 = res[3]
+	e3.C1.B0.A0 = res[4]
+	e3.C1.B0.A1 = res[5]
+	e3.C1.B1.A0 = res[6]
+	e3.C1.B1.A1 = res[7]
+	e3.C2.B0.A0 = res[8]
+	e3.C2.B0.A1 = res[9]
+	e3.C2.B1.A0 = res[10]
+	e3.C2.B1.A1 = res[11]
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.C0.B0.A0 = res[0]
+	e.C0.B0.A1 = res[1]
+	e.C0.B1.A0 = res[2]
+	e.C0.B1.A1 = res[3]
+	e.C1.B0.A0 = res[4]
+	e.C1.B0.A1 = res[5]
+	e.C1.B1.A0 = res[6]
+	e.C1.B1.A1 = res[7]
+	e.C2.B0.A0 = res[8]
+	e.C2.B0.A1 = res[9]
+	e.C2.B1.A0 = res[10]
+	e.C2.B1.A1 = res[11]
+
+	return e
 }
 
 // MustBeEqual constraint self to be equal to other into the given constraint system

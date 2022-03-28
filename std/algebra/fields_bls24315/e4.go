@@ -17,13 +17,25 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"math/big"
 )
 
 // E4 element in a quadratic extension
 type E4 struct {
 	B0, B1 E2
+}
+
+// SetZero returns a newly allocated element equal to 0
+func (e *E4) SetZero(api frontend.API) *E4 {
+	e.B0.A0 = 0
+	e.B0.A1 = 0
+	e.B1.A0 = 0
+	e.B1.A1 = 0
+	return e
 }
 
 // SetOne returns a newly allocated element equal to 1
@@ -127,20 +139,105 @@ func (e *E4) Conjugate(api frontend.API, e1 E4) *E4 {
 	return e
 }
 
-// Inverse inverses an e4 elmt
+var DivE4Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E4
+
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+	b.B0.A0.SetBigInt(inputs[4])
+	b.B0.A1.SetBigInt(inputs[5])
+	b.B1.A0.SetBigInt(inputs[6])
+	b.B1.A1.SetBigInt(inputs[7])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE4Hint)
+}
+
+// DivUnchecked e4 elmts
+func (e *E4) DivUnchecked(api frontend.API, e1, e2 E4) *E4 {
+
+	res, err := api.NewHint(DivE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E4
+	e3.B0.A0 = res[0]
+	e3.B0.A1 = res[1]
+	e3.B1.A0 = res[2]
+	e3.B1.A1 = res[3]
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.B0.A0 = res[0]
+	e.B0.A1 = res[1]
+	e.B1.A0 = res[2]
+	e.B1.A1 = res[3]
+
+	return e
+}
+
+var InverseE4Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E4
+
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+
+	c.Inverse(&a)
+
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE4Hint)
+}
+
+// Inverse e4 elmts
 func (e *E4) Inverse(api frontend.API, e1 E4) *E4 {
 
-	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
+	res, err := api.NewHint(InverseE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	var t0, t1, tmp E2
+	var e3, one E4
+	e3.B0.A0 = res[0]
+	e3.B0.A1 = res[1]
+	e3.B1.A0 = res[2]
+	e3.B1.A1 = res[3]
+	one.SetOne(api)
 
-	t0.Square(api, e1.B0)
-	t1.Square(api, e1.B1)
-	tmp.MulByNonResidue(api, t1)
-	t0.Sub(api, t0, tmp)
-	t1.Inverse(api, t0)
-	e.B0.Mul(api, e1.B0, t1)
-	e.B1.Mul(api, e1.B1, t1).Neg(api, e.B1)
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
+
+	e.B0.A0 = res[0]
+	e.B0.A1 = res[1]
+	e.B1.A0 = res[2]
+	e.B1.A1 = res[3]
 
 	return e
 }
