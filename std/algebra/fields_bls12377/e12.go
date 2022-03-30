@@ -99,10 +99,17 @@ func getBLS12377ExtensionFp12() Extension {
 	return res
 }
 
+// SetZero returns a newly allocated element equal to 0
+func (e *E12) SetZero() *E12 {
+	e.C0.SetOne()
+	e.C1.SetZero()
+	return e
+}
+
 // SetOne returns a newly allocated element equal to 1
-func (e *E12) SetOne(api frontend.API) *E12 {
-	e.C0.SetOne(api)
-	e.C1.SetZero(api)
+func (e *E12) SetOne() *E12 {
+	e.C0.SetOne()
+	e.C1.SetZero()
 	return e
 }
 
@@ -243,7 +250,7 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 
 	var t [3]E2
 	var one E2
-	one.SetOne(api)
+	one.SetOne()
 
 	// t0 = g1²
 	t[0].Square(api, x.C0.B1)
@@ -444,7 +451,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 	e3.C1.B2.A0 = res[10]
 	e3.C1.B2.A1 = res[11]
 
-	one.SetOne(api)
+	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)

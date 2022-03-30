@@ -30,18 +30,18 @@ type E6 struct {
 }
 
 // SetZero returns a newly allocated element equal to 0
-func (e *E6) SetZero(api frontend.API) *E6 {
-	e.B0.SetZero(api)
-	e.B1.SetZero(api)
-	e.B2.SetZero(api)
+func (e *E6) SetZero() *E6 {
+	e.B0.SetZero()
+	e.B1.SetZero()
+	e.B2.SetZero()
 	return e
 }
 
 // SetOne returns a newly allocated element equal to 1
-func (e *E6) SetOne(api frontend.API) *E6 {
-	e.B0.SetOne(api)
-	e.B1.SetZero(api)
-	e.B2.SetZero(api)
+func (e *E6) SetOne() *E6 {
+	e.B0.SetOne()
+	e.B1.SetZero()
+	e.B2.SetZero()
 	return e
 }
 
@@ -208,7 +208,7 @@ func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 	e3.B1.A1 = res[3]
 	e3.B2.A0 = res[4]
 	e3.B2.A1 = res[5]
-	one.SetOne(api)
+	one.SetOne()
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
@@ -266,7 +266,7 @@ func (e *E6) Inverse(api frontend.API, e1 E6) *E6 {
 	e3.B1.A1 = res[3]
 	e3.B2.A0 = res[4]
 	e3.B2.A1 = res[5]
-	one.SetOne(api)
+	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)

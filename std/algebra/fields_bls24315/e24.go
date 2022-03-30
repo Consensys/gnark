@@ -87,33 +87,17 @@ func getBLS24315ExtensionFp24() Extension {
 	return res
 }
 
-// SetOne returns a newly allocated element equal to 1
-func (e *E24) SetOne(api frontend.API) *E24 {
-	e.D0.C0.B0.A0 = 1
-	e.D0.C0.B0.A1 = 0
-	e.D0.C0.B1.A0 = 0
-	e.D0.C0.B1.A1 = 0
-	e.D0.C1.B0.A0 = 0
-	e.D0.C1.B0.A1 = 0
-	e.D0.C1.B1.A0 = 0
-	e.D0.C1.B1.A1 = 0
-	e.D0.C2.B0.A0 = 0
-	e.D0.C2.B0.A1 = 0
-	e.D0.C2.B1.A0 = 0
-	e.D0.C2.B1.A1 = 0
-	e.D1.C0.B0.A0 = 0
-	e.D1.C0.B0.A1 = 0
-	e.D1.C0.B1.A0 = 0
-	e.D1.C0.B1.A1 = 0
-	e.D1.C1.B0.A0 = 0
-	e.D1.C1.B0.A1 = 0
-	e.D1.C1.B1.A0 = 0
-	e.D1.C1.B1.A1 = 0
-	e.D1.C2.B0.A0 = 0
-	e.D1.C2.B0.A1 = 0
-	e.D1.C2.B1.A0 = 0
-	e.D1.C2.B1.A1 = 0
+// SetZero returns a newly allocated element equal to 0
+func (e *E24) SetZero() *E24 {
+	e.D0.SetZero()
+	e.D1.SetZero()
+	return e
+}
 
+// SetOne returns a newly allocated element equal to 1
+func (e *E24) SetOne() *E24 {
+	e.D0.SetOne()
+	e.D1.SetZero()
 	return e
 }
 
@@ -252,7 +236,7 @@ func (e *E24) Decompress(api frontend.API, x E24) *E24 {
 
 	var t [3]E4
 	var one E4
-	one.SetOne(api)
+	one.SetOne()
 
 	// t0 = g1²
 	t[0].Square(api, x.D0.C1)
@@ -336,7 +320,7 @@ func (e *E24) MulBy034(api frontend.API, c3, c4 E4) *E24 {
 
 	var d E12
 	var one E4
-	one.SetOne(api)
+	one.SetOne()
 
 	a := e.D0
 	b := e.D1
@@ -450,7 +434,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 	e3.D1.C2.B1.A0 = res[22]
 	e3.D1.C2.B1.A1 = res[23]
 
-	one.SetOne(api)
+	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)

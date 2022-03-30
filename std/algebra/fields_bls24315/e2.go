@@ -31,8 +31,15 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
+// SetZero returns a newly allocated element equal to 0
+func (e *E2) SetZero() *E2 {
+	e.A0 = 0
+	e.A1 = 0
+	return e
+}
+
 // SetOne returns a newly allocated element equal to 1
-func (e *E2) SetOne(api frontend.API) *E2 {
+func (e *E2) SetOne() *E2 {
 	e.A0 = 1
 	e.A1 = 0
 	return e
@@ -204,7 +211,7 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 	var e3, one E2
 	e3.A0 = res[0]
 	e3.A1 = res[1]
-	one.SetOne(api)
+	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)

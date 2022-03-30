@@ -30,20 +30,16 @@ type E4 struct {
 }
 
 // SetZero returns a newly allocated element equal to 0
-func (e *E4) SetZero(api frontend.API) *E4 {
-	e.B0.A0 = 0
-	e.B0.A1 = 0
-	e.B1.A0 = 0
-	e.B1.A1 = 0
+func (e *E4) SetZero() *E4 {
+	e.B0.SetZero()
+	e.B1.SetZero()
 	return e
 }
 
 // SetOne returns a newly allocated element equal to 1
-func (e *E4) SetOne(api frontend.API) *E4 {
-	e.B0.A0 = 1
-	e.B0.A1 = 0
-	e.B1.A0 = 0
-	e.B1.A1 = 0
+func (e *E4) SetOne() *E4 {
+	e.B0.SetOne()
+	e.B1.SetZero()
 	return e
 }
 
@@ -228,7 +224,7 @@ func (e *E4) Inverse(api frontend.API, e1 E4) *E4 {
 	e3.B0.A1 = res[1]
 	e3.B1.A0 = res[2]
 	e3.B1.A1 = res[3]
-	one.SetOne(api)
+	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)

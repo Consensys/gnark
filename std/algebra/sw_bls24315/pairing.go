@@ -37,7 +37,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls24315.E24 {
 	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
 
 	var res fields_bls24315.E24
-	res.SetOne(api)
+	res.SetOne()
 
 	var l1, l2 LineEvaluation
 	var Qacc, Qneg G2Affine
@@ -214,7 +214,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls
 	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
 
 	var res fields_bls24315.E24
-	res.SetOne(api)
+	res.SetOne()
 
 	var l1, l2 LineEvaluation
 	Qacc := make([]G2Affine, 3)

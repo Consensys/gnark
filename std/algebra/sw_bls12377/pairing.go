@@ -40,7 +40,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	}
 
 	var res fields_bls12377.E12
-	res.SetOne(api)
+	res.SetOne()
 
 	var l1, l2 LineEvaluation
 	var Qacc G2Affine
@@ -203,7 +203,7 @@ func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls
 	}
 
 	var res fields_bls12377.E12
-	res.SetOne(api)
+	res.SetOne()
 
 	var l1, l2 LineEvaluation
 	Qacc := make([]G2Affine, 3)
