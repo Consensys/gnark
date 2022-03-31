@@ -44,6 +44,11 @@ func (e *E2) SetOne() *E2 {
 	return e
 }
 
+func (e *E2) assign(e1 []frontend.Variable) {
+	e.A0 = e1[0]
+	e.A1 = e1[1]
+}
+
 // Neg negates a e2 elmt
 func (e *E2) Neg(api frontend.API, e1 E2) *E2 {
 	e.A0 = api.Sub(0, e1.A0)
@@ -162,16 +167,14 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 	}
 
 	var e3, one E2
-	e3.A0 = res[0]
-	e3.A1 = res[1]
+	e3.assign(res[:2])
 	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
 	e3.MustBeEqual(api, one)
 
-	e.A0 = res[0]
-	e.A1 = res[1]
+	e.assign(res[:2])
 
 	return e
 }
@@ -206,15 +209,13 @@ func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 	}
 
 	var e3 E2
-	e3.A0 = res[0]
-	e3.A1 = res[1]
+	e3.assign(res[:2])
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
 	e3.MustBeEqual(api, e1)
 
-	e.A0 = res[0]
-	e.A1 = res[1]
+	e.assign(res[:2])
 
 	return e
 }

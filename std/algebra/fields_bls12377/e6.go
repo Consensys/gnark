@@ -45,6 +45,15 @@ func (e *E6) SetOne() *E6 {
 	return e
 }
 
+func (e *E6) assign(e1 []frontend.Variable) {
+	e.B0.A0 = e1[0]
+	e.B0.A1 = e1[1]
+	e.B1.A0 = e1[2]
+	e.B1.A1 = e1[3]
+	e.B2.A0 = e1[4]
+	e.B2.A1 = e1[5]
+}
+
 // Add creates a fp6elmt from fp elmts
 func (e *E6) Add(api frontend.API, e1, e2 E6) *E6 {
 
@@ -202,24 +211,14 @@ func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 	}
 
 	var e3, one E6
-	e3.B0.A0 = res[0]
-	e3.B0.A1 = res[1]
-	e3.B1.A0 = res[2]
-	e3.B1.A1 = res[3]
-	e3.B2.A0 = res[4]
-	e3.B2.A1 = res[5]
+	e3.assign(res[:6])
 	one.SetOne()
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
 	e3.MustBeEqual(api, e1)
 
-	e.B0.A0 = res[0]
-	e.B0.A1 = res[1]
-	e.B1.A0 = res[2]
-	e.B1.A1 = res[3]
-	e.B2.A0 = res[4]
-	e.B2.A1 = res[5]
+	e.assign(res[:6])
 
 	return e
 }
@@ -260,24 +259,14 @@ func (e *E6) Inverse(api frontend.API, e1 E6) *E6 {
 	}
 
 	var e3, one E6
-	e3.B0.A0 = res[0]
-	e3.B0.A1 = res[1]
-	e3.B1.A0 = res[2]
-	e3.B1.A1 = res[3]
-	e3.B2.A0 = res[4]
-	e3.B2.A1 = res[5]
+	e3.assign(res[:6])
 	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
 	e3.MustBeEqual(api, one)
 
-	e.B0.A0 = res[0]
-	e.B0.A1 = res[1]
-	e.B1.A0 = res[2]
-	e.B1.A1 = res[3]
-	e.B2.A0 = res[4]
-	e.B2.A1 = res[5]
+	e.assign(res[:6])
 
 	return e
 }

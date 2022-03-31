@@ -101,7 +101,7 @@ func getBLS12377ExtensionFp12() Extension {
 
 // SetZero returns a newly allocated element equal to 0
 func (e *E12) SetZero() *E12 {
-	e.C0.SetOne()
+	e.C0.SetZero()
 	e.C1.SetZero()
 	return e
 }
@@ -111,6 +111,21 @@ func (e *E12) SetOne() *E12 {
 	e.C0.SetOne()
 	e.C1.SetZero()
 	return e
+}
+
+func (e *E12) assign(e1 []frontend.Variable) {
+	e.C0.B0.A0 = e1[0]
+	e.C0.B0.A1 = e1[1]
+	e.C0.B1.A0 = e1[2]
+	e.C0.B1.A1 = e1[3]
+	e.C0.B2.A0 = e1[4]
+	e.C0.B2.A1 = e1[5]
+	e.C1.B0.A0 = e1[6]
+	e.C1.B0.A1 = e1[7]
+	e.C1.B1.A0 = e1[8]
+	e.C1.B1.A1 = e1[9]
+	e.C1.B2.A0 = e1[10]
+	e.C1.B2.A1 = e1[11]
 }
 
 // Add adds 2 elmts in Fp12
@@ -438,37 +453,14 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 	}
 
 	var e3, one E12
-	e3.C0.B0.A0 = res[0]
-	e3.C0.B0.A1 = res[1]
-	e3.C0.B1.A0 = res[2]
-	e3.C0.B1.A1 = res[3]
-	e3.C0.B2.A0 = res[4]
-	e3.C0.B2.A1 = res[5]
-	e3.C1.B0.A0 = res[6]
-	e3.C1.B0.A1 = res[7]
-	e3.C1.B1.A0 = res[8]
-	e3.C1.B1.A1 = res[9]
-	e3.C1.B2.A0 = res[10]
-	e3.C1.B2.A1 = res[11]
-
+	e3.assign(res[:12])
 	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
 	e3.MustBeEqual(api, one)
 
-	e.C0.B0.A0 = res[0]
-	e.C0.B0.A1 = res[1]
-	e.C0.B1.A0 = res[2]
-	e.C0.B1.A1 = res[3]
-	e.C0.B2.A0 = res[4]
-	e.C0.B2.A1 = res[5]
-	e.C1.B0.A0 = res[6]
-	e.C1.B0.A1 = res[7]
-	e.C1.B1.A0 = res[8]
-	e.C1.B1.A1 = res[9]
-	e.C1.B2.A0 = res[10]
-	e.C1.B2.A1 = res[11]
+	e.assign(res[:12])
 
 	return e
 }
@@ -534,35 +526,13 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 	}
 
 	var e3 E12
-	e3.C0.B0.A0 = res[0]
-	e3.C0.B0.A1 = res[1]
-	e3.C0.B1.A0 = res[2]
-	e3.C0.B1.A1 = res[3]
-	e3.C0.B2.A0 = res[4]
-	e3.C0.B2.A1 = res[5]
-	e3.C1.B0.A0 = res[6]
-	e3.C1.B0.A1 = res[7]
-	e3.C1.B1.A0 = res[8]
-	e3.C1.B1.A1 = res[9]
-	e3.C1.B2.A0 = res[10]
-	e3.C1.B2.A1 = res[11]
+	e3.assign(res[:12])
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
 	e3.MustBeEqual(api, e1)
 
-	e.C0.B0.A0 = res[0]
-	e.C0.B0.A1 = res[1]
-	e.C0.B1.A0 = res[2]
-	e.C0.B1.A1 = res[3]
-	e.C0.B2.A0 = res[4]
-	e.C0.B2.A1 = res[5]
-	e.C1.B0.A0 = res[6]
-	e.C1.B0.A1 = res[7]
-	e.C1.B1.A0 = res[8]
-	e.C1.B1.A1 = res[9]
-	e.C1.B2.A0 = res[10]
-	e.C1.B2.A1 = res[11]
+	e.assign(res[:12])
 
 	return e
 }
