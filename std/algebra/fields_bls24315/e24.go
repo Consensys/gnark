@@ -101,6 +101,33 @@ func (e *E24) SetOne() *E24 {
 	return e
 }
 
+func (e *E24) assign(e1 []frontend.Variable) {
+	e.D0.C0.B0.A0 = e1[0]
+	e.D0.C0.B0.A1 = e1[1]
+	e.D0.C0.B1.A0 = e1[2]
+	e.D0.C0.B1.A1 = e1[3]
+	e.D0.C1.B0.A0 = e1[4]
+	e.D0.C1.B0.A1 = e1[5]
+	e.D0.C1.B1.A0 = e1[6]
+	e.D0.C1.B1.A1 = e1[7]
+	e.D0.C2.B0.A0 = e1[8]
+	e.D0.C2.B0.A1 = e1[9]
+	e.D0.C2.B1.A0 = e1[10]
+	e.D0.C2.B1.A1 = e1[11]
+	e.D1.C0.B0.A0 = e1[12]
+	e.D1.C0.B0.A1 = e1[13]
+	e.D1.C0.B1.A0 = e1[14]
+	e.D1.C0.B1.A1 = e1[15]
+	e.D1.C1.B0.A0 = e1[16]
+	e.D1.C1.B0.A1 = e1[17]
+	e.D1.C1.B1.A0 = e1[18]
+	e.D1.C1.B1.A1 = e1[19]
+	e.D1.C2.B0.A0 = e1[20]
+	e.D1.C2.B0.A1 = e1[21]
+	e.D1.C2.B1.A0 = e1[22]
+	e.D1.C2.B1.A1 = e1[23]
+}
+
 // Add adds 2 elmts in Fp24
 func (e *E24) Add(api frontend.API, e1, e2 E24) *E24 {
 	e.D0.Add(api, e1.D0, e2.D0)
@@ -409,30 +436,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 	}
 
 	var e3, one E24
-	e3.D0.C0.B0.A0 = res[0]
-	e3.D0.C0.B0.A1 = res[1]
-	e3.D0.C0.B1.A0 = res[2]
-	e3.D0.C0.B1.A1 = res[3]
-	e3.D0.C1.B0.A0 = res[4]
-	e3.D0.C1.B0.A1 = res[5]
-	e3.D0.C1.B1.A0 = res[6]
-	e3.D0.C1.B1.A1 = res[7]
-	e3.D0.C2.B0.A0 = res[8]
-	e3.D0.C2.B0.A1 = res[9]
-	e3.D0.C2.B1.A0 = res[10]
-	e3.D0.C2.B1.A1 = res[11]
-	e3.D1.C0.B0.A0 = res[12]
-	e3.D1.C0.B0.A1 = res[13]
-	e3.D1.C0.B1.A0 = res[14]
-	e3.D1.C0.B1.A1 = res[15]
-	e3.D1.C1.B0.A0 = res[16]
-	e3.D1.C1.B0.A1 = res[17]
-	e3.D1.C1.B1.A0 = res[18]
-	e3.D1.C1.B1.A1 = res[19]
-	e3.D1.C2.B0.A0 = res[20]
-	e3.D1.C2.B0.A1 = res[21]
-	e3.D1.C2.B1.A0 = res[22]
-	e3.D1.C2.B1.A1 = res[23]
+	e3.assign(res[:24])
 
 	one.SetOne()
 
@@ -440,30 +444,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 	e3.Mul(api, e3, e1)
 	e3.MustBeEqual(api, one)
 
-	e.D0.C0.B0.A0 = res[0]
-	e.D0.C0.B0.A1 = res[1]
-	e.D0.C0.B1.A0 = res[2]
-	e.D0.C0.B1.A1 = res[3]
-	e.D0.C1.B0.A0 = res[4]
-	e.D0.C1.B0.A1 = res[5]
-	e.D0.C1.B1.A0 = res[6]
-	e.D0.C1.B1.A1 = res[7]
-	e.D0.C2.B0.A0 = res[8]
-	e.D0.C2.B0.A1 = res[9]
-	e.D0.C2.B1.A0 = res[10]
-	e.D0.C2.B1.A1 = res[11]
-	e.D1.C0.B0.A0 = res[12]
-	e.D1.C0.B0.A1 = res[13]
-	e.D1.C0.B1.A0 = res[14]
-	e.D1.C0.B1.A1 = res[15]
-	e.D1.C1.B0.A0 = res[16]
-	e.D1.C1.B0.A1 = res[17]
-	e.D1.C1.B1.A0 = res[18]
-	e.D1.C1.B1.A1 = res[19]
-	e.D1.C2.B0.A0 = res[20]
-	e.D1.C2.B0.A1 = res[21]
-	e.D1.C2.B1.A0 = res[22]
-	e.D1.C2.B1.A1 = res[23]
+	e.assign(res[:24])
 
 	return e
 }
@@ -565,59 +546,13 @@ func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
 	}
 
 	var e3 E24
-	e3.D0.C0.B0.A0 = res[0]
-	e3.D0.C0.B0.A1 = res[1]
-	e3.D0.C0.B1.A0 = res[2]
-	e3.D0.C0.B1.A1 = res[3]
-	e3.D0.C1.B0.A0 = res[4]
-	e3.D0.C1.B0.A1 = res[5]
-	e3.D0.C1.B1.A0 = res[6]
-	e3.D0.C1.B1.A1 = res[7]
-	e3.D0.C2.B0.A0 = res[8]
-	e3.D0.C2.B0.A1 = res[9]
-	e3.D0.C2.B1.A0 = res[10]
-	e3.D0.C2.B1.A1 = res[11]
-	e3.D1.C0.B0.A0 = res[12]
-	e3.D1.C0.B0.A1 = res[13]
-	e3.D1.C0.B1.A0 = res[14]
-	e3.D1.C0.B1.A1 = res[15]
-	e3.D1.C1.B0.A0 = res[16]
-	e3.D1.C1.B0.A1 = res[17]
-	e3.D1.C1.B1.A0 = res[18]
-	e3.D1.C1.B1.A1 = res[19]
-	e3.D1.C2.B0.A0 = res[20]
-	e3.D1.C2.B0.A1 = res[21]
-	e3.D1.C2.B1.A0 = res[22]
-	e3.D1.C2.B1.A1 = res[23]
+	e3.assign(res[:24])
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
 	e3.MustBeEqual(api, e1)
 
-	e.D0.C0.B0.A0 = res[0]
-	e.D0.C0.B0.A1 = res[1]
-	e.D0.C0.B1.A0 = res[2]
-	e.D0.C0.B1.A1 = res[3]
-	e.D0.C1.B0.A0 = res[4]
-	e.D0.C1.B0.A1 = res[5]
-	e.D0.C1.B1.A0 = res[6]
-	e.D0.C1.B1.A1 = res[7]
-	e.D0.C2.B0.A0 = res[8]
-	e.D0.C2.B0.A1 = res[9]
-	e.D0.C2.B1.A0 = res[10]
-	e.D0.C2.B1.A1 = res[11]
-	e.D1.C0.B0.A0 = res[12]
-	e.D1.C0.B0.A1 = res[13]
-	e.D1.C0.B1.A0 = res[14]
-	e.D1.C0.B1.A1 = res[15]
-	e.D1.C1.B0.A0 = res[16]
-	e.D1.C1.B0.A1 = res[17]
-	e.D1.C1.B1.A0 = res[18]
-	e.D1.C1.B1.A1 = res[19]
-	e.D1.C2.B0.A0 = res[20]
-	e.D1.C2.B0.A1 = res[21]
-	e.D1.C2.B1.A0 = res[22]
-	e.D1.C2.B1.A1 = res[23]
+	e.assign(res[:24])
 
 	return e
 }

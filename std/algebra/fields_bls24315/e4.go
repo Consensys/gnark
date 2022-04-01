@@ -43,6 +43,13 @@ func (e *E4) SetOne() *E4 {
 	return e
 }
 
+func (e *E4) assign(e1 []frontend.Variable) {
+	e.B0.A0 = e1[0]
+	e.B0.A1 = e1[1]
+	e.B1.A0 = e1[2]
+	e.B1.A1 = e1[3]
+}
+
 // NewFp4Zero creates a new
 func NewFp4Zero(api frontend.API) *E4 {
 	return &E4{
@@ -171,19 +178,13 @@ func (e *E4) DivUnchecked(api frontend.API, e1, e2 E4) *E4 {
 	}
 
 	var e3 E4
-	e3.B0.A0 = res[0]
-	e3.B0.A1 = res[1]
-	e3.B1.A0 = res[2]
-	e3.B1.A1 = res[3]
+	e3.assign(res[:4])
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
 	e3.MustBeEqual(api, e1)
 
-	e.B0.A0 = res[0]
-	e.B0.A1 = res[1]
-	e.B1.A0 = res[2]
-	e.B1.A1 = res[3]
+	e.assign(res[:4])
 
 	return e
 }
@@ -220,20 +221,14 @@ func (e *E4) Inverse(api frontend.API, e1 E4) *E4 {
 	}
 
 	var e3, one E4
-	e3.B0.A0 = res[0]
-	e3.B0.A1 = res[1]
-	e3.B1.A0 = res[2]
-	e3.B1.A1 = res[3]
+	e3.assign(res[:4])
 	one.SetOne()
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
 	e3.MustBeEqual(api, one)
 
-	e.B0.A0 = res[0]
-	e.B0.A1 = res[1]
-	e.B1.A0 = res[2]
-	e.B1.A1 = res[3]
+	e.assign(res[:4])
 
 	return e
 }

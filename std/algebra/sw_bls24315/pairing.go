@@ -24,6 +24,8 @@ import (
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 )
 
+const ateLoop = 3218079743
+
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 type LineEvaluation struct {
 	R0, R1 fields_bls24315.E4
@@ -80,7 +82,6 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls24315.E24 {
 
 // FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
 func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls24315.E24 {
-	const ateLoop = 3218079743
 	const genT = ateLoop
 	result := e1
 
@@ -97,7 +98,7 @@ func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls243
 	// Daiki Hayashida and Kenichiro Hayasaka
 	// and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	// 3*Phi_24(api, p)/r = (api, u-1)² * (api, u+p) * (api, u²+p²) * (api, u⁴+p⁴-1) + 3
+	// 3*Phi_24(p)/r = (u-1)² * (u+p) * (u²+p²) * (u⁴+p⁴-1) + 3
 	t[0].CyclotomicSquare(api, result)
 	t[1].Expt(api, result, genT)
 	t[2].Conjugate(api, result)
