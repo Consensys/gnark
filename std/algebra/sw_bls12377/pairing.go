@@ -48,7 +48,11 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	yInv := api.DivUnchecked(1, P.Y)
 	xOverY := api.DivUnchecked(P.X, P.Y)
 
-	for i := len(ateLoopBin) - 2; i >= 0; i-- {
+	Qacc, l1 = DoubleStep(api, &Qacc)
+	res.C1.B0.MulByFp(api, l1.R0, xOverY)
+	res.C1.B1.MulByFp(api, l1.R1, yInv)
+
+	for i := len(ateLoopBin) - 3; i >= 0; i-- {
 		res.Square(api, res)
 
 		if ateLoopBin[i] == 0 {
