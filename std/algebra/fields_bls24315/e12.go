@@ -189,11 +189,9 @@ func (e *E12) MustBeEqual(api frontend.API, other E12) {
 
 // MulByE4 multiplies an element in E12 by an element in E4
 func (e *E12) MulByE4(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
-	e2Copy := E4{}
-	e2Copy = e2
-	e.C0.Mul(api, e1.C0, e2Copy, ext)
-	e.C1.Mul(api, e1.C1, e2Copy, ext)
-	e.C2.Mul(api, e1.C2, e2Copy, ext)
+	e.C0.Mul(api, e1.C0, e2, ext)
+	e.C1.Mul(api, e1.C1, e2, ext)
+	e.C2.Mul(api, e1.C2, e2, ext)
 	return e
 }
 

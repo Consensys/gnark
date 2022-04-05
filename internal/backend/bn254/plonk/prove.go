@@ -106,11 +106,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
+	// The first challenge is derived using the public data: the commitments to the permutation,
+	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:spr.NbPublicVariables]); err != nil {
+		return nil, err
+	}
+	bgamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return nil, err
 	}
+	var gamma fr.Element
+	gamma.SetBytes(bgamma)
 
 	// Fiat Shamir this
 	beta, err := deriveRandomness(&fs, "beta")

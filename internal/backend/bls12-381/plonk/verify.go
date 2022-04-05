@@ -46,10 +46,18 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// derive gamma from Comm(l), Comm(r), Comm(o)
-	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	// The first challenge is derived using the public data: the commitments to the permutation,
+	// the coefficients of the circuit, and the public inputs.
+	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness); err != nil {
+		return err
+	}
+	bgamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return err
 	}
+	var gamma fr.Element
+	gamma.SetBytes(bgamma)
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := deriveRandomness(&fs, "beta")
@@ -249,4 +257,44 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element) error {
+	// permutation
+	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.S[1].Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.S[2].Marshal()); err != nil {
+		return err
+	}
+
+	// coefficients
+	if err := fs.Bind(challenge, vk.Ql.Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.Qr.Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.Qm.Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.Qo.Marshal()); err != nil {
+		return err
+	}
+	if err := fs.Bind(challenge, vk.Qk.Marshal()); err != nil {
+		return err
+	}
+
+	// public inputs
+	for i := 0; i < len(publicInputs); i++ {
+		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }

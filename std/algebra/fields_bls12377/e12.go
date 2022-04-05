@@ -429,13 +429,12 @@ func (e *E12) nSquareCompressed(api frontend.API, n int, ext Extension) {
 func (e *E12) Expt(api frontend.API, e1 E12, exponent uint64, ext Extension) *E12 {
 
 	res := E12{}
-	x33 := E12{}
 	res = e1
 
 	res.nSquareCompressed(api, 5, ext)
 	res.Decompress(api, res, ext)
 	res.Mul(api, res, e1, ext)
-	x33 = res
+	x33 := res
 	res.nSquareCompressed(api, 7, ext)
 	res.Decompress(api, res, ext)
 	res.Mul(api, res, x33, ext)
