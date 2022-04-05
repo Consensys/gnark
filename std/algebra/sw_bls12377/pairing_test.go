@@ -30,6 +30,33 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type finalExp struct {
+	ML fields_bls12377.E12
+	R  bls12377.GT
+}
+
+func (circuit *finalExp) Define(api frontend.API) error {
+
+	pairingRes := FinalExponentiation(api, circuit.ML)
+	mustbeEq(api, pairingRes, &circuit.R)
+
+	return nil
+}
+
+func TestFinalExp(t *testing.T) {
+
+	// pairing test data
+	_, _, milRes, pairingRes := pairingData()
+
+	// create cs
+	var circuit, witness finalExp
+	witness.ML.Assign(&milRes)
+	circuit.R = pairingRes
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+}
+
 type pairingBLS377 struct {
 	P          G1Affine `gnark:",public"`
 	Q          G2Affine
@@ -63,72 +90,6 @@ func TestPairingBLS377(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
-}
-
-type finalExp struct {
-	ML fields_bls12377.E12
-	R  bls12377.GT
-}
-
-func (circuit *finalExp) Define(api frontend.API) error {
-
-	pairingRes := FinalExponentiation(api, circuit.ML)
-	mustbeEq(api, pairingRes, &circuit.R)
-
-	return nil
-}
-func TestFinalExp(t *testing.T) {
-
-	// pairing test data
-	_, _, milRes, pairingRes := pairingData()
-
-	// create cs
-	var circuit, witness finalExp
-	witness.ML.Assign(&milRes)
-	circuit.R = pairingRes
-
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
-}
-
-func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
-	_, _, P, Q = bls12377.Generators()
-	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
-	pairingRes = bls12377.FinalExponentiation(&milRes)
-	return
-}
-
-func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairingRes bls12377.GT) {
-	_, _, P[0], Q[0] = bls12377.Generators()
-	var u, v fr.Element
-	var _u, _v big.Int
-	for i := 1; i < 3; i++ {
-		u.SetRandom()
-		v.SetRandom()
-		u.ToBigIntRegular(&_u)
-		v.ToBigIntRegular(&_v)
-		P[i].ScalarMultiplication(&P[0], &_u)
-		Q[i].ScalarMultiplication(&Q[0], &_v)
-	}
-	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1], P[2]}, []bls12377.G2Affine{Q[0], Q[1], Q[2]})
-	pairingRes = bls12377.FinalExponentiation(&milRes)
-
-	return
-}
-
-func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
-	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
-	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
-	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
-	api.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
-	api.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
-	api.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
-	api.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
-	api.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
-	api.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
-	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
-	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
-	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }
 
 type triplePairingBLS377 struct {
@@ -170,36 +131,59 @@ func TestTriplePairingBLS377(t *testing.T) {
 
 }
 
-type fp12FinalExpo struct {
-	A fields_bls12377.E12
-	C fields_bls12377.E12 `gnark:",public"`
+// utils
+func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
+	_, _, P, Q = bls12377.Generators()
+	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
+	return
 }
 
-func (circuit *fp12FinalExpo) Define(api frontend.API) error {
-	expected := FinalExponentiation(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
+func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairingRes bls12377.GT) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	var u, v fr.Element
+	var _u, _v big.Int
+	for i := 1; i < 3; i++ {
+		u.SetRandom()
+		v.SetRandom()
+		u.ToBigIntRegular(&_u)
+		v.ToBigIntRegular(&_v)
+		P[i].ScalarMultiplication(&P[0], &_u)
+		Q[i].ScalarMultiplication(&Q[0], &_v)
+	}
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1], P[2]}, []bls12377.G2Affine{Q[0], Q[1], Q[2]})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
+
+	return
 }
 
-func TestExpFinalExpoFp12(t *testing.T) {
-	var circuit, witness fp12FinalExpo
-
-	// witness values
-	var a, c bls12377.E12
-
-	a.SetRandom()
-	c = bls12377.FinalExponentiation(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-
-	// cs values
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
+	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
+	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
+	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
+	api.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
+	api.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
+	api.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
+	api.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
+	api.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
+	api.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
+	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
+	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
+	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }
 
+// bench
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+	}
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkTriplePairing(b *testing.B) {
+	var c triplePairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
