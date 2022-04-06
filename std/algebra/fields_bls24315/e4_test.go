@@ -34,7 +34,7 @@ type e4Add struct {
 func (circuit *e4Add) Define(api frontend.API) error {
 	var expected E4
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -63,7 +63,7 @@ type e4Sub struct {
 func (circuit *e4Sub) Define(api frontend.API) error {
 	var expected E4
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -93,7 +93,7 @@ func (circuit *e4Square) Define(api frontend.API) error {
 	var expected E4
 
 	expected.Square(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (circuit *e4Mul) Define(api frontend.API) error {
 	var expected E4
 
 	expected.Mul(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (circuit *fp4MulByFp) Define(api frontend.API) error {
 	expected := E4{}
 	expected.MulByFp(api, circuit.A, circuit.B)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (circuit *fp4Conjugate) Define(api frontend.API) error {
 	expected := E4{}
 	expected.Conjugate(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -216,7 +216,7 @@ func (circuit *e4Div) Define(api frontend.API) error {
 	var expected E4
 
 	expected.DivUnchecked(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -247,7 +247,7 @@ func (circuit *fp4Inverse) Define(api frontend.API) error {
 
 	expected.Inverse(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 

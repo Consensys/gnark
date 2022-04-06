@@ -17,12 +17,16 @@ limitations under the License.
 package sw_bls24315
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 )
+
+// GT target group of the pairing
+type GT = fields_bls24315.E24
 
 const ateLoop = 3218079743
 
@@ -31,13 +35,100 @@ type LineEvaluation struct {
 	R0, R1 fields_bls24315.E4
 }
 
+// MillerLoop computes the product of n miller loops (n can be 1)
+func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+	// check input size match
+	n := len(P)
+	if n == 0 || n != len(Q) {
+		return GT{}, errors.New("invalid inputs sizes")
+	}
+
+	var ateLoop2NAF [33]int8
+	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
+
+	var res GT
+	res.SetOne()
+
+	var l1, l2 LineEvaluation
+	Qacc := make([]G2Affine, n)
+	Qneg := make([]G2Affine, n)
+	yInv := make([]frontend.Variable, n)
+	xOverY := make([]frontend.Variable, n)
+	for k := 0; k < n; k++ {
+		Qacc[k] = Q[k]
+		Qneg[k].Neg(api, &Q[k])
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
+	}
+
+	// k = 0
+	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
+	res.D1.C0.MulByFp(api, l1.R0, xOverY[0])
+	res.D1.C1.MulByFp(api, l1.R1, yInv[0])
+
+	if n >= 2 {
+		// k = 1
+		Qacc[1], l1 = DoubleStep(api, &Qacc[1])
+		l1.R0.MulByFp(api, l1.R0, xOverY[1])
+		l1.R1.MulByFp(api, l1.R1, yInv[1])
+		res.Mul034By034(api, l1.R0, l1.R1, res.D1.C0, res.D1.C1)
+	}
+
+	if n >= 3 {
+		// k >= 2
+		for k := 2; k < n; k++ {
+			Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R1.MulByFp(api, l1.R1, yInv[k])
+			res.MulBy034(api, l1.R0, l1.R1)
+		}
+	}
+
+	for i := len(ateLoop2NAF) - 3; i >= 0; i-- {
+		res.Square(api, res)
+
+		if ateLoop2NAF[i] == 0 {
+			for k := 0; k < n; k++ {
+				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+			}
+		} else if ateLoop2NAF[i] == 1 {
+			for k := 0; k < n; k++ {
+				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R1.MulByFp(api, l2.R1, yInv[k])
+				res.MulBy034(api, l2.R0, l2.R1)
+			}
+		} else {
+			for k := 0; k < n; k++ {
+				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Qneg[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R1.MulByFp(api, l2.R1, yInv[k])
+				res.MulBy034(api, l2.R0, l2.R1)
+			}
+		}
+	}
+
+	res.Conjugate(api, res)
+
+	return res, nil
+}
+
 // FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
-func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls24315.E24 {
+func FinalExponentiation(api frontend.API, e1 GT) GT {
 	const genT = ateLoop
 	result := e1
 
 	// https://eprint.iacr.org/2012/232.pdf, section 7
-	var t [9]fields_bls24315.E24
+	var t [9]GT
 
 	// easy part
 	t[0].Conjugate(api, result)
@@ -78,134 +169,13 @@ func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls243
 	return result
 }
 
-// MillerLoop computes the miller loop
-func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls24315.E24 {
-
-	var ateLoop2NAF [33]int8
-	optimaAteLoop, _ := new(big.Int).SetString("3218079743", 10)
-	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
-
-	var res fields_bls24315.E24
-	res.SetOne()
-
-	var l1, l2 LineEvaluation
-	var Qacc, Qneg G2Affine
-	Qacc = Q
-	Qneg.Neg(api, &Q)
-	yInv := api.DivUnchecked(1, P.Y)
-	xOverY := api.DivUnchecked(P.X, P.Y)
-
-	Qacc, l1 = DoubleStep(api, &Qacc)
-	res.D1.C0.MulByFp(api, l1.R0, xOverY)
-	res.D1.C1.MulByFp(api, l1.R1, yInv)
-
-	for i := len(ateLoop2NAF) - 3; i >= 0; i-- {
-		res.Square(api, res)
-
-		if ateLoop2NAF[i] == 0 {
-			Qacc, l1 = DoubleStep(api, &Qacc)
-			l1.R0.MulByFp(api, l1.R0, xOverY)
-			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy034(api, l1.R0, l1.R1)
-		} else if ateLoop2NAF[i] == 1 {
-			Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Q)
-			l1.R0.MulByFp(api, l1.R0, xOverY)
-			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy034(api, l1.R0, l1.R1)
-			l2.R0.MulByFp(api, l2.R0, xOverY)
-			l2.R1.MulByFp(api, l2.R1, yInv)
-			res.MulBy034(api, l2.R0, l2.R1)
-		} else {
-			Qacc, l1, l2 = DoubleAndAddStep(api, &Qacc, &Qneg)
-			l1.R0.MulByFp(api, l1.R0, xOverY)
-			l1.R1.MulByFp(api, l1.R1, yInv)
-			res.MulBy034(api, l1.R0, l1.R1)
-			l2.R0.MulByFp(api, l2.R0, xOverY)
-			l2.R1.MulByFp(api, l2.R1, yInv)
-			res.MulBy034(api, l2.R0, l2.R1)
-		}
+// Pair calculates the reduced pairing for a set of points
+func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
+	f, err := MillerLoop(api, P, Q)
+	if err != nil {
+		return GT{}, err
 	}
-
-	res.Conjugate(api, res)
-
-	return res
-}
-
-// TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls24315.E24 {
-
-	var ateLoop2NAF [33]int8
-	optimaAteLoop, _ := new(big.Int).SetString("3218079743", 10)
-	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
-
-	var res fields_bls24315.E24
-	res.SetOne()
-
-	var l1, l2 LineEvaluation
-	Qacc := make([]G2Affine, 3)
-	Qneg := make([]G2Affine, 3)
-	yInv := make([]frontend.Variable, 3)
-	xOverY := make([]frontend.Variable, 3)
-	for k := 0; k < 3; k++ {
-		Qacc[k] = Q[k]
-		Qneg[k].Neg(api, &Q[k])
-		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
-	}
-
-	// k = 0
-	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
-	res.D1.C0.MulByFp(api, l1.R0, xOverY[0])
-	res.D1.C1.MulByFp(api, l1.R1, yInv[0])
-
-	// k = 1
-	Qacc[1], l1 = DoubleStep(api, &Qacc[1])
-	l1.R0.MulByFp(api, l1.R0, xOverY[1])
-	l1.R1.MulByFp(api, l1.R1, yInv[1])
-	res.Mul034By034(api, l1.R0, l1.R1, res.D1.C0, res.D1.C1)
-
-	// k = 2
-	Qacc[2], l1 = DoubleStep(api, &Qacc[2])
-	l1.R0.MulByFp(api, l1.R0, xOverY[2])
-	l1.R1.MulByFp(api, l1.R1, yInv[2])
-	res.MulBy034(api, l1.R0, l1.R1)
-
-	for i := len(ateLoop2NAF) - 3; i >= 0; i-- {
-		res.Square(api, res)
-
-		if ateLoop2NAF[i] == 0 {
-			for k := 0; k < 3; k++ {
-				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy034(api, l1.R0, l1.R1)
-			}
-		} else if ateLoop2NAF[i] == 1 {
-			for k := 0; k < 3; k++ {
-				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy034(api, l1.R0, l1.R1)
-				l2.R0.MulByFp(api, l2.R0, xOverY[k])
-				l2.R1.MulByFp(api, l2.R1, yInv[k])
-				res.MulBy034(api, l2.R0, l2.R1)
-			}
-		} else {
-			for k := 0; k < 3; k++ {
-				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Qneg[k])
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy034(api, l1.R0, l1.R1)
-				l2.R0.MulByFp(api, l2.R0, xOverY[k])
-				l2.R1.MulByFp(api, l2.R1, yInv[k])
-				res.MulBy034(api, l2.R0, l2.R1)
-			}
-		}
-	}
-
-	res.Conjugate(api, res)
-
-	return res
+	return FinalExponentiation(api, f), nil
 }
 
 // DoubleAndAddStep

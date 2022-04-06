@@ -37,7 +37,7 @@ type fp24Add struct {
 func (circuit *fp24Add) Define(api frontend.API) error {
 	expected := E24{}
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -68,7 +68,7 @@ type fp24Sub struct {
 func (circuit *fp24Sub) Define(api frontend.API) error {
 	expected := E24{}
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -100,7 +100,7 @@ func (circuit *fp24Mul) Define(api frontend.API) error {
 	expected := E24{}
 
 	expected.Mul(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -131,7 +131,7 @@ type fp24Square struct {
 func (circuit *fp24Square) Define(api frontend.API) error {
 
 	s := circuit.A.Square(api, circuit.A)
-	s.MustBeEqual(api, circuit.B)
+	s.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -163,8 +163,8 @@ func (circuit *fp24CycloSquare) Define(api frontend.API) error {
 	var u, v E24
 	u.Square(api, circuit.A)
 	v.CyclotomicSquare(api, circuit.A)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u.AssertIsEqual(api, v)
+	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -204,8 +204,8 @@ func (circuit *fp24CycloSquareCompressed) Define(api frontend.API) error {
 	u.Square(api, circuit.A)
 	v.CyclotomicSquareCompressed(api, circuit.A)
 	v.Decompress(api, v)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u.AssertIsEqual(api, v)
+	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -243,7 +243,7 @@ type fp24Conjugate struct {
 func (circuit *fp24Conjugate) Define(api frontend.API) error {
 	expected := E24{}
 	expected.Conjugate(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -272,7 +272,7 @@ func (circuit *e24Div) Define(api frontend.API) error {
 	var expected E24
 
 	expected.DivUnchecked(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -302,7 +302,7 @@ func (circuit *fp24Inverse) Define(api frontend.API) error {
 	expected := E24{}
 
 	expected.Inverse(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -332,7 +332,7 @@ type fp24MulBy034 struct {
 func (circuit *fp24MulBy034) Define(api frontend.API) error {
 
 	circuit.A.MulBy034(api, circuit.B, circuit.C)
-	circuit.A.MustBeEqual(api, circuit.W)
+	circuit.A.AssertIsEqual(api, circuit.W)
 	return nil
 }
 
@@ -370,15 +370,15 @@ func (circuit *fp24Frobenius) Define(api frontend.API) error {
 
 	fb := E24{}
 	fb.Frobenius(api, circuit.A)
-	fb.MustBeEqual(api, circuit.C)
+	fb.AssertIsEqual(api, circuit.C)
 
 	fbSquare := E24{}
 	fbSquare.FrobeniusSquare(api, circuit.A)
-	fbSquare.MustBeEqual(api, circuit.D)
+	fbSquare.AssertIsEqual(api, circuit.D)
 
 	fbQuad := E24{}
 	fbQuad.FrobeniusQuad(api, circuit.A)
-	fbQuad.MustBeEqual(api, circuit.E)
+	fbQuad.AssertIsEqual(api, circuit.E)
 
 	return nil
 }

@@ -483,7 +483,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
-	e3.MustBeEqual(api, one)
+	e3.AssertIsEqual(api, one)
 
 	e.assign(res[:12])
 
@@ -555,7 +555,7 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
-	e3.MustBeEqual(api, e1)
+	e3.AssertIsEqual(api, e1)
 
 	e.assign(res[:12])
 
@@ -623,8 +623,8 @@ func (e *E12) Assign(a *bls12377.E12) {
 	e.C1.Assign(&a.C1)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E12) MustBeEqual(api frontend.API, other E12) {
-	e.C0.MustBeEqual(api, other.C0)
-	e.C1.MustBeEqual(api, other.C1)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E12) AssertIsEqual(api frontend.API, other E12) {
+	e.C0.AssertIsEqual(api, other.C0)
+	e.C1.AssertIsEqual(api, other.C1)
 }

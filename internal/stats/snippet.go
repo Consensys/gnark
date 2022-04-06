@@ -91,7 +91,7 @@ func initSnippets() {
 		dummyG2.Y.A1 = newVariable()
 
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		resMillerLoop := sw_bls12377.MillerLoop(api, dummyG1, dummyG2)
+		resMillerLoop, _ := sw_bls12377.MillerLoop(api, []sw_bls12377.G1Affine{dummyG1}, []sw_bls12377.G2Affine{dummyG2})
 
 		// performs the final expo
 		_ = sw_bls12377.FinalExponentiation(api, resMillerLoop)
@@ -113,7 +113,7 @@ func initSnippets() {
 		dummyG2.Y.B1.A1 = newVariable()
 
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		resMillerLoop := sw_bls24315.MillerLoop(api, dummyG1, dummyG2)
+		resMillerLoop, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{dummyG1}, []sw_bls24315.G2Affine{dummyG2})
 
 		// performs the final expo
 		_ = sw_bls24315.FinalExponentiation(api, resMillerLoop)

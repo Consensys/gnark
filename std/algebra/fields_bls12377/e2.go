@@ -17,12 +17,13 @@ limitations under the License.
 package fields_bls12377
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"math/big"
 )
 
 // E2 element in a quadratic extension
@@ -172,7 +173,7 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
-	e3.MustBeEqual(api, one)
+	e3.AssertIsEqual(api, one)
 
 	e.assign(res[:2])
 
@@ -213,7 +214,7 @@ func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
-	e3.MustBeEqual(api, e1)
+	e3.AssertIsEqual(api, e1)
 
 	e.assign(res[:2])
 
@@ -226,8 +227,8 @@ func (e *E2) Assign(a *bls12377.E2) {
 	e.A1 = (fr.Element)(a.A1)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E2) MustBeEqual(api frontend.API, other E2) {
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E2) AssertIsEqual(api frontend.API, other E2) {
 	api.AssertIsEqual(e.A0, other.A0)
 	api.AssertIsEqual(e.A1, other.A1)
 }

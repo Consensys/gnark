@@ -17,11 +17,12 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"math/big"
 )
 
 // E12 element in a quadratic extension
@@ -227,7 +228,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
-	e3.MustBeEqual(api, one)
+	e3.AssertIsEqual(api, one)
 
 	e.assign(res[:12])
 
@@ -299,18 +300,18 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
-	e3.MustBeEqual(api, e1)
+	e3.AssertIsEqual(api, e1)
 
 	e.assign(res[:12])
 
 	return e
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E12) MustBeEqual(api frontend.API, other E12) {
-	e.C0.MustBeEqual(api, other.C0)
-	e.C1.MustBeEqual(api, other.C1)
-	e.C2.MustBeEqual(api, other.C2)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E12) AssertIsEqual(api frontend.API, other E12) {
+	e.C0.AssertIsEqual(api, other.C0)
+	e.C1.AssertIsEqual(api, other.C1)
+	e.C2.AssertIsEqual(api, other.C2)
 }
 
 // MulByE4 multiplies an element in E12 by an element in E4

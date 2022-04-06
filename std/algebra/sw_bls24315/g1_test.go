@@ -41,7 +41,7 @@ type g1AddAssign struct {
 func (circuit *g1AddAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -78,7 +78,7 @@ type g1AddAssignAffine struct {
 func (circuit *g1AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -119,7 +119,7 @@ type g1DoubleAssign struct {
 func (circuit *g1DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.DoubleAssign(api)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -154,7 +154,7 @@ type g1DoubleAffine struct {
 func (circuit *g1DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.Double(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -189,7 +189,7 @@ type g1DoubleAndAddAffine struct {
 func (circuit *g1DoubleAndAddAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.DoubleAndAdd(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -230,7 +230,7 @@ type g1Neg struct {
 func (circuit *g1Neg) Define(api frontend.API) error {
 	expected := G1Jac{}
 	expected.Neg(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -262,7 +262,7 @@ type g1constantScalarMul struct {
 func (circuit *g1constantScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
 	expected.constScalarMul(api, circuit.A, circuit.R)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -301,7 +301,7 @@ type g1varScalarMul struct {
 func (circuit *g1varScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
 	expected.varScalarMul(api, circuit.A, circuit.R)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -338,9 +338,9 @@ type g1ScalarMul struct {
 func (circuit *g1ScalarMul) Define(api frontend.API) error {
 	var expected, expected2 G1Affine
 	expected.ScalarMul(api, circuit.A, circuit.Rvar)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
-	expected2.MustBeEqual(api, circuit.C)
+	expected2.AssertIsEqual(api, circuit.C)
 	return nil
 }
 

@@ -206,11 +206,11 @@ func (p *G2Jac) Assign(p1 *bls12377.G2Jac) {
 	p.Z.Assign(&p1.Z)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G2Jac) MustBeEqual(api frontend.API, other G2Jac) {
-	p.X.MustBeEqual(api, other.X)
-	p.Y.MustBeEqual(api, other.Y)
-	p.Z.MustBeEqual(api, other.Z)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (p *G2Jac) AssertIsEqual(api frontend.API, other G2Jac) {
+	p.X.AssertIsEqual(api, other.X)
+	p.Y.AssertIsEqual(api, other.Y)
+	p.Z.AssertIsEqual(api, other.Z)
 }
 
 // Assign a value to self (witness assignment)
@@ -219,10 +219,10 @@ func (p *G2Affine) Assign(p1 *bls12377.G2Affine) {
 	p.Y.Assign(&p1.Y)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G2Affine) MustBeEqual(api frontend.API, other G2Affine) {
-	p.X.MustBeEqual(api, other.X)
-	p.Y.MustBeEqual(api, other.Y)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (p *G2Affine) AssertIsEqual(api frontend.API, other G2Affine) {
+	p.X.AssertIsEqual(api, other.X)
+	p.Y.AssertIsEqual(api, other.Y)
 }
 
 // DoubleAndAdd computes 2*p1+p2 in affine coords
