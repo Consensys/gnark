@@ -40,7 +40,7 @@ var (
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witness) error {
-	log := logger.Logger().With().Str("curve", "bls12_377").Str("backend", "plonk").Logger()
+	log := logger.Logger().With().Str("curve", "bls12_381").Str("backend", "plonk").Logger()
 	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)
