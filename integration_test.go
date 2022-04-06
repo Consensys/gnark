@@ -58,34 +58,34 @@ func TestIntegrationAPI(t *testing.T) {
 				}
 			}, name)
 
-		} // else {
+		} else {
 
-		// 	assert.Run(func(assert *test.Assert) {
-		// 		for i := range tData.ValidAssignments {
-		// 			assert.Run(func(assert *test.Assert) {
-		// 				assert.ProverSucceeded(
-		// 					tData.Circuit, tData.ValidAssignments[i],
-		// 					test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
-		// 					test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
-		// 					test.WithBackends(backend.GROTH16),
-		// 					test.WithBackends(backend.PLONK))
-		// 			}, fmt.Sprintf("valid-%d", i))
-		// 		}
+			assert.Run(func(assert *test.Assert) {
+				for i := range tData.ValidAssignments {
+					assert.Run(func(assert *test.Assert) {
+						assert.ProverSucceeded(
+							tData.Circuit, tData.ValidAssignments[i],
+							test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+							test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
+							test.WithBackends(backend.GROTH16),
+							test.WithBackends(backend.PLONK))
+					}, fmt.Sprintf("valid-%d", i))
+				}
 
-		// 		for i := range tData.InvalidAssignments {
-		// 			assert.Run(func(assert *test.Assert) {
-		// 				assert.ProverFailed(
-		// 					tData.Circuit,
-		// 					tData.InvalidAssignments[i],
-		// 					test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
-		// 					test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
-		// 					test.WithBackends(backend.GROTH16),
-		// 					test.WithBackends(backend.PLONK),
-		// 				)
-		// 			}, fmt.Sprintf("invalid-%d", i))
-		// 		}
-		// 	}, name)
-		// }
+				for i := range tData.InvalidAssignments {
+					assert.Run(func(assert *test.Assert) {
+						assert.ProverFailed(
+							tData.Circuit,
+							tData.InvalidAssignments[i],
+							test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+							test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
+							test.WithBackends(backend.GROTH16),
+							test.WithBackends(backend.PLONK),
+						)
+					}, fmt.Sprintf("invalid-%d", i))
+				}
+			}, name)
+		}
 	}
 
 }
