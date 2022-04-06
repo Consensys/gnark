@@ -467,7 +467,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
-	e3.MustBeEqual(api, one)
+	e3.AssertIsEqual(api, one)
 
 	e.assign(res[:24])
 
@@ -575,7 +575,7 @@ func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
-	e3.MustBeEqual(api, e1)
+	e3.AssertIsEqual(api, e1)
 
 	e.assign(res[:24])
 
@@ -622,10 +622,10 @@ func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
 	return e
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E24) MustBeEqual(api frontend.API, other E24) {
-	e.D0.MustBeEqual(api, other.D0)
-	e.D1.MustBeEqual(api, other.D1)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E24) AssertIsEqual(api frontend.API, other E24) {
+	e.D0.AssertIsEqual(api, other.D0)
+	e.D1.AssertIsEqual(api, other.D1)
 }
 
 // Assign a value to self (witness assignment)

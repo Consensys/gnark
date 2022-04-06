@@ -400,8 +400,8 @@ func (p *G1Jac) Assign(p1 *bls24315.G1Jac) {
 	p.Z = (fr.Element)(p1.Z)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Jac) MustBeEqual(api frontend.API, other G1Jac) {
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (p *G1Jac) AssertIsEqual(api frontend.API, other G1Jac) {
 	api.AssertIsEqual(p.X, other.X)
 	api.AssertIsEqual(p.Y, other.Y)
 	api.AssertIsEqual(p.Z, other.Z)
@@ -413,8 +413,8 @@ func (p *G1Affine) Assign(p1 *bls24315.G1Affine) {
 	p.Y = (fr.Element)(p1.Y)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (p *G1Affine) MustBeEqual(api frontend.API, other G1Affine) {
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (p *G1Affine) AssertIsEqual(api frontend.API, other G1Affine) {
 	api.AssertIsEqual(p.X, other.X)
 	api.AssertIsEqual(p.Y, other.Y)
 }

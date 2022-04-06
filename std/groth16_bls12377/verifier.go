@@ -75,6 +75,6 @@ func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubIn
 	resPairing := sw_bls12377.FinalExponentiation(api, resMillerLoop)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MustBeEqual(api, resPairing)
+	innerVk.E.AssertIsEqual(api, resPairing)
 
 }

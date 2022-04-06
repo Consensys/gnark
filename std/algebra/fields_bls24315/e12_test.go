@@ -36,7 +36,7 @@ type fp12Add struct {
 func (circuit *fp12Add) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -67,7 +67,7 @@ type fp12Sub struct {
 func (circuit *fp12Sub) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -99,7 +99,7 @@ func (circuit *fp12Mul) Define(api frontend.API) error {
 	expected := E12{}
 
 	expected.Mul(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -132,7 +132,7 @@ func (circuit *fp12MulByNonResidue) Define(api frontend.API) error {
 
 	expected.MulByNonResidue(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -162,7 +162,7 @@ func (circuit *e12Div) Define(api frontend.API) error {
 	var expected E12
 
 	expected.DivUnchecked(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -193,7 +193,7 @@ func (circuit *fp12Inverse) Define(api frontend.API) error {
 
 	expected.Inverse(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 

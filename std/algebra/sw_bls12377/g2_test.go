@@ -40,7 +40,7 @@ type g2AddAssign struct {
 func (circuit *g2AddAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -77,7 +77,7 @@ type g2AddAssignAffine struct {
 func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.AddAssign(api, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -118,7 +118,7 @@ type g2DoubleAssign struct {
 func (circuit *g2DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.Double(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -153,7 +153,7 @@ type g2DoubleAndAddAffine struct {
 func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.DoubleAndAdd(api, &circuit.A, &circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -194,7 +194,7 @@ type g2DoubleAffine struct {
 func (circuit *g2DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
 	expected.Double(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -232,7 +232,7 @@ type g2Neg struct {
 func (circuit *g2Neg) Define(api frontend.API) error {
 	expected := G2Jac{}
 	expected.Neg(api, &circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
