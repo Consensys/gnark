@@ -66,7 +66,7 @@ type pairingBLS24315 struct {
 
 func (circuit *pairingBLS24315) Define(api frontend.API) error {
 
-	milRes := MillerLoop(api, circuit.P, circuit.Q)
+	milRes, _ := MillerLoop(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 
 	pairingRes := FinalExponentiation(api, milRes)
 
@@ -101,7 +101,7 @@ type triplePairingBLS24315 struct {
 
 func (circuit *triplePairingBLS24315) Define(api frontend.API) error {
 
-	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
+	milRes, _ := MillerLoop(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
 	pairingRes := FinalExponentiation(api, milRes)
 
