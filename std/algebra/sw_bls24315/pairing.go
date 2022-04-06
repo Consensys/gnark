@@ -25,9 +25,12 @@ import (
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 )
 
+<<<<<<< HEAD
 // GT target group of the pairing
 type GT = fields_bls24315.E24
 
+=======
+>>>>>>> develop
 const ateLoop = 3218079743
 
 // LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
@@ -35,6 +38,7 @@ type LineEvaluation struct {
 	R0, R1 fields_bls24315.E4
 }
 
+<<<<<<< HEAD
 // MillerLoop computes the product of n miller loops (n can be 1)
 func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	// check input size match
@@ -42,11 +46,66 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	if n == 0 || n != len(Q) {
 		return GT{}, errors.New("invalid inputs sizes")
 	}
+=======
+// FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
+func FinalExponentiation(api frontend.API, e1 fields_bls24315.E24) fields_bls24315.E24 {
+	const genT = ateLoop
+	result := e1
+
+	// https://eprint.iacr.org/2012/232.pdf, section 7
+	var t [9]fields_bls24315.E24
+
+	// easy part
+	t[0].Conjugate(api, result)
+	t[0].DivUnchecked(api, t[0], result)
+	result.FrobeniusQuad(api, t[0]).
+		Mul(api, result, t[0])
+
+	// hard part (api, up to permutation)
+	// Daiki Hayashida and Kenichiro Hayasaka
+	// and Tadanori Teruya
+	// https://eprint.iacr.org/2020/875.pdf
+	// 3*Phi_24(p)/r = (u-1)² * (u+p) * (u²+p²) * (u⁴+p⁴-1) + 3
+	t[0].CyclotomicSquare(api, result)
+	t[1].Expt(api, result, genT)
+	t[2].Conjugate(api, result)
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Conjugate(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	t[2].Expt(api, t[1], genT)
+	t[1].Frobenius(api, t[1])
+	t[1].Mul(api, t[1], t[2])
+	result.Mul(api, result, t[0])
+	t[0].Expt(api, t[1], genT)
+	t[2].Expt(api, t[0], genT)
+	t[0].FrobeniusSquare(api, t[1])
+	t[2].Mul(api, t[0], t[2])
+	t[1].Expt(api, t[2], genT)
+	t[1].Expt(api, t[1], genT)
+	t[1].Expt(api, t[1], genT)
+	t[1].Expt(api, t[1], genT)
+	t[0].FrobeniusQuad(api, t[2])
+	t[0].Mul(api, t[0], t[1])
+	t[2].Conjugate(api, t[2])
+	t[0].Mul(api, t[0], t[2])
+	result.Mul(api, result, t[0])
+
+	return result
+}
+
+// MillerLoop computes the miller loop
+func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls24315.E24 {
+>>>>>>> develop
 
 	var ateLoop2NAF [33]int8
 	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
 
+<<<<<<< HEAD
 	var res GT
+=======
+	var res fields_bls24315.E24
+>>>>>>> develop
 	res.SetOne()
 
 	var l1, l2 LineEvaluation
@@ -61,6 +120,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
 	}
 
+<<<<<<< HEAD
 	// k = 0
 	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
 	res.D1.C0.MulByFp(api, l1.R0, xOverY[0])
@@ -83,6 +143,11 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 			res.MulBy034(api, l1.R0, l1.R1)
 		}
 	}
+=======
+	Qacc, l1 = DoubleStep(api, &Qacc)
+	res.D1.C0.MulByFp(api, l1.R0, xOverY)
+	res.D1.C1.MulByFp(api, l1.R1, yInv)
+>>>>>>> develop
 
 	for i := len(ateLoop2NAF) - 3; i >= 0; i-- {
 		res.Square(api, res)
@@ -122,6 +187,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	return res, nil
 }
 
+<<<<<<< HEAD
 // FinalExponentiation computes the final expo x**(p**12-1)(p**4+1)(p**8 - p**4 +1)/r
 func FinalExponentiation(api frontend.API, e1 GT) GT {
 	const genT = ateLoop
@@ -176,6 +242,83 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		return GT{}, err
 	}
 	return FinalExponentiation(api, f), nil
+=======
+// TripleMillerLoop computes the product of three miller loops
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls24315.E24 {
+
+	var ateLoop2NAF [33]int8
+	optimaAteLoop, _ := new(big.Int).SetString("3218079743", 10)
+	ecc.NafDecomposition(optimaAteLoop, ateLoop2NAF[:])
+
+	var res fields_bls24315.E24
+	res.SetOne()
+
+	var l1, l2 LineEvaluation
+	Qacc := make([]G2Affine, 3)
+	Qneg := make([]G2Affine, 3)
+	yInv := make([]frontend.Variable, 3)
+	xOverY := make([]frontend.Variable, 3)
+	for k := 0; k < 3; k++ {
+		Qacc[k] = Q[k]
+		Qneg[k].Neg(api, &Q[k])
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
+	}
+
+	// k = 0
+	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
+	res.D1.C0.MulByFp(api, l1.R0, xOverY[0])
+	res.D1.C1.MulByFp(api, l1.R1, yInv[0])
+
+	// k = 1
+	Qacc[1], l1 = DoubleStep(api, &Qacc[1])
+	l1.R0.MulByFp(api, l1.R0, xOverY[1])
+	l1.R1.MulByFp(api, l1.R1, yInv[1])
+	res.Mul034By034(api, l1.R0, l1.R1, res.D1.C0, res.D1.C1)
+
+	// k = 2
+	Qacc[2], l1 = DoubleStep(api, &Qacc[2])
+	l1.R0.MulByFp(api, l1.R0, xOverY[2])
+	l1.R1.MulByFp(api, l1.R1, yInv[2])
+	res.MulBy034(api, l1.R0, l1.R1)
+
+	for i := len(ateLoop2NAF) - 3; i >= 0; i-- {
+		res.Square(api, res)
+
+		if ateLoop2NAF[i] == 0 {
+			for k := 0; k < 3; k++ {
+				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+			}
+		} else if ateLoop2NAF[i] == 1 {
+			for k := 0; k < 3; k++ {
+				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R1.MulByFp(api, l2.R1, yInv[k])
+				res.MulBy034(api, l2.R0, l2.R1)
+			}
+		} else {
+			for k := 0; k < 3; k++ {
+				Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Qneg[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R1.MulByFp(api, l2.R1, yInv[k])
+				res.MulBy034(api, l2.R0, l2.R1)
+			}
+		}
+	}
+
+	res.Conjugate(api, res)
+
+	return res
+>>>>>>> develop
 }
 
 // DoubleAndAddStep
