@@ -37,8 +37,8 @@ type finalExp struct {
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
-	pairingRes := FinalExponentiation(api, circuit.ML)
-	mustbeEq(api, pairingRes, &circuit.R)
+	finalExpRes := FinalExponentiation(api, circuit.ML)
+	mustbeEq(api, finalExpRes, &circuit.R)
 
 	return nil
 }
@@ -65,9 +65,7 @@ type pairingBLS377 struct {
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
-	milRes, _ := MillerLoop(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
-
-	pairingRes := FinalExponentiation(api, milRes)
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -100,9 +98,7 @@ type triplePairingBLS377 struct {
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-	milRes, _ := MillerLoop(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-
-	pairingRes := FinalExponentiation(api, milRes)
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
