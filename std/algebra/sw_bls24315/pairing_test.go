@@ -43,6 +43,7 @@ func (circuit *finalExp) Define(api frontend.API) error {
 
 	return nil
 }
+
 func TestFinalExp(t *testing.T) {
 
 	// pairing test data
@@ -92,6 +93,46 @@ func TestPairingBLS24315(t *testing.T) {
 
 }
 
+type triplePairingBLS24315 struct {
+	P1, P2, P3 G1Affine `gnark:",public"`
+	Q1, Q2, Q3 G2Affine
+	pairingRes bls24315.GT
+}
+
+func (circuit *triplePairingBLS24315) Define(api frontend.API) error {
+
+	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
+
+	pairingRes := FinalExponentiation(api, milRes)
+
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
+
+	return nil
+}
+
+func TestTriplePairingBLS24315(t *testing.T) {
+
+	// pairing test data
+	P, Q, pairingRes := triplePairingData()
+
+	// create cs
+	var circuit, witness triplePairingBLS24315
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.P3.Assign(&P[2])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+	witness.Q3.Assign(&Q[2])
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
+
+}
+
+// utils
 func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, milRes bls24315.E24, pairingRes bls24315.GT) {
 	_, _, P, Q = bls24315.Generators()
 	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
@@ -144,75 +185,15 @@ func mustbeEq(api frontend.API, fp24 fields_bls24315.E24, e24 *bls24315.GT) {
 	api.AssertIsEqual(fp24.D1.C2.B1.A1, e24.D1.C2.B1.A1)
 }
 
-type triplePairingBLS24315 struct {
-	P1, P2, P3 G1Affine `gnark:",public"`
-	Q1, Q2, Q3 G2Affine
-	pairingRes bls24315.GT
-}
-
-func (circuit *triplePairingBLS24315) Define(api frontend.API) error {
-
-	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-
-	pairingRes := FinalExponentiation(api, milRes)
-
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
-
-	return nil
-}
-
-func TestTriplePairingBLS24315(t *testing.T) {
-
-	// pairing test data
-	P, Q, pairingRes := triplePairingData()
-
-	// create cs
-	var circuit, witness triplePairingBLS24315
-	circuit.pairingRes = pairingRes
-
-	// assign values to witness
-	witness.P1.Assign(&P[0])
-	witness.P2.Assign(&P[1])
-	witness.P3.Assign(&P[2])
-	witness.Q1.Assign(&Q[0])
-	witness.Q2.Assign(&Q[1])
-	witness.Q3.Assign(&Q[2])
-
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
-
-}
-
-type fp24FinalExpo struct {
-	A fields_bls24315.E24
-	C fields_bls24315.E24 `gnark:",public"`
-}
-
-func (circuit *fp24FinalExpo) Define(api frontend.API) error {
-	expected := FinalExponentiation(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
-}
-
-func TestExpFinalExpoFp24(t *testing.T) {
-	var circuit, witness fp24FinalExpo
-
-	// witness values
-	var a, c bls24315.E24
-
-	a.SetRandom()
-	c = bls24315.FinalExponentiation(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-
-	// cs values
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
-}
-
+// bench
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS24315
+	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkTriplePairing(b *testing.B) {
+	var c triplePairingBLS24315
 	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

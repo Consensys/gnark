@@ -40,7 +40,7 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	}
 
 	var res fields_bls12377.E12
-	res.SetOne(api)
+	res.SetOne()
 
 	var l1, l2 LineEvaluation
 	var Qacc G2Affine
@@ -48,7 +48,11 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	yInv := api.DivUnchecked(1, P.Y)
 	xOverY := api.DivUnchecked(P.X, P.Y)
 
-	for i := len(ateLoopBin) - 2; i >= 0; i-- {
+	Qacc, l1 = DoubleStep(api, &Qacc)
+	res.C1.B0.MulByFp(api, l1.R0, xOverY)
+	res.C1.B1.MulByFp(api, l1.R1, yInv)
+
+	for i := len(ateLoopBin) - 3; i >= 0; i-- {
 		res.Square(api, res)
 
 		if ateLoopBin[i] == 0 {
@@ -71,6 +75,73 @@ func MillerLoop(api frontend.API, P G1Affine, Q G2Affine) fields_bls12377.E12 {
 	return res
 }
 
+// TripleMillerLoop computes the product of three miller loops
+func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls12377.E12 {
+
+	var ateLoopBin [64]uint
+	var ateLoopBigInt big.Int
+	ateLoopBigInt.SetUint64(ateLoop)
+	for i := 0; i < 64; i++ {
+		ateLoopBin[i] = ateLoopBigInt.Bit(i)
+	}
+
+	var res fields_bls12377.E12
+	res.SetOne()
+
+	var l1, l2 LineEvaluation
+	Qacc := make([]G2Affine, 3)
+	yInv := make([]frontend.Variable, 3)
+	xOverY := make([]frontend.Variable, 3)
+	for k := 0; k < 3; k++ {
+		Qacc[k] = Q[k]
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
+	}
+
+	// k = 0
+	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
+	res.C1.B0.MulByFp(api, l1.R0, xOverY[0])
+	res.C1.B1.MulByFp(api, l1.R1, yInv[0])
+
+	// k = 1
+	Qacc[1], l1 = DoubleStep(api, &Qacc[1])
+	l1.R0.MulByFp(api, l1.R0, xOverY[1])
+	l1.R1.MulByFp(api, l1.R1, yInv[1])
+	res.Mul034By034(api, l1.R0, l1.R1, res.C1.B0, res.C1.B1)
+
+	// k = 2
+	Qacc[2], l1 = DoubleStep(api, &Qacc[2])
+	l1.R0.MulByFp(api, l1.R0, xOverY[2])
+	l1.R1.MulByFp(api, l1.R1, yInv[2])
+	res.MulBy034(api, l1.R0, l1.R1)
+
+	for i := len(ateLoopBin) - 3; i >= 0; i-- {
+		res.Square(api, res)
+
+		if ateLoopBin[i] == 0 {
+			for k := 0; k < 3; k++ {
+				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R1.MulByFp(api, l1.R1, yInv[k])
+				res.MulBy034(api, l1.R0, l1.R1)
+			}
+			continue
+		}
+
+		for k := 0; k < 3; k++ {
+			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
+			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R1.MulByFp(api, l1.R1, yInv[k])
+			res.MulBy034(api, l1.R0, l1.R1)
+			l2.R0.MulByFp(api, l2.R0, xOverY[k])
+			l2.R1.MulByFp(api, l2.R1, yInv[k])
+			res.MulBy034(api, l2.R0, l2.R1)
+		}
+	}
+
+	return res
+}
+
 // FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
 func FinalExponentiation(api frontend.API, e1 fields_bls12377.E12) fields_bls12377.E12 {
 	const genT = ateLoop
@@ -82,8 +153,7 @@ func FinalExponentiation(api frontend.API, e1 fields_bls12377.E12) fields_bls123
 
 	// easy part
 	t[0].Conjugate(api, result)
-	result.Inverse(api, result)
-	t[0].Mul(api, t[0], result)
+	t[0].DivUnchecked(api, t[0], result)
 	result.FrobeniusSquare(api, t[0]).
 		Mul(api, result, t[0])
 
@@ -123,7 +193,7 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
 	d.Sub(api, p1.X, p2.X)
-	l1.Inverse(api, d).Mul(api, l1, n)
+	l1.DivUnchecked(api, n, d)
 
 	// x3 =lambda1**2-p1.x-p2.x
 	x3.Square(api, l1).
@@ -139,7 +209,7 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
 	n.Double(api, p1.Y)
 	d.Sub(api, x3, p1.X)
-	l2.Inverse(api, d).Mul(api, l2, n)
+	l2.DivUnchecked(api, n, d)
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute x4 = lambda2**2-x1-x3
@@ -171,7 +241,7 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
 	d.MulByFp(api, p1.Y, 2)
-	l.Inverse(api, d).Mul(api, l, n)
+	l.DivUnchecked(api, n, d)
 
 	// xr = lambda**2-2*p1.x
 	xr.Square(api, l).
@@ -191,54 +261,4 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 
 	return p, line
 
-}
-
-// TripleMillerLoop computes the product of three miller loops
-func TripleMillerLoop(api frontend.API, P [3]G1Affine, Q [3]G2Affine) fields_bls12377.E12 {
-
-	var ateLoopBin [64]uint
-	var ateLoopBigInt big.Int
-	ateLoopBigInt.SetUint64(ateLoop)
-	for i := 0; i < 64; i++ {
-		ateLoopBin[i] = ateLoopBigInt.Bit(i)
-	}
-
-	var res fields_bls12377.E12
-	res.SetOne(api)
-
-	var l1, l2 LineEvaluation
-	Qacc := make([]G2Affine, 3)
-	yInv := make([]frontend.Variable, 3)
-	xOverY := make([]frontend.Variable, 3)
-	for k := 0; k < 3; k++ {
-		Qacc[k] = Q[k]
-		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
-	}
-
-	for i := len(ateLoopBin) - 2; i >= 0; i-- {
-		res.Square(api, res)
-
-		if ateLoopBin[i] == 0 {
-			for k := 0; k < 3; k++ {
-				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-				res.MulBy034(api, l1.R0, l1.R1)
-			}
-			continue
-		}
-
-		for k := 0; k < 3; k++ {
-			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
-			l1.R0.MulByFp(api, l1.R0, xOverY[k])
-			l1.R1.MulByFp(api, l1.R1, yInv[k])
-			res.MulBy034(api, l1.R0, l1.R1)
-			l2.R0.MulByFp(api, l2.R0, xOverY[k])
-			l2.R1.MulByFp(api, l2.R1, yInv[k])
-			res.MulBy034(api, l2.R0, l2.R1)
-		}
-	}
-
-	return res
 }

@@ -19,7 +19,9 @@ package fields_bls24315
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -85,34 +87,45 @@ func getBLS24315ExtensionFp24() Extension {
 	return res
 }
 
-// SetOne returns a newly allocated element equal to 1
-func (e *E24) SetOne(api frontend.API) *E24 {
-	e.D0.C0.B0.A0 = 1
-	e.D0.C0.B0.A1 = 0
-	e.D0.C0.B1.A0 = 0
-	e.D0.C0.B1.A1 = 0
-	e.D0.C1.B0.A0 = 0
-	e.D0.C1.B0.A1 = 0
-	e.D0.C1.B1.A0 = 1
-	e.D0.C1.B1.A1 = 0
-	e.D0.C2.B0.A0 = 0
-	e.D0.C2.B0.A1 = 0
-	e.D0.C2.B1.A0 = 0
-	e.D0.C2.B1.A1 = 0
-	e.D1.C0.B0.A0 = 0
-	e.D1.C0.B0.A1 = 0
-	e.D1.C0.B1.A0 = 0
-	e.D1.C0.B1.A1 = 0
-	e.D1.C1.B0.A0 = 0
-	e.D1.C1.B0.A1 = 0
-	e.D1.C1.B1.A0 = 0
-	e.D1.C1.B1.A1 = 0
-	e.D1.C2.B0.A0 = 0
-	e.D1.C2.B0.A1 = 0
-	e.D1.C2.B1.A0 = 0
-	e.D1.C2.B1.A1 = 0
-
+// SetZero returns a newly allocated element equal to 0
+func (e *E24) SetZero() *E24 {
+	e.D0.SetZero()
+	e.D1.SetZero()
 	return e
+}
+
+// SetOne returns a newly allocated element equal to 1
+func (e *E24) SetOne() *E24 {
+	e.D0.SetOne()
+	e.D1.SetZero()
+	return e
+}
+
+func (e *E24) assign(e1 []frontend.Variable) {
+	e.D0.C0.B0.A0 = e1[0]
+	e.D0.C0.B0.A1 = e1[1]
+	e.D0.C0.B1.A0 = e1[2]
+	e.D0.C0.B1.A1 = e1[3]
+	e.D0.C1.B0.A0 = e1[4]
+	e.D0.C1.B0.A1 = e1[5]
+	e.D0.C1.B1.A0 = e1[6]
+	e.D0.C1.B1.A1 = e1[7]
+	e.D0.C2.B0.A0 = e1[8]
+	e.D0.C2.B0.A1 = e1[9]
+	e.D0.C2.B1.A0 = e1[10]
+	e.D0.C2.B1.A1 = e1[11]
+	e.D1.C0.B0.A0 = e1[12]
+	e.D1.C0.B0.A1 = e1[13]
+	e.D1.C0.B1.A0 = e1[14]
+	e.D1.C0.B1.A1 = e1[15]
+	e.D1.C1.B0.A0 = e1[16]
+	e.D1.C1.B0.A1 = e1[17]
+	e.D1.C1.B1.A0 = e1[18]
+	e.D1.C1.B1.A1 = e1[19]
+	e.D1.C2.B0.A0 = e1[20]
+	e.D1.C2.B0.A1 = e1[21]
+	e.D1.C2.B1.A0 = e1[22]
+	e.D1.C2.B1.A1 = e1[23]
 }
 
 // Add adds 2 elmts in Fp24
@@ -250,7 +263,7 @@ func (e *E24) Decompress(api frontend.API, x E24) *E24 {
 
 	var t [3]E4
 	var one E4
-	one.SetOne(api)
+	one.SetOne()
 
 	// t0 = g1²
 	t[0].Square(api, x.D0.C1)
@@ -262,12 +275,11 @@ func (e *E24) Decompress(api frontend.API, x E24) *E24 {
 	t[2].Square(api, x.D1.C2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
-	// t1 = 1/(4 * g3)
+	// t1 = 4 * g3
 	t[1].Double(api, x.D1.C0).
-		Double(api, t[1]).
-		Inverse(api, t[1])
-	// z4 = g4
-	e.D1.C1.Mul(api, t[0], t[1])
+		Double(api, t[1])
+	// z4 = g4 / t1
+	e.D1.C1.DivUnchecked(api, t[0], t[1])
 
 	// t1 = g2 * g1
 	t[1].Mul(api, x.D0.C2, x.D0.C1)
@@ -335,7 +347,7 @@ func (e *E24) MulBy034(api frontend.API, c3, c4 E4) *E24 {
 
 	var d E12
 	var one E4
-	one.SetOne(api)
+	one.SetOne()
 
 	a := e.D0
 	b := e.D1
@@ -352,21 +364,220 @@ func (e *E24) MulBy034(api frontend.API, c3, c4 E4) *E24 {
 	return e
 }
 
-// Inverse inverse an elmt in Fp24
+// Mul034By034 multiplication of sparse element (1,0,0,c3,c4,0) by sparse element (1,0,0,d3,d4,0)
+func (e *E24) Mul034By034(api frontend.API, d3, d4, c3, c4 E4) *E24 {
+	var one, tmp, x3, x4, x04, x03, x34 E4
+	one.SetOne()
+	x3.Mul(api, c3, d3)
+	x4.Mul(api, c4, d4)
+	x04.Add(api, c4, d4)
+	x03.Add(api, c3, d3)
+	tmp.Add(api, c3, c4)
+	x34.Add(api, d3, d4).
+		Mul(api, x34, tmp).
+		Sub(api, x34, x3).
+		Sub(api, x34, x4)
+
+	e.D0.C0.MulByNonResidue(api, x4).
+		Add(api, e.D0.C0, one)
+	e.D0.C1 = x3
+	e.D0.C2 = x34
+	e.D1.C0 = x03
+	e.D1.C1 = x04
+	e.D1.C2.SetZero()
+
+	return e
+}
+
+var InverseE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E24
+
+	a.D0.C0.B0.A0.SetBigInt(inputs[0])
+	a.D0.C0.B0.A1.SetBigInt(inputs[1])
+	a.D0.C0.B1.A0.SetBigInt(inputs[2])
+	a.D0.C0.B1.A1.SetBigInt(inputs[3])
+	a.D0.C1.B0.A0.SetBigInt(inputs[4])
+	a.D0.C1.B0.A1.SetBigInt(inputs[5])
+	a.D0.C1.B1.A0.SetBigInt(inputs[6])
+	a.D0.C1.B1.A1.SetBigInt(inputs[7])
+	a.D0.C2.B0.A0.SetBigInt(inputs[8])
+	a.D0.C2.B0.A1.SetBigInt(inputs[9])
+	a.D0.C2.B1.A0.SetBigInt(inputs[10])
+	a.D0.C2.B1.A1.SetBigInt(inputs[11])
+	a.D1.C0.B0.A0.SetBigInt(inputs[12])
+	a.D1.C0.B0.A1.SetBigInt(inputs[13])
+	a.D1.C0.B1.A0.SetBigInt(inputs[14])
+	a.D1.C0.B1.A1.SetBigInt(inputs[15])
+	a.D1.C1.B0.A0.SetBigInt(inputs[16])
+	a.D1.C1.B0.A1.SetBigInt(inputs[17])
+	a.D1.C1.B1.A0.SetBigInt(inputs[18])
+	a.D1.C1.B1.A1.SetBigInt(inputs[19])
+	a.D1.C2.B0.A0.SetBigInt(inputs[20])
+	a.D1.C2.B0.A1.SetBigInt(inputs[21])
+	a.D1.C2.B1.A0.SetBigInt(inputs[22])
+	a.D1.C2.B1.A1.SetBigInt(inputs[23])
+
+	c.Inverse(&a)
+
+	c.D0.C0.B0.A0.ToBigIntRegular(res[0])
+	c.D0.C0.B0.A1.ToBigIntRegular(res[1])
+	c.D0.C0.B1.A0.ToBigIntRegular(res[2])
+	c.D0.C0.B1.A1.ToBigIntRegular(res[3])
+	c.D0.C1.B0.A0.ToBigIntRegular(res[4])
+	c.D0.C1.B0.A1.ToBigIntRegular(res[5])
+	c.D0.C1.B1.A0.ToBigIntRegular(res[6])
+	c.D0.C1.B1.A1.ToBigIntRegular(res[7])
+	c.D0.C2.B0.A0.ToBigIntRegular(res[8])
+	c.D0.C2.B0.A1.ToBigIntRegular(res[9])
+	c.D0.C2.B1.A0.ToBigIntRegular(res[10])
+	c.D0.C2.B1.A1.ToBigIntRegular(res[11])
+	c.D1.C0.B0.A0.ToBigIntRegular(res[12])
+	c.D1.C0.B0.A1.ToBigIntRegular(res[13])
+	c.D1.C0.B1.A0.ToBigIntRegular(res[14])
+	c.D1.C0.B1.A1.ToBigIntRegular(res[15])
+	c.D1.C1.B0.A0.ToBigIntRegular(res[16])
+	c.D1.C1.B0.A1.ToBigIntRegular(res[17])
+	c.D1.C1.B1.A0.ToBigIntRegular(res[18])
+	c.D1.C1.B1.A1.ToBigIntRegular(res[19])
+	c.D1.C2.B0.A0.ToBigIntRegular(res[20])
+	c.D1.C2.B0.A1.ToBigIntRegular(res[21])
+	c.D1.C2.B1.A0.ToBigIntRegular(res[22])
+	c.D1.C2.B1.A1.ToBigIntRegular(res[23])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE24Hint)
+}
+
+// Inverse e24 elmts
 func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 
-	var t [2]E12
-	var buf E12
+	res, err := api.NewHint(InverseE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	t[0].Square(api, e1.D0)
-	t[1].Square(api, e1.D1)
+	var e3, one E24
+	e3.assign(res[:24])
 
-	buf.MulByNonResidue(api, t[1])
-	t[0].Sub(api, t[0], buf)
+	one.SetOne()
 
-	t[1].Inverse(api, t[0])
-	e.D0.Mul(api, e1.D0, t[1])
-	e.D1.Mul(api, e1.D1, t[1]).Neg(api, e.D1)
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.MustBeEqual(api, one)
+
+	e.assign(res[:24])
+
+	return e
+}
+
+var DivE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E24
+
+	a.D0.C0.B0.A0.SetBigInt(inputs[0])
+	a.D0.C0.B0.A1.SetBigInt(inputs[1])
+	a.D0.C0.B1.A0.SetBigInt(inputs[2])
+	a.D0.C0.B1.A1.SetBigInt(inputs[3])
+	a.D0.C1.B0.A0.SetBigInt(inputs[4])
+	a.D0.C1.B0.A1.SetBigInt(inputs[5])
+	a.D0.C1.B1.A0.SetBigInt(inputs[6])
+	a.D0.C1.B1.A1.SetBigInt(inputs[7])
+	a.D0.C2.B0.A0.SetBigInt(inputs[8])
+	a.D0.C2.B0.A1.SetBigInt(inputs[9])
+	a.D0.C2.B1.A0.SetBigInt(inputs[10])
+	a.D0.C2.B1.A1.SetBigInt(inputs[11])
+	a.D1.C0.B0.A0.SetBigInt(inputs[12])
+	a.D1.C0.B0.A1.SetBigInt(inputs[13])
+	a.D1.C0.B1.A0.SetBigInt(inputs[14])
+	a.D1.C0.B1.A1.SetBigInt(inputs[15])
+	a.D1.C1.B0.A0.SetBigInt(inputs[16])
+	a.D1.C1.B0.A1.SetBigInt(inputs[17])
+	a.D1.C1.B1.A0.SetBigInt(inputs[18])
+	a.D1.C1.B1.A1.SetBigInt(inputs[19])
+	a.D1.C2.B0.A0.SetBigInt(inputs[20])
+	a.D1.C2.B0.A1.SetBigInt(inputs[21])
+	a.D1.C2.B1.A0.SetBigInt(inputs[22])
+	a.D1.C2.B1.A1.SetBigInt(inputs[23])
+
+	b.D0.C0.B0.A0.SetBigInt(inputs[24])
+	b.D0.C0.B0.A1.SetBigInt(inputs[25])
+	b.D0.C0.B1.A0.SetBigInt(inputs[26])
+	b.D0.C0.B1.A1.SetBigInt(inputs[27])
+	b.D0.C1.B0.A0.SetBigInt(inputs[28])
+	b.D0.C1.B0.A1.SetBigInt(inputs[29])
+	b.D0.C1.B1.A0.SetBigInt(inputs[30])
+	b.D0.C1.B1.A1.SetBigInt(inputs[31])
+	b.D0.C2.B0.A0.SetBigInt(inputs[32])
+	b.D0.C2.B0.A1.SetBigInt(inputs[33])
+	b.D0.C2.B1.A0.SetBigInt(inputs[34])
+	b.D0.C2.B1.A1.SetBigInt(inputs[35])
+	b.D1.C0.B0.A0.SetBigInt(inputs[36])
+	b.D1.C0.B0.A1.SetBigInt(inputs[37])
+	b.D1.C0.B1.A0.SetBigInt(inputs[38])
+	b.D1.C0.B1.A1.SetBigInt(inputs[39])
+	b.D1.C1.B0.A0.SetBigInt(inputs[40])
+	b.D1.C1.B0.A1.SetBigInt(inputs[41])
+	b.D1.C1.B1.A0.SetBigInt(inputs[42])
+	b.D1.C1.B1.A1.SetBigInt(inputs[43])
+	b.D1.C2.B0.A0.SetBigInt(inputs[44])
+	b.D1.C2.B0.A1.SetBigInt(inputs[45])
+	b.D1.C2.B1.A0.SetBigInt(inputs[46])
+	b.D1.C2.B1.A1.SetBigInt(inputs[47])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.D0.C0.B0.A0.ToBigIntRegular(res[0])
+	c.D0.C0.B0.A1.ToBigIntRegular(res[1])
+	c.D0.C0.B1.A0.ToBigIntRegular(res[2])
+	c.D0.C0.B1.A1.ToBigIntRegular(res[3])
+	c.D0.C1.B0.A0.ToBigIntRegular(res[4])
+	c.D0.C1.B0.A1.ToBigIntRegular(res[5])
+	c.D0.C1.B1.A0.ToBigIntRegular(res[6])
+	c.D0.C1.B1.A1.ToBigIntRegular(res[7])
+	c.D0.C2.B0.A0.ToBigIntRegular(res[8])
+	c.D0.C2.B0.A1.ToBigIntRegular(res[9])
+	c.D0.C2.B1.A0.ToBigIntRegular(res[10])
+	c.D0.C2.B1.A1.ToBigIntRegular(res[11])
+	c.D1.C0.B0.A0.ToBigIntRegular(res[12])
+	c.D1.C0.B0.A1.ToBigIntRegular(res[13])
+	c.D1.C0.B1.A0.ToBigIntRegular(res[14])
+	c.D1.C0.B1.A1.ToBigIntRegular(res[15])
+	c.D1.C1.B0.A0.ToBigIntRegular(res[16])
+	c.D1.C1.B0.A1.ToBigIntRegular(res[17])
+	c.D1.C1.B1.A0.ToBigIntRegular(res[18])
+	c.D1.C1.B1.A1.ToBigIntRegular(res[19])
+	c.D1.C2.B0.A0.ToBigIntRegular(res[20])
+	c.D1.C2.B0.A1.ToBigIntRegular(res[21])
+	c.D1.C2.B1.A0.ToBigIntRegular(res[22])
+	c.D1.C2.B1.A1.ToBigIntRegular(res[23])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE24Hint)
+}
+
+// DivUnchecked e24 elmts
+func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
+
+	res, err := api.NewHint(DivE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1, e2.D0.C0.B0.A0, e2.D0.C0.B0.A1, e2.D0.C0.B1.A0, e2.D0.C0.B1.A1, e2.D0.C1.B0.A0, e2.D0.C1.B0.A1, e2.D0.C1.B1.A0, e2.D0.C1.B1.A1, e2.D0.C2.B0.A0, e2.D0.C2.B0.A1, e2.D0.C2.B1.A0, e2.D0.C2.B1.A1, e2.D1.C0.B0.A0, e2.D1.C0.B0.A1, e2.D1.C0.B1.A0, e2.D1.C0.B1.A1, e2.D1.C1.B0.A0, e2.D1.C1.B0.A1, e2.D1.C1.B1.A0, e2.D1.C1.B1.A1, e2.D1.C2.B0.A0, e2.D1.C2.B0.A1, e2.D1.C2.B1.A0, e2.D1.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E24
+	e3.assign(res[:24])
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.MustBeEqual(api, e1)
+
+	e.assign(res[:24])
 
 	return e
 }

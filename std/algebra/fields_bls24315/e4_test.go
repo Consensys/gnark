@@ -208,6 +208,35 @@ func TestConjugateFp4(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
+type e4Div struct {
+	A, B, C E4
+}
+
+func (circuit *e4Div) Define(api frontend.API) error {
+	var expected E4
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.MustBeEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp4(t *testing.T) {
+
+	// witness values
+	var a, b, c bls24315.E4
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e4Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e4Div{}, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type fp4Inverse struct {
 	A E4
 	C E4 `gnark:",public"`
