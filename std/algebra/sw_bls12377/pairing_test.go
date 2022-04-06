@@ -37,13 +37,8 @@ type finalExp struct {
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
-<<<<<<< HEAD
 	finalExpRes := FinalExponentiation(api, circuit.ML)
 	mustbeEq(api, finalExpRes, &circuit.R)
-=======
-	pairingRes := FinalExponentiation(api, circuit.ML)
-	mustbeEq(api, pairingRes, &circuit.R)
->>>>>>> develop
 
 	return nil
 }
@@ -103,13 +98,7 @@ type triplePairingBLS377 struct {
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-<<<<<<< HEAD
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-=======
-	milRes := TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-
-	pairingRes := FinalExponentiation(api, milRes)
->>>>>>> develop
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 

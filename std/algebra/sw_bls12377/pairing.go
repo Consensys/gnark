@@ -49,11 +49,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		ateLoopBin[i] = ateLoopBigInt.Bit(i)
 	}
 
-<<<<<<< HEAD
 	var res GT
-=======
-	var res fields_bls12377.E12
->>>>>>> develop
 	res.SetOne()
 
 	var l1, l2 LineEvaluation
@@ -66,7 +62,6 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
 	}
 
-<<<<<<< HEAD
 	// k = 0
 	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
 	res.C1.B0.MulByFp(api, l1.R0, xOverY[0])
@@ -89,11 +84,6 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 			res.MulBy034(api, l1.R0, l1.R1)
 		}
 	}
-=======
-	Qacc, l1 = DoubleStep(api, &Qacc)
-	res.C1.B0.MulByFp(api, l1.R0, xOverY)
-	res.C1.B1.MulByFp(api, l1.R1, yInv)
->>>>>>> develop
 
 	for i := len(ateLoopBin) - 3; i >= 0; i-- {
 		res.Square(api, res)

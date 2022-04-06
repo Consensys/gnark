@@ -216,11 +216,7 @@ func (circuit *e4Div) Define(api frontend.API) error {
 	var expected E4
 
 	expected.DivUnchecked(api, circuit.A, circuit.B)
-<<<<<<< HEAD
 	expected.AssertIsEqual(api, circuit.C)
-=======
-	expected.MustBeEqual(api, circuit.C)
->>>>>>> develop
 	return nil
 }
 

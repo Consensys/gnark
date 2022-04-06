@@ -483,11 +483,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
 	// 1 == e3 * e1
 	e3.Mul(api, e3, e1)
-<<<<<<< HEAD
 	e3.AssertIsEqual(api, one)
-=======
-	e3.MustBeEqual(api, one)
->>>>>>> develop
 
 	e.assign(res[:12])
 
@@ -559,11 +555,7 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 
 	// e1 == e3 * e2
 	e3.Mul(api, e3, e2)
-<<<<<<< HEAD
 	e3.AssertIsEqual(api, e1)
-=======
-	e3.MustBeEqual(api, e1)
->>>>>>> develop
 
 	e.assign(res[:12])
 
