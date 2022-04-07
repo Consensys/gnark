@@ -50,7 +50,7 @@ func emulatedFields(t *testing.T) []emulatedField {
 }
 
 func testName(ef emulatedField) string {
-	return fmt.Sprintf("p=%s.../limb=%d", ef.name, ef.params.nbBits)
+	return fmt.Sprintf("%s/limb=%d", ef.name, ef.params.nbBits)
 }
 
 type AssertLimbEqualityCircuit struct {
