@@ -210,7 +210,7 @@ func (e *Element) maxWidth() uint {
 // assertLimbsEqualitySlow is the main routine in the package. It asserts that the
 // two slices of limbs represent the same integer value. This is also the most
 // costly operation in the package as it does bit decomposition of the limbs.
-func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) error {
+func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) {
 	nbLimbs := len(l)
 	if len(r) > nbLimbs {
 		nbLimbs = len(r)
@@ -245,7 +245,6 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		carry = bits.FromBinary(api, diffBits[nbBits:nbBits+nbCarryBits+1])
 	}
 	api.AssertIsEqual(carry, maxValueShift)
-	return nil
 }
 
 // AssertLimbsEquality asserts that the limbs represent a same integer value (up
