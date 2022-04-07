@@ -377,9 +377,7 @@ func (e *Element) Reduce(a Element) *Element {
 // widths of the limbs.
 func (e *Element) Set(a Element) {
 	e.Limbs = make([]frontend.Variable, e.params.nbLimbs)
-	for i := range a.Limbs {
-		e.Limbs[i] = a.Limbs[i]
-	}
+	copy(e.Limbs, a.Limbs)
 	if a.api == nil {
 		// we are setting from constant -- ensure that the widths of the limbs
 		// are restricted
