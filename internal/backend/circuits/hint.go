@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 type hintCircuit struct {
@@ -30,6 +31,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 	c := res[0]
 	c = api.Mul(c, c)
 	api.AssertIsEqual(c, 9)
+
 	return nil
 }
 
@@ -53,7 +55,46 @@ func (c *vectorDoubleCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type recursiveHint struct {
+	A frontend.Variable
+}
+
+func (circuit *recursiveHint) Define(api frontend.API) error {
+	// first hint produces wire w1
+	w1, _ := api.Compiler().NewHint(make3, 1)
+
+	// this linear expression is not recorded in a R1CS just yet
+	linearExpression := api.Add(circuit.A, w1[0])
+
+	// api.ToBinary calls another hint (bits.NBits) with linearExpression as input
+	// however, when the solver will resolve bits[...] it will need to detect w1 as a dependency
+	// in order to compute the correct linearExpression value
+	bits := api.ToBinary(linearExpression, 10)
+
+	a := api.FromBinary(bits...)
+
+	api.AssertIsEqual(a, 45)
+
+	return nil
+}
+
 func init() {
+	{
+		good := []frontend.Circuit{
+			&recursiveHint{
+				A: 42,
+			},
+		}
+
+		bad := []frontend.Circuit{
+			&recursiveHint{
+				A: 1,
+			},
+		}
+
+		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, gnark.Curves(), make3, bits.NBits)
+	}
+
 	{
 		good := []frontend.Circuit{
 			&hintCircuit{
@@ -69,7 +110,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("hint", &hintCircuit{}, good, bad, ecc.Implemented(), mulBy7, make3)
+		addNewEntry("hint", &hintCircuit{}, good, bad, gnark.Curves(), mulBy7, make3)
 	}
 
 	{
@@ -94,40 +135,24 @@ func init() {
 				},
 			},
 		}
-		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, ecc.Implemented(), dvHint)
+		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, gnark.Curves(), dvHint)
 	}
 }
 
-var mulBy7 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
+var mulBy7 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
 	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.Info().Fr.Modulus())
 	return nil
-})
-
-var make3 = hint.NewStaticHint(func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
-	result[0].SetUint64(3)
-	return nil
-})
-
-var dvHint = &doubleVector{}
-
-type doubleVector struct{}
-
-func (dv *doubleVector) UUID() hint.ID {
-	return hint.UUID(dv.Call)
 }
 
-func (dv *doubleVector) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var make3 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
+	result[0].SetUint64(3)
+	return nil
+}
+
+var dvHint = func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
 	two := big.NewInt(2)
 	for i := range inputs {
 		res[i].Mul(two, inputs[i])
 	}
 	return nil
-}
-
-func (dv *doubleVector) NbOutputs(curveID ecc.ID, nInputs int) (nOutputs int) {
-	return nInputs
-}
-
-func (dv *doubleVector) String() string {
-	return "double"
 }

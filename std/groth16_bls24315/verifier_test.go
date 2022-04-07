@@ -28,7 +28,6 @@ import (
 	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/internal/backend/bls24-315/witness"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -109,17 +108,8 @@ type verifierCircuit struct {
 
 func (circuit *verifierCircuit) Define(api frontend.API) error {
 
-	// pairing data
-	ateLoop := uint64(3218079743)
-	ext := fields_bls24315.GetBLS24315ExtensionFp24(api)
-	pairingInfo := sw_bls24315.PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.B0.A0 = 0
-	pairingInfo.BTwistCoeff.B0.A1 = 0
-	pairingInfo.BTwistCoeff.B1.A0 = 0
-	pairingInfo.BTwistCoeff.B1.A1 = "6108483493771298205388567675447533806912846525679192205394505462405828322019437284165171866703"
-
 	// create the verifier cs
-	Verify(api, pairingInfo, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
+	Verify(api, circuit.InnerVk, circuit.InnerProof, []frontend.Variable{circuit.Hash})
 
 	return nil
 }

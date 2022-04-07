@@ -25,10 +25,37 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/test"
 )
+
+type finalExp struct {
+	ML fields_bls12377.E12
+	R  bls12377.GT
+}
+
+func (circuit *finalExp) Define(api frontend.API) error {
+
+	finalExpRes := FinalExponentiation(api, circuit.ML)
+	mustbeEq(api, finalExpRes, &circuit.R)
+
+	return nil
+}
+
+func TestFinalExp(t *testing.T) {
+
+	// pairing test data
+	_, _, milRes, pairingRes := pairingData()
+
+	// create cs
+	var circuit, witness finalExp
+	witness.ML.Assign(&milRes)
+	circuit.R = pairingRes
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+}
 
 type pairingBLS377 struct {
 	P          G1Affine `gnark:",public"`
@@ -38,19 +65,7 @@ type pairingBLS377 struct {
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
 
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = 0
-	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
-
-	milRes := fields_bls12377.E12{}
-	//MillerLoop(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	//MillerLoopAffine(cs, circuit.P, circuit.Q, &milRes, pairingInfo)
-	MillerLoop(api, circuit.P, circuit.Q, &milRes, pairingInfo)
-
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -75,40 +90,44 @@ func TestPairingBLS377(t *testing.T) {
 
 }
 
-type finalExp struct {
-	ML fields_bls12377.E12
-	R  bls12377.GT
+type triplePairingBLS377 struct {
+	P1, P2, P3 G1Affine `gnark:",public"`
+	Q1, Q2, Q3 G2Affine
+	pairingRes bls12377.GT
 }
 
-func (circuit *finalExp) Define(api frontend.API) error {
+func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = 0
-	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
 
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, circuit.ML, ateLoop, ext)
-
-	mustbeEq(api, pairingRes, &circuit.R)
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
 	return nil
 }
-func TestFinalExp(t *testing.T) {
+
+func TestTriplePairingBLS377(t *testing.T) {
 
 	// pairing test data
-	_, _, milRes, pairingRes := pairingData()
+	P, Q, pairingRes := triplePairingData()
 
 	// create cs
-	var circuit, witness finalExp
-	witness.ML.Assign(&milRes)
-	circuit.R = pairingRes
+	var circuit, witness triplePairingBLS377
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.P3.Assign(&P[2])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
 }
 
+// utils
 func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
 	_, _, P, Q = bls12377.Generators()
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
@@ -149,59 +168,21 @@ func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
 }
 
-type triplePairingBLS377 struct {
-	P1, P2, P3 G1Affine `gnark:",public"`
-	Q1, Q2, Q3 G2Affine
-	pairingRes bls12377.GT
-}
-
-func (circuit *triplePairingBLS377) Define(api frontend.API) error {
-
-	ateLoop := uint64(9586122913090633729)
-	ext := fields_bls12377.GetBLS12377ExtensionFp12(api)
-	pairingInfo := PairingContext{AteLoop: ateLoop, Extension: ext}
-	pairingInfo.BTwistCoeff.A0 = 0
-	pairingInfo.BTwistCoeff.A1 = "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906"
-
-	milRes := fields_bls12377.E12{}
-	TripleMillerLoop(api, [3]G1Affine{circuit.P1, circuit.P2, circuit.P3}, [3]G2Affine{circuit.Q1, circuit.Q2, circuit.Q3}, &milRes, pairingInfo)
-
-	pairingRes := fields_bls12377.E12{}
-	pairingRes.FinalExponentiation(api, milRes, ateLoop, ext)
-
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
-
-	return nil
-}
-
-func TestTriplePairingBLS377(t *testing.T) {
-
-	// pairing test data
-	P, Q, pairingRes := triplePairingData()
-
-	// create cs
-	var circuit, witness triplePairingBLS377
-	circuit.pairingRes = pairingRes
-
-	// assign values to witness
-	witness.P1.Assign(&P[0])
-	witness.P2.Assign(&P[1])
-	witness.P3.Assign(&P[2])
-	witness.Q1.Assign(&Q[0])
-	witness.Q2.Assign(&Q[1])
-	witness.Q3.Assign(&Q[2])
-
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-
-}
-
+// bench
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
 	}
-	// ccsBench, _ = compiler.Compile(ecc.BW6_761, backend.GROTH16, &c)
-	// b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkTriplePairing(b *testing.B) {
+	var c triplePairingBLS377
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+	}
+	b.Log("groth16", ccsBench.GetNbConstraints())
 }

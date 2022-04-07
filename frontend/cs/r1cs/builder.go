@@ -41,6 +41,7 @@ import (
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 )
 
 // NewBuilder returns a new R1CS compiler
@@ -88,7 +89,7 @@ func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *r1cs {
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (system *r1cs) newInternalVariable() compiled.LinearExpression {
-	idx := system.NbInternalVariables
+	idx := system.NbInternalVariables + system.NbPublicVariables + system.NbSecretVariables
 	system.NbInternalVariables++
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal),
@@ -97,9 +98,6 @@ func (system *r1cs) newInternalVariable() compiled.LinearExpression {
 
 // AddPublicVariable creates a new public Variable
 func (system *r1cs) AddPublicVariable(name string) frontend.Variable {
-	if system.Schema != nil {
-		panic("do not call AddPublicVariable in circuit.Define()")
-	}
 	idx := len(system.Public)
 	system.Public = append(system.Public, name)
 	return compiled.LinearExpression{
@@ -109,10 +107,7 @@ func (system *r1cs) AddPublicVariable(name string) frontend.Variable {
 
 // AddSecretVariable creates a new secret Variable
 func (system *r1cs) AddSecretVariable(name string) frontend.Variable {
-	if system.Schema != nil {
-		panic("do not call AddSecretVariable in circuit.Define()")
-	}
-	idx := len(system.Secret)
+	idx := len(system.Secret) + system.NbPublicVariables
 	system.Secret = append(system.Secret, name)
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret),
@@ -273,14 +268,19 @@ func (system *r1cs) checkVariables() error {
 					cptPublic--
 				}
 			case schema.Secret:
+				vID -= system.NbPublicVariables
 				if !secretConstrained[vID] {
 					secretConstrained[vID] = true
 					cptSecret--
 				}
 			case schema.Internal:
-				if _, ok := system.MHints[vID]; !mHintsConstrained[vID] && ok {
-					mHintsConstrained[vID] = true
-					cptHints--
+
+				if _, ok := system.MHints[vID]; ok {
+					vID -= (system.NbPublicVariables + system.NbSecretVariables)
+					if !mHintsConstrained[vID] {
+						mHintsConstrained[vID] = true
+						cptHints--
+					}
 				}
 			}
 		}
@@ -344,14 +344,20 @@ func init() {
 
 // Compile constructs a rank-1 constraint sytem
 func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
+	log := logger.Logger()
+	log.Info().
+		Str("curve", cs.CurveID.String()).
+		Int("nbConstraints", len(cs.Constraints)).
+		Msg("building constraint system")
 
 	// ensure all inputs and hints are constrained
-	if !cs.config.IgnoreUnconstrainedInputs {
-		if err := cs.checkVariables(); err != nil {
+	err := cs.checkVariables()
+	if err != nil {
+		log.Warn().Msg("circuit has unconstrained inputs")
+		if !cs.config.IgnoreUnconstrainedInputs {
 			return nil, err
 		}
 	}
-
 	// wires = public wires  | secret wires | internal wires
 
 	// setting up the result
@@ -359,88 +365,13 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 		ConstraintSystem: cs.ConstraintSystem,
 		Constraints:      cs.Constraints,
 	}
-	res.NbPublicVariables = len(cs.Public)
-	res.NbSecretVariables = len(cs.Secret)
 
-	// for Logs, DebugInfo and hints the only thing that will change
-	// is that ID of the wires will be offseted to take into account the final wire vector ordering
-	// that is: public wires  | secret wires | internal wires
-
-	// offset variable ID depeneding on visibility
-	shiftVID := func(oldID int, visibility schema.Visibility) int {
-		switch visibility {
-		case schema.Internal:
-			return oldID + res.NbPublicVariables + res.NbSecretVariables
-		case schema.Public:
-			return oldID
-		case schema.Secret:
-			return oldID + res.NbPublicVariables
-		}
-		return oldID
+	// sanity check
+	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
+		panic("number of public variables is inconsitent") // it grew after the schema parsing?
 	}
-
-	// we just need to offset our ids, such that wires = [ public wires  | secret wires | internal wires ]
-	offsetIDs := func(l compiled.LinearExpression) {
-		for j := 0; j < len(l); j++ {
-			_, vID, visibility := l[j].Unpack()
-			l[j].SetWireID(shiftVID(vID, visibility))
-		}
-	}
-
-	for i := 0; i < len(res.Constraints); i++ {
-		offsetIDs(res.Constraints[i].L)
-		offsetIDs(res.Constraints[i].R)
-		offsetIDs(res.Constraints[i].O)
-	}
-
-	// we need to offset the ids in the hints
-	shiftedMap := make(map[int]*compiled.Hint)
-
-	// we need to offset the ids in the hints
-HINTLOOP:
-	for _, hint := range cs.MHints {
-		ws := make([]int, len(hint.Wires))
-		// we set for all outputs in shiftedMap. If one shifted output
-		// is in shiftedMap, then all are
-		for i, vID := range hint.Wires {
-			ws[i] = shiftVID(vID, schema.Internal)
-			if _, ok := shiftedMap[ws[i]]; i == 0 && ok {
-				continue HINTLOOP
-			}
-		}
-		inputs := make([]interface{}, len(hint.Inputs))
-		copy(inputs, hint.Inputs)
-		for j := 0; j < len(inputs); j++ {
-			switch t := inputs[j].(type) {
-			case compiled.LinearExpression:
-				tmp := make(compiled.LinearExpression, len(t))
-				copy(tmp, t)
-				offsetIDs(tmp)
-				inputs[j] = tmp
-			default:
-				inputs[j] = t
-			}
-		}
-		ch := &compiled.Hint{ID: hint.ID, Inputs: inputs, Wires: ws}
-		for _, vID := range ws {
-			shiftedMap[vID] = ch
-		}
-	}
-	res.MHints = shiftedMap
-
-	// we need to offset the ids in Logs & DebugInfo
-	for i := 0; i < len(cs.Logs); i++ {
-
-		for j := 0; j < len(res.Logs[i].ToResolve); j++ {
-			_, vID, visibility := res.Logs[i].ToResolve[j].Unpack()
-			res.Logs[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
-		}
-	}
-	for i := 0; i < len(cs.DebugInfo); i++ {
-		for j := 0; j < len(res.DebugInfo[i].ToResolve); j++ {
-			_, vID, visibility := res.DebugInfo[i].ToResolve[j].Unpack()
-			res.DebugInfo[i].ToResolve[j].SetWireID(shiftVID(vID, visibility))
-		}
+	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
+		panic("number of secret variables is inconsitent") // it grew after the schema parsing?
 	}
 
 	// build levels
@@ -469,6 +400,8 @@ func (cs *r1cs) SetSchema(s *schema.Schema) {
 		panic("SetSchema called multiple times")
 	}
 	cs.Schema = s
+	cs.NbPublicVariables = s.NbPublic + 1
+	cs.NbSecretVariables = s.NbSecret
 }
 
 func buildLevels(ccs compiled.R1CS) [][]int {
@@ -668,7 +601,7 @@ func (system *r1cs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	}
 
 	// register the hint as dependency
-	hintUUID, hintID := f.UUID(), f.String()
+	hintUUID, hintID := hint.UUID(f), hint.Name(f)
 	if id, ok := system.MHintsDependencies[hintUUID]; ok {
 		// hint already registered, let's ensure string id matches
 		if id != hintID {
@@ -703,7 +636,7 @@ func (system *r1cs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 		res[i] = r
 	}
 
-	ch := &compiled.Hint{ID: f.UUID(), Inputs: hintInputs, Wires: varIDs}
+	ch := &compiled.Hint{ID: hintUUID, Inputs: hintInputs, Wires: varIDs}
 	for _, vID := range varIDs {
 		system.MHints[vID] = ch
 	}

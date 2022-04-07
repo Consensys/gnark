@@ -323,6 +323,7 @@ func (e *engine) Println(a ...frontend.Variable) {
 	for i := 0; i < len(a); i++ {
 		v := e.toBigInt(a[i])
 		sbb.WriteString(v.String())
+		sbb.WriteByte(' ')
 	}
 	fmt.Println(sbb.String())
 }
@@ -344,7 +345,7 @@ func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Vari
 		res[i] = new(big.Int)
 	}
 
-	err := f.Call(e.curveID, in, res)
+	err := f(e.curveID, in, res)
 
 	if err != nil {
 		panic("NewHint: " + err.Error())

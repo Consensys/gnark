@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -28,7 +28,7 @@ func rangeCheckConstant() {
 	bad.X = (11)
 	bad.Y = (4)
 
-	addEntry("range_constant", &circuit, &good, &bad, ecc.Implemented())
+	addEntry("range_constant", &circuit, &good, &bad, gnark.Curves())
 }
 
 type rangeCheckCircuit struct {
@@ -58,7 +58,7 @@ func rangeCheck() {
 	bad.Y = (4)
 	bad.Bound = (161)
 
-	addEntry("range", &circuit, &good, &bad, ecc.Implemented())
+	addEntry("range", &circuit, &good, &bad, gnark.Curves())
 }
 
 func init() {

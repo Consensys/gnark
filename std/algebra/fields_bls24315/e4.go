@@ -17,7 +17,11 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -26,13 +30,25 @@ type E4 struct {
 	B0, B1 E2
 }
 
-// SetOne returns a newly allocated element equal to 1
-func (e *E4) SetOne(api frontend.API) *E4 {
-	e.B0.A0 = 1
-	e.B0.A1 = 0
-	e.B1.A0 = 0
-	e.B1.A1 = 0
+// SetZero returns a newly allocated element equal to 0
+func (e *E4) SetZero() *E4 {
+	e.B0.SetZero()
+	e.B1.SetZero()
 	return e
+}
+
+// SetOne returns a newly allocated element equal to 1
+func (e *E4) SetOne() *E4 {
+	e.B0.SetOne()
+	e.B1.SetZero()
+	return e
+}
+
+func (e *E4) assign(e1 []frontend.Variable) {
+	e.B0.A0 = e1[0]
+	e.B0.A1 = e1[1]
+	e.B1.A0 = e1[2]
+	e.B1.A1 = e1[3]
 }
 
 // NewFp4Zero creates a new
@@ -72,34 +88,34 @@ func (e *E4) Sub(api frontend.API, e1, e2 E4) *E4 {
 }
 
 // Mul e4 elmts: 5C
-func (e *E4) Mul(api frontend.API, e1, e2 E4, ext Extension) *E4 {
+func (e *E4) Mul(api frontend.API, e1, e2 E4) *E4 {
 
 	var a, b, c E2
 
 	a.Add(api, e1.B0, e1.B1)
 	b.Add(api, e2.B0, e2.B1)
-	a.Mul(api, a, b, ext)
-	b.Mul(api, e1.B0, e2.B0, ext)
-	c.Mul(api, e1.B1, e2.B1, ext)
+	a.Mul(api, a, b)
+	b.Mul(api, e1.B0, e2.B0)
+	c.Mul(api, e1.B1, e2.B1)
 	e.B1.Sub(api, a, b).Sub(api, e.B1, c)
-	e.B0.MulByNonResidue(api, c, ext).Add(api, e.B0, b)
+	e.B0.MulByNonResidue(api, c).Add(api, e.B0, b)
 
 	return e
 }
 
 // Square e4 elt
-func (e *E4) Square(api frontend.API, x E4, ext Extension) *E4 {
+func (e *E4) Square(api frontend.API, x E4) *E4 {
 
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 
 	var c0, c2, c3 E2
 
 	c0.Sub(api, x.B0, x.B1)
-	c3.MulByNonResidue(api, x.B1, ext).Sub(api, x.B0, c3)
-	c2.Mul(api, x.B0, x.B1, ext)
-	c0.Mul(api, c0, c3, ext).Add(api, c0, c2)
+	c3.MulByNonResidue(api, x.B1).Sub(api, x.B0, c3)
+	c2.Mul(api, x.B0, x.B1)
+	c0.Mul(api, c0, c3).Add(api, c0, c2)
 	e.B1.Double(api, c2)
-	c2.MulByNonResidue(api, c2, ext)
+	c2.MulByNonResidue(api, c2)
 	e.B0.Add(api, c0, c2)
 
 	return e
@@ -114,9 +130,9 @@ func (e *E4) MulByFp(api frontend.API, e1 E4, c interface{}) *E4 {
 
 // MulByNonResidue multiplies an e4 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E4) MulByNonResidue(api frontend.API, e1 E4, ext Extension) *E4 {
+func (e *E4) MulByNonResidue(api frontend.API, e1 E4) *E4 {
 	e.B1, e.B0 = e1.B0, e1.B1
-	e.B0.MulByNonResidue(api, e.B0, ext)
+	e.B0.MulByNonResidue(api, e.B0)
 	return e
 }
 
@@ -127,20 +143,93 @@ func (e *E4) Conjugate(api frontend.API, e1 E4) *E4 {
 	return e
 }
 
-// Inverse inverses an e4 elmt
-func (e *E4) Inverse(api frontend.API, e1 E4, ext Extension) *E4 {
+var DivE4Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E4
 
-	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+	b.B0.A0.SetBigInt(inputs[4])
+	b.B0.A1.SetBigInt(inputs[5])
+	b.B1.A0.SetBigInt(inputs[6])
+	b.B1.A1.SetBigInt(inputs[7])
 
-	var t0, t1, tmp E2
+	c.Inverse(&b).Mul(&c, &a)
 
-	t0.Square(api, e1.B0, ext)
-	t1.Square(api, e1.B1, ext)
-	tmp.MulByNonResidue(api, t1, ext)
-	t0.Sub(api, t0, tmp)
-	t1.Inverse(api, t0, ext)
-	e.B0.Mul(api, e1.B0, t1, ext)
-	e.B1.Mul(api, e1.B1, t1, ext).Neg(api, e.B1)
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE4Hint)
+}
+
+// DivUnchecked e4 elmts
+func (e *E4) DivUnchecked(api frontend.API, e1, e2 E4) *E4 {
+
+	res, err := api.NewHint(DivE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E4
+	e3.assign(res[:4])
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.AssertIsEqual(api, e1)
+
+	e.assign(res[:4])
+
+	return e
+}
+
+var InverseE4Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E4
+
+	a.B0.A0.SetBigInt(inputs[0])
+	a.B0.A1.SetBigInt(inputs[1])
+	a.B1.A0.SetBigInt(inputs[2])
+	a.B1.A1.SetBigInt(inputs[3])
+
+	c.Inverse(&a)
+
+	c.B0.A0.ToBigIntRegular(res[0])
+	c.B0.A1.ToBigIntRegular(res[1])
+	c.B1.A0.ToBigIntRegular(res[2])
+	c.B1.A1.ToBigIntRegular(res[3])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE4Hint)
+}
+
+// Inverse e4 elmts
+func (e *E4) Inverse(api frontend.API, e1 E4) *E4 {
+
+	res, err := api.NewHint(InverseE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3, one E4
+	e3.assign(res[:4])
+	one.SetOne()
+
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.AssertIsEqual(api, one)
+
+	e.assign(res[:4])
 
 	return e
 }
@@ -151,8 +240,8 @@ func (e *E4) Assign(a *bls24315.E4) {
 	e.B1.Assign(&a.B1)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E4) MustBeEqual(api frontend.API, other E4) {
-	e.B0.MustBeEqual(api, other.B0)
-	e.B1.MustBeEqual(api, other.B1)
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E4) AssertIsEqual(api frontend.API, other E4) {
+	e.B0.AssertIsEqual(api, other.B0)
+	e.B1.AssertIsEqual(api, other.B1)
 }

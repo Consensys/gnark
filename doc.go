@@ -15,3 +15,10 @@
 // User documentation
 // https://docs.gnark.consensys.net
 package gnark
+
+import "github.com/consensys/gnark-crypto/ecc"
+
+// Curves return the curves supported by gnark
+func Curves() []ecc.ID {
+	return []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BLS12_381, ecc.BW6_761, ecc.BLS24_315, ecc.BW6_633}
+}

@@ -48,7 +48,7 @@ type VerifyingKey struct {
 // pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
 // It creates public circuits input, corresponding to the pubInputNames slice.
 // Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, pairingInfo sw_bls24315.PairingContext, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
+func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
 
 	// compute psi0 using a sequence of multiexponentiations
 	// TODO maybe implement the bucket method with c=1 when there's a large input set
@@ -56,6 +56,9 @@ func Verify(api frontend.API, pairingInfo sw_bls24315.PairingContext, innerVk Ve
 
 	// assign the initial psi0 to the part of the public key corresponding to one_wire
 	// note this assumes ONE_WIRE is at position 0
+	if len(innerVk.G1) == 0 {
+		panic("innver verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
+	}
 	psi0.X = innerVk.G1[0].X
 	psi0.Y = innerVk.G1[0].Y
 
@@ -64,15 +67,13 @@ func Verify(api frontend.API, pairingInfo sw_bls24315.PairingContext, innerVk Ve
 		psi0.AddAssign(api, tmp)
 	}
 
-	var resMillerLoop fields_bls24315.E24
 	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-	sw_bls24315.TripleMillerLoop(api, [3]sw_bls24315.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, [3]sw_bls24315.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs}, &resMillerLoop, pairingInfo)
+	resMillerLoop, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, []sw_bls24315.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs})
 
 	// performs the final expo
-	var resPairing fields_bls24315.E24
-	resPairing.FinalExponentiation(api, resMillerLoop, pairingInfo.AteLoop, pairingInfo.Extension)
+	resPairing := sw_bls24315.FinalExponentiation(api, resMillerLoop)
 
 	// vk.E must be equal to resPairing
-	innerVk.E.MustBeEqual(api, resPairing)
+	innerVk.E.AssertIsEqual(api, resPairing)
 
 }

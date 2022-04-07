@@ -17,8 +17,12 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -28,11 +32,23 @@ type E2 struct {
 	A0, A1 frontend.Variable
 }
 
+// SetZero returns a newly allocated element equal to 0
+func (e *E2) SetZero() *E2 {
+	e.A0 = 0
+	e.A1 = 0
+	return e
+}
+
 // SetOne returns a newly allocated element equal to 1
-func (e *E2) SetOne(api frontend.API) *E2 {
+func (e *E2) SetOne() *E2 {
 	e.A0 = 1
 	e.A1 = 0
 	return e
+}
+
+func (e *E2) assign(e1 []frontend.Variable) {
+	e.A0 = e1[0]
+	e.A1 = e1[1]
 }
 
 // Neg negates a e2 elmt
@@ -64,7 +80,7 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 }
 
 // Mul e2 elmts: 5C
-func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
+func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
 	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
@@ -89,7 +105,7 @@ func (e *E2) Mul(api frontend.API, e1, e2 E2, ext Extension) *E2 {
 }
 
 // Square e2 elt
-func (e *E2) Square(api frontend.API, x E2, ext Extension) *E2 {
+func (e *E2) Square(api frontend.API, x E2) *E2 {
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 
 	c0 := api.Sub(x.A0, x.A1)
@@ -115,7 +131,7 @@ func (e *E2) MulByFp(api frontend.API, e1 E2, c interface{}) *E2 {
 
 // MulByNonResidue multiplies an fp2 elmt by the imaginary elmt
 // ext.uSquare is the square of the imaginary root
-func (e *E2) MulByNonResidue(api frontend.API, e1 E2, ext Extension) *E2 {
+func (e *E2) MulByNonResidue(api frontend.API, e1 E2) *E2 {
 	e.A0, e.A1 = e1.A1, e1.A0
 	e.A0 = api.Mul(e.A0, ext.uSquare)
 	return e
@@ -128,18 +144,83 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-// Inverse inverses an fp2elmt
-func (e *E2) Inverse(api frontend.API, e1 E2, ext Extension) *E2 {
+var DivE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E2
 
-	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+	b.A0.SetBigInt(inputs[2])
+	b.A1.SetBigInt(inputs[3])
 
-	t0 := api.Mul(e1.A0, e1.A0)
-	t1 := api.Mul(e1.A1, e1.A1)
-	tmp := api.Mul(t1, ext.uSquare)
-	t0 = api.Sub(t0, tmp)
-	e.A0 = api.DivUnchecked(e1.A0, t0)
-	e.A1 = api.DivUnchecked(e1.A1, t0)
-	e.A1 = api.Sub(0, e.A1)
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE2Hint)
+}
+
+// DivUnchecked e2 elmts
+func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
+
+	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E2
+	e3.assign(res[:2])
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.AssertIsEqual(api, e1)
+
+	e.assign(res[:2])
+
+	return e
+}
+
+var InverseE2Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E2
+
+	a.A0.SetBigInt(inputs[0])
+	a.A1.SetBigInt(inputs[1])
+
+	c.Inverse(&a)
+
+	c.A0.ToBigIntRegular(res[0])
+	c.A1.ToBigIntRegular(res[1])
+
+	return nil
+}
+
+func init() {
+	hint.Register(InverseE2Hint)
+}
+
+// Inverse e2 elmts
+func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
+
+	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3, one E2
+	e3.assign(res[:2])
+	one.SetOne()
+
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.AssertIsEqual(api, one)
+
+	e.assign(res[:2])
 
 	return e
 }
@@ -150,8 +231,8 @@ func (e *E2) Assign(a *bls24315.E2) {
 	e.A1 = (fr.Element)(a.A1)
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E2) MustBeEqual(api frontend.API, other E2) {
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E2) AssertIsEqual(api frontend.API, other E2) {
 	api.AssertIsEqual(e.A0, other.A0)
 	api.AssertIsEqual(e.A1, other.A1)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 )
 
 // Compile will generate a ConstraintSystem from the given circuit
@@ -28,30 +29,35 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newCompiler NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+	log := logger.Logger()
+	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
+			log.Err(err).Msg("applying compile option")
 			return nil, fmt.Errorf("apply option: %w", err)
 		}
 	}
 
-	// instantiate new compiler
-	compiler, err := newCompiler(curveID, opt)
+	// instantiate new builder
+	builder, err := newBuilder(curveID, opt)
 	if err != nil {
+		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
-	if err = parseCircuit(compiler, circuit); err != nil {
+	if err = parseCircuit(builder, circuit); err != nil {
+		log.Err(err).Msg("parsing circuit")
 		return nil, fmt.Errorf("parse circuit: %w", err)
 
 	}
 
 	// compile the circuit into its final form
-	return compiler.Compile()
+	return builder.Compile()
 }
 
 func parseCircuit(builder Builder, circuit Circuit) (err error) {
@@ -60,10 +66,22 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
+	// parse the schema, to count the number of public and secret variables
+	s, err := schema.Parse(circuit, tVariable, nil)
+	if err != nil {
+		return err
+	}
+	log := logger.Logger()
+	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
+
+	// this not only set the schema, but sets the wire offsets for public, secret and internal wires
+	builder.SetSchema(s)
+
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
 		if tInput.CanSet() {
+			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
 			switch visibility {
 			case schema.Secret:
 				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
@@ -79,11 +97,10 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	s, err := schema.Parse(circuit, tVariable, handler)
+	_, err = schema.Parse(circuit, tVariable, handler)
 	if err != nil {
 		return err
 	}
-	builder.SetSchema(s)
 
 	// recover from panics to print user-friendlier messages
 	defer func() {

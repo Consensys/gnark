@@ -3,11 +3,7 @@ on:
     branches:
       - 'master'
       - 'develop'
-  pull_request:
-    branches:
-      - 'master'
-      - 'develop'
-name: CI
+name: push_master_develop
 jobs:
   staticcheck:
     runs-on: ubuntu-latest
@@ -15,7 +11,7 @@ jobs:
     - name: install Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.17.x
+        go-version: 1.18.x
     - name: checkout code
       uses: actions/checkout@v2
       with:
@@ -38,11 +34,11 @@ jobs:
       run: go vet ./...
     - name: staticcheck
       run: |
-        go install honnef.co/go/tools/cmd/staticcheck@latest
+        go install honnef.co/go/tools/cmd/staticcheck@23e1086441d24fed9f668ad1cd4374245118b590
         staticcheck ./...
     - name: gosec
       run: |
-        go install github.com/securego/gosec/cmd/gosec@latest
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
         gosec -exclude G204 ./...
     - name: generated files should not be modified
       run: |
@@ -54,7 +50,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.17.x]
+        go-version: [1.17.x, 1.18.x]
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     needs:
@@ -85,10 +81,6 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         go test -v -timeout=50m -race -short ./...
-    # - name: Test (32bits)
-    #   if: matrix.os == 'ubuntu-latest'
-    #   run: |
-    #     GOARCH=386 go test -v -short ./internal/backend/bn254/...
   
   slack-workflow-status:
     if: always()

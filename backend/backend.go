@@ -16,10 +16,9 @@
 package backend
 
 import (
-	"io"
-	"os"
-
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/logger"
+	"github.com/rs/zerolog"
 )
 
 // ID represent a unique ID for a proving scheme
@@ -58,15 +57,19 @@ type ProverOption func(*ProverConfig) error
 
 // ProverConfig is the configuration for the prover with the options applied.
 type ProverConfig struct {
-	Force         bool            // defaults to false
-	HintFunctions []hint.Function // defaults to all built-in hint functions
-	LoggerOut     io.Writer       // defaults to os.Stdout
+	Force         bool                      // defaults to false
+	HintFunctions map[hint.ID]hint.Function // defaults to all built-in hint functions
+	CircuitLogger zerolog.Logger            // defaults to gnark.Logger
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
 // applied.
 func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
-	opt := ProverConfig{LoggerOut: os.Stdout, HintFunctions: hint.GetAll()}
+	log := logger.Logger()
+	opt := ProverConfig{CircuitLogger: log, HintFunctions: make(map[hint.ID]hint.Function)}
+	for _, v := range hint.GetRegistered() {
+		opt.HintFunctions[hint.UUID(v)] = v
+	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
 			return ProverConfig{}, err
@@ -89,19 +92,28 @@ func IgnoreSolverError() ProverOption {
 // WithHints is a prover option that specifies additional hint functions to be used
 // by the constraint solver.
 func WithHints(hintFunctions ...hint.Function) ProverOption {
+	log := logger.Logger()
 	return func(opt *ProverConfig) error {
 		// it is an error to register hint function several times, but as the
 		// prover already checks it then omit here.
-		opt.HintFunctions = append(opt.HintFunctions, hintFunctions...)
+		for _, h := range hintFunctions {
+			uuid := hint.UUID(h)
+			if _, ok := opt.HintFunctions[uuid]; ok {
+				log.Warn().Int("hintID", int(uuid)).Str("name", hint.Name(h)).Msg("duplicate hint function")
+			} else {
+				opt.HintFunctions[uuid] = h
+			}
+		}
 		return nil
 	}
 }
 
-// WithOutput is a prover option that specifies an io.Writer as destination for
-// logs printed by api.Println(). If set to nil, no logs are printed.
-func WithOutput(w io.Writer) ProverOption {
+// WithCircuitLogger is a prover option that specifies zerolog.Logger as a destination for the
+// logs printed by api.Println(). By default, uses gnark/logger.
+// zerolog.Nop() will disable logging
+func WithCircuitLogger(l zerolog.Logger) ProverOption {
 	return func(opt *ProverConfig) error {
-		opt.LoggerOut = w
+		opt.CircuitLogger = l
 		return nil
 	}
 }

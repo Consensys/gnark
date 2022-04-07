@@ -37,7 +37,7 @@ type fp12Add struct {
 func (circuit *fp12Add) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -68,7 +68,7 @@ type fp12Sub struct {
 func (circuit *fp12Sub) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -98,9 +98,9 @@ type fp12Mul struct {
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Mul(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -129,9 +129,9 @@ type fp12Square struct {
 }
 
 func (circuit *fp12Square) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	s := circuit.A.Square(api, circuit.A, ext)
-	s.MustBeEqual(api, circuit.B)
+
+	s := circuit.A.Square(api, circuit.A)
+	s.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -159,12 +159,12 @@ type fp12CycloSquare struct {
 }
 
 func (circuit *fp12CycloSquare) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
+
 	var u, v E12
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquare(api, circuit.A, ext)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u.Square(api, circuit.A)
+	v.CyclotomicSquare(api, circuit.A)
+	u.AssertIsEqual(api, v)
+	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -199,13 +199,13 @@ type fp12CycloSquareCompressed struct {
 }
 
 func (circuit *fp12CycloSquareCompressed) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
+
 	var u, v E12
-	u.Square(api, circuit.A, ext)
-	v.CyclotomicSquareCompressed(api, circuit.A, ext)
-	v.Decompress(api, v, ext)
-	u.MustBeEqual(api, v)
-	u.MustBeEqual(api, circuit.B)
+	u.Square(api, circuit.A)
+	v.CyclotomicSquareCompressed(api, circuit.A)
+	v.Decompress(api, v)
+	u.AssertIsEqual(api, v)
+	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
@@ -243,7 +243,7 @@ type fp12Conjugate struct {
 func (circuit *fp12Conjugate) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Conjugate(api, circuit.A)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -270,18 +270,18 @@ type fp12Frobenius struct {
 }
 
 func (circuit *fp12Frobenius) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
+
 	fb := E12{}
-	fb.Frobenius(api, circuit.A, ext)
-	fb.MustBeEqual(api, circuit.C)
+	fb.Frobenius(api, circuit.A)
+	fb.AssertIsEqual(api, circuit.C)
 
 	fbSquare := E12{}
-	fbSquare.FrobeniusSquare(api, circuit.A, ext)
-	fbSquare.MustBeEqual(api, circuit.D)
+	fbSquare.FrobeniusSquare(api, circuit.A)
+	fbSquare.AssertIsEqual(api, circuit.D)
 
 	fbCube := E12{}
-	fbCube.FrobeniusCube(api, circuit.A, ext)
-	fbCube.MustBeEqual(api, circuit.E)
+	fbCube.FrobeniusCube(api, circuit.A)
+	fbCube.AssertIsEqual(api, circuit.E)
 	return nil
 }
 
@@ -313,9 +313,9 @@ type fp12Inverse struct {
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
-	expected.Inverse(api, circuit.A, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Inverse(api, circuit.A)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -336,6 +336,35 @@ func TestInverseFp12(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
+type e12Div struct {
+	A, B, C E12
+}
+
+func (circuit *e12Div) Define(api frontend.API) error {
+	var expected E12
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp12(t *testing.T) {
+
+	// witness values
+	var a, b, c bls12377.E12
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e12Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_761))
+}
+
 type fp12FixedExpo struct {
 	A E12
 	C E12 `gnark:",public"`
@@ -343,10 +372,10 @@ type fp12FixedExpo struct {
 
 func (circuit *fp12FixedExpo) Define(api frontend.API) error {
 	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
+
 	expo := uint64(9586122913090633729)
-	expected.Expt(api, circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
+	expected.Expt(api, circuit.A, expo)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -374,37 +403,6 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
-type fp12FinalExpo struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *fp12FinalExpo) Define(api frontend.API) error {
-	expected := E12{}
-	ext := GetBLS12377ExtensionFp12(api)
-	expo := uint64(9586122913090633729)
-	expected.FinalExponentiation(api, circuit.A, expo, ext)
-	expected.MustBeEqual(api, circuit.C)
-	return nil
-}
-
-func TestExpFinalExpoFp12(t *testing.T) {
-	var circuit, witness fp12FinalExpo
-
-	// witness values
-	var a, c bls12377.E12
-
-	a.SetRandom()
-	c = bls12377.FinalExponentiation(&a)
-
-	witness.A.Assign(&a)
-	witness.C.Assign(&c)
-
-	// cs values
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-}
-
 type fp12MulBy034 struct {
 	A    E12 `gnark:",public"`
 	W    E12
@@ -412,9 +410,9 @@ type fp12MulBy034 struct {
 }
 
 func (circuit *fp12MulBy034) Define(api frontend.API) error {
-	ext := GetBLS12377ExtensionFp12(api)
-	circuit.A.MulBy034(api, circuit.B, circuit.C, ext)
-	circuit.A.MustBeEqual(api, circuit.W)
+
+	circuit.A.MulBy034(api, circuit.B, circuit.C)
+	circuit.A.AssertIsEqual(api, circuit.W)
 	return nil
 }
 

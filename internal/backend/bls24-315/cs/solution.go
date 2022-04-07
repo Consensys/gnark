@@ -19,7 +19,6 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"sync/atomic"
 
@@ -27,13 +26,12 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
-
-var errUnsatisfiedConstraint = errors.New("unsatisfied")
 
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
@@ -41,23 +39,18 @@ type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
-	mHintsFunctions      map[hint.ID]hint.Function
+	mHintsFunctions      map[hint.ID]hint.Function // maps hintID to hint function
+	mHints               map[int]*compiled.Hint    // maps wireID to hint
 }
 
-func newSolution(nbWires int, hintFunctions []hint.Function, hintsDependencies map[hint.ID]string, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*compiled.Hint, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
-		mHintsFunctions: make(map[hint.ID]hint.Function, len(hintFunctions)),
-	}
-
-	for _, h := range hintFunctions {
-		if _, ok := s.mHintsFunctions[h.UUID()]; ok {
-			return s, fmt.Errorf("duplicate hint function %s", h)
-		}
-		s.mHintsFunctions[h.UUID()] = h
+		mHintsFunctions: hintFunctions,
+		mHints:          mHints,
 	}
 
 	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
@@ -137,14 +130,6 @@ func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
 	}
 }
 
-func (s *solution) computeLinearExpression(l compiled.LinearExpression) fr.Element {
-	var res fr.Element
-	for _, t := range l {
-		s.accumulateInto(t, &res)
-	}
-	return res
-}
-
 // solveHint compute solution.values[vID] using provided solver hint
 func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	// skip if the wire is already solved by a call to the same hint
@@ -161,31 +146,51 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
 	nbOutputs := len(h.Wires)
-	// m := len(s.tmpHintsIO)
-	// if m < (nbInputs + nbOutputs) {
-	// 	s.tmpHintsIO = append(s.tmpHintsIO, make([]*big.Int, (nbOutputs + nbInputs) - m)...)
-	// 	for i := m; i < len(s.tmpHintsIO); i++ {
-	// 		s.tmpHintsIO[i] = big.NewInt(0)
-	// 	}
-	// }
 	inputs := make([]*big.Int, nbInputs)
 	outputs := make([]*big.Int, nbOutputs)
-	for i := 0; i < nbInputs; i++ {
-		inputs[i] = big.NewInt(0)
-	}
 	for i := 0; i < nbOutputs; i++ {
 		outputs[i] = big.NewInt(0)
 	}
 
 	q := fr.Modulus()
 
+	// for each input, we set it's big int value, IF all the wires are solved
+	// the only case where all wires may not be solved, is if one of the input of this hint
+	// is the output of another hint.
+	// it is safe to recursively solve this with the parallel solver, since all hints-output wires
+	// that we can solve this way are marked to be solved with the current constraint we are processing.
+	recursiveSolve := func(t compiled.Term) error {
+		wID := t.WireID()
+		if s.solved[wID] {
+			return nil
+		}
+		// unsolved dependency
+		if h, ok := s.mHints[wID]; ok {
+			// solve recursively.
+			return s.solveWithHint(wID, h)
+		}
+
+		// it's not a hint, we panic.
+		panic("solver can't compute hint; one or more input wires are unsolved")
+	}
+
 	for i := 0; i < nbInputs; i++ {
+		inputs[i] = big.NewInt(0)
 
 		switch t := h.Inputs[i].(type) {
 		case compiled.LinearExpression:
-			v := s.computeLinearExpression(t)
+			var v fr.Element
+			for _, term := range t {
+				if err := recursiveSolve(term); err != nil {
+					return err
+				}
+				s.accumulateInto(term, &v)
+			}
 			v.ToBigIntRegular(inputs[i])
 		case compiled.Term:
+			if err := recursiveSolve(t); err != nil {
+				return err
+			}
 			v := s.computeTerm(t)
 			v.ToBigIntRegular(inputs[i])
 		default:
@@ -197,7 +202,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		}
 	}
 
-	err := f.Call(curve.ID, inputs, outputs)
+	err := f(curve.ID, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {
@@ -208,14 +213,14 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err
 }
 
-func (s *solution) printLogs(w io.Writer, logs []compiled.LogEntry) {
-	if w == nil {
+func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
 
 	for i := 0; i < len(logs); i++ {
 		logLine := s.logValue(logs[i])
-		_, _ = io.WriteString(w, logLine)
+		log.Debug().Str(zerolog.CallerFieldName, logs[i].Caller).Msg(logLine)
 	}
 }
 
@@ -283,4 +288,18 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		}
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
+}
+
+// UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
+type UnsatisfiedConstraintError struct {
+	Err       error
+	CID       int     // constraint ID
+	DebugInfo *string // optional debug info
+}
+
+func (r *UnsatisfiedConstraintError) Error() string {
+	if r.DebugInfo != nil {
+		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
+	}
+	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
 }

@@ -17,13 +17,48 @@ limitations under the License.
 package fields_bls24315
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
 
 // E12 element in a quadratic extension
 type E12 struct {
 	C0, C1, C2 E4
+}
+
+// SetZero returns a newly allocated element equal to 0
+func (e *E12) SetZero() *E12 {
+	e.C0.SetZero()
+	e.C1.SetZero()
+	e.C2.SetZero()
+	return e
+}
+
+// SetOne returns a newly allocated element equal to 1
+func (e *E12) SetOne() *E12 {
+	e.C0.SetOne()
+	e.C1.SetZero()
+	e.C2.SetZero()
+	return e
+}
+
+func (e *E12) assign(e1 []frontend.Variable) {
+	e.C0.B0.A0 = e1[0]
+	e.C0.B0.A1 = e1[1]
+	e.C0.B1.A0 = e1[2]
+	e.C0.B1.A1 = e1[3]
+	e.C1.B0.A0 = e1[4]
+	e.C1.B0.A1 = e1[5]
+	e.C1.B1.A0 = e1[6]
+	e.C1.B1.A1 = e1[7]
+	e.C2.B0.A0 = e1[8]
+	e.C2.B0.A1 = e1[9]
+	e.C2.B1.A0 = e1[10]
+	e.C2.B1.A1 = e1[11]
 }
 
 // Add creates a fp12elmt from fp elmts
@@ -65,26 +100,26 @@ func (e *E12) Neg(api frontend.API, e1 E12) *E12 {
 
 // Mul creates a fp12elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
+func (e *E12) Mul(api frontend.API, e1, e2 E12) *E12 {
 
 	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
 	var t0, t1, t2, c0, c1, c2, tmp E4
-	t0.Mul(api, e1.C0, e2.C0, ext)
-	t1.Mul(api, e1.C1, e2.C1, ext)
-	t2.Mul(api, e1.C2, e2.C2, ext)
+	t0.Mul(api, e1.C0, e2.C0)
+	t1.Mul(api, e1.C1, e2.C1)
+	t2.Mul(api, e1.C2, e2.C2)
 
 	c0.Add(api, e1.C1, e1.C2)
 	tmp.Add(api, e2.C1, e2.C2)
-	c0.Mul(api, c0, tmp, ext).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0, ext).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0).Add(api, c0, t0)
 
 	c1.Add(api, e1.C0, e1.C1)
 	tmp.Add(api, e2.C0, e2.C1)
-	c1.Mul(api, c1, tmp, ext).Sub(api, c1, t0).Sub(api, c1, t1)
-	tmp.MulByNonResidue(api, t2, ext)
+	c1.Mul(api, c1, tmp).Sub(api, c1, t0).Sub(api, c1, t1)
+	tmp.MulByNonResidue(api, t2)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.C0, e1.C2)
-	c2.Add(api, e2.C0, e2.C2).Mul(api, c2, tmp, ext).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
+	c2.Add(api, e2.C0, e2.C2).Mul(api, c2, tmp).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
 
 	e.C0 = c0
 	e.C1 = c1
@@ -95,12 +130,12 @@ func (e *E12) Mul(api frontend.API, e1, e2 E12, ext Extension) *E12 {
 
 // MulByFp2 creates a fp12elmt from fp elmts
 // icube is the imaginary elmt to the cube
-func (e *E12) MulByFp2(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
+func (e *E12) MulByFp2(api frontend.API, e1 E12, e2 E4) *E12 {
 	res := E12{}
 
-	res.C0.Mul(api, e1.C0, e2, ext)
-	res.C1.Mul(api, e1.C1, e2, ext)
-	res.C2.Mul(api, e1.C2, e2, ext)
+	res.C0.Mul(api, e1.C0, e2)
+	res.C1.Mul(api, e1.C1, e2)
+	res.C2.Mul(api, e1.C2, e2)
 
 	e.C0 = res.C0
 	e.C1 = res.C1
@@ -110,9 +145,9 @@ func (e *E12) MulByFp2(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
 }
 
 // MulByNonResidue multiplies e by the imaginary elmt of Fp12 (noted a+bV+cV where V**3 in F²)
-func (e *E12) MulByNonResidue(api frontend.API, e1 E12, ext Extension) *E12 {
+func (e *E12) MulByNonResidue(api frontend.API, e1 E12) *E12 {
 	res := E12{}
-	res.C0.MulByNonResidue(api, e1.C2, ext)
+	res.C0.MulByNonResidue(api, e1.C2)
 	e.C1 = e1.C0
 	e.C2 = e1.C1
 	e.C0 = res.C0
@@ -120,19 +155,19 @@ func (e *E12) MulByNonResidue(api frontend.API, e1 E12, ext Extension) *E12 {
 }
 
 // Square sets z to the E12 product of x,x, returns e
-func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
+func (e *E12) Square(api frontend.API, x E12) *E12 {
 
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 	var c4, c5, c1, c2, c3, c0 E4
-	c4.Mul(api, x.C0, x.C1, ext).Double(api, c4)
-	c5.Square(api, x.C2, ext)
-	c1.MulByNonResidue(api, c5, ext).Add(api, c1, c4)
+	c4.Mul(api, x.C0, x.C1).Double(api, c4)
+	c5.Square(api, x.C2)
+	c1.MulByNonResidue(api, c5).Add(api, c1, c4)
 	c2.Sub(api, c4, c5)
-	c3.Square(api, x.C0, ext)
+	c3.Square(api, x.C0)
 	c4.Sub(api, x.C0, x.C1).Add(api, c4, x.C2)
-	c5.Mul(api, x.C1, x.C2, ext).Double(api, c5)
-	c4.Square(api, c4, ext)
-	c0.MulByNonResidue(api, c5, ext).Add(api, c0, c3)
+	c5.Mul(api, x.C1, x.C2).Double(api, c5)
+	c4.Square(api, c4)
+	c0.MulByNonResidue(api, c5).Add(api, c0, c3)
 	e.C2.Add(api, c2, c4).Add(api, e.C2, c5).Sub(api, e.C2, c3)
 	e.C0 = c0
 	e.C1 = c1
@@ -140,85 +175,175 @@ func (e *E12) Square(api frontend.API, x E12, ext Extension) *E12 {
 	return e
 }
 
-// Inverse inverses an Fp12 elmt
-func (e *E12) Inverse(api frontend.API, e1 E12, ext Extension) *E12 {
+var InverseE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, c bls24315.E12
 
-	var t [7]E4
-	var c [3]E4
-	var buf E4
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C1.B0.A0.SetBigInt(inputs[4])
+	a.C1.B0.A1.SetBigInt(inputs[5])
+	a.C1.B1.A0.SetBigInt(inputs[6])
+	a.C1.B1.A1.SetBigInt(inputs[7])
+	a.C2.B0.A0.SetBigInt(inputs[8])
+	a.C2.B0.A1.SetBigInt(inputs[9])
+	a.C2.B1.A0.SetBigInt(inputs[10])
+	a.C2.B1.A1.SetBigInt(inputs[11])
 
-	t[0].Square(api, e1.C0, ext)
-	t[1].Square(api, e1.C1, ext)
-	t[2].Square(api, e1.C2, ext)
-	t[3].Mul(api, e1.C0, e1.C1, ext)
-	t[4].Mul(api, e1.C0, e1.C2, ext)
-	t[5].Mul(api, e1.C1, e1.C2, ext)
+	c.Inverse(&a)
 
-	c[0].MulByNonResidue(api, t[5], ext)
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C1.B0.A0.ToBigIntRegular(res[4])
+	c.C1.B0.A1.ToBigIntRegular(res[5])
+	c.C1.B1.A0.ToBigIntRegular(res[6])
+	c.C1.B1.A1.ToBigIntRegular(res[7])
+	c.C2.B0.A0.ToBigIntRegular(res[8])
+	c.C2.B0.A1.ToBigIntRegular(res[9])
+	c.C2.B1.A0.ToBigIntRegular(res[10])
+	c.C2.B1.A1.ToBigIntRegular(res[11])
 
-	c[0].Neg(api, c[0]).Add(api, c[0], t[0])
-
-	c[1].MulByNonResidue(api, t[2], ext)
-
-	c[1].Sub(api, c[1], t[3])
-	c[2].Sub(api, t[1], t[4])
-	t[6].Mul(api, e1.C2, c[1], ext)
-	buf.Mul(api, e1.C1, c[2], ext)
-	t[6].Add(api, t[6], buf)
-
-	t[6].MulByNonResidue(api, t[6], ext)
-
-	buf.Mul(api, e1.C0, c[0], ext)
-	t[6].Add(api, t[6], buf)
-
-	t[6].Inverse(api, t[6], ext)
-	e.C0.Mul(api, c[0], t[6], ext)
-	e.C1.Mul(api, c[1], t[6], ext)
-	e.C2.Mul(api, c[2], t[6], ext)
-
-	return e
-
+	return nil
 }
 
-// MustBeEqual constraint self to be equal to other into the given constraint system
-func (e *E12) MustBeEqual(api frontend.API, other E12) {
-	e.C0.MustBeEqual(api, other.C0)
-	e.C1.MustBeEqual(api, other.C1)
-	e.C2.MustBeEqual(api, other.C2)
+func init() {
+	hint.Register(InverseE12Hint)
+}
+
+// Inverse e12 elmts
+func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
+
+	res, err := api.NewHint(InverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3, one E12
+	e3.assign(res[:12])
+	one.SetOne()
+
+	// 1 == e3 * e1
+	e3.Mul(api, e3, e1)
+	e3.AssertIsEqual(api, one)
+
+	e.assign(res[:12])
+
+	return e
+}
+
+var DivE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+	var a, b, c bls24315.E12
+
+	a.C0.B0.A0.SetBigInt(inputs[0])
+	a.C0.B0.A1.SetBigInt(inputs[1])
+	a.C0.B1.A0.SetBigInt(inputs[2])
+	a.C0.B1.A1.SetBigInt(inputs[3])
+	a.C1.B0.A0.SetBigInt(inputs[4])
+	a.C1.B0.A1.SetBigInt(inputs[5])
+	a.C1.B1.A0.SetBigInt(inputs[6])
+	a.C1.B1.A1.SetBigInt(inputs[7])
+	a.C2.B0.A0.SetBigInt(inputs[8])
+	a.C2.B0.A1.SetBigInt(inputs[9])
+	a.C2.B1.A0.SetBigInt(inputs[10])
+	a.C2.B1.A1.SetBigInt(inputs[11])
+
+	b.C0.B0.A0.SetBigInt(inputs[12])
+	b.C0.B0.A1.SetBigInt(inputs[13])
+	b.C0.B1.A0.SetBigInt(inputs[14])
+	b.C0.B1.A1.SetBigInt(inputs[15])
+	b.C1.B0.A0.SetBigInt(inputs[16])
+	b.C1.B0.A1.SetBigInt(inputs[17])
+	b.C1.B1.A0.SetBigInt(inputs[18])
+	b.C1.B1.A1.SetBigInt(inputs[19])
+	b.C2.B0.A0.SetBigInt(inputs[20])
+	b.C2.B0.A1.SetBigInt(inputs[21])
+	b.C2.B1.A0.SetBigInt(inputs[22])
+	b.C2.B1.A1.SetBigInt(inputs[23])
+
+	c.Inverse(&b).Mul(&c, &a)
+
+	c.C0.B0.A0.ToBigIntRegular(res[0])
+	c.C0.B0.A1.ToBigIntRegular(res[1])
+	c.C0.B1.A0.ToBigIntRegular(res[2])
+	c.C0.B1.A1.ToBigIntRegular(res[3])
+	c.C1.B0.A0.ToBigIntRegular(res[4])
+	c.C1.B0.A1.ToBigIntRegular(res[5])
+	c.C1.B1.A0.ToBigIntRegular(res[6])
+	c.C1.B1.A1.ToBigIntRegular(res[7])
+	c.C2.B0.A0.ToBigIntRegular(res[8])
+	c.C2.B0.A1.ToBigIntRegular(res[9])
+	c.C2.B1.A0.ToBigIntRegular(res[10])
+	c.C2.B1.A1.ToBigIntRegular(res[11])
+
+	return nil
+}
+
+func init() {
+	hint.Register(DivE12Hint)
+}
+
+// DivUnchecked e12 elmts
+func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
+
+	res, err := api.NewHint(DivE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C2.B0.A0, e2.C2.B0.A1, e2.C2.B1.A0, e2.C2.B1.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var e3 E12
+	e3.assign(res[:12])
+
+	// e1 == e3 * e2
+	e3.Mul(api, e3, e2)
+	e3.AssertIsEqual(api, e1)
+
+	e.assign(res[:12])
+
+	return e
+}
+
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e *E12) AssertIsEqual(api frontend.API, other E12) {
+	e.C0.AssertIsEqual(api, other.C0)
+	e.C1.AssertIsEqual(api, other.C1)
+	e.C2.AssertIsEqual(api, other.C2)
 }
 
 // MulByE4 multiplies an element in E12 by an element in E4
-func (e *E12) MulByE4(api frontend.API, e1 E12, e2 E4, ext Extension) *E12 {
-	e2Copy := E4{}
-	e2Copy = e2
-	e.C0.Mul(api, e1.C0, e2Copy, ext)
-	e.C1.Mul(api, e1.C1, e2Copy, ext)
-	e.C2.Mul(api, e1.C2, e2Copy, ext)
+func (e *E12) MulByE4(api frontend.API, e1 E12, e2 E4) *E12 {
+	e.C0.Mul(api, e1.C0, e2)
+	e.C1.Mul(api, e1.C1, e2)
+	e.C2.Mul(api, e1.C2, e2)
 	return e
 }
 
 // MulBy01 multiplication by sparse element (c0,c1,0)
-func (e *E12) MulBy01(api frontend.API, c0, c1 E4, ext Extension) *E12 {
+func (e *E12) MulBy01(api frontend.API, c0, c1 E4) *E12 {
 
 	var a, b, tmp, t0, t1, t2 E4
 
-	a.Mul(api, e.C0, c0, ext)
-	b.Mul(api, e.C1, c1, ext)
+	a.Mul(api, e.C0, c0)
+	b.Mul(api, e.C1, c1)
 
 	tmp.Add(api, e.C1, e.C2)
-	t0.Mul(api, c1, tmp, ext)
+	t0.Mul(api, c1, tmp)
 	t0.Sub(api, t0, b)
-	t0.MulByNonResidue(api, t0, ext)
+	t0.MulByNonResidue(api, t0)
 	t0.Add(api, t0, a)
 
 	tmp.Add(api, e.C0, e.C2)
-	t2.Mul(api, c0, tmp, ext)
+	t2.Mul(api, c0, tmp)
 	t2.Sub(api, t2, a)
 	t2.Add(api, t2, b)
 
 	t1.Add(api, c0, c1)
 	tmp.Add(api, e.C0, e.C1)
-	t1.Mul(api, t1, tmp, ext)
+	t1.Mul(api, t1, tmp)
 	t1.Sub(api, t1, a)
 	t1.Sub(api, t1, b)
 

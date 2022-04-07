@@ -76,37 +76,19 @@ import (
 // ID is a unique identifier for a hint function used for lookup.
 type ID uint32
 
-// StaticFunction is a function which takes a constant number of inputs and
-// returns a constant number of outputs. Use NewStaticHint() to construct an
-// instance compatible with Function interface.
-type StaticFunction func(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
-
-// Function defines an annotated hint function. To initialize a hint function
-// with static number of inputs and outputs, use NewStaticHint().
-type Function interface {
-	// UUID returns an unique identifier for the hint function. UUID is used for
-	// lookup of the hint function.
-	UUID() ID
-
-	// Call is invoked by the framework to obtain the result from inputs.
-	// Elements in outputs are not guaranteed to be initialized to 0
-	Call(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
-
-	// String returns a human-readable description of the function used in logs
-	// and debug messages.
-	String() string
-}
-
-func NewStaticHint(fn StaticFunction) Function {
-	return fn
-}
+// Function defines an annotated hint function; the number of inputs and outputs injected at solving
+// time is defined in the circuit (compile time).
+//
+// For example:
+//	b := api.NewHint(hint, 2, a)
+//	--> at solving time, hint is going to be invoked with 1 input (a) and is expected to return 2 outputs
+//	b[0] and b[1].
+type Function func(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
 
 // UUID is a reference function for computing the hint ID based on a function name
-func UUID(fn StaticFunction) ID {
+func UUID(fn Function) ID {
 	hf := fnv.New32a()
-	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
-	// using a name for identifying different hints should be enough as we get a
-	// solve-time error when there are duplicate hints with the same signature.
+	name := Name(fn)
 
 	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, wil be package.glob..funcN
 	// and if new anonymous functions are added in the package, N may change, so will UUID.
@@ -115,15 +97,7 @@ func UUID(fn StaticFunction) ID {
 	return ID(hf.Sum32())
 }
 
-func (h StaticFunction) Call(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
-	return h(curveID, inputs, res)
-}
-
-func (h StaticFunction) UUID() ID {
-	return UUID(h)
-}
-
-func (h StaticFunction) String() string {
-	fnptr := reflect.ValueOf(h).Pointer()
+func Name(fn Function) string {
+	fnptr := reflect.ValueOf(fn).Pointer()
 	return runtime.FuncForPC(fnptr).Name()
 }

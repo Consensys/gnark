@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -55,5 +55,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("cmp", &cmpCircuit{}, good, bad, ecc.Implemented())
+	addNewEntry("cmp", &cmpCircuit{}, good, bad, gnark.Curves())
 }

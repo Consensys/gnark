@@ -22,13 +22,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Add returns res = i1+i2+...in
@@ -72,7 +72,6 @@ func (system *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) fronte
 func (system *scs) Neg(i1 frontend.Variable) frontend.Variable {
 	if n, ok := system.ConstantValue(i1); ok {
 		n.Neg(n)
-		// TODO shouldn't that go through variable conversion?
 		return *n
 	} else {
 		v := i1.(compiled.Term)
@@ -174,7 +173,6 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 //
 // The result in in little endian (first bit= lsb)
 func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-
 	// nbBits
 	nbBits := system.BitLen()
 	if len(n) == 1 {
@@ -184,72 +182,12 @@ func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 		}
 	}
 
-	// if a is a constant, work with the big int value.
-	if c, ok := system.ConstantValue(i1); ok {
-		b := make([]frontend.Variable, nbBits)
-		for i := 0; i < len(b); i++ {
-			b[i] = c.Bit(i)
-		}
-		return b
-	}
-
-	a := i1.(compiled.Term)
-	return system.toBinary(a, nbBits, false)
-}
-
-func (system *scs) toBinary(a compiled.Term, nbBits int, unsafe bool) []frontend.Variable {
-
-	// allocate the resulting frontend.Variables and bit-constraint them
-	sb := make([]frontend.Variable, nbBits)
-	var c big.Int
-	c.SetUint64(1)
-
-	bits, err := system.NewHint(hint.NBits, nbBits, a)
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < nbBits; i++ {
-		sb[i] = system.Mul(bits[i], c)
-		c.Lsh(&c, 1)
-		if !unsafe {
-			system.AssertIsBoolean(bits[i])
-		}
-	}
-
-	//var Σbi compiled.Term
-	// TODO we can save a constraint here
-	var Σbi frontend.Variable
-	if nbBits == 1 {
-		Σbi = sb[0]
-	} else if nbBits == 2 {
-		Σbi = system.Add(sb[0], sb[1])
-	} else {
-		Σbi = system.Add(sb[0], sb[1], sb[2:]...)
-	}
-	system.AssertIsEqual(Σbi, a)
-
-	// record the constraint Σ (2**i * b[i]) == a
-	return bits
-
+	return bits.ToBinary(system, i1, bits.WithNbDigits(nbBits))
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
 func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
-	_b := make([]frontend.Variable, len(b))
-	var c big.Int
-	c.SetUint64(1)
-	for i := 0; i < len(b); i++ {
-		_b[i] = system.Mul(b[i], c)
-		c.Lsh(&c, 1)
-	}
-	if len(b) == 1 {
-		return b[0]
-	}
-	if len(b) == 1 {
-		return system.Add(_b[0], _b[1])
-	}
-	return system.Add(_b[0], _b[1], _b[2:]...)
+	return bits.FromBinary(system, b)
 }
 
 // Xor returns a ^ b
@@ -367,6 +305,25 @@ func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Var
 	system.AssertIsBoolean(b0)
 	system.AssertIsBoolean(b1)
 
+	c0, b0IsConstant := system.ConstantValue(b0)
+	c1, b1IsConstant := system.ConstantValue(b1)
+
+	if b0IsConstant && b1IsConstant {
+		b0 := c0.Uint64() == 1
+		b1 := c1.Uint64() == 1
+
+		if !b0 && !b1 {
+			return i0
+		}
+		if b0 && !b1 {
+			return i1
+		}
+		if b0 && b1 {
+			return i3
+		}
+		return i2
+	}
+
 	// two-bit lookup for the general case can be done with three constraints as
 	// following:
 	//    (1) (in3 - in2 - in1 + in0) * s1 = tmp1 - in1 + in0
@@ -451,17 +408,14 @@ func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
 func (system *scs) Println(a ...frontend.Variable) {
-	var sbb strings.Builder
+	var log compiled.LogEntry
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
-		sbb.WriteString(filepath.Base(file))
-		sbb.WriteByte(':')
-		sbb.WriteString(strconv.Itoa(line))
-		sbb.WriteByte(' ')
+		log.Caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
 	}
 
-	var log compiled.LogEntry
+	var sbb strings.Builder
 
 	for i, arg := range a {
 		if i > 0 {
@@ -479,7 +433,6 @@ func (system *scs) Println(a ...frontend.Variable) {
 			printArg(&log, &sbb, arg)
 		}
 	}
-	sbb.WriteByte('\n')
 
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()

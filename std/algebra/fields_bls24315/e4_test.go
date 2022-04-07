@@ -34,7 +34,7 @@ type e4Add struct {
 func (circuit *e4Add) Define(api frontend.API) error {
 	var expected E4
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -63,7 +63,7 @@ type e4Sub struct {
 func (circuit *e4Sub) Define(api frontend.API) error {
 	var expected E4
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -91,9 +91,9 @@ type e4Square struct {
 
 func (circuit *e4Square) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Square(api, circuit.A, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Square(api, circuit.A)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -119,9 +119,9 @@ type e4Mul struct {
 
 func (circuit *e4Mul) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Mul(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (circuit *fp4MulByFp) Define(api frontend.API) error {
 	expected := E4{}
 	expected.MulByFp(api, circuit.A, circuit.B)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (circuit *fp4Conjugate) Define(api frontend.API) error {
 	expected := E4{}
 	expected.Conjugate(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -208,6 +208,35 @@ func TestConjugateFp4(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
+type e4Div struct {
+	A, B, C E4
+}
+
+func (circuit *e4Div) Define(api frontend.API) error {
+	var expected E4
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp4(t *testing.T) {
+
+	// witness values
+	var a, b, c bls24315.E4
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e4Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e4Div{}, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type fp4Inverse struct {
 	A E4
 	C E4 `gnark:",public"`
@@ -215,10 +244,10 @@ type fp4Inverse struct {
 
 func (circuit *fp4Inverse) Define(api frontend.API) error {
 	var expected E4
-	ext := Extension{uSquare: 13}
-	expected.Inverse(api, circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.Inverse(api, circuit.A)
+
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 

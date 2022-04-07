@@ -34,7 +34,7 @@ type e2Add struct {
 func (circuit *e2Add) Define(api frontend.API) error {
 	var expected E2
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -63,7 +63,7 @@ type e2Sub struct {
 func (circuit *e2Sub) Define(api frontend.API) error {
 	var expected E2
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -91,9 +91,9 @@ type e2Mul struct {
 
 func (circuit *e2Mul) Define(api frontend.API) error {
 	var expected E2
-	ext := Extension{uSquare: -5}
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Mul(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -115,6 +115,36 @@ func TestMulFp2(t *testing.T) {
 
 }
 
+type e2Div struct {
+	A, B, C E2
+}
+
+func (circuit *e2Div) Define(api frontend.API) error {
+	var expected E2
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp2(t *testing.T) {
+
+	// witness values
+	var a, b, c bls12377.E2
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e2Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e2Div{}, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp2MulByFp struct {
 	A E2
 	B frontend.Variable
@@ -125,7 +155,7 @@ func (circuit *fp2MulByFp) Define(api frontend.API) error {
 	expected := E2{}
 	expected.MulByFp(api, circuit.A, circuit.B)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -159,7 +189,7 @@ func (circuit *fp2Conjugate) Define(api frontend.API) error {
 	expected := E2{}
 	expected.Conjugate(api, circuit.A)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -186,11 +216,11 @@ type fp2Inverse struct {
 }
 
 func (circuit *fp2Inverse) Define(api frontend.API) error {
-	ext := Extension{uSquare: -5}
-	expected := E2{}
-	expected.Inverse(api, circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected := E2{}
+	expected.Inverse(api, circuit.A)
+
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -232,7 +262,7 @@ func TestMulByNonResidueFp2(t *testing.T) {
 	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
 
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
-	// fp2c.MulByNonResidue(&cs, &fp2a, ext)
+	// fp2c.MulByNonResidue(&cs, &fp2a)
 
 	// api.Tag(fp2c.X, "c0")
 	// api.Tag(fp2c.Y, "c1")

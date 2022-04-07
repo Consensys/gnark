@@ -1,28 +1,30 @@
 package hint
 
 import (
-	"fmt"
 	"sync"
+
+	"github.com/consensys/gnark/logger"
 )
 
 var registry = make(map[ID]Function)
 var registryM sync.RWMutex
 
-// Register registers an annotated hint function in the global registry. All
-// registered hint functions can be retrieved with a call to GetAll(). It is an
-// error to register a single function twice and results in a panic.
+// Register registers an hint function in the global registry.
 func Register(hintFn Function) {
 	registryM.Lock()
 	defer registryM.Unlock()
-	key := hintFn.UUID()
+	key := UUID(hintFn)
+	name := Name(hintFn)
 	if _, ok := registry[key]; ok {
-		panic(fmt.Sprintf("function %s registered twice", hintFn))
+		log := logger.Logger()
+		log.Warn().Str("name", name).Msg("function registered multiple times")
+		return
 	}
 	registry[key] = hintFn
 }
 
-// GetAll returns all registered hint functions.
-func GetAll() []Function {
+// GetRegistered returns all registered hint functions.
+func GetRegistered() []Function {
 	registryM.RLock()
 	defer registryM.RUnlock()
 	ret := make([]Function, 0, len(registry))

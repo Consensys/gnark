@@ -25,12 +25,6 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-func getBLS24315ExtensionFp12(api frontend.API) Extension {
-	res := Extension{}
-	res.uSquare = 13
-	return res
-}
-
 //--------------------------------------------------------------------
 // test
 
@@ -42,7 +36,7 @@ type fp12Add struct {
 func (circuit *fp12Add) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Add(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -73,7 +67,7 @@ type fp12Sub struct {
 func (circuit *fp12Sub) Define(api frontend.API) error {
 	expected := E12{}
 	expected.Sub(api, circuit.A, circuit.B)
-	expected.MustBeEqual(api, circuit.C)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -103,9 +97,9 @@ type fp12Mul struct {
 
 func (circuit *fp12Mul) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Mul(api, circuit.A, circuit.B, ext)
-	expected.MustBeEqual(api, circuit.C)
+
+	expected.Mul(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -135,10 +129,10 @@ type fp12MulByNonResidue struct {
 
 func (circuit *fp12MulByNonResidue) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.MulByNonResidue(api, circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.MulByNonResidue(api, circuit.A)
+
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
@@ -160,6 +154,35 @@ func TestMulByNonResidueFp12(t *testing.T) {
 
 }
 
+type e12Div struct {
+	A, B, C E12
+}
+
+func (circuit *e12Div) Define(api frontend.API) error {
+	var expected E12
+
+	expected.DivUnchecked(api, circuit.A, circuit.B)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestDivFp12(t *testing.T) {
+
+	// witness values
+	var a, b, c bls24315.E12
+	a.SetRandom()
+	b.SetRandom()
+	c.Inverse(&b).Mul(&c, &a)
+
+	var witness e12Div
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&e12Div{}, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 type fp12Inverse struct {
 	A E12
 	C E12 `gnark:",public"`
@@ -167,10 +190,10 @@ type fp12Inverse struct {
 
 func (circuit *fp12Inverse) Define(api frontend.API) error {
 	expected := E12{}
-	ext := getBLS24315ExtensionFp12(api)
-	expected.Inverse(api, circuit.A, ext)
 
-	expected.MustBeEqual(api, circuit.C)
+	expected.Inverse(api, circuit.A)
+
+	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 

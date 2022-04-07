@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 type hintCircuit struct {
@@ -15,12 +16,12 @@ type hintCircuit struct {
 }
 
 func (circuit *hintCircuit) Define(api frontend.API) error {
-	res, err := api.Compiler().NewHint(hint.IthBit, 1, circuit.A, 3)
+	res, err := api.Compiler().NewHint(bits.IthBit, 1, circuit.A, 3)
 	if err != nil {
 		return fmt.Errorf("IthBit circuitA 3: %w", err)
 	}
 	a3b := res[0]
-	res, err = api.Compiler().NewHint(hint.IthBit, 1, circuit.A, 25)
+	res, err = api.Compiler().NewHint(bits.IthBit, 1, circuit.A, 25)
 	if err != nil {
 		return fmt.Errorf("IthBit circuitA 25: %w", err)
 	}
@@ -45,7 +46,7 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 }
 
 func TestBuiltinHints(t *testing.T) {
-	for _, curve := range ecc.Implemented() {
+	for _, curve := range gnark.Curves() {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b1000),
 			B: (0),
