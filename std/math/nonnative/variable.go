@@ -443,6 +443,7 @@ func (e *Element) Div(a, b Element) *Element {
 	}
 	e.Limbs = div
 	e.overflow = 0
+	e.EnforceWidth()
 	res := e.params.Element(e.api)
 	res.Mul(*e, b)
 	res.AssertIsEqual(a)
@@ -461,6 +462,7 @@ func (e *Element) Inverse(a Element) *Element {
 	}
 	e.Limbs = k
 	e.overflow = 0
+	e.EnforceWidth()
 	res := e.params.Element(e.api)
 	res.Mul(*e, a)
 	one := e.params.One()
