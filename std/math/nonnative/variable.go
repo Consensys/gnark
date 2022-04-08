@@ -115,7 +115,7 @@ func (fp *Params) Modulus() Element {
 
 // Zero returns zero as a constant. The returned element is not safe to use as
 // an operation receiver.
-func (fp *Params) Zero(api frontend.API) Element {
+func (fp *Params) Zero() Element {
 	fp.zeroConstOnce.Do(func() {
 		element, err := fp.ConstantFromBig(big.NewInt(0))
 		if err != nil {
@@ -128,7 +128,7 @@ func (fp *Params) Zero(api frontend.API) Element {
 
 // One returns one as a constant. The returned element is not safe to use as an
 // operation receiver.
-func (fp *Params) One(api frontend.API) Element {
+func (fp *Params) One() Element {
 	fp.oneConstOnce.Do(func() {
 		element, err := fp.ConstantFromBig(big.NewInt(1))
 		if err != nil {
@@ -463,7 +463,7 @@ func (e *Element) Inverse(a Element) *Element {
 	e.overflow = 0
 	res := e.params.Element(e.api)
 	res.Mul(*e, a)
-	one := e.params.One(e.api)
+	one := e.params.One()
 	res.AssertIsEqual(one)
 	return nil
 }
@@ -471,7 +471,7 @@ func (e *Element) Inverse(a Element) *Element {
 // Negate sets e to -a and returns e. The returned element may not be less than
 // the modulus.
 func (e *Element) Negate(a Element) *Element {
-	z := e.params.Zero(e.api)
+	z := e.params.Zero()
 	return e.Sub(z, a)
 }
 
