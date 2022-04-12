@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -76,7 +77,7 @@ type g2AddAssignAffine struct {
 
 func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.AddAssign(api, &circuit.B)
+	expected.AddAssign(api, circuit.B)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -117,7 +118,7 @@ type g2DoubleAssign struct {
 
 func (circuit *g2DoubleAssign) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A)
+	expected.Double(api, circuit.A)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -193,7 +194,7 @@ type g2DoubleAffine struct {
 
 func (circuit *g2DoubleAffine) Define(api frontend.API) error {
 	expected := circuit.A
-	expected.Double(api, &circuit.A)
+	expected.Double(api, circuit.A)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -231,7 +232,7 @@ type g2Neg struct {
 
 func (circuit *g2Neg) Define(api frontend.API) error {
 	expected := G2Jac{}
-	expected.Neg(api, &circuit.A)
+	expected.Neg(api, circuit.A)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
@@ -256,6 +257,123 @@ func TestNegG2(t *testing.T) {
 
 }
 
+// -------------------------------------------------------------------------------------------------
+// Scalar multiplication
+
+type g2constantScalarMul struct {
+	A G2Affine
+	C G2Affine `gnark:",public"`
+	R *big.Int
+}
+
+func (circuit *g2constantScalarMul) Define(api frontend.API) error {
+	expected := G2Affine{}
+	expected.constScalarMul(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestConstantScalarMulG2(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a, c bls24315.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2constantScalarMul
+	var r fr.Element
+	r.SetRandom()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	br := new(big.Int)
+	r.ToBigIntRegular(br)
+	// br is a circuit parameter
+	circuit.R = br
+	_a.ScalarMultiplication(&_a, br)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+
+}
+
+type g2varScalarMul struct {
+	A G2Affine
+	C G2Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g2varScalarMul) Define(api frontend.API) error {
+	expected := G2Affine{}
+	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestVarScalarMulG2(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a, c bls24315.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2varScalarMul
+	var r fr.Element
+	r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+}
+
+type g2ScalarMul struct {
+	A    G2Affine
+	C    G2Affine `gnark:",public"`
+	Rvar frontend.Variable
+	Rcon fr.Element
+}
+
+func (circuit *g2ScalarMul) Define(api frontend.API) error {
+	var expected, expected2 G2Affine
+	expected.ScalarMul(api, circuit.A, circuit.Rvar)
+	expected.AssertIsEqual(api, circuit.C)
+	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
+	expected2.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestScalarMulG2(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a, c bls24315.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2ScalarMul
+	var r fr.Element
+	r.SetRandom()
+	witness.Rvar = r.String()
+	circuit.Rcon = r
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+}
 func randomPointG2() bls24315.G2Jac {
 	_, p2, _, _ := bls24315.Generators()
 
@@ -298,4 +416,62 @@ func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 
 	})
 	b.Log("groth16", ccsBench.GetNbConstraints())
+}
+
+func BenchmarkConstScalarMulG2(b *testing.B) {
+	var c g2constantScalarMul
+	// this is q - 1
+	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
+	if !ok {
+		b.Fatal("invalid integer")
+	}
+	c.R = r
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		var err error
+		for i := 0; i < b.N; i++ {
+			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
+
+}
+
+func BenchmarkVarScalarMulG2(b *testing.B) {
+	var c g2varScalarMul
+	// this is q - 1
+	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
+	if !ok {
+		b.Fatal("invalid integer")
+	}
+	c.R = r
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+		}
+
+	})
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		var err error
+		for i := 0; i < b.N; i++ {
+			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
+
 }
