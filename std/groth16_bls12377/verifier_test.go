@@ -122,7 +122,7 @@ func TestVerifier(t *testing.T) {
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -139,9 +139,9 @@ func TestVerifier(t *testing.T) {
 	}
 	witness.InnerVk.E.Assign(&e)
 
-	witness.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
+	witness.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 	for i, vkg := range innerVk.G1.K {
-		witness.InnerVk.G1[i].Assign(&vkg)
+		witness.InnerVk.G1.K[i].Assign(&vkg)
 	}
 	var deltaNeg, gammaNeg bls12377.G2Affine
 	deltaNeg.Neg(&innerVk.G2.Delta)
@@ -187,7 +187,7 @@ func BenchmarkCompile(b *testing.B) {
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
