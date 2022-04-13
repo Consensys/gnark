@@ -33,15 +33,14 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-//--------------------------------------------------------------------
-// utils
-
-const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-const publicHash string = "4458332240632096997117977163518118563548842578509780924154021342053538349576"
+const (
+	preImage   = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
+	publicHash = "4458332240632096997117977163518118563548842578509780924154021342053538349576"
+)
 
 type mimcCircuit struct {
-	Data frontend.Variable
-	Hash frontend.Variable `gnark:",public"`
+	PreImage frontend.Variable
+	Hash     frontend.Variable `gnark:",public"`
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -49,9 +48,8 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	mimc.Write(circuit.Data)
-	result := mimc.Sum()
-	api.AssertIsEqual(result, circuit.Hash)
+	mimc.Write(circuit.PreImage)
+	api.AssertIsEqual(mimc.Sum(), circuit.Hash)
 	return nil
 }
 
@@ -60,18 +58,24 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey, proof *groth16_bls12377.Proof) {
 
 	// create a mock cs: knowing the preimage of a hash using mimc
-	var circuit, w mimcCircuit
+	var circuit mimcCircuit
 	r1cs, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w.Data = preimage
-	w.Hash = publicHash
+	// build the witness
+	var assignment mimcCircuit
+	assignment.PreImage = preImage
+	assignment.Hash = publicHash
 
-	correctAssignment := witness.Witness{}
+	var witness, publicWitness witness.Witness
+	_, err = witness.FromAssignment(&assignment, tVariable, false)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = correctAssignment.FromAssignment(&w, tVariable, false)
+	_, err = publicWitness.FromAssignment(&assignment, tVariable, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	// generate the data to return for the bls12377 proof
 	var pk groth16_bls12377.ProvingKey
 	groth16_bls12377.Setup(r1cs.(*backend_bls12377.R1CS), &pk, vk)
-	_proof, err := groth16_bls12377.Prove(r1cs.(*backend_bls12377.R1CS), &pk, correctAssignment, backend.ProverConfig{})
+	_proof, err := groth16_bls12377.Prove(r1cs.(*backend_bls12377.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,14 +91,8 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
-	correctAssignmentPublic := witness.Witness{}
-	_, err = correctAssignmentPublic.FromAssignment(&w, tVariable, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// before returning verifies that the proof passes on bls12377
-	if err := groth16_bls12377.Verify(proof, vk, correctAssignmentPublic); err != nil {
+	if err := groth16_bls12377.Verify(proof, vk, publicWitness); err != nil {
 		t.Fatal(err)
 	}
 
