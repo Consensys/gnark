@@ -87,8 +87,8 @@ func (vk *VerifyingKey) Assign(ovk *groth16.VerifyingKey) {
 	vk.E.Assign(&e)
 
 	vk.G1.K = make([]sw_bls12377.G1Affine, len(ovk.G1.K))
-	for i, vkg := range ovk.G1.K {
-		vk.G1.K[i].Assign(&vkg)
+	for i := 0; i < len(ovk.G1.K); i++ {
+		vk.G1.K[i].Assign(&ovk.G1.K[i])
 	}
 	var deltaNeg, gammaNeg bls12377.G2Affine
 	deltaNeg.Neg(&ovk.G2.Delta)
