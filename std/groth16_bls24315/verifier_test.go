@@ -140,27 +140,6 @@ func TestVerifier(t *testing.T) {
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
-	/* comment from here */
-
-	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
-	// generate groth16 instance on bw6633 (setup, prove, verify)
-	// var vk groth16_bw6633.VerifyingKey
-	// var pk groth16_bw6633.ProvingKey
-
-	// groth16_bw6633.Setup(&r1cs, &pk, &vk)
-	// proof, err := groth16_bw6633.Prove(&r1cs, &pk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// res, err := groth16_bw6633.Verify(proof, &vk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if !res {
-	// 	t.Fatal("correct proof should pass")
-	// }
-
 }
 
 func BenchmarkCompile(b *testing.B) {

@@ -18,9 +18,12 @@ limitations under the License.
 package groth16_bls24315
 
 import (
+	"reflect"
+
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/backend/bls24-315/groth16"
+	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 )
@@ -80,7 +83,12 @@ func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []front
 }
 
 // Assign values to the "in-circuit" VerifyingKey from a "out-of-circuit" VerifyingKey
-func (vk *VerifyingKey) Assign(ovk *groth16.VerifyingKey) {
+func (vk *VerifyingKey) Assign(_ovk groth16.VerifyingKey) {
+	ovk, ok := _ovk.(*groth16_bls24315.VerifyingKey)
+	if !ok {
+		panic("expected *groth16_bls24315.VerifyingKey, got " + reflect.TypeOf(_ovk).String())
+	}
+
 	e, err := bls24315.Pair([]bls24315.G1Affine{ovk.G1.Alpha}, []bls24315.G2Affine{ovk.G2.Beta})
 	if err != nil {
 		panic(err)
