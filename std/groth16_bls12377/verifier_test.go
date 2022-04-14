@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -83,6 +82,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	// generate the data to return for the bls12377 proof
 	var pk groth16_bls12377.ProvingKey
 	groth16_bls12377.Setup(r1cs.(*backend_bls12377.R1CS), &pk, vk)
+
 	_proof, err := groth16_bls12377.Prove(r1cs.(*backend_bls12377.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -130,51 +130,13 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
 
-	// compute vk.e
-	e, err := bls12377.Pair([]bls12377.G1Affine{innerVk.G1.Alpha}, []bls12377.G2Affine{innerVk.G2.Beta})
-	if err != nil {
-		t.Fatal(err)
-	}
-	witness.InnerVk.E.Assign(&e)
-
-	witness.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
-	for i, vkg := range innerVk.G1.K {
-		witness.InnerVk.G1.K[i].Assign(&vkg)
-	}
-	var deltaNeg, gammaNeg bls12377.G2Affine
-	deltaNeg.Neg(&innerVk.G2.Delta)
-	gammaNeg.Neg(&innerVk.G2.Gamma)
-	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
-	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
-	//witness.Hash = publicHash
+	witness.InnerVk.Assign(&innerVk)
 	witness.Hash = publicHash
 
 	// verifies the cs
 	assert := test.NewAssert(t)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
-
-	/* comment from here */
-
-	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
-	// generate groth16 instance on bw6761 (setup, prove, verify)
-	// var vk groth16_bw6761.VerifyingKey
-	// var pk groth16_bw6761.ProvingKey
-
-	// groth16_bw6761.Setup(&r1cs, &pk, &vk)
-	// proof, err := groth16_bw6761.Prove(&r1cs, &pk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// res, err := groth16_bw6761.Verify(proof, &vk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if !res {
-	// 	t.Fatal("correct proof should pass")
-	// }
-
 }
 
 func BenchmarkCompile(b *testing.B) {
@@ -194,60 +156,6 @@ func BenchmarkCompile(b *testing.B) {
 	}
 	b.Log(ccs.GetNbConstraints())
 }
-
-//--------------------------------------------------------------------
-// bench
-
-// TODO fixme
-// func BenchmarkVerifier(b *testing.B) {
-
-// 	// get the data
-// 	var innerVk groth16_bls12377.VerifyingKey
-// 	var innerProof groth16_bls12377.Proof
-// 	inputNamesInnerProof := generateBls12377InnerProof(nil, &innerVk, &innerProof) // get public inputs of the inner proof
-
-// 	// create an empty cs
-// 	var circuit XXXX
-// 	r1cs, err := compiler.Compile(gurvy.XXXX, &circuit)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	// pairing data
-// 	var pairingInfo sw_bls12377.PairingContext
-// 	pairingInfo.Extension = fields_bls12377.GetBLS12377ExtensionFp12(&gnark)
-// 	pairingInfo.AteLoop = 9586122913090633729
-
-// 	// allocate the verifying key
-// 	var innerVkCircuit VerifyingKey
-// 	allocateInnerVk(&cs, &innerVk, &innerVkCircuit)
-
-// 	// create secret inputs corresponding to the proof
-// 	var innerProofCircuit Proof
-// 	allocateInnerProof(&cs, &innerProofCircuit)
-
-// 	// create the verifier cs
-// 	Verify(&cs, pairingInfo, innerVkCircuit, innerProofCircuit, inputNamesInnerProof)
-
-// 	// create r1cs
-// 	r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
-
-// 	// create assignment, the private part consists of the proof,
-// 	// the public part is exactly the public part of the inner proof,
-// 	// up to the renaming of the inner ONE_WIRE to not conflict with the one wire of the outer proof.
-// 	correctAssignment := make(map[string]interface{})
-// 	assignPointAffineG1(correctAssignment, innerProof.Ar, "Ar")
-// 	assignPointAffineG1(correctAssignment, innerProof.Krs, "Krs")
-// 	assignPointAffineG2(correctAssignment, innerProof.Bs, "Bs")
-// 	correctAssignment["public_hash"] = publicHash
-
-// 	// verifies the cs
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		r1cs.Inspect(correctAssignment, false)
-// 	}
-
-// }
 
 var tVariable reflect.Type
 
