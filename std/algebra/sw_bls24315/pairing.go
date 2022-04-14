@@ -56,7 +56,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	xOverY := make([]frontend.Variable, n)
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
-		Qneg[k].Neg(api, &Q[k])
+		Qneg[k].Neg(api, Q[k])
 		yInv[k] = api.DivUnchecked(1, P[k].Y)
 		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
 	}
