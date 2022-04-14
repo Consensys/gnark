@@ -18,16 +18,18 @@ limitations under the License.
 package groth16_bls12377
 
 import (
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
-	bls12377 "github.com/consensys/gnark/std/algebra/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 )
 
 // Proof represents a Groth16 proof
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type Proof struct {
-	Ar, Krs bls12377.G1Affine
-	Bs      bls12377.G2Affine
+	Ar, Krs sw_bls12377.G1Affine
+	Bs      sw_bls12377.G2Affine
 }
 
 // VerifyingKey represents a Groth16 verifying key
@@ -38,12 +40,12 @@ type VerifyingKey struct {
 
 	// -[γ]2, -[δ]2
 	G2 struct {
-		GammaNeg, DeltaNeg bls12377.G2Affine
+		GammaNeg, DeltaNeg sw_bls12377.G2Affine
 	}
 
 	// [Kvk]1
 	G1 struct {
-		K []bls12377.G1Affine // The indexes correspond to the public wires
+		K []sw_bls12377.G1Affine // The indexes correspond to the public wires
 	}
 }
 
@@ -56,22 +58,41 @@ func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []front
 	}
 
 	// compute kSum = Σx.[Kvk(t)]1
-	var kSum bls12377.G1Affine
+	var kSum sw_bls12377.G1Affine
 
 	// kSum = Kvk[0] (assumes ONE_WIRE is at position 0)
 	kSum.X = vk.G1.K[0].X
 	kSum.Y = vk.G1.K[0].Y
 
 	for k, v := range publicInputs {
-		var ki bls12377.G1Affine
+		var ki sw_bls12377.G1Affine
 		ki.ScalarMul(api, vk.G1.K[k+1], v)
 		kSum.AddAssign(api, ki)
 	}
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2) * e(Krs,δ) * e(Ar,Bs)
-	ml, _ := bls12377.MillerLoop(api, []bls12377.G1Affine{kSum, proof.Krs, proof.Ar}, []bls12377.G2Affine{vk.G2.GammaNeg, vk.G2.DeltaNeg, proof.Bs})
-	pairing := bls12377.FinalExponentiation(api, ml)
+	ml, _ := sw_bls12377.MillerLoop(api, []sw_bls12377.G1Affine{kSum, proof.Krs, proof.Ar}, []sw_bls12377.G2Affine{vk.G2.GammaNeg, vk.G2.DeltaNeg, proof.Bs})
+	pairing := sw_bls12377.FinalExponentiation(api, ml)
 
 	// vk.E must be equal to pairing
 	vk.E.AssertIsEqual(api, pairing)
+}
+
+// Assign values to the "in-circuit" VerifyingKey from a "out-of-circuit" VerifyingKey
+func (vk *VerifyingKey) Assign(ovk *groth16.VerifyingKey) {
+	e, err := bls12377.Pair([]bls12377.G1Affine{ovk.G1.Alpha}, []bls12377.G2Affine{ovk.G2.Beta})
+	if err != nil {
+		panic(err)
+	}
+	vk.E.Assign(&e)
+
+	vk.G1.K = make([]sw_bls12377.G1Affine, len(ovk.G1.K))
+	for i, vkg := range ovk.G1.K {
+		vk.G1.K[i].Assign(&vkg)
+	}
+	var deltaNeg, gammaNeg bls12377.G2Affine
+	deltaNeg.Neg(&ovk.G2.Delta)
+	gammaNeg.Neg(&ovk.G2.Gamma)
+	vk.G2.DeltaNeg.Assign(&deltaNeg)
+	vk.G2.GammaNeg.Assign(&gammaNeg)
 }
