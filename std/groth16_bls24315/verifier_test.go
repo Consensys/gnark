@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -132,22 +131,8 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
 
-	// compute vk.e
-	e, err := bls24315.Pair([]bls24315.G1Affine{innerVk.G1.Alpha}, []bls24315.G2Affine{innerVk.G2.Beta})
-	if err != nil {
-		t.Fatal(err)
-	}
-	witness.InnerVk.E.Assign(&e)
+	witness.InnerVk.Assign(&innerVk)
 
-	witness.InnerVk.G1.K = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
-	for i, vkg := range innerVk.G1.K {
-		witness.InnerVk.G1.K[i].Assign(&vkg)
-	}
-	var deltaNeg, gammaNeg bls24315.G2Affine
-	deltaNeg.Neg(&innerVk.G2.Delta)
-	gammaNeg.Neg(&innerVk.G2.Gamma)
-	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
-	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
 	witness.Hash = publicHash
 
 	// verifies the cs

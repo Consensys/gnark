@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -83,6 +82,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	// generate the data to return for the bls12377 proof
 	var pk groth16_bls12377.ProvingKey
 	groth16_bls12377.Setup(r1cs.(*backend_bls12377.R1CS), &pk, vk)
+
 	_proof, err := groth16_bls12377.Prove(r1cs.(*backend_bls12377.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -130,23 +130,7 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
 
-	// compute vk.e
-	e, err := bls12377.Pair([]bls12377.G1Affine{innerVk.G1.Alpha}, []bls12377.G2Affine{innerVk.G2.Beta})
-	if err != nil {
-		t.Fatal(err)
-	}
-	witness.InnerVk.E.Assign(&e)
-
-	witness.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
-	for i, vkg := range innerVk.G1.K {
-		witness.InnerVk.G1.K[i].Assign(&vkg)
-	}
-	var deltaNeg, gammaNeg bls12377.G2Affine
-	deltaNeg.Neg(&innerVk.G2.Delta)
-	gammaNeg.Neg(&innerVk.G2.Gamma)
-	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
-	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
-	//witness.Hash = publicHash
+	witness.InnerVk.Assign(&innerVk)
 	witness.Hash = publicHash
 
 	// verifies the cs
