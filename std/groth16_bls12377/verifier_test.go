@@ -91,25 +91,6 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
-	// TODO @gbotrel clean up
-	// var buf bytes.Buffer
-	// vk.WriteTo(&buf)
-	// fmt.Println("vk")
-	// fmt.Println(hex.EncodeToString(buf.Bytes()))
-	// vkBytes, _ := hex.DecodeString("a14d160fc36562208886d647809f7c05f7ae67070d93a26bf12a9afa132832732b5bd4bdd5de4bdab361d21f9711e0baa0f53216809240558b8a38c89dfa1810bff224091d68a271a439564418e8fb04d744eb4e0c1de735fdb05427484a488da164953c0da7d079780013935f183eec57e18a5cbb5f86bb309ad5b2c337f23ac9dab2549813847a450499cc97f3dac10157b1f462607594b3e53e7a9abd31e5f6690d9c886aa2e1c4a608a77d7e27dca8645837ad0c1a03193ff609b01e54af80e71a6018286563aed5e39c0b1fc1e1fc3b2433c8e94ed055b0a51a10438f2889dc48553fb38854248c74c80f8d938a013b521a9bf0623eaea275d600fc74aea1f9eb6659f917d3bee3858a96542be2191eda3c7ccc7e0a388745c9d873a73aa021d950731fa1b65c14d38ae747ddff419bb0a7b9fe4e472ad3cfb62ce21c7e458672ac076a0d281c1e06ba409f0d3d80ebb80ddb79beb0e8d379473789193f10ea8011f77e71a7342117979c7c6c5c2b512058ca9b36c98953fba8b0a6461b00dfca84eb355d8fb344751e57d429b81936984f9477f34adfadcaf02fcaafd4902c492d4ad839a5d1b5e3344b2051900000000280dd422345c76d15e4fe744650dd77d4b6534f450b7a0be8a492b871cbe8107967194a7c62740eae123fa7fd52466136805ac8a924bd5812e1cd371898374216bd1eef6e79f70224d3c163e44a328b69ff3ceaf7e0244bd6932576aee4362fcb")
-	// vk.ReadFrom(bytes.NewReader(vkBytes))
-
-	// buf.Reset()
-	// fmt.Println("proof")
-	// fmt.Println("_proof.Ar", _proof.Ar.X.String(), _proof.Ar.Y.String())
-	// fmt.Println("_proof.Bs", _proof.Bs.X.A0.String(),
-	// 	_proof.Bs.X.A1.String(),
-	// 	_proof.Bs.Y.A0.String(),
-	// 	_proof.Bs.X.A1.String())
-	// fmt.Println("_proof.Krs", _proof.Krs.X.String(), _proof.Krs.Y.String())
-	// fmt.Println("hash", publicHash)
-	// fmt.Println("preImage", preImage)
-
 	// before returning verifies that the proof passes on bls12377
 	if err := groth16_bls12377.Verify(proof, vk, publicWitness); err != nil {
 		t.Fatal(err)
