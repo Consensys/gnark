@@ -47,12 +47,25 @@ package merkle
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/hash"
 )
+
+// MerkleProof stores the path, the root hash and an helper for the Merkle proof.
+type MerkleProof struct {
+
+	// RootHash root of the Merkle tree
+	RootHash frontend.Variable `gnark:",public"`
+
+	// Path path of the Merkle proof
+	Path []frontend.Variable
+
+	// Leaf of to open.
+	Leaf frontend.Variable
+}
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Variable {
+func leafSum(api frontend.API, h hash.Hash, data frontend.Variable) frontend.Variable {
 
 	h.Write(data)
 	res := h.Sum()
@@ -62,7 +75,7 @@ func leafSum(api frontend.API, h mimc.MiMC, data frontend.Variable) frontend.Var
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(api frontend.API, h mimc.MiMC, a, b frontend.Variable) frontend.Variable {
+func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Variable {
 
 	h.Write(a, b)
 	//res := h.Sum(a, b)
@@ -132,7 +145,7 @@ func GenerateProofHelper(proofSet [][]byte, proofIndex, numLeaves uint64) []int 
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func VerifyProof(api frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
+func VerifyProof(api frontend.API, h hash.Hash, merkleRoot frontend.Variable, proofSet, helper []frontend.Variable) {
 
 	sum := leafSum(api, h, proofSet[0])
 
@@ -146,4 +159,25 @@ func VerifyProof(api frontend.API, h mimc.MiMC, merkleRoot frontend.Variable, pr
 	// Compare our calculated Merkle root to the desired Merkle root.
 	api.AssertIsEqual(sum, merkleRoot)
 
+}
+
+// VerifyProof takes a Merkle root, a proofSet, and a proofIndex and returns
+// true if the first element of the proof set is a leaf of data in the Merkle
+// root. False is returned if the proof set or Merkle root is nil, and if
+// 'numLeaves' equals 0.
+func (mp *MerkleProof) VerifyProofBis(api frontend.API, h hash.Hash, proof MerkleProof) {
+
+	sum := leafSum(api, h, proof.Path[0])
+
+	binLeaf := api.ToBinary(proof.Leaf, len(proof.Path))
+
+	for i := 1; i < len(proof.Path); i++ { // the size of the loop is fixed -> one circuit per size
+
+		d1 := api.Select(binLeaf[i-1], sum, proof.Path[i])
+		d2 := api.Select(binLeaf[i-1], proof.Path[i], sum)
+		sum = nodeSum(api, h, d1, d2)
+	}
+
+	// Compare our calculated Merkle root to the desired Merkle root.
+	api.AssertIsEqual(sum, proof.RootHash)
 }

@@ -18,13 +18,16 @@ package merkle
 
 import (
 	"bytes"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -33,6 +36,7 @@ import (
 type merkleCircuit struct {
 	RootHash     frontend.Variable `gnark:",public"`
 	Path, Helper []frontend.Variable
+	Leaf         frontend.Variable `gnark:",public"`
 }
 
 func (circuit *merkleCircuit) Define(api frontend.API) error {
@@ -40,7 +44,7 @@ func (circuit *merkleCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	VerifyProof(api, hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
+	VerifyProof(api, &hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
 	return nil
 }
 
@@ -69,6 +73,7 @@ func TestVerify(t *testing.T) {
 	}
 	proofHelper := GenerateProofHelper(proof, proofIndex, numLeaves)
 
+	//
 	verified := merkletree.VerifyProof(bn254.NewMiMC(), merkleRoot, proof, proofIndex, numLeaves)
 	if !verified {
 		t.Fatal("The merkle proof in plain go should pass")
@@ -95,4 +100,67 @@ func TestVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+}
+
+// MerkleProofTest used for testing onlys
+type MerkleProofTest struct {
+	M MerkleProof
+}
+
+// func (mp *MerkleProofTest) Define(api frontend.API) error {
+
+// 	mp.M.VerifyProofBis(api, )
+
+// 	return nil
+// }
+func TestVerifyBis(t *testing.T) {
+
+	type testData struct {
+		hash        hash.Hash
+		segmentSize int
+	}
+
+	confs := []testData{
+		{hash.MIMC_BN254, 32},
+	}
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	for _, tData := range confs {
+
+		// generate random data, the Merkle tree will be of depth log(64) = 6
+		var buf bytes.Buffer
+		for i := 0; i < 64; i++ {
+			for j := 0; j < tData.segmentSize; j++ {
+				r := byte(rand.Int())
+				buf.Write([]byte{r})
+			}
+		}
+
+		// generate the proof in plain go
+		hGo := tData.hash.New()
+		proofIndex := uint64(11)
+		merkleRoot, proofPath, numLeaves, err := merkletree.BuildReaderProof(&buf, hGo, tData.segmentSize, proofIndex)
+		if err != nil {
+			t.Fatal(err)
+			os.Exit(-1)
+		}
+
+		// verfiy the proof in plain go
+		verified := merkletree.VerifyProof(hGo, merkleRoot, proofPath, proofIndex, numLeaves)
+		if !verified {
+			t.Fatal("The merkle proof in plain go should pass")
+		}
+
+		// create the circuit
+		var circuit MerkleProof
+		circuit.Leaf = proofIndex
+		circuit.RootHash = merkleRoot
+		for i := 0; i < len(proofPath); i++ {
+			circuit.Path[i] = proofPath[i]
+		}
+
+		// verify the circuit
+
+	}
+
 }
