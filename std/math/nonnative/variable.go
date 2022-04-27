@@ -485,14 +485,37 @@ func (e *Element) Negate(a Element) *Element {
 	return e.Sub(z, a)
 }
 
+// Select sets e to a is selector == 0 and to b otherwise.
 func (e *Element) Select(selector frontend.Variable, a, b Element) *Element {
-	panic("not implemented")
-	// return nil
+	if len(a.Limbs) != len(b.Limbs) {
+		panic("unequal limb counts for select")
+	}
+	if a.overflow != b.overflow {
+		panic("unequal overflows for select")
+	}
+	e.Limbs = make([]frontend.Variable, len(a.Limbs))
+	e.overflow = a.overflow
+	for i := range a.Limbs {
+		e.Limbs[i] = e.api.Select(selector, a.Limbs[i], b.Limbs[i])
+	}
+	return e
 }
 
-func (e *Element) Lookup2(b1, b2 frontend.Variable, a, b Element) *Element {
-	panic("not implemented")
-	// return nil
+// Lookup2 performs two-bit lookup between a, b, c, d based on lookup bits b1
+// and b2. Sets e to a if b0=b1=0, b if b0=1 and b1=0, c if b0=0 and b1=1, d if b0=b1=1.
+func (e *Element) Lookup2(b0, b1 frontend.Variable, a, b, c, d Element) *Element {
+	if len(a.Limbs) != len(b.Limbs) || len(a.Limbs) != len(c.Limbs) || len(a.Limbs) != len(d.Limbs) {
+		panic("unequal limb counts for lookup")
+	}
+	if a.overflow != b.overflow || a.overflow != c.overflow || a.overflow != d.overflow {
+		panic("unequal overflows for lookup")
+	}
+	e.Limbs = make([]frontend.Variable, len(a.Limbs))
+	e.overflow = a.overflow
+	for i := range a.Limbs {
+		e.Limbs[i] = e.api.Lookup2(b0, b1, a.Limbs[i], b.Limbs[i], c.Limbs[i], d.Limbs[i])
+	}
+	return nil
 }
 
 func (e *Element) Exp(s, a Element) *Element {
