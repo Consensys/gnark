@@ -540,6 +540,53 @@ func TestConstant(t *testing.T) {
 
 }
 
+type SelectCircuit struct {
+	field *Params
+
+	Selector frontend.Variable
+	A        Element
+	B        Element
+	C        Element
+}
+
+func (c *SelectCircuit) Define(api frontend.API) error {
+	res := c.field.Element(api)
+	res.Select(c.Selector, c.A, c.B)
+	res.AssertIsEqual(c.C)
+	return nil
+}
+
+func TestSelect(t *testing.T) {
+	var err error
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			var circuit, witness SelectCircuit
+			circuit.field = params
+			witness.field = params
+
+			circuit.A = params.Placeholder()
+			circuit.B = params.Placeholder()
+			circuit.C = params.Placeholder()
+
+			val1, _ := rand.Int(rand.Reader, params.n)
+			val2, _ := rand.Int(rand.Reader, params.n)
+			randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
+			b := randbit.Uint64()
+			witness.A, err = params.ConstantFromBig(val1)
+			assert.NoError(err)
+			witness.B, err = params.ConstantFromBig(val2)
+			assert.NoError(err)
+			witness.C, err = params.ConstantFromBig([]*big.Int{val1, val2}[1-b])
+			assert.NoError(err)
+			witness.Selector = b
+
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+		}, testName(fp))
+	}
+}
+
 type ComputationCircuit struct {
 	field *Params
 
