@@ -590,20 +590,99 @@ func TestSelect(t *testing.T) {
 type ComputationCircuit struct {
 	field *Params
 
-	X1, X2, X3, X4, X5 Element
-	Res                Element
+	X1, X2, X3, X4, X5, X6 Element
+	Res                    Element
 }
 
 func (c *ComputationCircuit) Define(api frontend.API) error {
-	// compute x1 * (x2-x3) / (x4+x5)
+	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
+	x13 := c.field.Element(api)
+	x13.Mul(c.X1, c.X1)
+	x13.Reduce(x13)
+	x13.Mul(x13, c.X1)
+	x13.Reduce(x13)
+
+	fx2 := c.field.Element(api)
+	five, err := c.field.ConstantFromBig(big.NewInt(5))
+	if err != nil {
+		return fmt.Errorf("five: %w", err)
+	}
+	fx2.Mul(five, c.X2)
+	fx2.Reduce(fx2)
+
 	nom := c.field.Element(api)
-	nom.Sub(c.X2, c.X3)
+	nom.Sub(c.X3, c.X4)
+
 	denom := c.field.Element(api)
-	denom.Add(c.X4, c.X5)
-	div := c.field.Element(api)
-	div.Div(nom, denom)
+	denom.Add(c.X5, c.X6)
+
+	free := c.field.Element(api)
+	free.Div(nom, denom)
+
 	res := c.field.Element(api)
-	res.Mul(c.X1, div)
+	res.Add(x13, fx2)
+	res.Add(res, free)
+
 	res.AssertIsEqual(c.Res)
 	return nil
+}
+
+func TestComputation(t *testing.T) {
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			circuit := ComputationCircuit{
+				field: params,
+				X1:    params.Placeholder(),
+				X2:    params.Placeholder(),
+				X3:    params.Placeholder(),
+				X4:    params.Placeholder(),
+				X5:    params.Placeholder(),
+				X6:    params.Placeholder(),
+				Res:   params.Placeholder(),
+			}
+
+			val1, _ := rand.Int(rand.Reader, params.n)
+			val2, _ := rand.Int(rand.Reader, params.n)
+			val3, _ := rand.Int(rand.Reader, params.n)
+			val4, _ := rand.Int(rand.Reader, params.n)
+			val5, _ := rand.Int(rand.Reader, params.n)
+			val6, _ := rand.Int(rand.Reader, params.n)
+
+			tmp := new(big.Int)
+			res := new(big.Int)
+			// res = x1^3
+			tmp.Exp(val1, big.NewInt(3), params.n)
+			res.Set(tmp)
+			// res = x1^3 + 5*x2
+			tmp.Mul(val2, big.NewInt(5))
+			res.Add(res, tmp)
+			// tmp = (x3-x4)
+			tmp.Sub(val3, val4)
+			tmp.Mod(tmp, params.n)
+			// tmp2 = (x5+x6)
+			tmp2 := new(big.Int)
+			tmp2.Add(val5, val6)
+			// tmp = (x3-x4)/(x5+x6)
+			tmp2.ModInverse(tmp2, params.n)
+			tmp.Mul(tmp, tmp2)
+			tmp.Mod(tmp, params.n)
+			// res = x1^3 + 5*x2 + (x3-x4)/(x5+x6)
+			res.Add(res, tmp)
+			res.Mod(res, params.n)
+
+			witness := ComputationCircuit{
+				field: params,
+				X1:    params.ConstantFromBigOrPanic(val1),
+				X2:    params.ConstantFromBigOrPanic(val2),
+				X3:    params.ConstantFromBigOrPanic(val3),
+				X4:    params.ConstantFromBigOrPanic(val4),
+				X5:    params.ConstantFromBigOrPanic(val5),
+				X6:    params.ConstantFromBigOrPanic(val6),
+				Res:   params.ConstantFromBigOrPanic(res),
+			}
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+		}, testName(fp))
+	}
 }
