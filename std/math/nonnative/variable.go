@@ -165,6 +165,14 @@ func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
 	return e, nil
 }
 
+func (fp *Params) ConstantFromBigOrPanic(value *big.Int) Element {
+	el, err := fp.ConstantFromBig(value)
+	if err != nil {
+		panic(err)
+	}
+	return el
+}
+
 // ConstantFromLimbs returns a constant element from the given limbs. The
 // returned element is not safe to use as an operation receiver.
 func (fp *Params) ConstantFromLimbs(limbs []frontend.Variable) Element {
