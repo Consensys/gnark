@@ -54,14 +54,14 @@ func testName(ef emulatedField) string {
 }
 
 type AssertLimbEqualityCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
 }
 
 func (c *AssertLimbEqualityCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Set(c.A)
 	res.AssertLimbsEquality(c.B)
 	return nil
@@ -74,8 +74,8 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness AssertLimbEqualityCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -94,7 +94,7 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 // TODO: add case where the limbs have different overflows.
 
 type AddCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
@@ -102,7 +102,7 @@ type AddCircuit struct {
 }
 
 func (c *AddCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Add(c.A, c.B)
 	res.AssertLimbsEquality(c.C)
 	return nil
@@ -115,8 +115,8 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness AddCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -138,7 +138,7 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 }
 
 type MulNoOverflowCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
@@ -146,7 +146,7 @@ type MulNoOverflowCircuit struct {
 }
 
 func (c *MulNoOverflowCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Mul(c.A, c.B)
 	res.AssertLimbsEquality(c.C)
 	return nil
@@ -159,8 +159,8 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness MulNoOverflowCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -182,7 +182,7 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 }
 
 type MulCircuitOverflow struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
@@ -190,7 +190,7 @@ type MulCircuitOverflow struct {
 }
 
 func (c *MulCircuitOverflow) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Mul(c.A, c.B)
 	res.AssertIsEqual(c.C)
 	return nil
@@ -203,8 +203,8 @@ func TestMulCircuitOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness MulCircuitOverflow
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -227,7 +227,7 @@ func TestMulCircuitOverflow(t *testing.T) {
 }
 
 type ReduceAfterAddCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
@@ -235,7 +235,7 @@ type ReduceAfterAddCircuit struct {
 }
 
 func (c *ReduceAfterAddCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Add(c.A, c.B)
 	res.Reduce(res)
 	res.AssertIsEqual(c.C)
@@ -249,8 +249,8 @@ func TestReduceAfterAdd(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness ReduceAfterAddCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			val2, _ := rand.Int(rand.Reader, params.n)
 			val1, _ := rand.Int(rand.Reader, val2)
@@ -274,7 +274,7 @@ func TestReduceAfterAdd(t *testing.T) {
 }
 
 type SubtractCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
@@ -282,7 +282,7 @@ type SubtractCircuit struct {
 }
 
 func (c *SubtractCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Sub(c.A, c.B)
 	res.AssertIsEqual(c.C)
 	return nil
@@ -295,8 +295,8 @@ func TestSubtractNoOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness SubtractCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -323,8 +323,8 @@ func TestSubtractOverflow(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness SubtractCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -347,14 +347,14 @@ func TestSubtractOverflow(t *testing.T) {
 }
 
 type NegationCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
 }
 
 func (c *NegationCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Negate(c.A)
 	res.AssertIsEqual(c.B)
 	return nil
@@ -367,8 +367,8 @@ func TestNegation(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness NegationCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -386,14 +386,14 @@ func TestNegation(t *testing.T) {
 }
 
 type InverseCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
 }
 
 func (c *InverseCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Inverse(c.A)
 	res.AssertIsEqual(c.B)
 	return nil
@@ -409,8 +409,8 @@ func TestInverse(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness InverseCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -428,14 +428,14 @@ func TestInverse(t *testing.T) {
 }
 
 type DivisionCircuit struct {
-	field *Params
-	A     Element
-	B     Element
-	C     Element
+	params *Params
+	A      Element
+	B      Element
+	C      Element
 }
 
 func (c *DivisionCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Div(c.A, c.B)
 	res.AssertIsEqual(c.C)
 	return nil
@@ -451,8 +451,8 @@ func TestDivision(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness DivisionCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -475,14 +475,14 @@ func TestDivision(t *testing.T) {
 }
 
 type ToBitsCircuit struct {
-	field *Params
+	params *Params
 
 	Value Element
 	Bits  []frontend.Variable
 }
 
 func (c *ToBitsCircuit) Define(api frontend.API) error {
-	el := c.field.Element(api)
+	el := c.params.Element(api)
 	el.Set(c.Value)
 	bits := el.ToBits()
 	if len(bits) != len(c.Bits) {
@@ -501,8 +501,8 @@ func TestToBits(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness ToBitsCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			bits := make([]frontend.Variable, params.n.BitLen())
@@ -523,14 +523,14 @@ func TestToBits(t *testing.T) {
 }
 
 type ConstantCircuit struct {
-	field *Params
+	params *Params
 
 	A Element
 	B Element
 }
 
 func (c *ConstantCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Set(c.A)
 	res.AssertIsEqual(c.B)
 	return nil
@@ -541,7 +541,7 @@ func TestConstant(t *testing.T) {
 }
 
 type SelectCircuit struct {
-	field *Params
+	params *Params
 
 	Selector frontend.Variable
 	A        Element
@@ -550,7 +550,7 @@ type SelectCircuit struct {
 }
 
 func (c *SelectCircuit) Define(api frontend.API) error {
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Select(c.Selector, c.A, c.B)
 	res.AssertIsEqual(c.C)
 	return nil
@@ -563,8 +563,8 @@ func TestSelect(t *testing.T) {
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			var circuit, witness SelectCircuit
-			circuit.field = params
-			witness.field = params
+			circuit.params = params
+			witness.params = params
 
 			circuit.A = params.Placeholder()
 			circuit.B = params.Placeholder()
@@ -588,7 +588,7 @@ func TestSelect(t *testing.T) {
 }
 
 type ComputationCircuit struct {
-	field *Params
+	params *Params
 
 	X1, X2, X3, X4, X5, X6 Element
 	Res                    Element
@@ -596,30 +596,33 @@ type ComputationCircuit struct {
 
 func (c *ComputationCircuit) Define(api frontend.API) error {
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
-	x13 := c.field.Element(api)
+	x13 := c.params.Element(api)
 	x13.Mul(c.X1, c.X1)
 	x13.Reduce(x13)
 	x13.Mul(x13, c.X1)
 	x13.Reduce(x13)
 
-	fx2 := c.field.Element(api)
-	five, err := c.field.ConstantFromBig(big.NewInt(5))
+	fx2 := c.params.Element(api)
+	five, err := c.params.ConstantFromBig(big.NewInt(5))
 	if err != nil {
 		return fmt.Errorf("five: %w", err)
 	}
 	fx2.Mul(five, c.X2)
 	fx2.Reduce(fx2)
 
-	nom := c.field.Element(api)
+	nom := c.params.Element(api)
 	nom.Sub(c.X3, c.X4)
 
-	denom := c.field.Element(api)
+	denom := c.params.Element(api)
 	denom.Add(c.X5, c.X6)
 
-	free := c.field.Element(api)
+	dbg("nom", nom.Limbs, nom.params)
+	dbg("denom", denom.Limbs, denom.params)
+
+	free := c.params.Element(api)
 	free.Div(nom, denom)
 
-	res := c.field.Element(api)
+	res := c.params.Element(api)
 	res.Add(x13, fx2)
 	res.Add(res, free)
 
@@ -629,18 +632,21 @@ func (c *ComputationCircuit) Define(api frontend.API) error {
 
 func TestComputation(t *testing.T) {
 	for _, fp := range emulatedFields(t) {
+		if !fp.params.hasInverses {
+			continue
+		}
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			circuit := ComputationCircuit{
-				field: params,
-				X1:    params.Placeholder(),
-				X2:    params.Placeholder(),
-				X3:    params.Placeholder(),
-				X4:    params.Placeholder(),
-				X5:    params.Placeholder(),
-				X6:    params.Placeholder(),
-				Res:   params.Placeholder(),
+				params: params,
+				X1:     params.Placeholder(),
+				X2:     params.Placeholder(),
+				X3:     params.Placeholder(),
+				X4:     params.Placeholder(),
+				X5:     params.Placeholder(),
+				X6:     params.Placeholder(),
+				Res:    params.Placeholder(),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
@@ -673,14 +679,14 @@ func TestComputation(t *testing.T) {
 			res.Mod(res, params.n)
 
 			witness := ComputationCircuit{
-				field: params,
-				X1:    params.ConstantFromBigOrPanic(val1),
-				X2:    params.ConstantFromBigOrPanic(val2),
-				X3:    params.ConstantFromBigOrPanic(val3),
-				X4:    params.ConstantFromBigOrPanic(val4),
-				X5:    params.ConstantFromBigOrPanic(val5),
-				X6:    params.ConstantFromBigOrPanic(val6),
-				Res:   params.ConstantFromBigOrPanic(res),
+				params: params,
+				X1:     params.ConstantFromBigOrPanic(val1),
+				X2:     params.ConstantFromBigOrPanic(val2),
+				X3:     params.ConstantFromBigOrPanic(val3),
+				X4:     params.ConstantFromBigOrPanic(val4),
+				X5:     params.ConstantFromBigOrPanic(val5),
+				X6:     params.ConstantFromBigOrPanic(val6),
+				Res:    params.ConstantFromBigOrPanic(res),
 			}
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
 		}, testName(fp))
