@@ -20,17 +20,7 @@ type emulatedField struct {
 func emulatedFields(t *testing.T) []emulatedField {
 	t.Helper()
 	var ret []emulatedField
-	for _, limbLength := range []int{20, 25, 28, 30, 32, 48, 64} {
-		f21025, err := NewParams(limbLength, new(big.Int).Lsh(big.NewInt(1), 1024))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ret = append(ret, emulatedField{f21025, "f_2^1025"})
-		f21024, err := NewParams(limbLength, new(big.Int).Lsh(big.NewInt(1), 1023))
-		if err != nil {
-			t.Fatal(err)
-		}
-		ret = append(ret, emulatedField{f21024, "f_2^1024"})
+	for _, limbLength := range []int{32, 48, 64, 120} {
 		bn254fp, err := NewParams(limbLength, ecc.BN254.Info().Fp.Modulus())
 		if err != nil {
 			t.Fatal(err)
