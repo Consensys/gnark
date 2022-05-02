@@ -62,23 +62,22 @@ func (c *AssertLimbEqualityCircuit) Define(api frontend.API) error {
 }
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness AssertLimbEqualityCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
+			circuit := AssertLimbEqualityCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+			}
 
 			val, _ := rand.Int(rand.Reader, params.n)
-			witness.A, err = params.ConstantFromBig(val)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val)
-			assert.NoError(err)
+			witness := AssertLimbEqualityCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val),
+				B:      params.ConstantFromBigOrPanic(val),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
@@ -101,28 +100,26 @@ func (c *AddCircuit) Define(api frontend.API) error {
 }
 
 func TestAddCircuitNoOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness AddCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := AddCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, big.NewInt(2)))
 			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, big.NewInt(2)))
 			res := new(big.Int).Add(val1, val2)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(res)
-			assert.NoError(err)
+			witness := AddCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
@@ -145,28 +142,26 @@ func (c *MulNoOverflowCircuit) Define(api frontend.API) error {
 }
 
 func TestMulCircuitNoOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness MulNoOverflowCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := MulNoOverflowCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(params.n.BitLen())/2))
 			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, val1))
 			res := new(big.Int).Mul(val1, val2)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(res)
-			assert.NoError(err)
+			witness := MulNoOverflowCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -189,29 +184,27 @@ func (c *MulCircuitOverflow) Define(api frontend.API) error {
 }
 
 func TestMulCircuitOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness MulCircuitOverflow
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := MulCircuitOverflow{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, params.n)
 			res := new(big.Int).Mul(val1, val2)
 			res.Mod(res, params.n)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(res)
-			assert.NoError(err)
+			witness := MulCircuitOverflow{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -235,30 +228,27 @@ func (c *ReduceAfterAddCircuit) Define(api frontend.API) error {
 }
 
 func TestReduceAfterAdd(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness ReduceAfterAddCircuit
-			circuit.params = params
-			witness.params = params
+			circuit := ReduceAfterAddCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val2, _ := rand.Int(rand.Reader, params.n)
 			val1, _ := rand.Int(rand.Reader, val2)
 			val3 := new(big.Int).Add(val1, params.n)
 			val3.Sub(val3, val2)
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
-
-			witness.A, err = params.ConstantFromBig(val3)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
+			witness := ReduceAfterAddCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val3),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(val1),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -281,27 +271,26 @@ func (c *SubtractCircuit) Define(api frontend.API) error {
 }
 
 func TestSubtractNoOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness SubtractCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := SubtractCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, val1)
 			res := new(big.Int).Sub(val1, val2)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(res)
+			witness := SubtractCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -309,29 +298,28 @@ func TestSubtractNoOverflow(t *testing.T) {
 }
 
 func TestSubtractOverflow(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness SubtractCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := SubtractCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, new(big.Int).Sub(params.n, val1))
 			val2.Add(val2, val1)
 			res := new(big.Int).Sub(val1, val2)
 			res.Mod(res, params.n)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(res)
+			witness := SubtractCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -353,24 +341,23 @@ func (c *NegationCircuit) Define(api frontend.API) error {
 }
 
 func TestNegation(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness NegationCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
+			circuit := NegationCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			res := new(big.Int).Sub(params.n, val1)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(res)
-			assert.NoError(err)
+			witness := NegationCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -392,7 +379,6 @@ func (c *InverseCircuit) Define(api frontend.API) error {
 }
 
 func TestInverse(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		if !fp.params.hasInverses {
 			continue
@@ -400,19 +386,19 @@ func TestInverse(t *testing.T) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness InverseCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
+			circuit := InverseCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			res := new(big.Int).ModInverse(val1, params.n)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(res)
-			assert.NoError(err)
+			witness := InverseCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -434,7 +420,6 @@ func (c *DivisionCircuit) Define(api frontend.API) error {
 }
 
 func TestDivision(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		if !fp.params.hasInverses {
 			continue
@@ -442,24 +427,25 @@ func TestDivision(t *testing.T) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness DivisionCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := DivisionCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, params.n)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			val2.ModInverse(val2, params.n)
-			val2.Mul(val1, val2)
-			val2.Mod(val2, params.n)
-			witness.C, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
+			res := new(big.Int)
+			res.ModInverse(val2, params.n)
+			res.Mul(val1, res)
+			res.Mod(res, params.n)
+			witness := DivisionCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -487,27 +473,26 @@ func (c *ToBitsCircuit) Define(api frontend.API) error {
 }
 
 func TestToBits(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness ToBitsCircuit
-			circuit.params = params
-			witness.params = params
+			circuit := ToBitsCircuit{
+				params: params,
+				Value:  params.Placeholder(),
+				Bits:   make([]frontend.Variable, params.n.BitLen()),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			bits := make([]frontend.Variable, params.n.BitLen())
 			for i := 0; i < len(bits); i++ {
 				bits[i] = val1.Bit(i)
 			}
-
-			circuit.Value = params.Placeholder()
-			circuit.Bits = make([]frontend.Variable, len(bits))
-
-			witness.Value, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.Bits = bits
+			witness := ToBitsCircuit{
+				params: params,
+				Value:  params.ConstantFromBigOrPanic(val1),
+				Bits:   bits,
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
@@ -567,30 +552,28 @@ func (c *SelectCircuit) Define(api frontend.API) error {
 }
 
 func TestSelect(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness SelectCircuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
+			circuit := SelectCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, params.n)
 			randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
 			b := randbit.Uint64()
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig([]*big.Int{val1, val2}[1-b])
-			assert.NoError(err)
-			witness.Selector = b
+			witness := SelectCircuit{
+				params:   params,
+				A:        params.ConstantFromBigOrPanic(val1),
+				B:        params.ConstantFromBigOrPanic(val2),
+				C:        params.ConstantFromBigOrPanic([]*big.Int{val1, val2}[1-b]),
+				Selector: b,
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
@@ -617,41 +600,34 @@ func (c *Lookup2Circuit) Define(api frontend.API) error {
 }
 
 func TestLookup2(t *testing.T) {
-	var err error
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			var circuit, witness Lookup2Circuit
-			circuit.params = params
-			witness.params = params
-
-			circuit.A = params.Placeholder()
-			circuit.B = params.Placeholder()
-			circuit.C = params.Placeholder()
-			circuit.D = params.Placeholder()
-			circuit.E = params.Placeholder()
+			circuit := Lookup2Circuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+				D:      params.Placeholder(),
+				E:      params.Placeholder(),
+			}
 
 			val1, _ := rand.Int(rand.Reader, params.n)
 			val2, _ := rand.Int(rand.Reader, params.n)
 			val3, _ := rand.Int(rand.Reader, params.n)
 			val4, _ := rand.Int(rand.Reader, params.n)
 			randbit, _ := rand.Int(rand.Reader, big.NewInt(4))
-			b := randbit.Uint64()
-			b0 := randbit.Bit(0)
-			b1 := randbit.Bit(1)
-			witness.A, err = params.ConstantFromBig(val1)
-			assert.NoError(err)
-			witness.B, err = params.ConstantFromBig(val2)
-			assert.NoError(err)
-			witness.C, err = params.ConstantFromBig(val3)
-			assert.NoError(err)
-			witness.D, err = params.ConstantFromBig(val4)
-			assert.NoError(err)
-			witness.E, err = params.ConstantFromBig([]*big.Int{val1, val2, val3, val4}[b])
-			assert.NoError(err)
-			witness.Bit0 = b0
-			witness.Bit1 = b1
+			witness := Lookup2Circuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(val3),
+				D:      params.ConstantFromBigOrPanic(val4),
+				E:      params.ConstantFromBigOrPanic([]*big.Int{val1, val2, val3, val4}[randbit.Uint64()]),
+				Bit0:   randbit.Bit(0),
+				Bit1:   randbit.Bit(1),
+			}
 
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
