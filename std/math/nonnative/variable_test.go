@@ -14,6 +14,8 @@ import (
 
 const testCurve = ecc.BN254
 
+// TODO: add also cases which should fail
+
 type emulatedField struct {
 	params *Params
 	name   string
@@ -82,8 +84,6 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 		}, testName(fp))
 	}
 }
-
-// TODO: add case where the limbs have different overflows.
 
 type AddCircuit struct {
 	params *Params
