@@ -592,7 +592,68 @@ func TestSelect(t *testing.T) {
 			assert.NoError(err)
 			witness.Selector = b
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+		}, testName(fp))
+	}
+}
+
+type Lookup2Circuit struct {
+	params *Params
+
+	Bit0 frontend.Variable
+	Bit1 frontend.Variable
+	A    Element
+	B    Element
+	C    Element
+	D    Element
+	E    Element
+}
+
+func (c *Lookup2Circuit) Define(api frontend.API) error {
+	res := c.params.Element(api)
+	res.Lookup2(c.Bit0, c.Bit1, c.A, c.B, c.C, c.D)
+	res.AssertIsEqual(c.E)
+	return nil
+}
+
+func TestLookup2(t *testing.T) {
+	var err error
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			var circuit, witness Lookup2Circuit
+			circuit.params = params
+			witness.params = params
+
+			circuit.A = params.Placeholder()
+			circuit.B = params.Placeholder()
+			circuit.C = params.Placeholder()
+			circuit.D = params.Placeholder()
+			circuit.E = params.Placeholder()
+
+			val1, _ := rand.Int(rand.Reader, params.n)
+			val2, _ := rand.Int(rand.Reader, params.n)
+			val3, _ := rand.Int(rand.Reader, params.n)
+			val4, _ := rand.Int(rand.Reader, params.n)
+			randbit, _ := rand.Int(rand.Reader, big.NewInt(4))
+			b := randbit.Uint64()
+			b0 := randbit.Bit(0)
+			b1 := randbit.Bit(1)
+			witness.A, err = params.ConstantFromBig(val1)
+			assert.NoError(err)
+			witness.B, err = params.ConstantFromBig(val2)
+			assert.NoError(err)
+			witness.C, err = params.ConstantFromBig(val3)
+			assert.NoError(err)
+			witness.D, err = params.ConstantFromBig(val4)
+			assert.NoError(err)
+			witness.E, err = params.ConstantFromBig([]*big.Int{val1, val2, val3, val4}[b])
+			assert.NoError(err)
+			witness.Bit0 = b0
+			witness.Bit1 = b1
+
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
