@@ -54,12 +54,12 @@ import (
 type MerkleProof struct {
 
 	// RootHash root of the Merkle tree
-	RootHash frontend.Variable `gnark:",public"`
+	RootHash frontend.Variable
 
 	// Path path of the Merkle proof
 	Path []frontend.Variable
 
-	// Leaf of to open.
+	// Leaf of to open, it's an integer in [0:2^r-1] where r is the depth of the Merkle tree.
 	Leaf frontend.Variable
 }
 
@@ -77,6 +77,7 @@ func leafSum(api frontend.API, h hash.Hash, data frontend.Variable) frontend.Var
 // Without domain separation.
 func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Variable {
 
+	h.Reset()
 	h.Write(a, b)
 	//res := h.Sum(a, b)
 	res := h.Sum()
@@ -165,19 +166,27 @@ func VerifyProof(api frontend.API, h hash.Hash, merkleRoot frontend.Variable, pr
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func (mp *MerkleProof) VerifyProofBis(api frontend.API, h hash.Hash, proof MerkleProof) {
+func (mp *MerkleProof) VerifyProofBis(api frontend.API, h hash.Hash) {
 
-	sum := leafSum(api, h, proof.Path[0])
+	depth := len(mp.Path) - 1
+	sum := leafSum(api, h, mp.Path[0])
 
-	binLeaf := api.ToBinary(proof.Leaf, len(proof.Path))
+	// The binary decomposition is the bitwise negation of the order of hashes ->
+	// If the path in the plain go code is 					0 1 1 0 1 0
+	// The binary decomposition of the leaf index will be 	1 0 0 1 0 1 (little endian)
+	binLeaf := api.ToBinary(mp.Leaf, depth)
+	// for i := 0; i < len(binLeaf); i++ {
+	// 	api.Println(binLeaf[i])
+	// }
+	// api.Println("snark: ", sum)
 
-	for i := 1; i < len(proof.Path); i++ { // the size of the loop is fixed -> one circuit per size
-
-		d1 := api.Select(binLeaf[i-1], sum, proof.Path[i])
-		d2 := api.Select(binLeaf[i-1], proof.Path[i], sum)
+	for i := 1; i < len(mp.Path); i++ { // the size of the loop is fixed -> one circuit per size
+		d1 := api.Select(binLeaf[i-1], mp.Path[i], sum)
+		d2 := api.Select(binLeaf[i-1], sum, mp.Path[i])
 		sum = nodeSum(api, h, d1, d2)
+		// api.Println("snark: ", sum)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
-	api.AssertIsEqual(sum, proof.RootHash)
+	api.AssertIsEqual(sum, mp.RootHash)
 }
