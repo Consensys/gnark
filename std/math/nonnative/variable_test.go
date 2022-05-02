@@ -663,9 +663,6 @@ func (c *ComputationCircuit) Define(api frontend.API) error {
 	denom := c.params.Element(api)
 	denom.Add(c.X5, c.X6)
 
-	dbg("nom", nom.Limbs, nom.params)
-	dbg("denom", denom.Limbs, denom.params)
-
 	free := c.params.Element(api)
 	free.Div(nom, denom)
 
