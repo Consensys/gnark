@@ -12,6 +12,8 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+const testCurve = ecc.BN254
+
 type emulatedField struct {
 	params *Params
 	name   string
@@ -76,7 +78,7 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 			witness.B, err = params.ConstantFromBig(val)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -122,7 +124,7 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 			witness.C, err = params.ConstantFromBig(res)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -166,7 +168,7 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 			witness.C, err = params.ConstantFromBig(res)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -211,7 +213,7 @@ func TestMulCircuitOverflow(t *testing.T) {
 			witness.C, err = params.ConstantFromBig(res)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -258,7 +260,7 @@ func TestReduceAfterAdd(t *testing.T) {
 			witness.C, err = params.ConstantFromBig(val1)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -301,7 +303,7 @@ func TestSubtractNoOverflow(t *testing.T) {
 			assert.NoError(err)
 			witness.C, err = params.ConstantFromBig(res)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -331,7 +333,7 @@ func TestSubtractOverflow(t *testing.T) {
 			assert.NoError(err)
 			witness.C, err = params.ConstantFromBig(res)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -370,7 +372,7 @@ func TestNegation(t *testing.T) {
 			witness.B, err = params.ConstantFromBig(res)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -412,7 +414,7 @@ func TestInverse(t *testing.T) {
 			witness.B, err = params.ConstantFromBig(res)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -459,7 +461,7 @@ func TestDivision(t *testing.T) {
 			witness.C, err = params.ConstantFromBig(val2)
 			assert.NoError(err)
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -507,7 +509,7 @@ func TestToBits(t *testing.T) {
 			assert.NoError(err)
 			witness.Bits = bits
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
@@ -527,7 +529,25 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 }
 
 func TestConstant(t *testing.T) {
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			circuit := ConstantCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+			}
+			val, _ := rand.Int(rand.Reader, params.n)
+			witness := ConstantCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val),
+				B:      params.ConstantFromBigOrPanic(val),
+			}
 
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.WithProverOpts(backend.WithHints(GetHints()...)))
+		}, testName(fp))
+	}
 }
 
 type SelectCircuit struct {
@@ -678,7 +698,7 @@ func TestComputation(t *testing.T) {
 				X6:     params.ConstantFromBigOrPanic(val6),
 				Res:    params.ConstantFromBigOrPanic(res),
 			}
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(ecc.BN254))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))
 	}
 }
