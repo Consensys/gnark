@@ -25,8 +25,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -35,75 +33,6 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
-
-type merkleCircuit struct {
-	RootHash     frontend.Variable `gnark:",public"`
-	Path, Helper []frontend.Variable
-	// Leaf         frontend.Variable `gnark:",public"`
-}
-
-func (circuit *merkleCircuit) Define(api frontend.API) error {
-	hFunc, err := mimc.NewMiMC(api)
-	if err != nil {
-		return err
-	}
-	VerifyProof(api, &hFunc, circuit.RootHash, circuit.Path, circuit.Helper)
-	return nil
-}
-
-func TestVerifyVV(t *testing.T) {
-
-	// generate random data
-	// makes sure that each chunk of 64 bits fits in a fr modulus, otherwise there are bugs due to the padding (domain separation)
-	// TODO since when using mimc the user should be aware of this fact (otherwise one can easily finds collision), I am not sure we should take care of that in the code
-	var buf bytes.Buffer
-	for i := 0; i < 10; i++ {
-		var leaf fr.Element
-		if _, err := leaf.SetRandom(); err != nil {
-			t.Fatal(err)
-		}
-		b := leaf.Bytes()
-		buf.Write(b[:])
-	}
-
-	// build & verify proof for an elmt in the file
-	proofIndex := uint64(0)
-	segmentSize := 32
-	merkleRoot, proof, numLeaves, err := merkletree.BuildReaderProof(&buf, bn254.NewMiMC(), segmentSize, proofIndex)
-	if err != nil {
-		t.Fatal(err)
-		os.Exit(-1)
-	}
-	proofHelper := GenerateProofHelper(proof, proofIndex, numLeaves)
-
-	//
-	verified := merkletree.VerifyProof(bn254.NewMiMC(), merkleRoot, proof, proofIndex, numLeaves)
-	if !verified {
-		t.Fatal("The merkle proof in plain go should pass")
-	}
-
-	// create cs
-	circuit := merkleCircuit{
-		Path:   make([]frontend.Variable, len(proof)),
-		Helper: make([]frontend.Variable, len(proof)-1),
-	}
-
-	witness := merkleCircuit{
-		Path:     make([]frontend.Variable, len(proof)),
-		Helper:   make([]frontend.Variable, len(proof)-1),
-		RootHash: (merkleRoot),
-	}
-
-	for i := 0; i < len(proof); i++ {
-		witness.Path[i] = (proof[i])
-	}
-	for i := 0; i < len(proof)-1; i++ {
-		witness.Helper[i] = (proofHelper[i])
-	}
-
-	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
-}
 
 // MerkleProofTest used for testing onlys
 type MerkleProofTest struct {
@@ -121,7 +50,7 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 	return nil
 }
 
-func TestVerifyBis(t *testing.T) {
+func TestVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	numLeaves := 64
