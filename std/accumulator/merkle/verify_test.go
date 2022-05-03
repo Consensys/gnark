@@ -53,18 +53,17 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 func TestVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	numLeaves := 64
-	depth := 6
+	numLeaves := 32
+	depth := 5
 
 	type testData struct {
 		hash        hash.Hash
 		segmentSize int
 		curve       ecc.ID
-		leaves      []uint64
 	}
 
 	confs := []testData{
-		{hash.MIMC_BN254, 32, ecc.BN254, []uint64{0, 30, 31, 10}},
+		{hash.MIMC_BN254, 32, ecc.BN254},
 	}
 
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -78,8 +77,8 @@ func TestVerify(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// generate the proof in plain go
-		for _, proofIndex := range tData.leaves {
+		// we test the circuit for all leaves...
+		for proofIndex := uint64(0); proofIndex < 32; proofIndex++ {
 
 			// generate random data, the Merkle tree will be of depth log(64) = 6
 			var buf bytes.Buffer

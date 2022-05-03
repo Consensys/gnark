@@ -51,21 +51,10 @@ type Circuit struct {
 	Transfers [BatchSizeCircuit]TransferConstraints
 
 	// list of proofs corresponding to sender and receiver accounts
-	// MerkleProofsSenderBefore      [BatchSizeCircuit][depth]frontend.Variable
-	// MerkleProofsSenderAfter       [BatchSizeCircuit][depth]frontend.Variable
-	// MerkleProofHelperSenderBefore [BatchSizeCircuit][depth - 1]frontend.Variable
-	// MerkleProofHelperSenderAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
-
-	// list of proofs corresponding to receiver account
 	MerkleProofReceiverBefore [BatchSizeCircuit]merkle.MerkleProof
 	MerkleProofReceiverAfter  [BatchSizeCircuit]merkle.MerkleProof
 	MerkleProofSenderBefore   [BatchSizeCircuit]merkle.MerkleProof
 	MerkleProofSenderAfter    [BatchSizeCircuit]merkle.MerkleProof
-
-	// MerkleProofsReceiverBefore      [BatchSizeCircuit][depth]frontend.Variable
-	// MerkleProofsReceiverAfter       [BatchSizeCircuit][depth]frontend.Variable
-	// MerkleProofHelperReceiverBefore [BatchSizeCircuit][depth - 1]frontend.Variable
-	// MerkleProofHelperReceiverAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// PUBLIC INPUTS
@@ -114,7 +103,7 @@ func (circuit *Circuit) postInit(api frontend.API) error {
 		circuit.Transfers[i].ReceiverPubKey = circuit.PublicKeysReceiver[i]
 
 		// allocate the slices for the Merkle proofs
-		circuit.allocateSlicesMerkleProofs()
+		// circuit.allocateSlicesMerkleProofs()
 
 	}
 	return nil
@@ -149,15 +138,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 		circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
 		circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
-
-		// verify the sender and receiver accounts exist before the update
-		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
-		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
-
-		// verify the sender and receiver accounts exist after the update
-		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
-		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
-
 		circuit.MerkleProofReceiverAfter[i].VerifyProofBis(api, &hFunc)
 		circuit.MerkleProofSenderAfter[i].VerifyProofBis(api, &hFunc)
 
@@ -176,6 +156,9 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
 func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
+
+	// Reset the hash state!
+	hFunc.Reset()
 
 	// the signature is on h(nonce ∥ amount ∥ senderpubKey (x&y) ∥ receiverPubkey(x&y))
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)

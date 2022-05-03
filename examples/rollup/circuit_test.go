@@ -77,6 +77,13 @@ func TestCircuitSignature(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	var signatureCircuit circuitSignature
+	for i := 0; i < BatchSizeCircuit; i++ {
+		signatureCircuit.MerkleProofReceiverBefore[i].Path = make([]frontend.Variable, depth)
+		signatureCircuit.MerkleProofReceiverAfter[i].Path = make([]frontend.Variable, depth)
+		signatureCircuit.MerkleProofSenderBefore[i].Path = make([]frontend.Variable, depth)
+		signatureCircuit.MerkleProofSenderAfter[i].Path = make([]frontend.Variable, depth)
+	}
+
 	assert.ProverSucceeded(&signatureCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
 
 }
@@ -259,6 +266,11 @@ func TestCircuitFull(t *testing.T) {
 	}
 
 	// TODO full circuit has some unconstrained inputs, that's odd.
-	assert.ProverSucceeded(&rollupCircuit, &operator.witnesses, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
+	assert.ProverSucceeded(
+		&rollupCircuit,
+		&operator.witnesses,
+		test.WithCurves(ecc.BN254),
+		test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()),
+		test.WithBackends(backend.GROTH16))
 
 }
