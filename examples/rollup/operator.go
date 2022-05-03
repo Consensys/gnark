@@ -36,9 +36,9 @@ type Queue struct {
 	listTransfers chan Transfer
 }
 
-// NewQueue creates a new queue, batchSize is the capaciy
-func NewQueue(batchSize int) Queue {
-	resChan := make(chan Transfer, batchSize)
+// NewQueue creates a new queue, BatchSizeCircuit is the capaciy
+func NewQueue(BatchSizeCircuit int) Queue {
+	resChan := make(chan Transfer, BatchSizeCircuit)
 	var res Queue
 	res.listTransfers = resChan
 	return res
@@ -59,6 +59,7 @@ type Operator struct {
 // NewOperator creates a new operator.
 // nbAccounts is the number of accounts managed by this operator, h is the hash function for the merkle proofs
 func NewOperator(nbAccounts int) Operator {
+
 	res := Operator{}
 
 	// create a list of empty accounts
@@ -93,7 +94,7 @@ func (o *Operator) readAccount(i uint64) (Account, error) {
 }
 
 // updateAccount updates the state according to transfer
-// numTransfer is the number of the transfer currently handled (between 0 and batchSize)
+// numTransfer is the number of the transfer currently handled (between 0 and BatchSizeCircuit)
 func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	var posSender, posReceiver uint64
@@ -147,6 +148,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
+
+	// verify the proof in plain go...
 	merkletree.VerifyProof(o.h, merkleRootBefore, proofInclusionSenderBefore, posSender, numLeaves)
 	merkleProofHelperSenderBefore := merkle.GenerateProofHelper(proofInclusionSenderBefore, posSender, numLeaves)
 
@@ -161,7 +164,22 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	}
 	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
 	o.witnesses.RootHashesBefore[numTransfer] = merkleRootBefore
+
+	// o.witnesses.MerkleProofReceiverBefore[numTransfer].Leaf = posReceiver
+	// o.witnesses.MerkleProofReceiverBefore[numTransfer].RootHash = merkleRootBefore
+	// o.witnesses.MerkleProofSenderBefore[numTransfer].Leaf = posSender
+	// o.witnesses.MerkleProofSenderBefore[numTransfer].RootHash = merkleRootBefore
+
+	// fmt.Printf("length: %d\n", len(proofInclusionSenderBefore))
+	// fmt.Printf("length: %d\n", len(proofInclusionSenderBefore))
+	// fmt.Printf("length: %d\n", len(o.witnesses.MerkleProofSenderBefore[numTransfer].Path))
+	// fmt.Printf("length: %d\n", len(o.witnesses.MerkleProofReceiverBefore[numTransfer].Path))
+
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
+
+		// o.witnesses.MerkleProofSenderBefore[numTransfer].Path[i] = proofInclusionSenderBefore[i]
+		// o.witnesses.MerkleProofReceiverBefore[numTransfer].Path[i] = proofInclusionReceiverBefore[i]
+
 		o.witnesses.MerkleProofsSenderBefore[numTransfer][i] = proofInclusionSenderBefore[i]
 		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i] = proofInclusionReceiverBefore[i]
 
@@ -255,7 +273,17 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
 	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfer
+
+	// o.witnesses.MerkleProofSenderAfter[numTransfer].Leaf = posSender
+	// o.witnesses.MerkleProofSenderAfter[numTransfer].RootHash = merkleRootAfer
+	// o.witnesses.MerkleProofReceiverAfter[numTransfer].Leaf = posReceiver
+	// o.witnesses.MerkleProofReceiverAfter[numTransfer].RootHash = merkleRootAfer
+
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {
+
+		// o.witnesses.MerkleProofSenderAfter[numTransfer].Path[i] = proofInclusionSenderAfter[i]
+		// o.witnesses.MerkleProofReceiverAfter[numTransfer].Path[i] = proofInclusionReceiverAfter[i]
+
 		o.witnesses.MerkleProofsSenderAfter[numTransfer][i] = proofInclusionSenderAfter[i]
 		o.witnesses.MerkleProofsReceiverAfter[numTransfer][i] = proofInclusionReceiverAfter[i]
 
