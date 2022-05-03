@@ -270,7 +270,7 @@ func TestCircuitFull(t *testing.T) {
 		&rollupCircuit,
 		&operator.witnesses,
 		test.WithCurves(ecc.BN254),
-		test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()),
+		// test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()),
 		test.WithBackends(backend.GROTH16))
 
 }

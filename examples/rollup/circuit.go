@@ -133,8 +133,17 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return err
 	}
 
-	// creation of the circuit
+	// verifications of:
+	// - Merkle proofs of the accounts
+	// - the signatures
+	// - accounts' balance consistency
 	for i := 0; i < BatchSizeCircuit; i++ {
+
+		// the root hashes of the Merkle path must match the public ones given in the circuit
+		api.AssertIsEqual(circuit.RootHashesBefore[i], circuit.MerkleProofReceiverBefore[i].RootHash)
+		api.AssertIsEqual(circuit.RootHashesBefore[i], circuit.MerkleProofSenderBefore[i].RootHash)
+		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofReceiverAfter[i].RootHash)
+		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofSenderAfter[i].RootHash)
 
 		circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
 		circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
