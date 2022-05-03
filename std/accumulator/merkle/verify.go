@@ -67,6 +67,7 @@ type MerkleProof struct {
 // Without domain separation.
 func leafSum(api frontend.API, h hash.Hash, data frontend.Variable) frontend.Variable {
 
+	h.Reset()
 	h.Write(data)
 	res := h.Sum()
 
@@ -79,7 +80,6 @@ func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Var
 
 	h.Reset()
 	h.Write(a, b)
-	//res := h.Sum(a, b)
 	res := h.Sum()
 
 	return res
@@ -155,6 +155,7 @@ func VerifyProof(api frontend.API, h hash.Hash, merkleRoot frontend.Variable, pr
 		d1 := api.Select(helper[i-1], sum, proofSet[i])
 		d2 := api.Select(helper[i-1], proofSet[i], sum)
 		sum = nodeSum(api, h, d1, d2)
+
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
@@ -175,16 +176,11 @@ func (mp *MerkleProof) VerifyProofBis(api frontend.API, h hash.Hash) {
 	// If the path in the plain go code is 					0 1 1 0 1 0
 	// The binary decomposition of the leaf index will be 	1 0 0 1 0 1 (little endian)
 	binLeaf := api.ToBinary(mp.Leaf, depth)
-	// for i := 0; i < len(binLeaf); i++ {
-	// 	api.Println(binLeaf[i])
-	// }
-	// api.Println("snark: ", sum)
 
 	for i := 1; i < len(mp.Path); i++ { // the size of the loop is fixed -> one circuit per size
 		d1 := api.Select(binLeaf[i-1], mp.Path[i], sum)
 		d2 := api.Select(binLeaf[i-1], sum, mp.Path[i])
 		sum = nodeSum(api, h, d1, d2)
-		// api.Println("snark: ", sum)
 	}
 
 	// Compare our calculated Merkle root to the desired Merkle root.
