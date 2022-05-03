@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	nbAccounts = 16 // 16 accounts so we know that the proof length is 5
-	depth      = 5  // size fo the inclusion proofs
-	BatchSizeCircuit  = 1  // nbTranfers to batch in a proof
+	nbAccounts       = 16 // 16 accounts so we know that the proof length is 5
+	depth            = 5  // size fo the inclusion proofs
+	BatchSizeCircuit = 1  // nbTranfers to batch in a proof
 )
 
 // Circuit "toy" rollup circuit where an operator can generate a proof that he processed
@@ -50,23 +50,22 @@ type Circuit struct {
 	// list of transactions
 	Transfers [BatchSizeCircuit]TransferConstraints
 
-	// list of proofs corresponding to sender account
-	// MerkleProofSenderBefore       [BatchSizeCircuit]merkle.MerkleProof
-	// MerkleProofSenderAfter        [BatchSizeCircuit]merkle.MerkleProof
-
-	MerkleProofsSenderBefore      [BatchSizeCircuit][depth]frontend.Variable
-	MerkleProofsSenderAfter       [BatchSizeCircuit][depth]frontend.Variable
-	MerkleProofHelperSenderBefore [BatchSizeCircuit][depth - 1]frontend.Variable
-	MerkleProofHelperSenderAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
+	// list of proofs corresponding to sender and receiver accounts
+	// MerkleProofsSenderBefore      [BatchSizeCircuit][depth]frontend.Variable
+	// MerkleProofsSenderAfter       [BatchSizeCircuit][depth]frontend.Variable
+	// MerkleProofHelperSenderBefore [BatchSizeCircuit][depth - 1]frontend.Variable
+	// MerkleProofHelperSenderAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
 
 	// list of proofs corresponding to receiver account
-	// MerkleProofReceiverBefore [BatchSizeCircuit]merkle.MerkleProof
-	// MerkleProofReceiverAfter        [BatchSizeCircuit]merkle.MerkleProof
+	MerkleProofReceiverBefore [BatchSizeCircuit]merkle.MerkleProof
+	MerkleProofReceiverAfter  [BatchSizeCircuit]merkle.MerkleProof
+	MerkleProofSenderBefore   [BatchSizeCircuit]merkle.MerkleProof
+	MerkleProofSenderAfter    [BatchSizeCircuit]merkle.MerkleProof
 
-	MerkleProofsReceiverBefore      [BatchSizeCircuit][depth]frontend.Variable
-	MerkleProofsReceiverAfter       [BatchSizeCircuit][depth]frontend.Variable
-	MerkleProofHelperReceiverBefore [BatchSizeCircuit][depth - 1]frontend.Variable
-	MerkleProofHelperReceiverAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
+	// MerkleProofsReceiverBefore      [BatchSizeCircuit][depth]frontend.Variable
+	// MerkleProofsReceiverAfter       [BatchSizeCircuit][depth]frontend.Variable
+	// MerkleProofHelperReceiverBefore [BatchSizeCircuit][depth - 1]frontend.Variable
+	// MerkleProofHelperReceiverAfter  [BatchSizeCircuit][depth - 1]frontend.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// PUBLIC INPUTS
@@ -125,10 +124,10 @@ func (circuit *Circuit) allocateSlicesMerkleProofs() {
 
 	for i := 0; i < BatchSizeCircuit; i++ {
 		// allocating slice for the Merkle paths
-		// circuit.MerkleProofReceiverBefore[i].Path = make([]frontend.Variable, depth)
-		// circuit.MerkleProofReceiverAfter[i].Path = make([]frontend.Variable, depth)
-		// circuit.MerkleProofSenderBefore[i].Path = make([]frontend.Variable, depth)
-		// circuit.MerkleProofSenderAfter[i].Path = make([]frontend.Variable, depth)
+		circuit.MerkleProofReceiverBefore[i].Path = make([]frontend.Variable, depth)
+		circuit.MerkleProofReceiverAfter[i].Path = make([]frontend.Variable, depth)
+		circuit.MerkleProofSenderBefore[i].Path = make([]frontend.Variable, depth)
+		circuit.MerkleProofSenderAfter[i].Path = make([]frontend.Variable, depth)
 	}
 
 }
@@ -148,19 +147,19 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// creation of the circuit
 	for i := 0; i < BatchSizeCircuit; i++ {
 
-		// circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
-		// circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
+		circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
+		circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
 
 		// verify the sender and receiver accounts exist before the update
-		merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
-		merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
+		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsSenderBefore[i][:], circuit.MerkleProofHelperSenderBefore[i][:])
+		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesBefore[i], circuit.MerkleProofsReceiverBefore[i][:], circuit.MerkleProofHelperReceiverBefore[i][:])
 
 		// verify the sender and receiver accounts exist after the update
-		merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
-		merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
+		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsSenderAfter[i][:], circuit.MerkleProofHelperSenderAfter[i][:])
+		// merkle.VerifyProof(api, &hFunc, circuit.RootHashesAfter[i], circuit.MerkleProofsReceiverAfter[i][:], circuit.MerkleProofHelperReceiverAfter[i][:])
 
-		// circuit.MerkleProofReceiverAfter[i].VerifyProofBis(api, &hFunc)
-		// circuit.MerkleProofSenderAfter[i].VerifyProofBis(api, &hFunc)
+		circuit.MerkleProofReceiverAfter[i].VerifyProofBis(api, &hFunc)
+		circuit.MerkleProofSenderAfter[i].VerifyProofBis(api, &hFunc)
 
 		// verify the transaction transfer
 		err := verifyTransferSignature(api, circuit.Transfers[i], hFunc)
