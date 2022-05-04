@@ -72,7 +72,7 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 	for i := 0; i < len(padLimbs); i++ {
 		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+params.nbBits)
 	}
-	topBits := 2*((uint(params.n.BitLen())-1)%params.nbBits+1) + 1
+	topBits := 2*((uint(params.r.BitLen())-1)%params.nbBits+1) + 1
 	// here is some magic -- if the number of limbs is 2*nbLimbs-1, then we are
 	// computing the padding for the unreduced multiplication result. If the
 	// number of limbs is less then we can not assume the individual overflows
@@ -89,8 +89,8 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 	if err := Recompose(padLimbs, params.nbBits, pad); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
-	pad.Mod(pad, params.n)
-	pad.Sub(params.n, pad)
+	pad.Mod(pad, params.r)
+	pad.Sub(params.r, pad)
 	ret := make([]*big.Int, nbLimbs)
 	for i := range ret {
 		ret[i] = new(big.Int)

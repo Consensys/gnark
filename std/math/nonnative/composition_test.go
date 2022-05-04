@@ -14,7 +14,7 @@ func TestComposition(t *testing.T) {
 	for _, fp := range emulatedFields(t) {
 		params := fp.params
 		assert.Run(func(assert *test.Assert) {
-			n, err := rand.Int(rand.Reader, params.n)
+			n, err := rand.Int(rand.Reader, params.r)
 			if err != nil {
 				assert.FailNow("rand int", err)
 			}
@@ -47,7 +47,7 @@ func TestSubPadding(t *testing.T) {
 				if err := Recompose(limbs, params.nbBits, padValue); err != nil {
 					assert.FailNow("recompose", err)
 				}
-				padValue.Mod(padValue, params.n)
+				padValue.Mod(padValue, params.r)
 				assert.Zero(padValue.Cmp(big.NewInt(0)), "padding not multiple of order")
 			}, fmt.Sprintf("%s/nbLimbs=%d", testName(fp), i))
 		}

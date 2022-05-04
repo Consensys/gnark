@@ -23,8 +23,8 @@ import (
 // n is prime, then the ring is also a finite field where inverse and division
 // are allowed.
 type Params struct {
-	// n is the modulus
-	n *big.Int
+	// r is the modulus
+	r *big.Int
 	// hasInverses indicates if order is prime
 	hasInverses bool
 	// nbLimbs is the number of limbs which fit reduced element
@@ -47,22 +47,22 @@ type Params struct {
 // checks fail.
 //
 // This method checks the primality of n to detect if parameters define a finite
-// field. As such, invociation of this method is expensive and should be done
+// field. As such, invocation of this method is expensive and should be done
 // once.
-func NewParams(nbBits int, n *big.Int) (*Params, error) {
-	if n.Cmp(big.NewInt(1)) < 1 {
+func NewParams(nbBits int, r *big.Int) (*Params, error) {
+	if r.Cmp(big.NewInt(1)) < 1 {
 		return nil, fmt.Errorf("n must be at least 2")
 	}
 	if nbBits < 3 {
 		// even three is way too small, but it should probably work.
 		return nil, fmt.Errorf("nbBits must be at least 3")
 	}
-	nbLimbs := (n.BitLen() + nbBits - 1) / nbBits
+	nbLimbs := (r.BitLen() + nbBits - 1) / nbBits
 	fp := &Params{
-		n:           n,
+		r:           r,
 		nbLimbs:     uint(nbLimbs),
 		nbBits:      uint(nbBits),
-		hasInverses: n.ProbablyPrime(20),
+		hasInverses: r.ProbablyPrime(20),
 	}
 	return fp, nil
 }
@@ -103,7 +103,7 @@ func (fp *Params) Element(api frontend.API) Element {
 // element is not safe to use as an operation receiver.
 func (fp *Params) Modulus() Element {
 	fp.nConstOnce.Do(func() {
-		element, err := fp.ConstantFromBig(fp.n)
+		element, err := fp.ConstantFromBig(fp.r)
 		if err != nil {
 			// should not err for fp.order
 			panic(fmt.Sprintf("witness from order: %v", err))
@@ -142,7 +142,7 @@ func (fp *Params) One() Element {
 // ConstantFromBig returns a constant element from the value. The returned
 // element is not safe to use as an operation receiver.
 func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
-	if fp.n.Cmp(value) == -1 {
+	if fp.r.Cmp(value) == -1 {
 		return Element{}, fmt.Errorf("value larger than order of the field")
 	}
 	limbs := make([]*big.Int, fp.nbLimbs)
@@ -203,7 +203,7 @@ func (e *Element) ToBits() []frontend.Variable {
 		limbBits := bits.ToBinary(e.api, e.Limbs[i], bits.WithNbDigits(int(e.params.nbBits)))
 		fullBits = append(fullBits, limbBits...)
 	}
-	limbBits := bits.ToBinary(e.api, e.Limbs[e.params.nbLimbs-1], bits.WithNbDigits((e.params.n.BitLen()-1)%int(e.params.nbBits)+1))
+	limbBits := bits.ToBinary(e.api, e.Limbs[e.params.nbLimbs-1], bits.WithNbDigits((e.params.r.BitLen()-1)%int(e.params.nbBits)+1))
 	fullBits = append(fullBits, limbBits...)
 	return fullBits
 }
@@ -286,7 +286,7 @@ func (e *Element) EnforceWidth() {
 		limbNbBits := int(e.params.nbBits)
 		if i == len(e.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((e.params.n.BitLen() - 1) % int(e.params.nbBits)) + 1
+			limbNbBits = ((e.params.r.BitLen() - 1) % int(e.params.nbBits)) + 1
 		}
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
 		// the limb value. This is sufficient to restrict for the bitlength and

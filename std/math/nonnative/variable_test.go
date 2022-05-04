@@ -72,7 +72,7 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 				B:      params.Placeholder(),
 			}
 
-			val, _ := rand.Int(rand.Reader, params.n)
+			val, _ := rand.Int(rand.Reader, params.r)
 			witness := AssertLimbEqualityCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val),
@@ -111,8 +111,8 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, big.NewInt(2)))
-			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, big.NewInt(2)))
+			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))
+			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))
 			res := new(big.Int).Add(val1, val2)
 			witness := AddCircuit{
 				params: params,
@@ -153,8 +153,8 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(params.n.BitLen())/2))
-			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.n, val1))
+			val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(params.r.BitLen())/2))
+			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, val1))
 			res := new(big.Int).Mul(val1, val2)
 			witness := MulNoOverflowCircuit{
 				params: params,
@@ -195,10 +195,10 @@ func TestMulCircuitOverflow(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, params.r)
 			res := new(big.Int).Mul(val1, val2)
-			res.Mod(res, params.n)
+			res.Mod(res, params.r)
 			witness := MulCircuitOverflow{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val1),
@@ -239,9 +239,9 @@ func TestReduceAfterAdd(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val2, _ := rand.Int(rand.Reader, params.n)
+			val2, _ := rand.Int(rand.Reader, params.r)
 			val1, _ := rand.Int(rand.Reader, val2)
-			val3 := new(big.Int).Add(val1, params.n)
+			val3 := new(big.Int).Add(val1, params.r)
 			val3.Sub(val3, val2)
 			witness := ReduceAfterAddCircuit{
 				params: params,
@@ -282,7 +282,7 @@ func TestSubtractNoOverflow(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
 			val2, _ := rand.Int(rand.Reader, val1)
 			res := new(big.Int).Sub(val1, val2)
 			witness := SubtractCircuit{
@@ -309,11 +309,11 @@ func TestSubtractOverflow(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, new(big.Int).Sub(params.n, val1))
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, new(big.Int).Sub(params.r, val1))
 			val2.Add(val2, val1)
 			res := new(big.Int).Sub(val1, val2)
-			res.Mod(res, params.n)
+			res.Mod(res, params.r)
 			witness := SubtractCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val1),
@@ -351,8 +351,8 @@ func TestNegation(t *testing.T) {
 				B:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			res := new(big.Int).Sub(params.n, val1)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			res := new(big.Int).Sub(params.r, val1)
 			witness := NegationCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val1),
@@ -392,8 +392,8 @@ func TestInverse(t *testing.T) {
 				B:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			res := new(big.Int).ModInverse(val1, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			res := new(big.Int).ModInverse(val1, params.r)
 			witness := InverseCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val1),
@@ -434,12 +434,12 @@ func TestDivision(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, params.r)
 			res := new(big.Int)
-			res.ModInverse(val2, params.n)
+			res.ModInverse(val2, params.r)
 			res.Mul(val1, res)
-			res.Mod(res, params.n)
+			res.Mod(res, params.r)
 			witness := DivisionCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val1),
@@ -480,11 +480,11 @@ func TestToBits(t *testing.T) {
 			circuit := ToBitsCircuit{
 				params: params,
 				Value:  params.Placeholder(),
-				Bits:   make([]frontend.Variable, params.n.BitLen()),
+				Bits:   make([]frontend.Variable, params.r.BitLen()),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			bits := make([]frontend.Variable, params.n.BitLen())
+			val1, _ := rand.Int(rand.Reader, params.r)
+			bits := make([]frontend.Variable, params.r.BitLen())
 			for i := 0; i < len(bits); i++ {
 				bits[i] = val1.Bit(i)
 			}
@@ -523,7 +523,7 @@ func TestConstant(t *testing.T) {
 				A:      params.Placeholder(),
 				B:      params.Placeholder(),
 			}
-			val, _ := rand.Int(rand.Reader, params.n)
+			val, _ := rand.Int(rand.Reader, params.r)
 			witness := ConstantCircuit{
 				params: params,
 				A:      params.ConstantFromBigOrPanic(val),
@@ -563,8 +563,8 @@ func TestSelect(t *testing.T) {
 				C:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, params.r)
 			randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
 			b := randbit.Uint64()
 			witness := SelectCircuit{
@@ -613,10 +613,10 @@ func TestLookup2(t *testing.T) {
 				E:      params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, params.n)
-			val3, _ := rand.Int(rand.Reader, params.n)
-			val4, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, params.r)
+			val3, _ := rand.Int(rand.Reader, params.r)
+			val4, _ := rand.Int(rand.Reader, params.r)
 			randbit, _ := rand.Int(rand.Reader, big.NewInt(4))
 			witness := Lookup2Circuit{
 				params: params,
@@ -693,34 +693,34 @@ func TestComputation(t *testing.T) {
 				Res:    params.Placeholder(),
 			}
 
-			val1, _ := rand.Int(rand.Reader, params.n)
-			val2, _ := rand.Int(rand.Reader, params.n)
-			val3, _ := rand.Int(rand.Reader, params.n)
-			val4, _ := rand.Int(rand.Reader, params.n)
-			val5, _ := rand.Int(rand.Reader, params.n)
-			val6, _ := rand.Int(rand.Reader, params.n)
+			val1, _ := rand.Int(rand.Reader, params.r)
+			val2, _ := rand.Int(rand.Reader, params.r)
+			val3, _ := rand.Int(rand.Reader, params.r)
+			val4, _ := rand.Int(rand.Reader, params.r)
+			val5, _ := rand.Int(rand.Reader, params.r)
+			val6, _ := rand.Int(rand.Reader, params.r)
 
 			tmp := new(big.Int)
 			res := new(big.Int)
 			// res = x1^3
-			tmp.Exp(val1, big.NewInt(3), params.n)
+			tmp.Exp(val1, big.NewInt(3), params.r)
 			res.Set(tmp)
 			// res = x1^3 + 5*x2
 			tmp.Mul(val2, big.NewInt(5))
 			res.Add(res, tmp)
 			// tmp = (x3-x4)
 			tmp.Sub(val3, val4)
-			tmp.Mod(tmp, params.n)
+			tmp.Mod(tmp, params.r)
 			// tmp2 = (x5+x6)
 			tmp2 := new(big.Int)
 			tmp2.Add(val5, val6)
 			// tmp = (x3-x4)/(x5+x6)
-			tmp2.ModInverse(tmp2, params.n)
+			tmp2.ModInverse(tmp2, params.r)
 			tmp.Mul(tmp, tmp2)
-			tmp.Mod(tmp, params.n)
+			tmp.Mod(tmp, params.r)
 			// res = x1^3 + 5*x2 + (x3-x4)/(x5+x6)
 			res.Add(res, tmp)
-			res.Mod(res, params.n)
+			res.Mod(res, params.r)
 
 			witness := ComputationCircuit{
 				params: params,
