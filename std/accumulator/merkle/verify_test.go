@@ -45,7 +45,7 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	mp.M.VerifyProofBis(api, &h)
+	mp.M.VerifyProof(api, &h)
 
 	return nil
 }

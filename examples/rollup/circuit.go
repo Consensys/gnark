@@ -152,10 +152,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		api.AssertIsEqual(circuit.SenderAccountsAfter[i].Index, circuit.MerkleProofSenderAfter[i].Leaf)
 
 		// verify the inclusion proofs
-		circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
-		circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
-		circuit.MerkleProofReceiverAfter[i].VerifyProofBis(api, &hFunc)
-		circuit.MerkleProofSenderAfter[i].VerifyProofBis(api, &hFunc)
+		circuit.MerkleProofReceiverBefore[i].VerifyProof(api, &hFunc)
+		circuit.MerkleProofSenderBefore[i].VerifyProof(api, &hFunc)
+		circuit.MerkleProofReceiverAfter[i].VerifyProof(api, &hFunc)
+		circuit.MerkleProofSenderAfter[i].VerifyProof(api, &hFunc)
 
 		// verify the transaction transfer
 		err := verifyTransferSignature(api, circuit.Transfers[i], hFunc)
