@@ -145,6 +145,13 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofReceiverAfter[i].RootHash)
 		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofSenderAfter[i].RootHash)
 
+		// the leafs of the Merkle proofs must match the index of the accounts
+		api.AssertIsEqual(circuit.ReceiverAccountsBefore[i].Index, circuit.MerkleProofReceiverBefore[i].Leaf)
+		api.AssertIsEqual(circuit.ReceiverAccountsAfter[i].Index, circuit.MerkleProofReceiverAfter[i].Leaf)
+		api.AssertIsEqual(circuit.SenderAccountsBefore[i].Index, circuit.MerkleProofSenderBefore[i].Leaf)
+		api.AssertIsEqual(circuit.SenderAccountsAfter[i].Index, circuit.MerkleProofSenderAfter[i].Leaf)
+
+		// verify the inclusion proofs
 		circuit.MerkleProofReceiverBefore[i].VerifyProofBis(api, &hFunc)
 		circuit.MerkleProofSenderBefore[i].VerifyProofBis(api, &hFunc)
 		circuit.MerkleProofReceiverAfter[i].VerifyProofBis(api, &hFunc)
@@ -191,6 +198,7 @@ func verifyAccountUpdated(api frontend.API, from, to, fromUpdated, toUpdated Acc
 	// ensure that nonce is correctly updated
 	nonceUpdated := api.Add(from.Nonce, 1)
 	api.AssertIsEqual(nonceUpdated, fromUpdated.Nonce)
+	api.AssertIsEqual(to.Nonce, toUpdated.Nonce)
 
 	// ensures that the amount is less than the balance
 	api.AssertIsLessOrEqual(amount, from.Balance)
