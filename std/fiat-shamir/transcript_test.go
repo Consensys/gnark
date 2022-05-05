@@ -84,7 +84,12 @@ func getChallenges(curveID ecc.ID) (string, string, string) {
 	// to ensure consistency in this test, we ensure the challengeIDs have a fix byte len (the one of fr.Element)
 	frSize := curveID.Info().Fr.Bytes
 	alpha, beta, gamma := make([]byte, frSize), make([]byte, frSize), make([]byte, frSize)
-	alpha[0] = 0xde
+	_alpha := []byte("alpha")
+	_beta := []byte("beta")
+	_gamma := []byte("gamma")
+	copy(alpha, _alpha)
+	copy(beta, _beta)
+	copy(gamma, _gamma)
 	beta[0] = 0xad
 	gamma[0] = 0xf0
 
