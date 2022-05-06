@@ -37,6 +37,7 @@ import (
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	bls24317r1cs "github.com/consensys/gnark/internal/backend/bls24-317/cs"
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
@@ -334,6 +335,8 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 		return bn254r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_761:
 		return bw6761r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
+	case ecc.BLS24_317:
+		return bls24317r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS24_315:
 		return bls24315r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_633:

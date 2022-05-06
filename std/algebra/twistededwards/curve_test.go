@@ -25,6 +25,7 @@ import (
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	tbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	tbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	tbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	tbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
@@ -34,7 +35,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-var curves = []twistededwards.ID{twistededwards.BN254, twistededwards.BLS12_377, twistededwards.BLS12_381, twistededwards.BLS12_381_BANDERSNATCH, twistededwards.BW6_761, twistededwards.BW6_633, twistededwards.BLS24_315}
+var curves = []twistededwards.ID{twistededwards.BN254, twistededwards.BLS12_377, twistededwards.BLS12_381, twistededwards.BLS12_381_BANDERSNATCH, twistededwards.BW6_761, twistededwards.BW6_633, twistededwards.BLS24_315, twistededwards.BLS24_317}
 
 type mustBeOnCurve struct {
 	curveID twistededwards.ID
@@ -278,6 +279,30 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 
 	case twistededwards.BLS12_377:
 		var p1, p2, r, d, rs1, rs12, n tbls12377.PointAffine
+		p1.X.SetBigInt(params.Base[0])
+		p1.Y.SetBigInt(params.Base[1])
+		p2.Set(&p1)
+
+		p1.ScalarMul(&p1, scalar1)
+		p2.ScalarMul(&p2, scalar2)
+		r.Add(&p1, &p2)
+		d.Double(&p1)
+		rs1.ScalarMul(&p2, scalar2)
+		rs12.ScalarMul(&p1, scalar1)
+		rs12.Add(&rs12, &rs1)
+		n.Neg(&p2)
+
+		return Point{p1.X, p1.Y},
+			Point{p2.X, p2.Y},
+			Point{r.X, r.Y},
+			Point{d.X, d.Y},
+			Point{rs1.X, rs1.Y},
+			Point{rs12.X, rs12.Y},
+			Point{n.X, n.Y},
+			scalar1, scalar2
+
+	case twistededwards.BLS24_317:
+		var p1, p2, r, d, rs1, rs12, n tbls24317.PointAffine
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)

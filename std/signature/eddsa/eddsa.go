@@ -30,6 +30,7 @@ import (
 	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	edwardsbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
@@ -128,6 +129,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 	var pointbls12377 edwardsbls12377.PointAffine
 	var pointbw6761 edwardsbw6761.PointAffine
 	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbls24317 edwardsbls24317.PointAffine
 	var pointbw6633 edwardsbw6633.PointAffine
 
 	switch curveID {
@@ -171,6 +173,16 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[48:]
 		return a, b, s, nil
+	case ecc.BLS24_317:
+		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
+			return nil, nil, nil, err
+		}
+		a, b, err := parsePoint(curveID, buf)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		s := buf[32:]
+		return a, b, s, nil
 	case ecc.BLS24_315:
 		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
@@ -203,6 +215,7 @@ func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte, error) {
 	var pointbls12377 edwardsbls12377.PointAffine
 	var pointbw6761 edwardsbw6761.PointAffine
 	var pointbls24315 edwardsbls24315.PointAffine
+	var pointbls24317 edwardsbls24317.PointAffine
 	var pointbw6633 edwardsbw6633.PointAffine
 	switch curveID {
 	case ecc.BN254:
@@ -232,6 +245,13 @@ func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte, error) {
 		}
 		a := pointbw6761.X.Bytes()
 		b := pointbw6761.Y.Bytes()
+		return a[:], b[:], nil
+	case ecc.BLS24_317:
+		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
+			return nil, nil, err
+		}
+		a := pointbls24317.X.Bytes()
+		b := pointbls24317.Y.Bytes()
 		return a[:], b[:], nil
 	case ecc.BLS24_315:
 		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {

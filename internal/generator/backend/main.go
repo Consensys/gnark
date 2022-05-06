@@ -46,13 +46,19 @@ func main() {
 		CurveID:  "BLS24_315",
 		Package:  "bls24315",
 	}
+	bls24_317 := templateData{
+		RootPath: "../../../internal/backend/bls24-317/",
+		Curve:    "BLS24-317",
+		CurveID:  "BLS24_317",
+		Package:  "bls24317",
+	}
 	bw6_633 := templateData{
 		RootPath: "../../../internal/backend/bw6-633/",
 		Curve:    "BW6-633",
 		CurveID:  "BW6_633",
 		Package:  "bw6633",
 	}
-	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761, bls24_315, bw6_633}
+	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761, bls24_315, bls24_317, bw6_633}
 
 	const importCurve = "../imports.go.tmpl"
 
@@ -157,7 +163,7 @@ func main() {
 
 type templateData struct {
 	RootPath string
-	Curve    string // BLS381, BLS377, BN254, BW761
+	Curve    string
 	Package  string
 	CurveID  string
 }

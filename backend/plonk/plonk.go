@@ -31,6 +31,7 @@ import (
 	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	cs_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	cs_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	cs_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/cs"
 	cs_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
 	cs_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	cs_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
@@ -38,6 +39,7 @@ import (
 	plonk_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/plonk"
 	plonk_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
 	plonk_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/plonk"
+	plonk_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/plonk"
 	plonk_bn254 "github.com/consensys/gnark/internal/backend/bn254/plonk"
 	plonk_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/plonk"
 	plonk_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
@@ -45,6 +47,7 @@ import (
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
+	witness_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
@@ -52,6 +55,7 @@ import (
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
+	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
@@ -97,6 +101,8 @@ func Setup(ccs frontend.CompiledConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, V
 		return plonk_bls12377.Setup(tccs, kzgSRS.(*kzg_bls12377.SRS))
 	case *cs_bw6761.SparseR1CS:
 		return plonk_bw6761.Setup(tccs, kzgSRS.(*kzg_bw6761.SRS))
+	case *cs_bls24317.SparseR1CS:
+		return plonk_bls24317.Setup(tccs, kzgSRS.(*kzg_bls24317.SRS))
 	case *cs_bls24315.SparseR1CS:
 		return plonk_bls24315.Setup(tccs, kzgSRS.(*kzg_bls24315.SRS))
 	case *cs_bw6633.SparseR1CS:
@@ -156,6 +162,13 @@ func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *wi
 		}
 		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), *w, opt)
 
+	case *cs_bls24317.SparseR1CS:
+		w, ok := fullWitness.Vector.(*witness_bls24317.Witness)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
+		}
+		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), *w, opt)
+
 	case *cs_bls24315.SparseR1CS:
 		w, ok := fullWitness.Vector.(*witness_bls24315.Witness)
 		if !ok {
@@ -208,6 +221,13 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error 
 		}
 		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), *w)
 
+	case *plonk_bls24317.Proof:
+		w, ok := publicWitness.Vector.(*witness_bls24317.Witness)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), *w)
+
 	case *plonk_bls24315.Proof:
 		w, ok := publicWitness.Vector.(*witness_bls24315.Witness)
 		if !ok {
@@ -233,6 +253,8 @@ func NewCS(curveID ecc.ID) frontend.CompiledConstraintSystem {
 		r1cs = &cs_bls12381.SparseR1CS{}
 	case ecc.BW6_761:
 		r1cs = &cs_bw6761.SparseR1CS{}
+	case ecc.BLS24_317:
+		r1cs = &cs_bls24317.SparseR1CS{}
 	case ecc.BLS24_315:
 		r1cs = &cs_bls24315.SparseR1CS{}
 	case ecc.BW6_633:
@@ -256,6 +278,8 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 		pk = &plonk_bls12381.ProvingKey{}
 	case ecc.BW6_761:
 		pk = &plonk_bw6761.ProvingKey{}
+	case ecc.BLS24_317:
+		pk = &plonk_bls24317.ProvingKey{}
 	case ecc.BLS24_315:
 		pk = &plonk_bls24315.ProvingKey{}
 	case ecc.BW6_633:
@@ -280,6 +304,8 @@ func NewProof(curveID ecc.ID) Proof {
 		proof = &plonk_bls12381.Proof{}
 	case ecc.BW6_761:
 		proof = &plonk_bw6761.Proof{}
+	case ecc.BLS24_317:
+		proof = &plonk_bls24317.Proof{}
 	case ecc.BLS24_315:
 		proof = &plonk_bls24315.Proof{}
 	case ecc.BW6_633:
@@ -304,6 +330,8 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 		vk = &plonk_bls12381.VerifyingKey{}
 	case ecc.BW6_761:
 		vk = &plonk_bw6761.VerifyingKey{}
+	case ecc.BLS24_317:
+		vk = &plonk_bls24317.VerifyingKey{}
 	case ecc.BLS24_315:
 		vk = &plonk_bls24315.VerifyingKey{}
 	case ecc.BW6_633:
