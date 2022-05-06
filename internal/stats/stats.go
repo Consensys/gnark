@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
-const nbCurves = 6
+const nbCurves = 7
 
 func CurveIdx(curve ecc.ID) int {
 	switch curve {
@@ -30,6 +30,8 @@ func CurveIdx(curve ecc.ID) int {
 		return 4
 	case ecc.BW6_633:
 		return 5
+	case ecc.BLS24_317:
+		return 6
 	default:
 		panic("not implemented")
 	}
