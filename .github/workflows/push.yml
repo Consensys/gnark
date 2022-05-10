@@ -26,6 +26,10 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+          args: --timeout=5m
     - name: install deps
       run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
     - name: gofmt
@@ -82,17 +86,46 @@ jobs:
       run: |
         go test -v -timeout=50m -race -short ./...
   
-  slack-workflow-status:
-    if: always()
+  slack-workflow-status-failed:
+    if: failure()
     name: post workflow status to slack
     needs:
       - staticcheck
       - test
     runs-on: ubuntu-latest
     steps:
-      - name: Build notification
-        uses: Gamesight/slack-workflow-status@master
+      - name: Notify slack -- workflow failed
+        id: slack
+        uses: slackapi/slack-github-action@v1.19.0
         with:
-          repo_token: ${{secrets.GITHUB_TOKEN}}
-          slack_webhook_url: ${{secrets.SLACK_WEBHOOK_URL}}
-          channel: '#team-gnark-build'
+          payload: |
+            {
+              "actor": "${{ github.actor }}",
+              "repo": "${{ github.repository }}",
+              "status": "FAIL",
+              "url": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  slack-workflow-status-success:
+    if: success()
+    name: post workflow status to slack
+    needs:
+      - staticcheck
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify slack -- workflow succeeded
+        id: slack
+        uses: slackapi/slack-github-action@v1.19.0
+        with:
+          payload: |
+            {
+              "actor": "${{ github.actor }}",
+              "repo": "${{ github.repository }}",
+              "status": "SUCCESS",
+              "url": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SUCCESS }}
