@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// GetHints returns all hint functions used in the package.
 func GetHints() []hint.Function {
 	return []hint.Function{
 		DivHint,
@@ -19,6 +20,7 @@ func GetHints() []hint.Function {
 	}
 }
 
+// computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
 func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		params.nbBits,
@@ -30,6 +32,9 @@ func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, righ
 	return api.NewHint(MultiplicationHint, len(leftLimbs)+len(rightLimbs)-1, hintInputs...)
 }
 
+// MultiplicationHint unpacks the factors and parameters from inputs, computes
+// the product and stores it in output. See internal method
+// computeMultiplicationHint for the input packing.
 func MultiplicationHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
 		return fmt.Errorf("input must be at least three elements")
@@ -65,6 +70,7 @@ func MultiplicationHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) e
 	return nil
 }
 
+// computeReductionHint packs inputs for the ReductionHint hint function.
 func computeReductionHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		params.nbBits,
@@ -78,6 +84,8 @@ func computeReductionHint(api frontend.API, params *Params, inLimbs []frontend.V
 	return api.NewHint(ReductionHint, int(params.nbLimbs), hintInputs...)
 }
 
+// ReductionHint computes the remainder r for input x = k*p + r and stores it
+// in outputs.
 func ReductionHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 2 {
 		return fmt.Errorf("input must be at least two elements")
@@ -107,6 +115,7 @@ func ReductionHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error 
 	return nil
 }
 
+// computeEqualityHint packs the inputs for EqualityHint function.
 func computeEqualityHint(api frontend.API, params *Params, diffLimbs []frontend.Variable) (kpLimbs []frontend.Variable, err error) {
 	p := params.Modulus()
 	hintInputs := []frontend.Variable{
@@ -118,6 +127,7 @@ func computeEqualityHint(api frontend.API, params *Params, diffLimbs []frontend.
 	return api.NewHint(EqualityHint, int(params.nbLimbs)+1, hintInputs...)
 }
 
+// EqualityHint computes k for input x = k*p and stores it in outputs.
 func EqualityHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	// first value is the number of bits per limb (nbBits)
 	// second value is the number of limbs for modulus
@@ -160,6 +170,7 @@ func EqualityHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	return nil
 }
 
+// computeInverseHint packs the inputs for the InverseHint hint function.
 func computeInverseHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		params.nbBits,
@@ -171,6 +182,7 @@ func computeInverseHint(api frontend.API, params *Params, inLimbs []frontend.Var
 	return api.NewHint(InverseHint, int(params.nbLimbs), hintInputs...)
 }
 
+// InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
 func InverseHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 2 {
 		return fmt.Errorf("input must be at least two elements")
@@ -200,6 +212,7 @@ func InverseHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	return nil
 }
 
+// computeDivisionHint packs the inputs for DivisionHint hint function.
 func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		params.nbBits,
@@ -213,6 +226,8 @@ func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs 
 	return api.NewHint(DivHint, int(params.nbLimbs), hintInputs...)
 }
 
+// DivHint computes the value z = x/y for inputs x and y and stores z in
+// outputs.
 func DivHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
 		return fmt.Errorf("input must be at least tjree elements")

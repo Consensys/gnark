@@ -1,4 +1,3 @@
-// package nonnative implements operations modulo an integer
 package nonnative
 
 // TODO: add checks which ensure that constants are not used as receivers
@@ -165,6 +164,8 @@ func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
 	return e, nil
 }
 
+// ConstantFromBigOrPanic returns a constant from value or panics if value does
+// not define a valid element in the ring.
 func (fp *Params) ConstantFromBigOrPanic(value *big.Int) Element {
 	el, err := fp.ConstantFromBig(value)
 	if err != nil {
@@ -478,14 +479,14 @@ func (e *Element) Inverse(a Element) *Element {
 	return nil
 }
 
-// Negate sets e to -a and returns e. The returned element may not be less than
+// Negate sets e to -a and returns e. The returned element may be larger than
 // the modulus.
 func (e *Element) Negate(a Element) *Element {
 	z := e.params.Zero()
 	return e.Sub(z, a)
 }
 
-// Select sets e to a is selector == 0 and to b otherwise.
+// Select sets e to a if selector == 0 and to b otherwise.
 func (e *Element) Select(selector frontend.Variable, a, b Element) *Element {
 	if len(a.Limbs) != len(b.Limbs) {
 		panic("unequal limb counts for select")
