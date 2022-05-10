@@ -5,13 +5,13 @@ import (
 	"math/big"
 )
 
-// Recompose takes the limbs in inputs and combines them into res. It errors if
+// recompose takes the limbs in inputs and combines them into res. It errors if
 // inputs is uninitialized or zero-length and if the result is uninitialized.
 //
 // The following holds
 //
-//    res = \sum_{i=0}^{len(inputs)} inputs[0] * 2^{nbBits * i}
-func Recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
+//    res = \sum_{i=0}^{len(inputs)} inputs[i] * 2^{nbBits * i}
+func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 	if len(inputs) == 0 {
 		return fmt.Errorf("zero length slice input")
 	}
@@ -26,13 +26,13 @@ func Recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 	return nil
 }
 
-// Decompose decomposes the input into res as integers of width nbBits. It
+// decompose decomposes the input into res as integers of width nbBits. It
 // errors if the decomposition does not fit into res or if res is uninitialized.
 //
 // The following holds
 //
 //    input = \sum_{i=0}^{len(res)} res[i] * 2^{nbBits * i}
-func Decompose(input *big.Int, nbBits uint, res []*big.Int) error {
+func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	// limb modulus
 	if input.BitLen() > len(res)*int(nbBits) {
 		return fmt.Errorf("decomposed integer does not fit into res")
@@ -86,7 +86,7 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 		padLimbs[nbLimbs-1] = new(big.Int).Lsh(big.NewInt(1), topBits)
 	}
 	pad := new(big.Int)
-	if err := Recompose(padLimbs, params.nbBits, pad); err != nil {
+	if err := recompose(padLimbs, params.nbBits, pad); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
 	pad.Mod(pad, params.r)
@@ -95,7 +95,7 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 	for i := range ret {
 		ret[i] = new(big.Int)
 	}
-	if err := Decompose(pad, params.nbBits, ret); err != nil {
+	if err := decompose(pad, params.nbBits, ret); err != nil {
 		panic(fmt.Sprintf("decompose: %v", err))
 	}
 	for i := range ret {

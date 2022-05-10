@@ -91,17 +91,17 @@ func ReductionHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error 
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	x := new(big.Int)
-	if err := Recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
+	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
 		return fmt.Errorf("recompose value: %w", err)
 	}
 	q := new(big.Int)
 	r := new(big.Int)
 	q.QuoRem(x, p, r)
-	if err := Decompose(r, nbBits, outputs); err != nil {
+	if err := decompose(r, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose remainder: %w", err)
 	}
 	return nil
@@ -142,10 +142,10 @@ func EqualityHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	p := new(big.Int)
 	diff := new(big.Int)
-	if err := Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
-	if err := Recompose(inputs[2+nbLimbs:], nbBits, diff); err != nil {
+	if err := recompose(inputs[2+nbLimbs:], nbBits, diff); err != nil {
 		return fmt.Errorf("recompose diff")
 	}
 	r := new(big.Int)
@@ -154,7 +154,7 @@ func EqualityHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if r.Cmp(big.NewInt(0)) != 0 {
 		return fmt.Errorf("modulus does not divide diff evenly")
 	}
-	if err := Decompose(z, nbBits, outputs); err != nil {
+	if err := decompose(z, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
 	return nil
@@ -184,17 +184,17 @@ func InverseHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	x := new(big.Int)
-	if err := Recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
+	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
 		return fmt.Errorf("recompose value: %w", err)
 	}
 	if x.ModInverse(x, p) == nil {
 		return fmt.Errorf("input and modulus not relatively primes")
 	}
-	if err := Decompose(x, nbBits, outputs); err != nil {
+	if err := decompose(x, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
 	return nil
@@ -229,15 +229,15 @@ func DivHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := Recompose(inputs[3:3+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[3:3+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	nominator := new(big.Int)
-	if err := Recompose(inputs[3+nbLimbs:3+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
+	if err := recompose(inputs[3+nbLimbs:3+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
 		return fmt.Errorf("recompose nominator: %w", err)
 	}
 	denominator := new(big.Int)
-	if err := Recompose(inputs[3+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
+	if err := recompose(inputs[3+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
 		return fmt.Errorf("recompose denominator: %w", err)
 	}
 	res := new(big.Int).ModInverse(denominator, p)
@@ -246,7 +246,7 @@ func DivHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	res.Mul(res, nominator)
 	res.Mod(res, p)
-	if err := Decompose(res, nbBits, outputs); err != nil {
+	if err := decompose(res, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose division: %w", err)
 	}
 	return nil

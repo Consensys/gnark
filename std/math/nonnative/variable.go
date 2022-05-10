@@ -149,7 +149,7 @@ func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := Decompose(value, fp.nbBits, limbs); err != nil {
+	if err := decompose(value, fp.nbBits, limbs); err != nil {
 		return Element{}, fmt.Errorf("decompose value: %w", err)
 	}
 	limbVars := make([]frontend.Variable, len(limbs))
