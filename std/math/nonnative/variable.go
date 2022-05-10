@@ -525,8 +525,3 @@ func (e *Element) Lookup2(b0, b1 frontend.Variable, a, b, c, d Element) *Element
 	}
 	return nil
 }
-
-func (e *Element) Exp(s, a Element) *Element {
-	panic("not implemented")
-	// return nil
-}
