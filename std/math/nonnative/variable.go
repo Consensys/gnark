@@ -6,7 +6,9 @@ package nonnative
 // TODO: think about different "operation modes". Probably hand-optimized code
 // is better than reducing eagerly, but the user should be at least aware during
 // compile-time that values need to be reduced. But there should be an easy-mode
-// where the user does not need to manually reduce and the library does it as necessary.
+// where the user does not need to manually reduce and the library does it as
+// necessary.
+// TODO: check that the parameters coincide for elements.
 
 import (
 	"fmt"
@@ -326,7 +328,12 @@ func (e *Element) Add(a, b Element) *Element {
 // Mul sets e to a*b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Mul(a, b Element) *Element {
-	// variable case only
+	// TODO: we mistakenly assume here that the factors are completely reduced
+	// (their overflow is zero). Actually, we should be able to compute product
+	// even when the results have non-zero factor. We should add checks if the
+	// multiplication result would not fit into the scalar result and compute
+	// the overflow of the result accordingly.
+	// XXX: currently variable case only
 	// TODO: when one element is constant.
 	// TODO: check that target is initialized (has an API)
 	// TODO: if both are constants, then do big int mul
