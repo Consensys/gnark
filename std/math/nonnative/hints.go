@@ -93,7 +93,7 @@ func ReductionHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error 
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
 	if len(inputs[2:]) < 2*nbLimbs {
-		return fmt.Errorf("reducable value missing")
+		return fmt.Errorf("reducible value missing")
 	}
 	if len(outputs) != nbLimbs {
 		return fmt.Errorf("result does not fit into output")
@@ -230,7 +230,7 @@ func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs 
 // outputs.
 func DivHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
-		return fmt.Errorf("input must be at least tjree elements")
+		return fmt.Errorf("input must be at least three elements")
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())

@@ -83,7 +83,7 @@ type Element struct {
 }
 
 // Element returns initialized element in the field. The value of this element
-// is not constrained and it only safe to use as a reciver in operations. For
+// is not constrained and it only safe to use as a receiver in operations. For
 // elements initialized to values use Zero(), One() or Modulus().
 func (fp *Params) Element(api frontend.API) Element {
 	if uint(api.Curve().Info().Fr.Bits) < 2*fp.nbBits+1 {

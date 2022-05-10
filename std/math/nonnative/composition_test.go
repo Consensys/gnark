@@ -30,7 +30,7 @@ func TestComposition(t *testing.T) {
 				assert.FailNow("recompose", err)
 			}
 			if n2.Cmp(n) != 0 {
-				assert.FailNow("inequal")
+				assert.FailNow("unequal")
 			}
 		}, testName(fp))
 	}
