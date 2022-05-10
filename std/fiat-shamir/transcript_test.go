@@ -87,11 +87,9 @@ func getChallenges(curveID ecc.ID) (string, string, string) {
 	_alpha := []byte("alpha")
 	_beta := []byte("beta")
 	_gamma := []byte("gamma")
-	copy(alpha, _alpha)
+	copy(alpha, _alpha) // -> alpha = [xxxxx||0....0]
 	copy(beta, _beta)
 	copy(gamma, _gamma)
-	beta[0] = 0xad
-	gamma[0] = 0xf0
 
 	return string(alpha), string(beta), string(gamma)
 }
