@@ -275,7 +275,7 @@ func TestConstantScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1constantScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
@@ -314,7 +314,7 @@ func TestVarScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1varScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.R = r.String()
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -353,7 +353,7 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.Rvar = r.String()
 	circuit.Rcon = r
 	// assign the inputs
@@ -374,7 +374,7 @@ func randomPointG1() bls24315.G1Jac {
 
 	var r1 fr.Element
 	var b big.Int
-	r1.SetRandom()
+	_, _ = r1.SetRandom()
 	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1

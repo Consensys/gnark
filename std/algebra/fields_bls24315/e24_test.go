@@ -47,8 +47,8 @@ func TestAddFp24(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E24
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
 	witness.A.Assign(&a)
@@ -78,8 +78,8 @@ func TestSubFp24(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E24
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
 	witness.A.Assign(&a)
@@ -110,8 +110,8 @@ func TestMulFp24(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E24
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
 	witness.A.Assign(&a)
@@ -141,7 +141,7 @@ func TestSquareFp24(t *testing.T) {
 
 	// witness values
 	var a, b bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	b.Square(&a)
 
 	witness.A.Assign(&a)
@@ -174,7 +174,7 @@ func TestFp24CyclotomicSquare(t *testing.T) {
 
 	// witness values
 	var a, b bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup (we assume the group is Fp24, field of definition of bls24-315)
 	var tmp bls24315.E24
@@ -215,7 +215,7 @@ func TestFp24CyclotomicSquareCompressed(t *testing.T) {
 
 	// witness values
 	var a, b bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup (we assume the group is Fp24, field of definition of bls24-315)
 	var tmp bls24315.E24
@@ -253,7 +253,7 @@ func TestConjugateFp24(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Conjugate(&a)
 
 	witness.A.Assign(&a)
@@ -280,8 +280,8 @@ func TestDivFp24(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E24
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Inverse(&b).Mul(&c, &a)
 
 	var witness e24Div
@@ -312,7 +312,7 @@ func TestInverseFp24(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
 	witness.A.Assign(&a)
@@ -343,13 +343,13 @@ func TestFp24MulBy034(t *testing.T) {
 	var a bls24315.E24
 	var b, c, one bls24315.E4
 	one.SetOne()
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	witness.A.Assign(&a)
 
-	b.SetRandom()
+	_, _ = b.SetRandom()
 	witness.B.Assign(&b)
 
-	c.SetRandom()
+	_, _ = c.SetRandom()
 	witness.C.Assign(&c)
 
 	a.MulBy034(&one, &b, &c)
@@ -389,7 +389,7 @@ func TestFrobeniusFp24(t *testing.T) {
 
 	// witness values
 	var a, c, d, e bls24315.E24
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Frobenius(&a)
 	d.FrobeniusSquare(&a)
 	e.FrobeniusQuad(&a)
