@@ -36,7 +36,8 @@ import (
 
 // MerkleProofTest used for testing onlys
 type MerkleProofTest struct {
-	M MerkleProof
+	M    MerkleProof
+	Leaf frontend.Variable
 }
 
 func (mp *MerkleProofTest) Define(api frontend.API) error {
@@ -45,7 +46,7 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	mp.M.VerifyProof(api, &h)
+	mp.M.VerifyProof(api, &h, mp.Leaf)
 
 	return nil
 }
@@ -105,7 +106,7 @@ func TestVerify(t *testing.T) {
 
 			// witness
 			var witness MerkleProofTest
-			witness.M.Leaf = proofIndex
+			witness.Leaf = proofIndex
 			witness.M.RootHash = merkleRoot
 			witness.M.Path = make([]frontend.Variable, depth+1)
 			for i := 0; i < depth+1; i++ {

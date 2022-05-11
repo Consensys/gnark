@@ -58,9 +58,6 @@ type MerkleProof struct {
 
 	// Path path of the Merkle proof
 	Path []frontend.Variable
-
-	// Leaf of to open, it's an integer in [0:2^r-1] where r is the depth of the Merkle tree.
-	Leaf frontend.Variable
 }
 
 // leafSum returns the hash created from data inserted to form a leaf.
@@ -89,7 +86,7 @@ func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Var
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hash) {
+func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hash, leaf frontend.Variable) {
 
 	depth := len(mp.Path) - 1
 	sum := leafSum(api, h, mp.Path[0])
@@ -97,7 +94,7 @@ func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hash) {
 	// The binary decomposition is the bitwise negation of the order of hashes ->
 	// If the path in the plain go code is 					0 1 1 0 1 0
 	// The binary decomposition of the leaf index will be 	1 0 0 1 0 1 (little endian)
-	binLeaf := api.ToBinary(mp.Leaf, depth)
+	binLeaf := api.ToBinary(leaf, depth)
 
 	for i := 1; i < len(mp.Path); i++ { // the size of the loop is fixed -> one circuit per size
 		d1 := api.Select(binLeaf[i-1], mp.Path[i], sum)

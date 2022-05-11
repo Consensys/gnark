@@ -128,6 +128,10 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return ErrIndexConsistency
 	}
 
+	// set witnesses for the leaves
+	o.witnesses.LeafReceiver[numTransfer] = posReceiver
+	o.witnesses.LeafSender[numTransfer] = posSender
+
 	// set witnesses for the public keys
 	o.witnesses.PublicKeysSender[numTransfer].A.X = senderAccount.pubKey.A.X
 	o.witnesses.PublicKeysSender[numTransfer].A.Y = senderAccount.pubKey.A.Y
@@ -167,10 +171,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return err
 	}
 	o.witnesses.RootHashesBefore[numTransfer] = merkleRootBefore
-
-	o.witnesses.MerkleProofReceiverBefore[numTransfer].Leaf = posReceiver
 	o.witnesses.MerkleProofReceiverBefore[numTransfer].RootHash = merkleRootBefore
-	o.witnesses.MerkleProofSenderBefore[numTransfer].Leaf = posSender
 	o.witnesses.MerkleProofSenderBefore[numTransfer].RootHash = merkleRootBefore
 
 	for i := 0; i < len(proofInclusionSenderBefore); i++ {
@@ -260,10 +261,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	// merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
 	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfer
-
-	o.witnesses.MerkleProofReceiverAfter[numTransfer].Leaf = posReceiver
 	o.witnesses.MerkleProofReceiverAfter[numTransfer].RootHash = merkleRootAfer
-	o.witnesses.MerkleProofSenderAfter[numTransfer].Leaf = posSender
 	o.witnesses.MerkleProofSenderAfter[numTransfer].RootHash = merkleRootAfer
 
 	for i := 0; i < len(proofInclusionSenderAfter); i++ {

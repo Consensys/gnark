@@ -55,6 +55,8 @@ type Circuit struct {
 	MerkleProofReceiverAfter  [BatchSizeCircuit]merkle.MerkleProof
 	MerkleProofSenderBefore   [BatchSizeCircuit]merkle.MerkleProof
 	MerkleProofSenderAfter    [BatchSizeCircuit]merkle.MerkleProof
+	LeafReceiver              [BatchSizeCircuit]frontend.Variable
+	LeafSender                [BatchSizeCircuit]frontend.Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// PUBLIC INPUTS
@@ -146,16 +148,16 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		api.AssertIsEqual(circuit.RootHashesAfter[i], circuit.MerkleProofSenderAfter[i].RootHash)
 
 		// the leafs of the Merkle proofs must match the index of the accounts
-		api.AssertIsEqual(circuit.ReceiverAccountsBefore[i].Index, circuit.MerkleProofReceiverBefore[i].Leaf)
-		api.AssertIsEqual(circuit.ReceiverAccountsAfter[i].Index, circuit.MerkleProofReceiverAfter[i].Leaf)
-		api.AssertIsEqual(circuit.SenderAccountsBefore[i].Index, circuit.MerkleProofSenderBefore[i].Leaf)
-		api.AssertIsEqual(circuit.SenderAccountsAfter[i].Index, circuit.MerkleProofSenderAfter[i].Leaf)
+		api.AssertIsEqual(circuit.ReceiverAccountsBefore[i].Index, circuit.LeafReceiver[i])
+		api.AssertIsEqual(circuit.ReceiverAccountsAfter[i].Index, circuit.LeafReceiver[i])
+		api.AssertIsEqual(circuit.SenderAccountsBefore[i].Index, circuit.LeafSender[i])
+		api.AssertIsEqual(circuit.SenderAccountsAfter[i].Index, circuit.LeafSender[i])
 
 		// verify the inclusion proofs
-		circuit.MerkleProofReceiverBefore[i].VerifyProof(api, &hFunc)
-		circuit.MerkleProofSenderBefore[i].VerifyProof(api, &hFunc)
-		circuit.MerkleProofReceiverAfter[i].VerifyProof(api, &hFunc)
-		circuit.MerkleProofSenderAfter[i].VerifyProof(api, &hFunc)
+		circuit.MerkleProofReceiverBefore[i].VerifyProof(api, &hFunc, circuit.LeafReceiver[i])
+		circuit.MerkleProofSenderBefore[i].VerifyProof(api, &hFunc, circuit.LeafSender[i])
+		circuit.MerkleProofReceiverAfter[i].VerifyProof(api, &hFunc, circuit.LeafReceiver[i])
+		circuit.MerkleProofSenderAfter[i].VerifyProof(api, &hFunc, circuit.LeafSender[i])
 
 		// verify the transaction transfer
 		err := verifyTransferSignature(api, circuit.Transfers[i], hFunc)
