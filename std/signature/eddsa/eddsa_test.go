@@ -81,7 +81,7 @@ func TestEddsa(t *testing.T) {
 	for i := 0; i < bound; i++ {
 		seed := time.Now().Unix()
 		t.Logf("setting seed in rand %d", seed)
-		randomness := rand.New(rand.NewSource(seed))
+		randomness := rand.New(rand.NewSource(seed)) //#nosec G404 -- This is a false positive
 
 		for _, conf := range confs {
 
