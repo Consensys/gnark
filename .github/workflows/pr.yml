@@ -95,7 +95,8 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "FAIL",
-              "url": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "title": "${{ github.event.pull_request.title }}",
+              "pr": "${{ github.event.pull_request.head.ref }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -117,7 +118,8 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "SUCCESS",
-              "url": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
+              "title": "${{ github.event.pull_request.title }}",
+              "pr": "${{ github.event.pull_request.head.ref }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SUCCESS }}
