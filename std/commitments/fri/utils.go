@@ -5,20 +5,20 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend"
 )
 
 // exp helper function that returns x^{e}
-// func exp(api frontend.API, x, e frontend.Variable) frontend.Variable {
+func exp(api frontend.API, x frontend.Variable, e []frontend.Variable) frontend.Variable {
 
-// 	eBin := api.ToBinary(e)
-// 	res := frontend.Variable(1)
-// 	for i := 0; i < len(eBin); i++ {
-// 		res = api.Mul(res, res)
-// 		a := api.Mul(res, x)
-// 		res = api.Select(eBin[i], a, res)
-// 	}
-// 	return res
-// }
+	res := frontend.Variable(1)
+	for i := 0; i < len(e); i++ {
+		res = api.Mul(res, res)
+		a := api.Mul(res, x)
+		res = api.Select(e[len(e)-i-1], a, res)
+	}
+	return res
+}
 
 // // mustBeInSameFiber ensures that {g1,g2} = f^{-1}(x) where f: x -> x^{2}
 // func mustBeInSameFiber(api frontend.API, g1, g2, x frontend.Variable) {

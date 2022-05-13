@@ -2,6 +2,7 @@ package fri
 
 import (
 	"fmt"
+	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -55,11 +56,15 @@ type RadixTwoFri struct {
 	// Size of the polynomial. The size of the evaluation domain will be
 	// \rho * size.
 	size uint64
+
+	// rootDomain generator of the cyclic group of unity of size \rho * size
+	genInv big.Int
 }
 
-// NewRadixTwoFri creates an FFT-like oracle proof of proximitys.
-// The size
-func NewRadixTwoFri(size uint64, h hash.Hash) RadixTwoFri {
+// NewRadixTwoFri creates an FFT-like oracle proof of proximity.
+// * h is the hash function that is used for the Merkle proofs
+// * gen is the generator of the cyclic group of unity of size \rho * size
+func NewRadixTwoFri(size uint64, h hash.Hash, gen big.Int) RadixTwoFri {
 
 	var res RadixTwoFri
 
@@ -71,6 +76,9 @@ func NewRadixTwoFri(size uint64, h hash.Hash) RadixTwoFri {
 
 	// hash function
 	res.h = h
+
+	// generator
+	res.genInv.Set(&gen)
 
 	return res
 }
@@ -121,15 +129,71 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 		return err
 	}
 	bin := api.ToBinary(binSeed)
-	api.FromBinary(bin[:logRho+s.nbSteps]...)
+	bPos := api.FromBinary(bin[:logRho+s.nbSteps]...)
 
-	// _, err = api.NewHint(DeriveQueriesPositions, s.nbSteps, bPos, s.size, s.nbSteps)
-	// if err != nil {
-	// 	return err
-	// }
-	// for i := 0; i < len(si); i++ {
-	// 	api.Println(si[i])
-	// }
+	si, err := api.NewHint(DeriveQueriesPositions, s.nbSteps, bPos, rho*s.size, s.nbSteps)
+	if err != nil {
+		return err
+	}
+
+	// for each round check the Merkle proof and the correctness of the folding
+	var accGInv big.Int
+	accGInv.Set(&s.genInv)
+	even := make([]frontend.Variable, s.nbSteps)
+	odd := make([]frontend.Variable, s.nbSteps)
+	c := make([]frontend.Variable, s.nbSteps)
+	bsi := make([][]frontend.Variable, s.nbSteps)
+	for i := 0; i < s.nbSteps; i++ {
+		bsi[i] = api.ToBinary(si[i])
+		c[i] = bsi[i][0]
+		even[i] = api.Sub(si[i], c[i])
+		odd[i] = api.Add(si[i], api.Sub(1, c[i]))
+	}
+	for i := 0; i < s.nbSteps; i++ {
+
+		// Merkle proofs
+		proof.Interactions[i][0].VerifyProof(api, s.h, even[i])
+		proof.Interactions[i][1].VerifyProof(api, s.h, odd[i])
+
+		// correctness of the folding
+		if i < s.nbSteps-1 {
+
+			// g <- g^{si/2}
+			g := exp(api, accGInv, bsi[i][1:])
+
+			// solve the system...
+			l := proof.Interactions[i][0].Path[0]
+			r := proof.Interactions[i][1].Path[0]
+			fe := api.Add(l, r)
+			fo := api.Mul(api.Sub(l, r), g)
+			fo = api.Div(api.Add(api.Mul(fo, xi[i]), fe), 2)
+
+			// compute the folding
+			ln := proof.Interactions[i+1][0].Path[0]
+			rn := proof.Interactions[i+1][1].Path[0]
+			fn := api.Select(c[i+1], rn, ln)
+			api.AssertIsEqual(fn, fo)
+
+			// accGinv <- accGinv^{2}
+			accGInv.Mul(&accGInv, &accGInv).
+				Mod(&accGInv, api.Curve().Info().Fr.Modulus())
+		}
+	}
+
+	// last transition
+	l := proof.Interactions[s.nbSteps-1][0].Path[0]
+	r := proof.Interactions[s.nbSteps-1][1].Path[0]
+
+	// g <- g^{si/2}
+	g := exp(api, accGInv, bsi[s.nbSteps-1][1:])
+
+	// solve the system and compute the last folding
+	fe := api.Add(l, r)
+	fo := api.Mul(api.Sub(l, r), g)
+	fo = api.Mul(fo, xi[s.nbSteps-1])
+	fo = api.Div(api.Add(fo, fe), 2)
+
+	api.AssertIsEqual(fo, proof.Evaluation)
 
 	return nil
 }

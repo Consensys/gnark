@@ -1,16 +1,19 @@
 package fri
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 type ProofOfProximityTest struct {
@@ -31,8 +34,12 @@ func (p *ProofOfProximityTest) Define(api frontend.API) error {
 		return nil
 	}
 
+	// inverse of the generator of the biggest domain (of size \rho * sizePolyTest)
+	var gInv big.Int
+	gInv.SetString("14607982016670611764231825270871087984049314771307170893064215224383340934614", 10)
+
 	// oracle proof of proximity
-	opp := NewRadixTwoFri(sizePolyTest, &h)
+	opp := NewRadixTwoFri(sizePolyTest, &h, gInv)
 	err = opp.verifyProofOfProximitySingleRound(api, p.Salt, p.Proof.Rounds[0])
 	if err != nil {
 		return err
@@ -79,7 +86,7 @@ func TestFriVerification(t *testing.T) {
 		}
 	}
 
-	cc, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	_, err = frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,10 +103,6 @@ func TestFriVerification(t *testing.T) {
 			// Merkle root
 			witness.Proof.Rounds[i].Interactions[j][0].RootHash = proximityProof.Rounds[i].Interactions[j][0].MerkleRoot
 			witness.Proof.Rounds[i].Interactions[j][1].RootHash = proximityProof.Rounds[i].Interactions[j][1].MerkleRoot
-
-			// leaves
-			witness.Proof.Rounds[i].Interactions[j][0].Leaf = 0
-			witness.Proof.Rounds[i].Interactions[j][1].Leaf = 0
 
 			// Merkle paths. Only one of the paths is filled in the plain proof, it is the longest of the 2.
 			// In any case, the first 2 entries of each proofPath is available in the plain proof.
@@ -124,11 +127,15 @@ func TestFriVerification(t *testing.T) {
 	}
 
 	// 5 - check if the prover is ok
-	cwitness, err := frontend.NewWitness(&witness, ecc.BN254)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = cc.IsSolved(cwitness)
+	// cwitness, err := frontend.NewWitness(&witness, ecc.BN254)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// err = cc.IsSolved(cwitness)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	err = test.IsSolved(&circuit, &witness, ecc.BN254, backend.GROTH16)
 	if err != nil {
 		t.Fatal(err)
 	}
