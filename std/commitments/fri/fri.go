@@ -136,7 +136,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 		return err
 	}
 
-	// for each round check the Merkle proof and the correctness of the folding
+	// prepare some data for the round checks...
 	var accGInv big.Int
 	accGInv.Set(&s.genInv)
 	even := make([]frontend.Variable, s.nbSteps)
@@ -149,6 +149,30 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 		even[i] = api.Sub(si[i], c[i])
 		odd[i] = api.Add(si[i], api.Sub(1, c[i]))
 	}
+
+	// constrain the query positions: si[i]/2 = f(si[i-1])
+	// where f is the permutation sorted -> canonical
+	curSize := s.size * rho / 2
+	for i := 0; i < s.nbSteps-1; i++ {
+
+		// s <- s_{i}/2
+		s := api.FromBinary(bsi[i][1:]...)
+
+		// a <- s_{i+1}/2
+		a := api.FromBinary(bsi[i+1][1:]...)
+
+		// b <- f^{-1}(f(s_{i+1})/2) where f : i -> curSize-1-i (it flips the order of the slice [x ... x] of size curSize)
+		b := api.Sub(curSize-1, si[i+1])
+		cc := api.ToBinary(b)
+		b = api.FromBinary(cc[1:]...)
+		b = api.Sub(curSize-1, b)
+		u := api.Select(bsi[i+1][0], b, a)
+
+		api.AssertIsEqual(u, s)
+		curSize = curSize / 2
+	}
+
+	// for each round check the Merkle proof and the correctness of the folding
 	for i := 0; i < s.nbSteps; i++ {
 
 		// Merkle proofs
