@@ -3,6 +3,8 @@ package nonnative
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 // recompose takes the limbs in inputs and combines them into res. It errors if
@@ -102,4 +104,49 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 		ret[i].Add(ret[i], padLimbs[i])
 	}
 	return ret
+}
+
+func regroupParams(params *Params, nbNativeBits, nbMaxOverflow uint) *Params {
+	// subtract one bit as can not potentially use all bits of Fr and one bit as
+	// grouping may overflow
+	maxFit := nbNativeBits - 2
+	groupSize := (maxFit - nbMaxOverflow) / params.nbBits
+	if groupSize == 0 {
+		// not sufficient space for regroup, return the same parameters.
+		return params
+	}
+	nbRegroupBits := params.nbBits * groupSize
+	nbRegroupLimbs := (params.nbLimbs + groupSize) / groupSize
+	return &Params{
+		r:           params.r,
+		hasInverses: params.hasInverses,
+		nbLimbs:     nbRegroupLimbs,
+		nbBits:      nbRegroupBits,
+	}
+}
+
+func regroupLimbs(api frontend.API, params, regroupParams *Params, limbs []frontend.Variable) []frontend.Variable {
+	if params.nbBits == regroupParams.nbBits {
+		// not regrouping
+		return limbs
+	}
+	if regroupParams.nbBits%params.nbBits != 0 {
+		panic("regroup bitwidth must be multiple of initial bitwidth")
+	}
+	groupSize := regroupParams.nbBits / params.nbBits
+	nbLimbs := (uint(len(limbs)) + groupSize - 1) / groupSize
+	regrouped := make([]frontend.Variable, nbLimbs)
+	coeffs := make([]*big.Int, groupSize)
+	one := big.NewInt(1)
+	for i := range coeffs {
+		coeffs[i] = new(big.Int)
+		coeffs[i].Lsh(one, params.nbBits*uint(i))
+	}
+	for i := uint(0); i < nbLimbs; i++ {
+		regrouped[i] = uint(0)
+		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(limbs)); j++ {
+			regrouped[i] = api.Add(regrouped[i], api.Mul(coeffs[j], limbs[i*groupSize+j]))
+		}
+	}
+	return regrouped
 }

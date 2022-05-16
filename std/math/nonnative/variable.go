@@ -198,6 +198,16 @@ func (fp *Params) Placeholder() Element {
 	return e
 }
 
+// From returns an element by regrouping the limbs to these parameters.
+func (fp *Params) From(api frontend.API, a Element) Element {
+	return Element{
+		api:      api,
+		params:   fp,
+		overflow: a.overflow,
+		Limbs:    regroupLimbs(api, a.params, fp, a.Limbs),
+	}
+}
+
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
@@ -292,13 +302,20 @@ func (e *Element) AssertLimbsEquality(a Element) {
 		}
 		return
 	}
+	maxOverflow := e.overflow
+	if a.overflow > e.overflow {
+		maxOverflow = a.overflow
+	}
+	rgpar := regroupParams(e.params, uint(e.api.Compiler().FieldBitLen()), maxOverflow)
+	rge := rgpar.From(e.api, *e)
+	rga := rgpar.From(e.api, a)
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if e.overflow > a.overflow {
-		assertLimbsEqualitySlow(e.api, e.Limbs, a.Limbs, e.params.nbBits, e.overflow)
+		assertLimbsEqualitySlow(rge.api, rge.Limbs, rga.Limbs, rge.params.nbBits, rge.overflow)
 	} else {
-		assertLimbsEqualitySlow(e.api, a.Limbs, e.Limbs, a.params.nbBits, a.overflow)
+		assertLimbsEqualitySlow(rge.api, rga.Limbs, rge.Limbs, rga.params.nbBits, rga.overflow)
 	}
 }
 
