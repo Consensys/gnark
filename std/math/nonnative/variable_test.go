@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -840,7 +841,10 @@ func TestOptimisation(t *testing.T) {
 	}
 	ccs, err := frontend.Compile(testCurve, r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs.GetNbConstraints(), 3016)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3006)
+	ccs2, err := frontend.Compile(testCurve, scs.NewBuilder, &circuit)
+	assert.NoError(err)
+	assert.LessOrEqual(ccs2.GetNbConstraints(), 9407)
 }
 
 type RegroupCircuit struct {

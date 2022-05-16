@@ -274,16 +274,14 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		if i > 0 {
 			diff = api.Sub(diff, maxValueShift)
 		}
-		// TODO: instead of full binary decomposition, do unconstrained
-		// decomposition and check that the bits are zeros. Does not make
-		// difference for R1CS but should require fever constraints for PLONK.
 		// TODO: more efficient methods for splitting a variable? Because we are
 		// splitting the value into two, then maybe we do not need the whole
 		// binary decomposition \sum_{i=0}^n a_i 2^i, but can use a * 2^nbits +
 		// b. Then we can also omit the FromBinary call.
-		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)))
-		diffMain := bits.FromBinary(api, diffBits[:nbBits])
-		api.AssertIsEqual(diffMain, 0)
+		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)), bits.WithUnconstrainedOutputs())
+		for j := uint(0); j < nbBits; j++ {
+			api.AssertIsEqual(diffBits[j], 0)
+		}
 		carry = bits.FromBinary(api, diffBits[nbBits:nbBits+nbCarryBits+1])
 	}
 	api.AssertIsEqual(carry, maxValueShift)
