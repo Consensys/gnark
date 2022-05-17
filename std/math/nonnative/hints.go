@@ -115,15 +115,19 @@ func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeEqualityHint packs the inputs for EqualityHint function.
-func computeEqualityHint(api frontend.API, params *Params, diffLimbs []frontend.Variable) (kpLimbs []frontend.Variable, err error) {
+func computeEqualityHint(api frontend.API, params *Params, diff Element) (kpLimbs []frontend.Variable, err error) {
 	p := params.Modulus()
+	resLen := (uint(len(diff.Limbs))*params.nbBits + diff.overflow + 1 - // diff total bitlength
+		uint(params.r.BitLen()) + // subtract modulus bitlength
+		params.nbBits - 1) / // to round up
+		params.nbBits
 	hintInputs := []frontend.Variable{
 		params.nbBits,
 		params.nbLimbs,
 	}
 	hintInputs = append(hintInputs, p.Limbs...)
-	hintInputs = append(hintInputs, diffLimbs...)
-	return api.NewHint(EqualityHint, int(params.nbLimbs)+1, hintInputs...)
+	hintInputs = append(hintInputs, diff.Limbs...)
+	return api.NewHint(EqualityHint, int(resLen), hintInputs...)
 }
 
 // EqualityHint computes k for input x = k*p and stores it in outputs.
@@ -143,9 +147,6 @@ func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
-	if len(outputs) != nbLimbs+1 {
-		return fmt.Errorf("only a single output required")
-	}
 	if len(inputs[2:]) < nbLimbs {
 		return fmt.Errorf("modulus limbs missing")
 	}

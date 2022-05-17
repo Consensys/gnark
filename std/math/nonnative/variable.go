@@ -414,7 +414,7 @@ func (e *Element) Mul(a, b Element) *Element {
 		e.api.AssertIsEqual(e.api.Mul(l, r), o)
 	}
 	e.Limbs = limbs
-	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*e.params.nbLimbs-1))) + 1
+	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*len(limbs)-1))) + 1 + a.overflow + b.overflow
 	// result is not reduced
 	return e
 }
@@ -455,7 +455,7 @@ func (e *Element) Set(a Element) {
 func (e *Element) AssertIsEqual(a Element) {
 	diff := e.params.Element(e.api)
 	diff.Sub(a, *e)
-	kLimbs, err := computeEqualityHint(e.api, e.params, diff.Limbs)
+	kLimbs, err := computeEqualityHint(e.api, e.params, diff)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}

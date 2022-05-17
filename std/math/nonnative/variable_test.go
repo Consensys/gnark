@@ -839,12 +839,50 @@ func TestOptimisation(t *testing.T) {
 		X6:       params.Placeholder(),
 		Res:      params.Placeholder(),
 	}
-	ccs, err := frontend.Compile(testCurve, r1cs.NewBuilder, &circuit)
+	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs.GetNbConstraints(), 3006)
-	ccs2, err := frontend.Compile(testCurve, scs.NewBuilder, &circuit)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3291)
+	ccs2, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs2.GetNbConstraints(), 9407)
+	assert.LessOrEqual(ccs2.GetNbConstraints(), 10722)
+}
+
+type FourMulsCircuit struct {
+	params *Params
+	A      Element
+	Res    Element
+}
+
+func (c *FourMulsCircuit) Define(api frontend.API) error {
+	res := c.params.Element(api)
+	res.Mul(c.A, c.A)
+	res.Mul(res, c.A)
+	res.Mul(res, c.A)
+	res.AssertIsEqual(c.Res)
+	return nil
+}
+
+func TestFourMuls(t *testing.T) {
+	assert := test.NewAssert(t)
+	params, err := NewParams(32, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	circuit := FourMulsCircuit{
+		params: params,
+		A:      params.Placeholder(),
+		Res:    params.Placeholder(),
+	}
+	val1, _ := rand.Int(rand.Reader, params.r)
+	res := new(big.Int)
+	res.Mul(val1, val1)
+	res.Mul(res, val1)
+	res.Mul(res, val1)
+	res.Mod(res, params.r)
+	witness := FourMulsCircuit{
+		params: params,
+		A:      params.ConstantFromBigOrPanic(val1),
+		Res:    params.ConstantFromBigOrPanic(res),
+	}
+	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 }
 
 type RegroupCircuit struct {
