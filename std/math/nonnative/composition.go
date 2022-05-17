@@ -68,24 +68,9 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
 func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int {
-	// TODO: this method tries to generalize computing the padding both for
-	// reduced and unreduced element. maybe separate two methods for clarity?
 	padLimbs := make([]*big.Int, nbLimbs)
 	for i := 0; i < len(padLimbs); i++ {
 		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+params.nbBits)
-	}
-	topBits := 2*((uint(params.r.BitLen())-1)%params.nbBits+1) + 1
-	// here is some magic -- if the number of limbs is 2*nbLimbs-1, then we are
-	// computing the padding for the unreduced multiplication result. If the
-	// number of limbs is less then we can not assume the individual overflows
-	// of the limbs.
-	// it would be nice to keep track on the overflow for every individual limbs
-	// (and particularly in the multiplication method as the overflows are not
-	// uniformly distributed) and take this account in the construction of this
-	// padding. But we currently do not have sufficient information (i.e.
-	// anything beyond the current overflow and number of limbs) to do that.
-	if nbLimbs == 2*params.nbLimbs-1 {
-		padLimbs[nbLimbs-1] = new(big.Int).Lsh(big.NewInt(1), topBits)
 	}
 	pad := new(big.Int)
 	if err := recompose(padLimbs, params.nbBits, pad); err != nil {
