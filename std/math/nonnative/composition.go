@@ -91,6 +91,9 @@ func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int 
 	return ret
 }
 
+// regroupParams returns parameters which allow for most optimal regrouping of
+// limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
+// combination in a single new limb.
 func regroupParams(params *Params, nbNativeBits, nbMaxOverflow uint) *Params {
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
@@ -110,6 +113,7 @@ func regroupParams(params *Params, nbNativeBits, nbMaxOverflow uint) *Params {
 	}
 }
 
+// regroupLimbs perform the regrouping of limbs between old and new parameters.
 func regroupLimbs(api frontend.API, params, regroupParams *Params, limbs []frontend.Variable) []frontend.Variable {
 	if params.nbBits == regroupParams.nbBits {
 		// not regrouping
