@@ -383,6 +383,7 @@ func (e *Element) Reduce(a Element) *Element {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
 	e.Limbs = r
+	e.overflow = 0
 	e.EnforceWidth()
 	e.AssertIsEqual(a)
 	return e
