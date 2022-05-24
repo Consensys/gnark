@@ -198,6 +198,11 @@ func (fp *Params) Placeholder() Element {
 	return e
 }
 
+// isEqual returns if fp is equivalent to other.
+func (fp *Params) isEqual(other *Params) bool {
+	return fp.r.Cmp(other.r) == 0 && fp.nbBits == other.nbBits
+}
+
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1.
 func (e *Element) ToBits() []frontend.Variable {
