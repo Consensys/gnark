@@ -319,9 +319,21 @@ func (e *Element) Add(a, b Element) *Element {
 	} else {
 		e.overflow += b.overflow
 	}
-	for i := range e.Limbs {
-		e.Limbs[i] = e.api.Add(a.Limbs[i], b.Limbs[i])
+	nbLimbs := len(a.Limbs)
+	if len(b.Limbs) > nbLimbs {
+		nbLimbs = len(b.Limbs)
 	}
+	limbs := make([]frontend.Variable, nbLimbs)
+	for i := range limbs {
+		limbs[i] = 0
+		if i < len(a.Limbs) {
+			limbs[i] = e.api.Add(limbs[i], a.Limbs[i])
+		}
+		if i < len(b.Limbs) {
+			limbs[i] = e.api.Add(limbs[i], b.Limbs[i])
+		}
+	}
+	e.Limbs = limbs
 	return e
 }
 
@@ -392,7 +404,8 @@ func (e *Element) Reduce(a Element) *Element {
 // Set sets e to a and returns e. If a is constant, then it also enforces the
 // widths of the limbs.
 func (e *Element) Set(a Element) {
-	e.Limbs = make([]frontend.Variable, e.params.nbLimbs)
+	e.Limbs = make([]frontend.Variable, len(a.Limbs))
+	e.overflow = a.overflow
 	copy(e.Limbs, a.Limbs)
 	if a.api == nil {
 		// we are setting from constant -- ensure that the widths of the limbs
