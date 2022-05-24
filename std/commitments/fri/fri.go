@@ -16,6 +16,7 @@ import (
 // same constant as in gnark-crypto
 const rho = 8
 const logRho = 3
+const nbRounds = 1
 
 // Round a single round of interactions between prover and verifier for fri.
 type Round struct {
@@ -219,5 +220,17 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 
 	api.AssertIsEqual(fo, proof.Evaluation)
 
+	return nil
+}
+
+// VerifyProofOfProximity verifies the proof, by checking each interaction one
+// by one.
+func (s RadixTwoFri) VerifyProofOfProximity(api frontend.API, proof ProofOfProximity) error {
+	for i := 0; i < nbRounds; i++ {
+		err := s.verifyProofOfProximitySingleRound(api, i, proof.Rounds[i])
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

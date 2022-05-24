@@ -18,13 +18,10 @@ import (
 
 type ProofOfProximityTest struct {
 	Proof ProofOfProximity
-	Salt  frontend.Variable
 }
 
 var sizePolyTest = uint64(32)
 var nbSteps = 5
-
-const nbRounds = 1
 
 func (p *ProofOfProximityTest) Define(api frontend.API) error {
 
@@ -40,7 +37,8 @@ func (p *ProofOfProximityTest) Define(api frontend.API) error {
 
 	// oracle proof of proximity
 	opp := NewRadixTwoFri(sizePolyTest, &h, gInv)
-	err = opp.verifyProofOfProximitySingleRound(api, p.Salt, p.Proof.Rounds[0])
+	//err = opp.verifyProofOfProximitySingleRound(api, p.Salt, p.Proof.Rounds[0])
+	err = opp.VerifyProofOfProximity(api, p.Proof)
 	if err != nil {
 		return err
 	}
@@ -93,7 +91,6 @@ func TestFriVerification(t *testing.T) {
 
 	// 4 - populate the witness, allocate the slice first...
 	var witness ProofOfProximityTest
-	witness.Salt = 0
 	witness.Proof.Rounds = make([]Round, nbRounds)
 	for i := 0; i < nbRounds; i++ {
 		witness.Proof.Rounds[i].Evaluation = proximityProof.Rounds[i].Evaluation
@@ -126,15 +123,7 @@ func TestFriVerification(t *testing.T) {
 		}
 	}
 
-	// 5 - check if the prover is ok
-	// cwitness, err := frontend.NewWitness(&witness, ecc.BN254)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// err = cc.IsSolved(cwitness)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	// 5 - check if the solver is OK
 	err = test.IsSolved(&circuit, &witness, ecc.BN254, backend.GROTH16)
 	if err != nil {
 		t.Fatal(err)
