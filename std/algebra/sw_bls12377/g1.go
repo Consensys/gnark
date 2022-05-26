@@ -283,7 +283,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	var tableQ, tablePhiQ [2]G1Affine
 	tableQ[1] = Q
 	tableQ[0].Neg(api, Q)
-	cc.phi(api, &tablePhiQ[1], &Q)
+	cc.phi1(api, &tablePhiQ[1], &Q)
 	tablePhiQ[0].Neg(api, tablePhiQ[1])
 
 	// We now initialize the accumulator. Due to the way the scalar is
@@ -345,7 +345,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 	var Acc, negQ, negPhiQ, phiQ G1Affine
 	cc := innerCurve(api.Compiler().Curve())
 	s.Mod(s, cc.fr)
-	cc.phi(api, &phiQ, &Q)
+	cc.phi1(api, &phiQ, &Q)
 
 	k := ecc.SplitScalar(s, cc.glvBasis)
 	if k[0].Sign() == -1 {

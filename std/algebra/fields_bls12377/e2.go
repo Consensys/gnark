@@ -232,3 +232,12 @@ func (e *E2) AssertIsEqual(api frontend.API, other E2) {
 	api.AssertIsEqual(e.A0, other.A0)
 	api.AssertIsEqual(e.A1, other.A1)
 }
+
+// Select sets e to r1 if b=1, r2 otherwise
+func (e *E2) Select(api frontend.API, b frontend.Variable, r1, r2 E2) *E2 {
+
+	e.A0 = api.Select(b, r1.A0, r2.A0)
+	e.A1 = api.Select(b, r1.A1, r2.A1)
+
+	return e
+}

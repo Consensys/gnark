@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -36,12 +35,14 @@ import (
 //--------------------------------------------------------------------
 // utils
 
-const preimage string = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-const publicHash string = "740442171083661049659184837119506324904268940878674425328909705936292585001"
+const (
+	preImage   = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
+	publicHash = "740442171083661049659184837119506324904268940878674425328909705936292585001"
+)
 
 type mimcCircuit struct {
-	Data frontend.Variable
-	Hash frontend.Variable `gnark:",public"`
+	PreImage frontend.Variable
+	Hash     frontend.Variable `gnark:",public"`
 }
 
 func (circuit *mimcCircuit) Define(api frontend.API) error {
@@ -49,10 +50,8 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	//result := mimc.Sum(circuit.Data)
-	mimc.Write(circuit.Data)
-	result := mimc.Sum()
-	api.AssertIsEqual(result, circuit.Hash)
+	mimc.Write(circuit.PreImage)
+	api.AssertIsEqual(mimc.Sum(), circuit.Hash)
 	return nil
 }
 
@@ -61,26 +60,35 @@ func (circuit *mimcCircuit) Define(api frontend.API) error {
 func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey, proof *groth16_bls24315.Proof) {
 
 	// create a mock cs: knowing the preimage of a hash using mimc
-	var circuit, w mimcCircuit
+	var circuit, assignment mimcCircuit
 	r1cs, err := frontend.Compile(ecc.BLS24_315, r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w.Data = preimage
-	w.Hash = publicHash
+	assignment.PreImage = preImage
+	assignment.Hash = publicHash
 
-	correctAssignment := witness.Witness{}
+	var witness, publicWitness witness.Witness
 
-	_, err = correctAssignment.FromAssignment(&w, tVariable, false)
+	_, err = witness.FromAssignment(&assignment, tVariable, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = publicWitness.FromAssignment(&assignment, tVariable, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// generate the data to return for the bls24315 proof
 	var pk groth16_bls24315.ProvingKey
-	groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
-	_proof, err := groth16_bls24315.Prove(r1cs.(*backend_bls24315.R1CS), &pk, correctAssignment, backend.ProverConfig{})
+	err = groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_proof, err := groth16_bls24315.Prove(r1cs.(*backend_bls24315.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,14 +96,8 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 	proof.Bs = _proof.Bs
 	proof.Krs = _proof.Krs
 
-	correctAssignmentPublic := witness.Witness{}
-	_, err = correctAssignmentPublic.FromAssignment(&w, tVariable, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// before returning verifies that the proof passes on bls24315
-	if err := groth16_bls24315.Verify(proof, vk, correctAssignmentPublic); err != nil {
+	if err := groth16_bls24315.Verify(proof, vk, publicWitness); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -123,7 +125,7 @@ func TestVerifier(t *testing.T) {
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1.K = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
 
 	// create assignment, the private part consists of the proof,
 	// the public part is exactly the public part of the inner proof,
@@ -133,49 +135,14 @@ func TestVerifier(t *testing.T) {
 	witness.InnerProof.Krs.Assign(&innerProof.Krs)
 	witness.InnerProof.Bs.Assign(&innerProof.Bs)
 
-	// compute vk.e
-	e, err := bls24315.Pair([]bls24315.G1Affine{innerVk.G1.Alpha}, []bls24315.G2Affine{innerVk.G2.Beta})
-	if err != nil {
-		t.Fatal(err)
-	}
-	witness.InnerVk.E.Assign(&e)
+	witness.InnerVk.Assign(&innerVk)
 
-	witness.InnerVk.G1 = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
-	for i, vkg := range innerVk.G1.K {
-		witness.InnerVk.G1[i].Assign(&vkg)
-	}
-	var deltaNeg, gammaNeg bls24315.G2Affine
-	deltaNeg.Neg(&innerVk.G2.Delta)
-	gammaNeg.Neg(&innerVk.G2.Gamma)
-	witness.InnerVk.G2.DeltaNeg.Assign(&deltaNeg)
-	witness.InnerVk.G2.GammaNeg.Assign(&gammaNeg)
 	witness.Hash = publicHash
 
 	// verifies the cs
 	assert := test.NewAssert(t)
 
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
-
-	/* comment from here */
-
-	// TODO uncommenting the lines below yield incredibly long testing time (due to the setup)
-	// generate groth16 instance on bw6633 (setup, prove, verify)
-	// var vk groth16_bw6633.VerifyingKey
-	// var pk groth16_bw6633.ProvingKey
-
-	// groth16_bw6633.Setup(&r1cs, &pk, &vk)
-	// proof, err := groth16_bw6633.Prove(&r1cs, &pk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// res, err := groth16_bw6633.Verify(proof, &vk, correctAssignment)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// if !res {
-	// 	t.Fatal("correct proof should pass")
-	// }
 
 }
 
@@ -187,7 +154,7 @@ func BenchmarkCompile(b *testing.B) {
 
 	// create an empty cs
 	var circuit verifierCircuit
-	circuit.InnerVk.G1 = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
+	circuit.InnerVk.G1.K = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
 
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()

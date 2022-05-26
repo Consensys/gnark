@@ -49,9 +49,15 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
 
 	// Bind challenges
-	tsSnark.Bind(alpha, circuit.Bindings[0][:])
-	tsSnark.Bind(beta, circuit.Bindings[1][:])
-	tsSnark.Bind(gamma, circuit.Bindings[2][:])
+	if err := tsSnark.Bind(alpha, circuit.Bindings[0][:]); err != nil {
+		return err
+	}
+	if err := tsSnark.Bind(beta, circuit.Bindings[1][:]); err != nil {
+		return err
+	}
+	if err := tsSnark.Bind(gamma, circuit.Bindings[2][:]); err != nil {
+		return err
+	}
 
 	// derive challenges
 	var challenges [3]frontend.Variable
@@ -120,9 +126,12 @@ func TestFiatShamir(t *testing.T) {
 		}
 		buf := make([]byte, curveID.Info().Fr.Bytes)
 		for i := 0; i < 4; i++ {
-			ts.Bind(alpha, bindings[0][i].FillBytes(buf))
-			ts.Bind(beta, bindings[1][i].FillBytes(buf))
-			ts.Bind(gamma, bindings[2][i].FillBytes(buf))
+			err := ts.Bind(alpha, bindings[0][i].FillBytes(buf))
+			assert.NoError(err)
+			err = ts.Bind(beta, bindings[1][i].FillBytes(buf))
+			assert.NoError(err)
+			err = ts.Bind(gamma, bindings[2][i].FillBytes(buf))
+			assert.NoError(err)
 		}
 
 		var expectedChallenges [3][]byte
