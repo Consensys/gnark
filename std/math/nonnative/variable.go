@@ -457,7 +457,7 @@ func (e *Element) Sub(a, b Element) *Element {
 		}
 	}
 	e.Limbs = limbs
-	return nil
+	return e
 }
 
 // Div sets e to a/b and returns e. If modulus is not a prime, it panics. The
@@ -477,7 +477,7 @@ func (e *Element) Div(a, b Element) *Element {
 	res := e.params.Element(e.api)
 	res.Mul(*e, b)
 	res.AssertIsEqual(a)
-	return nil
+	return e
 }
 
 // Inverse sets e to 1/a and returns e. If modulus is not a prime, it panics.
@@ -497,7 +497,7 @@ func (e *Element) Inverse(a Element) *Element {
 	res.Mul(*e, a)
 	one := e.params.One()
 	res.AssertIsEqual(one)
-	return nil
+	return e
 }
 
 // Negate sets e to -a and returns e. The returned element may be larger than
@@ -537,5 +537,5 @@ func (e *Element) Lookup2(b0, b1 frontend.Variable, a, b, c, d Element) *Element
 	for i := range a.Limbs {
 		e.Limbs[i] = e.api.Lookup2(b0, b1, a.Limbs[i], b.Limbs[i], c.Limbs[i], d.Limbs[i])
 	}
-	return nil
+	return e
 }
