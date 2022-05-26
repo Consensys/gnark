@@ -134,7 +134,7 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	mod := system.CurveID.Info().Fr.Modulus()
+	mod := system.CurveID.ScalarField().Modulus()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
@@ -576,7 +576,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
-			b.Mul(&b, &n).Mod(&b, system.CurveID.Info().Fr.Modulus())
+			b.Mul(&b, &n).Mod(&b, system.CurveID.ScalarField().Modulus())
 		}
 	}
 	return res, b

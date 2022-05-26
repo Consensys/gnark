@@ -94,7 +94,7 @@ func TestEddsa(t *testing.T) {
 
 			// pick a message to sign
 			var msg big.Int
-			msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+			msg.Rand(randomness, snarkCurve.ScalarField().Modulus())
 			t.Log("msg to sign", msg.String())
 			msgData := msg.Bytes()
 
@@ -126,7 +126,7 @@ func TestEddsa(t *testing.T) {
 			{
 				var witness eddsaCircuit
 
-				msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+				msg.Rand(randomness, snarkCurve.ScalarField().Modulus())
 				witness.Message = msg
 				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
 				witness.Signature.Assign(snarkCurve, signature)

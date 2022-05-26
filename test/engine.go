@@ -402,7 +402,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) bitLen() int {
-	return e.curveID.Info().Fr.Bits
+	return e.curveID.ScalarField().Modulus().BitLen()
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
@@ -412,7 +412,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 }
 
 func (e *engine) modulus() *big.Int {
-	return e.curveID.Info().Fr.Modulus()
+	return e.curveID.ScalarField().Modulus()
 }
 
 func (e *engine) Curve() ecc.ID {

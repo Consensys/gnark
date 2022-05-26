@@ -130,7 +130,7 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 		sort.Sort(l)
 	}
 
-	mod := system.CurveID.Info().Fr.Modulus()
+	mod := system.CurveID.ScalarField().Modulus()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()

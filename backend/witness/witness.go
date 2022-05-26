@@ -121,11 +121,12 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (w *Witness) UnmarshalBinary(data []byte) error {
 
+	snarkFieldSize := len(w.CurveID.ScalarField().Modulus().Bits()) * 8
 	var r io.Reader
 	r = bytes.NewReader(data)
 	if w.Schema != nil {
 		// if schema is set we can do a limit reader
-		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
+		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*snarkFieldSize
 		r = io.LimitReader(r, int64(maxSize))
 	}
 

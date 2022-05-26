@@ -118,5 +118,5 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) BitLen() int {
-	return cs.CurveID.Info().Fr.Bits
+	return cs.CurveID.ScalarField().Modulus().BitLen()
 }

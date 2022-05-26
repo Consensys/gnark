@@ -105,7 +105,7 @@ func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			n1.Mul(n1, n2).Mod(n1, system.CurveID.Info().Fr.Modulus())
+			n1.Mul(n1, n2).Mod(n1, system.CurveID.ScalarField().Modulus())
 			return system.toVariable(n1).(compiled.LinearExpression)
 		}
 
@@ -174,7 +174,7 @@ func (system *r1cs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.CurveID.ScalarField().Modulus()
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -210,7 +210,7 @@ func (system *r1cs) Div(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.CurveID.ScalarField().Modulus()
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -231,7 +231,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
+		c.ModInverse(c, system.CurveID.ScalarField().Modulus())
 		return system.toVariable(c)
 	}
 

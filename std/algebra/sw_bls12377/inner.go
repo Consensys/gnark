@@ -18,14 +18,14 @@ func init() {
 			0x90, 0x00, 0x00, 0x00, 0x85, 0x08, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x01})
 		bls12377thirdRootOne2 := new(big.Int).Mul(bls12377thirdRootOne1, bls12377thirdRootOne1)
 		bls12377glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(ecc.BLS12_377.Info().Fr.Modulus(), bls12377lambda, bls12377glvBasis)
+		ecc.PrecomputeLattice(ecc.BLS12_377.ScalarField().Modulus(), bls12377lambda, bls12377glvBasis)
 		innerCurves[ecc.BW6_761] = &innerConfig{
 			thirdRootOne1: bls12377thirdRootOne1,
 			thirdRootOne2: bls12377thirdRootOne2,
 			glvBasis:      bls12377glvBasis,
 			lambda:        bls12377lambda,
-			fp:            ecc.BLS12_377.Info().Fp.Modulus(),
-			fr:            ecc.BLS12_377.Info().Fr.Modulus(),
+			fp:            ecc.BLS12_377.BaseField().Modulus(),
+			fr:            ecc.BLS12_377.ScalarField().Modulus(),
 		}
 	})
 }
