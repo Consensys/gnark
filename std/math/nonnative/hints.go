@@ -28,7 +28,13 @@ func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, righ
 	}
 	hintInputs = append(hintInputs, leftLimbs...)
 	hintInputs = append(hintInputs, rightLimbs...)
-	return api.NewHint(MultiplicationHint, len(leftLimbs)+len(rightLimbs)-1, hintInputs...)
+	return api.NewHint(MultiplicationHint, nbMultiplicationResLimbs(len(leftLimbs), len(rightLimbs)), hintInputs...)
+}
+
+// nbMultiplicationResLimbs returns the number of limbs which fit the
+// multiplication result.
+func nbMultiplicationResLimbs(lenLeft, lenRight int) int {
+	return lenLeft + lenRight - 1
 }
 
 // MultiplicationHint unpacks the factors and parameters from inputs, computes
