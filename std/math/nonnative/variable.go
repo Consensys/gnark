@@ -199,15 +199,20 @@ func (fp *Params) Placeholder() Element {
 }
 
 // ToBits returns the bit representation of the Element in little-endian (LSB
-// first) order. The returned bits are constrained to be 0-1.
+// first) order. The returned bits are constrained to be 0-1. The number of
+// returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
+// representation of Element, reduce Element first and take less significant
+// bits corresponding to the bitwidth of the emulated modulus.
 func (e *Element) ToBits() []frontend.Variable {
+	var carry frontend.Variable = 0
 	var fullBits []frontend.Variable
-	for i := 0; i < len(e.Limbs)-1; i++ {
-		limbBits := bits.ToBinary(e.api, e.Limbs[i], bits.WithNbDigits(int(e.params.nbBits)))
-		fullBits = append(fullBits, limbBits...)
+	var limbBits []frontend.Variable
+	for i := 0; i < len(e.Limbs); i++ {
+		limbBits = bits.ToBinary(e.api, e.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.params.nbBits+e.overflow)))
+		fullBits = append(fullBits, limbBits[:e.params.nbBits]...)
+		carry = bits.FromBinary(e.api, limbBits[e.params.nbBits:])
 	}
-	limbBits := bits.ToBinary(e.api, e.Limbs[e.params.nbLimbs-1], bits.WithNbDigits((e.params.r.BitLen()-1)%int(e.params.nbBits)+1))
-	fullBits = append(fullBits, limbBits...)
+	fullBits = append(fullBits, limbBits[e.params.nbBits:e.params.nbBits+e.overflow]...)
 	return fullBits
 }
 
