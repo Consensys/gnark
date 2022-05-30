@@ -216,6 +216,20 @@ func (e *Element) ToBits() []frontend.Variable {
 	return fullBits
 }
 
+// FromBits sets the value of e from the given boolean variables in. The method
+// assumes that the bits are given from the canonical representation of element
+// (less than modulus).
+func (e *Element) FromBits(in []frontend.Variable) {
+	nbLimbs := (uint(len(in)) + e.params.nbBits - 1) / e.params.nbBits
+	limbs := make([]frontend.Variable, nbLimbs)
+	for i := uint(0); i < nbLimbs-1; i++ {
+		limbs[i] = bits.FromBinary(e.api, in[i*e.params.nbBits:(i+1)*e.params.nbBits])
+	}
+	limbs[nbLimbs-1] = bits.FromBinary(e.api, in[(nbLimbs-1)*e.params.nbBits:])
+	e.overflow = 0
+	e.Limbs = limbs
+}
+
 // maxWidth returns the maximum width of the limb value + overflow which fits
 // into the scalar field widthout overflow. If next operation exceeds the value,
 // then the element should be reduced before the operation.
