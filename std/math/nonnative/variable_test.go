@@ -477,14 +477,15 @@ func TestToBits(t *testing.T) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
+			bitLen := params.nbBits * params.nbLimbs
 			circuit := ToBitsCircuit{
 				params: params,
 				Value:  params.Placeholder(),
-				Bits:   make([]frontend.Variable, params.r.BitLen()),
+				Bits:   make([]frontend.Variable, bitLen),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
-			bits := make([]frontend.Variable, params.r.BitLen())
+			bits := make([]frontend.Variable, bitLen)
 			for i := 0; i < len(bits); i++ {
 				bits[i] = val1.Bit(i)
 			}
