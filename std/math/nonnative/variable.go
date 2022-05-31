@@ -210,7 +210,9 @@ func (e *Element) ToBits() []frontend.Variable {
 	for i := 0; i < len(e.Limbs); i++ {
 		limbBits = bits.ToBinary(e.api, e.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.params.nbBits+e.overflow)))
 		fullBits = append(fullBits, limbBits[:e.params.nbBits]...)
-		carry = bits.FromBinary(e.api, limbBits[e.params.nbBits:])
+		if e.overflow > 0 {
+			carry = bits.FromBinary(e.api, limbBits[e.params.nbBits:])
+		}
 	}
 	fullBits = append(fullBits, limbBits[e.params.nbBits:e.params.nbBits+e.overflow]...)
 	return fullBits
