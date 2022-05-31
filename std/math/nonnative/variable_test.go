@@ -500,6 +500,48 @@ func TestToBits(t *testing.T) {
 	}
 }
 
+type FromBitsCircuit struct {
+	params *Params
+
+	Bits []frontend.Variable
+	Res  Element
+}
+
+func (c *FromBitsCircuit) Define(api frontend.API) error {
+	res := c.params.Element(api)
+	res.FromBits(c.Bits)
+	res.AssertIsEqual(c.Res)
+	return nil
+}
+
+func TestFromBits(t *testing.T) {
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			bitLen := params.r.BitLen()
+			circuit := FromBitsCircuit{
+				params: params,
+				Bits:   make([]frontend.Variable, bitLen),
+				Res:    params.Placeholder(),
+			}
+
+			val1, _ := rand.Int(rand.Reader, params.r)
+			bits := make([]frontend.Variable, bitLen)
+			for i := 0; i < len(bits); i++ {
+				bits[i] = val1.Bit(i)
+			}
+			witness := FromBitsCircuit{
+				params: params,
+				Bits:   bits,
+				Res:    params.ConstantFromBigOrPanic(val1),
+			}
+
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.WithProverOpts(backend.WithHints(GetHints()...)))
+		}, testName(fp))
+	}
+}
+
 type ConstantCircuit struct {
 	params *Params
 
