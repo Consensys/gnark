@@ -260,8 +260,6 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
 	maxValueShift := new(big.Int).Lsh(big.NewInt(1), nbCarryBits)
 
-	// TODO: group carries. xjsnark paper describes that we can actually compute
-	// a carry over multiple limbs (assuming the limbs are small enough).
 	var carry frontend.Variable = 0
 	for i := 0; i < nbLimbs; i++ {
 		diff := api.Add(maxValue, carry)
@@ -376,11 +374,6 @@ func (e *Element) Add(a, b Element) *Element {
 // Mul sets e to a*b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Mul(a, b Element) *Element {
-	// TODO: we mistakenly assume here that the factors are completely reduced
-	// (their overflow is zero). Actually, we should be able to compute product
-	// even when the results have non-zero factor. We should add checks if the
-	// multiplication result would not fit into the scalar result and compute
-	// the overflow of the result accordingly.
 	// XXX: currently variable case only
 	// TODO: when one element is constant.
 	// TODO: check that target is initialized (has an API)
