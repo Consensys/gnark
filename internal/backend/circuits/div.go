@@ -31,6 +31,7 @@ func init() {
 	m := ecc.BN254.ScalarField()
 	var c big.Int
 	c.ModInverse(b, m).Mul(&c, a)
+	c.Mod(&c, m)
 
 	// good.A = a
 	good.A = a
