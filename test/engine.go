@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -473,6 +474,10 @@ func copyWitness(to, from frontend.Circuit) {
 	// this can't error.
 	_, _ = schema.Parse(to, tVariable, setHandler)
 
+}
+
+func (e *engine) Field() field.Field {
+	return e.curveID.ScalarField()
 }
 
 func (e *engine) Compiler() frontend.Compiler {

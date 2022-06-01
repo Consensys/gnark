@@ -389,7 +389,7 @@ func BenchmarkDoubleAffineG2(b *testing.B) {
 	var c g2DoubleAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -400,7 +400,7 @@ func BenchmarkAddAssignAffineG2(b *testing.B) {
 	var c g2AddAssignAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -411,7 +411,7 @@ func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 	var c g2DoubleAndAddAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -428,7 +428,7 @@ func BenchmarkConstScalarMulG2(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -436,7 +436,7 @@ func BenchmarkConstScalarMulG2(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -457,7 +457,7 @@ func BenchmarkVarScalarMulG2(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -465,7 +465,7 @@ func BenchmarkVarScalarMulG2(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}

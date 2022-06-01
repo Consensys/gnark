@@ -430,12 +430,12 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	}
 
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
+	ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
+	_ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}

@@ -102,7 +102,7 @@ func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
 	coef.Set(&system.st.Coeffs[cid])
-	coef.Mul(m, &coef).Mod(&coef, system.CurveID.ScalarField().Modulus())
+	coef.Mul(m, &coef).Mod(&coef, system.ScalarField.Modulus())
 	cid = system.st.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
@@ -116,14 +116,14 @@ func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	if i1Constant && i2Constant {
 		l := c1
 		r := c2
-		q := system.CurveID.ScalarField().Modulus()
+		q := system.ScalarField.Modulus()
 		return r.ModInverse(r, q).
 			Mul(l, r).
 			Mod(r, q)
 	}
 	if i2Constant {
 		c := c2
-		m := system.CurveID.ScalarField().Modulus()
+		m := system.ScalarField.Modulus()
 		c.ModInverse(c, m)
 		return system.mulConstant(i1.(compiled.Term), c)
 	}
@@ -153,7 +153,7 @@ func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 // Inverse returns res = 1 / i1
 func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := system.ConstantValue(i1); ok {
-		c.ModInverse(c, system.CurveID.ScalarField().Modulus())
+		c.ModInverse(c, system.ScalarField.Modulus())
 		return c
 	}
 	t := i1.(compiled.Term)

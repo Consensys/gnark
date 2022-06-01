@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
@@ -47,12 +48,20 @@ type ConstraintSystem struct {
 	// in previous levels
 	Levels [][]int
 
-	CurveID ecc.ID
+	ScalarField field.Field
 }
 
 // GetNbVariables return number of internal, secret and public variables
 func (cs *ConstraintSystem) GetNbVariables() (internal, secret, public int) {
 	return cs.NbInternalVariables, cs.NbSecretVariables, cs.NbPublicVariables
+}
+
+func (cs *ConstraintSystem) Field() field.Field {
+	return cs.ScalarField
+}
+
+func (cs *ConstraintSystem) Curve() ecc.ID {
+	return utils.FieldToCurve(cs.ScalarField)
 }
 
 // GetCounters return the collected constraint counters, if any
@@ -65,16 +74,11 @@ type Counter struct {
 	From, To      string
 	NbVariables   int
 	NbConstraints int
-	CurveID       ecc.ID
 	BackendID     backend.ID
 }
 
 func (c Counter) String() string {
-	return fmt.Sprintf("%s[%s] %s - %s: %d variables, %d constraints", c.BackendID, c.CurveID, c.From, c.To, c.NbVariables, c.NbConstraints)
-}
-
-func (cs *ConstraintSystem) Curve() ecc.ID {
-	return cs.CurveID
+	return fmt.Sprintf("%s %s - %s: %d variables, %d constraints", c.BackendID, c.From, c.To, c.NbVariables, c.NbConstraints)
 }
 
 func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
@@ -118,5 +122,5 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) BitLen() int {
-	return cs.CurveID.ScalarField().Modulus().BitLen()
+	return cs.ScalarField.Modulus().BitLen()
 }

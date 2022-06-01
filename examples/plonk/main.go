@@ -73,7 +73,7 @@ func main() {
 	var circuit Circuit
 
 	// // building the circuit...
-	ccs, err := frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	if err != nil {
 		fmt.Println("circuit compilation error")
 	}

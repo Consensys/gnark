@@ -83,7 +83,7 @@ func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 		panic("not implemented")
 	}
 
-	ccs, err := frontend.Compile(curve, newCompiler, circuit, frontend.IgnoreUnconstrainedInputs())
+	ccs, err := frontend.Compile(curve.ScalarField(), newCompiler, circuit, frontend.IgnoreUnconstrainedInputs())
 	if err != nil {
 		return snippetStats{}, err
 	}

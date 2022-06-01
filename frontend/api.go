@@ -19,7 +19,6 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 )
@@ -132,10 +131,6 @@ type API interface {
 	// ConstantValue is a shorcut to api.Compiler().ConstantValue()
 	// Deprecated: use api.Compiler().ConstantValue() instead
 	ConstantValue(v Variable) (*big.Int, bool)
-
-	// Curve is a shorcut to api.Compiler().Curve()
-	// Deprecated: use api.Compiler().Curve() instead
-	Curve() ecc.ID
 
 	// Backend is a shorcut to api.Compiler().Backend()
 	// Deprecated: use api.Compiler().Backend() instead

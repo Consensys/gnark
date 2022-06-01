@@ -4,12 +4,13 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewBuilder func(ecc.ID, CompileConfig) (Builder, error)
+type NewBuilder func(field.Field, CompileConfig) (Builder, error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
@@ -53,7 +54,13 @@ type Compiler interface {
 	// replacing *big.Int with fr.Element
 	ConstantValue(v Variable) (*big.Int, bool)
 
-	// CurveID returns the ecc.ID injected by the compiler
+	// Field returns the finite field injected by the compiler
+	Field() field.Field
+
+	// Curve returns the curve id injected by the compiler
+	//
+	// Note that this may not always be defined and can return ecc.UNKNOWN in case the injected finite field
+	// does not match a supported elliptic curve
 	Curve() ecc.ID
 
 	// Backend returns the backend.ID injected by the compiler

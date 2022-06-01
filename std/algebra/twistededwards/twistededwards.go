@@ -69,7 +69,7 @@ func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
 	if err != nil {
 		return nil, err
 	}
-	if api.Curve() != snarkCurve {
+	if api.Compiler().Curve() != snarkCurve {
 		return nil, errors.New("invalid curve pair; snark field doesn't match twisted edwards field")
 	}
 	params, err := GetCurveParams(id)

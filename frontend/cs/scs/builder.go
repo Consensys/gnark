@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -44,8 +45,8 @@ import (
 	"github.com/consensys/gnark/logger"
 )
 
-func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
-	return newBuilder(curve, config), nil
+func NewBuilder(field field.Field, config frontend.CompileConfig) (frontend.Builder, error) {
+	return newBuilder(field, config), nil
 }
 
 type scs struct {
@@ -61,7 +62,7 @@ type scs struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *scs {
+func newBuilder(field field.Field, config frontend.CompileConfig) *scs {
 	system := scs{
 		ConstraintSystem: compiled.ConstraintSystem{
 			MDebug:             make(map[int]int),
@@ -77,7 +78,7 @@ func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *scs {
 	system.Public = make([]string, 0)
 	system.Secret = make([]string, 0)
 
-	system.CurveID = curveID
+	system.ScalarField = field
 
 	return &system
 }
@@ -134,7 +135,7 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	mod := system.CurveID.ScalarField().Modulus()
+	mod := system.ScalarField.Modulus()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
@@ -297,7 +298,6 @@ func init() {
 func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().
-		Str("curve", cs.CurveID.String()).
 		Int("nbConstraints", len(cs.Constraints)).
 		Msg("building constraint system")
 
@@ -325,7 +325,9 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	switch cs.CurveID {
+	curve := utils.FieldToCurve(cs.ScalarField)
+
+	switch curve {
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS12_381:
@@ -486,7 +488,6 @@ func (system *scs) AddCounter(from, to frontend.Tag) {
 		To:            to.Name,
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
-		CurveID:       system.CurveID,
 		BackendID:     backend.PLONK,
 	})
 }
@@ -576,7 +577,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
-			b.Mul(&b, &n).Mod(&b, system.CurveID.ScalarField().Modulus())
+			b.Mul(&b, &n).Mod(&b, system.ScalarField.Modulus())
 		}
 	}
 	return res, b
