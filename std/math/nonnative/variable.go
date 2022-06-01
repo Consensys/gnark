@@ -406,12 +406,13 @@ func (e *Element) Mul(a, b Element) *Element {
 
 // Reduce reduces a modulo modulus and assigns e to the reduced value.
 func (e *Element) Reduce(a Element) *Element {
-	if e.overflow == 0 {
+	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
+		e.Set(a)
 		return e
 	}
 	// slow path - use hint to reduce value
-	r, err := computeReductionHint(e.api, e.params, e.Limbs)
+	r, err := computeReductionHint(e.api, a.params, a.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
