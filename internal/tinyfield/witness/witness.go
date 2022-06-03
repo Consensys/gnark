@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark/frontend/schema"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr "github.com/consensys/gnark/internal/tinyfield"
 )
 
 type Witness []fr.Element
