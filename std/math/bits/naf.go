@@ -23,7 +23,7 @@ func init() {
 func ToNAF(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
 	cfg := baseConversionConfig{
-		NbDigits:             api.Compiler().Curve().ScalarField().Modulus().BitLen(),
+		NbDigits:             api.Compiler().Curve().ScalarField().BitLen(),
 		UnconstrainedOutputs: false,
 	}
 

@@ -25,7 +25,7 @@ func init() {
 	var good, bad invCircuit
 
 	a := big.NewInt(2387287246)
-	m := ecc.BN254.ScalarField().Modulus()
+	m := ecc.BN254.ScalarField()
 	var c big.Int
 	c.ModInverse(a, m)
 

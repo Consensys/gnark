@@ -28,7 +28,6 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -46,7 +45,7 @@ import (
 )
 
 // NewBuilder returns a new R1CS compiler
-func NewBuilder(field field.Field, config frontend.CompileConfig) (frontend.Builder, error) {
+func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(field, config), nil
 }
 
@@ -59,21 +58,19 @@ type r1cs struct {
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]compiled.LinearExpression
+
+	q *big.Int
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newBuilder(field field.Field, config frontend.CompileConfig) *r1cs {
+func newBuilder(field *big.Int, config frontend.CompileConfig) *r1cs {
 	system := r1cs{
-		ConstraintSystem: compiled.ConstraintSystem{
-			MDebug:             make(map[int]int),
-			MHints:             make(map[int]*compiled.Hint),
-			MHintsDependencies: make(map[hint.ID]string),
-		},
-		Constraints: make([]compiled.R1C, 0, config.Capacity),
-		st:          cs.NewCoeffTable(),
-		mtBooleans:  make(map[uint64][]compiled.LinearExpression),
-		config:      config,
+		ConstraintSystem: compiled.NewConstraintSystem(field),
+		Constraints:      make([]compiled.R1C, 0, config.Capacity),
+		st:               cs.NewCoeffTable(),
+		mtBooleans:       make(map[uint64][]compiled.LinearExpression),
+		config:           config,
 	}
 
 	system.Public = make([]string, 1)
@@ -82,7 +79,7 @@ func newBuilder(field field.Field, config frontend.CompileConfig) *r1cs {
 	// by default the circuit is given a public wire equal to 1
 	system.Public[0] = "one"
 
-	system.ScalarField = field
+	system.q = system.Field()
 
 	return &system
 }
@@ -131,7 +128,7 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 		sort.Sort(l)
 	}
 
-	mod := system.ScalarField.Modulus()
+	mod := system.Field()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
@@ -347,7 +344,6 @@ func init() {
 func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().
-		Str("field", cs.ScalarField.Modulus().Text(16)).
 		Int("nbConstraints", len(cs.Constraints)).
 		Msg("building constraint system")
 
@@ -378,7 +374,7 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	curve := utils.FieldToCurve(cs.ScalarField)
+	curve := cs.Curve()
 
 	switch curve {
 	case ecc.BLS12_377:

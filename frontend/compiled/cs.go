@@ -2,10 +2,10 @@ package compiled
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
@@ -48,7 +48,28 @@ type ConstraintSystem struct {
 	// in previous levels
 	Levels [][]int
 
-	ScalarField field.Field
+	// scalar field
+	q      *big.Int
+	bitLen int
+}
+
+// NewConstraintSystem initialize the common structure among constraint system
+func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
+	return ConstraintSystem{
+		MDebug:             make(map[int]int),
+		MHints:             make(map[int]*Hint),
+		MHintsDependencies: make(map[hint.ID]string),
+		q:                  new(big.Int).Set(scalarField),
+		bitLen:             scalarField.BitLen(),
+	}
+}
+
+// SetScalarField sets the scalar field on the constraint system object
+//
+// This is meant to be use at the deserialization step
+func (cs *ConstraintSystem) SetScalarField(scalarField *big.Int) {
+	cs.q = new(big.Int).Set(scalarField)
+	cs.bitLen = cs.q.BitLen()
 }
 
 // GetNbVariables return number of internal, secret and public variables
@@ -56,12 +77,12 @@ func (cs *ConstraintSystem) GetNbVariables() (internal, secret, public int) {
 	return cs.NbInternalVariables, cs.NbSecretVariables, cs.NbPublicVariables
 }
 
-func (cs *ConstraintSystem) Field() field.Field {
-	return cs.ScalarField
+func (cs *ConstraintSystem) Field() *big.Int {
+	return new(big.Int).Set(cs.q)
 }
 
 func (cs *ConstraintSystem) Curve() ecc.ID {
-	return utils.FieldToCurve(cs.ScalarField)
+	return utils.FieldToCurve(cs.q)
 }
 
 // GetCounters return the collected constraint counters, if any
@@ -122,5 +143,5 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) BitLen() int {
-	return cs.ScalarField.Modulus().BitLen()
+	return cs.bitLen
 }

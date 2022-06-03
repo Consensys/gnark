@@ -471,6 +471,14 @@ func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	}
 	encoder := enc.NewEncoder(&_w)
 
+	// encode the field as hex string
+	// TODO @gbotrel this https://github.com/ConsenSys/gnark/issues/322
+	// may introduce a serialization header which may be a better spot.
+	q := cs.Field().Text(16)
+	if err := encoder.Encode(q); err != nil {
+		return _w.N, err
+	}
+
 	// encode our object
 	err = encoder.Encode(cs)
 	return _w.N, err
@@ -487,6 +495,18 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
+
+	// decode the fiield
+	var qHex string
+	if err := decoder.Decode(&qHex); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+	q, ok := new(big.Int).SetString(qHex, 16)
+	if !ok {
+		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
+	}
+	cs.SetScalarField(q)
+
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err
 	}

@@ -3,9 +3,9 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -29,7 +29,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(field field.Field, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options

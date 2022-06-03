@@ -17,7 +17,7 @@ func IsZero(curveID ecc.ID, inputs []*big.Int, results []*big.Int) error {
 	result := results[0]
 
 	// get fr modulus
-	q := curveID.ScalarField().Modulus()
+	q := curveID.ScalarField()
 
 	// save input
 	result.Set(inputs[0])

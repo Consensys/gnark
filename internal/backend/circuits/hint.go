@@ -140,7 +140,7 @@ func init() {
 }
 
 var mulBy7 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
-	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.ScalarField().Modulus())
+	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.ScalarField())
 	return nil
 }
 

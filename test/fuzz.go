@@ -25,8 +25,8 @@ func init() {
 
 	// moduli
 	for _, curve := range gnark.Curves() {
-		fp := curve.BaseField().Modulus()
-		fr := curve.ScalarField().Modulus()
+		fp := curve.BaseField()
+		fr := curve.ScalarField()
 		seedCorpus = append(seedCorpus, fp)
 		seedCorpus = append(seedCorpus, fr)
 
@@ -85,7 +85,7 @@ func seedFiller(w frontend.Circuit, curve ecc.ID) {
 
 	mrand.Seed(time.Now().Unix())
 
-	m := curve.ScalarField().Modulus()
+	m := curve.ScalarField()
 
 	fill(w, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus))) //#nosec G404 weak rng is fine here
@@ -99,7 +99,7 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 	mrand.Seed(time.Now().Unix())
 
 	r := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
-	m := curve.ScalarField().Modulus()
+	m := curve.ScalarField()
 
 	fill(w, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus)*2)) //#nosec G404 weak rng is fine here

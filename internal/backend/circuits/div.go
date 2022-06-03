@@ -28,7 +28,7 @@ func init() {
 
 	a := big.NewInt(2387287246)
 	b := big.NewInt(987342642)
-	m := ecc.BN254.ScalarField().Modulus()
+	m := ecc.BN254.ScalarField()
 	var c big.Int
 	c.ModInverse(b, m).Mul(&c, a)
 

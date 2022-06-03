@@ -29,7 +29,6 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -403,7 +402,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) bitLen() int {
-	return e.curveID.ScalarField().Modulus().BitLen()
+	return e.curveID.ScalarField().BitLen()
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
@@ -413,7 +412,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 }
 
 func (e *engine) modulus() *big.Int {
-	return e.curveID.ScalarField().Modulus()
+	return e.curveID.ScalarField()
 }
 
 func (e *engine) Curve() ecc.ID {
@@ -476,7 +475,7 @@ func copyWitness(to, from frontend.Circuit) {
 
 }
 
-func (e *engine) Field() field.Field {
+func (e *engine) Field() *big.Int {
 	return e.curveID.ScalarField()
 }
 

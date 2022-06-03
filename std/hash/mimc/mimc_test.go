@@ -59,7 +59,7 @@ func TestMimcAll(t *testing.T) {
 		// minimal cs res = hash(data)
 		var circuit, witness, wrongWitness mimcCircuit
 
-		modulus := curve.ScalarField().Modulus()
+		modulus := curve.ScalarField()
 		var data [10]big.Int
 		data[0].Sub(modulus, big.NewInt(1))
 		for i := 1; i < 10; i++ {
