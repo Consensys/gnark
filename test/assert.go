@@ -94,10 +94,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	for _, curve := range opt.curves {
 		curve := curve
 		// parse the assignment and instantiate the witness
-		validWitness, err := frontend.NewWitness(validAssignment, curve)
+		validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
 		assert.NoError(err, "can't parse valid assignment")
 
-		validPublicWitness, err := frontend.NewWitness(validAssignment, curve, frontend.PublicOnly())
+		validPublicWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField(), frontend.PublicOnly())
 		assert.NoError(err, "can't parse valid assignment")
 
 		if opt.witnessSerialization {
@@ -193,9 +193,9 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	for _, curve := range opt.curves {
 
 		// parse assignment
-		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 		assert.NoError(err, "can't parse invalid assignment")
-		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve, frontend.PublicOnly())
+		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField(), frontend.PublicOnly())
 		assert.NoError(err, "can't parse invalid assignment")
 
 		for _, b := range opt.backends {
@@ -264,7 +264,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 
 func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	validWitness, err := frontend.NewWitness(validAssignment, curve)
+	validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse valid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
@@ -298,7 +298,7 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse invalid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }

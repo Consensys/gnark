@@ -98,12 +98,12 @@ func main() {
 		w.E = 2
 		w.Y = 4
 
-		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254.ScalarField())
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		witnessPublic, err := frontend.NewWitness(&w, ecc.BN254, frontend.PublicOnly())
+		witnessPublic, err := frontend.NewWitness(&w, ecc.BN254.ScalarField(), frontend.PublicOnly())
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -139,12 +139,12 @@ func main() {
 		pW.X = 3
 		pW.Y = 4096
 
-		witnessFull, err := frontend.NewWitness(&w, ecc.BN254)
+		witnessFull, err := frontend.NewWitness(&w, ecc.BN254.ScalarField())
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		witnessPublic, err := frontend.NewWitness(&pW, ecc.BN254, frontend.PublicOnly())
+		witnessPublic, err := frontend.NewWitness(&pW, ecc.BN254.ScalarField(), frontend.PublicOnly())
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -46,11 +46,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 var (
@@ -71,14 +73,14 @@ type Witness struct {
 	CurveID ecc.ID         // should be redundant with generic impl
 }
 
-func New(curveID ecc.ID, schema *schema.Schema) (*Witness, error) {
-	v, err := newVector(curveID)
+func New(field *big.Int, schema *schema.Schema) (*Witness, error) {
+	v, err := newVector(field)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Witness{
-		CurveID: curveID,
+		CurveID: utils.FieldToCurve(field),
 		Vector:  v,
 		Schema:  schema,
 	}, nil
@@ -130,7 +132,7 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 		r = io.LimitReader(r, int64(maxSize))
 	}
 
-	v, err := newVector(w.CurveID)
+	v, err := newVector(w.CurveID.ScalarField())
 	if err != nil {
 		return err
 	}
@@ -173,7 +175,7 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	if w.Schema == nil {
 		return errMissingSchema
 	}
-	v, err := newVector(w.CurveID)
+	v, err := newVector(w.CurveID.ScalarField())
 	if err != nil {
 		return err
 	}

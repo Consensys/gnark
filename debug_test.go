@@ -190,7 +190,7 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	sw, err := frontend.NewWitness(w, ecc.BN254)
+	sw, err := frontend.NewWitness(w, ecc.BN254.ScalarField())
 	if err != nil {
 		return "", err
 	}
@@ -211,7 +211,7 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	sw, err := frontend.NewWitness(w, ecc.BN254)
+	sw, err := frontend.NewWitness(w, ecc.BN254.ScalarField())
 	if err != nil {
 		return "", err
 	}
