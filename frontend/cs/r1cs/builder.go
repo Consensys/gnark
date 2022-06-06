@@ -40,6 +40,8 @@ import (
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/consensys/gnark/internal/tinyfield"
+	tinyfieldr1cs "github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 )
@@ -390,6 +392,10 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 	case ecc.BLS24_315:
 		return bls24315r1cs.NewR1CS(res, cs.st.Coeffs), nil
 	default:
+		q := cs.Field()
+		if q.Cmp(tinyfield.Modulus()) == 0 {
+			return tinyfieldr1cs.NewR1CS(res, cs.st.Coeffs), nil
+		}
 		panic("not implemtented")
 	}
 }

@@ -54,7 +54,7 @@ func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
 	cfg := baseConversionConfig{
-		NbDigits:             api.Compiler().Curve().ScalarField().BitLen(),
+		NbDigits:             api.Compiler().Field().BitLen(),
 		UnconstrainedOutputs: false,
 	}
 
