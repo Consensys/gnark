@@ -465,10 +465,6 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (system *scs) Backend() backend.ID {
-	return backend.PLONK
-}
-
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
 func (system *scs) Tag(name string) frontend.Tag {

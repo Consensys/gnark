@@ -274,7 +274,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validAssignment, curve, WithBackend(b))
+	err = IsSolved(circuit, validAssignment, curve)
 	checkError(err)
 
 	err = ccs.IsSolved(validWitness, opt.proverOpts...)
@@ -309,7 +309,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidAssignment, curve, WithBackend(b))
+	err = IsSolved(circuit, invalidAssignment, curve)
 	mustError(err)
 
 	err = ccs.IsSolved(invalidWitness, opt.proverOpts...)
@@ -383,8 +383,8 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	// fuzz a witness
 	fuzzer(w, curve)
 
-	errVars := IsSolved(circuit, w, curve, WithBackend(b))
-	errConsts := IsSolved(circuit, w, curve, WithBackend(b), SetAllVariablesAsConstants())
+	errVars := IsSolved(circuit, w, curve)
+	errConsts := IsSolved(circuit, w, curve, SetAllVariablesAsConstants())
 
 	if errVars == nil && errConsts == nil {
 		// valid witness

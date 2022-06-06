@@ -42,9 +42,8 @@ import (
 //
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
-	backendID backend.ID
-	curveID   ecc.ID
-	opt       backend.ProverConfig
+	curveID ecc.ID
+	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars  bool
 	apiWrapper ApiWrapper
@@ -76,16 +75,6 @@ func SetAllVariablesAsConstants() TestEngineOption {
 	}
 }
 
-// WithBackend is a test engine option which defines the backend the test engine
-// returns when calling Backend(). If not set, then the default value
-// backend.UNKNOWN is returned.
-func WithBackend(b backend.ID) TestEngineOption {
-	return func(e *engine) error {
-		e.backendID = b
-		return nil
-	}
-}
-
 // WithBackendProverOptions is a test engine option which allows to define
 // prover options. If not set, then default prover configuration is used.
 func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
@@ -106,7 +95,7 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 //
 // This is an experimental feature.
 func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...TestEngineOption) (err error) {
-	e := &engine{curveID: curveID, apiWrapper: func(a frontend.API) frontend.API { return a }, backendID: backend.UNKNOWN, constVars: false}
+	e := &engine{curveID: curveID, apiWrapper: func(a frontend.API) frontend.API { return a }, constVars: false}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
@@ -461,10 +450,6 @@ func (e *engine) modulus() *big.Int {
 
 func (e *engine) Curve() ecc.ID {
 	return e.curveID
-}
-
-func (e *engine) Backend() backend.ID {
-	return e.backendID
 }
 
 // shallowClone clones given circuit

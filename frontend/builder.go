@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
 )
@@ -61,9 +60,6 @@ type Compiler interface {
 	// Note that this may not always be defined and can return ecc.UNKNOWN in case the injected finite field
 	// does not match a supported elliptic curve
 	Curve() ecc.ID
-
-	// Backend returns the backend.ID injected by the compiler
-	Backend() backend.ID
 }
 
 // Builder represents a constraint system builder
