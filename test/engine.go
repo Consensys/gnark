@@ -46,6 +46,57 @@ type engine struct {
 	curveID   ecc.ID
 	opt       backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
+	constVars  bool
+	apiWrapper ApiWrapper
+}
+
+// TestEngineOption defines an option for the test engine.
+type TestEngineOption func(e *engine) error
+
+// ApiWrapper defines a function which wraps the API given to the circuit.
+type ApiWrapper func(frontend.API) frontend.API
+
+// WithApiWrapper is a test engine option which which wraps the API before
+// calling the Define method in circuit. If not set, then API is not wrapped.
+func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
+	return func(e *engine) error {
+		e.apiWrapper = wrapper
+		return nil
+	}
+}
+
+// SetAlLVariablesAsConstants is a test engine option which makes the calls to
+// IsConstant() and ConstantValue() always return true. If this test engine
+// option is not set, then all variables are considered as non-constant,
+// regardless if it is constructed by a call to ConstantValue().
+func SetAllVariablesAsConstants() TestEngineOption {
+	return func(e *engine) error {
+		e.constVars = true
+		return nil
+	}
+}
+
+// WithBackend is a test engine option which defines the backend the test engine
+// returns when calling Backend(). If not set, then the default value
+// backend.UNKNOWN is returned.
+func WithBackend(b backend.ID) TestEngineOption {
+	return func(e *engine) error {
+		e.backendID = b
+		return nil
+	}
+}
+
+// WithBackendProverOptions is a test engine option which allows to define
+// prover options. If not set, then default prover configuration is used.
+func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
+	return func(e *engine) error {
+		cfg, err := backend.NewProverConfig(opts...)
+		if err != nil {
+			return fmt.Errorf("new prover config: %w", err)
+		}
+		e.opt = cfg
+		return nil
+	}
 }
 
 // IsSolved returns an error if the test execution engine failed to execute the given circuit
@@ -54,16 +105,12 @@ type engine struct {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, opts ...backend.ProverOption) (err error) {
-	// apply options
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	e := &engine{backendID: b, curveID: curveID, opt: opt}
-	if opt.Force {
-		panic("ignoring errors in test.Engine is not supported")
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...TestEngineOption) (err error) {
+	e := &engine{curveID: curveID, apiWrapper: func(a frontend.API) frontend.API { return a }, backendID: backend.UNKNOWN, constVars: false}
+	for _, opt := range opts {
+		if err := opt(e); err != nil {
+			return fmt.Errorf("apply option: %w", err)
+		}
 	}
 
 	// TODO handle opt.LoggerOut ?
@@ -84,7 +131,8 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, o
 		}
 	}()
 
-	err = c.Define(e)
+	api := e.apiWrapper(e)
+	err = c.Define(api)
 
 	return
 }
@@ -361,17 +409,13 @@ func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Vari
 
 // IsConstant returns true if v is a constant known at compile time
 func (e *engine) IsConstant(v frontend.Variable) bool {
-	// TODO @gbotrel this is a problem. if a circuit component has 2 code path depending
-	// on constant parameter, it will never be tested in the test engine
-	// we may want to call IsSolved twice, and return false to all IsConstant on one of the runs
-	return true
+	return e.constVars
 }
 
 // ConstantValue returns the big.Int value of v
-// will panic if v.IsConstant() == false
 func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	r := e.toBigInt(v)
-	return &r, true
+	return &r, e.constVars
 }
 
 func (e *engine) IsBoolean(v frontend.Variable) bool {
