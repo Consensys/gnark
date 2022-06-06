@@ -78,7 +78,44 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 				A:      params.ConstantFromBigOrPanic(val),
 				B:      params.ConstantFromBigOrPanic(val),
 			}
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
+		}, testName(fp))
+	}
+}
 
+type AssertIsLessEqualThanCircuit struct {
+	params *Params
+
+	L Element
+	R Element
+}
+
+func (c *AssertIsLessEqualThanCircuit) Define(api frontend.API) error {
+	L := c.params.Element(api)
+	L.Set(c.L)
+	R := c.params.Element(api)
+	R.Set(c.R)
+	L.AssertIsLessEqualThan(R)
+	return nil
+}
+
+func TestAssertIsLessEqualThan(t *testing.T) {
+	for _, fp := range emulatedFields(t)[:1] {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			circuit := AssertIsLessEqualThanCircuit{
+				params: params,
+				L:      params.Placeholder(),
+				R:      params.Placeholder(),
+			}
+			R, _ := rand.Int(rand.Reader, params.r)
+			L, _ := rand.Int(rand.Reader, R)
+			witness := AssertIsLessEqualThanCircuit{
+				params: params,
+				L:      params.ConstantFromBigOrPanic(L),
+				R:      params.ConstantFromBigOrPanic(R),
+			}
 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
 		}, testName(fp))
 	}

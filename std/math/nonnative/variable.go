@@ -451,6 +451,38 @@ func (e *Element) AssertIsEqual(a Element) {
 	diff.AssertLimbsEquality(kp)
 }
 
+// AssertIsEqualLessThan ensures that e is less or equal than e.
+func (e *Element) AssertIsLessEqualThan(a Element) {
+	if e.overflow+a.overflow > 0 {
+		panic("inputs must have 0 overflow")
+	}
+	eBits := e.ToBits()
+	aBits := a.ToBits()
+	f := func(xbits, ybits []frontend.Variable) []frontend.Variable {
+		diff := len(xbits) - len(ybits)
+		aBits = append(ybits, make([]frontend.Variable, diff)...)
+		for i := len(ybits) - diff - 1; i < len(ybits); i++ {
+			ybits[i] = 0
+		}
+		return ybits
+	}
+	if len(eBits) > len(aBits) {
+		f(eBits, aBits)
+	} else {
+		f(aBits, eBits)
+	}
+	p := make([]frontend.Variable, len(eBits)+1)
+	p[len(eBits)] = 1
+	for i := len(eBits) - 1; i >= 0; i-- {
+		v := e.api.Mul(p[i+1], eBits[i])
+		p[i] = e.api.Select(aBits[i], v, p[i+1])
+		t := e.api.Select(aBits[i], 0, p[i+1])
+		l := e.api.Sub(1, t, eBits[i])
+		ll := e.api.Mul(l, eBits[i])
+		e.api.AssertIsEqual(ll, 0)
+	}
+}
+
 // Sub sets e to a-b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Sub(a, b Element) *Element {
