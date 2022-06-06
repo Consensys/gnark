@@ -132,7 +132,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 				checkError(err)
 
 				// must not error with big int test engine (only the curveID is needed for this test)
-				err = IsSolved(circuit, validAssignment, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, validAssignment, curve)
 				checkError(err)
 
 				assert.t.Parallel()
@@ -211,7 +211,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				checkError(err)
 
 				// must error with big int test engine (only the curveID is needed here)
-				err = IsSolved(circuit, invalidAssignment, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, invalidAssignment, curve)
 				mustError(err)
 
 				assert.t.Parallel()
@@ -274,7 +274,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validAssignment, curve, b)
+	err = IsSolved(circuit, validAssignment, curve, WithBackend(b))
 	checkError(err)
 
 	err = ccs.IsSolved(validWitness, opt.proverOpts...)
@@ -309,7 +309,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidAssignment, curve, b)
+	err = IsSolved(circuit, invalidAssignment, curve, WithBackend(b))
 	mustError(err)
 
 	err = ccs.IsSolved(invalidWitness, opt.proverOpts...)
@@ -383,9 +383,10 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	// fuzz a witness
 	fuzzer(w, curve)
 
-	err := IsSolved(circuit, w, curve, b)
+	errVars := IsSolved(circuit, w, curve, WithBackend(b))
+	errConsts := IsSolved(circuit, w, curve, WithBackend(b), SetAllVariablesAsConstants())
 
-	if err == nil {
+	if errVars == nil && errConsts == nil {
 		// valid witness
 		assert.solvingSucceeded(circuit, w, b, curve, opt)
 		return 1
