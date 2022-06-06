@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
@@ -50,14 +49,14 @@ func TestBuiltinHints(t *testing.T) {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b1000),
 			B: (0),
-		}, curve, backend.UNKNOWN); err != nil {
+		}, curve); err != nil {
 			t.Fatal(err)
 		}
 
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b10),
 			B: (1),
-		}, curve, backend.UNKNOWN); err == nil {
+		}, curve); err == nil {
 			t.Fatal("witness shouldn't solve circuit")
 		}
 	}
