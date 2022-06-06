@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -123,7 +122,7 @@ func AssertIsTrit(api frontend.API, v frontend.Variable) {
 	api.AssertIsEqual(api.Mul(v, y), 0)
 }
 
-func nTrits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+func nTrits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	// TODO using big.Int Text method is likely not cheap
 	base3 := n.Text(3)

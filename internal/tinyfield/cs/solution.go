@@ -29,8 +29,6 @@ import (
 	"github.com/rs/zerolog"
 
 	fr "github.com/consensys/gnark/internal/tinyfield"
-
-	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // solution represents elements needed to compute
@@ -202,7 +200,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		}
 	}
 
-	err := f(ecc.UNKNOWN, inputs, outputs)
+	err := f(q, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {

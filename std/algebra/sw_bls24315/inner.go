@@ -9,7 +9,25 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-func init() {
+var mappingOnce sync.Once
+
+type innerConfig struct {
+	thirdRootOne1 *big.Int
+	thirdRootOne2 *big.Int
+	glvBasis      *ecc.Lattice
+	lambda        *big.Int
+	fr            *big.Int
+	fp            *big.Int
+}
+
+var innerConfigBW6_633 innerConfig
+
+// getInnerCurveConfig returns the configuration of the inner elliptic curve
+// which can be defined on the scalars of outer curve.
+func getInnerCurveConfig(outerCurveScalarField *big.Int) *innerConfig {
+	if outerCurveScalarField.Cmp(ecc.BW6_633.ScalarField()) != 0 {
+		panic(fmt.Sprintf("outer curve %s does not have a inner curve", outerCurveScalarField.String()))
+	}
 	mappingOnce.Do(func() {
 		bls24315lambda := new(big.Int).SetBytes([]byte{0x19, 0x6d, 0xea, 0xc2,
 			0x4a, 0x9d, 0xa1, 0x2b, 0x25, 0xfc, 0x7e, 0xc9, 0xcf, 0x92, 0x7a,
@@ -24,7 +42,7 @@ func init() {
 		bls24315thirdRootOne2 := new(big.Int).Mul(bls24315thirdRootOne1, bls24315thirdRootOne1)
 		bls24315glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(ecc.BLS24_315.ScalarField(), bls24315lambda, bls24315glvBasis)
-		innerCurves[ecc.BW6_633] = &innerConfig{
+		innerConfigBW6_633 = innerConfig{
 			thirdRootOne1: bls24315thirdRootOne1,
 			thirdRootOne2: bls24315thirdRootOne2,
 			glvBasis:      bls24315glvBasis,
@@ -33,20 +51,8 @@ func init() {
 			fr:            ecc.BLS24_315.ScalarField(),
 		}
 	})
+	return &innerConfigBW6_633
 }
-
-var mappingOnce sync.Once
-
-type innerConfig struct {
-	thirdRootOne1 *big.Int
-	thirdRootOne2 *big.Int
-	glvBasis      *ecc.Lattice
-	lambda        *big.Int
-	fr            *big.Int
-	fp            *big.Int
-}
-
-var innerCurves = make(map[ecc.ID]*innerConfig)
 
 func (cc *innerConfig) phi1(api frontend.API, res, P *G1Affine) *G1Affine {
 	res.X = api.Mul(P.X, cc.thirdRootOne1)
@@ -58,13 +64,4 @@ func (cc *innerConfig) phi2(api frontend.API, res, P *G2Affine) *G2Affine {
 	res.X.MulByFp(api, P.X, cc.thirdRootOne2)
 	res.Y = P.Y
 	return res
-}
-
-// innerCurve returns the configuration of the inner elliptic curve
-// which can be defined on the scalars of outer curve.
-func innerCurve(outerCurve ecc.ID) *innerConfig {
-	if cc, ok := innerCurves[outerCurve]; ok {
-		return cc
-	}
-	panic(fmt.Sprintf("outer curve %s does not have a inner curve", outerCurve.String()))
 }

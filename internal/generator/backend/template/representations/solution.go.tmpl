@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
     "github.com/rs/zerolog"
 	{{ template "import_fr" . }}
-	{{ template "import_curve" . }}
 )
 
 // solution represents elements needed to compute
@@ -183,7 +182,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	}
 
 
-	err := f({{- if eq .Curve "tinyfield"}}ecc.UNKNOWN{{- else}}curve.ID{{- end}}, inputs, outputs)
+	err := f(q, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {

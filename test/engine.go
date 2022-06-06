@@ -393,7 +393,7 @@ func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Vari
 		res[i] = new(big.Int)
 	}
 
-	err := f(e.curveID, in, res)
+	err := f(e.Field(), in, res)
 
 	if err != nil {
 		panic("NewHint: " + err.Error())

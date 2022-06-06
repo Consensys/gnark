@@ -19,7 +19,6 @@ package fields_bls24315
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -175,7 +174,7 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 	return e
 }
 
-var InverseE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])
@@ -235,7 +234,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-var DivE12Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DivE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])

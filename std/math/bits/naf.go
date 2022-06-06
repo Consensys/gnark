@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -76,7 +75,7 @@ func ToNAF(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) 
 	return bits
 }
 
-func nNaf(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+func nNaf(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	return nafDecomposition(n, results)
 }
