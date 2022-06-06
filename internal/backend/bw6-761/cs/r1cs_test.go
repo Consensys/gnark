@@ -36,7 +36,6 @@ func TestSerialization(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
-
 			if testing.Short() && name != "reference_small" {
 				return
 			}
