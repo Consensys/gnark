@@ -85,7 +85,7 @@ func TestVerify(t *testing.T) {
 			var buf bytes.Buffer
 			for i := 0; i < numLeaves; i++ {
 				for j := 0; j < tData.segmentSize; j++ {
-					r := byte(rand.Int())
+					r := byte(rand.Int()) //#nosec G404 -- This is a false positive
 					buf.Write([]byte{r})
 				}
 			}
