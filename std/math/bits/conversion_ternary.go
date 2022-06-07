@@ -55,7 +55,7 @@ func fromTernary(api frontend.API, digits []frontend.Variable, opts ...BaseConve
 
 func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
-	nbBits := api.Compiler().Field().BitLen()
+	nbBits := api.Compiler().FieldBitLen()
 	nbTrits := int(float64(nbBits)/math.Log2(3.0)) + 1
 	cfg := baseConversionConfig{
 		NbDigits: nbTrits,

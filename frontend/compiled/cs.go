@@ -148,6 +148,6 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *ConstraintSystem) BitLen() int {
+func (cs *ConstraintSystem) FieldBitLen() int {
 	return cs.bitLen
 }

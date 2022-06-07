@@ -55,10 +55,15 @@ type Compiler interface {
 	// Field returns the finite field modulus injected by the compiler
 	Field() *big.Int
 
+	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
+	FieldBitLen() int
+
 	// Curve returns the curve id injected by the compiler
 	//
 	// Note that this may not always be defined and can return ecc.UNKNOWN in case the injected finite field
 	// does not match a supported elliptic curve
+	//
+	// Deprecated: use Field() instead
 	Curve() ecc.ID
 }
 
