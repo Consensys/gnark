@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -43,7 +44,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// get the challenges
-	alpha, beta, gamma := getChallenges(api.Compiler().Curve())
+	alpha, beta, gamma := getChallenges(api.Compiler().Field())
 
 	// New transcript with 3 challenges to be derived
 	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
@@ -83,12 +84,12 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func getChallenges(curveID ecc.ID) (string, string, string) {
+func getChallenges(scalarField *big.Int) (string, string, string) {
 	// note: gnark-crypto fiat-shamir is curve-independent ->
 	// it writes the domain separators as bytes
 	// in gnark, we write them as field element
 	// to ensure consistency in this test, we ensure the challengeIDs have a fix byte len (the one of fr.Element)
-	frSize := curveID.Info().Fr.Bytes
+	frSize := utils.ByteLen(scalarField)
 	alpha, beta, gamma := make([]byte, frSize), make([]byte, frSize), make([]byte, frSize)
 	alpha[0] = 0xde
 	beta[0] = 0xad
@@ -113,7 +114,7 @@ func TestFiatShamir(t *testing.T) {
 	for curveID, h := range testData {
 		// get the domain separators, correctly formatted so they match the frontend.Variable size
 		// (which under the hood is a fr.Element)
-		alpha, beta, gamma := getChallenges(curveID)
+		alpha, beta, gamma := getChallenges(curveID.ScalarField())
 
 		// instantiate the hash and the transcript in plain go
 		ts := fiatshamir.NewTranscript(h.New(), alpha, beta, gamma)
@@ -124,7 +125,8 @@ func TestFiatShamir(t *testing.T) {
 				bindings[i][j].SetUint64(uint64(i * j))
 			}
 		}
-		buf := make([]byte, curveID.Info().Fr.Bytes)
+		frSize := utils.ByteLen(curveID.ScalarField())
+		buf := make([]byte, frSize)
 		for i := 0; i < 4; i++ {
 			err := ts.Bind(alpha, bindings[0][i].FillBytes(buf))
 			assert.NoError(err)
@@ -165,7 +167,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
+		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

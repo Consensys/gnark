@@ -42,9 +42,9 @@ import (
 //
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
-	backendID backend.ID
-	curveID   ecc.ID
-	opt       backend.ProverConfig
+	curveID ecc.ID
+	q       *big.Int
+	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars  bool
 	apiWrapper ApiWrapper
@@ -76,16 +76,6 @@ func SetAllVariablesAsConstants() TestEngineOption {
 	}
 }
 
-// WithBackend is a test engine option which defines the backend the test engine
-// returns when calling Backend(). If not set, then the default value
-// backend.UNKNOWN is returned.
-func WithBackend(b backend.ID) TestEngineOption {
-	return func(e *engine) error {
-		e.backendID = b
-		return nil
-	}
-}
-
 // WithBackendProverOptions is a test engine option which allows to define
 // prover options. If not set, then default prover configuration is used.
 func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
@@ -105,8 +95,13 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...TestEngineOption) (err error) {
-	e := &engine{curveID: curveID, apiWrapper: func(a frontend.API) frontend.API { return a }, backendID: backend.UNKNOWN, constVars: false}
+func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
+	e := &engine{
+		curveID:    utils.FieldToCurve(field),
+		q:          new(big.Int).Set(field),
+		apiWrapper: func(a frontend.API) frontend.API { return a },
+		constVars:  false,
+	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
@@ -206,7 +201,7 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-	nbBits := e.bitLen()
+	nbBits := e.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -393,7 +388,7 @@ func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Vari
 		res[i] = new(big.Int)
 	}
 
-	err := f(e.curveID, in, res)
+	err := f(e.Field(), in, res)
 
 	if err != nil {
 		panic("NewHint: " + err.Error())
@@ -445,8 +440,8 @@ func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (e *engine) bitLen() int {
-	return e.curveID.Info().Fr.Bits
+func (e *engine) FieldBitLen() int {
+	return e.q.BitLen()
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
@@ -456,15 +451,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 }
 
 func (e *engine) modulus() *big.Int {
-	return e.curveID.Info().Fr.Modulus()
-}
-
-func (e *engine) Curve() ecc.ID {
-	return e.curveID
-}
-
-func (e *engine) Backend() backend.ID {
-	return e.backendID
+	return e.q
 }
 
 // shallowClone clones given circuit
@@ -517,6 +504,10 @@ func copyWitness(to, from frontend.Circuit) {
 	// this can't error.
 	_, _ = schema.Parse(to, tVariable, setHandler)
 
+}
+
+func (e *engine) Field() *big.Int {
+	return e.q
 }
 
 func (e *engine) Compiler() frontend.Compiler {

@@ -3,13 +3,11 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type NewBuilder func(ecc.ID, CompileConfig) (Builder, error)
+type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
@@ -53,11 +51,11 @@ type Compiler interface {
 	// replacing *big.Int with fr.Element
 	ConstantValue(v Variable) (*big.Int, bool)
 
-	// CurveID returns the ecc.ID injected by the compiler
-	Curve() ecc.ID
+	// Field returns the finite field modulus injected by the compiler
+	Field() *big.Int
 
-	// Backend returns the backend.ID injected by the compiler
-	Backend() backend.ID
+	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
+	FieldBitLen() int
 }
 
 // Builder represents a constraint system builder

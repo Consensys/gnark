@@ -5,6 +5,8 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+const bound = 161
+
 type rangeCheckConstantCircuit struct {
 	X frontend.Variable
 	Y frontend.Variable `gnark:",public"`
@@ -14,8 +16,8 @@ func (circuit *rangeCheckConstantCircuit) Define(api frontend.API) error {
 	c1 := api.Mul(circuit.X, circuit.Y)
 	c2 := api.Mul(c1, circuit.Y)
 	c3 := api.Add(circuit.X, circuit.Y)
-	api.AssertIsLessOrEqual(c3, 161) // c3 is from a linear expression only
-	api.AssertIsLessOrEqual(c2, 161)
+	api.AssertIsLessOrEqual(c3, bound) // c3 is from a linear expression only
+	api.AssertIsLessOrEqual(c2, bound)
 	return nil
 }
 
@@ -52,11 +54,11 @@ func rangeCheck() {
 
 	good.X = (10)
 	good.Y = (4)
-	good.Bound = (161)
+	good.Bound = (bound)
 
 	bad.X = (11)
 	bad.Y = (4)
-	bad.Bound = (161)
+	bad.Bound = (bound)
 
 	addEntry("range", &circuit, &good, &bad, gnark.Curves())
 }

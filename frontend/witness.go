@@ -1,7 +1,8 @@
 package frontend
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"math/big"
+
 	"github.com/consensys/gnark/backend/witness"
 )
 
@@ -10,13 +11,13 @@ import (
 // else returns [public | secret]. The result can then be serialized to / from json & binary
 //
 // Returns an error if the assignment has missing entries
-func NewWitness(assignment Circuit, curveID ecc.ID, opts ...WitnessOption) (*witness.Witness, error) {
+func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (*witness.Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	w, err := witness.New(curveID, nil)
+	w, err := witness.New(field, nil)
 	if err != nil {
 		return nil, err
 	}

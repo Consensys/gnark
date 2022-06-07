@@ -69,8 +69,6 @@ import (
 	"math/big"
 	"reflect"
 	"runtime"
-
-	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // ID is a unique identifier for a hint function used for lookup.
@@ -83,7 +81,7 @@ type ID uint32
 //	b := api.NewHint(hint, 2, a)
 //	--> at solving time, hint is going to be invoked with 1 input (a) and is expected to return 2 outputs
 //	b[0] and b[1].
-type Function func(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
+type Function func(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 
 // UUID is a reference function for computing the hint ID based on a function name
 func UUID(fn Function) ID {

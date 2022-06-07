@@ -49,14 +49,14 @@ func TestBuiltinHints(t *testing.T) {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b1000),
 			B: (0),
-		}, curve); err != nil {
+		}, curve.ScalarField()); err != nil {
 			t.Fatal(err)
 		}
 
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b10),
 			B: (1),
-		}, curve); err == nil {
+		}, curve.ScalarField()); err == nil {
 			t.Fatal("witness shouldn't solve circuit")
 		}
 	}

@@ -3,9 +3,9 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -29,9 +29,9 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	log := logger.Logger()
-	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
+	log.Info().Msg("compiling circuit")
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
@@ -42,7 +42,7 @@ func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	}
 
 	// instantiate new builder
-	builder, err := newBuilder(curveID, opt)
+	builder, err := newBuilder(field, opt)
 	if err != nil {
 		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)

@@ -492,11 +492,6 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *SparseR1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (cs *SparseR1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
@@ -516,6 +511,14 @@ func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 	}
 	encoder := enc.NewEncoder(&_w)
 
+	// encode the field as hex string
+	// TODO @gbotrel this https://github.com/ConsenSys/gnark/issues/322
+	// may introduce a serialization header which may be a better spot.
+	q := cs.Field().Text(16)
+	if err := encoder.Encode(q); err != nil {
+		return _w.N, err
+	}
+
 	// encode our object
 	err = encoder.Encode(cs)
 	return _w.N, err
@@ -531,6 +534,21 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
+
+	// decode the fiield
+	var qHex string
+	if err := decoder.Decode(&qHex); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+	q, ok := new(big.Int).SetString(qHex, 16)
+	if !ok {
+		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
+	}
+
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
 	err = decoder.Decode(cs)
 	return int64(decoder.NumBytesRead()), err
 }

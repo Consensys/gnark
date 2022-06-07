@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -139,17 +138,17 @@ func init() {
 	}
 }
 
-var mulBy7 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
-	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], curveID.Info().Fr.Modulus())
+var mulBy7 = func(q *big.Int, inputs []*big.Int, result []*big.Int) error {
+	result[0].Mul(inputs[0], big.NewInt(7)).Mod(result[0], q)
 	return nil
 }
 
-var make3 = func(curveID ecc.ID, inputs []*big.Int, result []*big.Int) error {
+var make3 = func(_ *big.Int, inputs []*big.Int, result []*big.Int) error {
 	result[0].SetUint64(3)
 	return nil
 }
 
-var dvHint = func(curveID ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var dvHint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	two := big.NewInt(2)
 	for i := range inputs {
 		res[i].Mul(two, inputs[i])
