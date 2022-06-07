@@ -254,7 +254,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 // The result in in little endian (first bit= lsb)
 func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -459,12 +459,12 @@ func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i1, i2)
-	bi1 := system.ToBinary(vars[0], system.BitLen())
-	bi2 := system.ToBinary(vars[1], system.BitLen())
+	bi1 := system.ToBinary(vars[0], system.FieldBitLen())
+	bi2 := system.ToBinary(vars[1], system.FieldBitLen())
 
 	res := system.toVariable(0)
 
-	for i := system.BitLen() - 1; i >= 0; i-- {
+	for i := system.FieldBitLen() - 1; i >= 0; i-- {
 
 		iszeroi1 := system.IsZero(bi1[i])
 		iszeroi2 := system.IsZero(bi2[i])

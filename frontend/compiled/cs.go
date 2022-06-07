@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -67,9 +68,14 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 // SetScalarField sets the scalar field on the constraint system object
 //
 // This is meant to be use at the deserialization step
-func (cs *ConstraintSystem) SetScalarField(scalarField *big.Int) {
+func (cs *ConstraintSystem) SetScalarField(scalarField *big.Int) error {
+	curveID := utils.FieldToCurve(scalarField)
+	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
+		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
+	}
 	cs.q = new(big.Int).Set(scalarField)
 	cs.bitLen = cs.q.BitLen()
+	return nil
 }
 
 // GetNbVariables return number of internal, secret and public variables
@@ -142,6 +148,6 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *ConstraintSystem) BitLen() int {
+func (cs *ConstraintSystem) FieldBitLen() int {
 	return cs.bitLen
 }

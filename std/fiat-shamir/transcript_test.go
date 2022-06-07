@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -88,7 +89,7 @@ func getChallenges(curveID ecc.ID) (string, string, string) {
 	// it writes the domain separators as bytes
 	// in gnark, we write them as field element
 	// to ensure consistency in this test, we ensure the challengeIDs have a fix byte len (the one of fr.Element)
-	frSize := len(curveID.ScalarField().Bits()) * 8
+	frSize := utils.ByteLen(curveID.ScalarField())
 	alpha, beta, gamma := make([]byte, frSize), make([]byte, frSize), make([]byte, frSize)
 	alpha[0] = 0xde
 	beta[0] = 0xad
@@ -124,7 +125,7 @@ func TestFiatShamir(t *testing.T) {
 				bindings[i][j].SetUint64(uint64(i * j))
 			}
 		}
-		frSize := len(curveID.ScalarField().Bits()) * 8
+		frSize := utils.ByteLen(curveID.ScalarField())
 		buf := make([]byte, frSize)
 		for i := 0; i < 4; i++ {
 			err := ts.Bind(alpha, bindings[0][i].FillBytes(buf))

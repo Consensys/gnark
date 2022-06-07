@@ -174,7 +174,7 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // The result in in little endian (first bit= lsb)
 func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -377,13 +377,13 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	bi1 := system.ToBinary(i1, system.BitLen())
-	bi2 := system.ToBinary(i2, system.BitLen())
+	bi1 := system.ToBinary(i1, system.FieldBitLen())
+	bi2 := system.ToBinary(i2, system.FieldBitLen())
 
 	var res frontend.Variable
 	res = 0
 
-	for i := system.BitLen() - 1; i >= 0; i-- {
+	for i := system.FieldBitLen() - 1; i >= 0; i-- {
 
 		iszeroi1 := system.IsZero(bi1[i])
 		iszeroi2 := system.IsZero(bi2[i])

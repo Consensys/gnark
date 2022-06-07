@@ -53,7 +53,7 @@ func fromBinary(api frontend.API, digits []frontend.Variable, opts ...BaseConver
 func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
 	cfg := baseConversionConfig{
-		NbDigits:             api.Compiler().Field().BitLen(),
+		NbDigits:             api.Compiler().FieldBitLen(),
 		UnconstrainedOutputs: false,
 	}
 

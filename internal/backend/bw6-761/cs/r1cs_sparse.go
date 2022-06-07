@@ -492,11 +492,6 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *SparseR1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (cs *SparseR1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
@@ -549,7 +544,10 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	if !ok {
 		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
 	}
-	cs.SetScalarField(q)
+
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
 
 	err = decoder.Decode(cs)
 	return int64(decoder.NumBytesRead()), err

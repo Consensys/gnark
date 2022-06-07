@@ -457,11 +457,6 @@ func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.UNKNOWN
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *R1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
@@ -505,7 +500,9 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	if !ok {
 		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
 	}
-	cs.SetScalarField(q)
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
 
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err

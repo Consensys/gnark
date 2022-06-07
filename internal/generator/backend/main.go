@@ -47,9 +47,10 @@ func main() {
 		CurveID:  "BW6_633",
 	}
 	tiny_field := templateData{
-		RootPath: "../../../internal/tinyfield/",
-		Curve:    "tinyfield",
-		CurveID:  "UNKNOWN",
+		RootPath:  "../../../internal/tinyfield/",
+		Curve:     "tinyfield",
+		CurveID:   "UNKNOWN",
+		noBackend: true,
 	}
 
 	datas := []templateData{
@@ -65,14 +66,6 @@ func main() {
 	const importCurve = "../imports.go.tmpl"
 
 	var wg sync.WaitGroup
-
-	{
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			// generate R1CS on tiny field
-		}()
-	}
 
 	for _, d := range datas {
 
@@ -110,7 +103,7 @@ func main() {
 			}
 
 			// groth16 & plonk
-			if d.Curve == "tinyfield" {
+			if d.noBackend {
 				// no backend with just the field defined
 				return
 			}
@@ -179,7 +172,8 @@ func main() {
 }
 
 type templateData struct {
-	RootPath string
-	Curve    string // BLS381, BLS377, BN254, BW761
-	CurveID  string
+	RootPath  string
+	Curve     string // BLS381, BLS377, BN254, BW761
+	CurveID   string
+	noBackend bool
 }

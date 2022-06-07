@@ -201,7 +201,7 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-	nbBits := e.bitLen()
+	nbBits := e.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -440,7 +440,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (e *engine) bitLen() int {
+func (e *engine) FieldBitLen() int {
 	return e.q.BitLen()
 }
 
