@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -87,6 +88,7 @@ func TestEddsa(t *testing.T) {
 
 			snarkField, err := twistededwards.GetSnarkField(conf.curve)
 			assert.NoError(err)
+			snarkCurve := utils.FieldToCurve(snarkField)
 
 			// generate parameters for the signatures
 			privKey, err := eddsa.New(conf.curve, randomness)
@@ -119,7 +121,7 @@ func TestEddsa(t *testing.T) {
 				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
 				witness.Signature.Assign(conf.curve, signature)
 
-				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkField))
+				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
 			}
 
 			// verification with incorrect Message
@@ -131,7 +133,7 @@ func TestEddsa(t *testing.T) {
 				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
 				witness.Signature.Assign(conf.curve, signature)
 
-				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkField))
+				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
 			}
 
 		}
