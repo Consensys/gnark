@@ -500,7 +500,9 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	if !ok {
 		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
 	}
-	cs.SetScalarField(q)
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
 
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err

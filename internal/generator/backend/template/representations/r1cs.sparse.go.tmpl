@@ -536,7 +536,10 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	if !ok {
 		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
 	}
-	cs.SetScalarField(q)
+	
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
 
 	err = decoder.Decode(cs)
 	return int64(decoder.NumBytesRead()), err
