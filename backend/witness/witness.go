@@ -123,7 +123,7 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (w *Witness) UnmarshalBinary(data []byte) error {
 
-	snarkFieldSize := len(w.CurveID.ScalarField().Bits()) * 8
+	snarkFieldSize := utils.ByteLen(w.CurveID.ScalarField())
 	var r io.Reader
 	r = bytes.NewReader(data)
 	if w.Schema != nil {

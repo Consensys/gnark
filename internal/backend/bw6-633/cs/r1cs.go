@@ -457,11 +457,6 @@ func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.BW6_633
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *R1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written

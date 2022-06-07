@@ -39,7 +39,6 @@ type CompiledConstraintSystem interface {
 	GetNbCoefficients() int
 
 	CurveID() ecc.ID
-	FrSize() int
 
 	// GetCounters return the collected constraint counters, if any
 	GetCounters() []compiled.Counter
