@@ -85,7 +85,7 @@ func TestEddsa(t *testing.T) {
 
 		for _, conf := range confs {
 
-			snarkCurve, err := twistededwards.GetSnarkCurve(conf.curve)
+			snarkField, err := twistededwards.GetSnarkField(conf.curve)
 			assert.NoError(err)
 
 			// generate parameters for the signatures
@@ -94,7 +94,7 @@ func TestEddsa(t *testing.T) {
 
 			// pick a message to sign
 			var msg big.Int
-			msg.Rand(randomness, snarkCurve.ScalarField())
+			msg.Rand(randomness, snarkField)
 			t.Log("msg to sign", msg.String())
 			msgData := msg.Bytes()
 
@@ -116,22 +116,22 @@ func TestEddsa(t *testing.T) {
 			{
 				var witness eddsaCircuit
 				witness.Message = msg
-				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
-				witness.Signature.Assign(snarkCurve, signature)
+				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+				witness.Signature.Assign(conf.curve, signature)
 
-				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
+				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkField))
 			}
 
 			// verification with incorrect Message
 			{
 				var witness eddsaCircuit
 
-				msg.Rand(randomness, snarkCurve.ScalarField())
+				msg.Rand(randomness, snarkField)
 				witness.Message = msg
-				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
-				witness.Signature.Assign(snarkCurve, signature)
+				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+				witness.Signature.Assign(conf.curve, signature)
 
-				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
+				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkField))
 			}
 
 		}

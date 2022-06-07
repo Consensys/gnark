@@ -87,10 +87,6 @@ func (cs *ConstraintSystem) Field() *big.Int {
 	return new(big.Int).Set(cs.q)
 }
 
-func (cs *ConstraintSystem) Curve() ecc.ID {
-	return utils.FieldToCurve(cs.q)
-}
-
 // GetCounters return the collected constraint counters, if any
 func (cs *ConstraintSystem) GetCounters() []Counter { return cs.Counters }
 

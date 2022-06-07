@@ -323,7 +323,7 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	curve := cs.Curve()
+	curve := utils.FieldToCurve(cs.q)
 
 	switch curve {
 	case ecc.BLS12_377:

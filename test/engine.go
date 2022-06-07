@@ -454,10 +454,6 @@ func (e *engine) modulus() *big.Int {
 	return e.q
 }
 
-func (e *engine) Curve() ecc.ID {
-	return e.curveID
-}
-
 // shallowClone clones given circuit
 // this is actually a shallow copy → if the circuits contains maps or slices
 // only the reference is copied.

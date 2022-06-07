@@ -65,11 +65,11 @@ type EndoParams struct {
 
 // NewEdCurve returns a new Edwards curve
 func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
-	snarkCurve, err := GetSnarkCurve(id)
+	snarkField, err := GetSnarkField(id)
 	if err != nil {
 		return nil, err
 	}
-	if api.Compiler().Curve() != snarkCurve {
+	if api.Compiler().Field().Cmp(snarkField) != 0 {
 		return nil, errors.New("invalid curve pair; snark field doesn't match twisted edwards field")
 	}
 	params, err := GetCurveParams(id)
@@ -116,23 +116,23 @@ func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {
 	return params, nil
 }
 
-// GetSnarkCurve returns the matching snark curve for a twisted edwards curve
-func GetSnarkCurve(id twistededwards.ID) (ecc.ID, error) {
+// GetSnarkField returns the matching snark curve for a twisted edwards curve
+func GetSnarkField(id twistededwards.ID) (*big.Int, error) {
 	switch id {
 	case twistededwards.BN254:
-		return ecc.BN254, nil
+		return ecc.BN254.ScalarField(), nil
 	case twistededwards.BLS12_377:
-		return ecc.BLS12_377, nil
+		return ecc.BLS12_377.ScalarField(), nil
 	case twistededwards.BLS12_381, twistededwards.BLS12_381_BANDERSNATCH:
-		return ecc.BLS12_381, nil
+		return ecc.BLS12_381.ScalarField(), nil
 	case twistededwards.BLS24_315:
-		return ecc.BLS24_315, nil
+		return ecc.BLS24_315.ScalarField(), nil
 	case twistededwards.BW6_761:
-		return ecc.BW6_761, nil
+		return ecc.BW6_761.ScalarField(), nil
 	case twistededwards.BW6_633:
-		return ecc.BW6_633, nil
+		return ecc.BW6_633.ScalarField(), nil
 	default:
-		return ecc.UNKNOWN, errors.New("unknown twisted edwards curve id")
+		return nil, errors.New("unknown twisted edwards curve id")
 	}
 }
 

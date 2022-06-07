@@ -3,7 +3,6 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
 )
@@ -57,14 +56,6 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
-
-	// Curve returns the curve id injected by the compiler
-	//
-	// Note that this may not always be defined and can return ecc.UNKNOWN in case the injected finite field
-	// does not match a supported elliptic curve
-	//
-	// Deprecated: use Field() instead
-	Curve() ecc.ID
 }
 
 // Builder represents a constraint system builder

@@ -63,7 +63,7 @@ func TestIsOnCurve(t *testing.T) {
 		circuit.curveID = curve
 
 		// get matching snark curve
-		snarkCurve, err := GetSnarkCurve(curve)
+		snarkCurve, err := GetSnarkField(curve)
 		assert.NoError(err)
 
 		// get curve params
@@ -162,7 +162,7 @@ func TestCurve(t *testing.T) {
 		circuit.curveID = curve
 
 		// get matching snark curve
-		snarkCurve, err := GetSnarkCurve(curve)
+		snarkCurve, err := GetSnarkField(curve)
 		assert.NoError(err)
 
 		// get curve params
