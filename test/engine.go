@@ -43,6 +43,7 @@ import (
 // it converts the inputs to the API to big.Int (after a mod reduce using the curve base field)
 type engine struct {
 	curveID ecc.ID
+	q       *big.Int
 	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars  bool
@@ -94,8 +95,13 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, opts ...TestEngineOption) (err error) {
-	e := &engine{curveID: curveID, apiWrapper: func(a frontend.API) frontend.API { return a }, constVars: false}
+func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
+	e := &engine{
+		curveID:    utils.FieldToCurve(field),
+		q:          new(big.Int).Set(field),
+		apiWrapper: func(a frontend.API) frontend.API { return a },
+		constVars:  false,
+	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
 			return fmt.Errorf("apply option: %w", err)
@@ -435,7 +441,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) big.Int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) bitLen() int {
-	return e.curveID.ScalarField().BitLen()
+	return e.q.BitLen()
 }
 
 func (e *engine) mustBeBoolean(b *big.Int) {
@@ -445,7 +451,7 @@ func (e *engine) mustBeBoolean(b *big.Int) {
 }
 
 func (e *engine) modulus() *big.Int {
-	return e.curveID.ScalarField()
+	return e.q
 }
 
 func (e *engine) Curve() ecc.ID {
@@ -505,7 +511,7 @@ func copyWitness(to, from frontend.Circuit) {
 }
 
 func (e *engine) Field() *big.Int {
-	return e.curveID.ScalarField()
+	return e.q
 }
 
 func (e *engine) Compiler() frontend.Compiler {
