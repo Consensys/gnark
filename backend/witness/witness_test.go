@@ -33,7 +33,7 @@ const (
 
 func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, publicOnly bool) {
 	// build the vector
-	w, err := New(ecc.BN254, nil)
+	w, err := New(ecc.BN254.ScalarField(), nil)
 	assert.NoError(err)
 
 	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, publicOnly)
@@ -111,7 +111,7 @@ func TestPublic(t *testing.T) {
 	assignment.Y = new(fr.Element).SetInt64(8000)
 	assignment.E = new(fr.Element).SetInt64(1)
 
-	w, err := New(ecc.BN254, nil)
+	w, err := New(ecc.BN254.ScalarField(), nil)
 	assert.NoError(err)
 
 	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, false)

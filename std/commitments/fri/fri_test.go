@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/accumulator/merkle"
@@ -84,7 +83,7 @@ func TestFriVerification(t *testing.T) {
 		}
 	}
 
-	_, err = frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	_, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +123,7 @@ func TestFriVerification(t *testing.T) {
 	}
 
 	// 5 - check if the solver is OK
-	err = test.IsSolved(&circuit, &witness, ecc.BN254, backend.GROTH16)
+	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	if err != nil {
 		t.Fatal(err)
 	}

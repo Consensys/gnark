@@ -103,7 +103,7 @@ func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 
 	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 	boundBits := system.ToBinary(bound, nbBits)
@@ -148,7 +148,7 @@ func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 
 func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {

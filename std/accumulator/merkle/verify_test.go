@@ -73,7 +73,7 @@ func TestVerify(t *testing.T) {
 		// create the circuit
 		var circuit MerkleProofTest
 		circuit.M.Path = make([]frontend.Variable, depth+1)
-		cc, err := frontend.Compile(tData.curve, r1cs.NewBuilder, &circuit)
+		cc, err := frontend.Compile(tData.curve.ScalarField(), r1cs.NewBuilder, &circuit)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,7 +113,7 @@ func TestVerify(t *testing.T) {
 				witness.M.Path[i] = proofPath[i]
 			}
 
-			w, err := frontend.NewWitness(&witness, tData.curve)
+			w, err := frontend.NewWitness(&witness, tData.curve.ScalarField())
 			if err != nil {
 				t.Fatal(err)
 			}

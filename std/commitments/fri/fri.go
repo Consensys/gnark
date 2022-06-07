@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/internal/utils"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 
@@ -91,7 +92,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 	// We take care that the namings fit on frSize bytes, to be consistent
 	// with the snark circuit, where the names are interpreted as frontend.Variable,
 	// with size on FrSize bytes.
-	frSize := api.Curve().Info().Fr.Bytes
+	frSize := utils.ByteLen(api.Compiler().Field())
 	xis := make([]string, s.nbSteps+1)
 	for i := 0; i < s.nbSteps; i++ {
 		xis[i] = paddNaming(fmt.Sprintf("x%d", i), frSize)
@@ -201,7 +202,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 
 			// accGinv <- accGinv^{2}
 			accGInv.Mul(&accGInv, &accGInv).
-				Mod(&accGInv, api.Curve().Info().Fr.Modulus())
+				Mod(&accGInv, api.Compiler().Field())
 		}
 	}
 

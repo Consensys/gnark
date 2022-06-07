@@ -3,7 +3,6 @@ package fri
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -66,7 +65,7 @@ func paddNaming(s string, size int) string {
 //
 // outputs:
 // * slice of positions to query during a round
-var DeriveQueriesPositions = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DeriveQueriesPositions = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	pos := inputs[0].Uint64()
 	s := inputs[1].Uint64()

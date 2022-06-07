@@ -91,7 +91,7 @@ func (system *r1cs) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Var
 func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 
 	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 	boundBits := system.ToBinary(bound, nbBits)
@@ -131,7 +131,7 @@ func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 
 func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
 
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {
