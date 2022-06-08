@@ -17,5 +17,5 @@ func ExampleRegisterHints() {
 	RegisterHints()
 
 	// then -->
-	ccs.IsSolved(&witness.Witness{})
+	_ = ccs.IsSolved(&witness.Witness{})
 }

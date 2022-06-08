@@ -83,7 +83,11 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// generate the data to return for the bls24315 proof
 	var pk groth16_bls24315.ProvingKey
-	groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	err = groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_proof, err := groth16_bls24315.Prove(r1cs.(*backend_bls24315.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)

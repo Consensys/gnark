@@ -600,9 +600,8 @@ func (e *E24) nSquare(api frontend.API, n int) {
 // This function is only used for the final expo of the pairing for bls24315, so the exponent is supposed to be hardcoded and on 32 bits.
 func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
 
-	res := E24{}
 	xInv := E24{}
-	res = x
+	res := x
 	xInv.Conjugate(api, x)
 
 	res.nSquare(api, 2)
