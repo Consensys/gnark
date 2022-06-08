@@ -40,6 +40,7 @@ func TestSolverConsistency(t *testing.T) {
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
+			t.Parallel()
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
 			if err != nil {
 				t.Fatal(err)
@@ -74,8 +75,9 @@ func (p *permutter) permuteAndTest(index int) error {
 			// solve the cs using test engine
 			// first copy the witness in the circuit
 			copyWitnessFromVector(p.circuit, p.witness)
-
 			errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
+
+			copyWitnessFromVector(p.circuit, p.witness)
 			errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
 
 			if (errR1CS == nil) != (errEngine1 == nil) ||
