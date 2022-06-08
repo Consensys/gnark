@@ -5,7 +5,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-const bound = 161
+const bound = 44
 
 type rangeCheckConstantCircuit struct {
 	X frontend.Variable
@@ -24,8 +24,8 @@ func (circuit *rangeCheckConstantCircuit) Define(api frontend.API) error {
 func rangeCheckConstant() {
 	var circuit, good, bad rangeCheckConstantCircuit
 
-	good.X = (10)
-	good.Y = (4)
+	good.X = (4)
+	good.Y = (2)
 
 	bad.X = (11)
 	bad.Y = (4)
@@ -52,8 +52,8 @@ func rangeCheck() {
 
 	var circuit, good, bad rangeCheckCircuit
 
-	good.X = (10)
-	good.Y = (4)
+	good.X = (4)
+	good.Y = (2)
 	good.Bound = (bound)
 
 	bad.X = (11)

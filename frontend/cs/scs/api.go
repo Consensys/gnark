@@ -193,6 +193,8 @@ func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -200,6 +202,7 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		_a.Xor(_a, _b)
 		return _a
 	}
+
 	res := system.newInternalVariable()
 	if aConstant {
 		a, b = b, a
@@ -224,6 +227,10 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 // Or returns a | b
 // a and b must be 0 or 1
 func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
+
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
+
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -241,11 +248,6 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 		l := a.(compiled.Term)
 		r := l
 
-		if !(_b.IsUint64() && (_b.Uint64() <= 1)) {
-			panic(fmt.Sprintf("%s should be 0 or 1", _b.String()))
-		}
-		system.AssertIsBoolean(a)
-
 		one := big.NewInt(1)
 		_b.Sub(_b, one)
 		idl := system.st.CoeffID(_b)
@@ -254,8 +256,6 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 	}
 	l := a.(compiled.Term)
 	r := b.(compiled.Term)
-	system.AssertIsBoolean(l)
-	system.AssertIsBoolean(r)
 	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
 	return res
 }
