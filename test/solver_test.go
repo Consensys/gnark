@@ -39,10 +39,6 @@ func TestSolverConsistency(t *testing.T) {
 
 	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
-			if name == "range_constant" {
-				return
-			}
-
 			tc := circuits.Circuits[name]
 			err := consistentSolver(tc.Circuit, tc.HintFunctions)
 			if err != nil {
