@@ -75,13 +75,17 @@ func (p *permutter) permuteAndTest(index int) error {
 			// first copy the witness in the circuit
 			copyWitnessFromVector(p.circuit, p.witness)
 
-			errEngine := isSolvedEngine(p.circuit, tinyfield.Modulus())
+			errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
+			errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
 
-			if (errR1CS == nil) != (errEngine == nil) || (errSCS == nil) != (errEngine == nil) {
-				return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine: %s\nwitness: %s",
+			if (errR1CS == nil) != (errEngine1 == nil) ||
+				(errSCS == nil) != (errEngine1 == nil) ||
+				(errEngine1 == nil) != (errEngine2 == nil) {
+				return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine(const=false): %s\nerrEngine(const=true): %s\nwitness: %s",
 					formatError(errSCS),
 					formatError(errR1CS),
-					formatError(errEngine),
+					formatError(errEngine1),
+					formatError(errEngine2),
 					formatWitness(p.witness))
 			}
 		} else {
