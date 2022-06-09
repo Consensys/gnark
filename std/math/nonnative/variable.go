@@ -160,14 +160,15 @@ func (fp *Params) One() Element {
 // ConstantFromBig returns a constant element from the value. The returned
 // element is not safe to use as an operation receiver.
 func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
-	if fp.r.Cmp(value) == -1 {
-		return Element{}, fmt.Errorf("value larger than order of the field")
+	constValue := new(big.Int).Set(value)
+	if fp.r.Cmp(value) != 0 {
+		constValue.Mod(constValue, fp.r)
 	}
 	limbs := make([]*big.Int, fp.nbLimbs)
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(value, fp.nbBits, limbs); err != nil {
+	if err := decompose(constValue, fp.nbBits, limbs); err != nil {
 		return Element{}, fmt.Errorf("decompose value: %w", err)
 	}
 	limbVars := make([]frontend.Variable, len(limbs))
