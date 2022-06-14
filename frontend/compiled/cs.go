@@ -2,6 +2,7 @@ package compiled
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -9,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -47,12 +49,42 @@ type ConstraintSystem struct {
 	// in previous levels
 	Levels [][]int
 
-	CurveID ecc.ID
+	// scalar field
+	q      *big.Int
+	bitLen int
+}
+
+// NewConstraintSystem initialize the common structure among constraint system
+func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
+	return ConstraintSystem{
+		MDebug:             make(map[int]int),
+		MHints:             make(map[int]*Hint),
+		MHintsDependencies: make(map[hint.ID]string),
+		q:                  new(big.Int).Set(scalarField),
+		bitLen:             scalarField.BitLen(),
+	}
+}
+
+// SetScalarField sets the scalar field on the constraint system object
+//
+// This is meant to be use at the deserialization step
+func (cs *ConstraintSystem) SetScalarField(scalarField *big.Int) error {
+	curveID := utils.FieldToCurve(scalarField)
+	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
+		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
+	}
+	cs.q = new(big.Int).Set(scalarField)
+	cs.bitLen = cs.q.BitLen()
+	return nil
 }
 
 // GetNbVariables return number of internal, secret and public variables
 func (cs *ConstraintSystem) GetNbVariables() (internal, secret, public int) {
 	return cs.NbInternalVariables, cs.NbSecretVariables, cs.NbPublicVariables
+}
+
+func (cs *ConstraintSystem) Field() *big.Int {
+	return new(big.Int).Set(cs.q)
 }
 
 // GetCounters return the collected constraint counters, if any
@@ -65,16 +97,11 @@ type Counter struct {
 	From, To      string
 	NbVariables   int
 	NbConstraints int
-	CurveID       ecc.ID
 	BackendID     backend.ID
 }
 
 func (c Counter) String() string {
-	return fmt.Sprintf("%s[%s] %s - %s: %d variables, %d constraints", c.BackendID, c.CurveID, c.From, c.To, c.NbVariables, c.NbConstraints)
-}
-
-func (cs *ConstraintSystem) Curve() ecc.ID {
-	return cs.CurveID
+	return fmt.Sprintf("%s %s - %s: %d variables, %d constraints", c.BackendID, c.From, c.To, c.NbVariables, c.NbConstraints)
 }
 
 func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
@@ -117,6 +144,6 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *ConstraintSystem) BitLen() int {
-	return cs.CurveID.Info().Fr.Bits
+func (cs *ConstraintSystem) FieldBitLen() int {
+	return cs.bitLen
 }

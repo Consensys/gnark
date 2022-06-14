@@ -18,20 +18,26 @@ limitations under the License.
 package groth16_bls24315
 
 import (
+	"reflect"
+
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 )
 
-// Proof represents a groth16 proof in a r1cs
+// Proof represents a Groth16 proof
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type Proof struct {
-	Ar, Krs sw_bls24315.G1Affine // πA, πC in https://eprint.iacr.org/2020/278.pdf
-	Bs      sw_bls24315.G2Affine // πB in https://eprint.iacr.org/2020/278.pdf
+	Ar, Krs sw_bls24315.G1Affine
+	Bs      sw_bls24315.G2Affine
 }
 
-// VerifyingKey represents the groth16 verifying key in a r1cs
+// VerifyingKey represents a Groth16 verifying key
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type VerifyingKey struct {
-
 	// e(α, β)
 	E fields_bls24315.E24
 
@@ -40,40 +46,62 @@ type VerifyingKey struct {
 		GammaNeg, DeltaNeg sw_bls24315.G2Affine
 	}
 
-	// [Kvk]1 (part of the verifying key yielding psi0, cf https://eprint.iacr.org/2020/278.pdf)
-	G1 []sw_bls24315.G1Affine // The indexes correspond to the public wires
+	// [Kvk]1
+	G1 struct {
+		K []sw_bls24315.G1Affine // The indexes correspond to the public wires
+	}
 }
 
-// Verify implements the verification function of groth16.
-// pubInputNames should what r1cs.PublicInputs() outputs for the inner r1cs.
-// It creates public circuits input, corresponding to the pubInputNames slice.
-// Notations and naming are from https://eprint.iacr.org/2020/278.
-func Verify(api frontend.API, innerVk VerifyingKey, innerProof Proof, innerPubInputs []frontend.Variable) {
-
-	// compute psi0 using a sequence of multiexponentiations
-	// TODO maybe implement the bucket method with c=1 when there's a large input set
-	var psi0, tmp sw_bls24315.G1Affine
-
-	// assign the initial psi0 to the part of the public key corresponding to one_wire
-	// note this assumes ONE_WIRE is at position 0
-	if len(innerVk.G1) == 0 {
+// Verify implements the verification function of Groth16.
+// Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
+// publicInputs do NOT contain the ONE_WIRE
+func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []frontend.Variable) {
+	if len(vk.G1.K) == 0 {
 		panic("innver verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
 	}
-	psi0.X = innerVk.G1[0].X
-	psi0.Y = innerVk.G1[0].Y
 
-	for k, v := range innerPubInputs {
-		tmp.ScalarMul(api, innerVk.G1[k+1], v)
-		psi0.AddAssign(api, tmp)
+	// compute kSum = Σx.[Kvk(t)]1
+	var kSum sw_bls24315.G1Affine
+
+	// kSum = Kvk[0] (assumes ONE_WIRE is at position 0)
+	kSum.X = vk.G1.K[0].X
+	kSum.Y = vk.G1.K[0].Y
+
+	for k, v := range publicInputs {
+		var ki sw_bls24315.G1Affine
+		ki.ScalarMul(api, vk.G1.K[k+1], v)
+		kSum.AddAssign(api, ki)
 	}
 
-	// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-	resMillerLoop, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{psi0, innerProof.Krs, innerProof.Ar}, []sw_bls24315.G2Affine{innerVk.G2.GammaNeg, innerVk.G2.DeltaNeg, innerProof.Bs})
+	// compute e(Σx.[Kvk(t)]1, -[γ]2) * e(Krs,δ) * e(Ar,Bs)
+	ml, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{kSum, proof.Krs, proof.Ar}, []sw_bls24315.G2Affine{vk.G2.GammaNeg, vk.G2.DeltaNeg, proof.Bs})
+	pairing := sw_bls24315.FinalExponentiation(api, ml)
 
-	// performs the final expo
-	resPairing := sw_bls24315.FinalExponentiation(api, resMillerLoop)
+	// vk.E must be equal to pairing
+	vk.E.AssertIsEqual(api, pairing)
 
-	// vk.E must be equal to resPairing
-	innerVk.E.AssertIsEqual(api, resPairing)
+}
 
+// Assign values to the "in-circuit" VerifyingKey from a "out-of-circuit" VerifyingKey
+func (vk *VerifyingKey) Assign(_ovk groth16.VerifyingKey) {
+	ovk, ok := _ovk.(*groth16_bls24315.VerifyingKey)
+	if !ok {
+		panic("expected *groth16_bls24315.VerifyingKey, got " + reflect.TypeOf(_ovk).String())
+	}
+
+	e, err := bls24315.Pair([]bls24315.G1Affine{ovk.G1.Alpha}, []bls24315.G2Affine{ovk.G2.Beta})
+	if err != nil {
+		panic(err)
+	}
+	vk.E.Assign(&e)
+
+	vk.G1.K = make([]sw_bls24315.G1Affine, len(ovk.G1.K))
+	for i := 0; i < len(ovk.G1.K); i++ {
+		vk.G1.K[i].Assign(&ovk.G1.K[i])
+	}
+	var deltaNeg, gammaNeg bls24315.G2Affine
+	deltaNeg.Neg(&ovk.G2.Delta)
+	gammaNeg.Neg(&ovk.G2.Gamma)
+	vk.G2.DeltaNeg.Assign(&deltaNeg)
+	vk.G2.GammaNeg.Assign(&gammaNeg)
 }

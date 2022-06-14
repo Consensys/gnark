@@ -275,7 +275,7 @@ func TestConstantScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1constantScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
@@ -314,7 +314,7 @@ func TestVarScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1varScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.R = r.String()
 	// assign the inputs
 	witness.A.Assign(&a)
@@ -353,7 +353,7 @@ func TestScalarMulG1(t *testing.T) {
 	// create the cs
 	var circuit, witness g1ScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.Rvar = r.String()
 	circuit.Rcon = r
 	// assign the inputs
@@ -374,7 +374,7 @@ func randomPointG1() bls24315.G1Jac {
 
 	var r1 fr.Element
 	var b big.Int
-	r1.SetRandom()
+	_, _ = r1.SetRandom()
 	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
 
 	return p1
@@ -392,7 +392,7 @@ func BenchmarkConstScalarMulG1(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -400,7 +400,7 @@ func BenchmarkConstScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -421,7 +421,7 @@ func BenchmarkVarScalarMulG1(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -429,7 +429,7 @@ func BenchmarkVarScalarMulG1(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_633.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}

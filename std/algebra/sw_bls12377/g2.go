@@ -17,7 +17,11 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 )
@@ -27,27 +31,13 @@ type G2Jac struct {
 	X, Y, Z fields_bls12377.E2
 }
 
-type G2Proj struct {
-	X, Y, Z fields_bls12377.E2
-}
-
 // G2Affine point in affine coords
 type G2Affine struct {
 	X, Y fields_bls12377.E2
 }
 
-// ToProj sets p to p1 in projective coords and return it
-func (p *G2Jac) ToProj(api frontend.API, p1 *G2Jac) *G2Jac {
-	p.X.Mul(api, p1.X, p1.Z)
-	p.Y = p1.Y
-	var t fields_bls12377.E2
-	t.Square(api, p1.Z)
-	p.Z.Mul(api, p.Z, t)
-	return p
-}
-
 // Neg outputs -p
-func (p *G2Jac) Neg(api frontend.API, p1 *G2Jac) *G2Jac {
+func (p *G2Jac) Neg(api frontend.API, p1 G2Jac) *G2Jac {
 	p.Y.Neg(api, p1.Y)
 	p.X = p1.X
 	p.Z = p1.Z
@@ -55,9 +45,35 @@ func (p *G2Jac) Neg(api frontend.API, p1 *G2Jac) *G2Jac {
 }
 
 // Neg outputs -p
-func (p *G2Affine) Neg(api frontend.API, p1 *G2Affine) *G2Affine {
+func (p *G2Affine) Neg(api frontend.API, p1 G2Affine) *G2Affine {
 	p.Y.Neg(api, p1.Y)
 	p.X = p1.X
+	return p
+}
+
+// AddAssign add p1 to p and return p
+func (p *G2Affine) AddAssign(api frontend.API, p1 G2Affine) *G2Affine {
+
+	var n, d, l, xr, yr fields_bls12377.E2
+
+	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
+	n.Sub(api, p1.Y, p.Y)
+	d.Sub(api, p1.X, p.X)
+	l.DivUnchecked(api, n, d)
+
+	// xr =lambda**2-p1.x-p.x
+	xr.Square(api, l).
+		Sub(api, xr, p1.X).
+		Sub(api, xr, p.X)
+
+	// yr = lambda(p.x - xr)-p.y
+	yr.Sub(api, p.X, xr).
+		Mul(api, l, yr).
+		Sub(api, yr, p.Y)
+
+	p.X = xr
+	p.Y = yr
+
 	return p
 }
 
@@ -115,62 +131,8 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac) *G2Jac {
 	return p
 }
 
-// AddAssign add p1 to p and return p
-func (p *G2Affine) AddAssign(api frontend.API, p1 *G2Affine) *G2Affine {
-
-	var n, d, l, xr, yr fields_bls12377.E2
-
-	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
-	n.Sub(api, p1.Y, p.Y)
-	d.Sub(api, p1.X, p.X)
-	l.DivUnchecked(api, n, d)
-
-	// xr =lambda**2-p1.x-p.x
-	xr.Square(api, l).
-		Sub(api, xr, p1.X).
-		Sub(api, xr, p.X)
-
-	// yr = lambda(p.x - xr)-p.y
-	yr.Sub(api, p.X, xr).
-		Mul(api, l, yr).
-		Sub(api, yr, p.Y)
-
-	p.X = xr
-	p.Y = yr
-
-	return p
-}
-
-// Double compute 2*p1, assign the result to p and return it
-// Only for curve with j invariant 0 (a=0).
-func (p *G2Affine) Double(api frontend.API, p1 *G2Affine) *G2Affine {
-
-	var n, d, l, xr, yr fields_bls12377.E2
-
-	// lambda = 3*p1.x**2/2*p.y
-	n.Square(api, p1.X).MulByFp(api, n, 3)
-	d.MulByFp(api, p1.Y, 2)
-	l.DivUnchecked(api, n, d)
-
-	// xr = lambda**2-2*p1.x
-	xr.Square(api, l).
-		Sub(api, xr, p1.X).
-		Sub(api, xr, p1.X)
-
-	// yr = lambda*(p.x-xr)-p.y
-	yr.Sub(api, p1.X, xr).
-		Mul(api, l, yr).
-		Sub(api, yr, p1.Y)
-
-	p.X = xr
-	p.Y = yr
-
-	return p
-
-}
-
 // Double doubles a point in jacobian coords
-func (p *G2Jac) Double(api frontend.API, p1 *G2Jac) *G2Jac {
+func (p *G2Jac) Double(api frontend.API, p1 G2Jac) *G2Jac {
 
 	var XX, YY, YYYY, ZZ, S, M, T fields_bls12377.E2
 
@@ -197,6 +159,253 @@ func (p *G2Jac) Double(api frontend.API, p1 *G2Jac) *G2Jac {
 	p.Y.Sub(api, p.Y, YYYY)
 
 	return p
+}
+
+// Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
+func (p *G2Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G2Affine) *G2Affine {
+
+	p.X.Select(api, b, p1.X, p2.X)
+	p.Y.Select(api, b, p1.Y, p2.Y)
+
+	return p
+}
+
+// FromJac sets p to p1 in affine and returns it
+func (p *G2Affine) FromJac(api frontend.API, p1 G2Jac) *G2Affine {
+	var s fields_bls12377.E2
+	s.Mul(api, p1.Z, p1.Z)
+	p.X.DivUnchecked(api, p1.X, s)
+	s.Mul(api, s, p1.Z)
+	p.Y.DivUnchecked(api, p1.Y, s)
+	return p
+}
+
+// Double compute 2*p1, assign the result to p and return it
+// Only for curve with j invariant 0 (a=0).
+func (p *G2Affine) Double(api frontend.API, p1 G2Affine) *G2Affine {
+
+	var n, d, l, xr, yr fields_bls12377.E2
+
+	// lambda = 3*p1.x**2/2*p.y
+	n.Square(api, p1.X).MulByFp(api, n, 3)
+	d.MulByFp(api, p1.Y, 2)
+	l.DivUnchecked(api, n, d)
+
+	// xr = lambda**2-2*p1.x
+	xr.Square(api, l).
+		Sub(api, xr, p1.X).
+		Sub(api, xr, p1.X)
+
+	// yr = lambda*(p.x-xr)-p.y
+	yr.Sub(api, p1.X, xr).
+		Mul(api, l, yr).
+		Sub(api, yr, p1.Y)
+
+	p.X = xr
+	p.Y = yr
+
+	return p
+
+}
+
+// ScalarMul sets P = [s] Q and returns P.
+//
+// The method chooses an implementation based on scalar s. If it is constant,
+// then the compiled circuit depends on s. If it is variable type, then
+// the circuit is independent of the inputs.
+func (P *G2Affine) ScalarMul(api frontend.API, Q G2Affine, s interface{}) *G2Affine {
+	if n, ok := api.Compiler().ConstantValue(s); ok {
+		return P.constScalarMul(api, Q, n)
+	} else {
+		return P.varScalarMul(api, Q, s)
+	}
+}
+
+var DecomposeScalarG2 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
+	cc := getInnerCurveConfig(scalarField)
+	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
+	res[0].Set(&(sp[0]))
+	res[1].Set(&(sp[1]))
+	one := big.NewInt(1)
+	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
+	// the high bits are set in decomposition.
+	for res[0].Cmp(cc.lambda) < 1 && res[1].Cmp(cc.lambda) < 1 {
+		res[0].Add(res[0], cc.lambda)
+		res[0].Add(res[0], one)
+		res[1].Add(res[1], cc.lambda)
+	}
+	// figure out how many times we have overflowed
+	res[2].Mul(res[1], cc.lambda).Add(res[2], res[0])
+	res[2].Sub(res[2], inputs[0])
+	res[2].Div(res[2], cc.fr)
+
+	return nil
+}
+
+func init() {
+	hint.Register(DecomposeScalarG2)
+}
+
+// varScalarMul sets P = [s] Q and returns P.
+func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variable) *G2Affine {
+	// This method computes [s] Q. We use several methods to reduce the number
+	// of added constraints - first, instead of classical double-and-add, we use
+	// the optimized version from https://github.com/zcash/zcash/issues/3924
+	// which allows to omit computation of several intermediate values.
+	// Secondly, we use the GLV scalar multiplication to reduce the number
+	// iterations in the main loop. There is a small difference though - as
+	// two-bit select takes three constraints, then it takes as many constraints
+	// to compute ± Q ± Φ(Q) every iteration instead of selecting the value
+	// from a precomputed table. However, precomputing the table adds 12
+	// additional constraints and thus table-version is more expensive than
+	// addition-version.
+
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	// the hints allow to decompose the scalar s into s1 and s2 such that
+	//     s1 + λ * s2 == s mod r,
+	// where λ is third root of one in 𝔽_r.
+	sd, err := api.Compiler().NewHint(DecomposeScalarG2, 3, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s1, s2 := sd[0], sd[1]
+
+	// when we split scalar, then s1, s2 < lambda by default. However, to have
+	// the high 1-2 bits of s1, s2 set, the hint functions compute the
+	// decomposition for
+	//     s + k*r (for some k)
+	// instead and omits the last reduction. Thus, to constrain s1 and s2, we
+	// have to assert that
+	//     s1 + λ * s2 == s + k*r
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
+
+	// As the decomposed scalars are not fully reduced, then in addition of
+	// having the high bit set, an overflow bit may also be set. Thus, the total
+	// number of bits may be one more than the bitlength of λ.
+	nbits := cc.lambda.BitLen() + 1
+
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+
+	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G2Affine
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G2Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi2(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// We now initialize the accumulator. Due to the way the scalar is
+	// decomposed, either the high bits of s1 or s2 are set and we can use the
+	// incomplete addition laws.
+
+	//     Acc = Q + Φ(Q)
+	Acc = tableQ[1]
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// However, we can not directly add step value conditionally as we may get
+	// to incomplete path of the addition formula. We either add or subtract
+	// step value from [2] Acc (instead of conditionally adding step value to
+	// Acc):
+	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
+	Acc.Double(api, Acc)
+	// only y coordinate differs for negation, select on that instead.
+	B.X = tableQ[0].X
+	B.Y.Select(api, s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
+	Acc.AddAssign(api, B)
+	B.X = tablePhiQ[0].X
+	B.Y.Select(api, s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	// second bit
+	Acc.Double(api, Acc)
+	B.X = tableQ[0].X
+	B.Y.Select(api, s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
+	Acc.AddAssign(api, B)
+	B.X = tablePhiQ[0].X
+	B.Y.Select(api, s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	B2.X = tablePhiQ[0].X
+	for i := nbits - 3; i > 0; i-- {
+		B.X = Q.X
+		B.Y.Select(api, s1bits[i], tableQ[1].Y, tableQ[0].Y)
+		B2.Y.Select(api, s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
+		B.AddAssign(api, B2)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+
+	P.X = Acc.X
+	P.Y = Acc.Y
+
+	return P
+}
+
+// constScalarMul sets P = [s] Q and returns P.
+func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2Affine {
+	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
+	// bits are constant and here it makes sense to use the table in the main
+	// loop.
+	var Acc, negQ, negPhiQ, phiQ G2Affine
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	s.Mod(s, cc.fr)
+	cc.phi2(api, &phiQ, &Q)
+
+	k := ecc.SplitScalar(s, cc.glvBasis)
+	if k[0].Sign() == -1 {
+		k[0].Neg(&k[0])
+		Q.Neg(api, Q)
+	}
+	if k[1].Sign() == -1 {
+		k[1].Neg(&k[1])
+		phiQ.Neg(api, phiQ)
+	}
+	nbits := k[0].BitLen()
+	if k[1].BitLen() > nbits {
+		nbits = k[1].BitLen()
+	}
+	negQ.Neg(api, Q)
+	negPhiQ.Neg(api, phiQ)
+	var table [4]G2Affine
+	table[0] = negQ
+	table[0].AddAssign(api, negPhiQ)
+	table[1] = Q
+	table[1].AddAssign(api, negPhiQ)
+	table[2] = negQ
+	table[2].AddAssign(api, phiQ)
+	table[3] = Q
+	table[3].AddAssign(api, phiQ)
+
+	Acc = table[3]
+	// if both high bits are set, then we would get to the incomplete part,
+	// handle it separately.
+	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
+		Acc.Double(api, Acc)
+		Acc.AddAssign(api, table[3])
+		nbits = nbits - 1
+	}
+	for i := nbits - 1; i > 0; i-- {
+		Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
+	}
+
+	negQ.AddAssign(api, Acc)
+	Acc.Select(api, k[0].Bit(0), Acc, negQ)
+	negPhiQ.AddAssign(api, Acc)
+	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
+	P.X, P.Y = Acc.X, Acc.Y
+
+	return P
 }
 
 // Assign a value to self (witness assignment)

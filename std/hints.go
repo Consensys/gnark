@@ -24,6 +24,8 @@ func registerHints() {
 	// note that importing these packages may already triggers a call to hint.Register(...)
 	hint.Register(sw_bls24315.DecomposeScalar)
 	hint.Register(sw_bls12377.DecomposeScalar)
+	hint.Register(sw_bls24315.DecomposeScalarG2)
+	hint.Register(sw_bls12377.DecomposeScalarG2)
 	hint.Register(bits.NTrits)
 	hint.Register(bits.NNAF)
 	hint.Register(bits.IthBit)

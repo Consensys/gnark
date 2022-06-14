@@ -20,39 +20,48 @@ func main() {
 		RootPath: "../../../internal/backend/bls12-377/",
 		Curve:    "BLS12-377",
 		CurveID:  "BLS12_377",
-		Package:  "bls12377",
 	}
 	bls12_381 := templateData{
 		RootPath: "../../../internal/backend/bls12-381/",
 		Curve:    "BLS12-381",
 		CurveID:  "BLS12_381",
-		Package:  "bls12381",
 	}
 	bn254 := templateData{
 		RootPath: "../../../internal/backend/bn254/",
 		Curve:    "BN254",
 		CurveID:  "BN254",
-		Package:  "bn254",
 	}
 	bw6_761 := templateData{
 		RootPath: "../../../internal/backend/bw6-761/",
 		Curve:    "BW6-761",
 		CurveID:  "BW6_761",
-		Package:  "bw6761",
 	}
 	bls24_315 := templateData{
 		RootPath: "../../../internal/backend/bls24-315/",
 		Curve:    "BLS24-315",
 		CurveID:  "BLS24_315",
-		Package:  "bls24315",
 	}
 	bw6_633 := templateData{
 		RootPath: "../../../internal/backend/bw6-633/",
 		Curve:    "BW6-633",
 		CurveID:  "BW6_633",
-		Package:  "bw6633",
 	}
-	datas := []templateData{bls12_377, bls12_381, bn254, bw6_761, bls24_315, bw6_633}
+	tiny_field := templateData{
+		RootPath:  "../../../internal/tinyfield/",
+		Curve:     "tinyfield",
+		CurveID:   "UNKNOWN",
+		noBackend: true,
+	}
+
+	datas := []templateData{
+		bls12_377,
+		bls12_381,
+		bn254,
+		bw6_761,
+		bls24_315,
+		bw6_633,
+		tiny_field,
+	}
 
 	const importCurve = "../imports.go.tmpl"
 
@@ -66,30 +75,21 @@ func main() {
 
 			defer wg.Done()
 
-			if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
-				panic(err)
-			}
-			if err := os.MkdirAll(d.RootPath+"plonk", 0700); err != nil {
-				panic(err)
-			}
-
-			groth16Dir := filepath.Join(d.RootPath, "groth16")
-			plonkDir := filepath.Join(d.RootPath, "plonk")
-			backendCSDir := filepath.Join(d.RootPath, "cs")
+			csDir := filepath.Join(d.RootPath, "cs")
 			witnessDir := filepath.Join(d.RootPath, "witness")
 
-			// groth16
+			// constraint systems
 			entries := []bavard.Entry{
-				{File: filepath.Join(backendCSDir, "r1cs.go"), Templates: []string{"r1cs.go.tmpl", importCurve}},
-				{File: filepath.Join(backendCSDir, "r1cs_sparse.go"), Templates: []string{"r1cs.sparse.go.tmpl", importCurve}},
-				{File: filepath.Join(backendCSDir, "solution.go"), Templates: []string{"solution.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "r1cs.go"), Templates: []string{"r1cs.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "r1cs_sparse.go"), Templates: []string{"r1cs.sparse.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "solution.go"), Templates: []string{"solution.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
 			entries = []bavard.Entry{
-				{File: filepath.Join(backendCSDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs_test", "./template/representations/", entries...); err != nil {
 				panic(err)
@@ -99,6 +99,22 @@ func main() {
 				{File: filepath.Join(witnessDir, "witness.go"), Templates: []string{"witness.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "witness", "./template/representations/", entries...); err != nil {
+				panic(err)
+			}
+
+			// groth16 & plonk
+			if d.noBackend {
+				// no backend with just the field defined
+				return
+			}
+
+			groth16Dir := filepath.Join(d.RootPath, "groth16")
+			plonkDir := filepath.Join(d.RootPath, "plonk")
+
+			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
+				panic(err)
+			}
+			if err := os.MkdirAll(plonkDir, 0700); err != nil {
 				panic(err)
 			}
 
@@ -156,8 +172,8 @@ func main() {
 }
 
 type templateData struct {
-	RootPath string
-	Curve    string // BLS381, BLS377, BN254, BW761
-	Package  string
-	CurveID  string
+	RootPath  string
+	Curve     string // BLS381, BLS377, BN254, BW761
+	CurveID   string
+	noBackend bool
 }

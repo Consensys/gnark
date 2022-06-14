@@ -51,7 +51,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newBuilder(ecc.BN254, frontend.CompileConfig{})
+	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()

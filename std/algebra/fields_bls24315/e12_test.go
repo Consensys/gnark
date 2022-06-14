@@ -46,8 +46,8 @@ func TestAddFp12(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E12
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
 	witness.A.Assign(&a)
@@ -77,8 +77,8 @@ func TestSubFp12(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E12
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
 	witness.A.Assign(&a)
@@ -109,8 +109,8 @@ func TestMulFp12(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E12
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
 	witness.A.Assign(&a)
@@ -142,7 +142,7 @@ func TestMulByNonResidueFp12(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E12
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.MulByNonResidue(&a)
 
 	witness.A.Assign(&a)
@@ -170,8 +170,8 @@ func TestDivFp12(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E12
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Inverse(&b).Mul(&c, &a)
 
 	var witness e12Div
@@ -203,7 +203,7 @@ func TestInverseFp12(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E12
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
 	witness.A.Assign(&a)

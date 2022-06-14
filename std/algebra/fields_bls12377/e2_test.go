@@ -42,8 +42,8 @@ func TestAddFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
 	var witness e2Add
@@ -71,8 +71,8 @@ func TestSubFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
 	var witness e2Sub
@@ -101,8 +101,8 @@ func TestMulFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
 	var witness e2Mul
@@ -131,8 +131,8 @@ func TestDivFp2(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E2
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Inverse(&b).Mul(&c, &a)
 
 	var witness e2Div
@@ -166,8 +166,8 @@ func TestMulByFpFp2(t *testing.T) {
 	// witness values
 	var a, c bls12377.E2
 	var b fp.Element
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
@@ -199,7 +199,7 @@ func TestConjugateFp2(t *testing.T) {
 
 	// witness values
 	var a, c bls12377.E2
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Conjugate(&a)
 
 	witness.A.Assign(&a)
@@ -230,7 +230,7 @@ func TestInverseFp2(t *testing.T) {
 
 	// witness values
 	var a, c bls12377.E2
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
 	witness.A.Assign(&a)

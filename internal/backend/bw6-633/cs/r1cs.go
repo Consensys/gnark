@@ -67,7 +67,7 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
-	log := logger.Logger().With().Str("curve", cs.CurveID().String()).Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
+	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
 	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
@@ -457,11 +457,6 @@ func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.BW6_633
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *R1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
@@ -470,6 +465,14 @@ func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 	encoder := enc.NewEncoder(&_w)
+
+	// encode the field as hex string
+	// TODO @gbotrel this https://github.com/ConsenSys/gnark/issues/322
+	// may introduce a serialization header which may be a better spot.
+	q := cs.Field().Text(16)
+	if err := encoder.Encode(q); err != nil {
+		return _w.N, err
+	}
 
 	// encode our object
 	err = encoder.Encode(cs)
@@ -487,6 +490,20 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
+
+	// decode the fiield
+	var qHex string
+	if err := decoder.Decode(&qHex); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+	q, ok := new(big.Int).SetString(qHex, 16)
+	if !ok {
+		return int64(decoder.NumBytesRead()), errors.New("invalid serialization")
+	}
+	if err := cs.SetScalarField(q); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err
 	}
