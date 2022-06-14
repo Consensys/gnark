@@ -88,8 +88,8 @@ type Element struct {
 // is not constrained and it only safe to use as a receiver in operations. For
 // elements initialized to values use Zero(), One() or Modulus().
 func (fp *Params) Element(api frontend.API) Element {
-	if uint(api.Curve().Info().Fr.Bits) < 2*fp.nbBits+1 {
-		panic(fmt.Sprintf("elements with limb length %d does not fit into %s", fp.nbBits, api.Curve().String()))
+	if uint(api.Compiler().FieldBitLen()) < 2*fp.nbBits+1 {
+		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", fp.nbBits))
 	}
 	e := Element{
 		Limbs:    make([]frontend.Variable, fp.nbLimbs),
@@ -236,7 +236,7 @@ func (e *Element) FromBits(in []frontend.Variable) {
 // into the scalar field widthout overflow. If next operation exceeds the value,
 // then the element should be reduced before the operation.
 func (e *Element) maxWidth() uint {
-	return uint(e.api.Curve().Info().Fr.Modulus().BitLen()) - 1
+	return uint(e.api.Compiler().FieldBitLen()) - 1
 }
 
 // assertLimbsEqualitySlow is the main routine in the package. It asserts that the
