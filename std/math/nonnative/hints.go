@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -35,12 +34,12 @@ func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, righ
 // MultiplicationHint unpacks the factors and parameters from inputs, computes
 // the product and stores it in output. See internal method
 // computeMultiplicationHint for the input packing.
-func MultiplicationHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
+func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
 		return fmt.Errorf("input must be at least three elements")
 	}
 	nbBits := int(inputs[0].Int64())
-	if 2*nbBits+1 >= curveID.Info().Fr.Modulus().BitLen() {
+	if 2*nbBits+1 >= mod.BitLen() {
 		return fmt.Errorf("can not fit multiplication result into limb of length %d", nbBits)
 	}
 	// TODO: check that the scalar field fits 2*nbBits + nbLimbs. 2*nbBits comes
@@ -86,7 +85,7 @@ func computeReductionHint(api frontend.API, params *Params, inLimbs []frontend.V
 
 // ReductionHint computes the remainder r for input x = k*p + r and stores it
 // in outputs.
-func ReductionHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
+func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 2 {
 		return fmt.Errorf("input must be at least two elements")
 	}
@@ -128,7 +127,7 @@ func computeEqualityHint(api frontend.API, params *Params, diffLimbs []frontend.
 }
 
 // EqualityHint computes k for input x = k*p and stores it in outputs.
-func EqualityHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
+func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	// first value is the number of bits per limb (nbBits)
 	// second value is the number of limbs for modulus
 	// then comes emulated modulus (p)
@@ -183,7 +182,7 @@ func computeInverseHint(api frontend.API, params *Params, inLimbs []frontend.Var
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
-func InverseHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
+func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 2 {
 		return fmt.Errorf("input must be at least two elements")
 	}
@@ -228,7 +227,7 @@ func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs 
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in
 // outputs.
-func DivHint(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error {
+func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) < 3 {
 		return fmt.Errorf("input must be at least three elements")
 	}
