@@ -25,7 +25,7 @@ func emulatedFields(t *testing.T) []emulatedField {
 	t.Helper()
 	var ret []emulatedField
 	for _, limbLength := range []int{32, 48, 64, 120} {
-		bn254fp, err := NewParams(limbLength, ecc.BN254.Info().Fp.Modulus())
+		bn254fp, err := NewParams(limbLength, ecc.BN254.BaseField())
 		if err != nil {
 			t.Fatal(err)
 		}
