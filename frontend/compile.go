@@ -66,11 +66,25 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
+	var countedPublic, countedPrivate int
+	counterHandler := func(f *schema.Field, tInput reflect.Value) error {
+		varCount := builder.VariableCount(tInput.Type())
+		switch f.Visibility {
+		case schema.Secret:
+			countedPrivate += varCount
+		case schema.Public:
+			countedPublic += varCount
+		}
+		return nil
+	}
+
 	// parse the schema, to count the number of public and secret variables
-	s, err := schema.Parse(circuit, tVariable, nil)
+	s, err := schema.Parse(circuit, tVariable, counterHandler)
 	if err != nil {
 		return err
 	}
+	s.NbPublic = countedPublic
+	s.NbSecret = countedPrivate
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
