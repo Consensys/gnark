@@ -111,6 +111,10 @@ func (system *scs) newInternalVariable() compiled.Term {
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
 }
 
+func (system *scs) VariableCount(t reflect.Type) int {
+	return 1
+}
+
 // AddPublicVariable creates a new Public Variable
 func (system *scs) AddPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)

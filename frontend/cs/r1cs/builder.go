@@ -96,6 +96,10 @@ func (system *r1cs) newInternalVariable() compiled.LinearExpression {
 	}
 }
 
+func (system *r1cs) VariableCount(t reflect.Type) int {
+	return 1
+}
+
 // AddPublicVariable creates a new public Variable
 func (system *r1cs) AddPublicVariable(name string) frontend.Variable {
 	idx := len(system.Public)

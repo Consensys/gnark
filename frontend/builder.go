@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"math/big"
+	"reflect"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend/schema"
@@ -65,6 +66,10 @@ type Builder interface {
 
 	// Compile is called after circuit.Define() to produce a final IR (CompiledConstraintSystem)
 	Compile() (CompiledConstraintSystem, error)
+
+	// VariableCount returns the number of native elements required to represent
+	// the given reflected type as a witness.
+	VariableCount(reflect.Type) int
 
 	// SetSchema is used internally by frontend.Compile to set the circuit schema
 	SetSchema(*schema.Schema)
