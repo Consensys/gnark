@@ -443,7 +443,7 @@ func (system *scs) Println(a ...frontend.Variable) {
 func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	count := 0
-	counter := func(visibility schema.Visibility, name string, tValue reflect.Value) error {
+	counter := func(f *schema.Field, tValue reflect.Value) error {
 		count++
 		return nil
 	}
@@ -457,9 +457,9 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	}
 
 	sbb.WriteByte('{')
-	printer := func(visibility schema.Visibility, name string, tValue reflect.Value) error {
+	printer := func(f *schema.Field, tValue reflect.Value) error {
 		count--
-		sbb.WriteString(name)
+		sbb.WriteString(f.FullName)
 		sbb.WriteString(": ")
 		sbb.WriteString("%s")
 		if count != 0 {

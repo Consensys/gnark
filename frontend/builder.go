@@ -76,9 +76,9 @@ type Builder interface {
 
 	// AddPublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	AddPublicVariable(name string) Variable
+	AddPublicVariable(field *schema.Field) Variable
 
 	// AddSecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	AddSecretVariable(name string) Variable
+	AddSecretVariable(field *schema.Field) Variable
 }

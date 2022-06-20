@@ -32,7 +32,7 @@ type Schema struct {
 }
 
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(visibility Visibility, name string, tValue reflect.Value) error
+type LeafHandler func(field *Field, tValue reflect.Value) error
 
 // Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
@@ -86,11 +86,11 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	var a int
 	instance := s.Instantiate(reflect.TypeOf(a), false)
 
-	collectHandler := func(visibility Visibility, name string, _ reflect.Value) error {
-		if visibility == Public {
-			public = append(public, name)
-		} else if visibility == Secret {
-			secret = append(secret, name)
+	collectHandler := func(f *Field, _ reflect.Value) error {
+		if f.Visibility == Public {
+			public = append(public, f.FullName)
+		} else if f.Visibility == Secret {
+			secret = append(secret, f.FullName)
 		}
 		return nil
 	}
@@ -200,28 +200,29 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 	// stop condition
 	if tValue.Type() == target {
-		v := parentVisibility
-		if v == Unset {
-			v = Secret
-		}
-		if v == Secret {
-			(*nbSecret)++
-		} else if v == Public {
-			(*nbPublic)++
-		}
-
-		if handler != nil {
-			if err := handler(v, parentFullName, tValue); err != nil {
-				return nil, err
-			}
-		}
-		// we just add it to our current fields
-		return append(r, Field{
+		f := Field{
 			Name:       parentGoName,
 			NameTag:    parentTagName,
+			FullName:   parentFullName,
+			Visibility: parentVisibility,
 			Type:       Leaf,
-			Visibility: v,
-		}), nil
+			SubFields:  nil,
+			ArraySize:  1,
+		}
+		if f.Visibility == Unset {
+			f.Visibility = Secret
+		}
+		if handler != nil {
+			if err := handler(&f, tValue); err != nil {
+				return nil, fmt.Errorf("leaf handler: %w", err)
+			}
+		}
+		if f.Visibility == Secret {
+			(*nbSecret) += f.ArraySize
+		} else if f.Visibility == Public {
+			(*nbPublic) += f.ArraySize
+		}
+		return append(r, f), nil
 	}
 
 	// struct
@@ -390,7 +391,7 @@ func getFullName(parentFullName, name, tagName string) string {
 func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
 	var wValues []interface{}
 
-	var collectHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
+	collectHandler := func(f *Field, tInput reflect.Value) error {
 		wValues = append(wValues, tInput.Interface())
 		return nil
 	}
@@ -401,7 +402,7 @@ func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflec
 	}
 
 	i := 0
-	var setHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
+	setHandler := func(f *Field, tInput reflect.Value) error {
 		tInput.Set(reflect.ValueOf((wValues[i])))
 		i++
 		return nil

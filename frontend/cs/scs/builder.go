@@ -116,16 +116,16 @@ func (system *scs) VariableCount(t reflect.Type) int {
 }
 
 // AddPublicVariable creates a new Public Variable
-func (system *scs) AddPublicVariable(name string) frontend.Variable {
+func (system *scs) AddPublicVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Public)
-	system.Public = append(system.Public, name)
+	system.Public = append(system.Public, f.FullName)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
 }
 
 // AddSecretVariable creates a new Secret Variable
-func (system *scs) AddSecretVariable(name string) frontend.Variable {
+func (system *scs) AddSecretVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Secret) + system.NbPublicVariables
-	system.Secret = append(system.Secret, name)
+	system.Secret = append(system.Secret, f.FullName)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
 }
 

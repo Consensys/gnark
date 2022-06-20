@@ -13,11 +13,11 @@ func TestStructTags(t *testing.T) {
 	testParseTags := func(t *testing.T, input interface{}, expected map[string]Visibility) {
 		assert := require.New(t)
 		collected := make(map[string]Visibility)
-		var collectHandler LeafHandler = func(visibility Visibility, name string, _ reflect.Value) error {
-			if _, ok := collected[name]; ok {
+		collectHandler := func(f *Field, _ reflect.Value) error {
+			if _, ok := collected[f.FullName]; ok {
 				return errors.New("duplicate name collected")
 			}
-			collected[name] = visibility
+			collected[f.FullName] = f.Visibility
 			return nil
 		}
 
