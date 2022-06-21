@@ -26,8 +26,6 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 )
 
 type Witness []fr.Element
@@ -39,13 +37,18 @@ func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
-	enc := curve.NewEncoder(w)
+	n := int64(4)
+
+	var buf [fr.Bytes]byte
 	for i := 0; i < len(*witness); i++ {
-		if err := enc.Encode(&(*witness)[i]); err != nil {
-			return enc.BytesWritten() + 4, err
+		buf = (*witness)[i].Bytes()
+		m, err := w.Write(buf[:])
+		n += int64(m)
+		if err != nil {
+			return n, err
 		}
 	}
-	return enc.BytesWritten() + 4, nil
+	return n, nil
 }
 
 func (witness *Witness) Len() int {
@@ -58,25 +61,28 @@ func (witness *Witness) Type() reflect.Type {
 
 func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 
-	var buf [4]byte
+	var buf [fr.Bytes]byte
 	if read, err := io.ReadFull(r, buf[:4]); err != nil {
 		return int64(read), err
 	}
 	sliceLen := binary.BigEndian.Uint32(buf[:4])
 
+	n := int64(4)
+
 	if len(*witness) != int(sliceLen) {
 		*witness = make([]fr.Element, sliceLen)
 	}
 
-	dec := curve.NewDecoder(r)
-
 	for i := 0; i < int(sliceLen); i++ {
-		if err := dec.Decode(&(*witness)[i]); err != nil {
-			return dec.BytesRead() + 4, err
+		read, err := io.ReadFull(r, buf[:])
+		n += int64(read)
+		if err != nil {
+			return n, err
 		}
+		(*witness)[i].SetBytes(buf[:])
 	}
 
-	return dec.BytesRead() + 4, nil
+	return n, nil
 }
 
 // FromAssignment extracts the witness and its schema

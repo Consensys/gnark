@@ -2,6 +2,7 @@ package witness
 
 import (
 	"io"
+	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -13,6 +14,9 @@ import (
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
+	"github.com/consensys/gnark/internal/tinyfield"
+	witness_tinyfield "github.com/consensys/gnark/internal/tinyfield/witness"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 type Vector interface {
@@ -24,8 +28,9 @@ type Vector interface {
 	Type() reflect.Type
 }
 
-func newVector(curveID ecc.ID) (Vector, error) {
+func newVector(field *big.Int) (Vector, error) {
 	var w Vector
+	curveID := utils.FieldToCurve(field)
 	switch curveID {
 	case ecc.BN254:
 		w = &witness_bn254.Witness{}
@@ -42,7 +47,11 @@ func newVector(curveID ecc.ID) (Vector, error) {
 	case ecc.BW6_633:
 		w = &witness_bw6633.Witness{}
 	default:
-		return nil, errMissingCurveID
+		if field.Cmp(tinyfield.Modulus()) == 0 {
+			w = &witness_tinyfield.Witness{}
+		} else {
+			return nil, errMissingCurveID
+		}
 	}
 	return w, nil
 }

@@ -42,8 +42,8 @@ func TestAddFp4(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E4
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
 	var witness e4Add
@@ -71,8 +71,8 @@ func TestSubFp4(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E4
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
 	var witness e4Sub
@@ -101,7 +101,7 @@ func TestSquareFp4(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E4
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Square(&a)
 
 	var witness e4Square
@@ -129,8 +129,8 @@ func TestMulFp4(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E4
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
 	var witness e4Mul
@@ -164,8 +164,8 @@ func TestMulByFpFp4(t *testing.T) {
 	// witness values
 	var a, c bls24315.E4
 	var b fp.Element
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.MulByElement(&a, &b)
 
 	witness.A.Assign(&a)
@@ -197,7 +197,7 @@ func TestConjugateFp4(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E4
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Conjugate(&a)
 
 	witness.A.Assign(&a)
@@ -224,8 +224,8 @@ func TestDivFp4(t *testing.T) {
 
 	// witness values
 	var a, b, c bls24315.E4
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Inverse(&b).Mul(&c, &a)
 
 	var witness e4Div
@@ -257,7 +257,7 @@ func TestInverseFp4(t *testing.T) {
 
 	// witness values
 	var a, c bls24315.E4
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
 	witness.A.Assign(&a)

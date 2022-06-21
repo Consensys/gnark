@@ -61,7 +61,7 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit, assignment mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS24_315, r1cs.NewBuilder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS24_315.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,11 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// generate the data to return for the bls24315 proof
 	var pk groth16_bls24315.ProvingKey
-	groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	err = groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_proof, err := groth16_bls24315.Prove(r1cs.(*backend_bls24315.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +159,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &circuit)
+		ccs, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

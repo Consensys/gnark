@@ -107,7 +107,7 @@ func TestVerifyBellmanProof(t *testing.T) {
 		// verify groth16 proof
 		// we need to prepend the number of elements in the witness.
 		var buf bytes.Buffer
-		binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
+		_ = binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
 		buf.Write(inputsBytes)
 
 		witness := &witness.Witness{

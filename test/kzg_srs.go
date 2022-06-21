@@ -78,7 +78,7 @@ func getCachedSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
 
 func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
 
-	alpha, err := rand.Int(rand.Reader, curve.Info().Fr.Modulus())
+	alpha, err := rand.Int(rand.Reader, curve.ScalarField())
 	if err != nil {
 		return nil, err
 	}

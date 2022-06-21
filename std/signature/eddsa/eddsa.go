@@ -20,12 +20,13 @@ package eddsa
 import (
 	"errors"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
+
+	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
@@ -101,7 +102,7 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 }
 
 // Assign is a helper to assigned a compressed binary public key representation into its uncompressed form
-func (p *PublicKey) Assign(curveID ecc.ID, buf []byte) {
+func (p *PublicKey) Assign(curveID tedwards.ID, buf []byte) {
 	ax, ay, err := parsePoint(curveID, buf)
 	if err != nil {
 		panic(err)
@@ -111,7 +112,7 @@ func (p *PublicKey) Assign(curveID ecc.ID, buf []byte) {
 }
 
 // Assign is a helper to assigned a compressed binary signature representation into its uncompressed form
-func (s *Signature) Assign(curveID ecc.ID, buf []byte) {
+func (s *Signature) Assign(curveID tedwards.ID, buf []byte) {
 	rx, ry, S, err := parseSignature(curveID, buf)
 	if err != nil {
 		panic(err)
@@ -122,7 +123,7 @@ func (s *Signature) Assign(curveID ecc.ID, buf []byte) {
 }
 
 // parseSignature parses a compressed binary signature into uncompressed R.X, R.Y and S
-func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) {
+func parseSignature(curveID tedwards.ID, buf []byte) ([]byte, []byte, []byte, error) {
 
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
@@ -133,7 +134,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 	var pointbw6633 edwardsbw6633.PointAffine
 
 	switch curveID {
-	case ecc.BN254:
+	case tedwards.BN254:
 		if _, err := pointbn254.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -143,7 +144,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[32:]
 		return a, b, s, nil
-	case ecc.BLS12_381:
+	case tedwards.BLS12_381:
 		if _, err := pointbls12381.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -153,7 +154,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[32:]
 		return a, b, s, nil
-	case ecc.BLS12_377:
+	case tedwards.BLS12_377:
 		if _, err := pointbls12377.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -163,7 +164,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[32:]
 		return a, b, s, nil
-	case ecc.BW6_761:
+	case tedwards.BW6_761:
 		if _, err := pointbw6761.SetBytes(buf[:48]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -173,7 +174,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[48:]
 		return a, b, s, nil
-	case ecc.BLS24_317:
+	case tedwards.BLS24_317:
 		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -183,7 +184,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[32:]
 		return a, b, s, nil
-	case ecc.BLS24_315:
+	case tedwards.BLS24_315:
 		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -193,7 +194,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 		}
 		s := buf[32:]
 		return a, b, s, nil
-	case ecc.BW6_633:
+	case tedwards.BW6_633:
 		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
 			return nil, nil, nil, err
 		}
@@ -209,7 +210,7 @@ func parseSignature(curveID ecc.ID, buf []byte) ([]byte, []byte, []byte, error) 
 }
 
 // parsePoint parses a compressed binary point into uncompressed P.X and P.Y
-func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte, error) {
+func parsePoint(curveID tedwards.ID, buf []byte) ([]byte, []byte, error) {
 	var pointbn254 edwardsbn254.PointAffine
 	var pointbls12381 edwardsbls12381.PointAffine
 	var pointbls12377 edwardsbls12377.PointAffine
@@ -218,49 +219,49 @@ func parsePoint(curveID ecc.ID, buf []byte) ([]byte, []byte, error) {
 	var pointbls24317 edwardsbls24317.PointAffine
 	var pointbw6633 edwardsbw6633.PointAffine
 	switch curveID {
-	case ecc.BN254:
+	case tedwards.BN254:
 		if _, err := pointbn254.SetBytes(buf[:32]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbn254.X.Bytes()
 		b := pointbn254.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BLS12_381:
+	case tedwards.BLS12_381:
 		if _, err := pointbls12381.SetBytes(buf[:32]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbls12381.X.Bytes()
 		b := pointbls12381.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BLS12_377:
+	case tedwards.BLS12_377:
 		if _, err := pointbls12377.SetBytes(buf[:32]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbls12377.X.Bytes()
 		b := pointbls12377.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BW6_761:
+	case tedwards.BW6_761:
 		if _, err := pointbw6761.SetBytes(buf[:48]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbw6761.X.Bytes()
 		b := pointbw6761.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BLS24_317:
+	case tedwards.BLS24_317:
 		if _, err := pointbls24317.SetBytes(buf[:32]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbls24317.X.Bytes()
 		b := pointbls24317.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BLS24_315:
+	case tedwards.BLS24_315:
 		if _, err := pointbls24315.SetBytes(buf[:32]); err != nil {
 			return nil, nil, err
 		}
 		a := pointbls24315.X.Bytes()
 		b := pointbls24315.Y.Bytes()
 		return a[:], b[:], nil
-	case ecc.BW6_633:
+	case tedwards.BW6_633:
 		if _, err := pointbw6633.SetBytes(buf[:40]); err != nil {
 			return nil, nil, err
 		}

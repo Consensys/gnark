@@ -29,7 +29,7 @@ func TestFromInterfaceValidFormats(t *testing.T) {
 	}()
 
 	var a fr.Element
-	a.SetRandom()
+	_, _ = a.SetRandom()
 
 	_ = FromInterface(a)
 	_ = FromInterface(&a)

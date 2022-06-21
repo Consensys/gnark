@@ -102,7 +102,7 @@ func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
 	coef.Set(&system.st.Coeffs[cid])
-	coef.Mul(m, &coef).Mod(&coef, system.CurveID.Info().Fr.Modulus())
+	coef.Mul(m, &coef).Mod(&coef, system.q)
 	cid = system.st.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
@@ -116,15 +116,15 @@ func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	if i1Constant && i2Constant {
 		l := c1
 		r := c2
-		q := system.CurveID.Info().Fr.Modulus()
+		q := system.q
 		return r.ModInverse(r, q).
 			Mul(l, r).
 			Mod(r, q)
 	}
 	if i2Constant {
 		c := c2
-		m := system.CurveID.Info().Fr.Modulus()
-		c.ModInverse(c, m)
+		q := system.q
+		c.ModInverse(c, q)
 		return system.mulConstant(i1.(compiled.Term), c)
 	}
 	if i1Constant {
@@ -153,7 +153,7 @@ func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 // Inverse returns res = 1 / i1
 func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := system.ConstantValue(i1); ok {
-		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
+		c.ModInverse(c, system.q)
 		return c
 	}
 	t := i1.(compiled.Term)
@@ -174,7 +174,7 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // The result in in little endian (first bit= lsb)
 func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -193,6 +193,8 @@ func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -200,6 +202,7 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		_a.Xor(_a, _b)
 		return _a
 	}
+
 	res := system.newInternalVariable()
 	if aConstant {
 		a, b = b, a
@@ -224,6 +227,10 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 // Or returns a | b
 // a and b must be 0 or 1
 func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
+
+	system.AssertIsBoolean(a)
+	system.AssertIsBoolean(b)
+
 	_a, aConstant := system.ConstantValue(a)
 	_b, bConstant := system.ConstantValue(b)
 
@@ -241,11 +248,6 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 		l := a.(compiled.Term)
 		r := l
 
-		if !(_b.IsUint64() && (_b.Uint64() <= 1)) {
-			panic(fmt.Sprintf("%s should be 0 or 1", _b.String()))
-		}
-		system.AssertIsBoolean(a)
-
 		one := big.NewInt(1)
 		_b.Sub(_b, one)
 		idl := system.st.CoeffID(_b)
@@ -254,8 +256,6 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 	}
 	l := a.(compiled.Term)
 	r := b.(compiled.Term)
-	system.AssertIsBoolean(l)
-	system.AssertIsBoolean(r)
 	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
 	return res
 }
@@ -377,13 +377,13 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	bi1 := system.ToBinary(i1, system.BitLen())
-	bi2 := system.ToBinary(i2, system.BitLen())
+	bi1 := system.ToBinary(i1, system.FieldBitLen())
+	bi2 := system.ToBinary(i2, system.FieldBitLen())
 
 	var res frontend.Variable
 	res = 0
 
-	for i := system.BitLen() - 1; i >= 0; i-- {
+	for i := system.FieldBitLen() - 1; i >= 0; i-- {
 
 		iszeroi1 := system.IsZero(bi1[i])
 		iszeroi2 := system.IsZero(bi2[i])

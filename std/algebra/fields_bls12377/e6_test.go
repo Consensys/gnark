@@ -46,8 +46,8 @@ func TestAddFp6(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E6
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
 	witness.A.Assign(&a)
@@ -77,8 +77,8 @@ func TestSubFp6(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E6
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
 	witness.A.Assign(&a)
@@ -109,8 +109,8 @@ func TestMulFp6(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E6
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
 	witness.A.Assign(&a)
@@ -142,7 +142,7 @@ func TestMulByNonResidueFp6(t *testing.T) {
 
 	// witness values
 	var a, c bls12377.E6
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.MulByNonResidue(&a)
 
 	witness.A.Assign(&a)
@@ -174,7 +174,7 @@ func TestInverseFp6(t *testing.T) {
 
 	// witness values
 	var a, c bls12377.E6
-	a.SetRandom()
+	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
 	witness.A.Assign(&a)
@@ -202,8 +202,8 @@ func TestDivFp6(t *testing.T) {
 
 	// witness values
 	var a, b, c bls12377.E6
-	a.SetRandom()
-	b.SetRandom()
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
 	c.Inverse(&b).Mul(&c, &a)
 
 	var witness e6Div

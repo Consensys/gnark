@@ -32,6 +32,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/test"
 )
 
@@ -64,8 +65,9 @@ func TestIsOnCurve(t *testing.T) {
 		circuit.curveID = curve
 
 		// get matching snark curve
-		snarkCurve, err := GetSnarkCurve(curve)
+		snarkField, err := GetSnarkField(curve)
 		assert.NoError(err)
+		snarkCurve := utils.FieldToCurve(snarkField)
 
 		// get curve params
 		params, err := GetCurveParams(curve)
@@ -163,8 +165,9 @@ func TestCurve(t *testing.T) {
 		circuit.curveID = curve
 
 		// get matching snark curve
-		snarkCurve, err := GetSnarkCurve(curve)
+		snarkField, err := GetSnarkField(curve)
 		assert.NoError(err)
+		snarkCurve := utils.FieldToCurve(snarkField)
 
 		// get curve params
 		params, err := GetCurveParams(curve)
