@@ -289,15 +289,6 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
 func (e *Element) AssertLimbsEquality(a Element) {
-	// fast path -- no overflow -- can just compare limb-wise
-	if a.overflow == e.overflow {
-		// TODO: not complete - we should also ensure that len(e.Limbs) <=
-		// len(a.Limbs) and ensure that rest of e.Limbs are zero
-		for i := range a.Limbs {
-			e.api.AssertIsEqual(a.Limbs[i], e.Limbs[i])
-		}
-		return
-	}
 	maxOverflow := e.overflow
 	if a.overflow > e.overflow {
 		maxOverflow = a.overflow
