@@ -135,16 +135,15 @@ The package provides two ways to check equality -- limb-wise equality check and
 checking equality by value.
 
 In the limb-wise equality check we check that the integer values of the elements
-x and y are equal. If the overflows of the elements are equal, then we can
-perform limb-wise equality check. If the overflows are not equal, then we have
-to carry the excess using bit decomposition (which makes the computation fairly
-inefficient). To reduce the number of bit decompositions, then we instead carry
-over the excess of the difference of the limbs instead. As we take the
-difference, then similarly as computing the padding in subtraction algorithm, we
-need to add padding to the limbs before subtracting limb-wise to avoid
-underflows. However, the padding in this case is slightly different -- we do not
-need the padding to be divisible, but instead need that the padding has
-particular bit decomposition.
+x and y are equal. We have to carry the excess using bit decomposition (which
+makes the computation fairly inefficient). To reduce the number of bit
+decompositions, we instead carry over the excess of the difference of the limbs
+instead. As we take the difference, then similarly as computing the padding in
+subtraction algorithm, we need to add padding to the limbs before subtracting
+limb-wise to avoid underflows. However, the padding in this case is slightly
+different -- we do not need the padding to be divisible by the modulus, but
+instead need that the limb padding is larger than the limb which is being
+subtracted.
 
 Lets look at the algorithm itself. We assume that the overflow f of x is larger
 than y. If overflow of y is larger, then we can just swap the arguments and
@@ -162,6 +161,15 @@ to next limb:
 Finally, after we have compared all the limbs, we still need to check that the
 final carry corresponds to the padding. We add final check:
     carry_k == maxValueShift.
+
+We can further optimise the limb-wise equality check by first regrouping the
+limbs. The idea is to group several limbs so that the result would still fit
+into the scalar field. If
+    x = ∑_{i=0}^k x_i 2^{w i},
+then we can instead take w' divisible by w such that
+    x = ∑_{i=0}^(k/(w'/w)) x'_i 2^{w' i},
+where
+    x'_j = ∑_{i=0}^(w'/w) x_{j*w'/w+i} 2^{w i}.
 
 For element value equality check, we check that two elements x and y are equal
 modulo r and for that we need to show that r divides x-y. As mentioned in the
