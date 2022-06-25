@@ -352,7 +352,7 @@ func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Var
 func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	if a, ok := system.ConstantValue(i1); ok {
 		if !(a.IsUint64() && a.Uint64() == 0) {
-			panic("input should be zero")
+			return 0
 		}
 		return 1
 	}
