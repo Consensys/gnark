@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -76,8 +77,16 @@ var ccsBench frontend.CompiledConstraintSystem
 func BenchmarkVerifyKZG(b *testing.B) {
 	var c verifierCircuit
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-	}
+	b.Run("groth16", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
+		}
+	})
 	b.Log("groth16", ccsBench.GetNbConstraints())
+	b.Run("plonk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
+		}
+	})
+	b.Log("plonk", ccsBench.GetNbConstraints())
 }

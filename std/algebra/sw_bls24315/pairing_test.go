@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
@@ -87,7 +86,7 @@ func TestPairingBLS24315(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -124,7 +123,7 @@ func TestTriplePairingBLS24315(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
