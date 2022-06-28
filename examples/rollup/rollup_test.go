@@ -25,6 +25,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
+// The tests in the package are for the rollup in plain go only, there is no snark circuits
+// involved here.
+
 func TestOperatorReadAccount(t *testing.T) {
 
 	// create operator with 10 accounts
@@ -169,6 +172,8 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 func createOperator(nbAccounts int) (Operator, []eddsa.PrivateKey) {
 
 	operator := NewOperator(nbAccounts)
+
+	operator.witnesses.allocateSlicesMerkleProofs()
 
 	userAccounts := make([]eddsa.PrivateKey, nbAccounts)
 

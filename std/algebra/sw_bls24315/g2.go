@@ -221,8 +221,8 @@ func (P *G2Affine) ScalarMul(api frontend.API, Q G2Affine, s interface{}) *G2Aff
 	}
 }
 
-var DecomposeScalarG2 = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
-	cc := innerCurve(curve)
+var DecomposeScalarG2 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
+	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))
 	res[1].Set(&(sp[1]))
@@ -264,7 +264,7 @@ func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variabl
 	// points and the operations on the points are performed on the `inner`
 	// curve of the outer curve. We require some parameters from the inner
 	// curve.
-	cc := innerCurve(api.Compiler().Curve())
+	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
@@ -358,7 +358,7 @@ func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2A
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
 	var Acc, negQ, negPhiQ, phiQ G2Affine
-	cc := innerCurve(api.Compiler().Curve())
+	cc := getInnerCurveConfig(api.Compiler().Field())
 	s.Mod(s, cc.fr)
 	cc.phi2(api, &phiQ, &Q)
 
