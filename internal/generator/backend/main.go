@@ -45,7 +45,6 @@ func main() {
 		RootPath: "../../../internal/backend/bls24-317/",
 		Curve:    "BLS24-317",
 		CurveID:  "BLS24_317",
-		Package:  "bls24317",
 	}
 	bw6_633 := templateData{
 		RootPath: "../../../internal/backend/bw6-633/",
