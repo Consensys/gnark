@@ -206,7 +206,7 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Aff
 	}
 }
 
-var DecomposeScalar = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
+var DecomposeScalarG1 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))

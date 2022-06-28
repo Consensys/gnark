@@ -87,7 +87,7 @@ func BenchmarkVerifyKZG(b *testing.B) {
 	var c verifierCircuit
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+		ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
 	}
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
