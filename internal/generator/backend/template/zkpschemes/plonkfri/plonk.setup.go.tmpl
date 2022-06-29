@@ -28,9 +28,6 @@ type ProvingKey struct {
 	LQkIncompleteDomainSmall          []fr.Element
 	CQl, CQr, CQm, CQo, CQkIncomplete []fr.Element
 
-	// commitment scheme
-	// Cscheme MockCommitment
-
 	// Domains used for the FFTs
 	// 0 -> "small" domain, used for individual polynomials
 	// 1 -> "big" domain, used for the computation of the quotient
@@ -52,7 +49,8 @@ type ProvingKey struct {
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
 
-	// Size circuit
+	// Size circuit, that is the closest power of 2 bounding above
+	// number of constraints+number of public inputs
 	Size              uint64
 	SizeInv           fr.Element
 	Generator         fr.Element
