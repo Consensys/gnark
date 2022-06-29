@@ -290,10 +290,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	zshift.Set(&proof.OpeningsZmp[1].ClaimedValue)
 
 	// 2 - compute the LHS: (ql*l+..+qk)+ α*(z(μx)*(l+β*s₁+γ)*..-z*(l+β*id1+γ))+α²*z*(l1-1)
-	// var alpha, beta, gamma fr.Element
-	// beta.SetUint64(9)
-	// gamma.SetUint64(10)
-	// alpha.SetUint64(11)
 	var zeta fr.Element
 	zeta.Exp(vk.GenOpening, &bOpeningPosition)
 
