@@ -99,19 +99,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	}
 
 	// 3 - compute Z, challenges are derived using L, R, O + public inputs
-	dataFiatShamir := make([][]byte, spr.NbPublicVariables+3)
+	dataFiatShamir := make([][fr.Bytes]byte, spr.NbPublicVariables+3)
 	for i := 0; i < spr.NbPublicVariables; i++ {
-		dataFiatShamir[i] = make([]byte, len(fullWitness[i]))
-		copy(dataFiatShamir[i], fullWitness[i].Marshal())
+		copy(dataFiatShamir[i][:], fullWitness[i].Marshal())
 	}
-	dataFiatShamir[spr.NbPublicVariables] = make([]byte, fr.Bytes)
-	dataFiatShamir[spr.NbPublicVariables+1] = make([]byte, fr.Bytes)
-	dataFiatShamir[spr.NbPublicVariables+2] = make([]byte, fr.Bytes)
-	copy(dataFiatShamir[spr.NbPublicVariables], proof.LROpp[0].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+1], proof.LROpp[1].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+2], proof.LROpp[2].ID)
+	copy(dataFiatShamir[spr.NbPublicVariables][:], proof.LROpp[0].ID)
+	copy(dataFiatShamir[spr.NbPublicVariables+1][:], proof.LROpp[1].ID)
+	copy(dataFiatShamir[spr.NbPublicVariables+2][:], proof.LROpp[2].ID)
 
-	beta, err := deriveRandomness(&fs, "gamma", dataFiatShamir...)
+	beta, err := deriveRandomnessFixedSize(&fs, "gamma", dataFiatShamir...)
 	if err != nil {
 		return nil, err
 	}
@@ -680,6 +676,24 @@ func blindPoly(cp []fr.Element, rou, bo uint64) ([]fr.Element, error) {
 	}
 
 	return res, nil
+}
+
+func deriveRandomnessFixedSize(fs *fiatshamir.Transcript, challenge string, data ...[fr.Bytes]byte) (fr.Element, error) {
+
+	var r fr.Element
+	for _, d := range data {
+		if err := fs.Bind(challenge, d[:]); err != nil {
+			return r, err
+		}
+	}
+
+	b, err := fs.ComputeChallenge(challenge)
+	if err != nil {
+		return r, err
+	}
+	r.SetBytes(b)
+	return r, nil
+
 }
 
 func deriveRandomness(fs *fiatshamir.Transcript, challenge string, data ...[]byte) (fr.Element, error) {

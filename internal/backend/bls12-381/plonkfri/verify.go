@@ -36,19 +36,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_381witness.Witne
 	hFunc := sha256.New()
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
-	dataFiatShamir := make([][]byte, len(publicWitness)+3)
+	dataFiatShamir := make([][fr.Bytes]byte, len(publicWitness)+3)
 	for i := 0; i < len(publicWitness); i++ {
-		dataFiatShamir[i] = make([]byte, len(publicWitness[i]))
-		copy(dataFiatShamir[i], publicWitness[i].Marshal())
+		copy(dataFiatShamir[i][:], publicWitness[i].Marshal())
 	}
-	dataFiatShamir[len(publicWitness)] = make([]byte, fr.Bytes)
-	dataFiatShamir[len(publicWitness)+1] = make([]byte, fr.Bytes)
-	dataFiatShamir[len(publicWitness)+2] = make([]byte, fr.Bytes)
-	copy(dataFiatShamir[len(publicWitness)], proof.LROpp[0].ID)
-	copy(dataFiatShamir[len(publicWitness)+1], proof.LROpp[1].ID)
-	copy(dataFiatShamir[len(publicWitness)+2], proof.LROpp[2].ID)
+	copy(dataFiatShamir[len(publicWitness)][:], proof.LROpp[0].ID)
+	copy(dataFiatShamir[len(publicWitness)+1][:], proof.LROpp[1].ID)
+	copy(dataFiatShamir[len(publicWitness)+2][:], proof.LROpp[2].ID)
 
-	beta, err := deriveRandomness(&fs, "gamma", dataFiatShamir...)
+	beta, err := deriveRandomnessFixedSize(&fs, "gamma", dataFiatShamir...)
 	if err != nil {
 		return err
 	}
