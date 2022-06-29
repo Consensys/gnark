@@ -186,9 +186,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		evaluationBlindedLDomainBigBitReversed,
 		evaluationBlindedRDomainBigBitReversed,
 		evaluationBlindedODomainBigBitReversed,
-		evaluationQkCompleteDomainBigBitReversed) // CORRECT
+		evaluationQkCompleteDomainBigBitReversed)
 
-	evaluationBlindedZDomainBigBitReversed := fftBigCosetWOBitReverse(blindedZCanonical, &pk.Domain[1]) // CORRECT
+	evaluationBlindedZDomainBigBitReversed := fftBigCosetWOBitReverse(blindedZCanonical, &pk.Domain[1])
 
 	evaluationOrderingDomainBigBitReversed := evaluateOrderingDomainBigBitReversed(
 		pk,
@@ -196,14 +196,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_377witness.Witn
 		evaluationBlindedLDomainBigBitReversed,
 		evaluationBlindedRDomainBigBitReversed,
 		evaluationBlindedODomainBigBitReversed,
-		beta, gamma) // CORRECT
+		beta, gamma)
 
 	h1Canonical, h2Canonical, h3Canonical := computeQuotientCanonical(
 		pk,
 		evaluationConstraintsDomainBigBitReversed,
 		evaluationOrderingDomainBigBitReversed,
 		evaluationBlindedZDomainBigBitReversed,
-		alpha) // CORRECT
+		alpha)
 
 	// 6 - commit to H
 	proof.Hpp[0], err = pk.Vk.Iopp.BuildProofOfProximity(h1Canonical)
