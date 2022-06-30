@@ -17,9 +17,12 @@ limitations under the License.
 package kzg_bls12377
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -40,6 +43,50 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 
 	return nil
 }
+
+//-------------------------------------------------------
+// proof generated using gnark-crypto
+
+func TestVerifierVariable(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	// sizes of polynomials, kzg
+	const kzgSize = 128
+	const polynomialSize = 100
+
+	// trusted setup
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	// random polynomial
+	f := make([]fr.Element, polynomialSize)
+	for i := 0; i < 60; i++ {
+		f[i].SetRandom()
+	}
+
+	// commit to the polynomial
+	com, err := kzg.Commit(f, srs)
+	assert.NoError(err)
+
+	// create opening proof
+	var point fr.Element
+	point.SetRandom()
+	proof, err := kzg.Open(f, point, srs)
+	assert.NoError(err)
+
+	// check that the proof is correct
+	err = kzg.Verify(&com, &proof, point, srs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+//-------------------------------------------------------
+// harcoded values
 
 func TestVerifier(t *testing.T) {
 
