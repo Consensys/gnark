@@ -43,6 +43,13 @@ type OpeningProof struct {
 
 // Verify verifies a KZG opening proof at a single point
 func Verify(api frontend.API, commitment Digest, proof OpeningProof, point frontend.Variable, srs VK) {
+	// We take the ClaimedValue and point to be frontend.Variable wich
+	// are elements in 𝔽_p, i.e. the BW6-761 scalar field.
+	// This is different from 𝔽_r, i.e. the BLS12-377 scalar field
+	// but r << p (p-r ≈ 377-bit) so when adding two 𝔽_r elements
+	// as 𝔽_p there is no reduction mod p.
+	// However, we should be cautious about negative elements and take
+	// the negative of points instead (-[f(a)]G₁ and -[a]G₂).
 
 	// [f(a)]G₁
 	var claimedValueG1Aff sw_bls12377.G1Affine
