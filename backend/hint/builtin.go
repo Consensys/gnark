@@ -2,8 +2,6 @@ package hint
 
 import (
 	"math/big"
-
-	"github.com/consensys/gnark-crypto/ecc"
 )
 
 func init() {
@@ -13,11 +11,8 @@ func init() {
 // IsZero computes the value 1 - a^(modulus-1) for the single input a. This
 // corresponds to checking if a == 0 (for which the function returns 1) or a
 // != 0 (for which the function returns 0).
-func IsZero(curveID ecc.ID, inputs []*big.Int, results []*big.Int) error {
+func IsZero(q *big.Int, inputs []*big.Int, results []*big.Int) error {
 	result := results[0]
-
-	// get fr modulus
-	q := curveID.Info().Fr.Modulus()
 
 	// save input
 	result.Set(inputs[0])

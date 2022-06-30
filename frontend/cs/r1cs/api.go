@@ -105,7 +105,7 @@ func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			n1.Mul(n1, n2).Mod(n1, system.CurveID.Info().Fr.Modulus())
+			n1.Mul(n1, n2).Mod(n1, system.q)
 			return system.toVariable(n1).(compiled.LinearExpression)
 		}
 
@@ -174,7 +174,7 @@ func (system *r1cs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.q
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -210,7 +210,7 @@ func (system *r1cs) Div(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.q
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -231,7 +231,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
+		c.ModInverse(c, system.q)
 		return system.toVariable(c)
 	}
 
@@ -254,7 +254,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 // The result in in little endian (first bit= lsb)
 func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -459,12 +459,12 @@ func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i1, i2)
-	bi1 := system.ToBinary(vars[0], system.BitLen())
-	bi2 := system.ToBinary(vars[1], system.BitLen())
+	bi1 := system.ToBinary(vars[0], system.FieldBitLen())
+	bi2 := system.ToBinary(vars[1], system.FieldBitLen())
 
 	res := system.toVariable(0)
 
-	for i := system.BitLen() - 1; i >= 0; i-- {
+	for i := system.FieldBitLen() - 1; i >= 0; i-- {
 
 		iszeroi1 := system.IsZero(bi1[i])
 		iszeroi2 := system.IsZero(bi2[i])

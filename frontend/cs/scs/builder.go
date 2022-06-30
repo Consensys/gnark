@@ -40,12 +40,14 @@ import (
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/consensys/gnark/internal/tinyfield"
+	tinyfieldr1cs "github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 )
 
-func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
-	return newBuilder(curve, config), nil
+func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
+	return newBuilder(field, config), nil
 }
 
 type scs struct {
@@ -57,27 +59,25 @@ type scs struct {
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[int]struct{}
+
+	q *big.Int
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *scs {
+func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 	system := scs{
-		ConstraintSystem: compiled.ConstraintSystem{
-			MDebug:             make(map[int]int),
-			MHints:             make(map[int]*compiled.Hint),
-			MHintsDependencies: make(map[hint.ID]string),
-		},
-		mtBooleans:  make(map[int]struct{}),
-		Constraints: make([]compiled.SparseR1C, 0, config.Capacity),
-		st:          cs.NewCoeffTable(),
-		config:      config,
+		ConstraintSystem: compiled.NewConstraintSystem(field),
+		mtBooleans:       make(map[int]struct{}),
+		Constraints:      make([]compiled.SparseR1C, 0, config.Capacity),
+		st:               cs.NewCoeffTable(),
+		config:           config,
 	}
 
 	system.Public = make([]string, 0)
 	system.Secret = make([]string, 0)
 
-	system.CurveID = curveID
+	system.q = system.Field()
 
 	return &system
 }
@@ -134,7 +134,6 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	mod := system.CurveID.Info().Fr.Modulus()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
@@ -142,7 +141,7 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
-			c.Mod(c, mod)
+			c.Mod(c, system.q)
 			l[i-1].SetCoeffID(system.st.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)
 			i--
@@ -297,7 +296,6 @@ func init() {
 func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().
-		Str("curve", cs.CurveID.String()).
 		Int("nbConstraints", len(cs.Constraints)).
 		Msg("building constraint system")
 
@@ -325,7 +323,9 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	switch cs.CurveID {
+	curve := utils.FieldToCurve(cs.q)
+
+	switch curve {
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS12_381:
@@ -339,6 +339,10 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	case ecc.BW6_633:
 		return bw6633r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	default:
+		q := cs.Field()
+		if q.Cmp(tinyfield.Modulus()) == 0 {
+			return tinyfieldr1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
+		}
 		panic("unknown curveID")
 	}
 
@@ -461,10 +465,6 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (system *scs) Backend() backend.ID {
-	return backend.PLONK
-}
-
 // Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
 // measure constraints, variables and coefficients creations through AddCounter
 func (system *scs) Tag(name string) frontend.Tag {
@@ -486,7 +486,6 @@ func (system *scs) AddCounter(from, to frontend.Tag) {
 		To:            to.Name,
 		NbVariables:   to.VID - from.VID,
 		NbConstraints: to.CID - from.CID,
-		CurveID:       system.CurveID,
 		BackendID:     backend.PLONK,
 	})
 }
@@ -576,7 +575,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
-			b.Mul(&b, &n).Mod(&b, system.CurveID.Info().Fr.Modulus())
+			b.Mul(&b, &n).Mod(&b, system.q)
 		}
 	}
 	return res, b

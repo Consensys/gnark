@@ -95,10 +95,10 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	for _, curve := range opt.curves {
 		curve := curve
 		// parse the assignment and instantiate the witness
-		validWitness, err := frontend.NewWitness(validAssignment, curve)
+		validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
 		assert.NoError(err, "can't parse valid assignment")
 
-		validPublicWitness, err := frontend.NewWitness(validAssignment, curve, frontend.PublicOnly())
+		validPublicWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField(), frontend.PublicOnly())
 		assert.NoError(err, "can't parse valid assignment")
 
 		if opt.witnessSerialization {
@@ -133,7 +133,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 				checkError(err)
 
 				// must not error with big int test engine (only the curveID is needed for this test)
-				err = IsSolved(circuit, validAssignment, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, validAssignment, curve.ScalarField())
 				checkError(err)
 
 				assert.t.Parallel()
@@ -205,9 +205,9 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	for _, curve := range opt.curves {
 
 		// parse assignment
-		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 		assert.NoError(err, "can't parse invalid assignment")
-		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve, frontend.PublicOnly())
+		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField(), frontend.PublicOnly())
 		assert.NoError(err, "can't parse invalid assignment")
 
 		for _, b := range opt.backends {
@@ -223,7 +223,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				checkError(err)
 
 				// must error with big int test engine (only the curveID is needed here)
-				err = IsSolved(circuit, invalidAssignment, curve, backend.UNKNOWN)
+				err = IsSolved(circuit, invalidAssignment, curve.ScalarField())
 				mustError(err)
 
 				assert.t.Parallel()
@@ -285,7 +285,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 
 func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	validWitness, err := frontend.NewWitness(validAssignment, curve)
+	validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse valid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
@@ -295,7 +295,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	checkError(err)
 
 	// must not error with big int test engine
-	err = IsSolved(circuit, validAssignment, curve, b)
+	err = IsSolved(circuit, validAssignment, curve.ScalarField())
 	checkError(err)
 
 	err = ccs.IsSolved(validWitness, opt.proverOpts...)
@@ -319,7 +319,7 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve)
+	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse invalid assignment")
 
 	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
@@ -330,7 +330,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	checkError(err)
 
 	// must error with big int test engine
-	err = IsSolved(circuit, invalidAssignment, curve, b)
+	err = IsSolved(circuit, invalidAssignment, curve.ScalarField())
 	mustError(err)
 
 	err = ccs.IsSolved(invalidWitness, opt.proverOpts...)
@@ -404,9 +404,10 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	// fuzz a witness
 	fuzzer(w, curve)
 
-	err := IsSolved(circuit, w, curve, b)
+	errVars := IsSolved(circuit, w, curve.ScalarField())
+	errConsts := IsSolved(circuit, w, curve.ScalarField(), SetAllVariablesAsConstants())
 
-	if err == nil {
+	if errVars == nil && errConsts == nil {
 		// valid witness
 		assert.solvingSucceeded(circuit, w, b, curve, opt)
 		return 1
@@ -453,12 +454,12 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	}
 
 	// else compile it and ensure it is deterministic
-	ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
+	ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	_ccs, err := frontend.Compile(curveID, newBuilder, circuit, compileOpts...)
+	_ccs, err := frontend.Compile(curveID.ScalarField(), newBuilder, circuit, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}

@@ -58,7 +58,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func BenchmarkCompile(b *testing.B) {
 	var ccs frontend.CompiledConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &circuit)
+		ccs, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }

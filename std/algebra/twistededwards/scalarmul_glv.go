@@ -49,9 +49,9 @@ type glvParams struct {
 	glvBasis      ecc.Lattice
 }
 
-var DecomposeScalar = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DecomposeScalar = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
 	// the efficient endomorphism exists on Bandersnatch only
-	if curve != ecc.BLS12_381 {
+	if scalarField.Cmp(ecc.BLS12_381.ScalarField()) != 0 {
 		return errors.New("no efficient endomorphism is available on this curve")
 	}
 	var glv glvParams
