@@ -47,7 +47,7 @@ func (circuit *verifierCircuit) Define(api frontend.API) error {
 //-------------------------------------------------------
 // proof generated using gnark-crypto
 
-func TestVerifierVariable(t *testing.T) {
+func TestVerifierDynamic(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
@@ -82,6 +82,36 @@ func TestVerifierVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// verify the proof in circuit
+	var witness verifierCircuit
+
+	// populate the witness
+	witness.Com.X = com.X.String()
+	witness.Com.Y = com.Y.String()
+
+	witness.Proof.H.X = proof.H.X.String()
+	witness.Proof.H.Y = proof.H.Y.String()
+
+	witness.Proof.ClaimedValue = proof.ClaimedValue.String()
+
+	witness.S = point.String()
+
+	witness.VerifKey.G1.X = srs.G1[0].X.String()
+	witness.VerifKey.G1.Y = srs.G1[0].Y.String()
+
+	witness.VerifKey.G2[0].X.A0 = srs.G2[0].X.A0.String()
+	witness.VerifKey.G2[0].X.A1 = srs.G2[0].X.A1.String()
+	witness.VerifKey.G2[0].Y.A0 = srs.G2[0].Y.A0.String()
+	witness.VerifKey.G2[0].Y.A1 = srs.G2[0].Y.A1.String()
+	witness.VerifKey.G2[1].X.A0 = srs.G2[1].X.A0.String()
+	witness.VerifKey.G2[1].X.A1 = srs.G2[1].X.A1.String()
+	witness.VerifKey.G2[1].Y.A0 = srs.G2[1].Y.A0.String()
+	witness.VerifKey.G2[1].Y.A1 = srs.G2[1].Y.A1.String()
+
+	// check if the circuit is solved
+	var circuit verifierCircuit
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 
 }
 
