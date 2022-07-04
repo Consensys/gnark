@@ -198,6 +198,16 @@ func (fp *Params) Placeholder() Element {
 	return e
 }
 
+// From returns an element by regrouping the limbs to these parameters.
+func (fp *Params) From(api frontend.API, a Element) Element {
+	return Element{
+		api:      api,
+		params:   fp,
+		overflow: a.overflow,
+		Limbs:    regroupLimbs(api, a.params, fp, a.Limbs),
+	}
+}
+
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
@@ -250,8 +260,6 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
 	maxValueShift := new(big.Int).Lsh(big.NewInt(1), nbCarryBits)
 
-	// TODO: group carries. xjsnark paper describes that we can actually compute
-	// a carry over multiple limbs (assuming the limbs are small enough).
 	var carry frontend.Variable = 0
 	for i := 0; i < nbLimbs; i++ {
 		diff := api.Add(maxValue, carry)
@@ -264,16 +272,14 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		if i > 0 {
 			diff = api.Sub(diff, maxValueShift)
 		}
-		// TODO: instead of full binary decomposition, do unconstrained
-		// decomposition and check that the bits are zeros. Does not make
-		// difference for R1CS but should require fever constraints for PLONK.
 		// TODO: more efficient methods for splitting a variable? Because we are
 		// splitting the value into two, then maybe we do not need the whole
 		// binary decomposition \sum_{i=0}^n a_i 2^i, but can use a * 2^nbits +
 		// b. Then we can also omit the FromBinary call.
-		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)))
-		diffMain := bits.FromBinary(api, diffBits[:nbBits])
-		api.AssertIsEqual(diffMain, 0)
+		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)), bits.WithUnconstrainedOutputs())
+		for j := uint(0); j < nbBits; j++ {
+			api.AssertIsEqual(diffBits[j], 0)
+		}
 		carry = bits.FromBinary(api, diffBits[nbBits:nbBits+nbCarryBits+1])
 	}
 	api.AssertIsEqual(carry, maxValueShift)
@@ -283,22 +289,20 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
 func (e *Element) AssertLimbsEquality(a Element) {
-	// fast path -- no overflow -- can just compare limb-wise
-	if a.overflow == e.overflow {
-		// TODO: not complete - we should also ensure that len(e.Limbs) <=
-		// len(a.Limbs) and ensure that rest of e.Limbs are zero
-		for i := range a.Limbs {
-			e.api.AssertIsEqual(a.Limbs[i], e.Limbs[i])
-		}
-		return
+	maxOverflow := e.overflow
+	if a.overflow > e.overflow {
+		maxOverflow = a.overflow
 	}
+	rgpar := regroupParams(e.params, uint(e.api.Compiler().FieldBitLen()), maxOverflow)
+	rge := rgpar.From(e.api, *e)
+	rga := rgpar.From(e.api, a)
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if e.overflow > a.overflow {
-		assertLimbsEqualitySlow(e.api, e.Limbs, a.Limbs, e.params.nbBits, e.overflow)
+		assertLimbsEqualitySlow(rge.api, rge.Limbs, rga.Limbs, rge.params.nbBits, rge.overflow)
 	} else {
-		assertLimbsEqualitySlow(e.api, a.Limbs, e.Limbs, a.params.nbBits, a.overflow)
+		assertLimbsEqualitySlow(rge.api, rga.Limbs, rge.Limbs, rga.params.nbBits, rga.overflow)
 	}
 }
 
@@ -361,11 +365,6 @@ func (e *Element) Add(a, b Element) *Element {
 // Mul sets e to a*b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Mul(a, b Element) *Element {
-	// TODO: we mistakenly assume here that the factors are completely reduced
-	// (their overflow is zero). Actually, we should be able to compute product
-	// even when the results have non-zero factor. We should add checks if the
-	// multiplication result would not fit into the scalar result and compute
-	// the overflow of the result accordingly.
 	// XXX: currently variable case only
 	// TODO: when one element is constant.
 	// TODO: check that target is initialized (has an API)
@@ -399,7 +398,7 @@ func (e *Element) Mul(a, b Element) *Element {
 		e.api.AssertIsEqual(e.api.Mul(l, r), o)
 	}
 	e.Limbs = limbs
-	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*e.params.nbLimbs-1))) + 1
+	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*len(limbs)-1))) + 1 + a.overflow + b.overflow
 	// result is not reduced
 	return e
 }
@@ -418,7 +417,6 @@ func (e *Element) Reduce(a Element) *Element {
 	}
 	e.Limbs = r
 	e.overflow = 0
-	e.EnforceWidth()
 	e.AssertIsEqual(a)
 	return e
 }
@@ -440,7 +438,7 @@ func (e *Element) Set(a Element) {
 func (e *Element) AssertIsEqual(a Element) {
 	diff := e.params.Element(e.api)
 	diff.Sub(a, *e)
-	kLimbs, err := computeEqualityHint(e.api, e.params, diff.Limbs)
+	kLimbs, err := computeEqualityHint(e.api, e.params, diff)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
