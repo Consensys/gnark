@@ -375,7 +375,7 @@ func (e *Element) Mul(a, b Element) *Element {
 	}
 	// create constraints (\sum_{i=0}^{m-1} a_i c^i) * (\sum_{i=0}^{m-1} b_i
 	// c^i) = (\sum_{i=0}^{2m-2} z_i c^i) for c \in {1, 2m-1}
-	for c := 1; c < len(limbs); c++ {
+	for c := 1; c <= len(limbs); c++ {
 		cb := big.NewInt(int64(c)) // c
 		bit := big.NewInt(1)       // c^i
 		l := e.api.Mul(a.Limbs[0], bit)
