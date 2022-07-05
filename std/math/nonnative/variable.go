@@ -512,16 +512,16 @@ func (e *Element) AssertIsLessEqualThan(a Element) {
 	aBits := a.ToBits()
 	f := func(xbits, ybits []frontend.Variable) []frontend.Variable {
 		diff := len(xbits) - len(ybits)
-		aBits = append(ybits, make([]frontend.Variable, diff)...)
+		ybits = append(ybits, make([]frontend.Variable, diff)...)
 		for i := len(ybits) - diff - 1; i < len(ybits); i++ {
 			ybits[i] = 0
 		}
 		return ybits
 	}
 	if len(eBits) > len(aBits) {
-		f(eBits, aBits)
+		aBits = f(eBits, aBits)
 	} else {
-		f(aBits, eBits)
+		eBits = f(aBits, eBits)
 	}
 	p := make([]frontend.Variable, len(eBits)+1)
 	p[len(eBits)] = 1
