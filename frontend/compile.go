@@ -33,7 +33,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
-	opt := CompileConfig{}
+	opt := CompileConfig{wrapper: func(b Builder) Builder { return b }}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			log.Err(err).Msg("applying compile option")
@@ -47,6 +47,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
+	builder = opt.wrapper(builder)
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
@@ -139,6 +140,7 @@ type CompileOption func(opt *CompileConfig) error
 type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
+	wrapper                   BuilderWrapper
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -161,6 +163,19 @@ func WithCapacity(capacity int) CompileOption {
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.IgnoreUnconstrainedInputs = true
+		return nil
+	}
+}
+
+// BuilderWrapper wraps existing Builder.
+type BuilderWrapper func(Builder) Builder
+
+// WithBuilderWrapper is a compile option which wraps the builder before parsing
+// the schema and calling Define method of the circuit. If not set, then the
+// builder returned by the NewBuilder is directly used.
+func WithBuilderWrapper(wrapper BuilderWrapper) CompileOption {
+	return func(opt *CompileConfig) error {
+		opt.wrapper = wrapper
 		return nil
 	}
 }
