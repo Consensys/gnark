@@ -66,11 +66,25 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
+	var countedPublic, countedPrivate int
+	counterHandler := func(f *schema.Field, tInput reflect.Value) error {
+		varCount := builder.VariableCount(tInput.Type())
+		switch f.Visibility {
+		case schema.Secret:
+			countedPrivate += varCount
+		case schema.Public:
+			countedPublic += varCount
+		}
+		return nil
+	}
+
 	// parse the schema, to count the number of public and secret variables
-	s, err := schema.Parse(circuit, tVariable, nil)
+	s, err := schema.Parse(circuit, tVariable, counterHandler)
 	if err != nil {
 		return err
 	}
+	s.NbPublic = countedPublic
+	s.NbSecret = countedPrivate
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
@@ -79,25 +93,25 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+	adderHandler := func(f *schema.Field, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
-			switch visibility {
+			switch f.Visibility {
 			case schema.Secret:
-				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(f)))
 			case schema.Public:
-				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(f)))
 			case schema.Unset:
-				return errors.New("can't set val " + name + " visibility is unset")
+				return errors.New("can't set val " + f.FullName + " visibility is unset")
 			}
 
 			return nil
 		}
-		return errors.New("can't set val " + name)
+		return errors.New("can't set val " + f.FullName)
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	_, err = schema.Parse(circuit, tVariable, handler)
+	_, err = schema.Parse(circuit, tVariable, adderHandler)
 	if err != nil {
 		return err
 	}

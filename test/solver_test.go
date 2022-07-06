@@ -178,16 +178,16 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 // values are assumed to be ordered [public | secret]
 func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
-	schema.Parse(to, tVariable, func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if visibility == schema.Public {
+	schema.Parse(to, tVariable, func(f *schema.Field, tInput reflect.Value) error {
+		if f.Visibility == schema.Public {
 			tInput.Set(reflect.ValueOf((from[i])))
 			i++
 		}
 		return nil
 	})
 
-	schema.Parse(to, tVariable, func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if visibility == schema.Secret {
+	schema.Parse(to, tVariable, func(f *schema.Field, tInput reflect.Value) error {
+		if f.Visibility == schema.Secret {
 			tInput.Set(reflect.ValueOf((from[i])))
 			i++
 		}
