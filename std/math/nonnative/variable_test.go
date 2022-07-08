@@ -42,6 +42,11 @@ func emulatedFields(t *testing.T) []emulatedField {
 		}
 		ret = append(ret, emulatedField{secp256k1fp, "secp256k1"})
 	}
+	goldilocks, err := NewParams(64, new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ret = append(ret, emulatedField{goldilocks, "goldilocks"})
 	return ret
 }
 
