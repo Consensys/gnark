@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/logger"
 )
 
 const nbCurves = 6
@@ -98,6 +99,11 @@ func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 func (s *globalStats) Add(curve ecc.ID, backendID backend.ID, cs snippetStats, circuitName string) {
 	s.Lock()
 	defer s.Unlock()
+	if backendID == backend.PLONKFRI {
+		log := logger.Logger()
+		log.Warn().Msg("ignoring plonk_fri circuit")
+		return
+	}
 	rs := s.Stats[circuitName]
 	rs[backendID][CurveIdx(curve)] = cs
 	s.Stats[circuitName] = rs
