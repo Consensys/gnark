@@ -102,7 +102,7 @@ func TestEmulatedApi(t *testing.T) {
 		Res:    params.ConstantFromBigOrPanic(res),
 	}
 
-	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization())
 }
 
 type WrapperCircuit struct {

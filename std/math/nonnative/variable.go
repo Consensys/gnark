@@ -77,7 +77,7 @@ func NewParams(nbBits int, r *big.Int) (*Params, error) {
 	}
 	nbLimbs := (r.BitLen() + nbBits - 1) / nbBits
 	fp := &Params{
-		r:           r,
+		r:           new(big.Int).Set(r),
 		nbLimbs:     uint(nbLimbs),
 		nbBits:      uint(nbBits),
 		hasInverses: r.ProbablyPrime(20),

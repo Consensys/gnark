@@ -12,9 +12,20 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 const testCurve = ecc.BN254
+
+var (
+	qGoldilocks *big.Int
+	qSecp256k1  *big.Int
+)
+
+func init() {
+	qGoldilocks, _ = new(big.Int).SetString("ffffffff00000001", 16)
+	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
+}
 
 // TODO: add also cases which should fail
 
@@ -25,27 +36,27 @@ type emulatedField struct {
 
 func emulatedFields(t *testing.T) []emulatedField {
 	t.Helper()
+	assert := require.New(t)
+
+	if testing.Short() {
+		secp256k1fp, err := NewParams(64, qSecp256k1)
+		assert.NoError(err)
+		return []emulatedField{{secp256k1fp, "secp256k1"}}
+	}
+
 	var ret []emulatedField
-	for _, limbLength := range []int{32, 48, 64, 120} {
-		bn254fp, err := NewParams(limbLength, ecc.BN254.BaseField())
-		if err != nil {
-			t.Fatal(err)
-		}
+
+	for _, l := range []int{32, 48, 64, 120} {
+		bn254fp, err := NewParams(l, ecc.BN254.BaseField())
+		assert.NoError(err)
 		ret = append(ret, emulatedField{bn254fp, "bn254fp"})
-		secp256k1fp, err := NewParams(limbLength, new(big.Int).SetBytes([]byte{
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFC, 0x2F,
-		}))
-		if err != nil {
-			t.Fatal(err)
-		}
+
+		secp256k1fp, err := NewParams(l, qSecp256k1)
+		assert.NoError(err)
 		ret = append(ret, emulatedField{secp256k1fp, "secp256k1"})
 	}
-	goldilocks, err := NewParams(64, new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	goldilocks, err := NewParams(64, qGoldilocks)
+	assert.NoError(err)
 	ret = append(ret, emulatedField{goldilocks, "goldilocks"})
 	return ret
 }
@@ -85,7 +96,7 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 				A:      params.ConstantFromBigOrPanic(val),
 				B:      params.ConstantFromBigOrPanic(val),
 			}
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -123,7 +134,7 @@ func TestAssertIsLessEqualThan(t *testing.T) {
 				L:      params.ConstantFromBigOrPanic(L),
 				R:      params.ConstantFromBigOrPanic(R),
 			}
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -165,7 +176,7 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -207,7 +218,7 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -250,7 +261,7 @@ func TestMulCircuitOverflow(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -294,7 +305,7 @@ func TestReduceAfterAdd(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(val1),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -336,7 +347,7 @@ func TestSubtractNoOverflow(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -365,7 +376,7 @@ func TestSubtractOverflow(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -403,7 +414,7 @@ func TestNegation(t *testing.T) {
 				B:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -444,7 +455,7 @@ func TestInverse(t *testing.T) {
 				B:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -491,7 +502,7 @@ func TestDivision(t *testing.T) {
 				C:      params.ConstantFromBigOrPanic(res),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -539,7 +550,7 @@ func TestToBits(t *testing.T) {
 				Bits:   bits,
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -581,7 +592,7 @@ func TestFromBits(t *testing.T) {
 				Res:    params.ConstantFromBigOrPanic(val1),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.WithProverOpts(backend.WithHints(GetHints()...)))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK), test.WithProverOpts(backend.WithHints(GetHints()...)))
 		}, testName(fp))
 	}
 }
@@ -617,7 +628,7 @@ func TestConstant(t *testing.T) {
 				B:      params.ConstantFromBigOrPanic(val),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.WithProverOpts(backend.WithHints(GetHints()...)))
+			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK), test.WithProverOpts(backend.WithHints(GetHints()...)))
 		}, testName(fp))
 	}
 }
@@ -662,7 +673,7 @@ func TestSelect(t *testing.T) {
 				Selector: b,
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -716,7 +727,7 @@ func TestLookup2(t *testing.T) {
 				Bit1:   randbit.Bit(1),
 			}
 
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -824,7 +835,7 @@ func TestComputation(t *testing.T) {
 				X6:     params.ConstantFromBigOrPanic(val6),
 				Res:    params.ConstantFromBigOrPanic(res),
 			}
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
@@ -887,7 +898,7 @@ func TestFourMuls(t *testing.T) {
 		A:      params.ConstantFromBigOrPanic(val1),
 		Res:    params.ConstantFromBigOrPanic(res),
 	}
-	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 }
 
 type RegroupCircuit struct {
@@ -930,7 +941,7 @@ func TestRegroupCircuit(t *testing.T) {
 				B:      params.ConstantFromBigOrPanic(val2),
 				C:      params.ConstantFromBigOrPanic(res),
 			}
-			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 		}, testName(fp))
 	}
 }
