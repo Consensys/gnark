@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
+	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -13,91 +14,71 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-type API interface {
-	frontend.API
-	PackLimbs(limbs []frontend.Variable) Element
-}
+// field defines the parameters of the emulated ring of integers modulo n. If
+// n is prime, then the ring is also a finite field where inverse and division
+// are allowed.
+type field struct {
+	// api is the native API
+	api     frontend.API
+	builder frontend.Builder
 
-// BuilderWrapper returns a wrapper for the builder which is compatible to use
-// as a frontend compile option. When using this wrapper, it is possible to
-// extend existing circuits into any emulated field defined by params.
-func BuilderWrapper(params *Params) frontend.BuilderWrapper {
-	return func(b frontend.Builder) frontend.Builder {
-		return &fakeAPI{
-			builder: b,
-			api:     b,
-			params:  params,
-		}
-	}
-}
+	// r is the modulus
+	r *big.Int
+	// hasInverses indicates if order is prime
+	hasInverses bool
+	// nbLimbs is the number of limbs which fit reduced element
+	nbLimbs uint
+	// limbSize is number of bits per limb. Top limb may contain less than
+	// limbSize bits.
+	limbSize uint
+	// maxOf is the maximum overflow before the element must be reduced.
+	maxOf     uint
+	maxOfOnce sync.Once
 
-func (f *fakeAPI) Compile() (frontend.CompiledConstraintSystem, error) {
-	return f.builder.Compile()
-}
-
-func (f *fakeAPI) SetSchema(s *schema.Schema) {
-	f.builder.SetSchema(s)
-}
-
-func (f *fakeAPI) VariableCount(t reflect.Type) int {
-	return int(f.params.nbLimbs)
-}
-
-func (f *fakeAPI) addVariable(field *schema.Field, recurseFn func(*schema.Field) frontend.Variable) frontend.Variable {
-	limbs := make([]frontend.Variable, f.params.nbLimbs)
-	var subfs []schema.Field
-	for i := range limbs {
-		subf := schema.Field{
-			Name:       strconv.Itoa(i),
-			Visibility: field.Visibility,
-			FullName:   fmt.Sprintf("%s_%d", field.FullName, i),
-			Type:       schema.Leaf,
-			ArraySize:  1,
-		}
-		subfs = append(subfs, subf)
-		limbs[i] = recurseFn(&subf)
-	}
-	field.ArraySize = len(subfs)
-	field.Type = schema.Array
-	field.SubFields = subfs
-	el := f.params.PackLimbs(limbs)
-	return el
-}
-
-func (f *fakeAPI) AddPublicVariable(field *schema.Field) frontend.Variable {
-	return f.addVariable(field, f.builder.AddPublicVariable)
-}
-
-func (f *fakeAPI) AddSecretVariable(field *schema.Field) frontend.Variable {
-	return f.addVariable(field, f.builder.AddSecretVariable)
-
+	// constants for often used elements n, 0 and 1. Allocated only once
+	nConstOnce    sync.Once
+	nConst        *Element `gnark:"-"`
+	zeroConstOnce sync.Once
+	zeroConst     *Element `gnark:"-"`
+	oneConstOnce  sync.Once
+	oneConst      *Element `gnark:"-"`
 }
 
 // NewField wraps the existing native API such that all methods are performed
 // using field emulation.
-func NewField(native frontend.API, r *big.Int, limbSize int) (API, error) {
-	params, err := NewParams(limbSize, r)
-	if err != nil {
-		return nil, err
+//
+// It initializes the parameters for emulating operations modulo n where
+// every limb of the element contains up to nbBits bits. Returns error if sanity
+// checks fail.
+//
+// This method checks the primality of n to detect if parameters define a finite
+// field. As such, invocation of this method is expensive and should be done
+// once.
+func NewField(native frontend.API, r *big.Int, nbBits int) (frontend.API, error) {
+
+	if r.Cmp(big.NewInt(1)) < 1 {
+		return nil, fmt.Errorf("n must be at least 2")
 	}
-	return &fakeAPI{
-		api:    native,
-		params: params,
-	}, nil
+	if nbBits < 3 {
+		// even three is way too small, but it should probably work.
+		return nil, fmt.Errorf("nbBits must be at least 3")
+	}
+	nbLimbs := (r.BitLen() + nbBits - 1) / nbBits
+	fp := &field{
+		r:           new(big.Int).Set(r),
+		nbLimbs:     uint(nbLimbs),
+		limbSize:    uint(nbBits),
+		hasInverses: r.ProbablyPrime(20),
+		api:         native,
+	}
+	return fp, nil
 }
 
-type fakeAPI struct {
-	// api is the native API
-	api     frontend.API
-	builder frontend.Builder
-	params  *Params
+func (f *field) SetNativeAPI(api frontend.API) {
+	f.api = api
 }
 
-func (f *fakeAPI) PackLimbs(limbs []frontend.Variable) Element {
-	return f.params.PackLimbs(limbs)
-}
-
-func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
+func (f *field) varToElement(in frontend.Variable) *Element {
 	var e *Element
 	switch vv := in.(type) {
 	case Element:
@@ -105,40 +86,40 @@ func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
 	case *Element:
 		e = vv
 	case *big.Int:
-		el := f.params.ConstantFromBigOrPanic(vv)
+		el := f.ConstantFromBigOrPanic(vv)
 		e = &el
 	case big.Int:
-		el := f.params.ConstantFromBigOrPanic(&vv)
+		el := f.ConstantFromBigOrPanic(&vv)
 		e = &el
 	case int:
-		el := f.params.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
+		el := f.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
 		e = &el
 	case string:
 		elb := new(big.Int)
 		elb.SetString(vv, 10)
-		el := f.params.ConstantFromBigOrPanic(elb)
+		el := f.ConstantFromBigOrPanic(elb)
 		e = &el
 	case interface{ ToBigIntRegular(*big.Int) *big.Int }:
 		b := new(big.Int)
 		vv.ToBigIntRegular(b)
-		el := f.params.ConstantFromBigOrPanic(b)
+		el := f.ConstantFromBigOrPanic(b)
 		e = &el
 	case compiled.LinearExpression:
-		el := f.params.PackLimbs([]frontend.Variable{in})
+		el := f.PackLimbs([]frontend.Variable{in})
 		e = &el
 	case compiled.Term:
-		el := f.params.PackLimbs([]frontend.Variable{in})
+		el := f.PackLimbs([]frontend.Variable{in})
 		e = &el
 	default:
 		panic(fmt.Sprintf("can not cast %T to *Element", in))
 	}
-	if !f.params.isEqual(e.params) {
+	if !f.isEqual(e.params) {
 		panic("incompatible Element parameters")
 	}
 	return e
 }
 
-func (f *fakeAPI) varsToElements(in ...frontend.Variable) []*Element {
+func (f *field) varsToElements(in ...frontend.Variable) []*Element {
 	var els []*Element
 	for i := range in {
 		switch v := in[i].(type) {
@@ -152,9 +133,9 @@ func (f *fakeAPI) varsToElements(in ...frontend.Variable) []*Element {
 	return els
 }
 
-func (f *fakeAPI) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *field) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.reduceAndOp(res.add, res.addPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
 		res.reduceAndOp(res.add, res.addPreCond, &res, els[i])
@@ -162,28 +143,28 @@ func (f *fakeAPI) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend
 	return &res
 }
 
-func (f *fakeAPI) Neg(i1 frontend.Variable) frontend.Variable {
+func (f *field) Neg(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.Negate(*el)
 	return &res
 }
 
-func (f *fakeAPI) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *field) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	sub := f.params.Element(f.api)
+	sub := f.Element(f.api)
 	sub.Set(*els[1])
 	for i := 2; i < len(els); i++ {
 		sub.reduceAndOp(sub.add, sub.addPreCond, &sub, els[i])
 	}
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.reduceAndOp(res.sub, res.subPreCond, els[0], &sub)
 	return &res
 }
 
-func (f *fakeAPI) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *field) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.reduceAndOp(res.mul, res.mulPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
 		res.reduceAndOp(res.mul, res.mulPreCond, &res, els[i])
@@ -191,27 +172,27 @@ func (f *fakeAPI) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend
 	return &res
 }
 
-func (f *fakeAPI) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *field) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	return f.Div(i1, i2)
 }
 
-func (f *fakeAPI) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *field) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.Div(*els[0], *els[1])
 	return &res
 }
 
-func (f *fakeAPI) Inverse(i1 frontend.Variable) frontend.Variable {
+func (f *field) Inverse(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.Inverse(*el)
 	return &res
 }
 
-func (f *fakeAPI) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (f *field) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.Reduce(*el)
 	out := res.ToBits()
 	switch len(n) {
@@ -224,54 +205,54 @@ func (f *fakeAPI) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	return out
 }
 
-func (f *fakeAPI) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (f *field) FromBinary(b ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(b)
 	bits := make([]frontend.Variable, len(els))
 	for i := range els {
 		f.AssertIsBoolean(els[i])
 		bits[i] = els[i].Limbs[0]
 	}
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	res.FromBits(bits)
 	return &res
 }
 
-func (f *fakeAPI) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *field) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.PackLimbs([]frontend.Variable{rv})
+	r := f.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
 }
 
-func (f *fakeAPI) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *field) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.PackLimbs([]frontend.Variable{rv})
+	r := f.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
 }
 
-func (f *fakeAPI) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *field) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.And(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.PackLimbs([]frontend.Variable{rv})
+	r := f.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
 }
 
-func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *field) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	switch vv := b.(type) {
 	case Element:
 		f.AssertIsBoolean(vv)
@@ -286,13 +267,13 @@ func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.
 	}
 	s0 := els[0]
 	s1 := els[1]
-	if s0.overflow != 0 || len(s0.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s0.overflow != 0 || len(s0.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s0)
 		s0 = &v
 	}
-	if s1.overflow != 0 || len(s1.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s1.overflow != 0 || len(s1.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s1)
 		s1 = &v
 	}
@@ -300,9 +281,9 @@ func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.
 	return &res
 }
 
-func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
+func (f *field) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i0, i1, i2, i3)
-	res := f.params.Element(f.api)
+	res := f.Element(f.api)
 	switch vv := b0.(type) {
 	case Element:
 		f.AssertIsBoolean(vv)
@@ -327,23 +308,23 @@ func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 fronten
 	s1 := els[1]
 	s2 := els[2]
 	s3 := els[3]
-	if s0.overflow != 0 || len(s0.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s0.overflow != 0 || len(s0.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s0)
 		s0 = &v
 	}
-	if s1.overflow != 0 || len(s1.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s1.overflow != 0 || len(s1.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s1)
 		s1 = &v
 	}
-	if s2.overflow != 0 || len(s2.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s2.overflow != 0 || len(s2.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s2)
 		s2 = &v
 	}
-	if s3.overflow != 0 || len(s3.Limbs) != int(f.params.nbLimbs) {
-		v := f.params.Element(f.api)
+	if s3.overflow != 0 || len(s3.Limbs) != int(f.nbLimbs) {
+		v := f.Element(f.api)
 		v.Reduce(*s3)
 		s3 = &v
 	}
@@ -351,36 +332,36 @@ func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 fronten
 	return &res
 }
 
-func (f *fakeAPI) IsZero(i1 frontend.Variable) frontend.Variable {
+func (f *field) IsZero(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	reduced := f.params.Element(f.api)
+	reduced := f.Element(f.api)
 	reduced.Reduce(*el)
 	res := f.api.IsZero(reduced.Limbs[0])
 	for i := 1; i < len(reduced.Limbs); i++ {
 		f.api.Mul(res, f.api.IsZero(reduced.Limbs[i]))
 	}
-	r := f.params.PackLimbs([]frontend.Variable{res})
+	r := f.PackLimbs([]frontend.Variable{res})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
 }
 
-func (f *fakeAPI) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *field) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	rls := []Element{f.params.Element(f.api), f.params.Element(f.api)}
+	rls := []Element{f.Element(f.api), f.Element(f.api)}
 	rls[0].Reduce(*els[0])
 	rls[1].Reduce(*els[1])
 	var res frontend.Variable = 0
-	for i := int(f.params.nbLimbs - 1); i >= 0; i-- {
+	for i := int(f.nbLimbs - 1); i >= 0; i-- {
 		lmbCmp := f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
 		res = f.api.Select(f.api.IsZero(res), lmbCmp, res)
 	}
 	return res
 }
 
-func (f *fakeAPI) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
+func (f *field) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	tmp := f.params.Element(f.api)
+	tmp := f.Element(f.api)
 	tmp.Set(*els[0])
 	tmp.reduceAndOp(func(a, b Element, nextOverflow uint) { a.AssertIsEqual(b) }, func(e1, e2 Element) (uint, error) {
 		nextOverflow, err := tmp.subPreCond(e2, e1)
@@ -393,13 +374,13 @@ func (f *fakeAPI) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	}, &tmp, els[1])
 }
 
-func (f *fakeAPI) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
+func (f *field) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	rls := []Element{f.params.Element(f.api), f.params.Element(f.api)}
+	rls := []Element{f.Element(f.api), f.Element(f.api)}
 	rls[0].Reduce(*els[0])
 	rls[1].Reduce(*els[1])
 	var res frontend.Variable = 0
-	for i := 0; i < int(f.params.nbLimbs); i++ {
+	for i := 0; i < int(f.nbLimbs); i++ {
 		cmp := f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
 		cmpsq := f.api.Mul(cmp, cmp)
 		res = f.api.Add(res, cmpsq)
@@ -407,17 +388,17 @@ func (f *fakeAPI) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) 
 	f.api.AssertIsDifferent(res, 0)
 }
 
-func (f *fakeAPI) AssertIsBoolean(i1 frontend.Variable) {
+func (f *field) AssertIsBoolean(i1 frontend.Variable) {
 	switch vv := i1.(type) {
 	case Element:
-		v := f.params.Element(f.api)
+		v := f.Element(f.api)
 		v.Reduce(vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			f.api.AssertIsEqual(v.Limbs[i], 0)
 		}
 	case *Element:
-		v := f.params.Element(f.api)
+		v := f.Element(f.api)
 		v.Reduce(*vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
@@ -428,27 +409,27 @@ func (f *fakeAPI) AssertIsBoolean(i1 frontend.Variable) {
 	}
 }
 
-func (f *fakeAPI) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (f *field) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	els := f.varsToElements(v, bound)
-	l := f.params.Element(f.api)
+	l := f.Element(f.api)
 	l.Reduce(*els[0])
-	r := f.params.Element(f.api)
+	r := f.Element(f.api)
 	r.Reduce(*els[1])
 	l.AssertIsLessEqualThan(r)
 }
 
-func (f *fakeAPI) Println(a ...frontend.Variable) {
+func (f *field) Println(a ...frontend.Variable) {
 	els := f.varsToElements(a)
 	for i := range els {
 		f.api.Println(els[i].Limbs...)
 	}
 }
 
-func (f *fakeAPI) Compiler() frontend.Compiler {
+func (f *field) Compiler() frontend.Compiler {
 	return f
 }
 
-func (f *fakeAPI) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (f *field) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	// this is a trick to allow calling hint functions using non-native
 	// elements. We use the fact that the hints take as inputs *big.Int values.
 	// Instead of supplying hf to the solver for calling, we wrap it with
@@ -490,14 +471,14 @@ func (f *fakeAPI) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Va
 			}
 		}
 	}
-	nbNativeOutputs := nbOutputs * int(f.params.nbLimbs)
+	nbNativeOutputs := nbOutputs * int(f.nbLimbs)
 	wrappedHint := func(_ *big.Int, expandedHintInputs []*big.Int, expandedHintOutputs []*big.Int) error {
 		hintInputs := make([]*big.Int, len(inputs))
 		hintOutputs := make([]*big.Int, nbOutputs)
 		for i, ti := range typedInputs {
 			hintInputs[i] = new(big.Int)
 			if ti.isElement {
-				if err := recompose(expandedHintInputs[ti.pos:ti.pos+ti.nbLimbs], f.params.nbBits, hintInputs[i]); err != nil {
+				if err := recompose(expandedHintInputs[ti.pos:ti.pos+ti.nbLimbs], f.limbSize, hintInputs[i]); err != nil {
 					return fmt.Errorf("recompose: %w", err)
 				}
 			} else {
@@ -507,11 +488,11 @@ func (f *fakeAPI) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Va
 		for i := range hintOutputs {
 			hintOutputs[i] = new(big.Int)
 		}
-		if err := hf(f.params.r, hintInputs, hintOutputs); err != nil {
+		if err := hf(f.r, hintInputs, hintOutputs); err != nil {
 			return fmt.Errorf("call hint: %w", err)
 		}
 		for i := range hintOutputs {
-			if err := decompose(hintOutputs[i], f.params.nbBits, expandedHintOutputs[i*int(f.params.nbLimbs):(i+1)*int(f.params.nbLimbs)]); err != nil {
+			if err := decompose(hintOutputs[i], f.limbSize, expandedHintOutputs[i*int(f.nbLimbs):(i+1)*int(f.nbLimbs)]); err != nil {
 				return fmt.Errorf("decompose: %w", err)
 			}
 		}
@@ -523,39 +504,41 @@ func (f *fakeAPI) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Va
 	}
 	ret := make([]frontend.Variable, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
-		el := f.params.Element(f.api)
-		el.Limbs = hintRet[i*int(f.params.nbLimbs) : (i+1)*int(f.params.nbLimbs)]
+		el := f.Element(f.api)
+		el.Limbs = hintRet[i*int(f.nbLimbs) : (i+1)*int(f.nbLimbs)]
 		ret[i] = &el
 	}
 	return ret, nil
 }
 
-func (f *fakeAPI) Tag(name string) frontend.Tag {
+func (f *field) Tag(name string) frontend.Tag {
 	return f.api.Compiler().Tag(name)
 }
 
-func (f *fakeAPI) AddCounter(from frontend.Tag, to frontend.Tag) {
+func (f *field) AddCounter(from frontend.Tag, to frontend.Tag) {
 	f.api.Compiler().AddCounter(from, to)
 }
 
-func (f *fakeAPI) ConstantValue(v frontend.Variable) (*big.Int, bool) {
+func (f *field) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	var constLimbs []*big.Int
 	var nbBits uint
-	var succ bool
+	var ok bool
 	switch vv := v.(type) {
+	// TODO @gbotrel since Element doesn't kow which fields it belongs to, this is a bit broken.
+	// replaced nbBits = vv.nbBits by nbBits = f.nbBits
 	case Element:
-		nbBits = vv.params.nbBits
+		nbBits = f.limbSize
 		constLimbs = make([]*big.Int, len(vv.Limbs))
 		for i := range vv.Limbs {
-			if constLimbs[i], succ = f.api.Compiler().ConstantValue(vv.Limbs[i]); !succ {
+			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
 				return nil, false
 			}
 		}
 	case *Element:
-		nbBits = vv.params.nbBits
+		nbBits = f.limbSize
 		constLimbs = make([]*big.Int, len(vv.Limbs))
 		for i := range vv.Limbs {
-			if constLimbs[i], succ = f.api.Compiler().ConstantValue(vv.Limbs[i]); !succ {
+			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
 				return nil, false
 			}
 		}
@@ -569,15 +552,15 @@ func (f *fakeAPI) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	return res, true
 }
 
-func (f *fakeAPI) Field() *big.Int {
-	return f.params.r
+func (f *field) Field() *big.Int {
+	return f.r
 }
 
-func (f *fakeAPI) FieldBitLen() int {
-	return f.params.r.BitLen()
+func (f *field) FieldBitLen() int {
+	return f.r.BitLen()
 }
 
-func (f *fakeAPI) IsBoolean(v frontend.Variable) bool {
+func (f *field) IsBoolean(v frontend.Variable) bool {
 	switch vv := v.(type) {
 	case Element:
 		return f.api.Compiler().IsBoolean(vv.Limbs[0])
@@ -588,7 +571,7 @@ func (f *fakeAPI) IsBoolean(v frontend.Variable) bool {
 	}
 }
 
-func (f *fakeAPI) MarkBoolean(v frontend.Variable) {
+func (f *field) MarkBoolean(v frontend.Variable) {
 	switch vv := v.(type) {
 	case Element:
 		f.api.Compiler().MarkBoolean(vv.Limbs[0])
@@ -597,4 +580,60 @@ func (f *fakeAPI) MarkBoolean(v frontend.Variable) {
 	default:
 		f.api.Compiler().MarkBoolean(vv)
 	}
+}
+
+// builderWrapper returns a wrapper for the builder which is compatible to use
+// as a frontend compile option. When using this wrapper, it is possible to
+// extend existing circuits into any emulated field defined by
+func builderWrapper(f *field) frontend.BuilderWrapper {
+	return func(b frontend.Builder) frontend.Builder {
+		fw, err := NewField(b, f.r, int(f.limbSize))
+		if err != nil {
+			panic(err)
+		}
+		fw.(*field).builder = b
+		return fw.(*field)
+	}
+}
+
+func (f *field) Compile() (frontend.CompiledConstraintSystem, error) {
+	return f.builder.Compile()
+}
+
+func (f *field) SetSchema(s *schema.Schema) {
+	f.builder.SetSchema(s)
+}
+
+func (f *field) VariableCount(t reflect.Type) int {
+	return int(f.nbLimbs)
+}
+
+func (f *field) addVariable(sf *schema.Field, recurseFn func(*schema.Field) frontend.Variable) frontend.Variable {
+	limbs := make([]frontend.Variable, f.nbLimbs)
+	var subfs []schema.Field
+	for i := range limbs {
+		subf := schema.Field{
+			Name:       strconv.Itoa(i),
+			Visibility: sf.Visibility,
+			FullName:   fmt.Sprintf("%s_%d", sf.FullName, i),
+			Type:       schema.Leaf,
+			ArraySize:  1,
+		}
+		subfs = append(subfs, subf)
+		limbs[i] = recurseFn(&subf)
+	}
+	sf.ArraySize = len(subfs)
+	sf.Type = schema.Array
+	sf.SubFields = subfs
+	el := f.PackLimbs(limbs)
+	return el
+}
+
+func (f *field) AddPublicVariable(sf *schema.Field) frontend.Variable {
+	return f.addVariable(sf, f.builder.AddPublicVariable)
+}
+
+func (f *field) AddSecretVariable(sf *schema.Field) frontend.Variable {
+	return f.addVariable(sf, f.builder.AddSecretVariable)
+
 }

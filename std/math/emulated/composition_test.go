@@ -22,11 +22,11 @@ func TestComposition(t *testing.T) {
 			for i := range res {
 				res[i] = new(big.Int)
 			}
-			if err = decompose(n, params.nbBits, res); err != nil {
+			if err = decompose(n, params.limbSize, res); err != nil {
 				assert.FailNow("decompose", err)
 			}
 			n2 := new(big.Int)
-			if err = recompose(res, params.nbBits, n2); err != nil {
+			if err = recompose(res, params.limbSize, n2); err != nil {
 				assert.FailNow("recompose", err)
 			}
 			if n2.Cmp(n) != 0 {
@@ -44,7 +44,7 @@ func TestSubPadding(t *testing.T) {
 			assert.Run(func(assert *test.Assert) {
 				limbs := subPadding(params, 0, i)
 				padValue := new(big.Int)
-				if err := recompose(limbs, params.nbBits, padValue); err != nil {
+				if err := recompose(limbs, params.limbSize, padValue); err != nil {
 					assert.FailNow("recompose", err)
 				}
 				padValue.Mod(padValue, params.r)

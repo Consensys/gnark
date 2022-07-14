@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"sync"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
@@ -34,57 +33,6 @@ func (e errOverflow) Error() string {
 	return fmt.Sprintf("op %s overflow %d exceeds max %d", e.op, e.nextOverflow, e.maxOverflow)
 }
 
-// Params defines the parameters of the emulated ring of integers modulo n. If
-// n is prime, then the ring is also a finite field where inverse and division
-// are allowed.
-type Params struct {
-	// r is the modulus
-	r *big.Int
-	// hasInverses indicates if order is prime
-	hasInverses bool
-	// nbLimbs is the number of limbs which fit reduced element
-	nbLimbs uint
-	// nbBits is number of bits per limb. Top limb may contain less than
-	// nbBits bits.
-	nbBits uint
-	// maxOf is the maximum overflow before the element must be reduced.
-	maxOf     uint
-	maxOfOnce sync.Once
-
-	// constants for often used elements n, 0 and 1. Allocated only once
-	nConstOnce    sync.Once
-	nConst        *Element
-	zeroConstOnce sync.Once
-	zeroConst     *Element
-	oneConstOnce  sync.Once
-	oneConst      *Element
-}
-
-// NewParams initializes the parameters for emulating operations modulo n where
-// every limb of the element contains up to nbBits bits. Returns error if sanity
-// checks fail.
-//
-// This method checks the primality of n to detect if parameters define a finite
-// field. As such, invocation of this method is expensive and should be done
-// once.
-func NewParams(nbBits int, r *big.Int) (*Params, error) {
-	if r.Cmp(big.NewInt(1)) < 1 {
-		return nil, fmt.Errorf("n must be at least 2")
-	}
-	if nbBits < 3 {
-		// even three is way too small, but it should probably work.
-		return nil, fmt.Errorf("nbBits must be at least 3")
-	}
-	nbLimbs := (r.BitLen() + nbBits - 1) / nbBits
-	fp := &Params{
-		r:           new(big.Int).Set(r),
-		nbLimbs:     uint(nbLimbs),
-		nbBits:      uint(nbBits),
-		hasInverses: r.ProbablyPrime(20),
-	}
-	return fp, nil
-}
-
 // Element defines an element in the ring of integers modulo n. The integer
 // value of the element is split into limbs of nbBits lengths and represented as
 // a slice of limbs.
@@ -92,7 +40,7 @@ type Element struct {
 	Limbs []frontend.Variable `gnark:"limbs"` // in little-endian (least significant limb first) encoding
 
 	// params carries the ring parameters
-	params *Params `gnark:"-"`
+	params *field `gnark:"-"`
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
 	// curve, we must check that nbBits+overflow < floor(log2(fr modulus))
@@ -104,9 +52,9 @@ type Element struct {
 // Element returns initialized element in the field. The value of this element
 // is not constrained and it only safe to use as a receiver in operations. For
 // elements initialized to values use Zero(), One() or Modulus().
-func (fp *Params) Element(api frontend.API) Element {
-	if uint(api.Compiler().FieldBitLen()) < 2*fp.nbBits+1 {
-		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", fp.nbBits))
+func (fp *field) Element(api frontend.API) Element {
+	if uint(api.Compiler().FieldBitLen()) < 2*fp.limbSize+1 {
+		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", fp.limbSize))
 	}
 	e := Element{
 		Limbs:    make([]frontend.Variable, fp.nbLimbs),
@@ -119,7 +67,7 @@ func (fp *Params) Element(api frontend.API) Element {
 
 // Modulus returns the modulus of the emulated ring as a constant. The returned
 // element is not safe to use as an operation receiver.
-func (fp *Params) Modulus() Element {
+func (fp *field) Modulus() Element {
 	fp.nConstOnce.Do(func() {
 		element, err := fp.ConstantFromBig(fp.r)
 		if err != nil {
@@ -133,7 +81,7 @@ func (fp *Params) Modulus() Element {
 
 // Zero returns zero as a constant. The returned element is not safe to use as
 // an operation receiver.
-func (fp *Params) Zero() Element {
+func (fp *field) Zero() Element {
 	fp.zeroConstOnce.Do(func() {
 		element, err := fp.ConstantFromBig(big.NewInt(0))
 		if err != nil {
@@ -146,7 +94,7 @@ func (fp *Params) Zero() Element {
 
 // One returns one as a constant. The returned element is not safe to use as an
 // operation receiver.
-func (fp *Params) One() Element {
+func (fp *field) One() Element {
 	fp.oneConstOnce.Do(func() {
 		element, err := fp.ConstantFromBig(big.NewInt(1))
 		if err != nil {
@@ -159,7 +107,7 @@ func (fp *Params) One() Element {
 
 // ConstantFromBig returns a constant element from the value. The returned
 // element is not safe to use as an operation receiver.
-func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
+func (fp *field) ConstantFromBig(value *big.Int) (Element, error) {
 	constValue := new(big.Int).Set(value)
 	if fp.r.Cmp(value) != 0 {
 		constValue.Mod(constValue, fp.r)
@@ -168,7 +116,7 @@ func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(constValue, fp.nbBits, limbs); err != nil {
+	if err := decompose(constValue, fp.limbSize, limbs); err != nil {
 		return Element{}, fmt.Errorf("decompose value: %w", err)
 	}
 	limbVars := make([]frontend.Variable, len(limbs))
@@ -186,7 +134,7 @@ func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
 
 // ConstantFromBigOrPanic returns a constant from value or panics if value does
 // not define a valid element in the ring.
-func (fp *Params) ConstantFromBigOrPanic(value *big.Int) Element {
+func (fp *field) ConstantFromBigOrPanic(value *big.Int) Element {
 	el, err := fp.ConstantFromBig(value)
 	if err != nil {
 		panic(err)
@@ -196,7 +144,7 @@ func (fp *Params) ConstantFromBigOrPanic(value *big.Int) Element {
 
 // PackLimbs returns a constant element from the given limbs. The
 // returned element is not safe to use as an operation receiver.
-func (fp *Params) PackLimbs(limbs []frontend.Variable) Element {
+func (fp *field) PackLimbs(limbs []frontend.Variable) Element {
 	// TODO: check that every limb does not overflow the expected width
 	return Element{
 		Limbs:    limbs,
@@ -206,18 +154,15 @@ func (fp *Params) PackLimbs(limbs []frontend.Variable) Element {
 	}
 }
 
-// Placeholder returns a constant which is safe to use as a placeholder when
-// compiling a circuit.
-func (fp *Params) Placeholder() Element {
-	e, err := fp.ConstantFromBig(big.NewInt(0))
-	if err != nil {
-		panic(err)
+func newElement(f *field) Element {
+	return Element{
+		params: f,
+		Limbs:  make([]frontend.Variable, f.nbLimbs),
 	}
-	return e
 }
 
 // From returns an element by regrouping the limbs to these parameters.
-func (fp *Params) From(api frontend.API, a Element) Element {
+func (fp *field) From(api frontend.API, a Element) Element {
 	return Element{
 		api:      api,
 		params:   fp,
@@ -227,8 +172,8 @@ func (fp *Params) From(api frontend.API, a Element) Element {
 }
 
 // isEqual returns if fp is equivalent to other.
-func (fp *Params) isEqual(other *Params) bool {
-	return fp.r.Cmp(other.r) == 0 && fp.nbBits == other.nbBits
+func (fp *field) isEqual(other *field) bool {
+	return fp.r.Cmp(other.r) == 0 && fp.limbSize == other.limbSize
 }
 
 // ToBits returns the bit representation of the Element in little-endian (LSB
@@ -241,13 +186,13 @@ func (e *Element) ToBits() []frontend.Variable {
 	var fullBits []frontend.Variable
 	var limbBits []frontend.Variable
 	for i := 0; i < len(e.Limbs); i++ {
-		limbBits = bits.ToBinary(e.api, e.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.params.nbBits+e.overflow)))
-		fullBits = append(fullBits, limbBits[:e.params.nbBits]...)
+		limbBits = bits.ToBinary(e.api, e.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.params.limbSize+e.overflow)))
+		fullBits = append(fullBits, limbBits[:e.params.limbSize]...)
 		if e.overflow > 0 {
-			carry = bits.FromBinary(e.api, limbBits[e.params.nbBits:])
+			carry = bits.FromBinary(e.api, limbBits[e.params.limbSize:])
 		}
 	}
-	fullBits = append(fullBits, limbBits[e.params.nbBits:e.params.nbBits+e.overflow]...)
+	fullBits = append(fullBits, limbBits[e.params.limbSize:e.params.limbSize+e.overflow]...)
 	return fullBits
 }
 
@@ -255,12 +200,12 @@ func (e *Element) ToBits() []frontend.Variable {
 // assumes that the bits are given from the canonical representation of element
 // (less than modulus).
 func (e *Element) FromBits(in []frontend.Variable) {
-	nbLimbs := (uint(len(in)) + e.params.nbBits - 1) / e.params.nbBits
+	nbLimbs := (uint(len(in)) + e.params.limbSize - 1) / e.params.limbSize
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := uint(0); i < nbLimbs-1; i++ {
-		limbs[i] = bits.FromBinary(e.api, in[i*e.params.nbBits:(i+1)*e.params.nbBits])
+		limbs[i] = bits.FromBinary(e.api, in[i*e.params.limbSize:(i+1)*e.params.limbSize])
 	}
-	limbs[nbLimbs-1] = bits.FromBinary(e.api, in[(nbLimbs-1)*e.params.nbBits:])
+	limbs[nbLimbs-1] = bits.FromBinary(e.api, in[(nbLimbs-1)*e.params.limbSize:])
 	e.overflow = 0
 	e.Limbs = limbs
 }
@@ -270,7 +215,7 @@ func (e *Element) FromBits(in []frontend.Variable) {
 // then the limbs may overflow the native field.
 func (e Element) maxOverflow() uint {
 	e.params.maxOfOnce.Do(func() {
-		e.params.maxOf = uint(e.api.Compiler().FieldBitLen()-1) - e.params.nbBits
+		e.params.maxOf = uint(e.api.Compiler().FieldBitLen()-1) - e.params.limbSize
 	})
 	return e.params.maxOf
 }
@@ -326,9 +271,9 @@ func (e *Element) AssertLimbsEquality(a Element) {
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if e.overflow > a.overflow {
-		assertLimbsEqualitySlow(rge.api, rge.Limbs, rga.Limbs, rge.params.nbBits, rge.overflow)
+		assertLimbsEqualitySlow(rge.api, rge.Limbs, rga.Limbs, rge.params.limbSize, rge.overflow)
 	} else {
-		assertLimbsEqualitySlow(rge.api, rga.Limbs, rge.Limbs, rga.params.nbBits, rga.overflow)
+		assertLimbsEqualitySlow(rge.api, rga.Limbs, rge.Limbs, rga.params.limbSize, rga.overflow)
 	}
 }
 
@@ -337,10 +282,10 @@ func (e *Element) AssertLimbsEquality(a Element) {
 // constrained to ensure correct operations.
 func (e *Element) EnforceWidth() {
 	for i := range e.Limbs {
-		limbNbBits := int(e.params.nbBits)
+		limbNbBits := int(e.params.limbSize)
 		if i == len(e.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((e.params.r.BitLen() - 1) % int(e.params.nbBits)) + 1
+			limbNbBits = ((e.params.r.BitLen() - 1) % int(e.params.limbSize)) + 1
 		}
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
 		// the limb value. This is sufficient to restrict for the bitlength and
@@ -417,7 +362,7 @@ func (e *Element) Mul(a, b Element) *Element {
 func (e Element) mulPreCond(a, b Element) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
-	nextOverflow = e.params.nbBits + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	nextOverflow = e.params.limbSize + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
 	if nextOverflow > e.maxOverflow() {
 		err = errOverflow{op: "mul", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow(), reduceRight: reduceRight}
 	}

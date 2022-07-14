@@ -30,7 +30,7 @@ func init() {
 // TODO: add also cases which should fail
 
 type emulatedField struct {
-	params *Params
+	params *field
 	name   string
 }
 
@@ -39,7 +39,7 @@ func emulatedFields(t *testing.T) []emulatedField {
 	assert := require.New(t)
 
 	if testing.Short() {
-		secp256k1fp, err := NewParams(64, qSecp256k1)
+		secp256k1fp, err := newField(qSecp256k1, 64)
 		assert.NoError(err)
 		return []emulatedField{{secp256k1fp, "secp256k1"}}
 	}
@@ -47,26 +47,26 @@ func emulatedFields(t *testing.T) []emulatedField {
 	var ret []emulatedField
 
 	for _, l := range []int{32, 48, 64, 120} {
-		bn254fp, err := NewParams(l, ecc.BN254.BaseField())
+		bn254fp, err := newField(ecc.BN254.BaseField(), l)
 		assert.NoError(err)
 		ret = append(ret, emulatedField{bn254fp, "bn254fp"})
 
-		secp256k1fp, err := NewParams(l, qSecp256k1)
+		secp256k1fp, err := newField(qSecp256k1, l)
 		assert.NoError(err)
 		ret = append(ret, emulatedField{secp256k1fp, "secp256k1"})
 	}
-	goldilocks, err := NewParams(64, qGoldilocks)
+	goldilocks, err := newField(qGoldilocks, 64)
 	assert.NoError(err)
 	ret = append(ret, emulatedField{goldilocks, "goldilocks"})
 	return ret
 }
 
 func testName(ef emulatedField) string {
-	return fmt.Sprintf("%s/limb=%d", ef.name, ef.params.nbBits)
+	return fmt.Sprintf("%s/limb=%d", ef.name, ef.params.limbSize)
 }
 
 type AssertLimbEqualityCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -80,14 +80,14 @@ func (c *AssertLimbEqualityCircuit) Define(api frontend.API) error {
 }
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
-	for _, fp := range emulatedFields(t) {
-		params := fp.params
+	for _, emulatedField := range emulatedFields(t) {
+		params := emulatedField.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
 			circuit := AssertLimbEqualityCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
 			}
 
 			val, _ := rand.Int(rand.Reader, params.r)
@@ -97,12 +97,12 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 				B:      params.ConstantFromBigOrPanic(val),
 			}
 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
-		}, testName(fp))
+		}, testName(emulatedField))
 	}
 }
 
 type AssertIsLessEqualThanCircuit struct {
-	params *Params
+	params *field
 
 	L Element
 	R Element
@@ -124,8 +124,8 @@ func TestAssertIsLessEqualThan(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := AssertIsLessEqualThanCircuit{
 				params: params,
-				L:      params.Placeholder(),
-				R:      params.Placeholder(),
+				L:      newElement(params),
+				R:      newElement(params),
 			}
 			R, _ := rand.Int(rand.Reader, params.r)
 			L, _ := rand.Int(rand.Reader, R)
@@ -140,7 +140,7 @@ func TestAssertIsLessEqualThan(t *testing.T) {
 }
 
 type AddCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -161,9 +161,9 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := AddCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))
@@ -182,7 +182,7 @@ func TestAddCircuitNoOverflow(t *testing.T) {
 }
 
 type MulNoOverflowCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -203,9 +203,9 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := MulNoOverflowCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(params.r.BitLen())/2))
@@ -224,7 +224,7 @@ func TestMulCircuitNoOverflow(t *testing.T) {
 }
 
 type MulCircuitOverflow struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -245,9 +245,9 @@ func TestMulCircuitOverflow(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := MulCircuitOverflow{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -267,7 +267,7 @@ func TestMulCircuitOverflow(t *testing.T) {
 }
 
 type ReduceAfterAddCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -289,9 +289,9 @@ func TestReduceAfterAdd(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := ReduceAfterAddCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val2, _ := rand.Int(rand.Reader, params.r)
@@ -311,7 +311,7 @@ func TestReduceAfterAdd(t *testing.T) {
 }
 
 type SubtractCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -332,9 +332,9 @@ func TestSubtractNoOverflow(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := SubtractCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -359,9 +359,9 @@ func TestSubtractOverflow(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := SubtractCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -382,7 +382,7 @@ func TestSubtractOverflow(t *testing.T) {
 }
 
 type NegationCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -402,8 +402,8 @@ func TestNegation(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := NegationCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -420,7 +420,7 @@ func TestNegation(t *testing.T) {
 }
 
 type InverseCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -443,8 +443,8 @@ func TestInverse(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := InverseCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -461,7 +461,7 @@ func TestInverse(t *testing.T) {
 }
 
 type DivisionCircuit struct {
-	params *Params
+	params *field
 	A      Element
 	B      Element
 	C      Element
@@ -484,9 +484,9 @@ func TestDivision(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := DivisionCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -508,7 +508,7 @@ func TestDivision(t *testing.T) {
 }
 
 type ToBitsCircuit struct {
-	params *Params
+	params *field
 
 	Value Element
 	Bits  []frontend.Variable
@@ -532,10 +532,10 @@ func TestToBits(t *testing.T) {
 		params := fp.params
 		assert := test.NewAssert(t)
 		assert.Run(func(assert *test.Assert) {
-			bitLen := params.nbBits * params.nbLimbs
+			bitLen := params.limbSize * params.nbLimbs
 			circuit := ToBitsCircuit{
 				params: params,
-				Value:  params.Placeholder(),
+				Value:  newElement(params),
 				Bits:   make([]frontend.Variable, bitLen),
 			}
 
@@ -556,7 +556,7 @@ func TestToBits(t *testing.T) {
 }
 
 type FromBitsCircuit struct {
-	params *Params
+	params *field
 
 	Bits []frontend.Variable
 	Res  Element
@@ -578,7 +578,7 @@ func TestFromBits(t *testing.T) {
 			circuit := FromBitsCircuit{
 				params: params,
 				Bits:   make([]frontend.Variable, bitLen),
-				Res:    params.Placeholder(),
+				Res:    newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -598,7 +598,7 @@ func TestFromBits(t *testing.T) {
 }
 
 type ConstantCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -618,8 +618,8 @@ func TestConstant(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := ConstantCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
 			}
 			val, _ := rand.Int(rand.Reader, params.r)
 			witness := ConstantCircuit{
@@ -634,7 +634,7 @@ func TestConstant(t *testing.T) {
 }
 
 type SelectCircuit struct {
-	params *Params
+	params *field
 
 	Selector frontend.Variable
 	A        Element
@@ -656,9 +656,9 @@ func TestSelect(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := SelectCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -679,7 +679,7 @@ func TestSelect(t *testing.T) {
 }
 
 type Lookup2Circuit struct {
-	params *Params
+	params *field
 
 	Bit0 frontend.Variable
 	Bit1 frontend.Variable
@@ -704,11 +704,11 @@ func TestLookup2(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := Lookup2Circuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
-				D:      params.Placeholder(),
-				E:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
+				D:      newElement(params),
+				E:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -733,7 +733,7 @@ func TestLookup2(t *testing.T) {
 }
 
 type ComputationCircuit struct {
-	params   *Params
+	params   *field
 	noReduce bool
 
 	X1, X2, X3, X4, X5, X6 Element
@@ -787,13 +787,13 @@ func TestComputation(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := ComputationCircuit{
 				params: params,
-				X1:     params.Placeholder(),
-				X2:     params.Placeholder(),
-				X3:     params.Placeholder(),
-				X4:     params.Placeholder(),
-				X5:     params.Placeholder(),
-				X6:     params.Placeholder(),
-				Res:    params.Placeholder(),
+				X1:     newElement(params),
+				X2:     newElement(params),
+				X3:     newElement(params),
+				X4:     newElement(params),
+				X5:     newElement(params),
+				X6:     newElement(params),
+				Res:    newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, params.r)
@@ -842,18 +842,18 @@ func TestComputation(t *testing.T) {
 
 func TestOptimisation(t *testing.T) {
 	assert := test.NewAssert(t)
-	params, err := NewParams(32, ecc.BN254.ScalarField())
+	params, err := newField(ecc.BN254.ScalarField(), 32)
 	assert.NoError(err)
 	circuit := ComputationCircuit{
 		params:   params,
 		noReduce: true,
-		X1:       params.Placeholder(),
-		X2:       params.Placeholder(),
-		X3:       params.Placeholder(),
-		X4:       params.Placeholder(),
-		X5:       params.Placeholder(),
-		X6:       params.Placeholder(),
-		Res:      params.Placeholder(),
+		X1:       newElement(params),
+		X2:       newElement(params),
+		X3:       newElement(params),
+		X4:       newElement(params),
+		X5:       newElement(params),
+		X6:       newElement(params),
+		Res:      newElement(params),
 	}
 	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
@@ -864,7 +864,7 @@ func TestOptimisation(t *testing.T) {
 }
 
 type FourMulsCircuit struct {
-	params *Params
+	params *field
 	A      Element
 	Res    Element
 }
@@ -880,12 +880,12 @@ func (c *FourMulsCircuit) Define(api frontend.API) error {
 
 func TestFourMuls(t *testing.T) {
 	assert := test.NewAssert(t)
-	params, err := NewParams(32, ecc.BN254.ScalarField())
+	params, err := newField(ecc.BN254.ScalarField(), 32)
 	assert.NoError(err)
 	circuit := FourMulsCircuit{
 		params: params,
-		A:      params.Placeholder(),
-		Res:    params.Placeholder(),
+		A:      newElement(params),
+		Res:    newElement(params),
 	}
 	val1, _ := rand.Int(rand.Reader, params.r)
 	res := new(big.Int)
@@ -902,7 +902,7 @@ func TestFourMuls(t *testing.T) {
 }
 
 type RegroupCircuit struct {
-	params *Params
+	params *field
 
 	A Element
 	B Element
@@ -927,9 +927,9 @@ func TestRegroupCircuit(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			circuit := RegroupCircuit{
 				params: params,
-				A:      params.Placeholder(),
-				B:      params.Placeholder(),
-				C:      params.Placeholder(),
+				A:      newElement(params),
+				B:      newElement(params),
+				C:      newElement(params),
 			}
 
 			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))

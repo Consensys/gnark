@@ -20,9 +20,9 @@ func GetHints() []hint.Function {
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func computeMultiplicationHint(api frontend.API, params *field, leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.limbSize,
 		len(leftLimbs),
 		len(rightLimbs),
 	}
@@ -76,9 +76,9 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 }
 
 // computeReductionHint packs inputs for the ReductionHint hint function.
-func computeReductionHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
+func computeReductionHint(api frontend.API, params *field, inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.limbSize,
 		params.nbLimbs,
 	}
 	p := params.Modulus()
@@ -121,14 +121,14 @@ func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeEqualityHint packs the inputs for EqualityHint function.
-func computeEqualityHint(api frontend.API, params *Params, diff Element) (kpLimbs []frontend.Variable, err error) {
+func computeEqualityHint(api frontend.API, params *field, diff Element) (kpLimbs []frontend.Variable, err error) {
 	p := params.Modulus()
-	resLen := (uint(len(diff.Limbs))*params.nbBits + diff.overflow + 1 - // diff total bitlength
+	resLen := (uint(len(diff.Limbs))*params.limbSize + diff.overflow + 1 - // diff total bitlength
 		uint(params.r.BitLen()) + // subtract modulus bitlength
-		params.nbBits - 1) / // to round up
-		params.nbBits
+		params.limbSize - 1) / // to round up
+		params.limbSize
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.limbSize,
 		params.nbLimbs,
 	}
 	hintInputs = append(hintInputs, p.Limbs...)
@@ -177,9 +177,9 @@ func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func computeInverseHint(api frontend.API, params *field, inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.limbSize,
 		params.nbLimbs,
 	}
 	p := params.Modulus()
@@ -219,9 +219,9 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func computeDivisionHint(api frontend.API, params *field, nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.limbSize,
 		params.nbLimbs,
 		len(nomLimbs),
 	}
