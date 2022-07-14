@@ -64,6 +64,7 @@ which can be instantiated with the following curves
 - [x] BW6-761
 - [x] BLS24-315
 - [x] BW6-633
+- [x] BLS24-317
 
 ### Example
 

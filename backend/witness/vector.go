@@ -10,6 +10,7 @@ import (
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
+	witness_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
@@ -39,6 +40,8 @@ func newVector(field *big.Int) (Vector, error) {
 		w = &witness_bls12381.Witness{}
 	case ecc.BW6_761:
 		w = &witness_bw6761.Witness{}
+	case ecc.BLS24_317:
+		w = &witness_bls24317.Witness{}
 	case ecc.BLS24_315:
 		w = &witness_bls24315.Witness{}
 	case ecc.BW6_633:
@@ -69,6 +72,10 @@ func newFrom(from Vector, n int) (Vector, error) {
 		return &a, nil
 	case *witness_bw6761.Witness:
 		a := make(witness_bw6761.Witness, n)
+		copy(a, *wt)
+		return &a, nil
+	case *witness_bls24317.Witness:
+		a := make(witness_bls24317.Witness, n)
 		copy(a, *wt)
 		return &a, nil
 	case *witness_bls24315.Witness:

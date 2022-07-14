@@ -41,6 +41,11 @@ func main() {
 		Curve:    "BLS24-315",
 		CurveID:  "BLS24_315",
 	}
+	bls24_317 := templateData{
+		RootPath: "../../../internal/backend/bls24-317/",
+		Curve:    "BLS24-317",
+		CurveID:  "BLS24_317",
+	}
 	bw6_633 := templateData{
 		RootPath: "../../../internal/backend/bw6-633/",
 		Curve:    "BW6-633",
@@ -59,6 +64,7 @@ func main() {
 		bn254,
 		bw6_761,
 		bls24_315,
+		bls24_317,
 		bw6_633,
 		tiny_field,
 	}
@@ -194,7 +200,7 @@ func main() {
 
 type templateData struct {
 	RootPath  string
-	Curve     string // BLS381, BLS377, BN254, BW761
+	Curve     string
 	CurveID   string
 	noBackend bool
 }

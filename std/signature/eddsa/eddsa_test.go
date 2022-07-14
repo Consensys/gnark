@@ -71,6 +71,7 @@ func TestEddsa(t *testing.T) {
 		{hash.MIMC_BLS12_377, tedwards.BLS12_377},
 		{hash.MIMC_BW6_761, tedwards.BW6_761},
 		{hash.MIMC_BLS24_315, tedwards.BLS24_315},
+		{hash.MIMC_BLS24_317, tedwards.BLS24_317},
 		{hash.MIMC_BW6_633, tedwards.BW6_633},
 	}
 

@@ -109,6 +109,7 @@ func TestFiatShamir(t *testing.T) {
 		ecc.BLS12_377: hash.MIMC_BLS12_377,
 		ecc.BLS12_381: hash.MIMC_BLS12_381,
 		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
 		ecc.BW6_761:   hash.MIMC_BW6_761,
 		ecc.BW6_633:   hash.MIMC_BW6_633,
 	}
