@@ -91,27 +91,27 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
     var i, j int // indexes for secret / public variables
     i = nbPublic // offset
 
-    var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-        if publicOnly && visibility != schema.Public {
+    collectHandler := func(f *schema.Field, tInput reflect.Value) error {
+        if publicOnly && f.Visibility != schema.Public {
             return nil 
         }
         if tInput.IsNil() {
-            return fmt.Errorf("when parsing variable %s: missing assignment", name)
+            return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
         }
         v := tInput.Interface()
 
         if v == nil {
-            return fmt.Errorf("when parsing variable %s: missing assignment", name) 
+            return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName) 
         }
 
-        if !publicOnly && visibility == schema.Secret {
+        if !publicOnly && f.Visibility == schema.Secret {
             if _, err := (*witness)[i].SetInterface(v) ; err != nil {
-                return fmt.Errorf("when parsing variable %s: %v", name, err) 
+                return fmt.Errorf("when parsing variable %s: %v", f.FullName, err) 
             }
             i++
-        } else if visibility == schema.Public {
+        } else if f.Visibility == schema.Public {
             if _, err := (*witness)[j].SetInterface(v) ; err != nil {
-                return fmt.Errorf("when parsing variable %s: %v", name, err) 
+                return fmt.Errorf("when parsing variable %s: %v", f.FullName, err) 
             }
             j++
         }
@@ -126,8 +126,8 @@ func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Ty
     i := 0
 	setAddr := leafType.Kind() == reflect.Ptr 
 	setHandler := func(v schema.Visibility) schema.LeafHandler {
-		return func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-			if visibility == v {
+		return func(f *schema.Field, tInput reflect.Value) error {
+			if f.Visibility == v {
 				if setAddr {
 					tInput.Set(reflect.ValueOf((&(*witness)[i])))
 				} else {

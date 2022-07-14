@@ -9,6 +9,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -40,6 +42,11 @@ func emulatedFields(t *testing.T) []emulatedField {
 		}
 		ret = append(ret, emulatedField{secp256k1fp, "secp256k1"})
 	}
+	goldilocks, err := NewParams(64, new(big.Int).SetBytes([]byte{0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ret = append(ret, emulatedField{goldilocks, "goldilocks"})
 	return ret
 }
 
@@ -715,7 +722,8 @@ func TestLookup2(t *testing.T) {
 }
 
 type ComputationCircuit struct {
-	params *Params
+	params   *Params
+	noReduce bool
 
 	X1, X2, X3, X4, X5, X6 Element
 	Res                    Element
@@ -725,9 +733,13 @@ func (c *ComputationCircuit) Define(api frontend.API) error {
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
 	x13 := c.params.Element(api)
 	x13.Mul(c.X1, c.X1)
-	x13.Reduce(x13)
+	if !c.noReduce {
+		x13.Reduce(x13)
+	}
 	x13.Mul(x13, c.X1)
-	x13.Reduce(x13)
+	if !c.noReduce {
+		x13.Reduce(x13)
+	}
 
 	fx2 := c.params.Element(api)
 	five, err := c.params.ConstantFromBig(big.NewInt(5))
@@ -811,6 +823,112 @@ func TestComputation(t *testing.T) {
 				X5:     params.ConstantFromBigOrPanic(val5),
 				X6:     params.ConstantFromBigOrPanic(val6),
 				Res:    params.ConstantFromBigOrPanic(res),
+			}
+			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+		}, testName(fp))
+	}
+}
+
+func TestOptimisation(t *testing.T) {
+	assert := test.NewAssert(t)
+	params, err := NewParams(32, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	circuit := ComputationCircuit{
+		params:   params,
+		noReduce: true,
+		X1:       params.Placeholder(),
+		X2:       params.Placeholder(),
+		X3:       params.Placeholder(),
+		X4:       params.Placeholder(),
+		X5:       params.Placeholder(),
+		X6:       params.Placeholder(),
+		Res:      params.Placeholder(),
+	}
+	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(err)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3291)
+	ccs2, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
+	assert.NoError(err)
+	assert.LessOrEqual(ccs2.GetNbConstraints(), 10722)
+}
+
+type FourMulsCircuit struct {
+	params *Params
+	A      Element
+	Res    Element
+}
+
+func (c *FourMulsCircuit) Define(api frontend.API) error {
+	res := c.params.Element(api)
+	res.Mul(c.A, c.A)
+	res.Mul(res, c.A)
+	res.Mul(res, c.A)
+	res.AssertIsEqual(c.Res)
+	return nil
+}
+
+func TestFourMuls(t *testing.T) {
+	assert := test.NewAssert(t)
+	params, err := NewParams(32, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	circuit := FourMulsCircuit{
+		params: params,
+		A:      params.Placeholder(),
+		Res:    params.Placeholder(),
+	}
+	val1, _ := rand.Int(rand.Reader, params.r)
+	res := new(big.Int)
+	res.Mul(val1, val1)
+	res.Mul(res, val1)
+	res.Mul(res, val1)
+	res.Mod(res, params.r)
+	witness := FourMulsCircuit{
+		params: params,
+		A:      params.ConstantFromBigOrPanic(val1),
+		Res:    params.ConstantFromBigOrPanic(res),
+	}
+	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+}
+
+type RegroupCircuit struct {
+	params *Params
+
+	A Element
+	B Element
+	C Element
+}
+
+func (c *RegroupCircuit) Define(api frontend.API) error {
+	res := c.params.Element(api)
+	res.Add(c.A, c.B)
+	res.AssertLimbsEquality(c.C)
+	params2 := regroupParams(c.params, uint(api.Compiler().FieldBitLen()), res.overflow)
+	res2 := params2.From(api, res)
+	C2 := params2.From(api, c.C)
+	res2.AssertLimbsEquality(C2)
+	return nil
+}
+
+func TestRegroupCircuit(t *testing.T) {
+	for _, fp := range emulatedFields(t) {
+		params := fp.params
+		assert := test.NewAssert(t)
+		assert.Run(func(assert *test.Assert) {
+			circuit := RegroupCircuit{
+				params: params,
+				A:      params.Placeholder(),
+				B:      params.Placeholder(),
+				C:      params.Placeholder(),
+			}
+
+			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))
+			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(params.r, big.NewInt(2)))
+			res := new(big.Int).Add(val1, val2)
+			witness := RegroupCircuit{
+				params: params,
+				A:      params.ConstantFromBigOrPanic(val1),
+				B:      params.ConstantFromBigOrPanic(val2),
+				C:      params.ConstantFromBigOrPanic(res),
 			}
 			assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
 		}, testName(fp))

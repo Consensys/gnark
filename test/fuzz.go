@@ -113,8 +113,8 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func fill(w frontend.Circuit, nextValue func() interface{}) {
-	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if visibility == schema.Secret || visibility == schema.Public {
+	setHandler := func(f *schema.Field, tInput reflect.Value) error {
+		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
 			v := nextValue()
 			tInput.Set(reflect.ValueOf((v)))
 		}

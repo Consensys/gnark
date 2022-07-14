@@ -9,8 +9,11 @@ package nonnative
 // where the user does not need to manually reduce and the library does it as
 // necessary.
 // TODO: check that the parameters coincide for elements.
+// TODO: less equal than
+// TODO: simple exponentiation before we implement Wesolowsky
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -19,6 +22,17 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 )
+
+type errOverflow struct {
+	op           string
+	nextOverflow uint
+	maxOverflow  uint
+	reduceRight  bool
+}
+
+func (e errOverflow) Error() string {
+	return fmt.Sprintf("op %s overflow %d exceeds max %d", e.op, e.nextOverflow, e.maxOverflow)
+}
 
 // Params defines the parameters of the emulated ring of integers modulo n. If
 // n is prime, then the ring is also a finite field where inverse and division
@@ -33,6 +47,9 @@ type Params struct {
 	// nbBits is number of bits per limb. Top limb may contain less than
 	// nbBits bits.
 	nbBits uint
+	// maxOf is the maximum overflow before the element must be reduced.
+	maxOf     uint
+	maxOfOnce sync.Once
 
 	// constants for often used elements n, 0 and 1. Allocated only once
 	nConstOnce    sync.Once
@@ -72,16 +89,16 @@ func NewParams(nbBits int, r *big.Int) (*Params, error) {
 // value of the element is split into limbs of nbBits lengths and represented as
 // a slice of limbs.
 type Element struct {
-	Limbs []frontend.Variable // in little-endian (least significant limb first) encoding
+	Limbs []frontend.Variable `gnark:"limbs"` // in little-endian (least significant limb first) encoding
 
 	// params carries the ring parameters
-	params *Params
+	params *Params `gnark:"-"`
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
 	// curve, we must check that nbBits+overflow < floor(log2(fr modulus))
-	overflow uint
+	overflow uint `gnark:"-"`
 	// api references the API for variable elements
-	api frontend.API
+	api frontend.API `gnark:"-"`
 }
 
 // Element returns initialized element in the field. The value of this element
@@ -143,14 +160,15 @@ func (fp *Params) One() Element {
 // ConstantFromBig returns a constant element from the value. The returned
 // element is not safe to use as an operation receiver.
 func (fp *Params) ConstantFromBig(value *big.Int) (Element, error) {
-	if fp.r.Cmp(value) == -1 {
-		return Element{}, fmt.Errorf("value larger than order of the field")
+	constValue := new(big.Int).Set(value)
+	if fp.r.Cmp(value) != 0 {
+		constValue.Mod(constValue, fp.r)
 	}
 	limbs := make([]*big.Int, fp.nbLimbs)
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(value, fp.nbBits, limbs); err != nil {
+	if err := decompose(constValue, fp.nbBits, limbs); err != nil {
 		return Element{}, fmt.Errorf("decompose value: %w", err)
 	}
 	limbVars := make([]frontend.Variable, len(limbs))
@@ -198,6 +216,21 @@ func (fp *Params) Placeholder() Element {
 	return e
 }
 
+// From returns an element by regrouping the limbs to these parameters.
+func (fp *Params) From(api frontend.API, a Element) Element {
+	return Element{
+		api:      api,
+		params:   fp,
+		overflow: a.overflow,
+		Limbs:    regroupLimbs(api, a.params, fp, a.Limbs),
+	}
+}
+
+// isEqual returns if fp is equivalent to other.
+func (fp *Params) isEqual(other *Params) bool {
+	return fp.r.Cmp(other.r) == 0 && fp.nbBits == other.nbBits
+}
+
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
@@ -232,11 +265,14 @@ func (e *Element) FromBits(in []frontend.Variable) {
 	e.Limbs = limbs
 }
 
-// maxWidth returns the maximum width of the limb value + overflow which fits
-// into the scalar field widthout overflow. If next operation exceeds the value,
-// then the element should be reduced before the operation.
-func (e *Element) maxWidth() uint {
-	return uint(e.api.Compiler().FieldBitLen()) - 1
+// maxOverflow returns the maximal possible overflow for the element. If the
+// overflow of the next operation exceeds the value returned by this method,
+// then the limbs may overflow the native field.
+func (e Element) maxOverflow() uint {
+	e.params.maxOfOnce.Do(func() {
+		e.params.maxOf = uint(e.api.Compiler().FieldBitLen()-1) - e.params.nbBits
+	})
+	return e.params.maxOf
 }
 
 // assertLimbsEqualitySlow is the main routine in the package. It asserts that the
@@ -250,8 +286,6 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
 	maxValueShift := new(big.Int).Lsh(big.NewInt(1), nbCarryBits)
 
-	// TODO: group carries. xjsnark paper describes that we can actually compute
-	// a carry over multiple limbs (assuming the limbs are small enough).
 	var carry frontend.Variable = 0
 	for i := 0; i < nbLimbs; i++ {
 		diff := api.Add(maxValue, carry)
@@ -264,16 +298,14 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		if i > 0 {
 			diff = api.Sub(diff, maxValueShift)
 		}
-		// TODO: instead of full binary decomposition, do unconstrained
-		// decomposition and check that the bits are zeros. Does not make
-		// difference for R1CS but should require fever constraints for PLONK.
 		// TODO: more efficient methods for splitting a variable? Because we are
 		// splitting the value into two, then maybe we do not need the whole
 		// binary decomposition \sum_{i=0}^n a_i 2^i, but can use a * 2^nbits +
 		// b. Then we can also omit the FromBinary call.
-		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)))
-		diffMain := bits.FromBinary(api, diffBits[:nbBits])
-		api.AssertIsEqual(diffMain, 0)
+		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)), bits.WithUnconstrainedOutputs())
+		for j := uint(0); j < nbBits; j++ {
+			api.AssertIsEqual(diffBits[j], 0)
+		}
 		carry = bits.FromBinary(api, diffBits[nbBits:nbBits+nbCarryBits+1])
 	}
 	api.AssertIsEqual(carry, maxValueShift)
@@ -283,22 +315,20 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
 func (e *Element) AssertLimbsEquality(a Element) {
-	// fast path -- no overflow -- can just compare limb-wise
-	if a.overflow == e.overflow {
-		// TODO: not complete - we should also ensure that len(e.Limbs) <=
-		// len(a.Limbs) and ensure that rest of e.Limbs are zero
-		for i := range a.Limbs {
-			e.api.AssertIsEqual(a.Limbs[i], e.Limbs[i])
-		}
-		return
+	maxOverflow := e.overflow
+	if a.overflow > e.overflow {
+		maxOverflow = a.overflow
 	}
+	rgpar := regroupParams(e.params, uint(e.api.Compiler().FieldBitLen()), maxOverflow)
+	rge := rgpar.From(e.api, *e)
+	rga := rgpar.From(e.api, a)
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if e.overflow > a.overflow {
-		assertLimbsEqualitySlow(e.api, e.Limbs, a.Limbs, e.params.nbBits, e.overflow)
+		assertLimbsEqualitySlow(rge.api, rge.Limbs, rga.Limbs, rge.params.nbBits, rge.overflow)
 	} else {
-		assertLimbsEqualitySlow(e.api, a.Limbs, e.Limbs, a.params.nbBits, a.overflow)
+		assertLimbsEqualitySlow(rge.api, rga.Limbs, rge.Limbs, rga.params.nbBits, rga.overflow)
 	}
 }
 
@@ -328,18 +358,29 @@ func (e *Element) Add(a, b Element) *Element {
 	// constant's overflow never increases?)
 	// TODO: check that the target is a variable (has an API)
 	// TODO: if both are constants, then add big ints
-	if a.overflow+e.params.nbBits == e.maxWidth() {
-		a.Reduce(a)
+	overflow, err := e.addPreCond(a, b)
+	if err != nil {
+		panic(err)
 	}
-	if b.overflow+e.params.nbBits == e.maxWidth() {
-		b.Reduce(b)
-	}
-	e.overflow = 1
+	e.add(a, b, overflow)
+	return e
+}
+
+func (e Element) addPreCond(a, b Element) (nextOverflow uint, err error) {
+	nextOverflow = 1
+	reduceRight := a.overflow < b.overflow
 	if a.overflow > b.overflow {
-		e.overflow += a.overflow
+		nextOverflow += a.overflow
 	} else {
-		e.overflow += b.overflow
+		nextOverflow += b.overflow
 	}
+	if nextOverflow > e.maxOverflow() {
+		err = errOverflow{op: "add", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow(), reduceRight: reduceRight}
+	}
+	return
+}
+
+func (e *Element) add(a, b Element, nextOverflow uint) {
 	nbLimbs := len(a.Limbs)
 	if len(b.Limbs) > nbLimbs {
 		nbLimbs = len(b.Limbs)
@@ -355,28 +396,42 @@ func (e *Element) Add(a, b Element) *Element {
 		}
 	}
 	e.Limbs = limbs
-	return e
+	e.overflow = nextOverflow
 }
 
 // Mul sets e to a*b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Mul(a, b Element) *Element {
-	// TODO: we mistakenly assume here that the factors are completely reduced
-	// (their overflow is zero). Actually, we should be able to compute product
-	// even when the results have non-zero factor. We should add checks if the
-	// multiplication result would not fit into the scalar result and compute
-	// the overflow of the result accordingly.
 	// XXX: currently variable case only
 	// TODO: when one element is constant.
 	// TODO: check that target is initialized (has an API)
 	// TODO: if both are constants, then do big int mul
+	overflow, err := e.mulPreCond(a, b)
+	if err != nil {
+		panic(err)
+	}
+	e.mul(a, b, overflow)
+	return e
+}
+
+func (e Element) mulPreCond(a, b Element) (nextOverflow uint, err error) {
+	reduceRight := a.overflow < b.overflow
+	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
+	nextOverflow = e.params.nbBits + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	if nextOverflow > e.maxOverflow() {
+		err = errOverflow{op: "mul", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow(), reduceRight: reduceRight}
+	}
+	return
+}
+
+func (e *Element) mul(a, b Element, nextOverflow uint) {
 	limbs, err := computeMultiplicationHint(e.api, e.params, a.Limbs, b.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("multiplication hint: %s", err))
 	}
 	// create constraints (\sum_{i=0}^{m-1} a_i c^i) * (\sum_{i=0}^{m-1} b_i
 	// c^i) = (\sum_{i=0}^{2m-2} z_i c^i) for c \in {1, 2m-1}
-	for c := 1; c < len(limbs); c++ {
+	for c := 1; c <= len(limbs); c++ {
 		cb := big.NewInt(int64(c)) // c
 		bit := big.NewInt(1)       // c^i
 		l := e.api.Mul(a.Limbs[0], bit)
@@ -399,9 +454,7 @@ func (e *Element) Mul(a, b Element) *Element {
 		e.api.AssertIsEqual(e.api.Mul(l, r), o)
 	}
 	e.Limbs = limbs
-	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*e.params.nbLimbs-1))) + 1
-	// result is not reduced
-	return e
+	e.overflow = nextOverflow
 }
 
 // Reduce reduces a modulo modulus and assigns e to the reduced value.
@@ -418,7 +471,6 @@ func (e *Element) Reduce(a Element) *Element {
 	}
 	e.Limbs = r
 	e.overflow = 0
-	e.EnforceWidth()
 	e.AssertIsEqual(a)
 	return e
 }
@@ -440,7 +492,7 @@ func (e *Element) Set(a Element) {
 func (e *Element) AssertIsEqual(a Element) {
 	diff := e.params.Element(e.api)
 	diff.Sub(a, *e)
-	kLimbs, err := computeEqualityHint(e.api, e.params, diff.Limbs)
+	kLimbs, err := computeEqualityHint(e.api, e.params, diff)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
@@ -460,16 +512,16 @@ func (e *Element) AssertIsLessEqualThan(a Element) {
 	aBits := a.ToBits()
 	f := func(xbits, ybits []frontend.Variable) []frontend.Variable {
 		diff := len(xbits) - len(ybits)
-		aBits = append(ybits, make([]frontend.Variable, diff)...)
+		ybits = append(ybits, make([]frontend.Variable, diff)...)
 		for i := len(ybits) - diff - 1; i < len(ybits); i++ {
 			ybits[i] = 0
 		}
 		return ybits
 	}
 	if len(eBits) > len(aBits) {
-		f(eBits, aBits)
+		aBits = f(eBits, aBits)
 	} else {
-		f(aBits, eBits)
+		eBits = f(aBits, eBits)
 	}
 	p := make([]frontend.Variable, len(eBits)+1)
 	p[len(eBits)] = 1
@@ -486,21 +538,35 @@ func (e *Element) AssertIsLessEqualThan(a Element) {
 // Sub sets e to a-b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Sub(a, b Element) *Element {
+	overflow, err := e.subPreCond(a, b)
+	if err != nil {
+		panic(err)
+	}
+	e.sub(a, b, overflow)
+	return e
+}
+
+func (e Element) subPreCond(a, b Element) (nextOverflow uint, err error) {
+	reduceRight := a.overflow < b.overflow+2
+	nextOverflow = b.overflow + 2
+	if a.overflow > nextOverflow {
+		nextOverflow = a.overflow
+	}
+	if nextOverflow > e.maxOverflow() {
+		err = errOverflow{op: "sub", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow(), reduceRight: reduceRight}
+	}
+	return
+}
+
+func (e *Element) sub(a, b Element, nextOverflow uint) {
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
-	if a.overflow+e.params.nbBits+2 == e.maxWidth() {
-		a.Reduce(a)
-	}
-	if b.overflow+e.params.nbBits+2 == e.maxWidth() {
-		b.Reduce(b)
-	}
 	nbLimbs := len(a.Limbs)
 	if len(b.Limbs) > nbLimbs {
 		nbLimbs = len(b.Limbs)
 	}
 	limbs := make([]frontend.Variable, nbLimbs)
 	padLimbs := subPadding(e.params, b.overflow, uint(nbLimbs))
-	e.overflow = b.overflow + 2
 	for i := range limbs {
 		limbs[i] = padLimbs[i]
 		if i < len(a.Limbs) {
@@ -511,7 +577,7 @@ func (e *Element) Sub(a, b Element) *Element {
 		}
 	}
 	e.Limbs = limbs
-	return e
+	e.overflow = nextOverflow
 }
 
 // Div sets e to a/b and returns e. If modulus is not a prime, it panics. The
@@ -592,4 +658,21 @@ func (e *Element) Lookup2(b0, b1 frontend.Variable, a, b, c, d Element) *Element
 		e.Limbs[i] = e.api.Lookup2(b0, b1, a.Limbs[i], b.Limbs[i], c.Limbs[i], d.Limbs[i])
 	}
 	return e
+}
+
+// reduceAndOp applies op on the inputs. If the pre-condition check preCond
+// errs, then first reduces the input arguments. The reduction is done
+// one-by-one with the element with highest overflow reduced first.
+func (e *Element) reduceAndOp(op func(Element, Element, uint), preCond func(Element, Element) (uint, error), a, b *Element) {
+	var nextOverflow uint
+	var err error
+	var target errOverflow
+	for nextOverflow, err = preCond(*a, *b); errors.As(err, &target); nextOverflow, err = preCond(*a, *b) {
+		if !target.reduceRight {
+			a.Reduce(*a)
+		} else {
+			b.Reduce(*b)
+		}
+	}
+	op(*a, *b, nextOverflow)
 }
