@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 import (
 	"fmt"

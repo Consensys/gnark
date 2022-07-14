@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 // TODO: add checks which ensure that constants are not used as receivers
 // TODO: add sanity checks before the operations (e.g. that overflow is
@@ -194,9 +194,9 @@ func (fp *Params) ConstantFromBigOrPanic(value *big.Int) Element {
 	return el
 }
 
-// ConstantFromLimbs returns a constant element from the given limbs. The
+// PackLimbs returns a constant element from the given limbs. The
 // returned element is not safe to use as an operation receiver.
-func (fp *Params) ConstantFromLimbs(limbs []frontend.Variable) Element {
+func (fp *Params) PackLimbs(limbs []frontend.Variable) Element {
 	// TODO: check that every limb does not overflow the expected width
 	return Element{
 		Limbs:    limbs,
@@ -496,7 +496,7 @@ func (e *Element) AssertIsEqual(a Element) {
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
-	k := e.params.ConstantFromLimbs(kLimbs)
+	k := e.params.PackLimbs(kLimbs)
 	p := e.params.Modulus()
 	kp := e.params.Element(e.api)
 	kp.Mul(k, p)

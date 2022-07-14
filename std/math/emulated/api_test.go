@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 import (
 	"crypto/rand"
@@ -17,6 +17,13 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/test"
 )
+
+func newAPI(native frontend.API, params *Params) API {
+	return &fakeAPI{
+		api:    native,
+		params: params,
+	}
+}
 
 func witnessData(mod *big.Int) (X1, X2, X3, X4, X5, X6, Res *big.Int) {
 	val1, _ := rand.Int(rand.Reader, mod)
@@ -59,7 +66,7 @@ type EmulatedApiCircuit struct {
 
 func (c *EmulatedApiCircuit) Define(api frontend.API) error {
 	if c.Params != nil {
-		api = NewAPI(api, c.Params)
+		api = newAPI(api, c.Params)
 	}
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
 	x13 := api.Mul(c.X1, c.X1, c.X1)
@@ -148,7 +155,7 @@ func TestTestEngineWrapper(t *testing.T) {
 		Res: params.ConstantFromBigOrPanic(res),
 	}
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		return NewAPI(api, params)
+		return newAPI(api, params)
 	})
 	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
 	assert.NoError(err)
@@ -184,7 +191,7 @@ func TestIntegrationApi(t *testing.T) {
 	params, err := NewParams(32, r)
 	assert.NoError(err)
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		return NewAPI(api, params)
+		return newAPI(api, params)
 	})
 	keys := make([]string, 0, len(circuits.Circuits))
 	for k := range circuits.Circuits {
@@ -279,7 +286,7 @@ func TestPairingBLS377(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		return NewAPI(api, params)
+		return newAPI(api, params)
 	})
 	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
 	assert.NoError(err)

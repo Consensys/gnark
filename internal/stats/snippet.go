@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
-	"github.com/consensys/gnark/std/math/nonnative"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 var (
@@ -81,9 +81,8 @@ func initSnippets() {
 		_ = mimc.Sum()
 	})
 	qSecp256k1, _ := new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
-	registerSnippet("math/nonnative/secp256k1_64", func(api frontend.API, newVariable func() frontend.Variable) {
-		params, _ := nonnative.NewParams(64, qSecp256k1)
-		api = nonnative.NewAPI(api, params)
+	registerSnippet("math/emulated/secp256k1_32", func(api frontend.API, newVariable func() frontend.Variable) {
+		api, _ = emulated.NewField(api, qSecp256k1, 32)
 
 		x13 := api.Mul(newVariable(), newVariable(), newVariable())
 		fx2 := api.Mul(5, newVariable())

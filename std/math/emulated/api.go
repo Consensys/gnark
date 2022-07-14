@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 import (
 	"errors"
@@ -12,6 +12,11 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 )
+
+type API interface {
+	frontend.API
+	PackLimbs(limbs []frontend.Variable) Element
+}
 
 // BuilderWrapper returns a wrapper for the builder which is compatible to use
 // as a frontend compile option. When using this wrapper, it is possible to
@@ -55,7 +60,7 @@ func (f *fakeAPI) addVariable(field *schema.Field, recurseFn func(*schema.Field)
 	field.ArraySize = len(subfs)
 	field.Type = schema.Array
 	field.SubFields = subfs
-	el := f.params.ConstantFromLimbs(limbs)
+	el := f.params.PackLimbs(limbs)
 	return el
 }
 
@@ -68,13 +73,17 @@ func (f *fakeAPI) AddSecretVariable(field *schema.Field) frontend.Variable {
 
 }
 
-// NewAPI wraps the existing native API such that all methods are performed
+// NewField wraps the existing native API such that all methods are performed
 // using field emulation.
-func NewAPI(native frontend.API, params *Params) frontend.API {
+func NewField(native frontend.API, r *big.Int, limbSize int) (API, error) {
+	params, err := NewParams(limbSize, r)
+	if err != nil {
+		return nil, err
+	}
 	return &fakeAPI{
 		api:    native,
 		params: params,
-	}
+	}, nil
 }
 
 type fakeAPI struct {
@@ -82,6 +91,10 @@ type fakeAPI struct {
 	api     frontend.API
 	builder frontend.Builder
 	params  *Params
+}
+
+func (f *fakeAPI) PackLimbs(limbs []frontend.Variable) Element {
+	return f.params.PackLimbs(limbs)
 }
 
 func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
@@ -111,10 +124,10 @@ func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
 		el := f.params.ConstantFromBigOrPanic(b)
 		e = &el
 	case compiled.LinearExpression:
-		el := f.params.ConstantFromLimbs([]frontend.Variable{in})
+		el := f.params.PackLimbs([]frontend.Variable{in})
 		e = &el
 	case compiled.Term:
-		el := f.params.ConstantFromLimbs([]frontend.Variable{in})
+		el := f.params.PackLimbs([]frontend.Variable{in})
 		e = &el
 	default:
 		panic(fmt.Sprintf("can not cast %T to *Element", in))
@@ -228,7 +241,7 @@ func (f *fakeAPI) Xor(a frontend.Variable, b frontend.Variable) frontend.Variabl
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.ConstantFromLimbs([]frontend.Variable{rv})
+	r := f.params.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
@@ -239,7 +252,7 @@ func (f *fakeAPI) Or(a frontend.Variable, b frontend.Variable) frontend.Variable
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.ConstantFromLimbs([]frontend.Variable{rv})
+	r := f.params.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
@@ -250,7 +263,7 @@ func (f *fakeAPI) And(a frontend.Variable, b frontend.Variable) frontend.Variabl
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
 	rv := f.api.And(els[0].Limbs[0], els[1].Limbs[0])
-	r := f.params.ConstantFromLimbs([]frontend.Variable{rv})
+	r := f.params.PackLimbs([]frontend.Variable{rv})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
@@ -346,7 +359,7 @@ func (f *fakeAPI) IsZero(i1 frontend.Variable) frontend.Variable {
 	for i := 1; i < len(reduced.Limbs); i++ {
 		f.api.Mul(res, f.api.IsZero(reduced.Limbs[i]))
 	}
-	r := f.params.ConstantFromLimbs([]frontend.Variable{res})
+	r := f.params.PackLimbs([]frontend.Variable{res})
 	r.api = f.api
 	r.EnforceWidth()
 	return r
