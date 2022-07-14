@@ -12,7 +12,7 @@ import (
 func TestComposition(t *testing.T) {
 	assert := test.NewAssert(t)
 	for _, fp := range emulatedFields(t) {
-		params := fp.params
+		params := fp.field
 		assert.Run(func(assert *test.Assert) {
 			n, err := rand.Int(rand.Reader, params.r)
 			if err != nil {
@@ -38,7 +38,7 @@ func TestComposition(t *testing.T) {
 
 func TestSubPadding(t *testing.T) {
 	for _, fp := range emulatedFields(t) {
-		params := fp.params
+		params := fp.field
 		assert := test.NewAssert(t)
 		for i := params.nbLimbs; i < 2*params.nbLimbs; i++ {
 			assert.Run(func(assert *test.Assert) {

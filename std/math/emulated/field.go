@@ -82,6 +82,9 @@ func (f *field) varToElement(in frontend.Variable) *Element {
 	var e *Element
 	switch vv := in.(type) {
 	case Element:
+		// if len(vv.Limbs) != int(f.nbLimbs) {
+		// 	panic("emulated arithmetic: number of limbs doesn't match emulated field size")
+		// }
 		e = &vv
 	case *Element:
 		e = vv
@@ -113,7 +116,7 @@ func (f *field) varToElement(in frontend.Variable) *Element {
 	default:
 		panic(fmt.Sprintf("can not cast %T to *Element", in))
 	}
-	if !f.isEqual(e.params) {
+	if !f.isEqual(e.f) {
 		panic("incompatible Element parameters")
 	}
 	return e
@@ -135,7 +138,7 @@ func (f *field) varsToElements(in ...frontend.Variable) []*Element {
 
 func (f *field) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.reduceAndOp(res.add, res.addPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
 		res.reduceAndOp(res.add, res.addPreCond, &res, els[i])
@@ -145,26 +148,26 @@ func (f *field) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.V
 
 func (f *field) Neg(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.Negate(*el)
 	return &res
 }
 
 func (f *field) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	sub := f.Element(f.api)
+	sub := f.NewElement()
 	sub.Set(*els[1])
 	for i := 2; i < len(els); i++ {
 		sub.reduceAndOp(sub.add, sub.addPreCond, &sub, els[i])
 	}
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.reduceAndOp(res.sub, res.subPreCond, els[0], &sub)
 	return &res
 }
 
 func (f *field) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.reduceAndOp(res.mul, res.mulPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
 		res.reduceAndOp(res.mul, res.mulPreCond, &res, els[i])
@@ -178,21 +181,21 @@ func (f *field) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) fronten
 
 func (f *field) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.Div(*els[0], *els[1])
 	return &res
 }
 
 func (f *field) Inverse(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.Inverse(*el)
 	return &res
 }
 
 func (f *field) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.Reduce(*el)
 	out := res.ToBits()
 	switch len(n) {
@@ -212,7 +215,7 @@ func (f *field) FromBinary(b ...frontend.Variable) frontend.Variable {
 		f.AssertIsBoolean(els[i])
 		bits[i] = els[i].Limbs[0]
 	}
-	res := f.Element(f.api)
+	res := f.NewElement()
 	res.FromBits(bits)
 	return &res
 }
@@ -223,7 +226,7 @@ func (f *field) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable 
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-	r.api = f.api
+
 	r.EnforceWidth()
 	return r
 }
@@ -234,7 +237,7 @@ func (f *field) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-	r.api = f.api
+
 	r.EnforceWidth()
 	return r
 }
@@ -245,14 +248,14 @@ func (f *field) And(a frontend.Variable, b frontend.Variable) frontend.Variable 
 	f.AssertIsBoolean(els[1])
 	rv := f.api.And(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-	r.api = f.api
+
 	r.EnforceWidth()
 	return r
 }
 
 func (f *field) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	switch vv := b.(type) {
 	case Element:
 		f.AssertIsBoolean(vv)
@@ -268,12 +271,12 @@ func (f *field) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Va
 	s0 := els[0]
 	s1 := els[1]
 	if s0.overflow != 0 || len(s0.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s0)
 		s0 = &v
 	}
 	if s1.overflow != 0 || len(s1.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s1)
 		s1 = &v
 	}
@@ -283,7 +286,7 @@ func (f *field) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Va
 
 func (f *field) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i0, i1, i2, i3)
-	res := f.Element(f.api)
+	res := f.NewElement()
 	switch vv := b0.(type) {
 	case Element:
 		f.AssertIsBoolean(vv)
@@ -309,22 +312,22 @@ func (f *field) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.
 	s2 := els[2]
 	s3 := els[3]
 	if s0.overflow != 0 || len(s0.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s0)
 		s0 = &v
 	}
 	if s1.overflow != 0 || len(s1.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s1)
 		s1 = &v
 	}
 	if s2.overflow != 0 || len(s2.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s2)
 		s2 = &v
 	}
 	if s3.overflow != 0 || len(s3.Limbs) != int(f.nbLimbs) {
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*s3)
 		s3 = &v
 	}
@@ -334,21 +337,21 @@ func (f *field) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.
 
 func (f *field) IsZero(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	reduced := f.Element(f.api)
+	reduced := f.NewElement()
 	reduced.Reduce(*el)
 	res := f.api.IsZero(reduced.Limbs[0])
 	for i := 1; i < len(reduced.Limbs); i++ {
 		f.api.Mul(res, f.api.IsZero(reduced.Limbs[i]))
 	}
 	r := f.PackLimbs([]frontend.Variable{res})
-	r.api = f.api
+
 	r.EnforceWidth()
 	return r
 }
 
 func (f *field) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
-	rls := []Element{f.Element(f.api), f.Element(f.api)}
+	rls := []Element{f.NewElement(), f.NewElement()}
 	rls[0].Reduce(*els[0])
 	rls[1].Reduce(*els[1])
 	var res frontend.Variable = 0
@@ -361,7 +364,7 @@ func (f *field) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variabl
 
 func (f *field) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	tmp := f.Element(f.api)
+	tmp := f.NewElement()
 	tmp.Set(*els[0])
 	tmp.reduceAndOp(func(a, b Element, nextOverflow uint) { a.AssertIsEqual(b) }, func(e1, e2 Element) (uint, error) {
 		nextOverflow, err := tmp.subPreCond(e2, e1)
@@ -376,7 +379,7 @@ func (f *field) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 
 func (f *field) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	rls := []Element{f.Element(f.api), f.Element(f.api)}
+	rls := []Element{f.NewElement(), f.NewElement()}
 	rls[0].Reduce(*els[0])
 	rls[1].Reduce(*els[1])
 	var res frontend.Variable = 0
@@ -391,14 +394,14 @@ func (f *field) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 func (f *field) AssertIsBoolean(i1 frontend.Variable) {
 	switch vv := i1.(type) {
 	case Element:
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			f.api.AssertIsEqual(v.Limbs[i], 0)
 		}
 	case *Element:
-		v := f.Element(f.api)
+		v := f.NewElement()
 		v.Reduce(*vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
@@ -411,9 +414,9 @@ func (f *field) AssertIsBoolean(i1 frontend.Variable) {
 
 func (f *field) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	els := f.varsToElements(v, bound)
-	l := f.Element(f.api)
+	l := f.NewElement()
 	l.Reduce(*els[0])
-	r := f.Element(f.api)
+	r := f.NewElement()
 	r.Reduce(*els[1])
 	l.AssertIsLessEqualThan(r)
 }
@@ -504,7 +507,7 @@ func (f *field) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Vari
 	}
 	ret := make([]frontend.Variable, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
-		el := f.Element(f.api)
+		el := f.NewElement()
 		el.Limbs = hintRet[i*int(f.nbLimbs) : (i+1)*int(f.nbLimbs)]
 		ret[i] = &el
 	}
@@ -579,6 +582,108 @@ func (f *field) MarkBoolean(v frontend.Variable) {
 		f.api.Compiler().MarkBoolean(vv.Limbs[0])
 	default:
 		f.api.Compiler().MarkBoolean(vv)
+	}
+}
+
+// NewElement returns initialized element in the field. The value of this element
+// is not constrained and it only safe to use as a receiver in operations. For
+// elements initialized to values use Zero(), One() or Modulus().
+func (fp *field) NewElement() Element {
+	if uint(fp.api.Compiler().FieldBitLen()) < 2*fp.limbSize+1 {
+		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", fp.limbSize))
+	}
+	e := Element{
+		Limbs:    make([]frontend.Variable, fp.nbLimbs),
+		f:        fp,
+		overflow: 0,
+	}
+	return e
+}
+
+// Modulus returns the modulus of the emulated ring as a constant. The returned
+// element is not safe to use as an operation receiver.
+func (fp *field) Modulus() Element {
+	fp.nConstOnce.Do(func() {
+		element, err := fp.ConstantFromBig(fp.r)
+		if err != nil {
+			// should not err for fp.order
+			panic(fmt.Sprintf("witness from order: %v", err))
+		}
+		fp.nConst = &element
+	})
+	return *fp.nConst
+}
+
+// Zero returns zero as a constant. The returned element is not safe to use as
+// an operation receiver.
+func (fp *field) Zero() Element {
+	fp.zeroConstOnce.Do(func() {
+		element, err := fp.ConstantFromBig(big.NewInt(0))
+		if err != nil {
+			panic(fmt.Sprintf("witness from zero: %v", err))
+		}
+		fp.zeroConst = &element
+	})
+	return *fp.zeroConst
+}
+
+// One returns one as a constant. The returned element is not safe to use as an
+// operation receiver.
+func (fp *field) One() Element {
+	fp.oneConstOnce.Do(func() {
+		element, err := fp.ConstantFromBig(big.NewInt(1))
+		if err != nil {
+			panic(fmt.Sprintf("witness from one: %v", err))
+		}
+		fp.oneConst = &element
+	})
+	return *fp.oneConst
+}
+
+// ConstantFromBig returns a constant element from the value. The returned
+// element is not safe to use as an operation receiver.
+func (fp *field) ConstantFromBig(value *big.Int) (Element, error) {
+	constValue := new(big.Int).Set(value)
+	if fp.r.Cmp(value) != 0 {
+		constValue.Mod(constValue, fp.r)
+	}
+	limbs := make([]*big.Int, fp.nbLimbs)
+	for i := range limbs {
+		limbs[i] = new(big.Int)
+	}
+	if err := decompose(constValue, fp.limbSize, limbs); err != nil {
+		return Element{}, fmt.Errorf("decompose value: %w", err)
+	}
+	limbVars := make([]frontend.Variable, len(limbs))
+	for i := range limbs {
+		limbVars[i] = frontend.Variable(limbs[i])
+	}
+	e := Element{
+		Limbs:    limbVars,
+		f:        fp,
+		overflow: 0,
+	}
+	return e, nil
+}
+
+// ConstantFromBigOrPanic returns a constant from value or panics if value does
+// not define a valid element in the ring.
+func (fp *field) ConstantFromBigOrPanic(value *big.Int) Element {
+	el, err := fp.ConstantFromBig(value)
+	if err != nil {
+		panic(err)
+	}
+	return el
+}
+
+// PackLimbs returns a constant element from the given limbs. The
+// returned element is not safe to use as an operation receiver.
+func (fp *field) PackLimbs(limbs []frontend.Variable) Element {
+	// TODO: check that every limb does not overflow the expected width
+	return Element{
+		Limbs:    limbs,
+		f:        fp,
+		overflow: 0,
 	}
 }
 
