@@ -2,6 +2,7 @@ package stats
 
 import (
 	"math"
+	"math/big"
 	"sync"
 
 	"github.com/consensys/gnark"
@@ -11,6 +12,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/nonnative"
 )
 
 var (
@@ -77,6 +79,19 @@ func initSnippets() {
 		mimc, _ := mimc.NewMiMC(api)
 		mimc.Write(newVariable())
 		_ = mimc.Sum()
+	})
+	qSecp256k1, _ := new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
+	registerSnippet("math/nonnative/secp256k1_64", func(api frontend.API, newVariable func() frontend.Variable) {
+		params, _ := nonnative.NewParams(64, qSecp256k1)
+		api = nonnative.NewAPI(api, params)
+
+		x13 := api.Mul(newVariable(), newVariable(), newVariable())
+		fx2 := api.Mul(5, newVariable())
+		nom := api.Sub(fx2, x13)
+		denom := api.Add(newVariable(), newVariable(), newVariable(), newVariable())
+		free := api.Div(nom, denom)
+		res := api.Add(x13, fx2, free)
+		api.AssertIsEqual(res, newVariable())
 	})
 
 	registerSnippet("pairing_bls12377", func(api frontend.API, newVariable func() frontend.Variable) {
