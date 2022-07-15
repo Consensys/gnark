@@ -159,9 +159,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witne
 	var zetaMPlusTwoBigInt big.Int
 	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
-	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
+	foldedH.ScalarMul(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])
-	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
+	foldedH.ScalarMul(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[0])
 
 	// Compute the commitment to the linearized polynomial

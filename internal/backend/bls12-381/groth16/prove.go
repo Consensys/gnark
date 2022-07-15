@@ -147,7 +147,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 	_s.ToBigInt(&s)
 
 	// computes r[δ], s[δ], kr[δ]
-	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
+	deltas := curve.BatchScalarMulG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	proof := &Proof{}
 	var bs1, ar curve.G1Jac
@@ -211,14 +211,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 					chKrsDone <- err
 					return
 				}
-				p1.ScalarMultiplication(&ar, &s)
+				p1.ScalarMul(&ar, &s)
 				krs.AddAssign(&p1)
 			case err := <-chBs1Done:
 				if err != nil {
 					chKrsDone <- err
 					return
 				}
-				p1.ScalarMultiplication(&bs1, &r)
+				p1.ScalarMul(&bs1, &r)
 				krs.AddAssign(&p1)
 			}
 			n--
@@ -243,7 +243,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 		}
 
 		deltaS.FromAffine(&pk.G2.Delta)
-		deltaS.ScalarMultiplication(&deltaS, &s)
+		deltaS.ScalarMul(&deltaS, &s)
 		Bs.AddAssign(&deltaS)
 		Bs.AddMixed(&pk.G2.Beta)
 

@@ -107,7 +107,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// To fill in the Proving and Verifying keys, we need to perform a lot of ecc scalar multiplication (with generator)
 	// and convert the resulting points to affine
-	// this is done using the curve.BatchScalarMultiplicationGX API, which takes as input the base point
+	// this is done using the curve.BatchScalarMulGX API, which takes as input the base point
 	// (in our case the generator) and the list of scalars, and outputs a list of points (len(points) == len(scalars))
 	// to use this batch call, we need to order our scalars in the same slice
 	// we have 1 batch call for G1 and 1 batch call for G1
@@ -207,7 +207,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
 
-	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+	g1PointsAff := curve.BatchScalarMulG1(&g1, g1Scalars)
 
 	// sets pk: [α]1, [β]1, [δ]1
 	pk.G1.Alpha = g1PointsAff[0]
@@ -242,7 +242,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// compute our batch scalar multiplication with g2 elements
 	g2Scalars := append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
 
-	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
+	g2PointsAff := curve.BatchScalarMulG2(&g2, g2Scalars)
 
 	pk.G2.B = g2PointsAff[:len(B)]
 
@@ -449,11 +449,11 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r1Aff curve.G1Affine
 	var b big.Int
 	g1, g2, _, _ := curve.Generators()
-	r1Jac.ScalarMultiplication(&g1, toxicWaste.alphaReg.ToBigInt(&b))
+	r1Jac.ScalarMul(&g1, toxicWaste.alphaReg.ToBigInt(&b))
 	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac
 	var r2Aff curve.G2Affine
-	r2Jac.ScalarMultiplication(&g2, &b)
+	r2Jac.ScalarMul(&g2, &b)
 	r2Aff.FromJacobian(&r2Jac)
 	for i := 0; i < len(pk.G1.A); i++ {
 		pk.G1.A[i] = r1Aff

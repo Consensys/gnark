@@ -325,10 +325,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	zetaPowerm.Exp(zeta, &bSize)
 	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
 	foldedHDigest := proof.H[2]
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // ζᵐ⁺²*Comm(h3)
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
+	foldedHDigest.ScalarMul(&foldedHDigest, &bZetaPowerm)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[1])        // ζᵐ⁺²*Comm(h3)
+	foldedHDigest.ScalarMul(&foldedHDigest, &bZetaPowerm) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
+	foldedHDigest.Add(&foldedHDigest, &proof.H[0])        // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + ζ*h2 + ζ²*h3
 	foldedH := h3

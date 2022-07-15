@@ -244,7 +244,7 @@ func GenG1() gopter.Gen {
 		scalar.SetUint64(genParams.NextUint64())
 
 		var g1 curve.G1Affine
-		g1.ScalarMultiplication(&g1GenAff, &scalar)
+		g1.ScalarMul(&g1GenAff, &scalar)
 
 
 		genResult := gopter.NewGenResult(g1, gopter.NoShrinker)
@@ -259,7 +259,7 @@ func GenG2() gopter.Gen {
 		scalar.SetUint64(genParams.NextUint64())
 
 		var g2 curve.G2Affine
-		g2.ScalarMultiplication(&g2GenAff, &scalar)
+		g2.ScalarMul(&g2GenAff, &scalar)
 
 
 		genResult := gopter.NewGenResult(g2, gopter.NoShrinker)

@@ -143,8 +143,8 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 		_, _ = v.SetRandom()
 		u.ToBigIntRegular(&_u)
 		v.ToBigIntRegular(&_v)
-		P[i].ScalarMultiplication(&P[0], &_u)
-		Q[i].ScalarMultiplication(&Q[0], &_v)
+		P[i].ScalarMul(&P[0], &_u)
+		Q[i].ScalarMul(&Q[0], &_v)
 	}
 	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1], P[2]}, []bls12377.G2Affine{Q[0], Q[1], Q[2]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
