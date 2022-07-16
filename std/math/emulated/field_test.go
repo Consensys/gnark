@@ -7,9 +7,12 @@ import (
 	"sort"
 	"testing"
 
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/test"
 )
 
@@ -164,75 +167,82 @@ func TestIntegrationApi(t *testing.T) {
 	}
 }
 
-// type pairingBLS377 struct {
-// 	P          sw_bls12377.G1Affine `gnark:",public"`
-// 	Q          sw_bls12377.G2Affine
-// 	pairingRes bls12377.GT
-// }
+type pairingBLS377 struct {
+	P          sw_bls12377.G1Affine `gnark:",public"`
+	Q          sw_bls12377.G2Affine
+	pairingRes bls12377.GT
+}
 
-// //lint:ignore U1000 skipped test
-// func (circuit *pairingBLS377) Define(api frontend.API) error {
-// 	pairingRes, _ := sw_bls12377.Pair(api,
-// 		[]sw_bls12377.G1Affine{circuit.P},
-// 		[]sw_bls12377.G2Affine{circuit.Q})
-// 	api.AssertIsEqual(pairingRes.C0.B0.A0, &circuit.pairingRes.C0.B0.A0)
-// 	api.AssertIsEqual(pairingRes.C0.B0.A1, &circuit.pairingRes.C0.B0.A1)
-// 	api.AssertIsEqual(pairingRes.C0.B1.A0, &circuit.pairingRes.C0.B1.A0)
-// 	api.AssertIsEqual(pairingRes.C0.B1.A1, &circuit.pairingRes.C0.B1.A1)
-// 	api.AssertIsEqual(pairingRes.C0.B2.A0, &circuit.pairingRes.C0.B2.A0)
-// 	api.AssertIsEqual(pairingRes.C0.B2.A1, &circuit.pairingRes.C0.B2.A1)
-// 	api.AssertIsEqual(pairingRes.C1.B0.A0, &circuit.pairingRes.C1.B0.A0)
-// 	api.AssertIsEqual(pairingRes.C1.B0.A1, &circuit.pairingRes.C1.B0.A1)
-// 	api.AssertIsEqual(pairingRes.C1.B1.A0, &circuit.pairingRes.C1.B1.A0)
-// 	api.AssertIsEqual(pairingRes.C1.B1.A1, &circuit.pairingRes.C1.B1.A1)
-// 	api.AssertIsEqual(pairingRes.C1.B2.A0, &circuit.pairingRes.C1.B2.A0)
-// 	api.AssertIsEqual(pairingRes.C1.B2.A1, &circuit.pairingRes.C1.B2.A1)
-// 	return nil
-// }
+//lint:ignore U1000 skipped test
+func (circuit *pairingBLS377) Define(api frontend.API) error {
+	pairingRes, _ := sw_bls12377.Pair(api,
+		[]sw_bls12377.G1Affine{circuit.P},
+		[]sw_bls12377.G2Affine{circuit.Q})
+	api.AssertIsEqual(pairingRes.C0.B0.A0, &circuit.pairingRes.C0.B0.A0)
+	api.AssertIsEqual(pairingRes.C0.B0.A1, &circuit.pairingRes.C0.B0.A1)
+	api.AssertIsEqual(pairingRes.C0.B1.A0, &circuit.pairingRes.C0.B1.A0)
+	api.AssertIsEqual(pairingRes.C0.B1.A1, &circuit.pairingRes.C0.B1.A1)
+	api.AssertIsEqual(pairingRes.C0.B2.A0, &circuit.pairingRes.C0.B2.A0)
+	api.AssertIsEqual(pairingRes.C0.B2.A1, &circuit.pairingRes.C0.B2.A1)
+	api.AssertIsEqual(pairingRes.C1.B0.A0, &circuit.pairingRes.C1.B0.A0)
+	api.AssertIsEqual(pairingRes.C1.B0.A1, &circuit.pairingRes.C1.B0.A1)
+	api.AssertIsEqual(pairingRes.C1.B1.A0, &circuit.pairingRes.C1.B1.A0)
+	api.AssertIsEqual(pairingRes.C1.B1.A1, &circuit.pairingRes.C1.B1.A1)
+	api.AssertIsEqual(pairingRes.C1.B2.A0, &circuit.pairingRes.C1.B2.A0)
+	api.AssertIsEqual(pairingRes.C1.B2.A1, &circuit.pairingRes.C1.B2.A1)
+	return nil
+}
 
-// func TestPairingBLS377(t *testing.T) {
-// 	t.Skip()
-// 	assert := test.NewAssert(t)
-// 	f, err := newField(ecc.BW6_761.ScalarField(), 32)
-// 	assert.NoError(err)
+func TestPairingBLS377(t *testing.T) {
+	assert := test.NewAssert(t)
 
-// 	_, _, P, Q := bls12377.Generators()
-// 	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
-// 	pairingRes := bls12377.FinalExponentiation(&milRes)
+	_, _, P, Q := bls12377.Generators()
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
+	pairingRes := bls12377.FinalExponentiation(&milRes)
 
-// 	circuit := pairingBLS377{}
+	circuit := pairingBLS377{
+		pairingRes: pairingRes,
+		P: sw_bls12377.G1Affine{
+			X: NewElement[BLS12377Fp](nil),
+			Y: NewElement[BLS12377Fp](nil),
+		},
+		Q: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+		},
+	}
+	witness := pairingBLS377{
+		pairingRes: pairingRes,
+		P: sw_bls12377.G1Affine{
+			X: NewElement[BLS12377Fp](P.X),
+			Y: NewElement[BLS12377Fp](P.Y),
+		},
+		Q: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.X.A0),
+				A1: NewElement[BLS12377Fp](Q.X.A1),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.Y.A0),
+				A1: NewElement[BLS12377Fp](Q.Y.A1),
+			},
+		},
+	}
 
-// 	pxb := new(big.Int)
-// 	pyb := new(big.Int)
-// 	qxab := new(big.Int)
-// 	qxbb := new(big.Int)
-// 	qyab := new(big.Int)
-// 	qybb := new(big.Int)
-// 	witness := pairingBLS377{
-// 		pairingRes: pairingRes,
-// 		P: sw_bls12377.G1Affine{
-// 			X: f.ConstantFromBigOrPanic(P.X.ToBigIntRegular(pxb)),
-// 			Y: f.ConstantFromBigOrPanic(P.Y.ToBigIntRegular(pyb)),
-// 		},
-// 		Q: sw_bls12377.G2Affine{
-// 			X: fields_bls12377.E2{
-// 				A0: f.ConstantFromBigOrPanic(Q.X.A0.ToBigIntRegular(qxab)),
-// 				A1: f.ConstantFromBigOrPanic(Q.X.A1.ToBigIntRegular(qxbb)),
-// 			},
-// 			Y: fields_bls12377.E2{
-// 				A0: f.ConstantFromBigOrPanic(Q.Y.A0.ToBigIntRegular(qyab)),
-// 				A1: f.ConstantFromBigOrPanic(Q.Y.A1.ToBigIntRegular(qybb)),
-// 			},
-// 		},
-// 	}
-
-// 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-// 		f.SetNativeAPI(api)
-// 		return f
-// 	})
-// 	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
-// 	assert.NoError(err)
-// 	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper(f)))
-// 	assert.NoError(err)
-// 	// TODO: create proof
-// }
+	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
+		napi, err := NewField[BLS12377Fp](api)
+		assert.NoError(err)
+		return napi
+	})
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
+	assert.NoError(err)
+	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
+	// assert.NoError(err)
+	// TODO: create proof
+}
