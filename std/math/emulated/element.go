@@ -290,6 +290,17 @@ func (f *field[T]) Reduce(a Element[T]) Element[T] {
 	return e
 }
 
+// Assign a value to self (witness assignment)
+func (e *Element[T]) Assign(val interface{}) {
+	*e = NewElement[T](val)
+}
+
+func (e *Element[T]) GnarkInitHook() {
+	if e.Limbs == nil {
+		*e = NewElement[T](nil)
+	}
+}
+
 // Set sets e to a and returns e. If a is constant, then it also enforces the
 // widths of the limbs.
 func (e *Element[T]) Set(a Element[T]) {
