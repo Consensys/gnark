@@ -3,6 +3,7 @@ package emulated
 import (
 	"crypto/rand"
 	"fmt"
+	"math/big"
 	"reflect"
 	"testing"
 
@@ -12,11 +13,12 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+// TODO @gbotrel add test that ensures we never mutate inputs inside API calls
+
 const testCurve = ecc.BN254
 
 type AssertLimbEqualityCircuit[T FieldParams] struct {
-	A Element[T]
-	B Element[T]
+	A, B Element[T]
 }
 
 func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
@@ -39,136 +41,88 @@ func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 	testAssertLimbEqualityNoOverflow[Secp256k1](t)
 	testAssertLimbEqualityNoOverflow[BN254Fp](t)
 }
+
 func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 	var fp T
 	assert := test.NewAssert(t)
 	assert.Run(func(assert *test.Assert) {
-		circuit := AssertLimbEqualityCircuit[T]{
-			A: NewElement[T](nil),
-			B: NewElement[T](nil),
-		}
-
+		var circuit, witness AssertLimbEqualityCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness := AssertLimbEqualityCircuit[T]{
-			A: NewElement[T](val),
-			B: NewElement[T](val),
-		}
+		witness.A.Assign(val)
+		witness.B.Assign(val)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
 
 // // TODO: add also cases which should fail
 
-// func emulatedFields(t *testing.T) []emulatedField {
-// 	t.Helper()
-// 	assert := require.New(t)
+type AssertIsLessEqualThanCircuit[T FieldParams] struct {
+	L, R Element[T]
+}
 
-// 	if testing.Short() {
-// 		secp256k1fp, err := newField(qSecp256k1, 64)
-// 		assert.NoError(err)
-// 		return []emulatedField{{secp256k1fp, "secp256k1"}}
-// 	}
+func (c *AssertIsLessEqualThanCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	f.AssertIsLessOrEqual(c.L, c.R)
+	return nil
+}
 
-// 	var ret []emulatedField
+func TestAssertIsLessEqualThan(t *testing.T) {
+	testAssertIsLessEqualThan[Goldilocks](t)
+	testAssertIsLessEqualThan[Secp256k1](t)
+	testAssertIsLessEqualThan[BN254Fp](t)
+}
 
-// 	for _, l := range []int{32, 48, 64, 120} {
-// 		bn254fp, err := newField(ecc.BN254.BaseField(), l)
-// 		assert.NoError(err)
-// 		ret = append(ret, emulatedField{bn254fp, "bn254fp"})
+func testAssertIsLessEqualThan[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var circuit, witness AssertIsLessEqualThanCircuit[T]
+		R, _ := rand.Int(rand.Reader, fp.Modulus())
+		L, _ := rand.Int(rand.Reader, R)
+		witness.R.Assign(R)
+		witness.L.Assign(L)
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}
 
-// 		secp256k1fp, err := newField(qSecp256k1, l)
-// 		assert.NoError(err)
-// 		ret = append(ret, emulatedField{secp256k1fp, "secp256k1"})
-// 	}
-// 	goldilocks, err := newField(qGoldilocks, 64)
-// 	assert.NoError(err)
-// 	ret = append(ret, emulatedField{goldilocks, "goldilocks"})
-// 	return ret
-// }
+type AddCircuit[T FieldParams] struct {
+	A, B, C Element[T]
+}
 
-// func (ef emulatedField[T]) testName() string {
-// 	return fmt.Sprintf("%s/limb=%d", ef.name, ef.field.fParams.BitsPerLimb())
-// }
+func (c *AddCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	res := f.Add(c.A, c.B)
+	f.AssertIsEqual(res, c.C)
+	return nil
+}
 
-// type AssertIsLessEqualThanCircuit struct {
-// 	field *field
+func TestAddCircuitNoOverflow(t *testing.T) {
+	testAddCircuitNoOverflow[Goldilocks](t)
+	testAddCircuitNoOverflow[Secp256k1](t)
+	testAddCircuitNoOverflow[BN254Fp](t)
+}
 
-// 	L Element
-// 	R Element
-// }
-
-// func (c *AssertIsLessEqualThanCircuit) Define(api frontend.API) error {
-// 	L := c.field.NewElement()
-// 	L.Set(c.L)
-// 	R := c.field.NewElement()
-// 	R.Set(c.R)
-// 	L.AssertIsLessEqualThan(R)
-// 	return nil
-// }
-
-// func TestAssertIsLessEqualThan(t *testing.T) {
-// 	for _, fp := range emulatedFields(t)[:1] {
-// 		field := fp.field
-// 		assert := test.NewAssert(t)
-// 		assert.Run(func(assert *test.Assert) {
-// 			circuit := AssertIsLessEqualThanCircuit{
-// 				field: field,
-// 				L:     newElement(field),
-// 				R:     newElement(field),
-// 			}
-// 			R, _ := rand.Int(rand.Reader, field.r)
-// 			L, _ := rand.Int(rand.Reader, R)
-// 			witness := AssertIsLessEqualThanCircuit{
-// 				field: field,
-// 				L:     field.ConstantFromBigOrPanic(L),
-// 				R:     field.ConstantFromBigOrPanic(R),
-// 			}
-// 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
-// 		}, testName(fp))
-// 	}
-// }
-
-// type AddCircuit struct {
-// 	field *field
-
-// 	A Element
-// 	B Element
-// 	C Element
-// }
-
-// func (c *AddCircuit) Define(api frontend.API) error {
-// 	res := c.field.NewElement()
-// 	res.Add(c.A, c.B)
-// 	res.AssertLimbsEquality(c.C)
-// 	return nil
-// }
-
-// func TestAddCircuitNoOverflow(t *testing.T) {
-// 	for _, fp := range emulatedFields(t) {
-// 		field := fp.field
-// 		assert := test.NewAssert(t)
-// 		assert.Run(func(assert *test.Assert) {
-// 			circuit := AddCircuit{
-// 				field: field,
-// 				A:     newElement(field),
-// 				B:     newElement(field),
-// 				C:     newElement(field),
-// 			}
-
-// 			val1, _ := rand.Int(rand.Reader, new(big.Int).Div(field.r, big.NewInt(2)))
-// 			val2, _ := rand.Int(rand.Reader, new(big.Int).Div(field.r, big.NewInt(2)))
-// 			res := new(big.Int).Add(val1, val2)
-// 			witness := AddCircuit{
-// 				field: field,
-// 				A:     field.ConstantFromBigOrPanic(val1),
-// 				B:     field.ConstantFromBigOrPanic(val2),
-// 				C:     field.ConstantFromBigOrPanic(res),
-// 			}
-
-// 			assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
-// 		}, testName(fp))
-// 	}
-// }
+func testAddCircuitNoOverflow[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var circuit, witness AddCircuit[T]
+		bound := new(big.Int).Rsh(fp.Modulus(), 1)
+		val1, _ := rand.Int(rand.Reader, bound)
+		val2, _ := rand.Int(rand.Reader, bound)
+		res := new(big.Int).Add(val1, val2)
+		witness.A.Assign(val1)
+		witness.B.Assign(val2)
+		witness.C.Assign(res)
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}
 
 // type MulNoOverflowCircuit struct {
 // 	field *field

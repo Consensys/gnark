@@ -8,6 +8,13 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+func init() {
+	hints := GetHints()
+	for _, h := range hints {
+		hint.Register(h)
+	}
+}
+
 // GetHints returns all hint functions used in the package.
 func GetHints() []hint.Function {
 	return []hint.Function{

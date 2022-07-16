@@ -274,8 +274,6 @@ func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 func (f *field[T]) Reduce(a Element[T]) Element[T] {
 	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
-		// e.Set(a)
-		// TODO @gbotrel do we need to duplicate here?
 		return a
 	}
 	// slow path - use hint to reduce value

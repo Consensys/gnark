@@ -75,10 +75,6 @@ func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	return f, nil
 }
 
-func (f *field[T]) SetNativeAPI(api frontend.API) {
-	f.api = api
-}
-
 func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 	switch vv := in.(type) {
 	case Element[T]:
@@ -168,6 +164,8 @@ func (f *field[T]) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) fron
 // b and multiplying it by a.
 func (f *field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	if !f.fParams.IsPrime() {
+		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
+		// that would enable things like uint32 div ?
 		panic("modulus not a prime")
 	}
 
