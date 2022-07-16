@@ -688,7 +688,7 @@ func (f *field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
 // builderWrapper returns a wrapper for the builder which is compatible to use
 // as a frontend compile option. When using this wrapper, it is possible to
 // extend existing circuits into any emulated field defined by
-func builderWrapper[T FieldParams](f *field[T]) frontend.BuilderWrapper {
+func builderWrapper[T FieldParams]() frontend.BuilderWrapper {
 	return func(b frontend.Builder) frontend.Builder {
 		fw, err := NewField[T](b)
 		if err != nil {
