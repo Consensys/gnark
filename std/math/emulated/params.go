@@ -9,7 +9,7 @@ import (
 // FieldParams describe the emulated field characteristics
 type FieldParams interface {
 	NbLimbs() uint
-	LimbSize() uint // limbSize is number of bits per limb. Top limb may contain less than limbSize bits.
+	BitsPerLimb() uint // limbSize is number of bits per limb. Top limb may contain less than limbSize bits.
 	IsPrime() bool
 	Modulus() *big.Int // TODO @gbotrel built-in don't copy value, we probably should.
 }
@@ -29,7 +29,7 @@ func init() {
 type Goldilocks struct{}
 
 func (fp Goldilocks) NbLimbs() uint     { return 1 }
-func (fp Goldilocks) LimbSize() uint    { return 64 }
+func (fp Goldilocks) BitsPerLimb() uint { return 64 }
 func (fp Goldilocks) IsPrime() bool     { return true }
 func (fp Goldilocks) Modulus() *big.Int { return qGoldilocks }
 
@@ -38,7 +38,7 @@ func (fp Goldilocks) Modulus() *big.Int { return qGoldilocks }
 type Secp256k1 struct{}
 
 func (fp Secp256k1) NbLimbs() uint     { return 8 }
-func (fp Secp256k1) LimbSize() uint    { return 32 }
+func (fp Secp256k1) BitsPerLimb() uint { return 32 }
 func (fp Secp256k1) IsPrime() bool     { return true }
 func (fp Secp256k1) Modulus() *big.Int { return qSecp256k1 }
 
@@ -47,6 +47,6 @@ func (fp Secp256k1) Modulus() *big.Int { return qSecp256k1 }
 type BN254Fp struct{}
 
 func (fp BN254Fp) NbLimbs() uint     { return 8 }
-func (fp BN254Fp) LimbSize() uint    { return 32 }
+func (fp BN254Fp) BitsPerLimb() uint { return 32 }
 func (fp BN254Fp) IsPrime() bool     { return true }
 func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }

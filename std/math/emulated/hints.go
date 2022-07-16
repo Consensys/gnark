@@ -22,7 +22,7 @@ func GetHints() []hint.Function {
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
 func computeMultiplicationHint[T FieldParams](api frontend.API, params *field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.fParams.LimbSize(),
+		params.fParams.BitsPerLimb(),
 		len(leftLimbs),
 		len(rightLimbs),
 	}
@@ -79,7 +79,7 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 func (f *field[T]) computeReductionHint(inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
-		fp.LimbSize(),
+		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 	}
 	p := f.Modulus()
@@ -125,12 +125,12 @@ func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 func computeEqualityHint[T FieldParams](api frontend.API, params *field[T], diff Element[T]) (kpLimbs []frontend.Variable, err error) {
 	var fp T
 	p := params.Modulus()
-	resLen := (uint(len(diff.Limbs))*fp.LimbSize() + diff.overflow + 1 - // diff total bitlength
+	resLen := (uint(len(diff.Limbs))*fp.BitsPerLimb() + diff.overflow + 1 - // diff total bitlength
 		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
-		fp.LimbSize() - 1) / // to round up
-		fp.LimbSize()
+		fp.BitsPerLimb() - 1) / // to round up
+		fp.BitsPerLimb()
 	hintInputs := []frontend.Variable{
-		fp.LimbSize(),
+		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 	}
 	hintInputs = append(hintInputs, p.Limbs...)
@@ -182,7 +182,7 @@ func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 func computeInverseHint[T FieldParams](api frontend.API, params *field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
-		fp.LimbSize(),
+		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 	}
 	p := params.Modulus()
@@ -225,7 +225,7 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
-		fp.LimbSize(),
+		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 		len(nomLimbs),
 	}

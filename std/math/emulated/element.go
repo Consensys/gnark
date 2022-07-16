@@ -66,7 +66,7 @@ func NewElement[T FieldParams](_value interface{}) Element[T] {
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(constValue, r.fParams.LimbSize(), limbs); err != nil {
+	if err := decompose(constValue, r.fParams.BitsPerLimb(), limbs); err != nil {
 		// TODO @gbotrel make it an error rather than panic ?
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
@@ -87,13 +87,13 @@ func (f *field[T]) toBits(e Element[T]) []frontend.Variable {
 	var fullBits []frontend.Variable
 	var limbBits []frontend.Variable
 	for i := 0; i < len(e.Limbs); i++ {
-		limbBits = bits.ToBinary(f.api, f.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.fParams.LimbSize()+e.overflow)))
-		fullBits = append(fullBits, limbBits[:e.fParams.LimbSize()]...)
+		limbBits = bits.ToBinary(f.api, f.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.fParams.BitsPerLimb()+e.overflow)))
+		fullBits = append(fullBits, limbBits[:e.fParams.BitsPerLimb()]...)
 		if e.overflow > 0 {
-			carry = bits.FromBinary(f.api, limbBits[e.fParams.LimbSize():])
+			carry = bits.FromBinary(f.api, limbBits[e.fParams.BitsPerLimb():])
 		}
 	}
-	fullBits = append(fullBits, limbBits[e.fParams.LimbSize():e.fParams.LimbSize()+e.overflow]...)
+	fullBits = append(fullBits, limbBits[e.fParams.BitsPerLimb():e.fParams.BitsPerLimb()+e.overflow]...)
 	return fullBits
 }
 
@@ -102,7 +102,7 @@ func (f *field[T]) toBits(e Element[T]) []frontend.Variable {
 // then the limbs may overflow the native field.
 func (f *field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
-		f.maxOf = uint(f.api.Compiler().FieldBitLen()-1) - f.fParams.LimbSize()
+		f.maxOf = uint(f.api.Compiler().FieldBitLen()-1) - f.fParams.BitsPerLimb()
 	})
 	return f.maxOf
 }
@@ -154,14 +154,14 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 	// rgpar := compact(e, other, uint(f.api.Compiler().FieldBitLen()))
 	// ca := rgpar.fieldFrom(*e)
 	// cb := rgpar.fieldFrom(other)
-	ca, cb, limbSize := f.compact(a, b, uint(f.api.Compiler().FieldBitLen()))
+	ca, cb, bitsPerLimb := f.compact(a, b)
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if a.overflow > b.overflow {
-		assertLimbsEqualitySlow(f.api, ca, cb, limbSize, a.overflow)
+		assertLimbsEqualitySlow(f.api, ca, cb, bitsPerLimb, a.overflow)
 	} else {
-		assertLimbsEqualitySlow(f.api, cb, ca, limbSize, b.overflow)
+		assertLimbsEqualitySlow(f.api, cb, ca, bitsPerLimb, b.overflow)
 	}
 }
 
@@ -170,10 +170,10 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 // constrained to ensure correct operations.
 func (f *field[T]) EnforceWidth(e Element[T]) {
 	for i := range e.Limbs {
-		limbNbBits := int(e.fParams.LimbSize())
+		limbNbBits := int(e.fParams.BitsPerLimb())
 		if i == len(e.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((e.fParams.Modulus().BitLen() - 1) % int(e.fParams.LimbSize())) + 1
+			limbNbBits = ((e.fParams.Modulus().BitLen() - 1) % int(e.fParams.BitsPerLimb())) + 1
 		}
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
 		// the limb value. This is sufficient to restrict for the bitlength and
@@ -225,7 +225,7 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
-	nextOverflow = f.fParams.LimbSize() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	nextOverflow = f.fParams.BitsPerLimb() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
 	if nextOverflow > f.maxOverflow() {
 		err = errOverflow{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}

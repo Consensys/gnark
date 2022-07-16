@@ -71,10 +71,10 @@ func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
 	var fp T
 	padLimbs := make([]*big.Int, nbLimbs)
 	for i := 0; i < len(padLimbs); i++ {
-		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+fp.LimbSize())
+		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+fp.BitsPerLimb())
 	}
 	pad := new(big.Int)
-	if err := recompose(padLimbs, fp.LimbSize(), pad); err != nil {
+	if err := recompose(padLimbs, fp.BitsPerLimb(), pad); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
 	pad.Mod(pad, fp.Modulus())
@@ -83,7 +83,7 @@ func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
 	for i := range ret {
 		ret[i] = new(big.Int)
 	}
-	if err := decompose(pad, fp.LimbSize(), ret); err != nil {
+	if err := decompose(pad, fp.BitsPerLimb(), ret); err != nil {
 		panic(fmt.Sprintf("decompose: %v", err))
 	}
 	for i := range ret {
@@ -96,52 +96,45 @@ func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
 // limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
 // combination in a single new limb.
 // compact returns a and b minimal (in number of limbs) representation that fits in the snark field
-func (f *field[T]) compact(a, b Element[T], nbNativeBits uint) (ac, bc []frontend.Variable, limbSize uint) {
+func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
 	maxOverflow := a.overflow
 	if b.overflow > a.overflow {
 		maxOverflow = b.overflow
 	}
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
-	maxFit := nbNativeBits - 2
-	groupSize := (maxFit - maxOverflow) / a.fParams.LimbSize()
+	maxNbBits := uint(f.api.Compiler().FieldBitLen()) - 2 - maxOverflow
+	groupSize := maxNbBits / a.fParams.BitsPerLimb()
 	if groupSize == 0 {
 		// no space for compact
-		return a.Limbs, b.Limbs, a.fParams.LimbSize()
+		return a.Limbs, b.Limbs, a.fParams.BitsPerLimb()
 	}
 
-	limbSize = a.fParams.LimbSize() * groupSize
-	nbLimbs := (a.fParams.NbLimbs() + groupSize) / groupSize
-	ac = f.compactLimbs(a, limbSize, nbLimbs)
-	bc = f.compactLimbs(b, limbSize, nbLimbs)
+	bitsPerLimb = a.fParams.BitsPerLimb() * groupSize
+
+	ac = f.compactLimbs(a, groupSize, bitsPerLimb)
+	bc = f.compactLimbs(b, groupSize, bitsPerLimb)
 	return
 }
 
 // compactLimbs perform the regrouping of limbs between old and new parameters.
-func (f *field[T]) compactLimbs(e Element[T], limbSize, nLimbs uint) []frontend.Variable {
-	if e.fParams.LimbSize() == nLimbs {
-		// not compacting
+func (f *field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
+	if f.fParams.BitsPerLimb() == bitsPerLimb {
 		return e.Limbs
 	}
-	if limbSize%e.fParams.LimbSize() != 0 {
-		panic("regroup bitwidth must be multiple of initial bitwidth")
-	}
-
-	// TODO @gbotrel rename these limb size / nb limbs
-	groupSize := limbSize / e.fParams.LimbSize()
-	nbLimbs := (e.fParams.NbLimbs() + groupSize - 1) / groupSize
-	toReturn := make([]frontend.Variable, nbLimbs)
+	nbLimbs := (uint(len(e.Limbs)) + groupSize - 1) / groupSize
+	r := make([]frontend.Variable, nbLimbs)
 	coeffs := make([]*big.Int, groupSize)
 	one := big.NewInt(1)
 	for i := range coeffs {
 		coeffs[i] = new(big.Int)
-		coeffs[i].Lsh(one, e.fParams.LimbSize()*uint(i))
+		coeffs[i].Lsh(one, e.fParams.BitsPerLimb()*uint(i))
 	}
 	for i := uint(0); i < nbLimbs; i++ {
-		toReturn[i] = uint(0)
-		for j := uint(0); j < groupSize && i*groupSize+j < e.fParams.NbLimbs(); j++ {
-			toReturn[i] = f.api.Add(toReturn[i], f.api.Mul(coeffs[j], e.Limbs[i*groupSize+j]))
+		r[i] = uint(0)
+		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(e.Limbs)); j++ {
+			r[i] = f.api.Add(r[i], f.api.Mul(coeffs[j], e.Limbs[i*groupSize+j]))
 		}
 	}
-	return toReturn
+	return r
 }

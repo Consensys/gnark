@@ -53,17 +53,17 @@ func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	f := &field[T]{
 		api: native,
 	}
-	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.LimbSize()+1 {
-		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", f.fParams.LimbSize()))
+	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
+		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb()))
 	}
 	if f.fParams.Modulus().Cmp(big.NewInt(1)) < 1 {
 		return nil, fmt.Errorf("n must be at least 2")
 	}
-	if f.fParams.LimbSize() < 3 {
+	if f.fParams.BitsPerLimb() < 3 {
 		// even three is way too small, but it should probably work.
 		return nil, fmt.Errorf("nbBits must be at least 3")
 	}
-	nbLimbs := (uint(f.fParams.Modulus().BitLen()) + f.fParams.LimbSize() - 1) / f.fParams.LimbSize()
+	nbLimbs := (uint(f.fParams.Modulus().BitLen()) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
 	if nbLimbs != f.fParams.NbLimbs() {
 		return nil, fmt.Errorf("nbLimbs mismatch got %d expected %d", f.fParams.NbLimbs(), nbLimbs)
 	}
@@ -230,12 +230,12 @@ func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 		in[i] = els[i].Limbs[0]
 	}
 	e := f.NewElement()
-	nbLimbs := (uint(len(in)) + e.fParams.LimbSize() - 1) / e.fParams.LimbSize()
+	nbLimbs := (uint(len(in)) + e.fParams.BitsPerLimb() - 1) / e.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := uint(0); i < nbLimbs-1; i++ {
-		limbs[i] = bits.FromBinary(f.api, in[i*e.fParams.LimbSize():(i+1)*e.fParams.LimbSize()])
+		limbs[i] = bits.FromBinary(f.api, in[i*e.fParams.BitsPerLimb():(i+1)*e.fParams.BitsPerLimb()])
 	}
-	limbs[nbLimbs-1] = bits.FromBinary(f.api, in[(nbLimbs-1)*e.fParams.LimbSize():])
+	limbs[nbLimbs-1] = bits.FromBinary(f.api, in[(nbLimbs-1)*e.fParams.BitsPerLimb():])
 	e.overflow = 0
 	e.Limbs = limbs
 	return e
@@ -480,7 +480,7 @@ func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.V
 		for i, ti := range typedInputs {
 			hintInputs[i] = new(big.Int)
 			if ti.isElement {
-				if err := recompose(expandedHintInputs[ti.pos:ti.pos+ti.nbLimbs], f.fParams.LimbSize(), hintInputs[i]); err != nil {
+				if err := recompose(expandedHintInputs[ti.pos:ti.pos+ti.nbLimbs], f.fParams.BitsPerLimb(), hintInputs[i]); err != nil {
 					return fmt.Errorf("recompose: %w", err)
 				}
 			} else {
@@ -494,7 +494,7 @@ func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.V
 			return fmt.Errorf("call hint: %w", err)
 		}
 		for i := range hintOutputs {
-			if err := decompose(hintOutputs[i], f.fParams.LimbSize(), expandedHintOutputs[i*int(f.fParams.NbLimbs()):(i+1)*int(f.fParams.NbLimbs())]); err != nil {
+			if err := decompose(hintOutputs[i], f.fParams.BitsPerLimb(), expandedHintOutputs[i*int(f.fParams.NbLimbs()):(i+1)*int(f.fParams.NbLimbs())]); err != nil {
 				return fmt.Errorf("decompose: %w", err)
 			}
 		}
@@ -529,7 +529,7 @@ func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	// TODO @gbotrel since Element[T] doesn't kow which fields it belongs to, this is a bit broken.
 	// replaced nbBits = vv.nbBits by nbBits = f.nbBits
 	case Element[T]:
-		nbBits = f.fParams.LimbSize()
+		nbBits = f.fParams.BitsPerLimb()
 		constLimbs = make([]*big.Int, len(vv.Limbs))
 		for i := range vv.Limbs {
 			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
@@ -537,7 +537,7 @@ func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 			}
 		}
 	case *Element[T]:
-		nbBits = f.fParams.LimbSize()
+		nbBits = f.fParams.BitsPerLimb()
 		constLimbs = make([]*big.Int, len(vv.Limbs))
 		for i := range vv.Limbs {
 			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
@@ -646,7 +646,7 @@ func (f *field[T]) ConstantFromBig(value *big.Int) (Element[T], error) {
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(constValue, f.fParams.LimbSize(), limbs); err != nil {
+	if err := decompose(constValue, f.fParams.BitsPerLimb(), limbs); err != nil {
 		return Element[T]{}, fmt.Errorf("decompose value: %w", err)
 	}
 	limbVars := make([]frontend.Variable, len(limbs))

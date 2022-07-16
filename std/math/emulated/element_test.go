@@ -31,7 +31,7 @@ func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
 
 func testName[T FieldParams]() string {
 	var fp T
-	return fmt.Sprintf("%s/limb=%d", reflect.TypeOf(fp).Name(), fp.LimbSize())
+	return fmt.Sprintf("%s/limb=%d", reflect.TypeOf(fp).Name(), fp.BitsPerLimb())
 }
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
@@ -87,7 +87,7 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 // }
 
 // func (ef emulatedField[T]) testName() string {
-// 	return fmt.Sprintf("%s/limb=%d", ef.name, ef.field.fParams.LimbSize())
+// 	return fmt.Sprintf("%s/limb=%d", ef.name, ef.field.fParams.BitsPerLimb())
 // }
 
 // type AssertIsLessEqualThanCircuit struct {
