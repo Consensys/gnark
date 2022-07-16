@@ -15,6 +15,10 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 )
 
+type API interface {
+	frontend.API
+}
+
 // field defines the parameters of the emulated ring of integers modulo n. If
 // n is prime, then the ring is also a finite field where inverse and division
 // are allowed.
@@ -85,6 +89,9 @@ func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 		return f.ConstantFromBigOrPanic(vv)
 	case big.Int:
 		return f.ConstantFromBigOrPanic(&vv)
+	case uint:
+		b := new(big.Int).SetUint64(uint64(vv))
+		return f.ConstantFromBigOrPanic(b)
 	case int:
 		return f.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
 	case string:
@@ -100,7 +107,7 @@ func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 	case compiled.Term:
 		return f.PackLimbs([]frontend.Variable{in})
 	default:
-		panic(fmt.Sprintf("can not cast %T to *Element[T]", in))
+		panic(fmt.Sprintf("can not cast %T to Element[T]", in))
 	}
 }
 
@@ -208,7 +215,7 @@ func (f *field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
 
 func (f *field[T]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	el := f.varToElement(i1)
-	res := f.Reduce(el)
+	res := f.reduce(el)
 	out := f.toBits(res)
 	switch len(n) {
 	case 0:
@@ -288,10 +295,10 @@ func (f *field[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend
 	s0 := els[0]
 	s1 := els[1]
 	if s0.overflow != 0 || len(s0.Limbs) != int(f.fParams.NbLimbs()) {
-		s0 = f.Reduce(s0)
+		s0 = f.reduce(s0)
 	}
 	if s1.overflow != 0 || len(s1.Limbs) != int(f.fParams.NbLimbs()) {
-		s1 = f.Reduce(s1)
+		s1 = f.reduce(s1)
 	}
 	return f._select(b, s0, s1)
 }
@@ -322,23 +329,23 @@ func (f *field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 fronte
 	s2 := els[2]
 	s3 := els[3]
 	if s0.overflow != 0 || len(s0.Limbs) != int(f.fParams.NbLimbs()) {
-		s0 = f.Reduce(s0)
+		s0 = f.reduce(s0)
 	}
 	if s1.overflow != 0 || len(s1.Limbs) != int(f.fParams.NbLimbs()) {
-		s1 = f.Reduce(s1)
+		s1 = f.reduce(s1)
 	}
 	if s2.overflow != 0 || len(s2.Limbs) != int(f.fParams.NbLimbs()) {
-		s2 = f.Reduce(s2)
+		s2 = f.reduce(s2)
 	}
 	if s3.overflow != 0 || len(s3.Limbs) != int(f.fParams.NbLimbs()) {
-		s3 = f.Reduce(s3)
+		s3 = f.reduce(s3)
 	}
 	return f.lookup2(b0, b1, s0, s1, s2, s3)
 }
 
 func (f *field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
-	reduced := f.Reduce(el)
+	reduced := f.reduce(el)
 	res := f.api.IsZero(reduced.Limbs[0])
 	for i := 1; i < len(reduced.Limbs); i++ {
 		f.api.Mul(res, f.api.IsZero(reduced.Limbs[i]))
@@ -352,8 +359,8 @@ func (f *field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 func (f *field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
 	rls := make([]Element[T], 2)
-	rls[0] = f.Reduce(els[0])
-	rls[1] = f.Reduce(els[1])
+	rls[0] = f.reduce(els[0])
+	rls[1] = f.reduce(els[1])
 	var res frontend.Variable = 0
 	for i := int(f.fParams.NbLimbs() - 1); i >= 0; i-- {
 		lmbCmp := f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
@@ -380,8 +387,8 @@ func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	rls := []Element[T]{f.NewElement(), f.NewElement()}
-	rls[0] = f.Reduce(els[0])
-	rls[1] = f.Reduce(els[1])
+	rls[0] = f.reduce(els[0])
+	rls[1] = f.reduce(els[1])
 	var res frontend.Variable = 0
 	for i := 0; i < int(f.fParams.NbLimbs()); i++ {
 		cmp := f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
@@ -394,13 +401,13 @@ func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable)
 func (f *field[T]) AssertIsBoolean(i1 frontend.Variable) {
 	switch vv := i1.(type) {
 	case Element[T]:
-		v := f.Reduce(vv)
+		v := f.reduce(vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			f.api.AssertIsEqual(v.Limbs[i], 0)
 		}
 	case *Element[T]:
-		v := f.Reduce(*vv)
+		v := f.reduce(*vv)
 		f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			f.api.AssertIsEqual(v.Limbs[i], 0)
@@ -412,8 +419,8 @@ func (f *field[T]) AssertIsBoolean(i1 frontend.Variable) {
 
 func (f *field[T]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	els := f.varsToElements(v, bound)
-	l := f.Reduce(els[0])
-	r := f.Reduce(els[1])
+	l := f.reduce(els[0])
+	r := f.reduce(els[1])
 	f.AssertIsLessEqualThan(l, r)
 }
 
