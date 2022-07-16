@@ -67,22 +67,23 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
-func subPadding(params *field, current_overflow uint, nbLimbs uint) []*big.Int {
+func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
+	var fp T
 	padLimbs := make([]*big.Int, nbLimbs)
 	for i := 0; i < len(padLimbs); i++ {
-		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+params.limbSize)
+		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+fp.LimbSize())
 	}
 	pad := new(big.Int)
-	if err := recompose(padLimbs, params.limbSize, pad); err != nil {
+	if err := recompose(padLimbs, fp.LimbSize(), pad); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
-	pad.Mod(pad, params.r)
-	pad.Sub(params.r, pad)
+	pad.Mod(pad, fp.Modulus())
+	pad.Sub(fp.Modulus(), pad)
 	ret := make([]*big.Int, nbLimbs)
 	for i := range ret {
 		ret[i] = new(big.Int)
 	}
-	if err := decompose(pad, params.limbSize, ret); err != nil {
+	if err := decompose(pad, fp.LimbSize(), ret); err != nil {
 		panic(fmt.Sprintf("decompose: %v", err))
 	}
 	for i := range ret {
@@ -91,51 +92,56 @@ func subPadding(params *field, current_overflow uint, nbLimbs uint) []*big.Int {
 	return ret
 }
 
-// regroupParams returns parameters which allow for most optimal regrouping of
+// compact returns parameters which allow for most optimal regrouping of
 // limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
 // combination in a single new limb.
-func regroupParams(params *field, nbNativeBits, nbMaxOverflow uint) *field {
+// compact returns a and b minimal (in number of limbs) representation that fits in the snark field
+func (f *field[T]) compact(a, b Element[T], nbNativeBits uint) (ac, bc []frontend.Variable, limbSize uint) {
+	maxOverflow := a.overflow
+	if b.overflow > a.overflow {
+		maxOverflow = b.overflow
+	}
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
 	maxFit := nbNativeBits - 2
-	groupSize := (maxFit - nbMaxOverflow) / params.limbSize
+	groupSize := (maxFit - maxOverflow) / a.fParams.LimbSize()
 	if groupSize == 0 {
-		// not sufficient space for regroup, return the same parameters.
-		return params
+		// no space for compact
+		return a.Limbs, b.Limbs, a.fParams.LimbSize()
 	}
-	nbRegroupBits := params.limbSize * groupSize
-	nbRegroupLimbs := (params.nbLimbs + groupSize) / groupSize
-	return &field{
-		r:           params.r,
-		hasInverses: params.hasInverses,
-		nbLimbs:     nbRegroupLimbs,
-		limbSize:    nbRegroupBits,
-	}
+
+	limbSize = a.fParams.LimbSize() * groupSize
+	nbLimbs := (a.fParams.NbLimbs() + groupSize) / groupSize
+	ac = f.compactLimbs(a, limbSize, nbLimbs)
+	bc = f.compactLimbs(b, limbSize, nbLimbs)
+	return
 }
 
-// regroupLimbs perform the regrouping of limbs between old and new parameters.
-func regroupLimbs(api frontend.API, params, regroupParams *field, limbs []frontend.Variable) []frontend.Variable {
-	if params.limbSize == regroupParams.limbSize {
-		// not regrouping
-		return limbs
+// compactLimbs perform the regrouping of limbs between old and new parameters.
+func (f *field[T]) compactLimbs(e Element[T], limbSize, nLimbs uint) []frontend.Variable {
+	if e.fParams.LimbSize() == nLimbs {
+		// not compacting
+		return e.Limbs
 	}
-	if regroupParams.limbSize%params.limbSize != 0 {
+	if limbSize%e.fParams.LimbSize() != 0 {
 		panic("regroup bitwidth must be multiple of initial bitwidth")
 	}
-	groupSize := regroupParams.limbSize / params.limbSize
-	nbLimbs := (uint(len(limbs)) + groupSize - 1) / groupSize
-	regrouped := make([]frontend.Variable, nbLimbs)
+
+	// TODO @gbotrel rename these limb size / nb limbs
+	groupSize := limbSize / e.fParams.LimbSize()
+	nbLimbs := (e.fParams.NbLimbs() + groupSize - 1) / groupSize
+	toReturn := make([]frontend.Variable, nbLimbs)
 	coeffs := make([]*big.Int, groupSize)
 	one := big.NewInt(1)
 	for i := range coeffs {
 		coeffs[i] = new(big.Int)
-		coeffs[i].Lsh(one, params.limbSize*uint(i))
+		coeffs[i].Lsh(one, e.fParams.LimbSize()*uint(i))
 	}
 	for i := uint(0); i < nbLimbs; i++ {
-		regrouped[i] = uint(0)
-		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(limbs)); j++ {
-			regrouped[i] = api.Add(regrouped[i], api.Mul(coeffs[j], limbs[i*groupSize+j]))
+		toReturn[i] = uint(0)
+		for j := uint(0); j < groupSize && i*groupSize+j < e.fParams.NbLimbs(); j++ {
+			toReturn[i] = f.api.Add(toReturn[i], f.api.Mul(coeffs[j], e.Limbs[i*groupSize+j]))
 		}
 	}
-	return regrouped
+	return toReturn
 }

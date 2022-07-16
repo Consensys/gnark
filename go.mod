@@ -1,6 +1,6 @@
 module github.com/consensys/gnark
 
-go 1.17
+go 1.18
 
 require (
 	github.com/consensys/bavard v0.1.11-0.20220418151131-08e04eec2153

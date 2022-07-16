@@ -20,9 +20,9 @@ func GetHints() []hint.Function {
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint(api frontend.API, params *field, leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func computeMultiplicationHint[T FieldParams](api frontend.API, params *field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.limbSize,
+		params.fParams.LimbSize(),
 		len(leftLimbs),
 		len(rightLimbs),
 	}
@@ -76,17 +76,18 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 }
 
 // computeReductionHint packs inputs for the ReductionHint hint function.
-func computeReductionHint(api frontend.API, params *field, inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
+func (f *field[T]) computeReductionHint(inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.limbSize,
-		params.nbLimbs,
+		fp.LimbSize(),
+		fp.NbLimbs(),
 	}
-	p := params.Modulus()
+	p := f.Modulus()
 	for i := range p.Limbs {
 		hintInputs = append(hintInputs, frontend.Variable(p.Limbs[i]))
 	}
 	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(ReductionHint, int(params.nbLimbs), hintInputs...)
+	return f.api.NewHint(ReductionHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // ReductionHint computes the remainder r for input x = k*p + r and stores it
@@ -121,15 +122,16 @@ func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeEqualityHint packs the inputs for EqualityHint function.
-func computeEqualityHint(api frontend.API, params *field, diff Element) (kpLimbs []frontend.Variable, err error) {
+func computeEqualityHint[T FieldParams](api frontend.API, params *field[T], diff Element[T]) (kpLimbs []frontend.Variable, err error) {
+	var fp T
 	p := params.Modulus()
-	resLen := (uint(len(diff.Limbs))*params.limbSize + diff.overflow + 1 - // diff total bitlength
-		uint(params.r.BitLen()) + // subtract modulus bitlength
-		params.limbSize - 1) / // to round up
-		params.limbSize
+	resLen := (uint(len(diff.Limbs))*fp.LimbSize() + diff.overflow + 1 - // diff total bitlength
+		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
+		fp.LimbSize() - 1) / // to round up
+		fp.LimbSize()
 	hintInputs := []frontend.Variable{
-		params.limbSize,
-		params.nbLimbs,
+		fp.LimbSize(),
+		fp.NbLimbs(),
 	}
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, diff.Limbs...)
@@ -177,15 +179,16 @@ func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint(api frontend.API, params *field, inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func computeInverseHint[T FieldParams](api frontend.API, params *field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.limbSize,
-		params.nbLimbs,
+		fp.LimbSize(),
+		fp.NbLimbs(),
 	}
 	p := params.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(InverseHint, int(params.nbLimbs), hintInputs...)
+	return api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
@@ -219,17 +222,18 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint(api frontend.API, params *field, nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.limbSize,
-		params.nbLimbs,
+		fp.LimbSize(),
+		fp.NbLimbs(),
 		len(nomLimbs),
 	}
 	p := params.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
-	return api.NewHint(DivHint, int(params.nbLimbs), hintInputs...)
+	return api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in
