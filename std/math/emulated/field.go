@@ -11,7 +11,9 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/math/bits"
+	"github.com/rs/zerolog"
 )
 
 type API interface {
@@ -40,6 +42,8 @@ type field[T FieldParams] struct {
 	zeroConst     Element[T] `gnark:"-"`
 	oneConstOnce  sync.Once
 	oneConst      Element[T] `gnark:"-"`
+
+	log zerolog.Logger
 }
 
 // NewField wraps the existing native API such that all methods are performed
@@ -55,6 +59,7 @@ type field[T FieldParams] struct {
 func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	f := &field[T]{
 		api: native,
+		log: logger.Logger(),
 	}
 
 	// ensure prime is correctly set
@@ -525,22 +530,24 @@ func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 		limbs = vv.Limbs
 	case *Element[T]:
 		limbs = vv.Limbs
+	case []frontend.Variable:
+		limbs = vv
 	default:
 		return f.api.Compiler().ConstantValue(vv)
 	}
-
 	var ok bool
+
 	constLimbs := make([]*big.Int, len(limbs))
-	for i := range limbs {
+	for i, l := range limbs {
 		// for each limb we get it's constant value if we can, or fail.
-		if constLimbs[i], ok = f.api.Compiler().ConstantValue(limbs); !ok {
+		if constLimbs[i], ok = f.ConstantValue(l); !ok {
 			return nil, false
 		}
 	}
 
 	res := new(big.Int)
 	if err := recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
-		// TODO @gbotrel log an error
+		f.log.Error().Err(err).Msg("recomposing constant")
 		return nil, false
 	}
 	return res, true

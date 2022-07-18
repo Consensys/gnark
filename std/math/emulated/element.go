@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
+	"golang.org/x/exp/constraints"
 )
 
 type errOverflow struct {
@@ -216,13 +217,10 @@ func (f *field[T]) EnforceWidth(e Element[T]) {
 }
 
 func (f *field[T]) addPreCond(a, b Element[T]) (nextOverflow uint, err error) {
-	nextOverflow = 1
 	reduceRight := a.overflow < b.overflow
-	if a.overflow > b.overflow {
-		nextOverflow += a.overflow
-	} else {
-		nextOverflow += b.overflow
-	}
+
+	nextOverflow = max(a.overflow, b.overflow) + 1
+
 	if nextOverflow > f.maxOverflow() {
 		err = errOverflow{op: "add", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
@@ -235,10 +233,7 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 	// constant's overflow never increases?)
 	// TODO: check that the target is a variable (has an API)
 	// TODO: if both are constants, then add big ints
-	nbLimbs := len(a.Limbs)
-	if len(b.Limbs) > nbLimbs {
-		nbLimbs = len(b.Limbs)
-	}
+	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := range limbs {
 		limbs[i] = 0
@@ -249,9 +244,10 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
-	e := NewElement[T](nil)
-	e.Limbs = limbs
-	e.overflow = nextOverflow
+	e := Element[T]{
+		Limbs:    limbs,
+		overflow: nextOverflow,
+	}
 	return e
 }
 
@@ -267,40 +263,44 @@ func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 
 func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 	// TODO: when one element is constant.
-	// TODO: check that target is initialized (has an API)
 	// TODO: if both are constants, then do big int mul
-	limbs, err := computeMultiplicationHint(f.api, f, a.Limbs, b.Limbs)
+
+	// mulResult contains the result (out of circuit) of a * b school book multiplication
+	// len(mulResult) == len(a) + len(b) - 1
+	mulResult, err := computeMultiplicationHint(f.api, f, a.Limbs, b.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("multiplication hint: %s", err))
 	}
+
+	// we computed the result of the mul outside the circuit (mulResult)
+	// and we want to constrain inside the circuit that this injected value
+	// actually matches the in-circuit a * b values
 	// create constraints (\sum_{i=0}^{m-1} a_i c^i) * (\sum_{i=0}^{m-1} b_i
 	// c^i) = (\sum_{i=0}^{2m-2} z_i c^i) for c \in {1, 2m-1}
-	for c := 1; c <= len(limbs); c++ {
-		cb := big.NewInt(int64(c)) // c
-		bit := big.NewInt(1)       // c^i
-		l := f.api.Mul(a.Limbs[0], bit)
-		for i := 1; i < len(a.Limbs); i++ {
-			bit.Mul(bit, cb)
-			l = f.api.Add(l, f.api.Mul(a.Limbs[i], bit))
-		}
-		bit.SetInt64(1)
-		r := f.api.Mul(b.Limbs[0], bit)
-		for i := 1; i < len(b.Limbs); i++ {
-			bit.Mul(bit, cb)
-			r = f.api.Add(r, f.api.Mul(b.Limbs[i], bit))
-		}
-		bit.SetInt64(1)
-		o := f.api.Mul(limbs[0], bit)
-		for i := 1; i < len(limbs); i++ {
-			bit.Mul(bit, cb)
-			o = f.api.Add(o, f.api.Mul(limbs[i], bit))
+	w := new(big.Int)
+	for c := 1; c <= len(mulResult); c++ {
+		w.SetInt64(1) // c^i
+		l := a.Limbs[0]
+		r := b.Limbs[0]
+		o := mulResult[0]
+
+		for i := 1; i < len(mulResult); i++ {
+			w.Lsh(w, uint(c))
+			if i < len(a.Limbs) {
+				l = f.api.Add(l, f.api.Mul(a.Limbs[i], w))
+			}
+			if i < len(b.Limbs) {
+				r = f.api.Add(r, f.api.Mul(b.Limbs[i], w))
+			}
+			o = f.api.Add(o, f.api.Mul(mulResult[i], w))
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
-	e := NewElement[T](nil)
-	e.Limbs = limbs
-	e.overflow = nextOverflow
-	return e
+
+	return Element[T]{
+		Limbs:    mulResult,
+		overflow: nextOverflow,
+	}
 }
 
 // reduce reduces a modulo modulus and assigns e to the reduced value.
@@ -314,9 +314,10 @@ func (f *field[T]) reduce(a Element[T]) Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	e := NewElement[T](nil)
-	e.Limbs = r
-	e.overflow = 0
+	e := Element[T]{
+		Limbs:    r,
+		overflow: 0,
+	}
 	f.assertIsEqual(e, a)
 	return e
 }
@@ -425,9 +426,10 @@ func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
-	e := NewElement[T](nil)
-	e.Limbs = limbs
-	e.overflow = nextOverflow
+	e := Element[T]{
+		Limbs:    limbs,
+		overflow: nextOverflow,
+	}
 	return e
 }
 
@@ -475,4 +477,11 @@ func (f *field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T],
 		}
 	}
 	return op(a, b, nextOverflow)
+}
+
+func max[T constraints.Ordered](a, b T) T {
+	if a > b {
+		return a
+	}
+	return b
 }
