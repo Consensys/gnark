@@ -19,7 +19,7 @@ func init() {
 func GetHints() []hint.Function {
 	return []hint.Function{
 		DivHint,
-		EqualityHint,
+		QuoHint,
 		InverseHint,
 		MultiplicationHint,
 		ReductionHint,
@@ -128,31 +128,38 @@ func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return nil
 }
 
-// computeEqualityHint packs the inputs for EqualityHint function.
-func computeEqualityHint[T FieldParams](api frontend.API, params *field[T], diff Element[T]) (kpLimbs []frontend.Variable, err error) {
+// computeQuoHint packs the inputs for QuoHint function and returns z = x / y
+// (discards remainder)
+func (f *field[T]) computeQuoHint(x, y Element[T]) (z Element[T], err error) {
 	var fp T
-	p := params.Modulus()
-	resLen := (uint(len(diff.Limbs))*fp.BitsPerLimb() + diff.overflow + 1 - // diff total bitlength
-		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
-		fp.BitsPerLimb() - 1) / // to round up
-		fp.BitsPerLimb()
+	xBitLen := uint(len(x.Limbs))*(fp.BitsPerLimb()) + x.overflow
+	yBitLen := uint(len(y.Limbs))*(fp.BitsPerLimb()) + y.overflow
+	diff := max(xBitLen, yBitLen) - min(xBitLen, yBitLen)
+	resLen := (diff + fp.BitsPerLimb() - 1) / fp.BitsPerLimb()
+
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
-		fp.NbLimbs(),
+		len(x.Limbs),
 	}
-	hintInputs = append(hintInputs, p.Limbs...)
-	hintInputs = append(hintInputs, diff.Limbs...)
-	return api.NewHint(EqualityHint, int(resLen), hintInputs...)
+	hintInputs = append(hintInputs, x.Limbs...)
+	hintInputs = append(hintInputs, y.Limbs...)
+
+	limbs, err := f.api.NewHint(QuoHint, int(resLen), hintInputs...)
+	if err != nil {
+		return Element[T]{}, err
+	}
+
+	return f.PackLimbs(limbs), nil
 }
 
-// EqualityHint computes k for input x = k*p and stores it in outputs.
-func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	// first value is the number of bits per limb (nbBits)
-	// second value is the number of limbs for modulus
-	// then comes emulated modulus (p)
-	// and the rest is for the difference (diff)
+// QuoHint computes z = x / y and discards remainder
+func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	// input[0] = nbBits per limb
+	// input[1] = nbLimbs(x)
+	// input[2:2+nbLimbs(x)] = limbs(x)
+	// input[2+nbLimbs(x):] = limbs(y)
 	//
-	// if the quotient z = diff / p is larger than the scalar modulus, then err.
+	// if the quotient z = x / y is larger than the scalar modulus, then err.
 	// Otherwise we store the quotient in the output element (a single element).
 	//
 	// errors when does not divide evenly (we do not allow to generate invalid
@@ -165,20 +172,15 @@ func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs[2:]) < nbLimbs {
 		return fmt.Errorf("modulus limbs missing")
 	}
-	p := new(big.Int)
-	diff := new(big.Int)
-	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	x, y := new(big.Int), new(big.Int)
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, x); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
-	if err := recompose(inputs[2+nbLimbs:], nbBits, diff); err != nil {
+	if err := recompose(inputs[2+nbLimbs:], nbBits, y); err != nil {
 		return fmt.Errorf("recompose diff")
 	}
-	r := new(big.Int)
 	z := new(big.Int)
-	z.QuoRem(diff, p, r)
-	if r.Cmp(big.NewInt(0)) != 0 {
-		return fmt.Errorf("modulus does not divide diff evenly")
-	}
+	z.Quo(x, y)
 	if err := decompose(z, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}

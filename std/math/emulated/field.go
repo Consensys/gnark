@@ -244,6 +244,8 @@ func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 }
 
 func (f *field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
+	// TODO @gbotrel it seems here inputs are not necessarly reduced, so checking only the first limb
+	// is not enough mod(r)
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])

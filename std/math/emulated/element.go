@@ -347,15 +347,19 @@ func (e *Element[T]) Set(a Element[T]) {
 	// }
 }
 
-// AssertIsEqual ensures that a is equal to e modulo the modulus.
-func (f *field[T]) assertIsEqual(e, a Element[T]) Element[T] {
-	diff := (f.Sub(a, e)).(Element[T])
-	kLimbs, err := computeEqualityHint(f.api, f, diff)
+// AssertIsEqual ensures that a is equal to b modulo the modulus.
+func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
+	p := f.Modulus()
+	diff := (f.Sub(b, a)).(Element[T])
+
+	// we compute k such that diff / p == k
+	// so essentially, we say "I know an element k such that k*p == diff"
+	// hence, diff == 0 mod p
+	k, err := f.computeQuoHint(diff, p)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
-	k := f.PackLimbs(kLimbs)
-	p := f.Modulus()
+
 	kp := (f.Mul(k, p)).(Element[T])
 	f.AssertLimbsEquality(diff, kp)
 
@@ -411,10 +415,7 @@ func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
-	nbLimbs := len(a.Limbs)
-	if len(b.Limbs) > nbLimbs {
-		nbLimbs = len(b.Limbs)
-	}
+	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
 	padLimbs := subPadding[T](b.overflow, uint(nbLimbs))
 	for i := range limbs {
@@ -481,6 +482,13 @@ func (f *field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T],
 
 func max[T constraints.Ordered](a, b T) T {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min[T constraints.Ordered](a, b T) T {
+	if a < b {
 		return a
 	}
 	return b
