@@ -55,7 +55,7 @@ func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }
 // for modulus 0x1ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001
 type BLS12377Fp struct{}
 
-func (fp BLS12377Fp) NbLimbs() uint     { return 12 }
-func (fp BLS12377Fp) BitsPerLimb() uint { return 32 }
+func (fp BLS12377Fp) NbLimbs() uint     { return 6 }
+func (fp BLS12377Fp) BitsPerLimb() uint { return 64 }
 func (fp BLS12377Fp) IsPrime() bool     { return true }
 func (fp BLS12377Fp) Modulus() *big.Int { return ecc.BLS12_377.BaseField() }
