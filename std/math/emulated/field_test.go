@@ -219,6 +219,7 @@ func (circuit *pairingBLS377) Define(api frontend.API) error {
 }
 
 func TestPairingBLS377(t *testing.T) {
+	t.Skip()
 	assert := test.NewAssert(t)
 
 	_, _, P, Q := bls12377.Generators()

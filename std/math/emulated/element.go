@@ -19,6 +19,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -49,26 +50,59 @@ type Element[T FieldParams] struct {
 	fParams T
 }
 
-func NewElement[T FieldParams](_value interface{}) Element[T] {
+// NewElement builds a new emulated element from input
+// if input is a Element[T], this functions clones and return a new Element[T]
+// else, it attemps to convert to big.Int , mod reduce if necessary and return a cannonical Element[T]
+func NewElement[T FieldParams](v interface{}) Element[T] {
 	r := Element[T]{}
 	r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
+	for i := 0; i < len(r.Limbs); i++ {
+		r.Limbs[i] = 0
+	}
 
-	if _value == nil {
+	if v == nil {
 		return r
 	}
-	value := utils.FromInterface(_value)
-
-	constValue := new(big.Int).Set(&value)
-	if r.fParams.Modulus().Cmp(&value) != 0 {
-		constValue.Mod(constValue, r.fParams.Modulus())
+	switch tv := v.(type) {
+	case Element[T]:
+		copy(r.Limbs, tv.Limbs)
+		r.overflow = tv.overflow
+		return r
+	case *Element[T]:
+		copy(r.Limbs, tv.Limbs)
+		r.overflow = tv.overflow
+		return r
+	case compiled.LinearExpression:
+		// TODO @gbotrel don't like that
+		// return f.PackLimbs([]frontend.Variable{in})
+		r.Limbs = []frontend.Variable{v}
+		return r
+	case compiled.Term:
+		// TODO @gbotrel don't like that
+		// return f.PackLimbs([]frontend.Variable{in})
+		r.Limbs = []frontend.Variable{v}
+		return r
 	}
+
+	// convert to big.Int
+	bValue := utils.FromInterface(v)
+
+	// mod reduce
+	if r.fParams.Modulus().Cmp(&bValue) != 0 {
+		bValue.Mod(&bValue, r.fParams.Modulus())
+	}
+
+	// decompose into limbs
+	// TODO @gbotrel use big.Int pool here
 	limbs := make([]*big.Int, r.fParams.NbLimbs())
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(constValue, r.fParams.BitsPerLimb(), limbs); err != nil {
+	if err := decompose(&bValue, r.fParams.BitsPerLimb(), limbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
+
+	// assign limb values
 	for i := range limbs {
 		r.Limbs[i] = frontend.Variable(limbs[i])
 	}
@@ -215,7 +249,7 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = limbs
 	e.overflow = nextOverflow
 	return e
@@ -263,7 +297,7 @@ func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = limbs
 	e.overflow = nextOverflow
 	return e
@@ -280,7 +314,7 @@ func (f *field[T]) reduce(a Element[T]) Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = r
 	e.overflow = 0
 	f.assertIsEqual(e, a)
@@ -326,7 +360,7 @@ func (f *field[T]) assertIsEqual(e, a Element[T]) Element[T] {
 
 	// TODO @gbotrel improve useless alloc
 	// we have this so that the signature of assertIsEqual matches expected in reduceAndOp
-	return f.NewElement()
+	return NewElement[T](nil)
 }
 
 // AssertIsEqualLessThan ensures that e is less or equal than e.
@@ -391,7 +425,7 @@ func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = limbs
 	e.overflow = nextOverflow
 	return e
@@ -400,7 +434,7 @@ func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 // Select sets e to a if selector == 0 and to b otherwise.
 // assumes a overflow == b overflow
 func (f *field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[T] {
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.overflow = a.overflow
 	for i := range a.Limbs {
 		e.Limbs[i] = f.api.Select(selector, a.Limbs[i], b.Limbs[i])
@@ -417,7 +451,7 @@ func (f *field[T]) lookup2(b0, b1 frontend.Variable, a, b, c, d Element[T]) Elem
 	if a.overflow != b.overflow || a.overflow != c.overflow || a.overflow != d.overflow {
 		panic("unequal overflows for lookup")
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = make([]frontend.Variable, len(a.Limbs))
 	e.overflow = a.overflow
 	for i := range a.Limbs {

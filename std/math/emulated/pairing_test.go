@@ -65,6 +65,8 @@ func TestMillerLoopBLS377(t *testing.T) {
 	})
 	// reference for N = 2:
 	// 12:53:18 DBG counters add=2803841 equals=450685 fromBinary=0 mul=2809986 sub=19506 toBinary=0
+	// for 32 squares:
+	// 13:37:56 DBG counters add=17445340 equals=2809325 fromBinary=0 mul=17467554 sub=116816 toBinary=0
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
 	assert.NoError(err)
 }
@@ -75,7 +77,7 @@ func fakeMillerLoop(api frontend.API, P sw_bls12377.G1Affine, Q sw_bls12377.G2Af
 	var res sw_bls12377.GT
 	res.SetOne()
 
-	var l1, l2 sw_bls12377.LineEvaluation
+	var l1, _ sw_bls12377.LineEvaluation
 
 	Qacc := Q
 	yInv := api.DivUnchecked(1, P.Y)
@@ -86,16 +88,16 @@ func fakeMillerLoop(api frontend.API, P sw_bls12377.G1Affine, Q sw_bls12377.G2Af
 	res.C1.B0.MulByFp(api, l1.R0, xOverY)
 	res.C1.B1.MulByFp(api, l1.R1, yInv)
 
-	const N = 2
+	const N = 32
 	for i := 0; i < N; i++ {
 		res.Square(api, res)
-		Qacc, l1, l2 = sw_bls12377.DoubleAndAddStep(api, &Qacc, &Q)
-		l1.R0.MulByFp(api, l1.R0, xOverY)
-		l1.R1.MulByFp(api, l1.R1, yInv)
-		res.MulBy034(api, l1.R0, l1.R1)
-		l2.R0.MulByFp(api, l2.R0, xOverY)
-		l2.R1.MulByFp(api, l2.R1, yInv)
-		res.MulBy034(api, l2.R0, l2.R1)
+		// Qacc, l1, l2 = sw_bls12377.DoubleAndAddStep(api, &Qacc, &Q)
+		// l1.R0.MulByFp(api, l1.R0, xOverY)
+		// l1.R1.MulByFp(api, l1.R1, yInv)
+		// res.MulBy034(api, l1.R0, l1.R1)
+		// l2.R0.MulByFp(api, l2.R0, xOverY)
+		// l2.R1.MulByFp(api, l2.R1, yInv)
+		// res.MulBy034(api, l2.R0, l2.R1)
 	}
 
 	return res, nil

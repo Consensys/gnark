@@ -10,7 +10,6 @@ import (
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -96,29 +95,8 @@ func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 		return vv
 	case *Element[T]:
 		return *vv
-	case *big.Int:
-		return f.ConstantFromBigOrPanic(vv)
-	case big.Int:
-		return f.ConstantFromBigOrPanic(&vv)
-	case uint:
-		b := new(big.Int).SetUint64(uint64(vv))
-		return f.ConstantFromBigOrPanic(b)
-	case int:
-		return f.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
-	case string:
-		elb := new(big.Int)
-		elb.SetString(vv, 10)
-		return f.ConstantFromBigOrPanic(elb)
-	case interface{ ToBigIntRegular(*big.Int) *big.Int }:
-		b := new(big.Int)
-		vv.ToBigIntRegular(b)
-		return f.ConstantFromBigOrPanic(b)
-	case compiled.LinearExpression:
-		return f.PackLimbs([]frontend.Variable{in})
-	case compiled.Term:
-		return f.PackLimbs([]frontend.Variable{in})
 	default:
-		panic(fmt.Sprintf("can not cast %T to Element[T]", in))
+		return NewElement[T](in)
 	}
 }
 
@@ -158,7 +136,7 @@ func (f *field[T]) Neg(i1 frontend.Variable) frontend.Variable {
 
 func (f *field[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
-	sub := f.NewElement()
+	sub := NewElement[T](nil)
 	sub.Set(els[1])
 	for i := 2; i < len(els); i++ {
 		sub = f.reduceAndOp(f.add, f.addPreCond, sub, els[i])
@@ -197,7 +175,7 @@ func (f *field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 	if err != nil {
 		panic(fmt.Sprintf("compute division: %v", err))
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = div
 	e.overflow = 0
 	f.EnforceWidth(e)
@@ -217,7 +195,7 @@ func (f *field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	e.Limbs = k
 	e.overflow = 0
 	f.EnforceWidth(e)
@@ -248,7 +226,7 @@ func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 		f.AssertIsBoolean(els[i])
 		in[i] = els[i].Limbs[0]
 	}
-	e := f.NewElement()
+	e := NewElement[T](nil)
 	nbLimbs := (uint(len(in)) + e.fParams.BitsPerLimb() - 1) / e.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := uint(0); i < nbLimbs-1; i++ {
@@ -385,9 +363,9 @@ func (f *field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 
 func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	tmp := f.NewElement()
+	tmp := NewElement[T](nil)
 	tmp.Set(els[0]) // TODO @gbotrel do we need to duplicate here?
-	f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] { f.assertIsEqual(a, b); return f.NewElement() }, func(e1, e2 Element[T]) (uint, error) {
+	f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] { f.assertIsEqual(a, b); return NewElement[T](nil) }, func(e1, e2 Element[T]) (uint, error) {
 		nextOverflow, err := f.subPreCond(e2, e1) // TODO @gbotrel previously "tmp.sub..."
 		var target errOverflow
 		if err != nil && errors.As(err, &target) {
@@ -400,7 +378,7 @@ func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 
 func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	rls := []Element[T]{f.NewElement(), f.NewElement()}
+	rls := []Element[T]{NewElement[T](nil), NewElement[T](nil)}
 	rls[0] = f.reduce(els[0])
 	rls[1] = f.reduce(els[1])
 	var res frontend.Variable = 0
@@ -525,7 +503,7 @@ func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.V
 	}
 	ret := make([]frontend.Variable, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
-		el := f.NewElement()
+		el := NewElement[T](nil)
 		el.Limbs = hintRet[i*int(f.fParams.NbLimbs()) : (i+1)*int(f.fParams.NbLimbs())]
 		ret[i] = el
 	}
@@ -598,27 +576,11 @@ func (f *field[T]) MarkBoolean(v frontend.Variable) {
 	}
 }
 
-// NewElement returns initialized element in the field. The value of this element
-// is not constrained and it only safe to use as a receiver in operations. For
-// elements initialized to values use Zero(), One() or Modulus().
-func (f *field[T]) NewElement() Element[T] {
-	e := Element[T]{
-		Limbs:    make([]frontend.Variable, f.fParams.NbLimbs()),
-		overflow: 0,
-	}
-	return e
-}
-
 // Modulus returns the modulus of the emulated ring as a constant. The returned
 // element is not safe to use as an operation receiver.
 func (f *field[T]) Modulus() Element[T] {
 	f.nConstOnce.Do(func() {
-		element, err := f.ConstantFromBig(f.fParams.Modulus())
-		if err != nil {
-			// should not err for f.order
-			panic(fmt.Sprintf("witness from order: %v", err))
-		}
-		f.nConst = element
+		f.nConst = NewElement[T](f.fParams.Modulus())
 	})
 	return f.nConst
 }
@@ -627,11 +589,7 @@ func (f *field[T]) Modulus() Element[T] {
 // an operation receiver.
 func (f *field[T]) Zero() Element[T] {
 	f.zeroConstOnce.Do(func() {
-		element, err := f.ConstantFromBig(big.NewInt(0))
-		if err != nil {
-			panic(fmt.Sprintf("witness from zero: %v", err))
-		}
-		f.zeroConst = element
+		f.zeroConst = NewElement[T](nil)
 	})
 	return f.zeroConst
 }
@@ -640,48 +598,9 @@ func (f *field[T]) Zero() Element[T] {
 // operation receiver.
 func (f *field[T]) One() Element[T] {
 	f.oneConstOnce.Do(func() {
-		element, err := f.ConstantFromBig(big.NewInt(1))
-		if err != nil {
-			panic(fmt.Sprintf("witness from one: %v", err))
-		}
-		f.oneConst = element
+		f.oneConst = NewElement[T](1)
 	})
 	return f.oneConst
-}
-
-// ConstantFromBig returns a constant element from the value. The returned
-// element is not safe to use as an operation receiver.
-func (f *field[T]) ConstantFromBig(value *big.Int) (Element[T], error) {
-	constValue := new(big.Int).Set(value)
-	if f.fParams.Modulus().Cmp(value) != 0 {
-		constValue.Mod(constValue, f.fParams.Modulus())
-	}
-	limbs := make([]*big.Int, f.fParams.NbLimbs())
-	for i := range limbs {
-		limbs[i] = new(big.Int)
-	}
-	if err := decompose(constValue, f.fParams.BitsPerLimb(), limbs); err != nil {
-		return Element[T]{}, fmt.Errorf("decompose value: %w", err)
-	}
-	limbVars := make([]frontend.Variable, len(limbs))
-	for i := range limbs {
-		limbVars[i] = frontend.Variable(limbs[i])
-	}
-	e := Element[T]{
-		Limbs:    limbVars,
-		overflow: 0,
-	}
-	return e, nil
-}
-
-// ConstantFromBigOrPanic returns a constant from value or panics if value does
-// not define a valid element in the ring.
-func (f *field[T]) ConstantFromBigOrPanic(value *big.Int) Element[T] {
-	el, err := f.ConstantFromBig(value)
-	if err != nil {
-		panic(err)
-	}
-	return el
 }
 
 // PackLimbs returns a constant element from the given limbs. The
