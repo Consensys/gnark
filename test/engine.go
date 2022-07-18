@@ -160,8 +160,17 @@ func (e *engine) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	b2 := e.toBigInt(i2)
+	if len(in) == 0 && b2.IsUint64() && b2.Uint64() <= 1 {
+		// special path to avoid useless allocations
+		if b2.Uint64() == 0 {
+			return 0
+		}
+		return i1
+	}
+	b1 := e.toBigInt(i1)
 	res := new(big.Int)
-	res.Mul(e.toBigInt(i1), e.toBigInt(i2))
+	res.Mul(b1, b2)
 	res.Mod(res, e.modulus())
 	for i := 0; i < len(in); i++ {
 		res.Mul(res, e.toBigInt(in[i]))
@@ -234,21 +243,23 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 }
 
 func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
-	bits := make([]*big.Int, len(v))
+	bits := make([]bool, len(v))
 	for i := 0; i < len(v); i++ {
-		bits[i] = e.toBigInt(v[i])
-		e.mustBeBoolean(bits[i])
+		be := e.toBigInt(v[i])
+		e.mustBeBoolean(be)
+		bits[i] = be.Uint64() == 1
+
 	}
 
 	// Σ (2**i * bits[i]) == r
 	c := new(big.Int)
 	r := new(big.Int)
-	tmp := new(big.Int)
 	c.SetUint64(1)
 
 	for i := 0; i < len(bits); i++ {
-		tmp.Mul(bits[i], c)
-		r.Add(r, tmp)
+		if bits[i] {
+			r.Add(r, c)
+		}
 		c.Lsh(c, 1)
 	}
 	r.Mod(r, e.modulus())
