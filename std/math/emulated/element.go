@@ -67,7 +67,6 @@ func NewElement[T FieldParams](_value interface{}) Element[T] {
 		limbs[i] = new(big.Int)
 	}
 	if err := decompose(constValue, r.fParams.BitsPerLimb(), limbs); err != nil {
-		// TODO @gbotrel make it an error rather than panic ?
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 	for i := range limbs {
@@ -305,7 +304,7 @@ func (e *Element[T]) Set(a Element[T]) {
 	e.Limbs = make([]frontend.Variable, len(a.Limbs))
 	e.overflow = a.overflow
 	copy(e.Limbs, a.Limbs)
-	// TODO @gbotrel this has to be done somewhereelse
+	// TODO @gbotrel this shouldn't happen anymore
 	// if a.f.api == nil {
 	// 	// we are setting from constant -- ensure that the widths of the limbs
 	// 	// are restricted
@@ -325,7 +324,9 @@ func (f *field[T]) assertIsEqual(e, a Element[T]) Element[T] {
 	kp := (f.Mul(k, p)).(Element[T])
 	f.AssertLimbsEquality(diff, kp)
 
-	return f.NewElement() // TODO @gbotrel improve useless alloc
+	// TODO @gbotrel improve useless alloc
+	// we have this so that the signature of assertIsEqual matches expected in reduceAndOp
+	return f.NewElement()
 }
 
 // AssertIsEqualLessThan ensures that e is less or equal than e.

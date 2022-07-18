@@ -527,33 +527,28 @@ func (f *field[T]) AddCounter(from frontend.Tag, to frontend.Tag) {
 }
 
 func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
-	var constLimbs []*big.Int
-	var nbBits uint
-	var ok bool
+	var limbs []frontend.Variable // emulated limbs
 	switch vv := v.(type) {
-	// TODO @gbotrel since Element[T] doesn't kow which fields it belongs to, this is a bit broken.
-	// replaced nbBits = vv.nbBits by nbBits = f.nbBits
 	case Element[T]:
-		nbBits = f.fParams.BitsPerLimb()
-		constLimbs = make([]*big.Int, len(vv.Limbs))
-		for i := range vv.Limbs {
-			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
-				return nil, false
-			}
-		}
+		limbs = vv.Limbs
 	case *Element[T]:
-		nbBits = f.fParams.BitsPerLimb()
-		constLimbs = make([]*big.Int, len(vv.Limbs))
-		for i := range vv.Limbs {
-			if constLimbs[i], ok = f.api.Compiler().ConstantValue(vv.Limbs[i]); !ok {
-				return nil, false
-			}
-		}
+		limbs = vv.Limbs
 	default:
 		return f.api.Compiler().ConstantValue(vv)
 	}
+
+	var ok bool
+	constLimbs := make([]*big.Int, len(limbs))
+	for i := range limbs {
+		// for each limb we get it's constant value if we can, or fail.
+		if constLimbs[i], ok = f.api.Compiler().ConstantValue(limbs); !ok {
+			return nil, false
+		}
+	}
+
 	res := new(big.Int)
-	if err := recompose(constLimbs, nbBits, res); err != nil {
+	if err := recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
+		// TODO @gbotrel log an error
 		return nil, false
 	}
 	return res, true

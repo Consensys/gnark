@@ -15,8 +15,6 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-// TODO @gbotrel add test that ensures we never mutate inputs inside API calls
-
 const testCurve = ecc.BN254
 
 type AssertLimbEqualityCircuit[T FieldParams] struct {
@@ -56,7 +54,7 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 	}, testName[T]())
 }
 
-// // TODO: add also cases which should fail
+// TODO: add also cases which should fail
 
 type AssertIsLessEqualThanCircuit[T FieldParams] struct {
 	L, R Element[T]
