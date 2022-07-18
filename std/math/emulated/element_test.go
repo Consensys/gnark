@@ -495,12 +495,12 @@ func testFromBinary[T FieldParams](t *testing.T) {
 	}, testName[T]())
 }
 
-type ConstantCircuit[T FieldParams] struct {
+type EqualityCheckCircuit[T FieldParams] struct {
 	A Element[T]
 	B Element[T]
 }
 
-func (c *ConstantCircuit[T]) Define(api frontend.API) error {
+func (c *EqualityCheckCircuit[T]) Define(api frontend.API) error {
 	f, err := NewField[T](api)
 	if err != nil {
 		return err
@@ -520,7 +520,7 @@ func testConstantEqual[T FieldParams](t *testing.T) {
 	var fp T
 	assert := test.NewAssert(t)
 	assert.Run(func(assert *test.Assert) {
-		var circuit, witness ConstantCircuit[T]
+		var circuit, witness EqualityCheckCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
 		witness.A.Assign(val)
 		witness.B.Assign(val)

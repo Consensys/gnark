@@ -2,6 +2,7 @@ package emulated
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -271,4 +272,45 @@ func TestPairingBLS377(t *testing.T) {
 	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
 	// assert.NoError(err)
 	// TODO: create proof
+}
+
+type ConstantCircuit struct {
+}
+
+func (c *ConstantCircuit) Define(api frontend.API) error {
+	f, err := NewField[Secp256k1](api)
+	if err != nil {
+		return err
+	}
+	{
+		c1 := NewElement[Secp256k1](42)
+		b1, ok := f.ConstantValue(c1)
+		if !ok {
+			return errors.New("42 should be constant")
+		}
+		if !(b1.IsUint64() && b1.Uint64() == 42) {
+			return errors.New("42 != constant(42)")
+		}
+	}
+	{
+		m := f.(*field[Secp256k1]).Modulus()
+		b1, ok := f.ConstantValue(m)
+		if !ok {
+			return errors.New("modulus should be constant")
+		}
+		if b1.Cmp(Secp256k1{}.Modulus()) != 0 {
+			return errors.New("modulus != constant(modulus)")
+		}
+	}
+
+	return nil
+}
+
+func TestConstantCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var circuit, witness ConstantCircuit
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
 }
