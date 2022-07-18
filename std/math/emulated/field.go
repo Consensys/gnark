@@ -57,25 +57,36 @@ func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	f := &field[T]{
 		api: native,
 	}
-	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
-		panic(fmt.Sprintf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb()))
-	}
-	if f.fParams.Modulus().Cmp(big.NewInt(1)) < 1 {
-		return nil, fmt.Errorf("n must be at least 2")
-	}
-	if f.fParams.BitsPerLimb() < 3 {
-		// even three is way too small, but it should probably work.
-		return nil, fmt.Errorf("nbBits must be at least 3")
-	}
-	nbLimbs := (uint(f.fParams.Modulus().BitLen()) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
-	if nbLimbs != f.fParams.NbLimbs() {
-		return nil, fmt.Errorf("nbLimbs mismatch got %d expected %d", f.fParams.NbLimbs(), nbLimbs)
-	}
+
+	// ensure prime is correctly set
 	if f.fParams.IsPrime() {
 		if !f.fParams.Modulus().ProbablyPrime(20) {
 			return nil, fmt.Errorf("invalid parametrization: modulus is not prime")
 		}
 	}
+
+	if f.fParams.BitsPerLimb() < 3 {
+		// even three is way too small, but it should probably work.
+		return nil, fmt.Errorf("nbBits must be at least 3")
+	}
+
+	if f.fParams.Modulus().Cmp(big.NewInt(1)) < 1 {
+		return nil, fmt.Errorf("n must be at least 2")
+	}
+
+	nbLimbs := (uint(f.fParams.Modulus().BitLen()) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
+	if nbLimbs != f.fParams.NbLimbs() {
+		return nil, fmt.Errorf("nbLimbs mismatch got %d expected %d", f.fParams.NbLimbs(), nbLimbs)
+	}
+
+	if f.api == nil {
+		return f, fmt.Errorf("missing api")
+	}
+
+	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
+		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
+	}
+
 	return f, nil
 }
 
@@ -120,6 +131,9 @@ func (f *field[T]) varsToElements(in ...frontend.Variable) []Element[T] {
 			els = append(els, subels...)
 		case frontend.Variable:
 			els = append(els, f.varToElement(v))
+		default:
+			// handle nil value
+			panic("can't convert <nil> to Element[T]")
 		}
 	}
 	return els

@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 func witnessData(q *big.Int) (X1, X2, X3, X4, X5, X6, Res *big.Int) {
@@ -165,6 +166,30 @@ func TestIntegrationApi(t *testing.T) {
 			}, name, fmt.Sprintf("invalid=%d", i))
 		}
 	}
+}
+
+func TestVarToElements(t *testing.T) {
+	assert := require.New(t)
+	_f, _ := NewField[BN254Fp](nil)
+
+	f := _f.(*field[BN254Fp])
+
+	{
+		in := []frontend.Variable{8000, 42}
+		out1 := f.varsToElements(in...)
+		out2 := f.varsToElements(in)
+
+		assert.Equal(len(out1), len(out2))
+		assert.Equal(len(out1), 2)
+	}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("nil input should panic")
+		}
+	}()
+	in := []frontend.Variable{8000, nil, 3000}
+	_ = f.varsToElements(in)
 }
 
 type pairingBLS377 struct {
