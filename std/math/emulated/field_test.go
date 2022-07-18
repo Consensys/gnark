@@ -311,6 +311,9 @@ func TestConstantCircuit(t *testing.T) {
 
 	var circuit, witness ConstantCircuit
 
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), test.SetAllVariablesAsConstants())
+	assert.NoError(err)
+
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	assert.NoError(err)
 }
