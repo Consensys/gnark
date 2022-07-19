@@ -387,7 +387,7 @@ func (e *Element[T]) Set(a Element[T]) {
 	// if a.f.api == nil {
 	// 	// we are setting from constant -- ensure that the widths of the limbs
 	// 	// are restricted
-	// 	e.EnforceWidth()
+	// e.EnforceWidth()
 	// }
 }
 

@@ -389,17 +389,6 @@ func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 		}, tmp, els[1])
 }
 
-// tmp.Set(*els[0])
-// tmp.reduceAndOp(func(a, b Element, nextOverflow uint) { a.AssertIsEqual(b) }, func(e1, e2 Element) (uint, error) {
-// 	nextOverflow, err := tmp.subPreCond(e2, e1)
-// 	var target errOverflow
-// 	if err != nil && errors.As(err, &target) {
-// 		target.reduceRight = !target.reduceRight
-// 		return nextOverflow, target
-// 	}
-// 	return nextOverflow, err
-// }, &tmp, els[1])
-
 func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	rls := []Element[T]{NewElement[T](nil), NewElement[T](nil)}
