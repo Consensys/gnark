@@ -512,8 +512,8 @@ func (c *EqualityCheckCircuit[T]) Define(api frontend.API) error {
 
 func TestConstantEqual(t *testing.T) {
 	testConstantEqual[Goldilocks](t)
-	testConstantEqual[Secp256k1](t)
 	testConstantEqual[BN254Fp](t)
+	testConstantEqual[Secp256k1](t)
 }
 
 func testConstantEqual[T FieldParams](t *testing.T) {

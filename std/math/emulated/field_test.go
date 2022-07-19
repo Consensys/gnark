@@ -267,7 +267,7 @@ func TestPairingBLS377(t *testing.T) {
 		assert.NoError(err)
 		return napi
 	})
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt)
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt, test.SetAllVariablesAsConstants())
 	assert.NoError(err)
 	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
 	// assert.NoError(err)

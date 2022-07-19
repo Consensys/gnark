@@ -97,10 +97,7 @@ func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
 // combination in a single new limb.
 // compact returns a and b minimal (in number of limbs) representation that fits in the snark field
 func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
-	maxOverflow := a.overflow
-	if b.overflow > a.overflow {
-		maxOverflow = b.overflow
-	}
+	maxOverflow := max(a.overflow, b.overflow)
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
 	maxNbBits := uint(f.api.Compiler().FieldBitLen()) - 2 - maxOverflow

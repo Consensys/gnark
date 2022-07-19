@@ -185,9 +185,6 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 	// first, we check if we can compact the e and other; they could be using 8 limbs of 32bits
 	// but with our snark field, we could express them in 2 limbs of 128bits, which would make bit decomposition
 	// and limbs equality in-circuit (way) cheaper
-	// rgpar := compact(e, other, uint(f.api.Compiler().FieldBitLen()))
-	// ca := rgpar.fieldFrom(*e)
-	// cb := rgpar.fieldFrom(other)
 	ca, cb, bitsPerLimb := f.compact(a, b)
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
@@ -310,15 +307,11 @@ func (f *field[T]) reduce(a Element[T]) Element[T] {
 		return a
 	}
 	// slow path - use hint to reduce value
-	r, err := f.computeReductionHint(a.Limbs)
+	e, err := f.computeRemHint(a, f.Modulus())
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	e := Element[T]{
-		Limbs:    r,
-		overflow: 0,
-	}
-	f.assertIsEqual(e, a)
+	f.assertIsEqual(a, e)
 	return e
 }
 
@@ -349,12 +342,12 @@ func (e *Element[T]) Set(a Element[T]) {
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
-	p := f.Modulus()
 	diff := (f.Sub(b, a)).(Element[T])
 
 	// we compute k such that diff / p == k
 	// so essentially, we say "I know an element k such that k*p == diff"
 	// hence, diff == 0 mod p
+	p := f.Modulus()
 	k, err := f.computeQuoHint(diff, p)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
