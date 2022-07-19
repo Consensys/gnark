@@ -9,6 +9,7 @@ require (
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.7.1
+	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75
 )
 
 require (
@@ -18,7 +19,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064 // indirect
-	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75 // indirect
 	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect

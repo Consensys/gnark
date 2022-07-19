@@ -56,20 +56,23 @@ type Element[T FieldParams] struct {
 // else, it attemps to convert to big.Int , mod reduce if necessary and return a cannonical Element[T]
 func NewElement[T FieldParams](v interface{}) Element[T] {
 	r := Element[T]{}
-	r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
-	for i := 0; i < len(r.Limbs); i++ {
-		r.Limbs[i] = 0
-	}
 
 	if v == nil {
+		r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
+		for i := 0; i < len(r.Limbs); i++ {
+			r.Limbs[i] = 0
+		}
+
 		return r
 	}
 	switch tv := v.(type) {
 	case Element[T]:
+		r.Limbs = make([]frontend.Variable, len(tv.Limbs))
 		copy(r.Limbs, tv.Limbs)
 		r.overflow = tv.overflow
 		return r
 	case *Element[T]:
+		r.Limbs = make([]frontend.Variable, len(tv.Limbs))
 		copy(r.Limbs, tv.Limbs)
 		r.overflow = tv.overflow
 		return r
@@ -104,6 +107,7 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 	}
 
 	// assign limb values
+	r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
 	for i := range limbs {
 		r.Limbs[i] = frontend.Variable(limbs[i])
 	}
@@ -201,6 +205,8 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 // constrained to ensure correct operations.
 func (f *field[T]) EnforceWidth(e Element[T]) {
 	for i := range e.Limbs {
+		// TODO @gbotrel why check all the limbs here? if len(e.Limbs) <= modulus
+		// && last limb <= bits[lastLimbs] modulus, we're good ?
 		limbNbBits := int(e.fParams.BitsPerLimb())
 		if i == len(e.Limbs)-1 {
 			// take only required bits from the most significant limb
@@ -261,6 +267,12 @@ func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 	// TODO: when one element is constant.
 	// TODO: if both are constants, then do big int mul
+	// ba, aConst := f.ConstantValue(a)
+	// bb, bConst := f.ConstantValue(b)
+	// if aConst && bConst {
+	// 	ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+	// 	return NewElement[T](ba)
+	// }
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
 	// len(mulResult) == len(a) + len(b) - 1
@@ -311,7 +323,8 @@ func (f *field[T]) reduce(a Element[T]) Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	f.assertIsEqual(a, e)
+	// TODO @gbotrel fixme: assertIsEqual(a, e) crashes Pairing test
+	f.assertIsEqual(e, a)
 	return e
 }
 
@@ -348,7 +361,10 @@ func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 	// so essentially, we say "I know an element k such that k*p == diff"
 	// hence, diff == 0 mod p
 	p := f.Modulus()
-	k, err := f.computeQuoHint(diff, p)
+	// we compute k such that diff / p == k
+	// so essentially, we say "I know an element k such that k*p == diff"
+	// hence, diff == 0 mod p
+	k, err := f.computeQuoHint(diff, f.Modulus())
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
@@ -395,10 +411,7 @@ func (f *field[T]) AssertIsLessEqualThan(e, a Element[T]) {
 
 func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow+2
-	nextOverflow = b.overflow + 2
-	if a.overflow > nextOverflow {
-		nextOverflow = a.overflow
-	}
+	nextOverflow = max(b.overflow+2, a.overflow)
 	if nextOverflow > f.maxOverflow() {
 		err = errOverflow{op: "sub", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
