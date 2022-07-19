@@ -25,6 +25,7 @@ func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 		res.Lsh(res, nbBits)
 		res.Add(res, inputs[len(inputs)-i-1])
 	}
+	// TODO @gbotrel mod reduce ?
 	return nil
 }
 
@@ -47,7 +48,7 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	base := new(big.Int).Lsh(big.NewInt(1), nbBits)
 	tmp := new(big.Int).Set(input)
 	for i := 0; i < len(res); i++ {
-		res[i] = new(big.Int).Mod(tmp, base)
+		res[i].Mod(tmp, base)
 		tmp.Rsh(tmp, nbBits)
 	}
 	return nil

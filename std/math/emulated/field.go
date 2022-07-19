@@ -217,6 +217,8 @@ func (f *field[T]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 	switch len(n) {
 	case 0:
 	case 1:
+		// TODO @gbotrel this can unecessarly constraint some bits
+		// and falsify test results where we only want to "mask" a part of the element
 		out = out[:n[0]]
 	default:
 		panic("only single vararg permitted to ToBinary")
@@ -370,18 +372,33 @@ func (f *field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 
 func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
-	tmp := NewElement[T](nil)
-	tmp.Set(els[0]) // TODO @gbotrel do we need to duplicate here?
-	f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] { f.assertIsEqual(a, b); return NewElement[T](nil) }, func(e1, e2 Element[T]) (uint, error) {
-		nextOverflow, err := f.subPreCond(e2, e1) // TODO @gbotrel previously "tmp.sub..."
-		var target errOverflow
-		if err != nil && errors.As(err, &target) {
-			target.reduceRight = !target.reduceRight
-			return nextOverflow, target
-		}
-		return nextOverflow, err
-	}, tmp, els[1])
+	tmp := NewElement[T](els[0])
+	// tmp.Set(els[0]) // TODO @gbotrel do we need to duplicate here?
+	f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] {
+		f.assertIsEqual(a, b)
+		return NewElement[T](nil)
+	},
+		func(e1, e2 Element[T]) (uint, error) {
+			nextOverflow, err := f.subPreCond(e2, e1) // TODO @gbotrel previously "tmp.sub..."
+			var target errOverflow
+			if err != nil && errors.As(err, &target) {
+				target.reduceRight = !target.reduceRight
+				return nextOverflow, target
+			}
+			return nextOverflow, err
+		}, tmp, els[1])
 }
+
+// tmp.Set(*els[0])
+// tmp.reduceAndOp(func(a, b Element, nextOverflow uint) { a.AssertIsEqual(b) }, func(e1, e2 Element) (uint, error) {
+// 	nextOverflow, err := tmp.subPreCond(e2, e1)
+// 	var target errOverflow
+// 	if err != nil && errors.As(err, &target) {
+// 		target.reduceRight = !target.reduceRight
+// 		return nextOverflow, target
+// 	}
+// 	return nextOverflow, err
+// }, &tmp, els[1])
 
 func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
@@ -616,6 +633,7 @@ func (f *field[T]) One() Element[T] {
 // returned element is not safe to use as an operation receiver.
 func (f *field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
 	// TODO: check that every limb does not overflow the expected width
+
 	return Element[T]{
 		Limbs:    limbs,
 		overflow: 0,

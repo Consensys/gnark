@@ -103,9 +103,12 @@ func (f *field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
 // If y == 0, returns an error.
 // Rem implements truncated modulus (like Go); see QuoRem for more details.
 func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	nbBits, x, y, err := parseHintDivInputs(inputs)
+	nbBits, _, x, y, err := parseHintDivInputs(inputs)
 	if err != nil {
 		return err
+	}
+	for _, o := range outputs {
+		o.SetUint64(0)
 	}
 	r := new(big.Int)
 	r.Rem(x, y)
@@ -117,19 +120,26 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // computeQuoHint packs the inputs for QuoHint function and returns z = x / y
 // (discards remainder)
-func (f *field[T]) computeQuoHint(x, y Element[T]) (z Element[T], err error) {
+func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
 	var fp T
-	xBitLen := uint(len(x.Limbs))*(fp.BitsPerLimb()) + x.overflow
-	yBitLen := uint(len(y.Limbs))*(fp.BitsPerLimb()) + y.overflow
-	diff := max(xBitLen, yBitLen) - min(xBitLen, yBitLen)
-	resLen := (diff + fp.BitsPerLimb() - 1) / fp.BitsPerLimb()
+	// xBitLen := uint(len(x.Limbs)) * (fp.BitsPerLimb() + x.overflow)
+	// yBitLen := uint(len(y.Limbs)) * (fp.BitsPerLimb() + y.overflow)
+	// diff := max(xBitLen, yBitLen) - min(xBitLen, yBitLen) + fp.BitsPerLimb() + max(x.overflow, y.overflow) - 1
+	// resLen := diff / fp.BitsPerLimb()
+	// resLen := m // len(y.Limbs) + 1 // / min(len(x.Limbs), len(y.Limbs))
+	// f.log.Debug().Int("resLen", resLen).Int("len(x.Limbs)", len(x.Limbs)).Int("len(y.Limbs)", len(y.Limbs)).Send()
+	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
+		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
+		fp.BitsPerLimb() - 1) / // to round up
+		fp.BitsPerLimb()
 
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
 		len(x.Limbs),
 	}
+	p := f.Modulus()
 	hintInputs = append(hintInputs, x.Limbs...)
-	hintInputs = append(hintInputs, y.Limbs...)
+	hintInputs = append(hintInputs, p.Limbs...)
 
 	limbs, err := f.api.NewHint(QuoHint, int(resLen), hintInputs...)
 	if err != nil {
@@ -143,15 +153,17 @@ func (f *field[T]) computeQuoHint(x, y Element[T]) (z Element[T], err error) {
 // If y == 0, returns an error.
 // Quo implements truncated division (like Go); see QuoRem for more details.
 func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	nbBits, x, y, err := parseHintDivInputs(inputs)
+	nbBits, _, x, y, err := parseHintDivInputs(inputs)
 	if err != nil {
 		return err
 	}
 	z := new(big.Int)
-	z.Quo(x, y)
+	z.Quo(x, y) //.Mod(z, y)
+
 	if err := decompose(z, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
+
 	return nil
 }
 
@@ -259,24 +271,24 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 // input[2:2+nbLimbs(x)] = limbs(x)
 // input[2+nbLimbs(x):] = limbs(y)
 // errors if y == 0
-func parseHintDivInputs(inputs []*big.Int) (uint, *big.Int, *big.Int, error) {
+func parseHintDivInputs(inputs []*big.Int) (uint, int, *big.Int, *big.Int, error) {
 	if len(inputs) < 2 {
-		return 0, nil, nil, fmt.Errorf("at least 2 inputs required")
+		return 0, 0, nil, nil, fmt.Errorf("at least 2 inputs required")
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
 	if len(inputs[2:]) < nbLimbs {
-		return 0, nil, nil, fmt.Errorf("x limbs missing")
+		return 0, 0, nil, nil, fmt.Errorf("x limbs missing")
 	}
 	x, y := new(big.Int), new(big.Int)
 	if err := recompose(inputs[2:2+nbLimbs], nbBits, x); err != nil {
-		return 0, nil, nil, fmt.Errorf("recompose x: %w", err)
+		return 0, 0, nil, nil, fmt.Errorf("recompose x: %w", err)
 	}
 	if err := recompose(inputs[2+nbLimbs:], nbBits, y); err != nil {
-		return 0, nil, nil, fmt.Errorf("recompose y: %w", err)
+		return 0, 0, nil, nil, fmt.Errorf("recompose y: %w", err)
 	}
 	if y.IsUint64() && y.Uint64() == 0 {
-		return 0, nil, nil, fmt.Errorf("y == 0")
+		return 0, 0, nil, nil, fmt.Errorf("y == 0")
 	}
-	return nbBits, x, y, nil
+	return nbBits, nbLimbs, x, y, nil
 }

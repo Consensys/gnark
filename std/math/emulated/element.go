@@ -120,18 +120,22 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, reduce Element first and take less significant
 // bits corresponding to the bitwidth of the emulated modulus.
-func (f *field[T]) toBits(e Element[T]) []frontend.Variable {
+func (f *field[T]) toBits(a Element[T]) []frontend.Variable {
+	ba, aConst := f.ConstantValue(a)
+	if aConst {
+		return f.api.ToBinary(ba, int(f.fParams.BitsPerLimb()*f.fParams.NbLimbs()))
+	}
 	var carry frontend.Variable = 0
 	var fullBits []frontend.Variable
 	var limbBits []frontend.Variable
-	for i := 0; i < len(e.Limbs); i++ {
-		limbBits = bits.ToBinary(f.api, f.api.Add(e.Limbs[i], carry), bits.WithNbDigits(int(e.fParams.BitsPerLimb()+e.overflow)))
-		fullBits = append(fullBits, limbBits[:e.fParams.BitsPerLimb()]...)
-		if e.overflow > 0 {
-			carry = bits.FromBinary(f.api, limbBits[e.fParams.BitsPerLimb():])
+	for i := 0; i < len(a.Limbs); i++ {
+		limbBits = bits.ToBinary(f.api, f.api.Add(a.Limbs[i], carry), bits.WithNbDigits(int(a.fParams.BitsPerLimb()+a.overflow)))
+		fullBits = append(fullBits, limbBits[:a.fParams.BitsPerLimb()]...)
+		if a.overflow > 0 {
+			carry = bits.FromBinary(f.api, limbBits[a.fParams.BitsPerLimb():])
 		}
 	}
-	fullBits = append(fullBits, limbBits[e.fParams.BitsPerLimb():e.fParams.BitsPerLimb()+e.overflow]...)
+	fullBits = append(fullBits, limbBits[a.fParams.BitsPerLimb():a.fParams.BitsPerLimb()+a.overflow]...)
 	return fullBits
 }
 
@@ -149,10 +153,8 @@ func (f *field[T]) maxOverflow() uint {
 // two slices of limbs represent the same integer value. This is also the most
 // costly operation in the package as it does bit decomposition of the limbs.
 func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) {
-	nbLimbs := len(l)
-	if len(r) > nbLimbs {
-		nbLimbs = len(r)
-	}
+
+	nbLimbs := max(len(l), len(r))
 	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
 	maxValueShift := new(big.Int).Lsh(big.NewInt(1), nbCarryBits)
 
@@ -185,11 +187,27 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
 func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
+	ba, aConst := f.ConstantValue(a)
+	bb, bConst := f.ConstantValue(b)
+	if aConst && bConst {
+		ba.Mod(ba, f.fParams.Modulus())
+		bb.Mod(bb, f.fParams.Modulus())
+		if ba.Cmp(bb) != 0 {
+			panic(fmt.Errorf("constant values are different: %s != %s", ba.String(), bb.String()))
+		}
+		return
+	}
 
 	// first, we check if we can compact the e and other; they could be using 8 limbs of 32bits
 	// but with our snark field, we could express them in 2 limbs of 128bits, which would make bit decomposition
 	// and limbs equality in-circuit (way) cheaper
 	ca, cb, bitsPerLimb := f.compact(a, b)
+
+	f.log.Debug().Int("len(a.limbs)", len(a.Limbs)).
+		Int("len(b.limbs)", len(b.Limbs)).
+		Int("len(cb.limbs)", len(cb)).
+		Int("len(ca.limbs)", len(ca)).
+		Msg("AssertLimbsEquality")
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
@@ -203,19 +221,26 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 // EnforceWidth enforces that the bitlength of the value is exactly the
 // bitlength of the modulus. Any newly initialized variable should be
 // constrained to ensure correct operations.
-func (f *field[T]) EnforceWidth(e Element[T]) {
-	for i := range e.Limbs {
+func (f *field[T]) EnforceWidth(a Element[T]) {
+	_, aConst := f.ConstantValue(a)
+	if aConst {
+		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
+			panic("constant limb width doesn't match parametrized field")
+		}
+	}
+
+	for i := range a.Limbs {
 		// TODO @gbotrel why check all the limbs here? if len(e.Limbs) <= modulus
 		// && last limb <= bits[lastLimbs] modulus, we're good ?
-		limbNbBits := int(e.fParams.BitsPerLimb())
-		if i == len(e.Limbs)-1 {
+		limbNbBits := int(a.fParams.BitsPerLimb())
+		if i == len(a.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((e.fParams.Modulus().BitLen() - 1) % int(e.fParams.BitsPerLimb())) + 1
+			limbNbBits = ((a.fParams.Modulus().BitLen() - 1) % int(a.fParams.BitsPerLimb())) + 1
 		}
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
 		// the limb value. This is sufficient to restrict for the bitlength and
 		// we can discard the bits themselves.
-		bits.ToBinary(f.api, e.Limbs[i], bits.WithNbDigits(limbNbBits))
+		bits.ToBinary(f.api, a.Limbs[i], bits.WithNbDigits(limbNbBits))
 	}
 }
 
@@ -231,6 +256,13 @@ func (f *field[T]) addPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 }
 
 func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
+	ba, aConst := f.ConstantValue(a)
+	bb, bConst := f.ConstantValue(b)
+	if aConst && bConst {
+		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
+		return NewElement[T](ba)
+	}
+
 	// TODO: figure out case when one element is a constant. If one addend is a
 	// constant, then we do not reduce it (but this is always case as the
 	// constant's overflow never increases?)
@@ -247,6 +279,7 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
+
 	e := Element[T]{
 		Limbs:    limbs,
 		overflow: nextOverflow,
@@ -266,13 +299,12 @@ func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 
 func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 	// TODO: when one element is constant.
-	// TODO: if both are constants, then do big int mul
-	// ba, aConst := f.ConstantValue(a)
-	// bb, bConst := f.ConstantValue(b)
-	// if aConst && bConst {
-	// 	ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
-	// 	return NewElement[T](ba)
-	// }
+	ba, aConst := f.ConstantValue(a)
+	bb, bConst := f.ConstantValue(b)
+	if aConst && bConst {
+		ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
+		return NewElement[T](ba)
+	}
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
 	// len(mulResult) == len(a) + len(b) - 1
@@ -318,6 +350,12 @@ func (f *field[T]) reduce(a Element[T]) Element[T] {
 		// fast path - already reduced, omit reduction.
 		return a
 	}
+	// sanity check
+	_, aConst := f.ConstantValue(a)
+	if aConst {
+		panic("trying to reduce a constant, which happen to have an overflow flag set")
+	}
+
 	// slow path - use hint to reduce value
 	e, err := f.computeRemHint(a, f.Modulus())
 	if err != nil {
@@ -355,6 +393,17 @@ func (e *Element[T]) Set(a Element[T]) {
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
+	ba, aConst := f.ConstantValue(a)
+	bb, bConst := f.ConstantValue(b)
+	if aConst && bConst {
+		ba.Mod(ba, f.fParams.Modulus())
+		bb.Mod(bb, f.fParams.Modulus())
+		if ba.Cmp(bb) != 0 {
+			panic(fmt.Sprintf("%s != %s", ba, bb))
+		}
+		return NewElement[T](nil) // TODO @gbotrel un-used result
+	}
+
 	diff := (f.Sub(b, a)).(Element[T])
 
 	// we compute k such that diff / p == k
@@ -364,12 +413,13 @@ func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 	// we compute k such that diff / p == k
 	// so essentially, we say "I know an element k such that k*p == diff"
 	// hence, diff == 0 mod p
-	k, err := f.computeQuoHint(diff, f.Modulus())
+	k, err := f.computeQuoHint(diff)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
 
 	kp := (f.Mul(k, p)).(Element[T])
+
 	f.AssertLimbsEquality(diff, kp)
 
 	// TODO @gbotrel improve useless alloc
@@ -410,6 +460,7 @@ func (f *field[T]) AssertIsLessEqualThan(e, a Element[T]) {
 }
 
 func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
+
 	reduceRight := a.overflow < b.overflow+2
 	nextOverflow = max(b.overflow+2, a.overflow)
 	if nextOverflow > f.maxOverflow() {
@@ -419,6 +470,13 @@ func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 }
 
 func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
+	ba, aConst := f.ConstantValue(a)
+	bb, bConst := f.ConstantValue(b)
+	if aConst && bConst {
+		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
+		return NewElement[T](ba)
+	}
+
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -476,6 +534,7 @@ func (f *field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T],
 	var nextOverflow uint
 	var err error
 	var target errOverflow
+
 	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
 		if !target.reduceRight {
 			a = f.reduce(a)

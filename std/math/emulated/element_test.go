@@ -141,9 +141,9 @@ func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
 }
 
 func TestMulCircuitNoOverflow(t *testing.T) {
-	testMulCircuitNoOverflow[Goldilocks](t)
+	// testMulCircuitNoOverflow[Goldilocks](t)
 	testMulCircuitNoOverflow[Secp256k1](t)
-	testMulCircuitNoOverflow[BN254Fp](t)
+	// testMulCircuitNoOverflow[BN254Fp](t)
 }
 
 func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
@@ -157,7 +157,7 @@ func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
 		witness.A.Assign(val1)
 		witness.B.Assign(val2)
 		witness.C.Assign(res)
-		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16))
 	}, testName[T]())
 }
 

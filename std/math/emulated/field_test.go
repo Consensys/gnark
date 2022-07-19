@@ -317,3 +317,71 @@ func TestConstantCircuit(t *testing.T) {
 	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	assert.NoError(err)
 }
+
+type MulConstantCircuit struct {
+}
+
+func (c *MulConstantCircuit) Define(api frontend.API) error {
+	f, err := NewField[Secp256k1](api)
+	if err != nil {
+		return err
+	}
+	c0 := NewElement[Secp256k1](0)
+	c1 := NewElement[Secp256k1](0)
+	c2 := NewElement[Secp256k1](0)
+	r := f.Mul(c0, c1)
+	f.AssertIsEqual(r, c2)
+
+	return nil
+}
+
+func TestMulConstantCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var circuit, witness MulConstantCircuit
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), test.SetAllVariablesAsConstants())
+	assert.NoError(err)
+
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	assert.NoError(err)
+}
+
+type SubConstantCircuit struct {
+}
+
+func (c *SubConstantCircuit) Define(api frontend.API) error {
+	f, err := NewField[Secp256k1](api)
+	if err != nil {
+		return err
+	}
+	c0 := NewElement[Secp256k1](0)
+	c1 := NewElement[Secp256k1](0)
+	c2 := NewElement[Secp256k1](0)
+	r := f.Sub(c0, c1)
+	if r.(Element[Secp256k1]).overflow != 0 {
+		return fmt.Errorf("overflow %d != 0", r.(Element[Secp256k1]).overflow)
+	}
+	// rc, ok := f.ConstantValue(r)
+	// if !ok {
+	// 	return errors.New("0 - 0 is not constant")
+	// }
+	// if !rc.IsUint64() && rc.Uint64() == 0 {
+	// 	return fmt.Errorf("0 - 0 = %s", rc.String())
+	// }
+	f.AssertIsEqual(r, c2)
+
+	return nil
+}
+
+func TestSubConstantCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	var circuit, witness SubConstantCircuit
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), test.SetAllVariablesAsConstants())
+	assert.NoError(err)
+
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	assert.NoError(err)
+}
