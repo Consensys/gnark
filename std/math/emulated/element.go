@@ -203,11 +203,11 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 	// and limbs equality in-circuit (way) cheaper
 	ca, cb, bitsPerLimb := f.compact(a, b)
 
-	f.log.Debug().Int("len(a.limbs)", len(a.Limbs)).
-		Int("len(b.limbs)", len(b.Limbs)).
-		Int("len(cb.limbs)", len(cb)).
-		Int("len(ca.limbs)", len(ca)).
-		Msg("AssertLimbsEquality")
+	// f.log.Trace().Int("len(a.limbs)", len(a.Limbs)).
+	// 	Int("len(b.limbs)", len(b.Limbs)).
+	// 	Int("len(cb.limbs)", len(cb)).
+	// 	Int("len(ca.limbs)", len(ca)).
+	// 	Msg("AssertLimbsEquality")
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore

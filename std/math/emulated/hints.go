@@ -8,6 +8,9 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// TODO @gbotrel hint[T FieldParams] would simplify this . Issue is when registering hint, if QuoRem[T] was declared
+// inside a func, then it becomes anonymous and hint identification is screwed.
+
 func init() {
 	hints := GetHints()
 	for _, h := range hints {
@@ -122,12 +125,6 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 // (discards remainder)
 func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
 	var fp T
-	// xBitLen := uint(len(x.Limbs)) * (fp.BitsPerLimb() + x.overflow)
-	// yBitLen := uint(len(y.Limbs)) * (fp.BitsPerLimb() + y.overflow)
-	// diff := max(xBitLen, yBitLen) - min(xBitLen, yBitLen) + fp.BitsPerLimb() + max(x.overflow, y.overflow) - 1
-	// resLen := diff / fp.BitsPerLimb()
-	// resLen := m // len(y.Limbs) + 1 // / min(len(x.Limbs), len(y.Limbs))
-	// f.log.Debug().Int("resLen", resLen).Int("len(x.Limbs)", len(x.Limbs)).Int("len(y.Limbs)", len(y.Limbs)).Send()
 	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
 		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
 		fp.BitsPerLimb() - 1) / // to round up

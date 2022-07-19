@@ -220,7 +220,6 @@ func (circuit *pairingBLS377) Define(api frontend.API) error {
 }
 
 func TestPairingBLS377(t *testing.T) {
-	t.Skip()
 	assert := test.NewAssert(t)
 
 	_, _, P, Q := bls12377.Generators()
@@ -267,7 +266,9 @@ func TestPairingBLS377(t *testing.T) {
 		assert.NoError(err)
 		return napi
 	})
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt, test.SetAllVariablesAsConstants())
+	// TODO @gbotrel test engine when test.SetAllVariablesAsConstants() also consider witness as
+	// constant. It shouldn't.
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt) //, test.SetAllVariablesAsConstants())
 	assert.NoError(err)
 	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
 	// assert.NoError(err)
