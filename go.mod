@@ -1,6 +1,6 @@
 module github.com/consensys/gnark
 
-go 1.17
+go 1.18
 
 require (
 	github.com/consensys/bavard v0.1.11-0.20220418151131-08e04eec2153
@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect

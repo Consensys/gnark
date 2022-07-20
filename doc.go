@@ -17,7 +17,12 @@
 // https://docs.gnark.consensys.net
 package gnark
 
-import "github.com/consensys/gnark-crypto/ecc"
+import (
+	"github.com/blang/semver/v4"
+	"github.com/consensys/gnark-crypto/ecc"
+)
+
+var Version = semver.MustParse("0.8.0-alpha")
 
 // Curves return the curves supported by gnark
 func Curves() []ecc.ID {

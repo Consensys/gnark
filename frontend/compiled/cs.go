@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/blang/semver/v4"
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
@@ -12,10 +14,14 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 )
 
 // ConstraintSystem contains common element between R1CS and ConstraintSystem
 type ConstraintSystem struct {
+	// serialization header
+	GnarkVersion string
+	ScalarField  string
 
 	// schema of the circuit
 	Schema *schema.Schema
@@ -57,6 +63,8 @@ type ConstraintSystem struct {
 // NewConstraintSystem initialize the common structure among constraint system
 func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 	return ConstraintSystem{
+		GnarkVersion:       gnark.Version.String(),
+		ScalarField:        scalarField.Text(16),
 		MDebug:             make(map[int]int),
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
@@ -65,10 +73,30 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 	}
 }
 
-// SetScalarField sets the scalar field on the constraint system object
+// CheckSerializationHeader parses the scalar field and gnark version headers
 //
-// This is meant to be use at the deserialization step
-func (cs *ConstraintSystem) SetScalarField(scalarField *big.Int) error {
+// This is meant to be use at the deserialization step, and will error for illegal values
+func (cs *ConstraintSystem) CheckSerializationHeader() error {
+	// check gnark version
+	binaryVersion := gnark.Version
+	objectVersion, err := semver.Parse(cs.GnarkVersion)
+	if err != nil {
+		return fmt.Errorf("when parsing gnark version: %w", err)
+	}
+
+	if binaryVersion.Compare(objectVersion) != 0 {
+		log := logger.Logger()
+		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibilty")
+	}
+
+	// TODO @gbotrel maintain version changes and compare versions properly
+	// (ie if major didn't change,we shouldn't have a compat issue)
+
+	scalarField := new(big.Int)
+	_, ok := scalarField.SetString(cs.ScalarField, 0)
+	if !ok {
+		return fmt.Errorf("when parsing serialized modulus: %s", cs.ScalarField)
+	}
 	curveID := utils.FieldToCurve(scalarField)
 	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
 		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
