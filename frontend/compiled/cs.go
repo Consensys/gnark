@@ -3,6 +3,7 @@ package compiled
 import (
 	"fmt"
 	"math/big"
+	"runtime"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -39,7 +40,10 @@ type ConstraintSystem struct {
 
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
-	DebugInfo []LogEntry
+	DebugInfo       []LogEntry
+	DebugStackPaths map[int]string    // maps unique id to a path (optimized for reading debug info stacks)
+	debugPathsIds   map[string]uint32 // maps a path to an id (optimized for storing debug info stacks)
+	debugPathId     uint32
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
@@ -68,6 +72,8 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 		MDebug:             make(map[int]int),
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
+		DebugStackPaths:    make(map[int]string),
+		debugPathsIds:      make(map[string]uint32),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
 	}
@@ -136,6 +142,15 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 	var l LogEntry
 
+	// add the stack info
+	// TODO @gbotrel duplicate with Debug.stack below
+	l.Stack = cs.stack()
+
+	if errName == "" {
+		cs.DebugInfo = append(cs.DebugInfo, l)
+		return len(cs.DebugInfo) - 1
+	}
+
 	const minLogSize = 500
 	var sbb strings.Builder
 	sbb.Grow(minLogSize)
@@ -174,4 +189,48 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) FieldBitLen() int {
 	return cs.bitLen
+}
+
+func (cs *ConstraintSystem) stack() (r []uint64) {
+	if !debug.Debug {
+		return
+	}
+	// derived from: https://golang.org/pkg/runtime/#example_Frames
+	// we stop when func name == Define as it is where the gnark circuit code should start
+
+	// Ask runtime.Callers for up to 10 pcs
+	pc := make([]uintptr, 10)
+	n := runtime.Callers(3, pc)
+	if n == 0 {
+		// No pcs available. Stop now.
+		// This can happen if the first argument to runtime.Callers is large.
+		return
+	}
+	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
+	frames := runtime.CallersFrames(pc)
+	// Loop to get frames.
+	// A fixed number of pcs can expand to an indefinite number of Frames.
+	for {
+		frame, more := frames.Next()
+		fe := strings.Split(frame.Function, "/")
+		function := fe[len(fe)-1]
+		file := frame.File
+
+		id, ok := cs.debugPathsIds[file]
+		if !ok {
+			id = cs.debugPathId
+			cs.debugPathId++
+			cs.debugPathsIds[file] = id
+		}
+		r = append(r, ((uint64(id) << 32) | uint64(frame.Line)))
+		if !more {
+			break
+		}
+		if strings.HasSuffix(function, "Define") {
+			break
+		}
+	}
+
+	return
+
 }

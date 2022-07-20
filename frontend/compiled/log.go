@@ -27,6 +27,7 @@ type LogEntry struct {
 	Caller    string
 	Format    string
 	ToResolve []Term
+	Stack     []uint64
 }
 
 func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {
