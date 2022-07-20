@@ -216,6 +216,7 @@ func (cs *ConstraintSystem) stack() (r []uint64) {
 		function := fe[len(fe)-1]
 		file := frame.File
 
+		// TODO @gbotrel this stores an absolute path, so will work only locally
 		id, ok := cs.debugPathsIds[file]
 		if !ok {
 			id = cs.debugPathId
