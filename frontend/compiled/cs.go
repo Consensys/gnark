@@ -40,10 +40,11 @@ type ConstraintSystem struct {
 
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
+	// TODO @gbotrel nto all of this needs to be serailized
 	DebugInfo       []LogEntry
-	DebugStackPaths map[int]string    // maps unique id to a path (optimized for reading debug info stacks)
-	debugPathsIds   map[string]uint32 // maps a path to an id (optimized for storing debug info stacks)
-	debugPathId     uint32
+	DebugStackPaths map[uint32]string // maps unique id to a path (optimized for reading debug info stacks)
+	DebugPathsIds   map[string]uint32 // maps a path to an id (optimized for storing debug info stacks)
+	DebugPathId     uint32
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
@@ -72,8 +73,8 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 		MDebug:             make(map[int]int),
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
-		DebugStackPaths:    make(map[int]string),
-		debugPathsIds:      make(map[string]uint32),
+		DebugStackPaths:    make(map[uint32]string),
+		DebugPathsIds:      make(map[string]uint32),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
 	}
@@ -99,7 +100,7 @@ func (cs *ConstraintSystem) CheckSerializationHeader() error {
 	// (ie if major didn't change,we shouldn't have a compat issue)
 
 	scalarField := new(big.Int)
-	_, ok := scalarField.SetString(cs.ScalarField, 0)
+	_, ok := scalarField.SetString(cs.ScalarField, 16)
 	if !ok {
 		return fmt.Errorf("when parsing serialized modulus: %s", cs.ScalarField)
 	}
@@ -217,11 +218,12 @@ func (cs *ConstraintSystem) stack() (r []uint64) {
 		file := frame.File
 
 		// TODO @gbotrel this stores an absolute path, so will work only locally
-		id, ok := cs.debugPathsIds[file]
+		id, ok := cs.DebugPathsIds[file]
 		if !ok {
-			id = cs.debugPathId
-			cs.debugPathId++
-			cs.debugPathsIds[file] = id
+			id = cs.DebugPathId
+			cs.DebugPathId++
+			cs.DebugPathsIds[file] = id
+			cs.DebugStackPaths[id] = file
 		}
 		r = append(r, ((uint64(id) << 32) | uint64(frame.Line)))
 		if !more {

@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+type StackLine struct {
+	Line uint32
+	File string
+}
+
+func ParseStack(stack []uint64, stackPaths map[uint32]string) []StackLine {
+	return nil
+}
+
 func Stack() string {
 	var sbb strings.Builder
 	WriteStack(&sbb)
