@@ -192,6 +192,14 @@ func (cs *ConstraintSystem) FieldBitLen() int {
 	return cs.bitLen
 }
 
+func (cs *ConstraintSystem) GetDebugInfo() ([][]uint64, map[uint32]string) {
+	r := make([][]uint64, len(cs.DebugInfo))
+	for _, l := range cs.DebugInfo {
+		r = append(r, l.Stack)
+	}
+	return r, cs.DebugStackPaths
+}
+
 func (cs *ConstraintSystem) stack() (r []uint64) {
 	if !debug.Debug {
 		return
@@ -216,6 +224,10 @@ func (cs *ConstraintSystem) stack() (r []uint64) {
 		fe := strings.Split(frame.Function, "/")
 		function := fe[len(fe)-1]
 		file := frame.File
+
+		if strings.Contains(frame.File, "gnark/frontend") {
+			continue
+		}
 
 		// TODO @gbotrel this stores an absolute path, so will work only locally
 		id, ok := cs.DebugPathsIds[file]

@@ -47,4 +47,8 @@ type CompiledConstraintSystem interface {
 
 	// GetConstraints return a human readable representation of the constraints
 	GetConstraints() [][]string
+
+	// GetDebugInfo return the list of debug info per constraint if availlable
+	// TODO @gbotrel better comment, better typing
+	GetDebugInfo() ([][]uint64, map[uint32]string)
 }
