@@ -44,8 +44,8 @@ type ConstraintSystem struct {
 	// maps unique id to a path (optimized for reading debug info stacks)
 	DebugStackPaths map[uint32]string
 	// maps a path to an id (optimized for storing debug info stacks)
-	DebugPathsIds map[string]uint32 `cbor:"-"`
-	DebugPathId   uint32            `cbor:"-"`
+	debugPathsIds map[string]uint32 `cbor:"-"`
+	debugPathId   uint32            `cbor:"-"`
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
@@ -63,7 +63,7 @@ type ConstraintSystem struct {
 
 	// scalar field
 	q      *big.Int `cbor:"-"`
-	BitLen int      `cbor:"-"`
+	bitLen int      `cbor:"-"`
 }
 
 // NewConstraintSystem initialize the common structure among constraint system
@@ -75,9 +75,9 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
 		DebugStackPaths:    make(map[uint32]string),
-		DebugPathsIds:      make(map[string]uint32),
+		debugPathsIds:      make(map[string]uint32),
 		q:                  new(big.Int).Set(scalarField),
-		BitLen:             scalarField.BitLen(),
+		bitLen:             scalarField.BitLen(),
 	}
 }
 
@@ -110,7 +110,7 @@ func (cs *ConstraintSystem) CheckSerializationHeader() error {
 		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
 	}
 	cs.q = new(big.Int).Set(scalarField)
-	cs.BitLen = cs.q.BitLen()
+	cs.bitLen = cs.q.BitLen()
 	return nil
 }
 
@@ -190,7 +190,7 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) FieldBitLen() int {
-	return cs.BitLen
+	return cs.bitLen
 }
 
 func (cs *ConstraintSystem) GetDebugInfo() ([][]uint64, map[uint32]string) {
@@ -231,11 +231,11 @@ func (cs *ConstraintSystem) stack() (r []uint64) {
 		}
 
 		// TODO @gbotrel this stores an absolute path, so will work only locally
-		id, ok := cs.DebugPathsIds[file]
+		id, ok := cs.debugPathsIds[file]
 		if !ok {
-			id = cs.DebugPathId
-			cs.DebugPathId++
-			cs.DebugPathsIds[file] = id
+			id = cs.debugPathId
+			cs.debugPathId++
+			cs.debugPathsIds[file] = id
 			cs.DebugStackPaths[id] = file
 		}
 		r = append(r, ((uint64(id) << 32) | uint64(frame.Line)))

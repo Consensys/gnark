@@ -76,8 +76,9 @@ func TestSerialization(t *testing.T) {
 				if diff := cmp.Diff(r1cs1, &reconstructed,
 					cmpopts.IgnoreFields(cs.R1CS{},
 						"ConstraintSystem.q",
-						"ConstraintSystem.DebugPathsIds",
-						"ConstraintSystem.DebugPathId")); diff != "" {
+						"ConstraintSystem.bitLen",
+						"ConstraintSystem.debugPathsIds",
+						"ConstraintSystem.debugPathId")); diff != "" {
 					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)
 				}
 			}
