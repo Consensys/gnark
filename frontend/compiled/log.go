@@ -27,7 +27,11 @@ type LogEntry struct {
 	Caller    string
 	Format    string
 	ToResolve []Term
-	Stack     []uint64
+
+	// When compiled with -tags=debug, each constraint has an associated
+	// stack encoded as a []uint64. The uint64 pack uint32(fileID) | uint32(lineNumber).
+	// The actual string describing the file is stored in a map in the compiled.ConstraintSystem.
+	Stack []uint64
 }
 
 func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {

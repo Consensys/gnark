@@ -48,7 +48,9 @@ type CompiledConstraintSystem interface {
 	// GetConstraints return a human readable representation of the constraints
 	GetConstraints() [][]string
 
-	// GetDebugInfo return the list of debug info per constraint if availlable
-	// TODO @gbotrel better comment, better typing
+	// GetDebugInfo return the list of debug info per constraints and the map to restore file path
+	// from the debug info. When compiled with -tags=debug, each constraint has an associated
+	// stack encoded as a []uint64. The uint64 pack uint32(fileID) | uint32(lineNumber).
+	// The file string can be retrieved from associated map.
 	GetDebugInfo() ([][]uint64, map[uint32]string)
 }
