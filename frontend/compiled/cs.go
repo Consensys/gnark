@@ -40,17 +40,18 @@ type ConstraintSystem struct {
 
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
-	// TODO @gbotrel nto all of this needs to be serailized
-	DebugInfo       []LogEntry
-	DebugStackPaths map[uint32]string // maps unique id to a path (optimized for reading debug info stacks)
-	DebugPathsIds   map[string]uint32 // maps a path to an id (optimized for storing debug info stacks)
-	DebugPathId     uint32
+	DebugInfo []LogEntry
+	// maps unique id to a path (optimized for reading debug info stacks)
+	DebugStackPaths map[uint32]string
+	// maps a path to an id (optimized for storing debug info stacks)
+	DebugPathsIds map[string]uint32 `cbor:"-"`
+	DebugPathId   uint32            `cbor:"-"`
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	Counters []Counter // TODO @gbotrel no point in serializing these
+	Counters []Counter `cbor:"-"`
 
 	MHints             map[int]*Hint      // maps wireID to hint
 	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
@@ -61,8 +62,8 @@ type ConstraintSystem struct {
 	Levels [][]int
 
 	// scalar field
-	q      *big.Int
-	bitLen int
+	q      *big.Int `cbor:"-"`
+	BitLen int      `cbor:"-"`
 }
 
 // NewConstraintSystem initialize the common structure among constraint system
@@ -76,7 +77,7 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 		DebugStackPaths:    make(map[uint32]string),
 		DebugPathsIds:      make(map[string]uint32),
 		q:                  new(big.Int).Set(scalarField),
-		bitLen:             scalarField.BitLen(),
+		BitLen:             scalarField.BitLen(),
 	}
 }
 
@@ -109,7 +110,7 @@ func (cs *ConstraintSystem) CheckSerializationHeader() error {
 		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
 	}
 	cs.q = new(big.Int).Set(scalarField)
-	cs.bitLen = cs.q.BitLen()
+	cs.BitLen = cs.q.BitLen()
 	return nil
 }
 
@@ -189,7 +190,7 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) FieldBitLen() int {
-	return cs.bitLen
+	return cs.BitLen
 }
 
 func (cs *ConstraintSystem) GetDebugInfo() ([][]uint64, map[uint32]string) {
