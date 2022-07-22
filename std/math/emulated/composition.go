@@ -68,29 +68,40 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
-func subPadding[T FieldParams](current_overflow uint, nbLimbs uint) []*big.Int {
+func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 	var fp T
-	padLimbs := make([]*big.Int, nbLimbs)
-	for i := 0; i < len(padLimbs); i++ {
-		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+fp.BitsPerLimb())
+	p := fp.Modulus()
+	bitsPerLimbs := fp.BitsPerLimb()
+
+	// first, we build a number nLimbs, such that nLimbs > b;
+	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
+	// so a number nLimbs > b, is simply taking the next power of 2 over this bound .
+	nLimbs := make([]*big.Int, nbLimbs)
+	for i := 0; i < len(nLimbs); i++ {
+		nLimbs[i] = new(big.Int).SetUint64(1).Lsh(nLimbs[i], overflow+bitsPerLimbs)
 	}
-	pad := new(big.Int)
-	if err := recompose(padLimbs, fp.BitsPerLimb(), pad); err != nil {
+
+	// recompose n as the sum of the coefficients weighted by the limbs
+	n := new(big.Int)
+	if err := recompose(nLimbs, bitsPerLimbs, n); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
-	pad.Mod(pad, fp.Modulus())
-	pad.Sub(fp.Modulus(), pad)
-	ret := make([]*big.Int, nbLimbs)
-	for i := range ret {
-		ret[i] = new(big.Int)
+	// mod reduce n, and negate it
+	n.Mod(n, p).Sub(p, n)
+
+	// construct pad such that:
+	// pad := n - neg(n mod p) == kp
+	pad := make([]*big.Int, nbLimbs)
+	for i := range pad {
+		pad[i] = new(big.Int)
 	}
-	if err := decompose(pad, fp.BitsPerLimb(), ret); err != nil {
+	if err := decompose(n, bitsPerLimbs, pad); err != nil {
 		panic(fmt.Sprintf("decompose: %v", err))
 	}
-	for i := range ret {
-		ret[i].Add(ret[i], padLimbs[i])
+	for i := range pad {
+		pad[i].Add(pad[i], nLimbs[i])
 	}
-	return ret
+	return pad
 }
 
 // compact returns parameters which allow for most optimal regrouping of
