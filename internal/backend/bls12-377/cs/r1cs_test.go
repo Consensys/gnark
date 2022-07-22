@@ -24,6 +24,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -68,9 +71,15 @@ func TestSerialization(t *testing.T) {
 				if written != read {
 					t.Fatal("didn't read same number of bytes we wrote")
 				}
+
 				// compare original and reconstructed
-				if !reflect.DeepEqual(r1cs1, &reconstructed) {
-					t.Fatal("round trip serialization failed")
+				if diff := cmp.Diff(r1cs1, &reconstructed,
+					cmpopts.IgnoreFields(cs.R1CS{},
+						"ConstraintSystem.q",
+						"ConstraintSystem.bitLen",
+						"ConstraintSystem.debugPathsIds",
+						"ConstraintSystem.debugPathId")); diff != "" {
+					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)
 				}
 			}
 

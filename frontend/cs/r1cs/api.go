@@ -99,7 +99,7 @@ func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1Constant && !v2Constant {
 			res := system.newInternalVariable()
-			system.Constraints = append(system.Constraints, newR1C(v1, v2, res))
+			system.addConstraint(newR1C(v1, v2, res))
 			return res
 		}
 
@@ -287,7 +287,7 @@ func (system *r1cs) Xor(_a, _b frontend.Variable) frontend.Variable {
 	c := system.Neg(res).(compiled.LinearExpression)
 	c = append(c, a[0], b[0])
 	aa := system.Mul(a, 2)
-	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
+	system.addConstraint(newR1C(aa, b, c))
 
 	return res
 }
@@ -307,7 +307,7 @@ func (system *r1cs) Or(_a, _b frontend.Variable) frontend.Variable {
 	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.LinearExpression)
 	c = append(c, a[0], b[0])
-	system.Constraints = append(system.Constraints, newR1C(a, b, c))
+	system.addConstraint(newR1C(a, b, c))
 
 	return res
 }
