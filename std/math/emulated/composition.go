@@ -78,7 +78,8 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 	// so a number nLimbs > b, is simply taking the next power of 2 over this bound .
 	nLimbs := make([]*big.Int, nbLimbs)
 	for i := 0; i < len(nLimbs); i++ {
-		nLimbs[i] = new(big.Int).SetUint64(1).Lsh(nLimbs[i], overflow+bitsPerLimbs)
+		nLimbs[i] = new(big.Int).SetUint64(1)
+		nLimbs[i].Lsh(nLimbs[i], overflow+bitsPerLimbs)
 	}
 
 	// recompose n as the sum of the coefficients weighted by the limbs
@@ -87,7 +88,8 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
 	// mod reduce n, and negate it
-	n.Mod(n, p).Sub(p, n)
+	n.Mod(n, p)
+	n.Sub(p, n)
 
 	// construct pad such that:
 	// pad := n - neg(n mod p) == kp
