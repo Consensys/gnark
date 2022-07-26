@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	k = 256   // The exact number of bits required to represent the prime modulus
-	s = 4     // The exact number of words required to represent the prime modulus
-	w = 64    // The word-size of the representation
-	m = s * w // The total number of bits in a word
+	k           = 256                   // The exact number of bits required to represent the prime modulus
+	nbLimbs     = 4                     // The exact number of words required to represent the prime modulus
+	bitsPerLimb = 64                    // The word-size of the representation
+	m           = nbLimbs * bitsPerLimb // The total number of bits in a word
 )
 
 var p *big.Int
 
-type element [s]*big.Int
+type element [nbLimbs]*big.Int
 
 var (
 	rSquare  element
@@ -54,7 +54,7 @@ func init() {
 
 	// mask for low w bits
 	mLowW = big.NewInt(1)
-	mLowW.Lsh(mLowW, w).Sub(mLowW, big.NewInt(1))
+	mLowW.Lsh(mLowW, bitsPerLimb).Sub(mLowW, big.NewInt(1))
 
 	qInverse.fromBigInt(_qInv)
 	rSquare.fromBigInt(_rSquare)
@@ -68,7 +68,7 @@ func (e *element) init() {
 }
 
 func (e *element) fromBigInt(v *big.Int) {
-	err := decompose(v, w, e[:])
+	err := decompose(v, bitsPerLimb, e[:])
 	if err != nil {
 		panic(err)
 	}
@@ -97,13 +97,13 @@ func (e *element) isGreaterThanP() bool {
 
 func (e *element) subp() {
 	r := new(big.Int)
-	err := recompose(e[:], w, r)
+	err := recompose(e[:], bitsPerLimb, r)
 	if err != nil {
 		panic(err)
 	}
 
 	r.Sub(r, p)
-	if err := decompose(r, w, e[:]); err != nil {
+	if err := decompose(r, bitsPerLimb, e[:]); err != nil {
 		panic(err)
 	}
 }
@@ -123,39 +123,44 @@ func (e *element) mulCIOS(x, y *element) {
 	//
 	// 		(C,t[N-1]) := t[N] + C
 	// 		t[N] := t[N+1] + C
-	t := make([]*big.Int, s+2)
+	t := make([]*big.Int, nbLimbs+2)
 	for i := 0; i < len(t); i++ {
 		t[i] = new(big.Int)
 	}
-	for i := 0; i < s; i++ {
+	// addW: 2 api.Mul (assert is bool on carry & sum + carry weighted = sum(a,b)) (maybe 1 if we don't assert bool)
+	// mulW: 1 constraint; assert weighted product == product (need product to fit in native limbs)
+	// madd2: 5 constraintes
+
+	// counts:
+	// nbLimbs * ((nbLimbs * madd2 * 2) + 3 * addW + mulW  )
+	//
+	for i := 0; i < nbLimbs; i++ {
 		C := big.NewInt(0)
 
-		for j := 0; j < s; j++ {
+		for j := 0; j < nbLimbs; j++ {
 			C, t[j] = madd2(x[j], y[i], t[j], C)
 		}
-		t[s], t[s+1] = addW(t[s], C)
+		t[nbLimbs], t[nbLimbs+1] = addW(t[nbLimbs], C)
 		C.SetUint64(0)
 		_, m := mulW(t[0], qInverse[0])
 
 		C, _ = madd2(m, qElement[0], t[0], C)
-		for j := 1; j < s; j++ {
+		for j := 1; j < nbLimbs; j++ {
 			C, t[j-1] = madd2(m, qElement[j], t[j], C)
 		}
-		t[s-1], C = addW(t[s], C)
-		t[s], _ = addW(t[s+1], C)
+		t[nbLimbs-1], C = addW(t[nbLimbs], C)
+		t[nbLimbs], _ = addW(t[nbLimbs+1], C)
 	}
 
-	if t[s].Cmp(big.NewInt(0)) != 0 {
+	if t[nbLimbs].Cmp(big.NewInt(0)) != 0 {
 		r := new(big.Int)
-		err := recompose(t[:s], w, r)
+		err := recompose(t[:nbLimbs], bitsPerLimb, r)
 		if err != nil {
 			panic(err)
 		}
 
 		r.Sub(r, p)
-		if err := decompose(r, w, e[:]); err != nil {
-			panic(err)
-		}
+		e.fromBigInt(r)
 		return
 	}
 
@@ -169,7 +174,7 @@ func (e *element) mulCIOS(x, y *element) {
 
 func (e *element) toBigInt() *big.Int {
 	r := new(big.Int)
-	err := recompose(e[:], w, r)
+	err := recompose(e[:], bitsPerLimb, r)
 	if err != nil {
 		panic(err)
 	}
@@ -261,7 +266,7 @@ func addW(a, b *big.Int) (r, carry *big.Int) {
 	r = new(big.Int)
 	r.Add(a, b)
 	carry = new(big.Int)
-	carry.Rsh(r, w)
+	carry.Rsh(r, bitsPerLimb)
 	r.And(r, mLowW)
 	return
 }
@@ -270,7 +275,7 @@ func mulW(a, b *big.Int) (hi, lo *big.Int) {
 	lo = new(big.Int)
 	hi = new(big.Int)
 	lo.Mul(a, b)
-	hi.Rsh(lo, w)
+	hi.Rsh(lo, bitsPerLimb)
 	lo.And(lo, mLowW)
 	return
 }
@@ -299,7 +304,7 @@ func _madd2(a, b, c, d uint64) (hi uint64, lo uint64) {
 func TestAddMulW(t *testing.T) {
 	assert := require.New(t)
 
-	if w != 64 {
+	if bitsPerLimb != 64 {
 		t.Skip()
 	}
 
