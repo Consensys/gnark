@@ -46,16 +46,12 @@ type field[T FieldParams] struct {
 	log zerolog.Logger
 }
 
-// NewField wraps the existing native API such that all methods are performed
-// using field emulation.
+// NewField returns an object to be used in-circuit to perform emulated arithmetic.
 //
-// It initializes the parameters for emulating operations modulo n where
-// every limb of the element contains up to nbBits bits. Returns error if sanity
-// checks fail.
+// The returned object implements frontend.API and as such, is used transparently in a circuit.
 //
-// This method checks the primality of n to detect if parameters define a finite
-// field. As such, invocation of this method is expensive and should be done
-// once.
+// This is an experimental feature and performing emulated arithmetic in-circuit is extremly costly.
+// See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	f := &field[T]{
 		api: native,
