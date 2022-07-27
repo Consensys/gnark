@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs"
@@ -89,6 +90,8 @@ func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, 
 
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
+	} else if debug.Debug {
+		system.MDebug[len(system.Constraints)] = system.AddDebugInfo("")
 	}
 
 	l.SetCoeffID(cidl)

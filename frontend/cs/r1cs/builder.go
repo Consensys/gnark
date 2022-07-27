@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs"
@@ -176,6 +177,8 @@ func (system *r1cs) addConstraint(r1c compiled.R1C, debugID ...int) {
 	system.Constraints = append(system.Constraints, r1c)
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
+	} else if debug.Debug {
+		system.MDebug[len(system.Constraints)-1] = system.AddDebugInfo("")
 	}
 }
 

@@ -1,11 +1,34 @@
 package debug
 
 import (
+	"errors"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 )
+
+type StackLine struct {
+	Line uint32
+	File string
+}
+
+// ParseStack parses a stack as stored in a log entry and return readable data
+func ParseStack(stack []uint64, stackPaths map[uint32]string) ([]StackLine, error) {
+	r := make([]StackLine, len(stack))
+
+	for i, s := range stack {
+		pID := uint32(s >> 32)
+		line := uint32(s)
+		path, ok := stackPaths[pID]
+		if !ok {
+			return nil, errors.New("missing stack path in stackPaths map")
+		}
+		r[i] = StackLine{Line: line, File: path}
+	}
+
+	return r, nil
+}
 
 func Stack() string {
 	var sbb strings.Builder

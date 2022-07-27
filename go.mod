@@ -3,9 +3,11 @@ module github.com/consensys/gnark
 go 1.18
 
 require (
+	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.11-0.20220418151131-08e04eec2153
 	github.com/consensys/gnark-crypto v0.7.1-0.20220603201101-938eff486457
 	github.com/fxamacker/cbor/v2 v2.2.0
+	github.com/google/go-cmp v0.5.8
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.7.1
