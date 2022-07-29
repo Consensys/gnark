@@ -11,6 +11,7 @@ require (
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.7.1
+	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75
 )
 
 require (

@@ -27,6 +27,7 @@ import (
 
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -126,16 +127,29 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		}
 	}()
 
+	log := logger.Logger()
+	log.Debug().Msg("running circuit in test engine")
+	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
 	api := e.apiWrapper(e)
 	err = c.Define(api)
+	log.Debug().Uint64("add", cptAdd).
+		Uint64("sub", cptSub).
+		Uint64("mul", cptMul).
+		Uint64("equals", cptAssertIsEqual).
+		Uint64("toBinary", cptToBinary).
+		Uint64("fromBinary", cptFromBinary).Msg("counters")
 
 	return
 }
 
+var cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual uint64
+
 func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	cptAdd++
 	res := new(big.Int)
 	res.Add(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
+		cptAdd++
 		res.Add(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -143,9 +157,11 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	cptSub++
 	res := new(big.Int)
 	res.Sub(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
+		cptSub++
 		res.Sub(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -160,6 +176,7 @@ func (e *engine) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	cptMul++
 	b2 := e.toBigInt(i2)
 	if len(in) == 0 && b2.IsUint64() && b2.Uint64() <= 1 {
 		// special path to avoid useless allocations
@@ -173,6 +190,7 @@ func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	res.Mul(b1, b2)
 	res.Mod(res, e.modulus())
 	for i := 0; i < len(in); i++ {
+		cptMul++
 		res.Mul(res, e.toBigInt(in[i]))
 		res.Mod(res, e.modulus())
 	}
@@ -212,6 +230,7 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+	cptToBinary++
 	nbBits := e.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
@@ -243,6 +262,7 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 }
 
 func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
+	cptFromBinary++
 	bits := make([]bool, len(v))
 	for i := 0; i < len(v); i++ {
 		be := e.toBigInt(v[i])
@@ -339,6 +359,7 @@ func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
+	cptAssertIsEqual++
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(b2) != 0 {
 		panic(fmt.Sprintf("[assertIsEqual] %s == %s", b1.String(), b2.String()))

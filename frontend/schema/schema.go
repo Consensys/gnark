@@ -34,6 +34,12 @@ type Schema struct {
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
 type LeafHandler func(field *Field, tValue reflect.Value) error
 
+// An object implementing an init hook knows how to "init" itself
+// when parsed at compile time
+type InitHook interface {
+	GnarkInitHook() // TODO @gbotrel find a better home for this
+}
+
 // Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
 //
@@ -278,6 +284,9 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
+				if ih, hasInitHook := value.(InitHook); hasInitHook {
+					ih.GnarkInitHook()
+				}
 				var err error
 				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler, nbPublic, nbSecret)
 				if err != nil {

@@ -29,10 +29,6 @@ func TestCircuitStatistics(t *testing.T) {
 			for _, b := range backend.Implemented() {
 				curve := curve
 				backendID := b
-				if backendID == backend.PLONKFRI {
-					// TODO
-					continue
-				}
 				name := name
 				// copy the circuit now in case assert calls t.Parallel()
 				circuit := c.Circuit

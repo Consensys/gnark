@@ -407,6 +407,12 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	errVars := IsSolved(circuit, w, curve.ScalarField())
 	errConsts := IsSolved(circuit, w, curve.ScalarField(), SetAllVariablesAsConstants())
 
+	if (errVars == nil) != (errConsts == nil) {
+		assert.Log("errVars", errVars)
+		assert.Log("errConsts", errConsts)
+		assert.FailNow("solving circuit with values as constants vs non-constants mismatched result")
+	}
+
 	if errVars == nil && errConsts == nil {
 		// valid witness
 		assert.solvingSucceeded(circuit, w, b, curve, opt)

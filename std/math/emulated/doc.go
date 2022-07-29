@@ -1,5 +1,5 @@
 /*
-Package nonnative implements operations over any modulus.
+Package emulated implements operations over any modulus.
 
 Non-native computation in circuit
 
@@ -217,4 +217,4 @@ We do not assume particular value for placeholder constant and may its
 implementation to speed up compilation.
 
 */
-package nonnative
+package emulated

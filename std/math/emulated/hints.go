@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 import (
 	"fmt"
@@ -8,21 +8,28 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// TODO @gbotrel hint[T FieldParams] would simplify this . Issue is when registering hint, if QuoRem[T] was declared
+// inside a func, then it becomes anonymous and hint identification is screwed.
+
+func init() {
+	hint.Register(GetHints()...)
+}
+
 // GetHints returns all hint functions used in the package.
 func GetHints() []hint.Function {
 	return []hint.Function{
 		DivHint,
-		EqualityHint,
+		QuoHint,
 		InverseHint,
 		MultiplicationHint,
-		ReductionHint,
+		RemHint,
 	}
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint(api frontend.API, params *Params, leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func computeMultiplicationHint[T FieldParams](api frontend.API, params *field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.nbBits,
+		params.fParams.BitsPerLimb(),
 		len(leftLimbs),
 		len(rightLimbs),
 	}
@@ -75,117 +82,93 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	return nil
 }
 
-// computeReductionHint packs inputs for the ReductionHint hint function.
-func computeReductionHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (reducedLimbs []frontend.Variable, err error) {
+// computeRemHint packs inputs for the RemHint hint function.
+// sets z to the remainder x%y for y != 0 and returns z.
+func (f *field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.nbBits,
-		params.nbLimbs,
+		fp.BitsPerLimb(),
+		len(x.Limbs),
 	}
-	p := params.Modulus()
-	for i := range p.Limbs {
-		hintInputs = append(hintInputs, frontend.Variable(p.Limbs[i]))
+	hintInputs = append(hintInputs, x.Limbs...)
+	hintInputs = append(hintInputs, y.Limbs...)
+	limbs, err := f.api.NewHint(RemHint, int(len(y.Limbs)), hintInputs...)
+	if err != nil {
+		return Element[T]{}, err
 	}
-	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(ReductionHint, int(params.nbLimbs), hintInputs...)
+	return f.PackLimbs(limbs), nil
 }
 
-// ReductionHint computes the remainder r for input x = k*p + r and stores it
-// in outputs.
-func ReductionHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) < 2 {
-		return fmt.Errorf("input must be at least two elements")
+// RemHint sets z to the remainder x%y for y != 0 and returns z.
+// If y == 0, returns an error.
+// Rem implements truncated modulus (like Go); see QuoRem for more details.
+func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	nbBits, _, x, y, err := parseHintDivInputs(inputs)
+	if err != nil {
+		return err
 	}
-	nbBits := uint(inputs[0].Uint64())
-	nbLimbs := int(inputs[1].Int64())
-	if len(inputs[2:]) < 2*nbLimbs {
-		return fmt.Errorf("reducible value missing")
-	}
-	if len(outputs) != nbLimbs {
-		return fmt.Errorf("result does not fit into output")
-	}
-	p := new(big.Int)
-	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
-		return fmt.Errorf("recompose emulated order: %w", err)
-	}
-	x := new(big.Int)
-	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
-		return fmt.Errorf("recompose value: %w", err)
-	}
-	q := new(big.Int)
 	r := new(big.Int)
-	q.QuoRem(x, p, r)
+	r.Rem(x, y)
 	if err := decompose(r, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose remainder: %w", err)
 	}
 	return nil
 }
 
-// computeEqualityHint packs the inputs for EqualityHint function.
-func computeEqualityHint(api frontend.API, params *Params, diff Element) (kpLimbs []frontend.Variable, err error) {
-	p := params.Modulus()
-	resLen := (uint(len(diff.Limbs))*params.nbBits + diff.overflow + 1 - // diff total bitlength
-		uint(params.r.BitLen()) + // subtract modulus bitlength
-		params.nbBits - 1) / // to round up
-		params.nbBits
+// computeQuoHint packs the inputs for QuoHint function and returns z = x / y
+// (discards remainder)
+func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
+	var fp T
+	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
+		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
+		fp.BitsPerLimb() - 1) / // to round up
+		fp.BitsPerLimb()
+
 	hintInputs := []frontend.Variable{
-		params.nbBits,
-		params.nbLimbs,
+		fp.BitsPerLimb(),
+		len(x.Limbs),
 	}
+	p := f.Modulus()
+	hintInputs = append(hintInputs, x.Limbs...)
 	hintInputs = append(hintInputs, p.Limbs...)
-	hintInputs = append(hintInputs, diff.Limbs...)
-	return api.NewHint(EqualityHint, int(resLen), hintInputs...)
+
+	limbs, err := f.api.NewHint(QuoHint, int(resLen), hintInputs...)
+	if err != nil {
+		return Element[T]{}, err
+	}
+
+	return f.PackLimbs(limbs), nil
 }
 
-// EqualityHint computes k for input x = k*p and stores it in outputs.
-func EqualityHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	// first value is the number of bits per limb (nbBits)
-	// second value is the number of limbs for modulus
-	// then comes emulated modulus (p)
-	// and the rest is for the difference (diff)
-	//
-	// if the quotient z = diff / p is larger than the scalar modulus, then err.
-	// Otherwise we store the quotient in the output element (a single element).
-	//
-	// errors when does not divide evenly (we do not allow to generate invalid
-	// proofs)
-	if len(inputs) < 2 {
-		return fmt.Errorf("at least 2 inputs required")
+// QuoHint sets z to the quotient x/y for y != 0 and returns z.
+// If y == 0, returns an error.
+// Quo implements truncated division (like Go); see QuoRem for more details.
+func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	nbBits, _, x, y, err := parseHintDivInputs(inputs)
+	if err != nil {
+		return err
 	}
-	nbBits := uint(inputs[0].Uint64())
-	nbLimbs := int(inputs[1].Int64())
-	if len(inputs[2:]) < nbLimbs {
-		return fmt.Errorf("modulus limbs missing")
-	}
-	p := new(big.Int)
-	diff := new(big.Int)
-	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
-		return fmt.Errorf("recompose emulated order: %w", err)
-	}
-	if err := recompose(inputs[2+nbLimbs:], nbBits, diff); err != nil {
-		return fmt.Errorf("recompose diff")
-	}
-	r := new(big.Int)
 	z := new(big.Int)
-	z.QuoRem(diff, p, r)
-	if r.Cmp(big.NewInt(0)) != 0 {
-		return fmt.Errorf("modulus does not divide diff evenly")
-	}
+	z.Quo(x, y) //.Mod(z, y)
+
 	if err := decompose(z, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
+
 	return nil
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint(api frontend.API, params *Params, inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func computeInverseHint[T FieldParams](api frontend.API, params *field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.nbBits,
-		params.nbLimbs,
+		fp.BitsPerLimb(),
+		fp.NbLimbs(),
 	}
 	p := params.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(InverseHint, int(params.nbLimbs), hintInputs...)
+	return api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
@@ -219,17 +202,18 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint(api frontend.API, params *Params, nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+	var fp T
 	hintInputs := []frontend.Variable{
-		params.nbBits,
-		params.nbLimbs,
+		fp.BitsPerLimb(),
+		fp.NbLimbs(),
 		len(nomLimbs),
 	}
 	p := params.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
-	return api.NewHint(DivHint, int(params.nbLimbs), hintInputs...)
+	return api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in
@@ -271,4 +255,31 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("decompose division: %w", err)
 	}
 	return nil
+}
+
+// input[0] = nbBits per limb
+// input[1] = nbLimbs(x)
+// input[2:2+nbLimbs(x)] = limbs(x)
+// input[2+nbLimbs(x):] = limbs(y)
+// errors if y == 0
+func parseHintDivInputs(inputs []*big.Int) (uint, int, *big.Int, *big.Int, error) {
+	if len(inputs) < 2 {
+		return 0, 0, nil, nil, fmt.Errorf("at least 2 inputs required")
+	}
+	nbBits := uint(inputs[0].Uint64())
+	nbLimbs := int(inputs[1].Int64())
+	if len(inputs[2:]) < nbLimbs {
+		return 0, 0, nil, nil, fmt.Errorf("x limbs missing")
+	}
+	x, y := new(big.Int), new(big.Int)
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, x); err != nil {
+		return 0, 0, nil, nil, fmt.Errorf("recompose x: %w", err)
+	}
+	if err := recompose(inputs[2+nbLimbs:], nbBits, y); err != nil {
+		return 0, 0, nil, nil, fmt.Errorf("recompose y: %w", err)
+	}
+	if y.IsUint64() && y.Uint64() == 0 {
+		return 0, 0, nil, nil, fmt.Errorf("y == 0")
+	}
+	return nbBits, nbLimbs, x, y, nil
 }

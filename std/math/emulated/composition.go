@@ -1,4 +1,4 @@
-package nonnative
+package emulated
 
 import (
 	"fmt"
@@ -25,6 +25,7 @@ func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 		res.Lsh(res, nbBits)
 		res.Add(res, inputs[len(inputs)-i-1])
 	}
+	// TODO @gbotrel mod reduce ?
 	return nil
 }
 
@@ -47,7 +48,7 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	base := new(big.Int).Lsh(big.NewInt(1), nbBits)
 	tmp := new(big.Int).Set(input)
 	for i := 0; i < len(res); i++ {
-		res[i] = new(big.Int).Mod(tmp, base)
+		res[i].Mod(tmp, base)
 		tmp.Rsh(tmp, nbBits)
 	}
 	return nil
@@ -67,75 +68,84 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
-func subPadding(params *Params, current_overflow uint, nbLimbs uint) []*big.Int {
-	padLimbs := make([]*big.Int, nbLimbs)
-	for i := 0; i < len(padLimbs); i++ {
-		padLimbs[i] = new(big.Int).Lsh(big.NewInt(1), uint(current_overflow)+params.nbBits)
+func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
+	var fp T
+	p := fp.Modulus()
+	bitsPerLimbs := fp.BitsPerLimb()
+
+	// first, we build a number nLimbs, such that nLimbs > b;
+	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
+	// so a number nLimbs > b, is simply taking the next power of 2 over this bound .
+	nLimbs := make([]*big.Int, nbLimbs)
+	for i := 0; i < len(nLimbs); i++ {
+		nLimbs[i] = new(big.Int).SetUint64(1)
+		nLimbs[i].Lsh(nLimbs[i], overflow+bitsPerLimbs)
 	}
-	pad := new(big.Int)
-	if err := recompose(padLimbs, params.nbBits, pad); err != nil {
+
+	// recompose n as the sum of the coefficients weighted by the limbs
+	n := new(big.Int)
+	if err := recompose(nLimbs, bitsPerLimbs, n); err != nil {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
-	pad.Mod(pad, params.r)
-	pad.Sub(params.r, pad)
-	ret := make([]*big.Int, nbLimbs)
-	for i := range ret {
-		ret[i] = new(big.Int)
+	// mod reduce n, and negate it
+	n.Mod(n, p)
+	n.Sub(p, n)
+
+	// construct pad such that:
+	// pad := n - neg(n mod p) == kp
+	pad := make([]*big.Int, nbLimbs)
+	for i := range pad {
+		pad[i] = new(big.Int)
 	}
-	if err := decompose(pad, params.nbBits, ret); err != nil {
+	if err := decompose(n, bitsPerLimbs, pad); err != nil {
 		panic(fmt.Sprintf("decompose: %v", err))
 	}
-	for i := range ret {
-		ret[i].Add(ret[i], padLimbs[i])
+	for i := range pad {
+		pad[i].Add(pad[i], nLimbs[i])
 	}
-	return ret
+	return pad
 }
 
-// regroupParams returns parameters which allow for most optimal regrouping of
+// compact returns parameters which allow for most optimal regrouping of
 // limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
 // combination in a single new limb.
-func regroupParams(params *Params, nbNativeBits, nbMaxOverflow uint) *Params {
+// compact returns a and b minimal (in number of limbs) representation that fits in the snark field
+func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
+	maxOverflow := max(a.overflow, b.overflow)
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
-	maxFit := nbNativeBits - 2
-	groupSize := (maxFit - nbMaxOverflow) / params.nbBits
+	maxNbBits := uint(f.api.Compiler().FieldBitLen()) - 2 - maxOverflow
+	groupSize := maxNbBits / a.fParams.BitsPerLimb()
 	if groupSize == 0 {
-		// not sufficient space for regroup, return the same parameters.
-		return params
+		// no space for compact
+		return a.Limbs, b.Limbs, a.fParams.BitsPerLimb()
 	}
-	nbRegroupBits := params.nbBits * groupSize
-	nbRegroupLimbs := (params.nbLimbs + groupSize) / groupSize
-	return &Params{
-		r:           params.r,
-		hasInverses: params.hasInverses,
-		nbLimbs:     nbRegroupLimbs,
-		nbBits:      nbRegroupBits,
-	}
+
+	bitsPerLimb = a.fParams.BitsPerLimb() * groupSize
+
+	ac = f.compactLimbs(a, groupSize, bitsPerLimb)
+	bc = f.compactLimbs(b, groupSize, bitsPerLimb)
+	return
 }
 
-// regroupLimbs perform the regrouping of limbs between old and new parameters.
-func regroupLimbs(api frontend.API, params, regroupParams *Params, limbs []frontend.Variable) []frontend.Variable {
-	if params.nbBits == regroupParams.nbBits {
-		// not regrouping
-		return limbs
+// compactLimbs perform the regrouping of limbs between old and new parameters.
+func (f *field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
+	if f.fParams.BitsPerLimb() == bitsPerLimb {
+		return e.Limbs
 	}
-	if regroupParams.nbBits%params.nbBits != 0 {
-		panic("regroup bitwidth must be multiple of initial bitwidth")
-	}
-	groupSize := regroupParams.nbBits / params.nbBits
-	nbLimbs := (uint(len(limbs)) + groupSize - 1) / groupSize
-	regrouped := make([]frontend.Variable, nbLimbs)
+	nbLimbs := (uint(len(e.Limbs)) + groupSize - 1) / groupSize
+	r := make([]frontend.Variable, nbLimbs)
 	coeffs := make([]*big.Int, groupSize)
 	one := big.NewInt(1)
 	for i := range coeffs {
 		coeffs[i] = new(big.Int)
-		coeffs[i].Lsh(one, params.nbBits*uint(i))
+		coeffs[i].Lsh(one, e.fParams.BitsPerLimb()*uint(i))
 	}
 	for i := uint(0); i < nbLimbs; i++ {
-		regrouped[i] = uint(0)
-		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(limbs)); j++ {
-			regrouped[i] = api.Add(regrouped[i], api.Mul(coeffs[j], limbs[i*groupSize+j]))
+		r[i] = uint(0)
+		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(e.Limbs)); j++ {
+			r[i] = f.api.Add(r[i], f.api.Mul(coeffs[j], e.Limbs[i*groupSize+j]))
 		}
 	}
-	return regrouped
+	return r
 }
