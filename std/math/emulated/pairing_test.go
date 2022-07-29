@@ -20,6 +20,9 @@ func (circuit *mlBLS377) Define(api frontend.API) error {
 }
 
 func TestE12SquareBLS377(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	assert := test.NewAssert(t)
 
 	circuit := mlBLS377{

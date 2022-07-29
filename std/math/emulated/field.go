@@ -16,10 +16,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type API interface {
-	frontend.API
-}
-
 // field defines the parameters of the emulated ring of integers modulo n. If
 // n is prime, then the ring is also a finite field where inverse and division
 // are allowed.
@@ -37,11 +33,11 @@ type field[T FieldParams] struct {
 
 	// constants for often used elements n, 0 and 1. Allocated only once
 	nConstOnce    sync.Once
-	nConst        Element[T] `gnark:"-"`
+	nConst        Element[T]
 	zeroConstOnce sync.Once
-	zeroConst     Element[T] `gnark:"-"`
+	zeroConst     Element[T]
 	oneConstOnce  sync.Once
-	oneConst      Element[T] `gnark:"-"`
+	oneConst      Element[T]
 
 	log zerolog.Logger
 }
@@ -242,8 +238,6 @@ func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 }
 
 func (f *field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	// TODO @gbotrel it seems here inputs are not necessarly reduced, so checking only the first limb
-	// is not enough mod(r)
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])

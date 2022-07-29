@@ -12,10 +12,7 @@ import (
 // inside a func, then it becomes anonymous and hint identification is screwed.
 
 func init() {
-	hints := GetHints()
-	for _, h := range hints {
-		hint.Register(h)
-	}
+	hint.Register(GetHints()...)
 }
 
 // GetHints returns all hint functions used in the package.
@@ -109,9 +106,6 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	nbBits, _, x, y, err := parseHintDivInputs(inputs)
 	if err != nil {
 		return err
-	}
-	for _, o := range outputs {
-		o.SetUint64(0)
 	}
 	r := new(big.Int)
 	r.Rem(x, y)
