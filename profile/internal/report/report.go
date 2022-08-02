@@ -1056,7 +1056,7 @@ func abs64(i int64) int64 {
 
 func trimPath(path, trimPath, searchPath string) string {
 	const gnarkRoot = "github.com/consensys/gnark/"
-	const gnarkRootCI = "home/runner/work/gnark/"
+	const gnarkRootCI = "home/runner/work/gnark/gnark/"
 
 	// Keep path variable intact as it's used below to form the return value.
 	sPath, searchPath := filepath.ToSlash(path), filepath.ToSlash(searchPath)
