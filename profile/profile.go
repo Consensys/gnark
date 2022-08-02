@@ -50,6 +50,15 @@ func ProfilePath(path string) func(*Profile) {
 	}
 }
 
+// ProfileNoOutput indicates that the profile is not going to be written to disk.
+//
+// This is equivalent to ProfilePath("")
+func ProfileNoOutput() func(*Profile) {
+	return func(p *Profile) {
+		p.filePath = ""
+	}
+}
+
 // Start creates a new active profiling session. When Stop() is called, this session is removed from
 // active profiling sessions and may be serialized to disk as a pprof compatible file (see ProfilePath option).
 //

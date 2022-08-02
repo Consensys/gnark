@@ -22,7 +22,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -267,12 +266,10 @@ func TestCircuitFull(t *testing.T) {
 	}
 
 	// TODO full circuit has some unconstrained inputs, that's odd.
-	p := profile.Start()
 	assert.ProverSucceeded(
 		&rollupCircuit,
 		&operator.witnesses,
 		test.WithCurves(ecc.BN254),
 		test.WithBackends(backend.GROTH16))
 
-	p.Stop()
 }
