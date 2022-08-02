@@ -5,6 +5,7 @@
 package profile
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile/internal/report"
 	"github.com/google/pprof/profile"
 )
 
@@ -61,33 +63,33 @@ func Start(options ...func(*Profile)) *Profile {
 		go worker()
 	})
 
-	prof := Profile{
+	p := Profile{
 		functions: make(map[string]*profile.Function),
 		locations: make(map[uint64]*profile.Location),
 		filePath:  filepath.Join(".", "gnark.pprof"),
 		chDone:    make(chan struct{}),
 	}
-	prof.pprof.SampleType = []*profile.ValueType{{
+	p.pprof.SampleType = []*profile.ValueType{{
 		Type: "constraints",
 		Unit: "count",
 	}}
 
 	for _, option := range options {
-		option(&prof)
+		option(&p)
 	}
 
 	log := logger.Logger()
-	if prof.filePath == "" {
+	if p.filePath == "" {
 		log.Warn().Msg("gnark profiling enabled [not writting to disk]")
 	} else {
-		log.Info().Str("path", prof.filePath).Msg("gnark profiling enabled")
+		log.Info().Str("path", p.filePath).Msg("gnark profiling enabled")
 	}
 
 	// add the session to active sessions
-	chCommands <- command{p: &prof}
+	chCommands <- command{p: &p}
 	atomic.AddUint32(&activeSessions, 1)
 
-	return &prof
+	return &p
 }
 
 // Stop removes the profile from active session and may write the pprof file to disk. See ProfilePath option.
@@ -122,6 +124,21 @@ func (p *Profile) Stop() {
 
 }
 
+// Top return a similar output than pprof top command
+func (p *Profile) Top() string {
+	r := report.NewDefault(&p.pprof, report.Options{
+		OutputFormat:  report.Text,
+		CompactLabels: true,
+		NodeFraction:  0.005,
+		EdgeFraction:  0.001,
+		SampleValue:   func(v []int64) int64 { return v[0] },
+		SampleUnit:    "count",
+	})
+	var buf bytes.Buffer
+	report.Generate(&buf, r)
+	return buf.String()
+}
+
 // RecordConstraint add a sample (with count == 1) to all the active profiling sessions.
 func RecordConstraint() {
 	if n := atomic.LoadUint32(&activeSessions); n == 0 {
@@ -139,9 +156,6 @@ func RecordConstraint() {
 }
 
 func (p *Profile) getLocation(frame *runtime.Frame) *profile.Location {
-
-	// location
-	// locationID := frame.File + strconv.Itoa(frame.Line)
 	l, ok := p.locations[uint64(frame.PC)]
 	if !ok {
 		// first let's see if we have the function.
