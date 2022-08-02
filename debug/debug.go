@@ -1,34 +1,11 @@
 package debug
 
 import (
-	"errors"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 )
-
-type StackLine struct {
-	Line uint32
-	File string
-}
-
-// ParseStack parses a stack as stored in a log entry and return readable data
-func ParseStack(stack []uint64, stackPaths map[uint32]string) ([]StackLine, error) {
-	r := make([]StackLine, len(stack))
-
-	for i, s := range stack {
-		pID := uint32(s >> 32)
-		line := uint32(s)
-		path, ok := stackPaths[pID]
-		if !ok {
-			return nil, errors.New("missing stack path in stackPaths map")
-		}
-		r[i] = StackLine{Line: line, File: path}
-	}
-
-	return r, nil
-}
 
 func Stack() string {
 	var sbb strings.Builder
@@ -41,7 +18,7 @@ func WriteStack(sbb *strings.Builder, forceClean ...bool) {
 	// we stop when func name == Define as it is where the gnark circuit code should start
 
 	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
+	pc := make([]uintptr, 20)
 	n := runtime.Callers(3, pc)
 	if n == 0 {
 		// No pcs available. Stop now.

@@ -3,7 +3,6 @@ package compiled
 import (
 	"fmt"
 	"math/big"
-	"runtime"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -41,11 +40,6 @@ type ConstraintSystem struct {
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
 	DebugInfo []LogEntry
-	// maps unique id to a path (optimized for reading debug info stacks)
-	DebugStackPaths map[uint32]string
-	// maps a path to an id (optimized for storing debug info stacks)
-	debugPathsIds map[string]uint32 `cbor:"-"`
-	debugPathId   uint32            `cbor:"-"`
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
@@ -74,8 +68,6 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 		MDebug:             make(map[int]int),
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
-		DebugStackPaths:    make(map[uint32]string),
-		debugPathsIds:      make(map[string]uint32),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
 	}
@@ -144,15 +136,6 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 	var l LogEntry
 
-	// add the stack info
-	// TODO @gbotrel duplicate with Debug.stack below
-	l.Stack = cs.stack()
-
-	if errName == "" {
-		cs.DebugInfo = append(cs.DebugInfo, l)
-		return len(cs.DebugInfo) - 1
-	}
-
 	const minLogSize = 500
 	var sbb strings.Builder
 	sbb.Grow(minLogSize)
@@ -180,6 +163,8 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 		}
 	}
 	sbb.WriteByte('\n')
+	// TODO this stack should not be stored as string, but as a slice of locations
+	// to avoid overloading with lots of str duplicate the serialized constraint system
 	debug.WriteStack(&sbb)
 	l.Format = sbb.String()
 
@@ -191,62 +176,4 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 // bitLen returns the number of bits needed to represent a fr.Element
 func (cs *ConstraintSystem) FieldBitLen() int {
 	return cs.bitLen
-}
-
-func (cs *ConstraintSystem) GetDebugInfo() ([][]uint64, map[uint32]string) {
-	r := make([][]uint64, len(cs.DebugInfo))
-	for _, l := range cs.DebugInfo {
-		r = append(r, l.Stack)
-	}
-	return r, cs.DebugStackPaths
-}
-
-func (cs *ConstraintSystem) stack() (r []uint64) {
-	if !debug.Debug {
-		return
-	}
-	// derived from: https://golang.org/pkg/runtime/#example_Frames
-	// we stop when func name == Define as it is where the gnark circuit code should start
-
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
-	n := runtime.Callers(3, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-		file := frame.File
-
-		if strings.Contains(frame.File, "gnark/frontend") {
-			continue
-		}
-
-		// TODO @gbotrel this stores an absolute path, so will work only locally
-		id, ok := cs.debugPathsIds[file]
-		if !ok {
-			id = cs.debugPathId
-			cs.debugPathId++
-			cs.debugPathsIds[file] = id
-			cs.DebugStackPaths[id] = file
-		}
-		r = append(r, ((uint64(id) << 32) | uint64(frame.Line)))
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
-
-	return
-
 }
