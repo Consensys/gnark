@@ -373,46 +373,6 @@ func (fm functionMap) findOrAdd(ni graph.NodeInfo) (*profile.Function, bool) {
 	return f, true
 }
 
-type assemblyInstruction struct {
-	address         uint64
-	instruction     string
-	function        string
-	file            string
-	line            int
-	flat, cum       int64
-	flatDiv, cumDiv int64
-	startsBlock     bool
-	inlineCalls     []callID
-}
-
-type callID struct {
-	file string
-	line int
-}
-
-func (a *assemblyInstruction) flatValue() int64 {
-	if a.flatDiv != 0 {
-		return a.flat / a.flatDiv
-	}
-	return a.flat
-}
-
-func (a *assemblyInstruction) cumValue() int64 {
-	if a.cumDiv != 0 {
-		return a.cum / a.cumDiv
-	}
-	return a.cum
-}
-
-// valueOrDot formats a value according to a report, intercepting zero
-// values.
-func valueOrDot(value int64, rpt *Report) string {
-	if value == 0 {
-		return "."
-	}
-	return rpt.formatValue(value)
-}
-
 // printTags collects all tags referenced in the profile and prints
 // them in a sorted table.
 func printTags(w io.Writer, rpt *Report) error {

@@ -119,14 +119,6 @@ type API interface {
 	// Deprecated: use api.Compiler().NewHint() instead
 	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
-	// Tag is a shorcut to api.Compiler().Tag()
-	// Deprecated: use api.Compiler().Tag() instead
-	Tag(name string) Tag
-
-	// AddCounter is a shorcut to api.Compiler().AddCounter()
-	// Deprecated: use api.Compiler().AddCounter() instead
-	AddCounter(from, to Tag)
-
 	// ConstantValue is a shorcut to api.Compiler().ConstantValue()
 	// Deprecated: use api.Compiler().ConstantValue() instead
 	ConstantValue(v Variable) (*big.Int, bool)

@@ -20,15 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
@@ -570,29 +567,6 @@ func (system *r1cs) toVariables(in ...frontend.Variable) ([]compiled.LinearExpre
 		e(in[i])
 	}
 	return r, s
-}
-
-// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
-// measure constraints, variables and coefficients creations through AddCounter
-func (system *r1cs) Tag(name string) frontend.Tag {
-	_, file, line, _ := runtime.Caller(1)
-
-	return frontend.Tag{
-		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		VID:  system.NbInternalVariables,
-		CID:  len(system.Constraints),
-	}
-}
-
-// AddCounter measures the number of constraints, variables and coefficients created between two tags
-func (system *r1cs) AddCounter(from, to frontend.Tag) {
-	system.Counters = append(system.Counters, compiled.Counter{
-		From:          from.Name,
-		To:            to.Name,
-		NbVariables:   to.VID - from.VID,
-		NbConstraints: to.CID - from.CID,
-		BackendID:     backend.GROTH16,
-	})
 }
 
 // NewHint initializes internal variables whose value will be evaluated using

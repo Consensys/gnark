@@ -38,15 +38,6 @@ type Compiler interface {
 	// If nbOutputs is specified, it must be >= 1 and <= f.NbOutputs
 	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
-	// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
-	// measure constraints, variables and coefficients creations through AddCounter
-	Tag(name string) Tag
-
-	// AddCounter measures the number of constraints, variables and coefficients created between two tags
-	// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
-	// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-	AddCounter(from, to Tag)
-
 	// ConstantValue returns the big.Int value of v and true if op is a success.
 	// nil and false if failure. This API returns a boolean to allow for future refactoring
 	// replacing *big.Int with fr.Element

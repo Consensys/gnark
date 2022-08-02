@@ -8,7 +8,6 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -44,8 +43,6 @@ type ConstraintSystem struct {
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
-
-	Counters []Counter `cbor:"-"`
 
 	MHints             map[int]*Hint      // maps wireID to hint
 	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
@@ -115,22 +112,7 @@ func (cs *ConstraintSystem) Field() *big.Int {
 	return new(big.Int).Set(cs.q)
 }
 
-// GetCounters return the collected constraint counters, if any
-func (cs *ConstraintSystem) GetCounters() []Counter { return cs.Counters }
-
 func (cs *ConstraintSystem) GetSchema() *schema.Schema { return cs.Schema }
-
-// Counter contains measurements of useful statistics between two Tag
-type Counter struct {
-	From, To      string
-	NbVariables   int
-	NbConstraints int
-	BackendID     backend.ID
-}
-
-func (c Counter) String() string {
-	return fmt.Sprintf("%s %s - %s: %d variables, %d constraints", c.BackendID, c.From, c.To, c.NbVariables, c.NbConstraints)
-}
 
 func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 

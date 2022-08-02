@@ -513,14 +513,6 @@ func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.V
 	return ret, nil
 }
 
-func (f *field[T]) Tag(name string) frontend.Tag {
-	return f.api.Compiler().Tag(name)
-}
-
-func (f *field[T]) AddCounter(from frontend.Tag, to frontend.Tag) {
-	f.api.Compiler().AddCounter(from, to)
-}
-
 func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	var limbs []frontend.Variable // emulated limbs
 	switch vv := v.(type) {
