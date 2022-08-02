@@ -124,6 +124,11 @@ func (p *Profile) Stop() {
 
 }
 
+// NbConstraints return number of collected samples (constraints) by the profile session
+func (p *Profile) NbConstraints() int {
+	return len(p.pprof.Sample)
+}
+
 // Top return a similar output than pprof top command
 func (p *Profile) Top() string {
 	r := report.NewDefault(&p.pprof, report.Options{
