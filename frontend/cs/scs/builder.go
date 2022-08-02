@@ -88,7 +88,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
 //func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-	profile.Sample()
+	profile.RecordConstraint()
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
 	} else if debug.Debug {

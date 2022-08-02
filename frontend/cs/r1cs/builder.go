@@ -175,7 +175,7 @@ func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 }
 
 func (system *r1cs) addConstraint(r1c compiled.R1C, debugID ...int) {
-	profile.Sample()
+	profile.RecordConstraint()
 	system.Constraints = append(system.Constraints, r1c)
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]
