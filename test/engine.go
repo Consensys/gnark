@@ -465,15 +465,6 @@ func (e *engine) MarkBoolean(v frontend.Variable) {
 	}
 }
 
-func (e *engine) Tag(name string) frontend.Tag {
-	// do nothing, we don't measure constraints with the test engine
-	return frontend.Tag{Name: name}
-}
-
-func (e *engine) AddCounter(from, to frontend.Tag) {
-	// do nothing, we don't measure constraints with the test engine
-}
-
 func (e *engine) toBigInt(i1 frontend.Variable) *big.Int {
 	switch vv := i1.(type) {
 	case *big.Int:

@@ -264,9 +264,6 @@ func TestMulByNonResidueFp2(t *testing.T) {
 	// fp2c := NewFp2Elmt(&cs, nil, nil)
 	// fp2c.MulByNonResidue(&cs, &fp2a)
 
-	// api.Tag(fp2c.X, "c0")
-	// api.Tag(fp2c.Y, "c1")
-
 	//
 	// witness.A.A0 = (a.A0)
 	// witness.A.A1 = (a.A1)

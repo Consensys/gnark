@@ -20,7 +20,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -40,17 +39,8 @@ type CompiledConstraintSystem interface {
 
 	CurveID() ecc.ID
 
-	// GetCounters return the collected constraint counters, if any
-	GetCounters() []compiled.Counter
-
 	GetSchema() *schema.Schema
 
 	// GetConstraints return a human readable representation of the constraints
 	GetConstraints() [][]string
-
-	// GetDebugInfo return the list of debug info per constraints and the map to restore file path
-	// from the debug info. When compiled with -tags=debug, each constraint has an associated
-	// stack encoded as a []uint64. The uint64 pack uint32(fileID) | uint32(lineNumber).
-	// The file string can be retrieved from associated map.
-	GetDebugInfo() ([][]uint64, map[uint32]string)
 }
