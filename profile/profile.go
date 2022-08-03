@@ -41,12 +41,6 @@ type Profile struct {
 	chDone chan struct{}
 }
 
-<<<<<<< HEAD
-// ProfilePath controls the profile destination file. If blank, profile is not written.
-//
-// Defaults to ./gnark.pprof.
-func ProfilePath(path string) func(*Profile) {
-=======
 // Option defines configuration Options for Profile.
 type Option func(*Profile)
 
@@ -54,23 +48,15 @@ type Option func(*Profile)
 //
 // Defaults to ./gnark.pprof.
 func WithPath(path string) Option {
->>>>>>> develop
 	return func(p *Profile) {
 		p.filePath = path
 	}
 }
 
-<<<<<<< HEAD
-// ProfileNoOutput indicates that the profile is not going to be written to disk.
-//
-// This is equivalent to ProfilePath("")
-func ProfileNoOutput() func(*Profile) {
-=======
 // WithNoOutput indicates that the profile is not going to be written to disk.
 //
 // This is equivalent to WithPath("")
 func WithNoOutput() Option {
->>>>>>> develop
 	return func(p *Profile) {
 		p.filePath = ""
 	}
@@ -82,11 +68,7 @@ func WithNoOutput() Option {
 // All calls to profile.Start() and Stop() are meant to be executed in the same go routine (frontend.Compile).
 //
 // It is allowed to create multiple overlapping profiling sessions in one circuit.
-<<<<<<< HEAD
-func Start(options ...func(*Profile)) *Profile {
-=======
 func Start(options ...Option) *Profile {
->>>>>>> develop
 
 	// start the worker first time a profiling session starts.
 	onceInit.Do(func() {
