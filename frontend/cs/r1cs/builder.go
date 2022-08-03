@@ -46,6 +46,7 @@ import (
 	tinyfieldr1cs "github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile"
 )
 
 // NewBuilder returns a new R1CS compiler
@@ -174,6 +175,7 @@ func newR1C(_l, _r, _o frontend.Variable) compiled.R1C {
 }
 
 func (system *r1cs) addConstraint(r1c compiled.R1C, debugID ...int) {
+	profile.RecordConstraint()
 	system.Constraints = append(system.Constraints, r1c)
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)-1] = debugID[0]

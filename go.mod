@@ -8,6 +8,7 @@ require (
 	github.com/consensys/gnark-crypto v0.7.1-0.20220603201101-938eff486457
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/google/go-cmp v0.5.8
+	github.com/google/pprof v0.0.0-20220729232143-a41b82acbcb1
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.7.1
