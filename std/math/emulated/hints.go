@@ -23,6 +23,7 @@ func GetHints() []hint.Function {
 		InverseHint,
 		MultiplicationHint,
 		RemHint,
+		NBitsShifted,
 	}
 }
 
@@ -282,4 +283,15 @@ func parseHintDivInputs(inputs []*big.Int) (uint, int, *big.Int, *big.Int, error
 		return 0, 0, nil, nil, fmt.Errorf("y == 0")
 	}
 	return nbBits, nbLimbs, x, y, nil
+}
+
+// NBitsShifted returns the first bits of the input, with a shift. The number of returned bits is
+// defined by the length of the results slice.
+func NBitsShifted(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	n := inputs[0]
+	shift := inputs[1].Uint64() // TODO @gbotrel validate input vs perf in large circuits.
+	for i := 0; i < len(results); i++ {
+		results[i].SetUint64(uint64(n.Bit(i + int(shift))))
+	}
+	return nil
 }
