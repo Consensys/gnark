@@ -285,7 +285,8 @@ func (system *r1cs) Xor(_a, _b frontend.Variable) frontend.Variable {
 	res := system.newInternalVariable()
 	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.LinearExpression)
-	c = append(c, a[0], b[0])
+	c = append(c, a...)
+	c = append(c, b...)
 	aa := system.Mul(a, 2)
 	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
 
@@ -306,7 +307,8 @@ func (system *r1cs) Or(_a, _b frontend.Variable) frontend.Variable {
 	res := system.newInternalVariable()
 	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.LinearExpression)
-	c = append(c, a[0], b[0])
+	c = append(c, a...)
+	c = append(c, b...)
 	system.Constraints = append(system.Constraints, newR1C(a, b, c))
 
 	return res
