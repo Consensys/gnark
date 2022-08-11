@@ -21,30 +21,33 @@
 // The modulus is hardcoded in all the operations.
 //
 // Field elements are represented as an array, and assumed to be in Montgomery form in all methods:
-// 	type Element [1]uint64
 //
-// Usage
+//	type Element [1]uint64
+//
+// # Usage
 //
 // Example API signature:
-// 	// Mul z = x * y (mod q)
-// 	func (z *Element) Mul(x, y *Element) *Element
+//
+//	// Mul z = x * y (mod q)
+//	func (z *Element) Mul(x, y *Element) *Element
 //
 // and can be used like so:
-// 	var a, b Element
-// 	a.SetUint64(2)
-// 	b.SetString("984896738")
-// 	a.Mul(a, b)
-// 	a.Sub(a, a)
-// 	 .Add(a, b)
-// 	 .Inv(a)
-// 	b.Exp(b, new(big.Int).SetUint64(42))
+//
+//	var a, b Element
+//	a.SetUint64(2)
+//	b.SetString("984896738")
+//	a.Mul(a, b)
+//	a.Sub(a, a)
+//	 .Add(a, b)
+//	 .Inv(a)
+//	b.Exp(b, new(big.Int).SetUint64(42))
 //
 // Modulus q =
 //
-// 	q[base10] = 47
-// 	q[base16] = 0x2f
+//	q[base10] = 47
+//	q[base16] = 0x2f
 //
-// Warning
+// # Warning
 //
 // This code has not been audited and is provided as-is. In particular, there is no security guarantees such as constant time implementation or side-channel attack resistance.
 package tinyfield

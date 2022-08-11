@@ -556,13 +556,15 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 
 // computeZ computes Z, in canonical basis, where:
 //
-// * Z of degree n (domainNum.Cardinality)
-// * Z(1)=1
-// 								   (l(g^k)+β*g^k+γ)*(r(g^k)+uβ*g^k+γ)*(o(g^k)+u²β*g^k+γ)
-// * for i>0: Z(gⁱ) = Π_{k<i} -------------------------------------------------------
-//								     (l(g^k)+β*s1(g^k)+γ)*(r(g^k)+β*s2(g^k)+γ)*(o(g^k)+β*s3(\g^k)+γ)
+//   - Z of degree n (domainNum.Cardinality)
 //
-//	* l, r, o are the solution in Lagrange basis, evaluated on the small domain
+//   - Z(1)=1
+//     (l(g^k)+β*g^k+γ)*(r(g^k)+uβ*g^k+γ)*(o(g^k)+u²β*g^k+γ)
+//
+//   - for i>0: Z(gⁱ) = Π_{k<i} -------------------------------------------------------
+//     (l(g^k)+β*s1(g^k)+γ)*(r(g^k)+β*s2(g^k)+γ)*(o(g^k)+β*s3(\g^k)+γ)
+//
+//   - l, r, o are the solution in Lagrange basis, evaluated on the small domain
 func computeBlindedZCanonical(l, r, o []fr.Element, pk *ProvingKey, beta, gamma fr.Element) ([]fr.Element, error) {
 
 	// note that z has more capacity has its memory is reused for blinded z later on

@@ -12,7 +12,7 @@ import (
 //
 // The following holds
 //
-//    res = \sum_{i=0}^{len(inputs)} inputs[i] * 2^{nbBits * i}
+//	res = \sum_{i=0}^{len(inputs)} inputs[i] * 2^{nbBits * i}
 func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 	if len(inputs) == 0 {
 		return fmt.Errorf("zero length slice input")
@@ -34,7 +34,7 @@ func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 //
 // The following holds
 //
-//    input = \sum_{i=0}^{len(res)} res[i] * 2^{nbBits * i}
+//	input = \sum_{i=0}^{len(res)} res[i] * 2^{nbBits * i}
 func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	// limb modulus
 	if input.BitLen() > len(res)*int(nbBits) {
@@ -58,13 +58,13 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 // Denote the padding d=(d[0], ..., d[nbLimbs]). When computing the difference
 // of a and b by limb-wise subtraction
 //
-//     s = a - b = (a[0]-b[0], ..., a[nbLimbs]-b[nbLimbs])
+//	s = a - b = (a[0]-b[0], ..., a[nbLimbs]-b[nbLimbs])
 //
 // it may happen that some limbs underflow the snark scalar field and the limbs
 // of s do not represent the actual difference a-b. However, when adding the
 // padding d to every limb i.e.
 //
-//     s = a + d - b = (a[0]+d[0]-b[0], ..., a[nbLimbs]+d[nbLimbs]-b[nbLimbs])
+//	s = a + d - b = (a[0]+d[0]-b[0], ..., a[nbLimbs]+d[nbLimbs]-b[nbLimbs])
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
