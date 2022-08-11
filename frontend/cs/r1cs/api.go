@@ -436,22 +436,25 @@ func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	debug := system.AddDebugInfo("isZero", a)
 
-	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 
-	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	res, err := system.NewHint(hint.IsZero, 1, a)
+	m := system.newInternalVariable()
+
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	x, err := system.NewHint(hint.InvZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
 	}
-	m := res[0]
+
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
+	system.addConstraint(newR1C(system.Neg(a), x[0], system.Sub(m, 1)), debug)
+
+	// a * m = 0            // constrain m to be 0 if a != 0
 	system.addConstraint(newR1C(a, m, system.toVariable(0)), debug)
 
-	system.AssertIsBoolean(m)
-	ma := system.Add(m, a)
-	_ = system.Inverse(ma)
 	return m
 }
 
