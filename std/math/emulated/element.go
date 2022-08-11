@@ -170,17 +170,54 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		if i > 0 {
 			diff = api.Sub(diff, maxValueShift)
 		}
-		// TODO: more efficient methods for splitting a variable? Because we are
-		// splitting the value into two, then maybe we do not need the whole
-		// binary decomposition \sum_{i=0}^n a_i 2^i, but can use a * 2^nbits +
-		// b. Then we can also omit the FromBinary call.
-		diffBits := bits.ToBinary(api, diff, bits.WithNbDigits(int(nbBits+nbCarryBits+1)), bits.WithUnconstrainedOutputs())
-		for j := uint(0); j < nbBits; j++ {
-			api.AssertIsEqual(diffBits[j], 0)
-		}
-		carry = bits.FromBinary(api, diffBits[nbBits:nbBits+nbCarryBits+1])
+
+		// carry is stored in the highest bits of diff[nbBits:nbBits+nbCarryBits+1]
+		// we know that diff[:nbBits] are 0 bits, but still need to constrain them.
+		// to do both; we do a "clean" right shift and only need to boolean constrain the carry part
+		carry = rsh(api, diff, int(nbBits), int(nbBits+nbCarryBits+1))
 	}
 	api.AssertIsEqual(carry, maxValueShift)
+}
+
+func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) frontend.Variable {
+	// if v is a constant, work with the big int value.
+	if c, ok := api.Compiler().ConstantValue(v); ok {
+		bits := make([]frontend.Variable, endDigit-startDigit)
+		for i := 0; i < len(bits); i++ {
+			bits[i] = c.Bit(i + startDigit)
+		}
+		return bits
+	}
+
+	bits, err := api.Compiler().NewHint(NBitsShifted, endDigit-startDigit, v, startDigit)
+	if err != nil {
+		panic(err)
+	}
+
+	// we compute 2 sums;
+	// Σbi ensures that "ignoring" the lowest bits (< startDigit) still is a valid bit decomposition.
+	// that is, it ensures that bits from startDigit to endDigit * corresponding coefficients (powers of 2 shifted)
+	// are equal to the input variable
+	// ΣbiRShift computes the actual result; that is, the Σ (2**i * b[i])
+	Σbi := frontend.Variable(0)
+	ΣbiRShift := frontend.Variable(0)
+
+	cRShift := big.NewInt(1)
+	c := big.NewInt(1)
+	c.Lsh(c, uint(startDigit))
+
+	for i := 0; i < len(bits); i++ {
+		Σbi = api.Add(Σbi, api.Mul(bits[i], c))
+		ΣbiRShift = api.Add(ΣbiRShift, api.Mul(bits[i], cRShift))
+		c.Lsh(c, 1)
+		cRShift.Lsh(cRShift, 1)
+		api.AssertIsBoolean(bits[i])
+	}
+
+	// constraint Σ (2**i_shift * b[i]) == v
+	api.AssertIsEqual(Σbi, v)
+	return ΣbiRShift
+
 }
 
 // AssertLimbsEquality asserts that the limbs represent a same integer value (up
