@@ -231,9 +231,9 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 //
 // The permutation s is composed of cycles of maximum length such that
 //
-// 			s. (l||r||o) = (l||r||o)
+//	s. (l||r||o) = (l||r||o)
 //
-//, where l||r||o is the concatenation of the indices of l, r, o in
+// , where l||r||o is the concatenation of the indices of l, r, o in
 // ql.l+qr.r+qm.l.r+qo.O+k = 0.
 //
 // The permutation is encoded as a slice s of size 3*size(l), where the
@@ -291,11 +291,14 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // s1, s2, s3.
 //
 // 0	1 	..	n-1		|	n	n+1	..	2*n-1		|	2n		2n+1	..		3n-1     |
-//  																					 |
-//        																				 | Permutation
+//
+//																						 |
+//	      																				 | Permutation
+//
 // s00  s01 ..   s0n-1	   s10 s11 	 ..		s1n-1 		s20 	s21 	..		s2n-1	 v
 // \---------------/       \--------------------/        \------------------------/
-// 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
+//
+//	s1 (LDE)                s2 (LDE)                          s3 (LDE)
 func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 
 	nbElmt := int(pk.Domain[0].Cardinality)

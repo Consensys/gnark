@@ -1,7 +1,7 @@
 /*
 Package emulated implements operations over any modulus.
 
-Non-native computation in circuit
+# Non-native computation in circuit
 
 Usually, the computations in a SNARK circuit are performed in the 'native' field
 of the curve. The native field is defined by the scalar field of the underlying
@@ -27,7 +27,7 @@ reduction depends when the operations result starts overflowing the limbs. For
 high-level usage which reduces the values on-demand, we plan to implement
 fake-API with non-native operations.
 
-Element representation
+# Element representation
 
 We operate in the scalar field of the SNARK curve (native field). Denote the
 modulus of the native field as 'q'. Representing the modulus of the native field
@@ -37,12 +37,18 @@ division operations (the corresponding methods panic). Let the bitlength of r be
 'm'. We note that r may be smaller, larger or equal to q.
 
 To represent an element x ∈ N_r, we choose the limb width 'w' such that
-    w ≤ (m-1)/2
+
+	w ≤ (m-1)/2
+
 and write its integer representation as
-    x = ∑_{i=0}^k x_i 2^{w i}.
+
+	x = ∑_{i=0}^k x_i 2^{w i}.
+
 Here, the variable 'x_i' is the w bits of x starting from 2^{w i}, 'k' is the
 number of limbs and is computed as
-    k = (n+w-1)/w,   // NB! integer division
+
+	k = (n+w-1)/w,   // NB! integer division
+
 and 'i' is the limb index. In this representation the element is represented in
 little-endian (least significant limbs first) order. We do not necessarily
 require that the limb values x_i are less than 2^w. This may happen if the limb
@@ -54,7 +60,7 @@ In the implementation, we have two functions for splitting an element into limbs
 and composing an element from limbs -- decompose() and recompose(). The
 recompose() function also accepts element in non-normal form.
 
-Elements in non-normal form
+# Elements in non-normal form
 
 When an element is initialized, the limbs are in normal form, i.e. the values of
 the limbs have bitwidth strictly less than w. As addition and multiplication are
@@ -62,7 +68,9 @@ performed on limbs natively, then the bitwidths of the limbs of the result may
 be larger than w. We track the number of bits which may exceed the initial width
 of the limbs. We denote the number of such excess bits as 'f' and call it
 overflow. The total maximal bitwidth of the limbs is then
-    w+f.
+
+	w+f.
+
 Keep in mind that parameter w is global for all emulated elements and f is
 individual for every individual element.
 
@@ -73,9 +81,10 @@ result is up to one bit wider than the width of the widest element.
 
 In the context of overflows, if the overflows of the addends are f_0 and f_1
 then the overflow value f' for the sum is computed as
-    f' = max(f_0, f_1)+1.
 
-Multiplication
+	f' = max(f_0, f_1)+1.
+
+# Multiplication
 
 The complexity of native limb-wise multiplication is k^2. This translates
 directly to the complexity in the number of constraints in the constraint
@@ -84,52 +93,77 @@ off-circuit and constructing a system of k linear equations, we can ensure that
 the product was computed correctly.
 
 Let the factors be
-    x = ∑_{i=0}^k x_i 2^{w i}
+
+	x = ∑_{i=0}^k x_i 2^{w i}
+
 and
-    y = ∑_{i=0}^k y_i 2^{w i}.
+
+	y = ∑_{i=0}^k y_i 2^{w i}.
+
 For computing the product, we compute off-circuit the limbs
-    z_i = ∑_{j, j'>0, j+j'=i, j+j'≤2k-2} x_{j} y_{j'}, // in MultiplicationHint()
+
+	z_i = ∑_{j, j'>0, j+j'=i, j+j'≤2k-2} x_{j} y_{j'}, // in MultiplicationHint()
+
 and assert in-circuit
-    ∑_{i=0}^{2k-2} z_i c^i = (∑_{i=0}^k x_i) (∑_{i=0}^k y_i), ∀ c ∈ {1, ..., 2k-1}.
+
+	∑_{i=0}^{2k-2} z_i c^i = (∑_{i=0}^k x_i) (∑_{i=0}^k y_i), ∀ c ∈ {1, ..., 2k-1}.
 
 Computing the overflow for the multiplication result is slightly more
 complicated. The overflow for
-    x_{j} y_{j'}
+
+	x_{j} y_{j'}
+
 is
-    w+f+f'+1.
+
+	w+f+f'+1.
+
 Naively, as the limbs of the result are summed over all 0 ≤ i ≤ 2k-2, then the
 overflow of the limbs should be
-    w+f+f'+2k-1.
+
+	w+f+f'+2k-1.
+
 For computing the number of bits and thus in the overflow, we can instead look
 at the maximal possible value. This can be computed by
-    (2^{2w+f+f'+2}-1)*(2k-1).
-Its bitlength is
-    2w+f+f'+1+log_2(2k-1),
-which leads to maximal overflow of
-    w+f+f'+1+log_2(2k-1).
 
-Subtraction
+	(2^{2w+f+f'+2}-1)*(2k-1).
+
+Its bitlength is
+
+	2w+f+f'+1+log_2(2k-1),
+
+which leads to maximal overflow of
+
+	w+f+f'+1+log_2(2k-1).
+
+# Subtraction
 
 We perform subtraction limb-wise between the elements x and y. However, we have
 to ensure than any limb in the result does not result in overflow, i.e.
-    x_i ≥ y_i, ∀ 0≤i<k.
+
+	x_i ≥ y_i, ∀ 0≤i<k.
+
 As this does not hold in general, then we need to pad x such that every limb x_i
 is strictly larger than y_i.
 
 The additional padding 'u' has to be divisible by the emulated modulus r and
 every limb u_i must be larger than x_i-y_i. Let f' be the overflow of y. We
 first compute the limbs u'_i as
-    u'_i = 1 << (w+f'), ∀ 0≤i<k.
+
+	u'_i = 1 << (w+f'), ∀ 0≤i<k.
+
 Now, as u' is not divisible by r, we need to compensate for it:
-    u'' = u' + regroup(r - (u' % r)),
+
+	u'' = u' + regroup(r - (u' % r)),
+
 where regroup() regroups the argument so that it is in normal form (i.e. first
 applies recompose() and then decompose() method).
 
-We see that u'' is now such that it is divisible by r and its every limb is
+We see that u” is now such that it is divisible by r and its every limb is
 larger than every limb of b. The subtraction is performed as
-    z_i = x_i + u''_i - y_i, ∀ 0≤i<k.
 
-Equality checking
+	z_i = x_i + u''_i - y_i, ∀ 0≤i<k.
+
+# Equality checking
 
 The package provides two ways to check equality -- limb-wise equality check and
 checking equality by value.
@@ -148,39 +182,53 @@ subtracted.
 Lets look at the algorithm itself. We assume that the overflow f of x is larger
 than y. If overflow of y is larger, then we can just swap the arguments and
 apply the same argumentation. Let
-    maxValue = 1 << (k+f), // padding for limbs
-    maxValueShift = 1 << f.  // carry part of the padding
+
+	maxValue = 1 << (k+f), // padding for limbs
+	maxValueShift = 1 << f.  // carry part of the padding
+
 For every limb we compute the difference as
-    diff_0 = maxValue+x_0-y_0,
-    diff_i = maxValue+carry_i+x_i-y_i-maxValueShift.
+
+	diff_0 = maxValue+x_0-y_0,
+	diff_i = maxValue+carry_i+x_i-y_i-maxValueShift.
+
 We check that the normal part of the difference is zero and carry the rest over
 to next limb:
-    diff_i[0:k] == 0,
-    carry_{i+1} = diff_i[k:k+f+1] // we also carry over the padding bit.
+
+	diff_i[0:k] == 0,
+	carry_{i+1} = diff_i[k:k+f+1] // we also carry over the padding bit.
 
 Finally, after we have compared all the limbs, we still need to check that the
 final carry corresponds to the padding. We add final check:
-    carry_k == maxValueShift.
+
+	carry_k == maxValueShift.
 
 We can further optimise the limb-wise equality check by first regrouping the
 limbs. The idea is to group several limbs so that the result would still fit
 into the scalar field. If
-    x = ∑_{i=0}^k x_i 2^{w i},
+
+	x = ∑_{i=0}^k x_i 2^{w i},
+
 then we can instead take w' divisible by w such that
-    x = ∑_{i=0}^(k/(w'/w)) x'_i 2^{w' i},
+
+	x = ∑_{i=0}^(k/(w'/w)) x'_i 2^{w' i},
+
 where
-    x'_j = ∑_{i=0}^(w'/w) x_{j*w'/w+i} 2^{w i}.
+
+	x'_j = ∑_{i=0}^(w'/w) x_{j*w'/w+i} 2^{w i}.
 
 For element value equality check, we check that two elements x and y are equal
 modulo r and for that we need to show that r divides x-y. As mentioned in the
 subtraction section, we add sufficient padding such that x-y does not underflow
 and its integer value is always larger than 0. We use hint function to compute z
 such that
-    x-y = z*r,
-compute z*r and use limbwise equality checking to show that
-    x-y == z*r.
 
-Bitwidth enforcement
+	x-y = z*r,
+
+compute z*r and use limbwise equality checking to show that
+
+	x-y == z*r.
+
+# Bitwidth enforcement
 
 When element is computed using hints, we need to ensure that every limb is not
 wider than k bits. For that, we perform bitwise decomposition of every limb and
@@ -190,21 +238,23 @@ the corresponding system of linear equations.
 
 Additionally, we apply bitwidth enforcement for elements initialized from integers.
 
-Modular reduction
+# Modular reduction
 
 To reduce the integer value of element x to be less than the modulus, we compute
 the remainder x' of x modulo r using hint, enforce the bitwidth of x' and assert
 that
-    x' == x
+
+	x' == x
+
 using element equality checking.
 
-Values computed using hints
+# Values computed using hints
 
 We additionally define functions for computing inverse of an element and
 ratio of two elements. Both function compute the actual value using hint and
 then assert the correctness of the operation using multiplication.
 
-Constant values
+# Constant values
 
 The package currently does not explicitly differentiate between constant and
 variable elements. Implementation-wise, the constant values do not store the
@@ -215,6 +265,5 @@ pre-defined values (Zero(), One(), Modulus()), from big integer value
 (Placeholder()) which can be used to assign variables when compiling circuits.
 We do not assume particular value for placeholder constant and may its
 implementation to speed up compilation.
-
 */
 package emulated

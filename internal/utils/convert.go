@@ -30,8 +30,8 @@ type toBigIntInterface interface {
 //
 // if the input is a string, it calls (big.Int).SetString(input, 0). In particular:
 // The number prefix determines the actual base: A prefix of
-// ''0b'' or ''0B'' selects base 2, ''0'', ''0o'' or ''0O'' selects base 8,
-// and ''0x'' or ''0X'' selects base 16. Otherwise, the selected base is 10
+// ”0b” or ”0B” selects base 2, ”0”, ”0o” or ”0O” selects base 8,
+// and ”0x” or ”0X” selects base 16. Otherwise, the selected base is 10
 // and no prefix is accepted.
 //
 // panics if the input is invalid

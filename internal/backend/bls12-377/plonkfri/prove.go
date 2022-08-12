@@ -475,7 +475,8 @@ func evaluateXnMinusOneDomainBigCoset(domainBig, domainSmall *fft.Domain) []fr.E
 //
 // qlL+qrR+qmL.R+qoO+k + alpha.(zu*g1*g2*g3-z*f1*f2*f3) + alpha**2*L1*(z-1)= h.Z
 // \------------------/         \------------------------/             \-----/
-//    constraintsInd			    constraintOrdering					startsAtOne
+//
+//	constraintsInd			    constraintOrdering					startsAtOne
 //
 // constraintInd, constraintOrdering are evaluated on the odd cosets of (Z/8mZ)/(Z/mZ)
 func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReversed, evaluationConstraintOrderingBitReversed, evaluationBlindedZDomainBigBitReversed []fr.Element, alpha fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
@@ -532,13 +533,15 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 
 // computeZ computes Z, in canonical basis, where:
 //
-// * Z of degree n (domainNum.Cardinality)
-// * Z(1)=1
-// 								   (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
-// * for i>0: Z(u**i) = Pi_{k<i} -------------------------------------------------------
-//								     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+//   - Z of degree n (domainNum.Cardinality)
 //
-//	* l, r, o are the solution in Lagrange basis
+//   - Z(1)=1
+//     (l_i+z**i+gamma)*(r_i+u*z**i+gamma)*(o_i+u**2z**i+gamma)
+//
+//   - for i>0: Z(u**i) = Pi_{k<i} -------------------------------------------------------
+//     (l_i+s1+gamma)*(r_i+s2+gamma)*(o_i+s3+gamma)
+//
+//   - l, r, o are the solution in Lagrange basis
 func computeBlindedZCanonical(l, r, o []fr.Element, pk *ProvingKey, beta, gamma fr.Element) ([]fr.Element, error) {
 
 	// note that z has more capacity has its memory is reused for blinded z later on

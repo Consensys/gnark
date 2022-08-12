@@ -16,28 +16,28 @@
 //
 // Binary protocol
 //
-// 	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
-// 	Public witness   ->  [uint32(nbElements) | publicVariables ]
+//	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
+//	Public witness   ->  [uint32(nbElements) | publicVariables ]
 //
 // where
-// 	* `nbElements == len(publicVariables) [+ len(secretVariables)]`.
-// 	* each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
+//   - `nbElements == len(publicVariables) [+ len(secretVariables)]`.
+//   - each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
 //
-// Ordering
+// # Ordering
 //
 // First, `publicVariables`, then `secretVariables`. Each subset is ordered from the order of definition in the circuit structure.
 // For example, with this circuit on `ecc.BN254`
 //
-// 	type Circuit struct {
-// 	    X frontend.Variable
-// 	    Y frontend.Variable `gnark:",public"`
-// 	    Z frontend.Variable
-// 	}
+//	type Circuit struct {
+//	    X frontend.Variable
+//	    Y frontend.Variable `gnark:",public"`
+//	    Z frontend.Variable
+//	}
 //
 // A valid witness would be:
-// 	* `[uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
-// 	* Hex representation with values `Y = 35`, `X = 3`, `Z = 2`
-// 	`00000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
+//   - `[uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
+//   - Hex representation with values `Y = 35`, `X = 3`, `Z = 2`
+//     `00000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
 package witness
 
 import (

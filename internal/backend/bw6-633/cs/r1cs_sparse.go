@@ -377,11 +377,12 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 // https://eprint.iacr.org/2019/953.pdf section 6 such that
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 // each constraint is thus decomposed in [5]string with
-// 		[0] = qL⋅xa
-//		[1] = qR⋅xb
-//		[2] = qO⋅xc
-//		[3] = qM⋅(xaxb)
-//		[4] = qC
+//
+//	[0] = qL⋅xa
+//	[1] = qR⋅xb
+//	[2] = qO⋅xc
+//	[3] = qM⋅(xaxb)
+//	[4] = qC
 func (cs *SparseR1CS) GetConstraints() [][]string {
 	r := make([][]string, 0, len(cs.Constraints))
 	for _, c := range cs.Constraints {
