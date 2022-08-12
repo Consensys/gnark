@@ -14,7 +14,7 @@
 
 // Package groth16 implements Groth16 Zero Knowledge Proof system  (aka zkSNARK).
 //
-// See also
+// # See also
 //
 // https://eprint.iacr.org/2016/260.pdf
 package groth16
@@ -162,9 +162,10 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error 
 // Prove runs the groth16.Prove algorithm.
 //
 // if the force flag is set:
-// 	will executes all the prover computations, even if the witness is invalid
-//  will produce an invalid proof
-//	internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
+//
+//		will executes all the prover computations, even if the witness is invalid
+//	 will produce an invalid proof
+//		internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
 func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
 	// apply options

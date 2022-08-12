@@ -60,7 +60,8 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schem
 // Instantiate builds a concrete type using reflect matching the provided schema
 //
 // It replaces leafs by provided type, such that one can do:
-//		struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
+//
+//	struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
 //
 // Default behavior is to add "json:,omitempty" to the generated struct
 func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interface{} {
