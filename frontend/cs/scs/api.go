@@ -357,20 +357,34 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 		return 1
 	}
 
-	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 	a := i1.(compiled.Term)
-	res, err := system.NewHint(hint.IsZero, 1, a)
+	m := system.newInternalVariable()
+
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	x, err := system.NewHint(hint.InvZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
 	}
-	m := res[0]
-	system.AssertIsBoolean(m)
-	system.addPlonkConstraint(a, m.(compiled.Term), system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
-	ma := system.Add(m, a)
-	system.Inverse(ma)
+
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
+	// a*x + m - 1 == 0
+	system.addPlonkConstraint(a,
+		x[0].(compiled.Term),
+		m,
+		compiled.CoeffIdZero,
+		compiled.CoeffIdZero,
+		compiled.CoeffIdOne,
+		compiled.CoeffIdOne,
+		compiled.CoeffIdOne,
+		compiled.CoeffIdMinusOne)
+
+	// a * m = 0            // constrain m to be 0 if a != 0
+	system.addPlonkConstraint(a, m, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+
 	return m
 }
 
