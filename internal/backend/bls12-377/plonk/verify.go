@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"io"
 	"math/big"
 	"time"
 
@@ -305,4 +306,9 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+// ExportSolidity not implemented for BLS12-377
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	return errors.New("not implemented")
 }

@@ -3,12 +3,14 @@ import (
 	"errors"
 	"math/big"
 	"time"
-
+    "io"
 	{{ template "import_fr" . }}
 	{{ template "import_kzg" . }}
 	{{ template "import_curve" . }}
 	{{ template "import_witness" . }}
-
+    {{if eq .Curve "BN254"}}
+    "text/template"
+    {{end}}
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -285,3 +287,20 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	r.SetBytes(b)
 	return r, nil
 }
+
+{{if eq .Curve "BN254"}}
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	tmpl, err := template.New("").Parse(solidityTemplate)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, vk)
+}
+
+{{else}}
+// ExportSolidity not implemented for {{.Curve}}
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	return errors.New("not implemented")
+}
+{{end}}
+
