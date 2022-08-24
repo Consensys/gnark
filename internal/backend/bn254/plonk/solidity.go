@@ -425,7 +425,6 @@ contract PlonkVerifier {
         VerificationKey memory vk
     ) internal view returns (bool) {
         PairingsBn254.G1Point memory d = reconstruct_d(state, proof, vk);
-        PairingsBn254.Fr memory zeta_in_domain_size = state.zeta.pow(vk.domain_size);
 
         PairingsBn254.G1Point memory tmp_g1 = PairingsBn254.P1();
 
