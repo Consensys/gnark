@@ -85,7 +85,7 @@ func NewRadixTwoFri(size uint64, h hash.Hash, gen big.Int) RadixTwoFri {
 	return res
 }
 
-// verifyProofOfProximitySingleRound verifies the proof of proximit (see gnark-crypto).
+// verifyProofOfProximitySingleRound verifies the proof of proximity (see gnark-crypto).
 func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt frontend.Variable, proof Round) error {
 
 	// Fiat Shamir transcript to derive the challenges
