@@ -10,5 +10,5 @@ import "github.com/consensys/gnark/frontend"
 type ArithmeticTranscript interface {
 	Update(...interface{})
 	Next(...interface{}) frontend.Variable
-	NextN(int, ...interface{}) frontend.Variable
+	NextN(int, ...interface{}) []frontend.Variable
 }

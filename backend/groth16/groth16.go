@@ -288,7 +288,7 @@ func Setup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, er
 }
 
 // DummySetup create a random ProvingKey with provided R1CS
-// it doesn't return a VerifyingKey and is use for benchmarking or test purposes only.
+// it doesn't return a VerifyingKey and is used for benchmarking or test purposes only.
 func DummySetup(r1cs frontend.CompiledConstraintSystem) (ProvingKey, error) {
 	switch _r1cs := r1cs.(type) {
 	case *backend_bls12377.R1CS:
