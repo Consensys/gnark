@@ -8,7 +8,7 @@ import (
 )
 
 type singleMultilinLazyClaim struct {
-	g          Multilin
+	g          MultiLin
 	claimedSum frontend.Variable
 }
 
@@ -34,7 +34,7 @@ func (c singleMultilinLazyClaim) VerifyFinalEval(api frontend.API, r []frontend.
 	return nil
 }
 
-func sumAsInts(poly Multilin) (sum int) {
+func sumAsInts(poly MultiLin) (sum int) {
 	sum = 0
 	for _, i := range poly {
 		sum += i.(int)
@@ -42,7 +42,7 @@ func sumAsInts(poly Multilin) (sum int) {
 	return
 }
 
-func testSumcheckSingleClaimMultilin(t *testing.T, poly Multilin, proof Proof, transcript ArithmeticTranscript) {
+func testSumcheckSingleClaimMultilin(t *testing.T, poly MultiLin, proof Proof, transcript ArithmeticTranscript) {
 	verifier := Verifier{
 		Claims:     singleMultilinLazyClaim{g: poly, claimedSum: sumAsInts(poly)},
 		Proof:      proof,
@@ -64,7 +64,7 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly Multilin, proof Proof, t
 func TestSumcheckSingleClaimMultilin(t *testing.T) {
 	testSumcheckSingleClaimMultilin(
 		t,
-		Multilin{1, 2, 3, 4},
+		MultiLin{1, 2, 3, 4},
 		Proof{
 			PartialSumPolys: []Polynomial{{7}, {2}},
 			FinalEvalProof:  nil,
