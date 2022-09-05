@@ -6,9 +6,9 @@ import (
 )
 
 type Polynomial []frontend.Variable //TODO: Is there already such a data structure?
-type Multilin []frontend.Variable
+type MultiLin []frontend.Variable
 
-func (m Multilin) Evaluate(api frontend.API, r []frontend.Variable) frontend.Variable {
+func (m MultiLin) Evaluate(api frontend.API, r []frontend.Variable) frontend.Variable {
 	eqs := make([]frontend.Variable, len(m))
 	eqs[0] = 1
 	for i, rI := range r {
