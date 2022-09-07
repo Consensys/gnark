@@ -51,23 +51,40 @@ func (r RSisWrapper) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Va
 	}
 
 	// decompose v according to the bound
-	vBits := make([]frontend.Variable, r.NbBytesToSum*8)
-	nbBitsPerVariables := nbBytes * 8
+	nbBitsTotal := r.NbBytesToSum * 8
+	vBits := make([]frontend.Variable, nbBitsTotal)
+	nbBitsPerFrElement := nbBytes * 8
+	// because of the endianness, we store the bit decomposition of
+	// by reversing v, and storing each components of v sequentially in that
+	// order, in little endian: [ToBinary(v[len(v)-1]),..,ToBinary(v[0])]
 	for i := 0; i < len(v); i++ {
-		tmp := api.ToBinary(v[i])
-		for j := 0; j < nbBytes*8; j++ {
-			// conversion to big endian...
-			vBits[i*nbBitsPerVariables+j] = tmp[nbBitsPerVariables-1-j]
-		}
+		tmp := api.ToBinary(v[len(v)-i-1])
+		copy(vBits[i*nbBitsPerFrElement:], tmp)
+	}
+	sizeM := r.Degree * len(r.A) // sizeM
+	m := make([]frontend.Variable, sizeM)
+	for i := 0; i < sizeM; i++ {
+		m[sizeM-1-i] = api.FromBinary(i * r.LogTwoBound)
 	}
 
 	// compute the  multiplications mod X^{d}+1
-	return nil, nil
+	res := make([]frontend.Variable, r.Degree)
+	for i := 0; i < r.Degree; i++ {
+		res[i] = 0
+	}
+	for i := 0; i < len(r.A); i++ {
+		tmp := mulMod(api, r.A[i], m[i*r.LogTwoBound:(i+1)*r.LogTwoBound])
+		for j := 0; j < r.Degree; j++ {
+			res[j] = api.Add(tmp[j], res[j])
+		}
+	}
+
+	return res, nil
 }
 
 // mulMod computes p * q Mod X^d+1 where d = len(p) = len(q).
 // It is assumed that p and q are of the same size.
-func mulMod(api frontend.API, p, q []fr.Element) []frontend.Variable {
+func mulMod(api frontend.API, p []fr.Element, q []frontend.Variable) []frontend.Variable {
 
 	d := len(p)
 	res := make([]frontend.Variable, d)
@@ -77,10 +94,10 @@ func mulMod(api frontend.API, p, q []fr.Element) []frontend.Variable {
 
 	for i := 0; i < d; i++ {
 		for j := 0; j < d-i; j++ {
-			api.Add(api.Mul(p[j], q[j]), res[i+j])
+			api.Add(api.Mul(p[j], q[i]), res[i+j])
 		}
 		for j := d - i; j < d; j++ {
-			api.Sub(res[j-d+i], api.Mul(p[j], q[j]))
+			api.Sub(res[j-d+i], api.Mul(p[j], q[i]))
 		}
 	}
 
