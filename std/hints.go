@@ -21,7 +21,7 @@ func RegisterHints() {
 }
 
 func registerHints() {
-	// note that importing these packages may already triggers a call to hint.Register(...)
+	// note that importing these packages may already trigger a call to hint.Register(...)
 	hint.Register(sw_bls24315.DecomposeScalarG1)
 	hint.Register(sw_bls12377.DecomposeScalarG1)
 	hint.Register(sw_bls24315.DecomposeScalarG2)
