@@ -7,36 +7,16 @@ import (
 	"testing"
 )
 
-type thisShouldWork struct {
-	X frontend.Variable `gnark:",public"`
-	Y frontend.Variable `gnark:",secret"`
-}
-
-func (c *thisShouldWork) Define(api frontend.API) error {
-	api.AssertIsEqual(c.X, c.Y)
-	return nil
-}
-
-func TestShouldWork(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	witness := thisShouldWork{
-		X: 4,
-		Y: 4,
-	}
-
-	assert.SolvingSucceeded(&thisShouldWork{}, &witness, test.WithCurves(ecc.BN254))
-}
-
 type evalPolyCircuit struct {
-	p          Polynomial        `gnark:",public"`
-	at         frontend.Variable `gnark:",secret"`
-	evaluation frontend.Variable `gnark:",secret"`
+	P          []frontend.Variable `gnark:",public"`
+	At         frontend.Variable   `gnark:",secret"`
+	Evaluation frontend.Variable   `gnark:",secret"`
 }
 
 func (c *evalPolyCircuit) Define(api frontend.API) error {
-	evaluation := c.p.Eval(api, c.at)
-	api.AssertIsEqual(evaluation, c.evaluation)
+	p := Polynomial(c.P)
+	evaluation := p.Eval(api, c.At)
+	api.AssertIsEqual(evaluation, c.Evaluation)
 	return nil
 }
 
@@ -44,47 +24,49 @@ func TestEvalPoly(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	witness := evalPolyCircuit{
-		p:          Polynomial{1, 2, 3, 4},
-		at:         5,
-		evaluation: 586,
+		P:          Polynomial{1, 2, 3, 4},
+		At:         5,
+		Evaluation: 586,
 	}
 
-	assert.SolvingSucceeded(&evalPolyCircuit{}, &witness, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&evalPolyCircuit{P: make(Polynomial, 4)}, &witness, test.WithCurves(ecc.BN254))
 }
 
 type evalMultiLinCircuit struct {
-	m          MultiLin            `gnark:",public"`
-	at         []frontend.Variable `gnark:",secret"`
-	evaluation frontend.Variable   `gnark:",secret"`
+	M          []frontend.Variable `gnark:",public"`
+	At         []frontend.Variable `gnark:",secret"`
+	Evaluation frontend.Variable   `gnark:",secret"`
 }
 
 func (c *evalMultiLinCircuit) Define(api frontend.API) error {
-	evaluation := c.m.Eval(api, c.at)
-	api.AssertIsEqual(evaluation, c.evaluation)
+	m := MultiLin(c.M)
+	evaluation := m.Eval(api, c.At)
+	api.AssertIsEqual(evaluation, c.Evaluation)
 	return nil
 }
 
 func TestEvalMultiLin(t *testing.T) {
 	assert := test.NewAssert(t)
 
+	// M = 2 X_0 + X_1 + 1
 	witness := evalMultiLinCircuit{
-		m:          MultiLin{1, 2, 3, 4},
-		at:         []frontend.Variable{5, 6},
-		evaluation: 17,
+		M:          MultiLin{1, 2, 3, 4},
+		At:         []frontend.Variable{5, 6},
+		Evaluation: 17,
 	}
 
-	assert.SolvingSucceeded(&evalMultiLinCircuit{}, &witness, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, &witness, test.WithCurves(ecc.BN254))
 }
 
 type evalEqCircuit struct {
-	x  []frontend.Variable `gnark:",public"`
-	y  []frontend.Variable `gnark:",secret"`
-	eq frontend.Variable   `gnark:"secret"`
+	X  []frontend.Variable `gnark:",public"`
+	Y  []frontend.Variable `gnark:",secret"`
+	Eq frontend.Variable   `gnark:"secret"`
 }
 
 func (c *evalEqCircuit) Define(api frontend.API) error {
-	evaluation := EvalEq(api, c.x, c.y)
-	api.AssertIsEqual(evaluation, c.eq)
+	evaluation := EvalEq(api, c.X, c.Y)
+	api.AssertIsEqual(evaluation, c.Eq)
 	return nil
 }
 
@@ -92,10 +74,35 @@ func TestEvalEq(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	witness := evalEqCircuit{
-		x:  []frontend.Variable{1, 2, 3, 4},
-		y:  []frontend.Variable{5, 6, 7, 8},
-		eq: 148665,
+		X:  []frontend.Variable{1, 2, 3, 4},
+		Y:  []frontend.Variable{5, 6, 7, 8},
+		Eq: 148665,
 	}
 
-	assert.SolvingSucceeded(&evalEqCircuit{}, &witness, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&evalEqCircuit{X: make([]frontend.Variable, 4), Y: make([]frontend.Variable, 4)}, &witness, test.WithCurves(ecc.BN254))
+}
+
+type interpolateLDEOnRangeCircuit struct {
+	At                frontend.Variable   `gnark:",secret"`
+	Values            []frontend.Variable `gnark:",public"`
+	InterpolatedValue frontend.Variable   `gnark:",secret"`
+}
+
+func (c *interpolateLDEOnRangeCircuit) Define(api frontend.API) error {
+	evaluation := InterpolateLDEOnRange(api, c.At, c.Values)
+	api.AssertIsEqual(evaluation, c.InterpolatedValue)
+	return nil
+}
+
+func TestInterpolateLDEOnRange(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// The polynomial is 2 X^4 - X^3 - 9 X^2 + 9 X - 6
+	witness := interpolateLDEOnRangeCircuit{
+		At:                5,
+		Values:            []frontend.Variable{-6, -5, 0, 75, 334},
+		InterpolatedValue: 939,
+	}
+
+	assert.SolvingSucceeded(&interpolateLDEOnRangeCircuit{Values: make([]frontend.Variable, 5)}, &witness, test.WithCurves(ecc.BN254))
 }

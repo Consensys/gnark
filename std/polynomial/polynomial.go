@@ -62,7 +62,7 @@ func negFactorial(n int) int {
 
 // InterpolateLDEOnRange fits a polynomial f of degree len(values)-1 such that f(i) = values[i] whenever defined. Returns f(at)
 // Algorithm taken from https://people.cs.georgetown.edu/jthaler/ProofsArgsAndZK.pdf section 2.4
-func InterpolateLDEOnRange(api frontend.API, at frontend.Variable, values ...frontend.Variable) frontend.Variable {
+func InterpolateLDEOnRange(api frontend.API, at frontend.Variable, values []frontend.Variable) frontend.Variable {
 	deltaAt := make([]frontend.Variable, len(values))
 	deltaAt[0] = api.Inverse(negFactorial(len(values) - 1))
 	for k := 1; k < len(values); k++ {
