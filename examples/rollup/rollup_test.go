@@ -149,7 +149,7 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	var rnd fr.Element
 	var privkey eddsa.PrivateKey
 
-	// create account, the i-th account has an balance of 20+i
+	// create account, the i-th account has a balance of 20+i
 	acc.index = uint64(i)
 	acc.nonce = uint64(i)
 	acc.balance.SetUint64(uint64(i) + 20)
