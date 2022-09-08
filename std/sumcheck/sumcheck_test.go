@@ -2,13 +2,14 @@ package sumcheck
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
 	"math/bits"
 	"testing"
 )
 
 type singleMultilinLazyClaim struct {
-	g          MultiLin
+	g          polynomial.MultiLin
 	claimedSum frontend.Variable
 }
 
@@ -29,12 +30,12 @@ func (c singleMultilinLazyClaim) Degree(int) int {
 }
 
 func (c singleMultilinLazyClaim) VerifyFinalEval(api frontend.API, r []frontend.Variable, _, purportedValue frontend.Variable, _ interface{}) error {
-	val := c.g.Evaluate(api, r)
+	val := c.g.Eval(api, r)
 	api.AssertIsEqual(val, purportedValue)
 	return nil
 }
 
-func sumAsInts(poly MultiLin) (sum int) {
+func sumAsInts(poly polynomial.MultiLin) (sum int) {
 	sum = 0
 	for _, i := range poly {
 		sum += i.(int)
@@ -42,7 +43,7 @@ func sumAsInts(poly MultiLin) (sum int) {
 	return
 }
 
-func testSumcheckSingleClaimMultilin(t *testing.T, poly MultiLin, proof Proof, transcript ArithmeticTranscript) {
+func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, proof Proof, transcript ArithmeticTranscript) {
 	verifier := Verifier{
 		Claims:     singleMultilinLazyClaim{g: poly, claimedSum: sumAsInts(poly)},
 		Proof:      proof,
@@ -64,9 +65,9 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly MultiLin, proof Proof, t
 func TestSumcheckSingleClaimMultilin(t *testing.T) {
 	testSumcheckSingleClaimMultilin(
 		t,
-		MultiLin{1, 2, 3, 4},
+		polynomial.MultiLin{1, 2, 3, 4},
 		Proof{
-			PartialSumPolys: []Polynomial{{7}, {2}},
+			PartialSumPolys: []polynomial.Polynomial{{7}, {2}},
 			FinalEvalProof:  nil,
 		},
 		NewMessageCounter(0, 0),
