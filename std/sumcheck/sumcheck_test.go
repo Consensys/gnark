@@ -1,6 +1,7 @@
 package sumcheck
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -11,6 +12,18 @@ import (
 type singleMultilinLazyClaim struct {
 	g          polynomial.MultiLin
 	claimedSum frontend.Variable
+}
+
+type singleMultilinProof struct {
+	PartialSumPolys [][]frontend.Variable
+}
+
+func (p singleMultilinProof) PartialSumPoly(index int) polynomial.Polynomial {
+	return p.PartialSumPolys[index]
+}
+
+func (s singleMultilinProof) FinalEvalProof() Proof {
+	return nil
 }
 
 func (c singleMultilinLazyClaim) ClaimsNum() int {
@@ -51,26 +64,19 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, pro
 	}
 
 	assert := test.NewAssert(t)
-	/*r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &verifier)
 
-	if err != nil {
-		t.Error(err)
-	}*/
+	assert.SolvingSucceeded(&verifier, &verifier)
 
-	assert.ProverSucceeded(&verifier, &verifier)
-
-	//assert := groth16
 }
 
 func TestSumcheckSingleClaimMultilin(t *testing.T) {
 	testSumcheckSingleClaimMultilin(
 		t,
 		polynomial.MultiLin{1, 2, 3, 4},
-		Proof{
-			PartialSumPolys: []polynomial.Polynomial{{7}, {2}},
-			FinalEvalProof:  nil,
+		singleMultilinProof{
+			PartialSumPolys: [][]frontend.Variable{{7}, {2}},
 		},
-		NewMessageCounter(0, 0),
+		NewMessageCounter(-2, 1),
 	)
 }
 
@@ -90,7 +96,7 @@ func (m *MessageCounter) Next(i ...interface{}) frontend.Variable {
 	if !m.updated || len(i) != 0 {
 		m.Update(i)
 	}
-	//fmt.Println("hash returning", m.state)
+	fmt.Println("hash returning", m.state)
 	m.updated = false
 	return m.state
 }

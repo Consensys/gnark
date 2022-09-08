@@ -16,14 +16,14 @@ type LazyClaims interface {
 }
 
 // Proof of a multi-sumcheck statement.
-type Proof struct {
-	PartialSumPolys []polynomial.Polynomial
-	FinalEvalProof  interface{} //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+type Proof interface {
+	PartialSumPoly(index int) polynomial.Polynomial
+	FinalEvalProof() Proof //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
 type Verifier struct {
 	Claims     LazyClaims
-	Proof      Proof `gnark:"proof"` //TODO: Is this allowed with "complex" objects?
+	Proof      Proof `gnark:",secret"` // No point in verifying a public proof inside a SNARK. TODO: Delegate to fields inside Proof so that user has control?
 	Transcript ArithmeticTranscript
 }
 
@@ -48,15 +48,16 @@ func (v *Verifier) Define(api frontend.API) error {
 	gJR := v.Claims.CombinedSum(combinationCoeff)  // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < v.Claims.VarsNum(); j++ {
-		if len(v.Proof.PartialSumPolys[j]) != v.Claims.Degree(j) {
+		partialSumPoly := v.Proof.PartialSumPoly(j)
+		if len(partialSumPoly) != v.Claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
-		copy(gJ[1:], v.Proof.PartialSumPolys[j])
-		gJ[0] = api.Sub(gJR, v.Proof.PartialSumPolys[j][0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		copy(gJ[1:], partialSumPoly)
+		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
 		// gJ is ready
 
 		//Prepare for the next iteration
-		r[j] = v.Transcript.Next(v.Proof.PartialSumPolys[j])
+		r[j] = v.Transcript.Next(partialSumPoly)
 
 		gJR = polynomial.InterpolateLDEOnRange(api, r[j], gJ[:(v.Claims.Degree(j)+1)])
 	}
