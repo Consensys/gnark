@@ -47,3 +47,6 @@ gnarkd/circuits/**
 
 # compiled sage -> python code
 *.sage.py
+
+# Jetbrains stuff
+.idea/
