@@ -12,17 +12,17 @@ var (
 	ErrWrongSize = errors.New("size does not fit")
 )
 
-// RSisWrapper wrapper around gnark-crypto sis. It implements
+// RSisSnark wrapper around gnark-crypto sis. It implements
 // the snark version of sis, based on public data contained in Sis.
 // /!\ currently it does not implement the Hash interface in std/hash /!\
-type RSisWrapper gsis.RSis
+type RSisSnark gsis.RSis
 
-// NewRSisWrapper returns a wrapper around RSis
-func NewRSisWrapper(s gsis.RSis) RSisWrapper {
+// NewRSisSnark returns a wrapper around RSis
+func NewRSisSnark(s gsis.RSis) RSisSnark {
 
 	// only the key, the bound, and the degree are necessary
 	// for the circuit version
-	res := RSisWrapper{
+	res := RSisSnark{
 		A:            s.A,
 		LogTwoBound:  s.LogTwoBound,
 		Degree:       s.Degree,
@@ -37,7 +37,7 @@ func NewRSisWrapper(s gsis.RSis) RSisWrapper {
 // v is supposed to be the raw data to be hashed, i.e. it is not preprocessed
 // so the len(v) corresponds to the number of entries of m, the vector multiplied
 // by the key that produces the hash. m is insted built inside of Sum.
-func (r RSisWrapper) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Variable, error) {
+func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Variable, error) {
 
 	// check the size of v
 	nbBytes := api.Compiler().Field().BitLen()
@@ -94,10 +94,10 @@ func mulMod(api frontend.API, p []fr.Element, q []frontend.Variable) []frontend.
 
 	for i := 0; i < d; i++ {
 		for j := 0; j < d-i; j++ {
-			api.Add(api.Mul(p[j], q[i]), res[i+j])
+			res[i+j] = api.Add(api.Mul(p[j], q[i]), res[i+j])
 		}
 		for j := d - i; j < d; j++ {
-			api.Sub(res[j-d+i], api.Mul(p[j], q[i]))
+			res[j-d+i] = api.Sub(res[j-d+i], api.Mul(p[j], q[i]))
 		}
 	}
 
