@@ -106,3 +106,16 @@ func TestInterpolateLDEOnRange(t *testing.T) {
 
 	assert.SolvingSucceeded(&interpolateLDEOnRangeCircuit{Values: make([]frontend.Variable, 5)}, &witness, test.WithCurves(ecc.BN254))
 }
+
+func TestInterpolateLDEOnRangeWithinRange(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// The polynomial is 2 X^4 - X^3 - 9 X^2 + 9 X - 6
+	witness := interpolateLDEOnRangeCircuit{
+		At:                1,
+		Values:            []frontend.Variable{-6, -5, 0, 75, 334},
+		InterpolatedValue: -5,
+	}
+
+	assert.SolvingSucceeded(&interpolateLDEOnRangeCircuit{Values: make([]frontend.Variable, 5)}, &witness)
+}
