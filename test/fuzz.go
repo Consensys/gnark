@@ -104,7 +104,7 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 	fill(w, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus)*2)) //#nosec G404 weak rng is fine here
 		if i >= len(seedCorpus) {
-			b1, _ := rand.Int(r, m)
+			b1, _ := rand.Int(r, m) //#nosec G404 weak rng is fine here
 			return b1
 		}
 		r := new(big.Int).Set(seedCorpus[i])
