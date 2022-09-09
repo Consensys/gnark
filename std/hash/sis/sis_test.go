@@ -1,11 +1,13 @@
 package sis
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/sis"
 	gsis "github.com/consensys/gnark-crypto/ecc/bn254/fr/sis"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -28,12 +30,12 @@ func (circuit *MulModTest) Define(api frontend.API) error {
 
 }
 
-// func printPoly(p []fr.Element) {
-// 	for i := 0; i < len(p); i++ {
-// 		fmt.Printf("%s*x**%d+", p[i].String(), i)
-// 	}
-// 	fmt.Println("")
-// }
+func printPoly(p []fr.Element) {
+	for i := 0; i < len(p)-1; i++ {
+		fmt.Printf("%s*x**%d + ", p[i].String(), i)
+	}
+	fmt.Printf("%s*x**%d,\n", p[len(p)-1].String(), len(p)-1)
+}
 
 func TestMulMod(t *testing.T) {
 
@@ -84,5 +86,62 @@ func TestMulMod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+}
+
+// SumTest
+type SumTest struct {
+
+	// Sis instance from gnark-crypto
+	Sis sis.RSis
+
+	// message to hash
+	M []frontend.Variable
+
+	// Expected result
+	R []frontend.Variable
+}
+
+func (circuit *SumTest) Define(api frontend.API) error {
+
+	// sis in a snark
+	sisSnark := NewRSisSnark(circuit.Sis)
+
+	// hash M
+	h, err := sisSnark.Sum(api, circuit.M)
+	if err != nil {
+		return err
+	}
+
+	// check against the result
+	for i := 0; i < len(h); i++ {
+		api.AssertIsEqual(h[i], circuit.R[i])
+	}
+
+	return nil
+}
+
+func TestSum(t *testing.T) {
+
+	// generate the witness
+	// Sis with:
+	// * key of size 8
+	// * on \mathbb{Z}_r[X]/X^{8}+1
+	// * with coefficients of M < 2^4 = 16
+	// Note: this allows to hash 256bits to 256 bits, so it's pointless
+	// whith those parameters, it's for testing only
+	rsis, err := gsis.NewRSis(5, 3, 4, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var toSum fr.Element
+	toSum.SetRandom()
+	toSumBytes := toSum.Marshal()
+	sum := rsis.Sum(toSumBytes)
+	var res fr.Element
+	res.SetBytes(sum)
+
+	fmt.Printf("%d\n", res)
 
 }
