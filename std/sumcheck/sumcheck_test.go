@@ -2,6 +2,7 @@ package sumcheck
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -10,8 +11,8 @@ import (
 )
 
 type singleMultilinLazyClaim struct {
-	g          polynomial.MultiLin
-	claimedSum frontend.Variable
+	G          []frontend.Variable //`gnark:",secret"`	TODO: Why getting unconstrained input error?
+	ClaimedSum frontend.Variable   `gnark:",public"`
 }
 
 type singleMultilinProof struct {
@@ -22,7 +23,7 @@ func (p singleMultilinProof) PartialSumPoly(index int) polynomial.Polynomial {
 	return p.PartialSumPolys[index]
 }
 
-func (s singleMultilinProof) FinalEvalProof() Proof {
+func (p singleMultilinProof) FinalEvalProof() Proof {
 	return nil
 }
 
@@ -31,11 +32,11 @@ func (c singleMultilinLazyClaim) ClaimsNum() int {
 }
 
 func (c singleMultilinLazyClaim) VarsNum() int {
-	return bits.TrailingZeros(uint(len(c.g)))
+	return bits.TrailingZeros(uint(len(c.G)))
 }
 
 func (c singleMultilinLazyClaim) CombinedSum(frontend.Variable) frontend.Variable {
-	return c.claimedSum
+	return c.ClaimedSum
 }
 
 func (c singleMultilinLazyClaim) Degree(int) int {
@@ -43,7 +44,8 @@ func (c singleMultilinLazyClaim) Degree(int) int {
 }
 
 func (c singleMultilinLazyClaim) VerifyFinalEval(api frontend.API, r []frontend.Variable, _, purportedValue frontend.Variable, _ interface{}) error {
-	val := c.g.Eval(api, r)
+	g := polynomial.MultiLin(c.G)
+	val := g.Eval(api, r)
 	api.AssertIsEqual(val, purportedValue)
 	return nil
 }
@@ -56,34 +58,59 @@ func sumAsInts(poly polynomial.MultiLin) (sum int) {
 	return
 }
 
-func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, proof Proof, transcript ArithmeticTranscript) {
-	verifier := Verifier{
-		Claims:     singleMultilinLazyClaim{g: poly, claimedSum: sumAsInts(poly)},
-		Proof:      proof,
-		Transcript: transcript,
+type singleMultilinCircuit struct {
+	Claim         singleMultilinLazyClaim
+	Proof         singleMultilinProof `gnark:",secret"`
+	transcriptGen func() ArithmeticTranscript
+}
+
+func (c *singleMultilinCircuit) Define(api frontend.API) error {
+	return Verify(api, c.Claim, c.Proof, c.transcriptGen())
+}
+
+func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, proof singleMultilinProof, transcriptGen func() ArithmeticTranscript) {
+
+	witness := singleMultilinCircuit{
+		Claim: singleMultilinLazyClaim{
+			G:          poly,
+			ClaimedSum: sumAsInts(poly),
+		},
+		Proof:         proof,
+		transcriptGen: transcriptGen,
 	}
 
 	assert := test.NewAssert(t)
 
-	assert.SolvingSucceeded(&verifier, &verifier)
+	emptyProof := singleMultilinProof{PartialSumPolys: make([][]frontend.Variable, len(proof.PartialSumPolys))}
+	for i, proofPoly := range proof.PartialSumPolys {
+		emptyProof.PartialSumPolys[i] = make([]frontend.Variable, len(proofPoly))
+	}
+
+	/*circuit := singleMultilinCircuit{
+		Claim:         singleMultilinLazyClaim{G: make([]frontend.Variable, len(poly))},
+		Proof:         emptyProof,
+		transcriptGen: transcriptGen,
+	}*/
+
+	assert.SolvingSucceeded(&witness, &witness, test.WithCurves(ecc.BN254))
 
 }
 
 func TestSumcheckSingleClaimMultilin(t *testing.T) {
 	testSumcheckSingleClaimMultilin(
 		t,
-		polynomial.MultiLin{1, 2, 3, 4},
+		polynomial.MultiLin{1, 2, 3, 4}, // 2 X₀ + X₁ + 1
 		singleMultilinProof{
 			PartialSumPolys: [][]frontend.Variable{{7}, {2}},
 		},
-		NewMessageCounter(-2, 1),
+		NewMessageCounterGenerator(-1, 1),
 	)
 }
 
 // MessageCounter is a very bad fiat-shamir challenge generator
 type MessageCounter struct {
-	state   uint64
-	step    uint64
+	state   int64
+	step    int64
 	updated bool
 }
 
@@ -111,7 +138,7 @@ func (m *MessageCounter) NextN(N int, i ...interface{}) (challenges []frontend.V
 }
 
 func NewMessageCounter(startState, step int) ArithmeticTranscript {
-	transcript := &MessageCounter{state: uint64(startState), step: uint64(step)}
+	transcript := &MessageCounter{state: int64(startState), step: int64(step)}
 	transcript.Update([]byte{})
 	return transcript
 }

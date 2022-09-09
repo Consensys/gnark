@@ -21,35 +21,30 @@ type Proof interface {
 	FinalEvalProof() Proof //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
-type Verifier struct {
-	Claims     LazyClaims
-	Proof      Proof `gnark:",secret"` // No point in verifying a public proof inside a SNARK. TODO: Delegate to fields inside Proof so that user has control?
-	Transcript ArithmeticTranscript
-}
-
-func (v *Verifier) Define(api frontend.API) error {
+func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript ArithmeticTranscript) error {
 	var combinationCoeff frontend.Variable
 
-	if v.Claims.ClaimsNum() >= 2 {
-		combinationCoeff = v.Transcript.Next()
+	if claims.ClaimsNum() >= 2 {
+		combinationCoeff = transcript.Next()
+		fmt.Println("got combination coeff")
 	}
 
-	r := make([]frontend.Variable, v.Claims.VarsNum())
+	r := make([]frontend.Variable, claims.VarsNum())
 
 	// Just so that there is enough room for gJ to be reused
-	maxDegree := v.Claims.Degree(0)
-	for j := 1; j < v.Claims.VarsNum(); j++ {
-		if d := v.Claims.Degree(j); d > maxDegree {
+	maxDegree := claims.Degree(0)
+	for j := 1; j < claims.VarsNum(); j++ {
+		if d := claims.Degree(j); d > maxDegree {
 			maxDegree = d
 		}
 	}
 
-	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for v.Claims.VarsNum()
-	gJR := v.Claims.CombinedSum(combinationCoeff)  // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
+	gJR := claims.CombinedSum(combinationCoeff)    // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
-	for j := 0; j < v.Claims.VarsNum(); j++ {
-		partialSumPoly := v.Proof.PartialSumPoly(j)
-		if len(partialSumPoly) != v.Claims.Degree(j) {
+	for j := 0; j < claims.VarsNum(); j++ {
+		partialSumPoly := proof.PartialSumPoly(j)
+		if len(partialSumPoly) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
 		copy(gJ[1:], partialSumPoly)
@@ -57,10 +52,12 @@ func (v *Verifier) Define(api frontend.API) error {
 		// gJ is ready
 
 		//Prepare for the next iteration
-		r[j] = v.Transcript.Next(partialSumPoly)
+		r[j] = transcript.Next(partialSumPoly)
+		fmt.Println("got random evaluation point for for X_", j)
 
-		gJR = polynomial.InterpolateLDEOnRange(api, r[j], gJ[:(v.Claims.Degree(j)+1)])
+		gJR = polynomial.InterpolateLDEOnRange(api, r[j], gJ[:(claims.Degree(j)+1)])
 	}
 
-	return v.Claims.VerifyFinalEval(api, r, combinationCoeff, gJR, v.Proof.FinalEvalProof)
+	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof())
+
 }
