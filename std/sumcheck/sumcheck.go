@@ -39,8 +39,10 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript Arithme
 		}
 	}
 
+	// @gbotrel: Is it okay for this to be reused at each iteration?
 	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
-	gJR := claims.CombinedSum(combinationCoeff)    // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+
+	gJR := claims.CombinedSum(combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < claims.VarsNum(); j++ {
 		partialSumPoly := proof.PartialSumPoly(j)

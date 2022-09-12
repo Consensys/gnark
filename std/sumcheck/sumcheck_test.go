@@ -11,7 +11,7 @@ import (
 )
 
 type singleMultilinLazyClaim struct {
-	G          []frontend.Variable //`gnark:",secret"`	TODO: Why getting unconstrained input error?
+	G          []frontend.Variable `gnark:",public"` //TODO: Why getting unconstrained input error?
 	ClaimedSum frontend.Variable   `gnark:",public"`
 }
 
