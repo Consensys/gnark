@@ -101,7 +101,7 @@ func TestSumcheckSingleClaimMultilin(t *testing.T) {
 		t,
 		polynomial.MultiLin{1, 2, 3, 4}, // 2 X₀ + X₁ + 1
 		singleMultilinProof{
-			PartialSumPolys: [][]frontend.Variable{{7}, {2}},
+			PartialSumPolys: [][]frontend.Variable{{7}, {6}},
 		},
 		NewMessageCounterGenerator(1, 1),
 	)
