@@ -87,6 +87,7 @@ type VerifyingKey interface {
 	io.ReaderFrom
 	InitKZG(srs kzg.SRS) error
 	NbPublicWitness() int // number of elements expected in the public witness
+	ExportSolidity(w io.Writer) error
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.

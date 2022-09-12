@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"io"
 	"math/big"
 	"time"
 
@@ -29,6 +30,8 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+
+	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -138,8 +141,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		Mul(&alphaSquareLagrange, &alpha) // α²*L₁(ζ)
 
 	linearizedPolynomialZeta.
-		Add(&linearizedPolynomialZeta, &pi).                 // linearizedpolynomial + pi(zeta)
-		Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+		Add(&linearizedPolynomialZeta, &pi). // linearizedpolynomial + pi(zeta)
+		Add(&linearizedPolynomialZeta, &_s1). // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
 		Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
 
 	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
@@ -305,4 +308,12 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	tmpl, err := template.New("").Parse(solidityTemplate)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, vk)
 }
