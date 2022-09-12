@@ -103,7 +103,7 @@ func TestSumcheckSingleClaimMultilin(t *testing.T) {
 		singleMultilinProof{
 			PartialSumPolys: [][]frontend.Variable{{7}, {2}},
 		},
-		NewMessageCounterGenerator(-1, 1),
+		NewMessageCounterGenerator(1, 1),
 	)
 }
 
@@ -139,7 +139,7 @@ func (m *MessageCounter) NextN(N int, i ...interface{}) (challenges []frontend.V
 
 func NewMessageCounter(startState, step int) ArithmeticTranscript {
 	transcript := &MessageCounter{state: int64(startState), step: int64(step)}
-	transcript.Update([]byte{})
+	//transcript.Update([]byte{})
 	return transcript
 }
 
