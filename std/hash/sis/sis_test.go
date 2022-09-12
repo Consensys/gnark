@@ -128,7 +128,7 @@ func TestSum(t *testing.T) {
 	// * key of size 8
 	// * on \mathbb{Z}_r[X]/X^{8}+1
 	// * with coefficients of M < 2^4 = 16
-	// Note: this allows to hash 256bits to 256 bits, so it's pointless
+	// Note: this allows to hash 256bits to 256 bytes, so it's completely pointless
 	// whith those parameters, it's for testing only
 	rsis, err := gsis.NewRSis(5, 3, 4, 8)
 	if err != nil {
@@ -136,12 +136,41 @@ func TestSum(t *testing.T) {
 	}
 
 	var toSum fr.Element
-	toSum.SetRandom()
+	toSum.SetString("5237501451071880303487629517413837912210424399515269294611144167440988308494")
 	toSumBytes := toSum.Marshal()
-	sum := rsis.Sum(toSumBytes)
-	var res fr.Element
-	res.SetBytes(sum)
+	rsis.Write(toSumBytes)
+	sum := rsis.Sum(nil)
 
-	fmt.Printf("%d\n", res)
+	var res [8]fr.Element
+	for i := 0; i < 8; i++ {
+		res[i].SetBytes(sum[i*32 : (i+1)*32])
+	}
+
+	// for i := 0; i < 8; i++ {
+	// 	fmt.Printf("%s\n", res[i].String())
+	// }
+
+	// witness
+	var witness SumTest
+	witness.M = make([]frontend.Variable, 1)
+	witness.M[0] = toSum
+	witness.R = make([]frontend.Variable, 8)
+	for i := 0; i < 8; i++ {
+		witness.R[i] = res[i]
+	}
+	witness.Sis = rsis
+
+	// circuit
+	var circuit SumTest
+	circuit.M = make([]frontend.Variable, 1)
+	circuit.R = make([]frontend.Variable, 8)
+	circuit.Sis = rsis
+
+	// compile...
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
 
 }

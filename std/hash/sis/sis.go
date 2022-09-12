@@ -34,9 +34,11 @@ func NewRSisSnark(s gsis.RSis) RSisSnark {
 }
 
 // Hash returns the RSis hash of v.
-// v is supposed to be the raw data to be hashed, i.e. it is not preprocessed
-// so the len(v) corresponds to the number of entries of m, the vector multiplied
-// by the key that produces the hash. m is insted built inside of Sum.
+// v is supposed to be the raw data to be hashed, i.e. it is not preprocessed.
+// v will be interpreted in binary like this: mbin := [bin(m[len(m)-1]) || bin(m[len(m)-2]) || ... ]
+// where bin is big endian decomposition (corresponding to what Marshal() from gnark-crypto gives).
+// Then mbin is processed per chunk of LogTwoBound bits, where each chunk corresponds
+// to the coefficient of a polynomial.
 func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Variable, error) {
 
 	// check the size of v
@@ -51,9 +53,13 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 	}
 
 	// decompose v according to the bound
-	nbBitsTotal := r.NbBytesToSum * 8
-	vBits := make([]frontend.Variable, nbBitsTotal)
+	nbBitsToSum := r.NbBytesToSum * 8
 	nbBitsPerFrElement := nbBytes * 8
+	vBits := make([]frontend.Variable, nbBitsToSum)
+	for i := 0; i < nbBitsToSum; i++ {
+		vBits[i] = 0
+	}
+
 	// because of the endianness, we store the bit decomposition of
 	// by reversing v, and storing each components of v sequentially in that
 	// order, in little endian: [ToBinary(v[len(v)-1]),..,ToBinary(v[0])]
@@ -61,10 +67,12 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 		tmp := api.ToBinary(v[len(v)-i-1])
 		copy(vBits[i*nbBitsPerFrElement:], tmp)
 	}
-	sizeM := r.Degree * len(r.A) // sizeM
-	m := make([]frontend.Variable, sizeM)
-	for i := 0; i < sizeM; i++ {
-		m[sizeM-1-i] = api.FromBinary(i * r.LogTwoBound)
+
+	nbCoefficientsM := r.Degree * len(r.A) // nbCoefficientsM
+
+	m := make([]frontend.Variable, nbCoefficientsM)
+	for i := 0; i < nbCoefficientsM; i++ {
+		m[nbCoefficientsM-1-i] = api.FromBinary(vBits[i*r.LogTwoBound : (i+1)*r.LogTwoBound]...)
 	}
 
 	// compute the  multiplications mod X^{d}+1
@@ -73,7 +81,7 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 		res[i] = 0
 	}
 	for i := 0; i < len(r.A); i++ {
-		tmp := mulMod(api, r.A[i], m[i*r.LogTwoBound:(i+1)*r.LogTwoBound])
+		tmp := mulMod(api, r.A[i], m[i*r.Degree:(i+1)*r.Degree])
 		for j := 0; j < r.Degree; j++ {
 			res[j] = api.Add(tmp[j], res[j])
 		}
