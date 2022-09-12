@@ -31,7 +31,9 @@ func TestProvingKeySerialization(t *testing.T) {
 	// create a random vk
 	var vk VerifyingKey
 	vk.Size = 42
-	vk.SizeInv = fr.One()
+	vk.SizeInv.SetRandom()
+	vk.Generator.SetRandom()
+	vk.CosetShift.SetRandom()
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen
@@ -49,18 +51,18 @@ func TestProvingKeySerialization(t *testing.T) {
 	pk.Vk = &vk
 	pk.Domain[0] = *fft.NewDomain(42)
 	pk.Domain[1] = *fft.NewDomain(4 * 42)
-	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < 12; i++ {
-		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
-		pk.Qr[i].SetOne()
-		pk.Qo[i].SetUint64(42)
-	}
+	n := int(pk.Domain[0].Cardinality)
+	pk.Ql = rVector(n)
+	pk.Qr = rVector(n)
+	pk.Qm = rVector(n)
+	pk.Qo = rVector(n)
+	pk.CQk = rVector(n)
+	pk.LQk = rVector(n)
+	pk.S1Canonical = rVector(n)
+	pk.S2Canonical = rVector(n)
+	pk.S3Canonical = rVector(n)
+	pk.EvaluationPermutationBigDomainBitReversed = rVector(n)
 
 	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.Permutation[0] = -12
@@ -93,6 +95,9 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	var vk VerifyingKey
 	vk.Size = 42
 	vk.SizeInv = fr.One()
+	vk.Generator = fr.One()
+	vk.NbPublicVariables = 8000
+	vk.CosetShift = fr.One()
 
 	_, _, g1gen, _ := curve.Generators()
 	vk.S[0] = g1gen
@@ -124,4 +129,17 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	if written != read {
 		t.Fatal("bytes written / read don't match")
 	}
+}
+
+func rVector(n int) []fr.Element {
+	v := make([]fr.Element, n)
+	one := fr.One()
+	for i := 0; i < len(v); i++ {
+		if i == 0 {
+			v[i].SetRandom()
+		} else {
+			v[i].Add(&v[i-1], &one)
+		}
+	}
+	return v
 }
