@@ -86,13 +86,13 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, pro
 		emptyProof.PartialSumPolys[i] = make([]frontend.Variable, len(proofPoly))
 	}
 
-	/*circuit := singleMultilinCircuit{
+	circuit := singleMultilinCircuit{
 		Claim:         singleMultilinLazyClaim{G: make([]frontend.Variable, len(poly))},
 		Proof:         emptyProof,
 		transcriptGen: transcriptGen,
-	}*/
+	}
 
-	assert.SolvingSucceeded(&witness, &witness, test.WithCurves(ecc.BN254))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
 
 }
 

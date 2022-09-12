@@ -63,7 +63,7 @@ func negFactorial(n int) int {
 // computeDeltaAtNaive brute forces the computation of the δᵢ(at)
 func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) (deltaAt []frontend.Variable) {
 	deltaAt = make([]frontend.Variable, valuesLen)
-	atMinus := make([]frontend.Variable, valuesLen)
+	atMinus := make([]frontend.Variable, valuesLen) //TODO: No need for this array and the following loop
 	for i := range atMinus {
 		atMinus[i] = api.Sub(at, i)
 	}
