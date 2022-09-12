@@ -1,7 +1,6 @@
 package sis
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -28,13 +27,6 @@ func (circuit *MulModTest) Define(api frontend.API) error {
 
 	return nil
 
-}
-
-func printPoly(p []fr.Element) {
-	for i := 0; i < len(p)-1; i++ {
-		fmt.Printf("%s*x**%d + ", p[i].String(), i)
-	}
-	fmt.Printf("%s*x**%d,\n", p[len(p)-1].String(), len(p)-1)
 }
 
 func TestMulMod(t *testing.T) {
@@ -146,10 +138,6 @@ func TestSum(t *testing.T) {
 		res[i].SetBytes(sum[i*32 : (i+1)*32])
 	}
 
-	// for i := 0; i < 8; i++ {
-	// 	fmt.Printf("%s\n", res[i].String())
-	// }
-
 	// witness
 	var witness SumTest
 	witness.M = make([]frontend.Variable, 1)
@@ -171,6 +159,15 @@ func TestSum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
+
+	// solve the circuit
+	twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ccs.IsSolved(twitness)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 }
