@@ -1,6 +1,11 @@
 package plonk
 
 const solidityTemplate = `
+// Warning this code was contributed into gnark here: 
+// https://github.com/ConsenSys/gnark/pull/358
+// 
+// It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
+// 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
 pragma solidity >=0.5.0 <0.7.0;
 pragma experimental ABIEncoderV2;
