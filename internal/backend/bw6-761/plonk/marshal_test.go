@@ -23,6 +23,7 @@ import (
 
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
+	gnarkio "github.com/consensys/gnark/io"
 	"io"
 	"math/big"
 	"math/rand"
@@ -36,6 +37,14 @@ func TestProofSerialization(t *testing.T) {
 	proof.randomize()
 
 	roundTripCheck(t, &proof, &reconstructed)
+}
+
+func TestProofSerializationRaw(t *testing.T) {
+	// create a  proof
+	var proof, reconstructed Proof
+	proof.randomize()
+
+	roundTripCheckRaw(t, &proof, &reconstructed)
 }
 
 func TestProvingKeySerialization(t *testing.T) {
@@ -57,6 +66,27 @@ func TestVerifyingKeySerialization(t *testing.T) {
 func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
 	var buf bytes.Buffer
 	written, err := from.WriteTo(&buf)
+	if err != nil {
+		t.Fatal("coudln't serialize", err)
+	}
+
+	read, err := reconstructed.ReadFrom(&buf)
+	if err != nil {
+		t.Fatal("coudln't deserialize", err)
+	}
+
+	if !reflect.DeepEqual(from, reconstructed) {
+		t.Fatal("reconstructed object don't match original")
+	}
+
+	if written != read {
+		t.Fatal("bytes written / read don't match")
+	}
+}
+
+func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.ReaderFrom) {
+	var buf bytes.Buffer
+	written, err := from.WriteRawTo(&buf)
 	if err != nil {
 		t.Fatal("coudln't serialize", err)
 	}

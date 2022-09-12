@@ -24,9 +24,18 @@ import (
 	"io"
 )
 
-// WriteTo writes binary encoding of Proof to w
+// WriteTo writes binary encoding of Proof to w without point compression
+func (proof *Proof) WriteRawTo(w io.Writer) (int64, error) {
+	return proof.writeTo(w, curve.RawEncoding())
+}
+
+// WriteTo writes binary encoding of Proof to w with point compression
 func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
-	enc := curve.NewEncoder(w)
+	return proof.writeTo(w)
+}
+
+func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64, error) {
+	enc := curve.NewEncoder(w, options...)
 
 	toEncode := []interface{}{
 		&proof.LRO[0],
@@ -36,6 +45,10 @@ func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
 		&proof.H[0],
 		&proof.H[1],
 		&proof.H[2],
+		&proof.BatchedProof.H,
+		proof.BatchedProof.ClaimedValues,
+		&proof.ZShiftedOpening.H,
+		&proof.ZShiftedOpening.ClaimedValue,
 	}
 
 	for _, v := range toEncode {
@@ -44,13 +57,7 @@ func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
 		}
 	}
 
-	n, err := proof.BatchedProof.WriteTo(w)
-	if err != nil {
-		return n + enc.BytesWritten(), err
-	}
-	n2, err := proof.ZShiftedOpening.WriteTo(w)
-
-	return n + n2 + enc.BytesWritten(), err
+	return enc.BytesWritten(), nil
 }
 
 // ReadFrom reads binary representation of Proof from r
@@ -64,6 +71,10 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.H[0],
 		&proof.H[1],
 		&proof.H[2],
+		&proof.BatchedProof.H,
+		&proof.BatchedProof.ClaimedValues,
+		&proof.ZShiftedOpening.H,
+		&proof.ZShiftedOpening.ClaimedValue,
 	}
 
 	for _, v := range toDecode {
@@ -72,12 +83,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 
-	n, err := proof.BatchedProof.ReadFrom(r)
-	if err != nil {
-		return n + dec.BytesRead(), err
-	}
-	n2, err := proof.ZShiftedOpening.ReadFrom(r)
-	return n + n2 + dec.BytesRead(), err
+	return dec.BytesRead(), nil
 }
 
 // WriteTo writes binary encoding of ProvingKey to w
