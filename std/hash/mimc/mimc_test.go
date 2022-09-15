@@ -52,6 +52,7 @@ func TestMimcAll(t *testing.T) {
 		ecc.BW6_761:   hash.MIMC_BW6_761,
 		ecc.BW6_633:   hash.MIMC_BW6_633,
 		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
 	}
 
 	for curve, hashFunc := range curves {
@@ -59,7 +60,7 @@ func TestMimcAll(t *testing.T) {
 		// minimal cs res = hash(data)
 		var circuit, witness, wrongWitness mimcCircuit
 
-		modulus := curve.Info().Fr.Modulus()
+		modulus := curve.ScalarField()
 		var data [10]big.Int
 		data[0].Sub(modulus, big.NewInt(1))
 		for i := 1; i < 10; i++ {

@@ -20,16 +20,14 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs"
@@ -37,15 +35,19 @@ import (
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	bls24315r1cs "github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	bls24317r1cs "github.com/consensys/gnark/internal/backend/bls24-317/cs"
 	bn254r1cs "github.com/consensys/gnark/internal/backend/bn254/cs"
 	bw6633r1cs "github.com/consensys/gnark/internal/backend/bw6-633/cs"
 	bw6761r1cs "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/consensys/gnark/internal/tinyfield"
+	tinyfieldr1cs "github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile"
 )
 
-func NewBuilder(curve ecc.ID, config frontend.CompileConfig) (frontend.Builder, error) {
-	return newBuilder(curve, config), nil
+func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
+	return newBuilder(field, config), nil
 }
 
 type scs struct {
@@ -57,37 +59,37 @@ type scs struct {
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[int]struct{}
+
+	q *big.Int
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newBuilder(curveID ecc.ID, config frontend.CompileConfig) *scs {
+func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 	system := scs{
-		ConstraintSystem: compiled.ConstraintSystem{
-			MDebug:             make(map[int]int),
-			MHints:             make(map[int]*compiled.Hint),
-			MHintsDependencies: make(map[hint.ID]string),
-		},
-		mtBooleans:  make(map[int]struct{}),
-		Constraints: make([]compiled.SparseR1C, 0, config.Capacity),
-		st:          cs.NewCoeffTable(),
-		config:      config,
+		ConstraintSystem: compiled.NewConstraintSystem(field),
+		mtBooleans:       make(map[int]struct{}),
+		Constraints:      make([]compiled.SparseR1C, 0, config.Capacity),
+		st:               cs.NewCoeffTable(),
+		config:           config,
 	}
 
 	system.Public = make([]string, 0)
 	system.Secret = make([]string, 0)
 
-	system.CurveID = curveID
+	system.q = system.Field()
 
 	return &system
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-//func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+// func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
 func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-
+	profile.RecordConstraint()
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
+	} else if debug.Debug {
+		system.MDebug[len(system.Constraints)] = system.AddDebugInfo("")
 	}
 
 	l.SetCoeffID(cidl)
@@ -111,17 +113,21 @@ func (system *scs) newInternalVariable() compiled.Term {
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
 }
 
+func (system *scs) VariableCount(t reflect.Type) int {
+	return 1
+}
+
 // AddPublicVariable creates a new Public Variable
-func (system *scs) AddPublicVariable(name string) frontend.Variable {
+func (system *scs) AddPublicVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Public)
-	system.Public = append(system.Public, name)
+	system.Public = append(system.Public, f.FullName)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
 }
 
 // AddSecretVariable creates a new Secret Variable
-func (system *scs) AddSecretVariable(name string) frontend.Variable {
+func (system *scs) AddSecretVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Secret) + system.NbPublicVariables
-	system.Secret = append(system.Secret, name)
+	system.Secret = append(system.Secret, f.FullName)
 	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
 }
 
@@ -134,7 +140,6 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	mod := system.CurveID.Info().Fr.Modulus()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
@@ -142,7 +147,7 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
-			c.Mod(c, mod)
+			c.Mod(c, system.q)
 			l[i-1].SetCoeffID(system.st.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)
 			i--
@@ -297,7 +302,6 @@ func init() {
 func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().
-		Str("curve", cs.CurveID.String()).
 		Int("nbConstraints", len(cs.Constraints)).
 		Msg("building constraint system")
 
@@ -325,7 +329,9 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	switch cs.CurveID {
+	curve := utils.FieldToCurve(cs.q)
+
+	switch curve {
 	case ecc.BLS12_377:
 		return bls12377r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS12_381:
@@ -334,11 +340,17 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 		return bn254r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_761:
 		return bw6761r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
+	case ecc.BLS24_317:
+		return bls24317r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BLS24_315:
 		return bls24315r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	case ecc.BW6_633:
 		return bw6633r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
 	default:
+		q := cs.Field()
+		if q.Cmp(tinyfield.Modulus()) == 0 {
+			return tinyfieldr1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
+		}
 		panic("unknown curveID")
 	}
 
@@ -461,36 +473,6 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (system *scs) Backend() backend.ID {
-	return backend.PLONK
-}
-
-// Tag creates a tag at a given place in a circuit. The state of the tag may contain informations needed to
-// measure constraints, variables and coefficients creations through AddCounter
-func (system *scs) Tag(name string) frontend.Tag {
-	_, file, line, _ := runtime.Caller(1)
-
-	return frontend.Tag{
-		Name: fmt.Sprintf("%s[%s:%d]", name, filepath.Base(file), line),
-		VID:  system.NbInternalVariables,
-		CID:  len(system.Constraints),
-	}
-}
-
-// AddCounter measures the number of constraints, variables and coefficients created between two tags
-// note that the PlonK statistics are contextual since there is a post-compile phase where linear expressions
-// are factorized. That is, measuring 2 times the "repeating" piece of circuit may give less constraints the second time
-func (system *scs) AddCounter(from, to frontend.Tag) {
-	system.Counters = append(system.Counters, compiled.Counter{
-		From:          from.Name,
-		To:            to.Name,
-		NbVariables:   to.VID - from.VID,
-		NbConstraints: to.CID - from.CID,
-		CurveID:       system.CurveID,
-		BackendID:     backend.PLONK,
-	})
-}
-
 // NewHint initializes internal variables whose value will be evaluated using
 // the provided hint function at run time from the inputs. Inputs must be either
 // variables or convertible to *big.Int. The function returns an error if the
@@ -576,7 +558,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
-			b.Mul(&b, &n).Mod(&b, system.CurveID.Info().Fr.Modulus())
+			b.Mul(&b, &n).Mod(&b, system.q)
 		}
 	}
 	return res, b

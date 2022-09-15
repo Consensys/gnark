@@ -25,6 +25,7 @@ import (
 	edbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
 	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
+	edbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
 	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
 	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
 	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
@@ -65,11 +66,11 @@ type EndoParams struct {
 
 // NewEdCurve returns a new Edwards curve
 func NewEdCurve(api frontend.API, id twistededwards.ID) (Curve, error) {
-	snarkCurve, err := GetSnarkCurve(id)
+	snarkField, err := GetSnarkField(id)
 	if err != nil {
 		return nil, err
 	}
-	if api.Curve() != snarkCurve {
+	if api.Compiler().Field().Cmp(snarkField) != 0 {
 		return nil, errors.New("invalid curve pair; snark field doesn't match twisted edwards field")
 	}
 	params, err := GetCurveParams(id)
@@ -104,6 +105,8 @@ func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {
 		params = newEdBLS12_381()
 	case twistededwards.BLS12_381_BANDERSNATCH:
 		params = newEdBLS12_381_BANDERSNATCH()
+	case twistededwards.BLS24_317:
+		params = newEdBLS24_317()
 	case twistededwards.BLS24_315:
 		params = newEdBLS24_315()
 	case twistededwards.BW6_761:
@@ -116,23 +119,25 @@ func GetCurveParams(id twistededwards.ID) (*CurveParams, error) {
 	return params, nil
 }
 
-// GetSnarkCurve returns the matching snark curve for a twisted edwards curve
-func GetSnarkCurve(id twistededwards.ID) (ecc.ID, error) {
+// GetSnarkField returns the matching snark curve for a twisted edwards curve
+func GetSnarkField(id twistededwards.ID) (*big.Int, error) {
 	switch id {
 	case twistededwards.BN254:
-		return ecc.BN254, nil
+		return ecc.BN254.ScalarField(), nil
 	case twistededwards.BLS12_377:
-		return ecc.BLS12_377, nil
+		return ecc.BLS12_377.ScalarField(), nil
 	case twistededwards.BLS12_381, twistededwards.BLS12_381_BANDERSNATCH:
-		return ecc.BLS12_381, nil
+		return ecc.BLS12_381.ScalarField(), nil
 	case twistededwards.BLS24_315:
-		return ecc.BLS24_315, nil
+		return ecc.BLS24_315.ScalarField(), nil
+	case twistededwards.BLS24_317:
+		return ecc.BLS24_317.ScalarField(), nil
 	case twistededwards.BW6_761:
-		return ecc.BW6_761, nil
+		return ecc.BW6_761.ScalarField(), nil
 	case twistededwards.BW6_633:
-		return ecc.BW6_633, nil
+		return ecc.BW6_633.ScalarField(), nil
 	default:
-		return ecc.UNKNOWN, errors.New("unknown twisted edwards curve id")
+		return nil, errors.New("unknown twisted edwards curve id")
 	}
 }
 
@@ -226,6 +231,21 @@ func newEdBW6_633() *CurveParams {
 func newEdBW6_761() *CurveParams {
 
 	edcurve := edbw6761.GetEdwardsCurve()
+
+	r := newCurveParams()
+	edcurve.A.ToBigIntRegular(r.A)
+	edcurve.D.ToBigIntRegular(r.D)
+	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	r.Order.Set(&edcurve.Order)
+	edcurve.Base.X.ToBigIntRegular(r.Base[0])
+	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	return r
+
+}
+
+func newEdBLS24_317() *CurveParams {
+
+	edcurve := edbls24317.GetEdwardsCurve()
 
 	r := newCurveParams()
 	edcurve.A.ToBigIntRegular(r.A)

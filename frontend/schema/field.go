@@ -20,6 +20,7 @@ package schema
 type Field struct {
 	Name       string
 	NameTag    string
+	FullName   string
 	Visibility Visibility
 	Type       FieldType
 	SubFields  []Field // will be set only if it's a struct, or an array of struct

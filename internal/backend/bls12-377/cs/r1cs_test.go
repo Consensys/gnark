@@ -18,14 +18,18 @@ package cs_test
 
 import (
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
+
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 )
 
 func TestSerialization(t *testing.T) {
@@ -36,7 +40,7 @@ func TestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 
-			r1cs1, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, tc.Circuit)
+			r1cs1, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -45,7 +49,7 @@ func TestSerialization(t *testing.T) {
 			}
 
 			// copmpile a second time to ensure determinism
-			r1cs2, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, tc.Circuit)
+			r1cs2, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,9 +71,13 @@ func TestSerialization(t *testing.T) {
 				if written != read {
 					t.Fatal("didn't read same number of bytes we wrote")
 				}
+
 				// compare original and reconstructed
-				if !reflect.DeepEqual(r1cs1, &reconstructed) {
-					t.Fatal("round trip serialization failed")
+				if diff := cmp.Diff(r1cs1, &reconstructed,
+					cmpopts.IgnoreFields(cs.R1CS{},
+						"ConstraintSystem.q",
+						"ConstraintSystem.bitLen")); diff != "" {
+					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)
 				}
 			}
 
@@ -134,7 +142,7 @@ func (circuit *circuit) Define(api frontend.API) error {
 func BenchmarkSolve(b *testing.B) {
 
 	var c circuit
-	ccs, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, &c)
+	ccs, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, &c)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -142,7 +150,7 @@ func BenchmarkSolve(b *testing.B) {
 	var w circuit
 	w.X = 1
 	w.Y = 1
-	witness, err := frontend.NewWitness(&w, ecc.BLS12_377)
+	witness, err := frontend.NewWitness(&w, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}

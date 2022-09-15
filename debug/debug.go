@@ -18,7 +18,7 @@ func WriteStack(sbb *strings.Builder, forceClean ...bool) {
 	// we stop when func name == Define as it is where the gnark circuit code should start
 
 	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
+	pc := make([]uintptr, 20)
 	n := runtime.Callers(3, pc)
 	if n == 0 {
 		// No pcs available. Stop now.

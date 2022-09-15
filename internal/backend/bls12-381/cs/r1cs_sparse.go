@@ -66,7 +66,7 @@ func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS 
 // witness: contains the input variables
 // it returns the full slice of wires
 func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
-	log := logger.Logger().With().Str("curve", cs.CurveID().String()).Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
+	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
 	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
@@ -377,11 +377,12 @@ func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverO
 // https://eprint.iacr.org/2019/953.pdf section 6 such that
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 // each constraint is thus decomposed in [5]string with
-// 		[0] = qL⋅xa
-//		[1] = qR⋅xb
-//		[2] = qO⋅xc
-//		[3] = qM⋅(xaxb)
-//		[4] = qC
+//
+//	[0] = qL⋅xa
+//	[1] = qR⋅xb
+//	[2] = qO⋅xc
+//	[3] = qM⋅(xaxb)
+//	[4] = qC
 func (cs *SparseR1CS) GetConstraints() [][]string {
 	r := make([][]string, 0, len(cs.Constraints))
 	for _, c := range cs.Constraints {
@@ -492,11 +493,6 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 
 }
 
-// FrSize return fr.Limbs * 8, size in byte of a fr element
-func (cs *SparseR1CS) FrSize() int {
-	return fr.Limbs * 8
-}
-
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
 func (cs *SparseR1CS) GetNbCoefficients() int {
 	return len(cs.Coefficients)
@@ -531,6 +527,14 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
-	err = decoder.Decode(cs)
-	return int64(decoder.NumBytesRead()), err
+
+	if err := decoder.Decode(cs); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
+	if err := cs.CheckSerializationHeader(); err != nil {
+		return int64(decoder.NumBytesRead()), err
+	}
+
+	return int64(decoder.NumBytesRead()), nil
 }

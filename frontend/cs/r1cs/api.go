@@ -99,13 +99,13 @@ func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1Constant && !v2Constant {
 			res := system.newInternalVariable()
-			system.Constraints = append(system.Constraints, newR1C(v1, v2, res))
+			system.addConstraint(newR1C(v1, v2, res))
 			return res
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			n1.Mul(n1, n2).Mod(n1, system.CurveID.Info().Fr.Modulus())
+			n1.Mul(n1, n2).Mod(n1, system.q)
 			return system.toVariable(n1).(compiled.LinearExpression)
 		}
 
@@ -174,7 +174,7 @@ func (system *r1cs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.q
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -210,7 +210,7 @@ func (system *r1cs) Div(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsUint64() && n2.Uint64() == 0 {
 		panic("div by constant(0)")
 	}
-	q := system.CurveID.Info().Fr.Modulus()
+	q := system.q
 	n2.ModInverse(n2, q)
 
 	if v1Constant {
@@ -231,7 +231,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, system.CurveID.Info().Fr.Modulus())
+		c.ModInverse(c, system.q)
 		return system.toVariable(c)
 	}
 
@@ -254,7 +254,7 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 // The result in in little endian (first bit= lsb)
 func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.BitLen()
+	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -288,7 +288,7 @@ func (system *r1cs) Xor(_a, _b frontend.Variable) frontend.Variable {
 	c = append(c, a...)
 	c = append(c, b...)
 	aa := system.Mul(a, 2)
-	system.Constraints = append(system.Constraints, newR1C(aa, b, c))
+	system.addConstraint(newR1C(aa, b, c))
 
 	return res
 }
@@ -307,9 +307,10 @@ func (system *r1cs) Or(_a, _b frontend.Variable) frontend.Variable {
 	res := system.newInternalVariable()
 	system.MarkBoolean(res)
 	c := system.Neg(res).(compiled.LinearExpression)
+
 	c = append(c, a...)
 	c = append(c, b...)
-	system.Constraints = append(system.Constraints, newR1C(a, b, c))
+	system.addConstraint(newR1C(a, b, c))
 
 	return res
 }
@@ -438,22 +439,25 @@ func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	debug := system.AddDebugInfo("isZero", a)
 
-	//m * (1 - m) = 0       // constrain m to be 0 or 1
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	// _ = inverse(m + a) 	// constrain m to be 1 if a == 0
 
-	// m is computed by the solver such that m = 1 - a^(modulus - 1)
-	res, err := system.NewHint(hint.IsZero, 1, a)
+	m := system.newInternalVariable()
+
+	// x = 1/a 				// in a hint (x == 0 if a == 0)
+	x, err := system.NewHint(hint.InvZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
 	}
-	m := res[0]
+
+	// m = -a*x + 1         // constrain m to be 1 if a == 0
+	system.addConstraint(newR1C(system.Neg(a), x[0], system.Sub(m, 1)), debug)
+
+	// a * m = 0            // constrain m to be 0 if a != 0
 	system.addConstraint(newR1C(a, m, system.toVariable(0)), debug)
 
-	system.AssertIsBoolean(m)
-	ma := system.Add(m, a)
-	_ = system.Inverse(ma)
 	return m
 }
 
@@ -461,12 +465,12 @@ func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
 func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	vars, _ := system.toVariables(i1, i2)
-	bi1 := system.ToBinary(vars[0], system.BitLen())
-	bi2 := system.ToBinary(vars[1], system.BitLen())
+	bi1 := system.ToBinary(vars[0], system.FieldBitLen())
+	bi2 := system.ToBinary(vars[1], system.FieldBitLen())
 
 	res := system.toVariable(0)
 
-	for i := system.BitLen() - 1; i >= 0; i-- {
+	for i := system.FieldBitLen() - 1; i >= 0; i-- {
 
 		iszeroi1 := system.IsZero(bi1[i])
 		iszeroi2 := system.IsZero(bi2[i])
@@ -525,7 +529,7 @@ func (system *r1cs) Println(a ...frontend.Variable) {
 func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	count := 0
-	counter := func(visibility schema.Visibility, name string, tValue reflect.Value) error {
+	counter := func(f *schema.Field, tValue reflect.Value) error {
 		count++
 		return nil
 	}
@@ -539,9 +543,9 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	}
 
 	sbb.WriteByte('{')
-	printer := func(visibility schema.Visibility, name string, tValue reflect.Value) error {
+	printer := func(f *schema.Field, tValue reflect.Value) error {
 		count--
-		sbb.WriteString(name)
+		sbb.WriteString(f.FullName)
 		sbb.WriteString(": ")
 		sbb.WriteString("%s")
 		if count != 0 {

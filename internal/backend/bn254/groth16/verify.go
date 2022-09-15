@@ -93,7 +93,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 // ExportSolidity writes a solidity Verifier contract on provided writer
 // while this uses an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
 // audit report https://github.com/appliedzkp/semaphore/blob/master/audit/Audit%20Report%20Summary%20for%20Semaphore%20and%20MicroMix.pdf
-// this is an experimental feature and gnark solidity generator as not been thoroughly tested
+// this is an experimental feature and gnark solidity generator as not been thoroughly tested.
+//
+// See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	helpers := template.FuncMap{
 		"sub": func(a, b int) int {

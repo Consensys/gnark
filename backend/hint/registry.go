@@ -10,17 +10,19 @@ var registry = make(map[ID]Function)
 var registryM sync.RWMutex
 
 // Register registers an hint function in the global registry.
-func Register(hintFn Function) {
+func Register(hintFns ...Function) {
 	registryM.Lock()
 	defer registryM.Unlock()
-	key := UUID(hintFn)
-	name := Name(hintFn)
-	if _, ok := registry[key]; ok {
-		log := logger.Logger()
-		log.Warn().Str("name", name).Msg("function registered multiple times")
-		return
+	for _, hintFn := range hintFns {
+		key := UUID(hintFn)
+		name := Name(hintFn)
+		if _, ok := registry[key]; ok {
+			log := logger.Logger()
+			log.Warn().Str("name", name).Msg("function registered multiple times")
+			return
+		}
+		registry[key] = hintFn
 	}
-	registry[key] = hintFn
 }
 
 // GetRegistered returns all registered hint functions.

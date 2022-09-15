@@ -56,7 +56,6 @@ const (
 const TermDelimitor Term = Term(maskDelimitor)
 
 const (
-	shiftWireID             = 0
 	shiftCoeffID            = nbBitsWireID
 	shiftDelimitor          = shiftCoeffID + nbBitsCoeffID
 	shiftFutureUse          = shiftDelimitor + nbBitsDelimitor
@@ -67,7 +66,7 @@ const (
 	maskWireID             = uint64((1 << nbBitsWireID) - 1)
 	maskCoeffID            = uint64((1<<nbBitsCoeffID)-1) << shiftCoeffID
 	maskDelimitor          = uint64((1<<nbBitsDelimitor)-1) << shiftDelimitor
-	maskFutureUse          = uint64((1<<nbBitsFutureUse)-1) << shiftFutureUse
+	_                      = uint64((1<<nbBitsFutureUse)-1) << shiftFutureUse
 	maskVariableVisibility = uint64((1<<nbBitsVariableVisibility)-1) << shiftVariableVisibility
 )
 

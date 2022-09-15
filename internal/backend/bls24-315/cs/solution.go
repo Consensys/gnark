@@ -29,8 +29,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
 // solution represents elements needed to compute
@@ -202,7 +200,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		}
 	}
 
-	err := f(curve.ID, inputs, outputs)
+	err := f(q, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {

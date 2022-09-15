@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
@@ -54,7 +53,7 @@ func TestFinalExp(t *testing.T) {
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BW6_761))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
 type pairingBLS377 struct {
@@ -140,8 +139,8 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	var u, v fr.Element
 	var _u, _v big.Int
 	for i := 1; i < 3; i++ {
-		u.SetRandom()
-		v.SetRandom()
+		_, _ = u.SetRandom()
+		_, _ = v.SetRandom()
 		u.ToBigIntRegular(&_u)
 		v.ToBigIntRegular(&_v)
 		P[i].ScalarMultiplication(&P[0], &_u)
@@ -173,7 +172,7 @@ func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 	}
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
@@ -182,7 +181,7 @@ func BenchmarkTriplePairing(b *testing.B) {
 	var c triplePairingBLS377
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 	}
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

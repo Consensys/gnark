@@ -16,28 +16,28 @@
 //
 // Binary protocol
 //
-// 	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
-// 	Public witness   ->  [uint32(nbElements) | publicVariables ]
+//	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
+//	Public witness   ->  [uint32(nbElements) | publicVariables ]
 //
 // where
-// 	* `nbElements == len(publicVariables) [+ len(secretVariables)]`.
-// 	* each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
+//   - `nbElements == len(publicVariables) [+ len(secretVariables)]`.
+//   - each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
 //
-// Ordering
+// # Ordering
 //
 // First, `publicVariables`, then `secretVariables`. Each subset is ordered from the order of definition in the circuit structure.
 // For example, with this circuit on `ecc.BN254`
 //
-// 	type Circuit struct {
-// 	    X frontend.Variable
-// 	    Y frontend.Variable `gnark:",public"`
-// 	    Z frontend.Variable
-// 	}
+//	type Circuit struct {
+//	    X frontend.Variable
+//	    Y frontend.Variable `gnark:",public"`
+//	    Z frontend.Variable
+//	}
 //
 // A valid witness would be:
-// 	* `[uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
-// 	* Hex representation with values `Y = 35`, `X = 3`, `Z = 2`
-// 	`00000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
+//   - `[uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
+//   - Hex representation with values `Y = 35`, `X = 3`, `Z = 2`
+//     `00000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
 package witness
 
 import (
@@ -46,11 +46,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 var (
@@ -71,14 +73,14 @@ type Witness struct {
 	CurveID ecc.ID         // should be redundant with generic impl
 }
 
-func New(curveID ecc.ID, schema *schema.Schema) (*Witness, error) {
-	v, err := newVector(curveID)
+func New(field *big.Int, schema *schema.Schema) (*Witness, error) {
+	v, err := newVector(field)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Witness{
-		CurveID: curveID,
+		CurveID: utils.FieldToCurve(field),
 		Vector:  v,
 		Schema:  schema,
 	}, nil
@@ -121,15 +123,16 @@ func (w *Witness) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
 func (w *Witness) UnmarshalBinary(data []byte) error {
 
+	snarkFieldSize := utils.ByteLen(w.CurveID.ScalarField())
 	var r io.Reader
 	r = bytes.NewReader(data)
 	if w.Schema != nil {
 		// if schema is set we can do a limit reader
-		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*w.CurveID.Info().Fr.Bytes
+		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*snarkFieldSize
 		r = io.LimitReader(r, int64(maxSize))
 	}
 
-	v, err := newVector(w.CurveID)
+	v, err := newVector(w.CurveID.ScalarField())
 	if err != nil {
 		return err
 	}
@@ -172,7 +175,7 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	if w.Schema == nil {
 		return errMissingSchema
 	}
-	v, err := newVector(w.CurveID)
+	v, err := newVector(w.CurveID.ScalarField())
 	if err != nil {
 		return err
 	}

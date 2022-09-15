@@ -3,9 +3,9 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -15,25 +15,27 @@ import (
 //
 // 1. it will first allocate the user inputs (see type Tag for more info)
 // example:
-// 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"exponent,public"`
-// 		}
+//
+//	type MyCircuit struct {
+//		Y frontend.Variable `gnark:"exponent,public"`
+//	}
+//
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
 // 2. it then calls circuit.Define(curveID, R1CS) to build the internal constraint system
 // from the declarative code
 //
-// 3. finally, it converts that to a ConstraintSystem.
-// 		if zkpID == backend.GROTH16	→ R1CS
-//		if zkpID == backend.PLONK 	→ SparseR1CS
+//  3. finally, it converts that to a ConstraintSystem.
+//     if zkpID == backend.GROTH16	→ R1CS
+//     if zkpID == backend.PLONK 	→ SparseR1CS
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
 	log := logger.Logger()
-	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
+	log.Info().Msg("compiling circuit")
 	// parse options
-	opt := CompileConfig{}
+	opt := CompileConfig{wrapper: func(b Builder) Builder { return b }}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			log.Err(err).Msg("applying compile option")
@@ -42,11 +44,12 @@ func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	}
 
 	// instantiate new builder
-	builder, err := newBuilder(curveID, opt)
+	builder, err := newBuilder(field, opt)
 	if err != nil {
 		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
+	builder = opt.wrapper(builder)
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
@@ -66,11 +69,25 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
+	var countedPublic, countedPrivate int
+	counterHandler := func(f *schema.Field, tInput reflect.Value) error {
+		varCount := builder.VariableCount(tInput.Type())
+		switch f.Visibility {
+		case schema.Secret:
+			countedPrivate += varCount
+		case schema.Public:
+			countedPublic += varCount
+		}
+		return nil
+	}
+
 	// parse the schema, to count the number of public and secret variables
-	s, err := schema.Parse(circuit, tVariable, nil)
+	s, err := schema.Parse(circuit, tVariable, counterHandler)
 	if err != nil {
 		return err
 	}
+	s.NbPublic = countedPublic
+	s.NbSecret = countedPrivate
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
@@ -79,25 +96,25 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
+	adderHandler := func(f *schema.Field, tInput reflect.Value) error {
 		if tInput.CanSet() {
 			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
-			switch visibility {
+			switch f.Visibility {
 			case schema.Secret:
-				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(f)))
 			case schema.Public:
-				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(name)))
+				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(f)))
 			case schema.Unset:
-				return errors.New("can't set val " + name + " visibility is unset")
+				return errors.New("can't set val " + f.FullName + " visibility is unset")
 			}
 
 			return nil
 		}
-		return errors.New("can't set val " + name)
+		return errors.New("can't set val " + f.FullName)
 	}
 	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
 	// (secret or public inputs)
-	_, err = schema.Parse(circuit, tVariable, handler)
+	_, err = schema.Parse(circuit, tVariable, adderHandler)
 	if err != nil {
 		return err
 	}
@@ -125,6 +142,7 @@ type CompileOption func(opt *CompileConfig) error
 type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
+	wrapper                   BuilderWrapper
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -147,6 +165,19 @@ func WithCapacity(capacity int) CompileOption {
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.IgnoreUnconstrainedInputs = true
+		return nil
+	}
+}
+
+// BuilderWrapper wraps existing Builder.
+type BuilderWrapper func(Builder) Builder
+
+// WithBuilderWrapper is a compile option which wraps the builder before parsing
+// the schema and calling Define method of the circuit. If not set, then the
+// builder returned by the NewBuilder is directly used.
+func WithBuilderWrapper(wrapper BuilderWrapper) CompileOption {
+	return func(opt *CompileConfig) error {
+		opt.wrapper = wrapper
 		return nil
 	}
 }

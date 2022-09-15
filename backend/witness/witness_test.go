@@ -9,6 +9,7 @@ import (
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	witness_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/witness"
+	witness_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 	witness_bn254 "github.com/consensys/gnark/internal/backend/bn254/witness"
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
@@ -33,7 +34,7 @@ const (
 
 func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshaller, publicOnly bool) {
 	// build the vector
-	w, err := New(ecc.BN254, nil)
+	w, err := New(ecc.BN254.ScalarField(), nil)
 	assert.NoError(err)
 
 	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, publicOnly)
@@ -64,6 +65,8 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, m marshall
 	case *witness_bls12377.Witness:
 		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bls12381.Witness:
+		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
+	case *witness_bls24317.Witness:
 		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
 	case *witness_bls24315.Witness:
 		wt.ToAssignment(&reconstructed, tVariable, publicOnly)
@@ -111,7 +114,7 @@ func TestPublic(t *testing.T) {
 	assignment.Y = new(fr.Element).SetInt64(8000)
 	assignment.E = new(fr.Element).SetInt64(1)
 
-	w, err := New(ecc.BN254, nil)
+	w, err := New(ecc.BN254.ScalarField(), nil)
 	assert.NoError(err)
 
 	w.Schema, err = w.Vector.FromAssignment(&assignment, tVariable, false)

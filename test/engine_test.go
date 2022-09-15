@@ -2,10 +2,10 @@ package test
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
@@ -26,19 +26,25 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("IthBit circuitA 25: %w", err)
 	}
 	a25b := res[0]
-	res, err = api.Compiler().NewHint(hint.IsZero, 1, circuit.A)
+
+	res, err = api.Compiler().NewHint(hint.InvZero, 1, circuit.A)
 	if err != nil {
 		return fmt.Errorf("IsZero CircuitA: %w", err)
 	}
-	aisZero := res[0]
-	res, err = api.Compiler().NewHint(hint.IsZero, 1, circuit.B)
+	aInvZero := res[0]
+
+	res, err = api.Compiler().NewHint(hint.InvZero, 1, circuit.B)
 	if err != nil {
 		return fmt.Errorf("IsZero, CircuitB")
 	}
-	bisZero := res[0]
+	bInvZero := res[0]
 
-	api.AssertIsEqual(aisZero, 0)
-	api.AssertIsEqual(bisZero, 1)
+	// good witness
+	expectedA := big.NewInt(8)
+	expectedA.ModInverse(expectedA, api.Compiler().Field())
+
+	api.AssertIsEqual(aInvZero, expectedA)
+	api.AssertIsEqual(bInvZero, 0) // b == 0, invZero(b) == 0
 	api.AssertIsEqual(a3b, 1)
 	api.AssertIsEqual(a25b, 0)
 
@@ -50,14 +56,14 @@ func TestBuiltinHints(t *testing.T) {
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b1000),
 			B: (0),
-		}, curve, backend.UNKNOWN); err != nil {
+		}, curve.ScalarField()); err != nil {
 			t.Fatal(err)
 		}
 
 		if err := IsSolved(&hintCircuit{}, &hintCircuit{
 			A: (0b10),
 			B: (1),
-		}, curve, backend.UNKNOWN); err == nil {
+		}, curve.ScalarField()); err == nil {
 			t.Fatal("witness shouldn't solve circuit")
 		}
 	}

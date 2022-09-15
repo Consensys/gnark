@@ -64,6 +64,7 @@ which can be instantiated with the following curves
 - [x] BW6-761
 - [x] BLS24-315
 - [x] BW6-633
+- [x] BLS24-317
 
 ### Example
 
@@ -91,7 +92,7 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 
 // compiles our circuit into a R1CS
 var circuit CubicCircuit
-ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
+ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 
 // groth16 zkSNARK: Setup
 pk, vk, err := groth16.Setup(ccs)

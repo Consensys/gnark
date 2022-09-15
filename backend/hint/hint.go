@@ -17,19 +17,19 @@ result by adding necessary constraints in the circuit.
 As an example, lets say the hint function computes a factorization of a
 semiprime n:
 
-    p, q <- hint(n) st. p * q = n
+	p, q <- hint(n) st. p * q = n
 
 into primes p and q. Then, the circuit developer needs to assert in the circuit
 that p*q indeed equals to n:
 
-    n == p * q.
+	n == p * q.
 
 However, if the hint function is incorrectly defined (e.g. in the previous
 example, it returns 1 and n instead of p and q), then the assertion may still
 hold, but the constructed proof is semantically invalid. Thus, the user
 constructing the proof must be extremely cautious when using hints.
 
-Using hint functions in circuits
+# Using hint functions in circuits
 
 To use a hint function in a circuit, the developer first needs to define a hint
 function hintFn according to the Function interface. Then, in a circuit, the
@@ -47,7 +47,7 @@ enabled hints. Such options can be optained by a call to
 backend.WithHints(hintFns...), where hintFns are the corresponding hint
 functions.
 
-Using hint functions in gadgets
+# Using hint functions in gadgets
 
 Similar considerations apply for hint functions used in gadgets as in
 user-defined circuits. However, listing all hint functions used in a particular
@@ -69,8 +69,6 @@ import (
 	"math/big"
 	"reflect"
 	"runtime"
-
-	"github.com/consensys/gnark-crypto/ecc"
 )
 
 // ID is a unique identifier for a hint function used for lookup.
@@ -80,10 +78,11 @@ type ID uint32
 // time is defined in the circuit (compile time).
 //
 // For example:
+//
 //	b := api.NewHint(hint, 2, a)
 //	--> at solving time, hint is going to be invoked with 1 input (a) and is expected to return 2 outputs
 //	b[0] and b[1].
-type Function func(curveID ecc.ID, inputs []*big.Int, outputs []*big.Int) error
+type Function func(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 
 // UUID is a reference function for computing the hint ID based on a function name
 func UUID(fn Function) ID {

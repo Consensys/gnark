@@ -26,8 +26,6 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
 type Witness []fr.Element
@@ -39,13 +37,18 @@ func (witness *Witness) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
-	enc := curve.NewEncoder(w)
+	n := int64(4)
+
+	var buf [fr.Bytes]byte
 	for i := 0; i < len(*witness); i++ {
-		if err := enc.Encode(&(*witness)[i]); err != nil {
-			return enc.BytesWritten() + 4, err
+		buf = (*witness)[i].Bytes()
+		m, err := w.Write(buf[:])
+		n += int64(m)
+		if err != nil {
+			return n, err
 		}
 	}
-	return enc.BytesWritten() + 4, nil
+	return n, nil
 }
 
 func (witness *Witness) Len() int {
@@ -58,25 +61,28 @@ func (witness *Witness) Type() reflect.Type {
 
 func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 
-	var buf [4]byte
+	var buf [fr.Bytes]byte
 	if read, err := io.ReadFull(r, buf[:4]); err != nil {
 		return int64(read), err
 	}
 	sliceLen := binary.BigEndian.Uint32(buf[:4])
 
+	n := int64(4)
+
 	if len(*witness) != int(sliceLen) {
 		*witness = make([]fr.Element, sliceLen)
 	}
 
-	dec := curve.NewDecoder(r)
-
 	for i := 0; i < int(sliceLen); i++ {
-		if err := dec.Decode(&(*witness)[i]); err != nil {
-			return dec.BytesRead() + 4, err
+		read, err := io.ReadFull(r, buf[:])
+		n += int64(read)
+		if err != nil {
+			return n, err
 		}
+		(*witness)[i].SetBytes(buf[:])
 	}
 
-	return dec.BytesRead() + 4, nil
+	return n, nil
 }
 
 // FromAssignment extracts the witness and its schema
@@ -100,27 +106,27 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 	var i, j int // indexes for secret / public variables
 	i = nbPublic // offset
 
-	var collectHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if publicOnly && visibility != schema.Public {
+	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
+		if publicOnly && f.Visibility != schema.Public {
 			return nil
 		}
 		if tInput.IsNil() {
-			return fmt.Errorf("when parsing variable %s: missing assignment", name)
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
 		}
 		v := tInput.Interface()
 
 		if v == nil {
-			return fmt.Errorf("when parsing variable %s: missing assignment", name)
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
 		}
 
-		if !publicOnly && visibility == schema.Secret {
+		if !publicOnly && f.Visibility == schema.Secret {
 			if _, err := (*witness)[i].SetInterface(v); err != nil {
-				return fmt.Errorf("when parsing variable %s: %v", name, err)
+				return fmt.Errorf("when parsing variable %s: %v", f.FullName, err)
 			}
 			i++
-		} else if visibility == schema.Public {
+		} else if f.Visibility == schema.Public {
 			if _, err := (*witness)[j].SetInterface(v); err != nil {
-				return fmt.Errorf("when parsing variable %s: %v", name, err)
+				return fmt.Errorf("when parsing variable %s: %v", f.FullName, err)
 			}
 			j++
 		}
@@ -135,8 +141,8 @@ func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Ty
 	i := 0
 	setAddr := leafType.Kind() == reflect.Ptr
 	setHandler := func(v schema.Visibility) schema.LeafHandler {
-		return func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-			if visibility == v {
+		return func(f *schema.Field, tInput reflect.Value) error {
+			if f.Visibility == v {
 				if setAddr {
 					tInput.Set(reflect.ValueOf((&(*witness)[i])))
 				} else {
