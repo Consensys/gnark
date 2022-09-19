@@ -87,6 +87,15 @@ func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
 	return f, nil
 }
 
+func NewBuilder[T FieldParams](b frontend.Builder) (frontend.Builder, error) {
+	a, err := NewField[T](b)
+	if err != nil {
+		return nil, fmt.Errorf("init field: %w", err)
+	}
+	a.(*field[T]).builder = b
+	return a.(*field[T]), nil
+}
+
 func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 	switch vv := in.(type) {
 	case Element[T]:
@@ -616,12 +625,11 @@ func (f *field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
 // extend existing circuits into any emulated field defined by
 func builderWrapper[T FieldParams]() frontend.BuilderWrapper {
 	return func(b frontend.Builder) frontend.Builder {
-		fw, err := NewField[T](b)
+		b, err := NewBuilder[T](b)
 		if err != nil {
 			panic(err)
 		}
-		fw.(*field[T]).builder = b
-		return fw.(*field[T])
+		return b
 	}
 }
 
