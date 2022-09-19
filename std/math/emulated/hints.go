@@ -208,6 +208,7 @@ func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomL
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
 		fp.NbLimbs(),
+		len(denomLimbs),
 		len(nomLimbs),
 	}
 	p := params.Modulus()
@@ -225,25 +226,26 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
+	nbDenomLimbs := int(inputs[2].Int64())
 	// nominator does not have to be reduced and can be more than nbLimbs.
 	// Denominator and order have to be nbLimbs long.
-	nbNomLimbs := int(inputs[2].Int64())
-	if len(inputs[3:]) != nbNomLimbs+2*nbLimbs {
+	nbNomLimbs := int(inputs[3].Int64())
+	if len(inputs[4:]) != nbLimbs+nbNomLimbs+nbDenomLimbs {
 		return fmt.Errorf("input length mismatch")
 	}
 	if len(outputs) != nbLimbs {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[3:3+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	nominator := new(big.Int)
-	if err := recompose(inputs[3+nbLimbs:3+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
+	if err := recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
 		return fmt.Errorf("recompose nominator: %w", err)
 	}
 	denominator := new(big.Int)
-	if err := recompose(inputs[3+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
+	if err := recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
 		return fmt.Errorf("recompose denominator: %w", err)
 	}
 	res := new(big.Int).ModInverse(denominator, p)
