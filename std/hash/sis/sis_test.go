@@ -32,10 +32,11 @@ func (circuit *MulModTest) Define(api frontend.API) error {
 func TestMulMod(t *testing.T) {
 
 	// get correct data
-	rsis, err := gsis.NewRSis(5, 3, 4, 8)
+	_rsis, err := gsis.NewRSis(5, 3, 4, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
+	rsis := _rsis.(*gsis.RSis)
 
 	p := make([]fr.Element, 8)
 	q := make([]fr.Element, 8)
@@ -146,13 +147,13 @@ func TestSum(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		witness.R[i] = res[i]
 	}
-	witness.Sis = rsis
+	witness.Sis = *(rsis.(*gsis.RSis))
 
 	// circuit
 	var circuit SumTest
 	circuit.M = make([]frontend.Variable, 1)
 	circuit.R = make([]frontend.Variable, 8)
-	circuit.Sis = rsis
+	circuit.Sis = *(rsis.(*gsis.RSis))
 
 	// compile...
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
