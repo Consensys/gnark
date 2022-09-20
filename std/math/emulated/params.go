@@ -15,12 +15,13 @@ type FieldParams interface {
 }
 
 var (
-	qSecp256k1  *big.Int
-	qGoldilocks *big.Int
+	qSecp256k1, rSecp256k1 *big.Int
+	qGoldilocks            *big.Int
 )
 
 func init() {
 	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
+	rSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
 	qGoldilocks, _ = new(big.Int).SetString("ffffffff00000001", 16)
 }
 
@@ -33,14 +34,25 @@ func (fp Goldilocks) BitsPerLimb() uint { return 64 }
 func (fp Goldilocks) IsPrime() bool     { return true }
 func (fp Goldilocks) Modulus() *big.Int { return qGoldilocks }
 
-// Secp256k1 provide type parametrization for emulated field on 8 limb of width 32bits
-// for modulus 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f
+// Secp256k1 provide type parametrization for emulated field on 4 limb of width 64bits
+// for modulus 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
+// This is the base field of secp256k1 curve
 type Secp256k1 struct{}
 
-func (fp Secp256k1) NbLimbs() uint     { return 8 }
-func (fp Secp256k1) BitsPerLimb() uint { return 32 }
+func (fp Secp256k1) NbLimbs() uint     { return 4 }
+func (fp Secp256k1) BitsPerLimb() uint { return 64 }
 func (fp Secp256k1) IsPrime() bool     { return true }
 func (fp Secp256k1) Modulus() *big.Int { return qSecp256k1 }
+
+// Secp256k1Scalars provides type parametrization for emulated field on 4 limbs of width 64bits
+// for modulus 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
+// This is the scalar field of secp256k1 curve.
+type Secp256k1Scalars struct{}
+
+func (fp Secp256k1Scalars) NbLimbs() uint     { return 4 }
+func (fp Secp256k1Scalars) BitsPerLimb() uint { return 64 }
+func (fp Secp256k1Scalars) IsPrime() bool     { return true }
+func (fp Secp256k1Scalars) Modulus() *big.Int { return rSecp256k1 }
 
 // BN254Fp provide type parametrization for emulated field on 8 limb of width 32bits
 // for modulus 0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47
