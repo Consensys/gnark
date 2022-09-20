@@ -1,6 +1,7 @@
 package polynomial
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"math/bits"
 )
@@ -52,22 +53,26 @@ func (p Polynomial) Eval(api frontend.API, at frontend.Variable) (pAt frontend.V
 // negFactorial returns (-n)(-n+1)...(-2)(-1)
 // There are more efficient algorithms, but we are talking small values here so it doesn't matter
 func negFactorial(n int) int {
-	result := n
 	n = -n
-	for n++; n < -1; n++ {
+	result := n
+	for n++; n <= -1; n++ {
 		result *= n
 	}
 	return result
 }
 
 // computeDeltaAtNaive brute forces the computation of the δᵢ(at)
-func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) (deltaAt []frontend.Variable) {
-	deltaAt = make([]frontend.Variable, valuesLen)
+func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) []frontend.Variable {
+	deltaAt := make([]frontend.Variable, valuesLen)
 	atMinus := make([]frontend.Variable, valuesLen) //TODO: No need for this array and the following loop
 	for i := range atMinus {
 		atMinus[i] = api.Sub(at, i)
+		fmt.Println("atMinus", i)
+		api.Println(atMinus[i])
 	}
 	factInv := api.Inverse(negFactorial(valuesLen - 1))
+	fmt.Println("factInv(0)")
+	api.Println(factInv)
 	for i := range deltaAt {
 		deltaAt[i] = factInv
 		for j := range atMinus {
@@ -81,11 +86,11 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 			factInv = api.Mul(factAdjustment, factInv)
 		}
 	}
-	return
+	return deltaAt
 }
 
-// InterpolateLDEOnRange fits a polynomial f of degree len(values)-1 such that f(i) = values[i] whenever defined. Returns f(at)
-func InterpolateLDEOnRange(api frontend.API, at frontend.Variable, values []frontend.Variable) frontend.Variable {
+// InterpolateLDE fits a polynomial f of degree len(values)-1 such that f(i) = values[i] whenever defined. Returns f(at)
+func InterpolateLDE(api frontend.API, at frontend.Variable, values []frontend.Variable) frontend.Variable {
 	deltaAt := computeDeltaAtNaive(api, at, len(values))
 
 	var res frontend.Variable

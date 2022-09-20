@@ -3,9 +3,10 @@ package sumcheck
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	r1csPackage "github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/test"
 	"math/bits"
 	"testing"
 )
@@ -70,7 +71,7 @@ func (c *singleMultilinCircuit) Define(api frontend.API) error {
 
 func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, proof singleMultilinProof, transcriptGen func() ArithmeticTranscript) {
 
-	witness := singleMultilinCircuit{
+	assignment := singleMultilinCircuit{
 		Claim: singleMultilinLazyClaim{
 			G:          poly,
 			ClaimedSum: sumAsInts(poly),
@@ -78,8 +79,6 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, pro
 		Proof:         proof,
 		transcriptGen: transcriptGen,
 	}
-
-	assert := test.NewAssert(t)
 
 	emptyProof := singleMultilinProof{PartialSumPolys: make([][]frontend.Variable, len(proof.PartialSumPolys))}
 	for i, proofPoly := range proof.PartialSumPolys {
@@ -91,8 +90,43 @@ func testSumcheckSingleClaimMultilin(t *testing.T, poly polynomial.MultiLin, pro
 		Proof:         emptyProof,
 		transcriptGen: transcriptGen,
 	}
+	/* assert := test.NewAssert(t)
+	assert.ProverSucceeded(&circuit, &assignment)
+	assert.SolvingSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254))*/
 
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+	//var publicWitness *witnessPackage.Witness
+	var pk groth16.ProvingKey
+	//var vk groth16.VerifyingKey
+	//var snarkProof groth16.Proof
+
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1csPackage.NewBuilder, &circuit)
+	if err != nil {
+		t.Error(err)
+	}
+	witness, _ := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Error(err)
+	}
+
+	/*publicWitness, err = witness.Public()
+	if err != nil {
+		t.Error(err)
+	}*/
+
+	pk, _, err = groth16.Setup(r1cs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	_, err = groth16.Prove(r1cs, pk, witness)
+	if err != nil {
+		t.Error(err)
+	}
+
+	/*err = groth16.Verify(snarkProof, vk, publicWitness)
+	if err != nil {
+		t.Error(err)
+	}*/
 
 }
 
