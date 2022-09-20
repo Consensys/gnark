@@ -3,32 +3,8 @@ package sumcheck
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/polynomial"
 )
-
-type Polynomial []frontend.Variable //TODO: Is there already such a data structure?
-type MultiLin []frontend.Variable
-
-func (m MultiLin) Evaluate(api frontend.API, r []frontend.Variable) frontend.Variable {
-	eqs := make([]frontend.Variable, len(m))
-	eqs[0] = 1
-	for i, rI := range r {
-		prevSize := 1 << i
-		oneMinusRI := api.Sub(1, rI)
-		for j := prevSize - 1; j >= 0; j-- {
-			eqs[2*j+1] = api.Mul(rI, eqs[j])
-			eqs[2*j] = api.Mul(oneMinusRI, eqs[j])
-		}
-	}
-
-	evaluation := frontend.Variable(0) //TODO: Does the API ignore publicly adding 0 to something?
-	for j := range m {
-		evaluation = api.Add(
-			evaluation,
-			api.Mul(eqs[j], m[j]),
-		)
-	}
-	return evaluation
-}
 
 // LazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
 type LazyClaims interface {
@@ -40,50 +16,53 @@ type LazyClaims interface {
 }
 
 // Proof of a multi-sumcheck statement.
-type Proof struct {
-	PartialSumPolys []Polynomial
-	FinalEvalProof  interface{} //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+type Proof interface {
+	PartialSumPoly(index int) polynomial.Polynomial
+	FinalEvalProof() Proof //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
 }
 
-type Verifier struct {
-	Claims     LazyClaims
-	Proof      Proof `gnark:"proof"` //TODO: Is this allowed with "complex" objects?
-	Transcript ArithmeticTranscript
-}
-
-func (v *Verifier) Define(api frontend.API) error {
+func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript ArithmeticTranscript) error {
 	var combinationCoeff frontend.Variable
 
-	if v.Claims.ClaimsNum() >= 2 {
-		combinationCoeff = v.Transcript.Next()
+	if claims.ClaimsNum() >= 2 {
+		combinationCoeff = transcript.Next()
+		fmt.Println("got combination coeff")
 	}
 
-	r := make([]frontend.Variable, v.Claims.VarsNum())
+	r := make([]frontend.Variable, claims.VarsNum())
 
 	// Just so that there is enough room for gJ to be reused
-	maxDegree := v.Claims.Degree(0)
-	for j := 1; j < v.Claims.VarsNum(); j++ {
-		if d := v.Claims.Degree(j); d > maxDegree {
+	maxDegree := claims.Degree(0)
+	for j := 1; j < claims.VarsNum(); j++ {
+		if d := claims.Degree(j); d > maxDegree {
 			maxDegree = d
 		}
 	}
 
-	gJ := make(Polynomial, maxDegree+1)           //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for v.Claims.VarsNum()
-	gJR := v.Claims.CombinedSum(combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+	// @gbotrel: Is it okay for this to be reused at each iteration?
+	gJ := make(polynomial.Polynomial, maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 
-	for j := 0; j < v.Claims.VarsNum(); j++ {
-		if len(v.Proof.PartialSumPolys[j]) != v.Claims.Degree(j) {
+	gJR := claims.CombinedSum(combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
+
+	for j := 0; j < claims.VarsNum(); j++ {
+		partialSumPoly := proof.PartialSumPoly(j)
+		if len(partialSumPoly) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
-		copy(gJ[1:], v.Proof.PartialSumPolys[j])
-		gJ[0] = api.Sub(gJR, v.Proof.PartialSumPolys[j][0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		copy(gJ[1:], partialSumPoly)
+		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
 		// gJ is ready
+		fmt.Println("\nj =", j)
+		api.Println("gJ(0) =", gJ[0])
 
 		//Prepare for the next iteration
-		r[j] = v.Transcript.Next(v.Proof.PartialSumPolys[j])
+		r[j] = transcript.Next(partialSumPoly)
+		api.Println("r =", r[j])
 
-		gJR = InterpolateOnRange(api, r[j], gJ[:(v.Claims.Degree(j)+1)]...)
+		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.Degree(j)+1)])
+		api.Println("gJ(r)=", gJR)
 	}
 
-	return v.Claims.VerifyFinalEval(api, r, combinationCoeff, gJR, v.Proof.FinalEvalProof)
+	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof())
+
 }
