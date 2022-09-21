@@ -47,7 +47,7 @@ type Proof struct {
 // p[0] + p[1]X + .. p[len(p)-1]xˡᵉⁿ⁽ᵖ⁾⁻¹
 func evalAtPower(api frontend.API, p []frontend.Variable, x big.Int, n frontend.Variable, sizeDomain uint64) frontend.Variable {
 
-	// compute x' = x**n
+	// compute x' = x^{n}
 	nBin := api.ToBinary(n, int(sizeDomain))
 	var xexp frontend.Variable
 	xexp = 1
