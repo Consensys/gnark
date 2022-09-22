@@ -28,6 +28,12 @@ var (
 
 type Proof struct {
 
+	// Domain used in the tensor commitment
+	SizeDomainTensorCommitment uint64
+
+	// Generator of the domain used in the tensor commitment
+	GenDomainTensorCommitment big.Int
+
 	// list of entries of ̂{u} to query (see https://eprint.iacr.org/2021/1043.pdf for notations)
 	// The entries are derived using Fiat Shamir.
 	EntryList []frontend.Variable
@@ -38,9 +44,6 @@ type Proof struct {
 
 	// Linear combination of the rows of the polynomial P written as a square matrix
 	LinearCombination []frontend.Variable
-
-	// root of unity (bigInt to avoid fr dependency)
-	Generator big.Int
 }
 
 // evalAtPower returns p(x**n) where p is interpreted as a polynomial
@@ -69,6 +72,18 @@ func evalAtPower(api frontend.API, p []frontend.Variable, x big.Int, n frontend.
 
 }
 
+// returns tab[entry]
+func selectEntry(api frontend.API, entry frontend.Variable, tab []frontend.Variable) frontend.Variable {
+	var res frontend.Variable
+	res = 0
+	for k := 0; k < len(tab); k++ {
+		cur := api.IsZero(api.Sub(k, entry))
+		cur = api.Mul(cur, tab[k])
+		res = api.Add(res, cur)
+	}
+	return res
+}
+
 // Verify a proof that digest is the hash of a  polynomial given a proof
 // proof: proof that the commitment is correct
 // digest: hash of the polynomial, where the hash is SIS
@@ -85,7 +100,8 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 	for i := 0; i < len(proof.EntryList); i++ {
 
 		// check that the hash of the columns correspond to what's in the digest
-		s, err := h.Sum(api, proof.Columns[i])
+		//s, err := h.Sum(api, proof.Columns[i])
+		_, err := h.Sum(api, proof.Columns[i])
 		if err != nil {
 			return err
 		}
@@ -97,16 +113,19 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 			digestProofEntryListi[j] = 0
 		}
 		for j := 0; j < h.Degree; j++ { // for all elmts in a given entry of digest
-			for k := 0; k < len(digest); k++ {
+			for k := 0; k < len(digest); k++ { // -> this subloop selects the proof.EntryList[i]-th entry fo digest
 				cur := api.IsZero(api.Sub(k, proof.EntryList[i]))
 				cur = api.Sub(1, cur)                                             // k==proof.EntryList[i] ⩽> cur=1; k!=proof.EntryList[i] ⩽> cur=0
 				cur = api.Mul(cur, digest[k][j])                                  // k==proof.EntryList[i] ⩽> cur=digest[k][j]; k!=proof.EntryList[i] ⩽> cur=0
 				digestProofEntryListi[j] = api.Add(digestProofEntryListi[j], cur) // k==proof.EntryList[i] ⩽> selector[j]+=digest[k][j]; k!=proof.EntryList[i] ⩽> selector+=0
 			}
 		}
-		for j := 0; j < h.Degree; j++ {
-			api.AssertIsEqual(digestProofEntryListi[j], s[j])
-		}
+		api.Println(digest[i][0])
+		api.Println(digestProofEntryListi[0])
+
+		// for j := 0; j < h.Degree; j++ {
+		// api.AssertIsEqual(digestProofEntryListi[j], s[j])
+		// }
 
 		// linear combination of the i-th column, whose entries
 		// are the entryList[i]-th entries of the encoded lines
@@ -117,17 +136,18 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 
 			// linear combination of the encoded rows at column i
 			tmp = api.Mul(proof.Columns[i][j], l[j])
-			linCombEncoded = api.Add(linCombEncoded, &tmp)
+			linCombEncoded = api.Add(linCombEncoded, tmp)
 		}
 
 		// entry i of the encoded linear combination
 		var encodedLinComb frontend.Variable
+
 		encodedLinComb = evalAtPower(
 			api,
 			proof.LinearCombination,
-			proof.Generator,
+			proof.GenDomainTensorCommitment,
 			proof.EntryList[i],
-			h.Domain.Cardinality)
+			proof.SizeDomainTensorCommitment)
 
 		// both values must be equal
 		api.AssertIsEqual(encodedLinComb, linCombEncoded)

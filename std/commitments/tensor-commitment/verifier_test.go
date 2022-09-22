@@ -21,10 +21,14 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/sis"
+	tensorcommitment "github.com/consensys/gnark-crypto/ecc/bn254/fr/tensor-commitment"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gsis "github.com/consensys/gnark/std/hash/sis"
 )
 
+// evalAtPower subroutine
 type EvalAtPower struct {
 
 	// polynomial
@@ -116,5 +120,231 @@ func TestEvalAtPower(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+}
+
+// subroutine for selecting an entry whose index is a frontend.Variable
+type SelectEntry struct {
+	Tab [10]frontend.Variable
+	E   frontend.Variable
+	R   frontend.Variable
+}
+
+func (circuit *SelectEntry) Define(api frontend.API) error {
+
+	r := selectEntry(api, circuit.E, circuit.Tab[:])
+	api.AssertIsEqual(r, circuit.R)
+
+	return nil
+}
+
+func TestSelectEntry(t *testing.T) {
+
+	var tab [10]int
+	for i := 0; i < 10; i++ {
+		tab[i] = 2*i + 1
+	}
+
+	var witness SelectEntry
+	for i := 0; i < 10; i++ {
+		witness.Tab[i] = tab[i]
+	}
+
+	// compile the circuit
+	var circuit SelectEntry
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 10; i++ {
+
+		// create the witness
+		witness.E = i
+		witness.R = tab[i]
+		twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = ccs.IsSolved(twitness)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+	}
+
+}
+
+// Verifier circuit
+type Verifier struct {
+
+	// Polynomial committed
+	Digest [][]frontend.Variable
+
+	// variables used in the proof
+	EntryList         []frontend.Variable
+	Columns           [][]frontend.Variable
+	LinearCombination []frontend.Variable
+
+	// random coefficients sent by the verifier
+	L []frontend.Variable
+
+	// Domain used in the tensor commitment
+	SizeDomainTensorCommitment uint64
+
+	// Generator of the domain used in the tensor commitment
+	GenDomainTensorCommitment big.Int
+
+	// hash function
+	Sis sis.RSis
+}
+
+func (circuit *Verifier) Define(api frontend.API) error {
+
+	// proof
+	var proof Proof
+	proof.EntryList = circuit.EntryList
+	proof.Columns = circuit.Columns
+	proof.LinearCombination = circuit.LinearCombination
+	proof.SizeDomainTensorCommitment = circuit.SizeDomainTensorCommitment
+	proof.GenDomainTensorCommitment = circuit.GenDomainTensorCommitment
+
+	// snark version of sis
+	sisSnark := gsis.NewRSisSnark(circuit.Sis)
+
+	return Verify(api, proof, circuit.Digest, circuit.L, sisSnark)
+
+}
+
+func TestTensorCommitment(t *testing.T) {
+
+	var rho, size, sqrtSize int
+	rho = 4
+	size = 64
+	sqrtSize = 8
+
+	logTwoDegree := 1
+	logTwoBound := 4
+	keySize := 256
+	h, err := sis.NewRSis(5, logTwoDegree, logTwoBound, keySize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc, err := tensorcommitment.NewTensorCommitment(rho, size, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// random polynomial
+	p := make([]fr.Element, size)
+	for i := 0; i < size; i++ {
+		p[i].SetRandom()
+	}
+
+	// coefficients for the linear combination
+	l := make([]fr.Element, sqrtSize)
+	for i := 0; i < sqrtSize; i++ {
+		l[i].SetRandom()
+	}
+
+	// we select all the entries for the test
+	entryList := make([]int, rho*sqrtSize)
+	for i := 0; i < rho*sqrtSize; i++ {
+		entryList[i] = i
+	}
+
+	// compute the digest...
+	digest, err := tc.Commit(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// build the proof...
+	proof, err := tc.BuildProof(p, l, entryList)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// verfiy that the proof is correct
+	err = tensorcommitment.Verify(proof, digest, l, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// now we have everything to populate the witness
+	var witness Verifier
+
+	_h := *(h.(*sis.RSis))
+	witness.Digest = make([][]frontend.Variable, len(digest))
+	var tmp fr.Element
+	nbBytesFr := 32
+	for i := 0; i < len(digest); i++ {
+		witness.Digest[i] = make([]frontend.Variable, _h.Degree)
+		for j := 0; j < _h.Degree; j++ {
+			tmp.SetBytes(digest[i][j*nbBytesFr : (j+1)*nbBytesFr])
+			witness.Digest[i][j] = tmp.String()
+		}
+	}
+
+	witness.EntryList = make([]frontend.Variable, len(entryList))
+	for i := 0; i < len(entryList); i++ {
+		witness.EntryList[i] = entryList[i]
+	}
+
+	witness.Columns = make([][]frontend.Variable, len(proof.Columns))
+	for i := 0; i < len(proof.Columns); i++ {
+		witness.Columns[i] = make([]frontend.Variable, len(proof.Columns[i]))
+		for j := 0; j < len(witness.Columns[i]); j++ {
+			witness.Columns[i][j] = proof.Columns[i][j].String()
+		}
+	}
+
+	witness.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
+	for i := 0; i < len(witness.LinearCombination); i++ {
+		witness.LinearCombination[i] = proof.LinearCombination[i].String()
+	}
+
+	witness.L = make([]frontend.Variable, sqrtSize)
+	for i := 0; i < sqrtSize; i++ {
+		witness.L[i] = l[i].String()
+	}
+	witness.SizeDomainTensorCommitment = tc.Domain.Cardinality
+	tc.Domain.Generator.ToBigIntRegular(&witness.GenDomainTensorCommitment)
+	witness.Sis = _h
+
+	// create the circuit
+	var circuit Verifier
+	circuit.Digest = make([][]frontend.Variable, len(digest))
+	for i := 0; i < len(digest); i++ {
+		circuit.Digest[i] = make([]frontend.Variable, _h.Degree)
+	}
+	circuit.EntryList = make([]frontend.Variable, len(entryList))
+	circuit.Columns = make([][]frontend.Variable, len(proof.Columns))
+	for i := 0; i < len(proof.Columns); i++ {
+		circuit.Columns[i] = make([]frontend.Variable, len(proof.Columns[i]))
+	}
+	circuit.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
+	circuit.L = make([]frontend.Variable, sqrtSize)
+	circuit.SizeDomainTensorCommitment = tc.Domain.Cardinality
+	tc.Domain.Generator.ToBigIntRegular(&circuit.GenDomainTensorCommitment)
+	circuit.Sis = _h
+
+	// compile...
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check the solving
+	twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ccs.IsSolved(twitness)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
 
 }
