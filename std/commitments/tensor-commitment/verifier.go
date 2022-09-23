@@ -72,14 +72,21 @@ func evalAtPower(api frontend.API, p []frontend.Variable, x big.Int, n frontend.
 
 }
 
-// returns tab[entry]
-func selectEntry(api frontend.API, entry frontend.Variable, tab []frontend.Variable) frontend.Variable {
-	var res frontend.Variable
-	res = 0
-	for k := 0; k < len(tab); k++ {
-		cur := api.IsZero(api.Sub(k, entry))
-		cur = api.Mul(cur, tab[k])
-		res = api.Add(res, cur)
+// returns tab[entry] assuming that tab is a regular array (n x m)
+func selectEntry(api frontend.API, entry frontend.Variable, tab [][]frontend.Variable) []frontend.Variable {
+
+	res := make([]frontend.Variable, len(tab[0]))
+
+	for i := 0; i < len(tab[0]); i++ {
+		res[i] = 0
+	}
+
+	for i := 0; i < len(tab[0]); i++ {
+		for j := 0; j < len(tab); j++ {
+			cur := api.IsZero(api.Sub(j, entry))
+			cur = api.Mul(cur, tab[j][i])
+			res[i] = api.Add(res[i], cur)
+		}
 	}
 	return res
 }
@@ -112,16 +119,10 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 		for j := 0; j < h.Degree; j++ {
 			digestProofEntryListi[j] = 0
 		}
-		for j := 0; j < h.Degree; j++ { // for all elmts in a given entry of digest
-			for k := 0; k < len(digest); k++ { // -> this subloop selects the proof.EntryList[i]-th entry fo digest
-				cur := api.IsZero(api.Sub(k, proof.EntryList[i]))
-				cur = api.Sub(1, cur)                                             // k==proof.EntryList[i] ⩽> cur=1; k!=proof.EntryList[i] ⩽> cur=0
-				cur = api.Mul(cur, digest[k][j])                                  // k==proof.EntryList[i] ⩽> cur=digest[k][j]; k!=proof.EntryList[i] ⩽> cur=0
-				digestProofEntryListi[j] = api.Add(digestProofEntryListi[j], cur) // k==proof.EntryList[i] ⩽> selector[j]+=digest[k][j]; k!=proof.EntryList[i] ⩽> selector+=0
-			}
-		}
-		api.Println(digest[i][0])
-		api.Println(digestProofEntryListi[0])
+		// for j := 0; j < h.Degree; j++ { // for all elmts in a given entry of digest                                 // k==proof.EntryList[i] ⩽> cur=digest[k][j]; k!=proof.EntryList[i] ⩽> cur=0
+		// 	digestProofEntryListi[j] = selectEntry(api, proof.EntryList[i], )
+
+		// }
 
 		// for j := 0; j < h.Degree; j++ {
 		// api.AssertIsEqual(digestProofEntryListi[j], s[j])

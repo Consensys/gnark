@@ -125,43 +125,63 @@ func TestEvalAtPower(t *testing.T) {
 
 // subroutine for selecting an entry whose index is a frontend.Variable
 type SelectEntry struct {
-	Tab [10]frontend.Variable
+	Tab [][]frontend.Variable
 	E   frontend.Variable
-	R   frontend.Variable
+	R   []frontend.Variable
 }
 
 func (circuit *SelectEntry) Define(api frontend.API) error {
 
-	r := selectEntry(api, circuit.E, circuit.Tab[:])
-	api.AssertIsEqual(r, circuit.R)
+	r := selectEntry(api, circuit.E, circuit.Tab)
+	for i := 0; i < len(circuit.R); i++ {
+		api.AssertIsEqual(r[i], circuit.R[i])
+	}
 
 	return nil
 }
 
 func TestSelectEntry(t *testing.T) {
 
-	var tab [10]int
-	for i := 0; i < 10; i++ {
-		tab[i] = 2*i + 1
+	rows := 10
+	columns := 5
+
+	tab := make([][]int, rows)
+	for i := 0; i < rows; i++ {
+		tab[i] = make([]int, columns)
+		for j := 0; j < columns; j++ {
+			tab[i][j] = 10*i + j
+		}
 	}
 
 	var witness SelectEntry
-	for i := 0; i < 10; i++ {
-		witness.Tab[i] = tab[i]
+	witness.Tab = make([][]frontend.Variable, rows)
+	for i := 0; i < rows; i++ {
+		witness.Tab[i] = make([]frontend.Variable, columns)
+		for j := 0; j < columns; j++ {
+			witness.Tab[i][j] = tab[i][j]
+		}
 	}
+	witness.R = make([]frontend.Variable, columns)
 
 	// compile the circuit
 	var circuit SelectEntry
+	circuit.Tab = make([][]frontend.Variable, rows)
+	for i := 0; i < rows; i++ {
+		circuit.Tab[i] = make([]frontend.Variable, columns)
+	}
+	circuit.R = make([]frontend.Variable, columns)
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < rows; i++ {
 
 		// create the witness
 		witness.E = i
-		witness.R = tab[i]
+		for j := 0; j < columns; j++ {
+			witness.R[j] = tab[i][j]
+		}
 		twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 		if err != nil {
 			t.Fatal(err)
