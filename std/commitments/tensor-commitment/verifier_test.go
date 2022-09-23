@@ -365,6 +365,5 @@ func TestTensorCommitment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
 
 }

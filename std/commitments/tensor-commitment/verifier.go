@@ -108,25 +108,16 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 
 		// check that the hash of the columns correspond to what's in the digest
 		//s, err := h.Sum(api, proof.Columns[i])
-		_, err := h.Sum(api, proof.Columns[i])
+		s, err := h.Sum(api, proof.Columns[i])
 		if err != nil {
 			return err
 		}
 
-		// the following loop selects the proof.EntryList[i]-th entry
-		// of digest. digestProofEntryListi -> corresponds to digest[proof.EntryList[i]][:]
-		digestProofEntryListi := make([]frontend.Variable, h.Degree)
+		// we selects the proof.EntryList[i]-th entry
+		digestProofEntryListi := selectEntry(api, proof.EntryList[i], digest)
 		for j := 0; j < h.Degree; j++ {
-			digestProofEntryListi[j] = 0
+			api.AssertIsEqual(digestProofEntryListi[j], s[j])
 		}
-		// for j := 0; j < h.Degree; j++ { // for all elmts in a given entry of digest                                 // k==proof.EntryList[i] ⩽> cur=digest[k][j]; k!=proof.EntryList[i] ⩽> cur=0
-		// 	digestProofEntryListi[j] = selectEntry(api, proof.EntryList[i], )
-
-		// }
-
-		// for j := 0; j < h.Degree; j++ {
-		// api.AssertIsEqual(digestProofEntryListi[j], s[j])
-		// }
 
 		// linear combination of the i-th column, whose entries
 		// are the entryList[i]-th entries of the encoded lines
