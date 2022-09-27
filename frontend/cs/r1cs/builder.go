@@ -373,11 +373,20 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 	}
 
 	// sanity check
-	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
-		panic("number of public variables is inconsitent") // it grew after the schema parsing?
+	if res.NbPublicVariables != len(cs.Public) {
+		panic(fmt.Sprintf("number of public variables is inconsitent (compiled %v, builder %v)", res.NbPublicVariables, len(cs.Public))) // it grew after the schema parsing?
 	}
-	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
-		panic("number of secret variables is inconsitent") // it grew after the schema parsing?
+	if res.NbSecretVariables != len(cs.Secret) {
+		panic(fmt.Sprintf("number of secret variables is inconsitent (compiled %v, builder %v)", res.NbSecretVariables, len(cs.Secret))) // it grew after the schema parsing?
+	}
+
+	if cs.Schema != nil {
+		if res.NbPublicVariables != cs.Schema.NbPublic+1 {
+			panic(fmt.Sprintf("number of public variables is inconsitent (compiled %v, schema %v)", res.NbPublicVariables, cs.Schema.NbPublic)) // it grew after the schema parsing?
+		}
+		if res.NbSecretVariables != cs.Schema.NbSecret {
+			panic(fmt.Sprintf("number of secret variables is inconsitent (compiled %v, schema %v)", res.NbSecretVariables, cs.Schema.NbSecret)) // it grew after the schema parsing?
+		}
 	}
 
 	// build levels
