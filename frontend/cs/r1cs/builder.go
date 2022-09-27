@@ -75,6 +75,8 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *r1cs {
 		config:           config,
 	}
 
+	// initialize to 1
+	system.NbPublicVariables = 1
 	system.Public = make([]string, 1)
 	system.Secret = make([]string, 0)
 
@@ -104,6 +106,12 @@ func (system *r1cs) VariableCount(t reflect.Type) int {
 func (system *r1cs) AddPublicVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, f.FullName)
+
+	// feature : schema-less circuit
+	if system.Schema == nil {
+		system.NbPublicVariables++
+	}
+
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Public),
 	}
@@ -113,6 +121,12 @@ func (system *r1cs) AddPublicVariable(f *schema.Field) frontend.Variable {
 func (system *r1cs) AddSecretVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Secret) + system.NbPublicVariables
 	system.Secret = append(system.Secret, f.FullName)
+
+	// feature : schema-less circuit
+	if system.Schema == nil {
+		system.NbSecretVariables++
+	}
+
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret),
 	}
@@ -422,8 +436,24 @@ func (cs *r1cs) SetSchema(s *schema.Schema) {
 	if cs.Schema != nil {
 		panic("SetSchema called multiple times")
 	}
+
+	/*
+		Sanity-check, at this point the point r1cs should have 1 public input
+		(for the constant 1) and zero secret variables. (from the constructor).
+
+		One case where this can happen, is if the current circuit has been built
+		using at the same time
+			- the "classic-gnark" workflow in which the user provides a schema
+				in the form of a circuit.
+			- the manual workflow in which the user gives himself the schema of
+				the circuit
+	*/
+	if cs.NbPublicVariables != 1 || cs.NbSecretVariables != 0 || cs.NbInternalVariables != 0 {
+		panic(fmt.Sprintf("Already initialized #pub %v #sec %v #int %v", cs.NbPublicVariables, cs.NbSecretVariables, cs.NbInternalVariables))
+	}
+
 	cs.Schema = s
-	cs.NbPublicVariables = s.NbPublic + 1
+	cs.NbPublicVariables += s.NbPublic
 	cs.NbSecretVariables = s.NbSecret
 }
 
