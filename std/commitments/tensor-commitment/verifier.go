@@ -29,11 +29,21 @@ var (
 
 type Proof struct {
 
-	// Domain used in the tensor commitment
-	SizeDomainTensorCommitment uint64
+	// Size of the small domain of the tensor commitment
+	// i.e. the domain to perform fft^-1
+	SizeSmallDomainTensorCommitment uint64
 
-	// Generator of the domain used in the tensor commitment
-	GenDomainTensorCommitment big.Int
+	// Inverse of the generator of the small domain of the tensor commitment
+	// i.e. the domain to perform fft^-1
+	GenInvSmallDomainTensorCommitment fr.Element
+
+	// Size of the big domain used in the tensor commitment
+	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	SizeBigDomainTensorCommitment uint64
+
+	// Generator of the big domain used in the tensor commitment
+	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	GenBigDomainTensorCommitment big.Int
 
 	// list of entries of ̂{u} to query (see https://eprint.iacr.org/2021/1043.pdf for notations)
 	// The entries are derived using Fiat Shamir.
@@ -160,14 +170,17 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 		}
 
 		// entry i of the encoded linear combination
-		var encodedLinComb frontend.Variable
+		// first we express proof.LinearCombination in canonical form
+		// then we evaluate it at the required queries
+		linCombCanonical := fftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
 
+		var encodedLinComb frontend.Variable
 		encodedLinComb = evalAtPower(
 			api,
-			proof.LinearCombination,
-			proof.GenDomainTensorCommitment,
+			linCombCanonical,
+			proof.GenBigDomainTensorCommitment,
 			proof.EntryList[i],
-			proof.SizeDomainTensorCommitment)
+			proof.SizeBigDomainTensorCommitment)
 
 		// both values must be equal
 		api.AssertIsEqual(encodedLinComb, linCombEncoded)
