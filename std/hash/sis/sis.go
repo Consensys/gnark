@@ -62,9 +62,9 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 	} else {
 		nbBytes = nbBytes / 8
 	}
-	if nbBytes*len(v) != r.NbBytesToSum {
-		return nil, ErrWrongSize
-	}
+	// if nbBytes*len(v) != r.NbBytesToSum {
+	// 	return nil, ErrWrongSize
+	// }
 
 	// decompose v according to the bound
 	nbBitsToSum := r.NbBytesToSum * 8

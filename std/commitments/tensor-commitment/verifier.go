@@ -18,6 +18,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/sis"
 )
@@ -88,6 +89,33 @@ func selectEntry(api frontend.API, entry frontend.Variable, tab [][]frontend.Var
 			res[i] = api.Add(res[i], cur)
 		}
 	}
+	return res
+}
+
+// computes fft^-1(p) where the fft is done on <generator>, a set of size cardinality.
+// It is assumed that p is correctly sized.
+//
+// The fft is hardcoded with bn254 for now, to be more efficient than bigInt...
+func fftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) []frontend.Variable {
+
+	var cardInverse, g, x fr.Element
+	cardInverse.SetUint64(cardinality).Inverse(&cardInverse)
+
+	res := make([]frontend.Variable, cardinality)
+
+	// starts of the incredibly inefficient implementation of the fft...
+	g.SetOne()
+	for i := 0; i < int(cardinality); i++ {
+		x.Set(&cardInverse)
+		res[i] = 0
+		for j := 0; j < len(p); j++ {
+			tmp := api.Mul(p[j], x.String())
+			res[i] = api.Add(res[i], tmp)
+			x.Mul(&x, &g)
+		}
+		g.Mul(&g, &genInv)
+	}
+
 	return res
 }
 
