@@ -206,12 +206,31 @@ type FFTInvCircuit struct {
 
 func (circuit *FFTInvCircuit) Define(api frontend.API) error {
 
-	r := fftInverse(api, circuit.P, circuit.gInv, circuit.cardinality)
+	r := FftInverse(api, circuit.P, circuit.gInv, circuit.cardinality)
 	for i := 0; i < len(r); i++ {
 		api.AssertIsEqual(r[i], circuit.Q[i])
 	}
 
 	return nil
+}
+
+func BenchmarkFFT(b *testing.B) {
+
+	var gInv fr.Element
+	gInv.SetString("19103219067921713944291392827692070036145651957329286315305642004821462161904")
+
+	size := 512
+
+	var circuit FFTInvCircuit
+	circuit.P = make([]frontend.Variable, size)
+	circuit.Q = make([]frontend.Variable, size)
+	circuit.cardinality = uint64(size)
+	circuit.gInv.SetRandom()
+
+	for i := 0; i < b.N; i++ {
+		frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	}
+
 }
 
 func TestFFTInv(t *testing.T) {

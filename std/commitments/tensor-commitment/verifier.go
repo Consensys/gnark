@@ -106,24 +106,28 @@ func selectEntry(api frontend.API, entry frontend.Variable, tab [][]frontend.Var
 // It is assumed that p is correctly sized.
 //
 // The fft is hardcoded with bn254 for now, to be more efficient than bigInt...
-func fftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) []frontend.Variable {
+// It is assumed that p is of size cardinality.
+func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) []frontend.Variable {
 
-	var cardInverse, g, x fr.Element
+	var cardInverse fr.Element
 	cardInverse.SetUint64(cardinality).Inverse(&cardInverse)
 
+	// res of the fft inverse
 	res := make([]frontend.Variable, cardinality)
 
-	// starts of the incredibly inefficient implementation of the fft...
-	g.SetOne()
+	// generate the roots of unity <1,\omega,\omega^2,..,\omega^{n-1}>
+	rous := make([]fr.Element, cardinality)
+	rous[0].Set(&cardInverse)
+	for i := 1; i < int(cardinality); i++ {
+		rous[i].Mul(&rous[i-1], &genInv)
+	}
 	for i := 0; i < int(cardinality); i++ {
-		x.Set(&cardInverse)
 		res[i] = 0
-		for j := 0; j < len(p); j++ {
-			tmp := api.Mul(p[j], x.String())
+		for j := 0; j < int(cardinality); j++ {
+			e := (j * i) % int(cardinality)
+			tmp := api.Mul(rous[e], p[j])
 			res[i] = api.Add(res[i], tmp)
-			x.Mul(&x, &g)
 		}
-		g.Mul(&g, &genInv)
 	}
 
 	return res
@@ -172,7 +176,7 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 		// entry i of the encoded linear combination
 		// first we express proof.LinearCombination in canonical form
 		// then we evaluate it at the required queries
-		linCombCanonical := fftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
+		linCombCanonical := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
 
 		var encodedLinComb frontend.Variable
 		encodedLinComb = evalAtPower(
