@@ -242,7 +242,7 @@ contract Verifier {
         uint256[{{sub $lenK 1}}] calldata input
     ) public view returns (bool r) {
 
-        Proof memory proof
+        Proof memory proof;
         proof.A = Pairing.G1Point(a[0], a[1]);
         proof.B = Pairing.G2Point([b[0][0], b[0][1]], [b[1][0], b[1][1]]);
         proof.C = Pairing.G1Point(c[0], c[1]);
@@ -279,7 +279,7 @@ contract Verifier {
         Pairing.G1Point memory mul_return = Pairing.G1Point(0, 0);
 
 
-        {{- range $i, $ki := .Vk.G1.K }}
+        {{- range $i, $ki := .G1.K }}
             {{- if gt $i 0 -}}
                 {{- $pos := sub $i 1 }}
         mul_input[0] = uint256({{$ki.X.String}});
@@ -289,7 +289,7 @@ contract Verifier {
             {{- end -}}
         {{- end }}
 
-        {{- range $i, $ki := .Vk.G1.K -}}
+        {{- range $i, $ki := .G1.K -}}
             {{- if lt $i 1}}
         // last
         add_input[0] = add_return.X;
