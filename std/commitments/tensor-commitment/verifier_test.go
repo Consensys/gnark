@@ -319,11 +319,11 @@ func (circuit *Verifier) Define(api frontend.API) error {
 
 func TestTensorCommitment(t *testing.T) {
 
-	var rho, size, sqrtSize, capacity int
+	var rho, size, nbColumns, nbRows int
 	rho = 4
-	size = 64
-	sqrtSize = 8
-	capacity = 1
+	nbColumns = 8
+	nbRows = 8
+	size = nbColumns * nbRows
 
 	logTwoDegree := 1
 	logTwoBound := 4
@@ -332,7 +332,7 @@ func TestTensorCommitment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tc, err := tensorcommitment.NewTensorCommitment(rho, size, capacity, h)
+	tc, err := tensorcommitment.NewTensorCommitment(rho, nbColumns, nbRows, h)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,13 +344,16 @@ func TestTensorCommitment(t *testing.T) {
 	}
 
 	// coefficients for the linear combination
-	l := make([]fr.Element, sqrtSize)
-	for i := 0; i < sqrtSize; i++ {
+	l := make([]fr.Element, nbRows)
+	for i := 0; i < nbRows; i++ {
 		l[i].SetRandom()
 	}
 
 	// compute the digest
-	tc.Append(p)
+	_, err = tc.Append(p)
+	if err != nil {
+		t.Fatal(err)
+	}
 	digest, err := tc.Commit()
 	if err != nil {
 		t.Fatal(err)
@@ -358,10 +361,9 @@ func TestTensorCommitment(t *testing.T) {
 
 	// test 1: entryList is full
 	{
-
 		// we select all the entries for the test
-		entryList := make([]int, rho*sqrtSize)
-		for i := 0; i < rho*sqrtSize; i++ {
+		entryList := make([]int, rho*nbColumns)
+		for i := 0; i < rho*nbColumns; i++ {
 			entryList[i] = i
 		}
 
@@ -410,8 +412,8 @@ func TestTensorCommitment(t *testing.T) {
 			witness.LinearCombination[i] = proof.LinearCombination[i].String()
 		}
 
-		witness.L = make([]frontend.Variable, sqrtSize)
-		for i := 0; i < sqrtSize; i++ {
+		witness.L = make([]frontend.Variable, nbRows)
+		for i := 0; i < nbRows; i++ {
 			witness.L[i] = l[i].String()
 		}
 		witness.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
@@ -432,7 +434,7 @@ func TestTensorCommitment(t *testing.T) {
 			circuit.Columns[i] = make([]frontend.Variable, len(proof.Columns[i]))
 		}
 		circuit.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
-		circuit.L = make([]frontend.Variable, sqrtSize)
+		circuit.L = make([]frontend.Variable, nbRows)
 		circuit.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
 		circuit.GenInvSmallDomainTensorCommitment.Set(&tc.Domains[0].GeneratorInv)
 		circuit.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
@@ -440,7 +442,7 @@ func TestTensorCommitment(t *testing.T) {
 		circuit.Sis = _h
 
 		// compile...
-		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs())
+		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -509,8 +511,8 @@ func TestTensorCommitment(t *testing.T) {
 			witness.LinearCombination[i] = proof.LinearCombination[i].String()
 		}
 
-		witness.L = make([]frontend.Variable, sqrtSize)
-		for i := 0; i < sqrtSize; i++ {
+		witness.L = make([]frontend.Variable, nbRows)
+		for i := 0; i < nbRows; i++ {
 			witness.L[i] = l[i].String()
 		}
 		witness.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
@@ -531,7 +533,7 @@ func TestTensorCommitment(t *testing.T) {
 			circuit.Columns[i] = make([]frontend.Variable, len(proof.Columns[i]))
 		}
 		circuit.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
-		circuit.L = make([]frontend.Variable, sqrtSize)
+		circuit.L = make([]frontend.Variable, nbRows)
 		circuit.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
 		circuit.GenInvSmallDomainTensorCommitment.Set(&tc.Domains[0].GeneratorInv)
 		circuit.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
