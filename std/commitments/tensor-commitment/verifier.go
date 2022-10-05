@@ -18,6 +18,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/sis"
 )
@@ -28,11 +29,21 @@ var (
 
 type Proof struct {
 
-	// Domain used in the tensor commitment
-	SizeDomainTensorCommitment uint64
+	// Size of the small domain of the tensor commitment
+	// i.e. the domain to perform fft^-1
+	SizeSmallDomainTensorCommitment uint64
 
-	// Generator of the domain used in the tensor commitment
-	GenDomainTensorCommitment big.Int
+	// Inverse of the generator of the small domain of the tensor commitment
+	// i.e. the domain to perform fft^-1
+	GenInvSmallDomainTensorCommitment fr.Element
+
+	// Size of the big domain used in the tensor commitment
+	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	SizeBigDomainTensorCommitment uint64
+
+	// Generator of the big domain used in the tensor commitment
+	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	GenBigDomainTensorCommitment big.Int
 
 	// list of entries of ̂{u} to query (see https://eprint.iacr.org/2021/1043.pdf for notations)
 	// The entries are derived using Fiat Shamir.
@@ -91,6 +102,37 @@ func selectEntry(api frontend.API, entry frontend.Variable, tab [][]frontend.Var
 	return res
 }
 
+// computes fft^-1(p) where the fft is done on <generator>, a set of size cardinality.
+// It is assumed that p is correctly sized.
+//
+// The fft is hardcoded with bn254 for now, to be more efficient than bigInt...
+// It is assumed that p is of size cardinality.
+func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) []frontend.Variable {
+
+	var cardInverse fr.Element
+	cardInverse.SetUint64(cardinality).Inverse(&cardInverse)
+
+	// res of the fft inverse
+	res := make([]frontend.Variable, cardinality)
+
+	// generate the roots of unity <1,\omega,\omega^2,..,\omega^{n-1}>
+	rous := make([]fr.Element, cardinality)
+	rous[0].Set(&cardInverse)
+	for i := 1; i < int(cardinality); i++ {
+		rous[i].Mul(&rous[i-1], &genInv)
+	}
+	for i := 0; i < int(cardinality); i++ {
+		res[i] = 0
+		for j := 0; j < int(cardinality); j++ {
+			e := (j * i) % int(cardinality)
+			tmp := api.Mul(rous[e], p[j])
+			res[i] = api.Add(res[i], tmp)
+		}
+	}
+
+	return res
+}
+
 // Verify a proof that digest is the hash of a  polynomial given a proof
 // proof: proof that the commitment is correct
 // digest: hash of the polynomial, where the hash is SIS
@@ -132,14 +174,17 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 		}
 
 		// entry i of the encoded linear combination
-		var encodedLinComb frontend.Variable
+		// first we express proof.LinearCombination in canonical form
+		// then we evaluate it at the required queries
+		linCombCanonical := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
 
+		var encodedLinComb frontend.Variable
 		encodedLinComb = evalAtPower(
 			api,
-			proof.LinearCombination,
-			proof.GenDomainTensorCommitment,
+			linCombCanonical,
+			proof.GenBigDomainTensorCommitment,
 			proof.EntryList[i],
-			proof.SizeDomainTensorCommitment)
+			proof.SizeBigDomainTensorCommitment)
 
 		// both values must be equal
 		api.AssertIsEqual(encodedLinComb, linCombEncoded)
