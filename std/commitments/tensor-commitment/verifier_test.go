@@ -388,7 +388,7 @@ func TestTensorCommitment(t *testing.T) {
 		}
 
 		// build the proof...
-		proof, err := tc.BuildProof(l, entryList)
+		proof, err := tc.BuildProofAtOnceForTest(l, entryList)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -487,7 +487,7 @@ func TestTensorCommitment(t *testing.T) {
 		entryList[1] = 5
 
 		// build the proof
-		proof, err := tc.BuildProof(l, entryList)
+		proof, err := tc.BuildProofAtOnceForTest(l, entryList)
 		if err != nil {
 			t.Fatal(err)
 		}
