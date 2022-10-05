@@ -38,6 +38,11 @@ type toBigIntInterface interface {
 func FromInterface(input interface{}) big.Int {
 	var r big.Int
 
+	// This one is meaningful enough to stay
+	if input == nil {
+		panic("got a nil entry")
+	}
+
 	switch v := input.(type) {
 	case big.Int:
 		r.Set(&v)
