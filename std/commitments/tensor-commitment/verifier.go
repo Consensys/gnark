@@ -19,6 +19,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/sis"
 )
@@ -26,6 +28,11 @@ import (
 var (
 	ErrProofFailedOob = errors.New("[SNARK] the entry is out of bound")
 )
+
+func init() {
+	// register hint
+	hint.Register(FFTInverseBN254)
+}
 
 type Proof struct {
 
@@ -38,11 +45,11 @@ type Proof struct {
 	GenInvSmallDomainTensorCommitment fr.Element
 
 	// Size of the big domain used in the tensor commitment
-	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	// i.e. the domain that is used for the FFT, of size ρ*sizePoly
 	SizeBigDomainTensorCommitment uint64
 
 	// Generator of the big domain used in the tensor commitment
-	// i.e. the domain that is used for the FFT, of size \rho*sizePoly
+	// i.e. the domain that is used for the FFT, of size ρ*sizePoly
 	GenBigDomainTensorCommitment big.Int
 
 	// list of entries of ̂{u} to query (see https://eprint.iacr.org/2021/1043.pdf for notations)
@@ -61,7 +68,7 @@ type Proof struct {
 // p[0] + p[1]X + .. p[len(p)-1]xˡᵉⁿ⁽ᵖ⁾⁻¹
 func evalAtPower(api frontend.API, p []frontend.Variable, x big.Int, n frontend.Variable, sizeDomain uint64) frontend.Variable {
 
-	// compute x' = x^{n}
+	// compute x' = xⁿ
 	nBin := api.ToBinary(n, int(sizeDomain))
 	var xexp frontend.Variable
 	xexp = 1
@@ -102,35 +109,62 @@ func selectEntry(api frontend.API, entry frontend.Variable, tab [][]frontend.Var
 	return res
 }
 
+// FFTInverseBN254 hint for the inverse FFT on BN254 (the frField is harcoded...)
+func FFTInverseBN254(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+
+	d := fft.NewDomain(uint64(len(inputs)))
+
+	v := make([]fr.Element, len(inputs))
+	for i := 0; i < len(inputs); i++ {
+		v[i].SetBigInt(inputs[i])
+	}
+	d.FFTInverse(v, fft.DIF)
+	fft.BitReverse(v)
+
+	for i := 0; i < len(results); i++ {
+		v[i].ToBigIntRegular(results[i])
+	}
+
+	return nil
+}
+
 // computes fft^-1(p) where the fft is done on <generator>, a set of size cardinality.
 // It is assumed that p is correctly sized.
 //
 // The fft is hardcoded with bn254 for now, to be more efficient than bigInt...
 // It is assumed that p is of size cardinality.
-func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) []frontend.Variable {
+func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, cardinality uint64) ([]frontend.Variable, error) {
 
 	var cardInverse fr.Element
 	cardInverse.SetUint64(cardinality).Inverse(&cardInverse)
 
 	// res of the fft inverse
-	res := make([]frontend.Variable, cardinality)
+	res, err := api.Compiler().NewHint(FFTInverseBN254, len(p), p...)
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < len(res); i++ {
+		api.Println(res[i])
+	}
 
-	// generate the roots of unity <1,\omega,\omega^2,..,\omega^{n-1}>
+	// generate the roots of unity <1,ω,ω²,..,ωⁿ⁻¹>
 	rous := make([]fr.Element, cardinality)
 	rous[0].Set(&cardInverse)
 	for i := 1; i < int(cardinality); i++ {
 		rous[i].Mul(&rous[i-1], &genInv)
 	}
+	var acc frontend.Variable
 	for i := 0; i < int(cardinality); i++ {
-		res[i] = 0
+		acc = 0
 		for j := 0; j < int(cardinality); j++ {
 			e := (j * i) % int(cardinality)
 			tmp := api.Mul(rous[e], p[j])
-			res[i] = api.Add(res[i], tmp)
+			acc = api.Add(acc, tmp)
 		}
+		api.AssertIsEqual(acc, res[i])
 	}
 
-	return res
+	return res, nil
 }
 
 // Verify a proof that digest is the hash of a  polynomial given a proof
@@ -176,7 +210,10 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 		// entry i of the encoded linear combination
 		// first we express proof.LinearCombination in canonical form
 		// then we evaluate it at the required queries
-		linCombCanonical := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
+		linCombCanonical, err := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
+		if err != nil {
+			return err
+		}
 
 		var encodedLinComb frontend.Variable
 		encodedLinComb = evalAtPower(
