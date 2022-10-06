@@ -1,12 +1,13 @@
 package groth16
 
-// solidityTemplate uses an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
+// solidityTemplate based on an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
 // audit report https://github.com/appliedzkp/semaphore/blob/master/audit/Audit%20Report%20Summary%20for%20Semaphore%20and%20MicroMix.pdf
+// But some gas cost optimizations have been made.
 // this is an experimental feature and gnark solidity generator as not been thoroughly tested
 const solidityTemplate = `
 {{- $lenK := len .G1.K }}
 // SPDX-License-Identifier: AML
-// 
+//
 // Copyright 2017 Christian Reitwiessner
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
@@ -44,7 +45,7 @@ library Pairing {
     }
 
     /*
-     * @return The negation of p, i.e. p.plus(p.negate()) should be zero. 
+     * @return The negation of p, i.e. p.plus(p.negate()) should be zero.
      */
     function negate(G1Point memory p) internal pure returns (G1Point memory) {
 
@@ -81,6 +82,24 @@ library Pairing {
         require(success,"pairing-add-failed");
     }
 
+
+    /*
+     * Same as plus but accepts raw input instead of struct
+     * @return The sum of two points of G1, one is represented as array
+     */
+    function plus_raw(uint256[4] memory input, G1Point memory r) internal view {
+        bool success;
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            success := staticcall(sub(gas(), 2000), 6, input, 0xc0, r, 0x60)
+            // Use "invalid" to make gas estimation work
+            switch success case 0 {invalid()}
+        }
+
+        require(success, "pairing-add-failed");
+    }
+
     /*
      * @return The product of a point on G1 and a scalar, i.e.
      *         p == p.scalar_mul(1) and p.plus(p) == p.scalar_mul(2) for all
@@ -100,6 +119,23 @@ library Pairing {
             switch success case 0 { invalid() }
         }
         require (success,"pairing-mul-failed");
+    }
+
+
+    /*
+     * Same as scalar_mul but accepts raw input instead of struct,
+     * Which avoid extra allocation. provided input can be allocated outside and re-used multiple times
+     */
+    function scalar_mul_raw(uint256[3] memory input, G1Point memory r) internal view {
+        bool success;
+
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            success := staticcall(sub(gas(), 2000), 7, input, 0x80, r, 0x60)
+            // Use "invalid" to make gas estimation work
+            switch success case 0 {invalid()}
+        }
+        require(success, "pairing-mul-failed");
     }
 
     /* @return The result of computing the pairing check
@@ -175,11 +211,26 @@ contract Verifier {
         vk.beta2 = Pairing.G2Point([uint256({{.G2.Beta.X.A1.String}}), uint256({{.G2.Beta.X.A0.String}})], [uint256({{.G2.Beta.Y.A1.String}}), uint256({{.G2.Beta.Y.A0.String}})]);
         vk.gamma2 = Pairing.G2Point([uint256({{.G2.Gamma.X.A1.String}}), uint256({{.G2.Gamma.X.A0.String}})], [uint256({{.G2.Gamma.Y.A1.String}}), uint256({{.G2.Gamma.Y.A0.String}})]);
         vk.delta2 = Pairing.G2Point([uint256({{.G2.Delta.X.A1.String}}), uint256({{.G2.Delta.X.A0.String}})], [uint256({{.G2.Delta.Y.A1.String}}), uint256({{.G2.Delta.Y.A0.String}})]);
-        {{- range $i, $ki := .G1.K }}   
+        {{- range $i, $ki := .G1.K }}
         vk.IC[{{$i}}] = Pairing.G1Point(uint256({{$ki.X.String}}), uint256({{$ki.Y.String}}));
         {{- end}}
     }
-    
+
+
+    function iteration(
+        uint256[3] memory mul_input,
+        Pairing.G1Point memory mul_return,
+        uint256[4] memory add_input,
+        Pairing.G1Point memory add_return
+    ) internal view {
+        Pairing.scalar_mul_raw(mul_input, mul_return);
+        add_input[0] = add_return.X;
+        add_input[1] = add_return.Y;
+        add_input[2] = mul_return.X;
+        add_input[3] = mul_return.Y;
+        Pairing.plus_raw(add_input, add_return);
+    }
+
     /*
      * @returns Whether the proof is valid given the hardcoded verifying key
      *          above and the public inputs
@@ -188,18 +239,13 @@ contract Verifier {
         uint256[2] memory a,
         uint256[2][2] memory b,
         uint256[2] memory c,
-        uint256[{{sub $lenK 1}}] memory input
+        uint256[{{sub $lenK 1}}] calldata input
     ) public view returns (bool r) {
 
         Proof memory proof;
         proof.A = Pairing.G1Point(a[0], a[1]);
         proof.B = Pairing.G2Point([b[0][0], b[0][1]], [b[1][0], b[1][1]]);
         proof.C = Pairing.G1Point(c[0], c[1]);
-
-        VerifyingKey memory vk = verifyingKey();
-
-        // Compute the linear combination vk_x
-        Pairing.G1Point memory vk_x = Pairing.G1Point(0, 0);
 
         // Make sure that proof.A, B, and C are each less than the prime q
         require(proof.A.X < PRIME_Q, "verifier-aX-gte-prime-q");
@@ -217,10 +263,42 @@ contract Verifier {
         // Make sure that every input is less than the snark scalar field
         for (uint256 i = 0; i < input.length; i++) {
             require(input[i] < SNARK_SCALAR_FIELD,"verifier-gte-snark-scalar-field");
-            vk_x = Pairing.plus(vk_x, Pairing.scalar_mul(vk.IC[i + 1], input[i]));
         }
 
-        vk_x = Pairing.plus(vk_x, vk.IC[0]);
+        VerifyingKey memory vk = verifyingKey();
+
+        // Compute the linear combination vk_x
+        Pairing.G1Point memory vk_x = Pairing.G1Point(0, 0);
+
+        // Buffer reused for addition. Avoids memory allocations
+        uint256[4] memory add_input;
+        Pairing.G1Point memory add_return = Pairing.G1Point(0, 0);
+
+        // Buffer reused for multiplication
+        uint256[3] memory mul_input;
+        Pairing.G1Point memory mul_return = Pairing.G1Point(0, 0);
+
+
+        {{- range $i, $ki := .G1.K }}
+            {{- if gt $i 0 -}}
+                {{- $pos := sub $i 1 }}
+        mul_input[0] = uint256({{$ki.X.String}});
+        mul_input[1] = uint256({{$ki.Y.String}});
+        mul_input[2] = input[{{$pos}}];
+        iteration(mul_input, mul_return, add_input, add_return);
+            {{- end -}}
+        {{- end }}
+
+        {{- range $i, $ki := .G1.K -}}
+            {{- if lt $i 1}}
+        // last
+        add_input[0] = add_return.X;
+        add_input[1] = add_return.Y;
+        add_input[2] = uint256({{$ki.X.String}});
+        add_input[3] = uint256({{$ki.Y.String}});
+        Pairing.plus_raw(add_input, add_return);
+             {{- end -}}
+        {{- end }}
 
         return Pairing.pairing(
             Pairing.negate(proof.A),
