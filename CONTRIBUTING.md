@@ -43,7 +43,7 @@ happens and under which conditions it normally happens.
 suggested. If it has, add a comment to the existing issue instead of opening a new one.
 
 #### How Do I Submit A (Good) Enhancement Suggestion?
-Enhancement suggestions are tracked as GitHub issues. Create an issue on and provide 
+Enhancement suggestions are tracked as GitHub issues. Create an issue and provide 
 the following information:
 
 * Use a **clear and descriptive title** for the issue to identify the suggestion.
