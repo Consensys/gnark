@@ -197,7 +197,7 @@ contract Verifier {
         Pairing.G2Point beta2;
         Pairing.G2Point gamma2;
         Pairing.G2Point delta2;
-        Pairing.G1Point[{{$lenK}}] IC;
+        // []G1Point IC (K in gnark) appears directly in verifyProof
     }
 
     struct Proof {
@@ -211,24 +211,28 @@ contract Verifier {
         vk.beta2 = Pairing.G2Point([uint256({{.G2.Beta.X.A1.String}}), uint256({{.G2.Beta.X.A0.String}})], [uint256({{.G2.Beta.Y.A1.String}}), uint256({{.G2.Beta.Y.A0.String}})]);
         vk.gamma2 = Pairing.G2Point([uint256({{.G2.Gamma.X.A1.String}}), uint256({{.G2.Gamma.X.A0.String}})], [uint256({{.G2.Gamma.Y.A1.String}}), uint256({{.G2.Gamma.Y.A0.String}})]);
         vk.delta2 = Pairing.G2Point([uint256({{.G2.Delta.X.A1.String}}), uint256({{.G2.Delta.X.A0.String}})], [uint256({{.G2.Delta.Y.A1.String}}), uint256({{.G2.Delta.Y.A0.String}})]);
-        {{- range $i, $ki := .G1.K }}
-        vk.IC[{{$i}}] = Pairing.G1Point(uint256({{$ki.X.String}}), uint256({{$ki.Y.String}}));
-        {{- end}}
     }
 
 
-    function iteration(
+    // accumulate scalarMul(mul_input) into q
+    // that is computes sets q = (mul_input[0:2] * mul_input[3]) + q
+    function accumulate(
         uint256[3] memory mul_input,
-        Pairing.G1Point memory mul_return,
-        uint256[4] memory add_input,
-        Pairing.G1Point memory add_return
+        Pairing.G1Point memory p,
+        uint256[4] memory buffer,
+        Pairing.G1Point memory q
     ) internal view {
-        Pairing.scalar_mul_raw(mul_input, mul_return);
-        add_input[0] = add_return.X;
-        add_input[1] = add_return.Y;
-        add_input[2] = mul_return.X;
-        add_input[3] = mul_return.Y;
-        Pairing.plus_raw(add_input, add_return);
+        // computes p = mul_input[0:2] * mul_input[3]
+        Pairing.scalar_mul_raw(mul_input, p);
+
+        // point addition inputs
+        buffer[0] = q.X;
+        buffer[1] = q.Y;
+        buffer[2] = p.X;
+        buffer[3] = p.Y;
+
+        // q = p + q
+        Pairing.plus_raw(buffer, q);
     }
 
     /*
@@ -270,34 +274,33 @@ contract Verifier {
         // Compute the linear combination vk_x
         Pairing.G1Point memory vk_x = Pairing.G1Point(0, 0);
 
-        // Buffer reused for addition. Avoids memory allocations
+        // Buffer reused for addition p1 + p2 to avoid memory allocations
+        // [0:2] -> p1.X, p1.Y ; [2:4] -> p2.X, p2.Y
         uint256[4] memory add_input;
-        Pairing.G1Point memory add_return = Pairing.G1Point(0, 0);
 
-        // Buffer reused for multiplication
+        // Buffer reused for multiplication p1 * s
+        // [0:2] -> p1.X, p1.Y ; [3] -> s
         uint256[3] memory mul_input;
-        Pairing.G1Point memory mul_return = Pairing.G1Point(0, 0);
 
+        // temporary point to avoid extra allocations in accumulate
+        Pairing.G1Point memory q = Pairing.G1Point(0, 0);
 
+        {{- $k0 := index .G1.K 0}}
+
+        vk_x.X = uint256({{$k0.X.String}}); // vk.K[0].X
+        vk_x.Y = uint256({{$k0.Y.String}}); // vk.K[0].Y
+
+        {{- if eq (len .G1.K) 1}}
+            // no public input, vk_x == vk.K[0]
+        {{- end}}
         {{- range $i, $ki := .G1.K }}
             {{- if gt $i 0 -}}
-                {{- $pos := sub $i 1 }}
-        mul_input[0] = uint256({{$ki.X.String}});
-        mul_input[1] = uint256({{$ki.Y.String}});
-        mul_input[2] = input[{{$pos}}];
-        iteration(mul_input, mul_return, add_input, add_return);
+                {{- $j := sub $i 1 }}
+        mul_input[0] = uint256({{$ki.X.String}}); // vk.K[{{$i}}].X
+        mul_input[1] = uint256({{$ki.Y.String}}); // vk.K[{{$i}}].Y
+        mul_input[2] = input[{{$j}}];
+        accumulate(mul_input, q, add_input, vk_x); // vk_x += vk.K[{{$i}}] * input[{{$j}}]
             {{- end -}}
-        {{- end }}
-
-        {{- range $i, $ki := .G1.K -}}
-            {{- if lt $i 1}}
-        // last
-        add_input[0] = add_return.X;
-        add_input[1] = add_return.Y;
-        add_input[2] = uint256({{$ki.X.String}});
-        add_input[3] = uint256({{$ki.Y.String}});
-        Pairing.plus_raw(add_input, add_return);
-             {{- end -}}
         {{- end }}
 
         return Pairing.pairing(
