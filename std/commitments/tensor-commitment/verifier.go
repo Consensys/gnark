@@ -143,9 +143,6 @@ func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, card
 	if err != nil {
 		return nil, err
 	}
-	for i := 0; i < len(res); i++ {
-		api.Println(res[i])
-	}
 
 	// generate the roots of unity <1,ω,ω²,..,ωⁿ⁻¹>
 	rous := make([]fr.Element, cardinality)
