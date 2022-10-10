@@ -488,7 +488,7 @@ func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 //
 // the print will be done once the R1CS.Solve() method is executed
 //
-// if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
+// if one of the input is a variable, its value will be resolved when R1CS.Solve() method is called
 func (system *r1cs) Println(a ...frontend.Variable) {
 	var log compiled.LogEntry
 
