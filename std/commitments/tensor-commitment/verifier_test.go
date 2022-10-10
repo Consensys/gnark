@@ -394,7 +394,7 @@ func TestTensorCommitment(t *testing.T) {
 		}
 
 		// verfiy that the proof is correct
-		err = tensorcommitment.Verify(proof, digest, l, h)
+		err = tensorcommitment.Verify(proof, digest, l)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -493,7 +493,7 @@ func TestTensorCommitment(t *testing.T) {
 		}
 
 		// verfiy that the proof is correct
-		err = tensorcommitment.Verify(proof, digest, l, h)
+		err = tensorcommitment.Verify(proof, digest, l)
 		if err != nil {
 			t.Fatal(err)
 		}
