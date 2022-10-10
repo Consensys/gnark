@@ -1,5 +1,5 @@
-github.com/AlexandreBelling/gnark-crypto v0.0.0-20221004220506-1d227ad0cd1a h1:bOy7IqyExT88Y2n/jmtrjUC0APDxgPyIuHk/2BmHiJs=
-github.com/AlexandreBelling/gnark-crypto v0.0.0-20221004220506-1d227ad0cd1a/go.mod h1:ZTnSzNlt98CpwYIJyk6q/KVcshYWr3fOXXFrrY8a0QQ=
+github.com/AlexandreBelling/gnark-crypto v0.0.0-20221010085957-69540732d69c h1:UPftsezAU3IjvyEsQQTRiuVGvdCcLhlG0v6gKoLjopM=
+github.com/AlexandreBelling/gnark-crypto v0.0.0-20221010085957-69540732d69c/go.mod h1:ZTnSzNlt98CpwYIJyk6q/KVcshYWr3fOXXFrrY8a0QQ=
 github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/consensys/bavard v0.1.13 h1:oLhMLOFGTLdlda/kma4VOJazblc7IM5y5QPd2A/YjhQ=
