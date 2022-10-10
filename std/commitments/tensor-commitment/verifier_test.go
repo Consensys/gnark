@@ -206,7 +206,10 @@ type FFTInvCircuit struct {
 
 func (circuit *FFTInvCircuit) Define(api frontend.API) error {
 
-	r := FftInverse(api, circuit.P, circuit.gInv, circuit.cardinality)
+	r, err := FftInverse(api, circuit.P, circuit.gInv, circuit.cardinality)
+	if err != nil {
+		return err
+	}
 	for i := 0; i < len(r); i++ {
 		api.AssertIsEqual(r[i], circuit.Q[i])
 	}
