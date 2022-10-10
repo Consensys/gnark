@@ -104,7 +104,6 @@ func (system *r1cs) VariableCount(t reflect.Type) int {
 func (system *r1cs) AddPublicVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, f.FullName)
-
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Public),
 	}
@@ -114,7 +113,6 @@ func (system *r1cs) AddPublicVariable(f *schema.Field) frontend.Variable {
 func (system *r1cs) AddSecretVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Secret) + system.NbPublicVariables
 	system.Secret = append(system.Secret, f.FullName)
-
 	return compiled.LinearExpression{
 		compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret),
 	}
@@ -378,7 +376,6 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
 		panic("number of public variables is inconsitent") // it grew after the schema parsing?
 	}
-
 	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
 		panic("number of secret variables is inconsitent") // it grew after the schema parsing?
 	}
@@ -416,7 +413,6 @@ func (cs *r1cs) SetSchema(s *schema.Schema) {
 	if cs.Schema != nil {
 		panic("SetSchema called multiple times")
 	}
-
 	cs.Schema = s
 	cs.NbPublicVariables = s.NbPublic + 1
 	cs.NbSecretVariables = s.NbSecret
