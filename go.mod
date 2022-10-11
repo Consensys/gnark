@@ -27,6 +27,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-// TODO : change it when gnark-crypto is merged to point to the new version of gnark-crypto
-replace github.com/consensys/gnark-crypto v0.8.1-0.20221004071630-37f9fd35e222 => github.com/AlexandreBelling/gnark-crypto v0.0.0-20221010153857-218f738f21b2
