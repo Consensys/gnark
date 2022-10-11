@@ -177,6 +177,14 @@ func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, card
 // The hash function by default here is SIS
 func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []frontend.Variable, h sis.RSisSnark) error {
 
+	// entry i of the encoded linear combination
+	// first we express proof.LinearCombination in canonical form
+	// then we evaluate it at the required queries
+	linCombCanonical, err := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
+	if err != nil {
+		return err
+	}
+
 	// for each entry in the list -> it corresponds to the sampling
 	// set on which we probabilistically check that
 	// Encoded(linear_combination) = linear_combination(encoded)
@@ -205,14 +213,6 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 			// linear combination of the encoded rows at column i
 			tmp = api.Mul(proof.Columns[i][j], l[j])
 			linCombEncoded = api.Add(linCombEncoded, tmp)
-		}
-
-		// entry i of the encoded linear combination
-		// first we express proof.LinearCombination in canonical form
-		// then we evaluate it at the required queries
-		linCombCanonical, err := FftInverse(api, proof.LinearCombination, proof.GenInvSmallDomainTensorCommitment, proof.SizeSmallDomainTensorCommitment)
-		if err != nil {
-			return err
 		}
 
 		var encodedLinComb frontend.Variable
