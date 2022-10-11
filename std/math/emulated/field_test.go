@@ -193,6 +193,144 @@ func TestVarToElements(t *testing.T) {
 	_ = f.varsToElements(in)
 }
 
+type addingG1BLS377 struct {
+	P           sw_bls12377.G1Affine `gnark:",public"`
+	Q           sw_bls12377.G1Affine
+	additionRes bls12377.G1Affine
+}
+
+//lint:ignore U1000 skipped test
+func (circuit *addingG1BLS377) Define(api frontend.API) error {
+	additionRes := circuit.P.Double(api, circuit.P)
+	api.AssertIsEqual(additionRes.X, &circuit.additionRes.X)
+	api.AssertIsEqual(additionRes.Y, &circuit.additionRes.Y)
+	return nil
+}
+
+func TestAddG1BLS377(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	_, _, A, _ := bls12377.Generators()
+	var additionRes bls12377.G1Affine
+	additionRes = *additionRes.Add(&A, &A)
+
+	circuit := addingG1BLS377{
+		additionRes: additionRes,
+		P:           sw_bls12377.G1Affine{X: NewElement[BLS12377Fp](nil), Y: NewElement[BLS12377Fp](nil)},
+		Q:           sw_bls12377.G1Affine{X: NewElement[BLS12377Fp](nil), Y: NewElement[BLS12377Fp](nil)},
+	}
+	witness := addingG1BLS377{
+		additionRes: additionRes,
+		P: sw_bls12377.G1Affine{
+			X: NewElement[BLS12377Fp](A.X),
+			Y: NewElement[BLS12377Fp](A.Y),
+		},
+		Q: sw_bls12377.G1Affine{
+			X: NewElement[BLS12377Fp](A.X),
+			Y: NewElement[BLS12377Fp](A.Y),
+		},
+	}
+
+	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
+		napi, err := NewField[BLS12377Fp](api)
+		assert.NoError(err)
+		return napi
+	})
+	// TODO @gbotrel test engine when test.SetAllVariablesAsConstants() also consider witness as
+	// constant. It shouldn't.
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt) //, test.SetAllVariablesAsConstants())
+	assert.NoError(err)
+	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
+	// assert.NoError(err)
+	// TODO: create proof
+}
+
+type addingG2BLS377 struct {
+	P           sw_bls12377.G2Affine `gnark:",public"`
+	Q           sw_bls12377.G2Affine
+	additionRes bls12377.G2Affine
+}
+
+//lint:ignore U1000 skipped test
+func (circuit *addingG2BLS377) Define(api frontend.API) error {
+	additionRes := circuit.P.Double(api, circuit.Q)
+	api.AssertIsEqual(additionRes.X.A0, &circuit.additionRes.X.A0)
+	api.AssertIsEqual(additionRes.X.A1, &circuit.additionRes.X.A1)
+	api.AssertIsEqual(additionRes.Y.A0, &circuit.additionRes.Y.A0)
+	api.AssertIsEqual(additionRes.Y.A1, &circuit.additionRes.Y.A1)
+	return nil
+}
+
+func TestAddG2BLS377(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	_, _, _, Q := bls12377.Generators()
+	var additionRes bls12377.G2Affine
+	additionRes = *additionRes.Add(&Q, &Q)
+
+	circuit := addingG2BLS377{
+		additionRes: additionRes,
+		P: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+		},
+		Q: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](nil),
+				A1: NewElement[BLS12377Fp](nil),
+			},
+		},
+	}
+	witness := addingG2BLS377{
+		additionRes: additionRes,
+		P: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.X.A0),
+				A1: NewElement[BLS12377Fp](Q.X.A1),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.Y.A0),
+				A1: NewElement[BLS12377Fp](Q.Y.A1),
+			},
+		},
+		Q: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.X.A0),
+				A1: NewElement[BLS12377Fp](Q.X.A1),
+			},
+			Y: fields_bls12377.E2{
+				A0: NewElement[BLS12377Fp](Q.Y.A0),
+				A1: NewElement[BLS12377Fp](Q.Y.A1),
+			},
+		},
+	}
+
+	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
+		napi, err := NewField[BLS12377Fp](api)
+		assert.NoError(err)
+		return napi
+	})
+	// TODO @gbotrel test engine when test.SetAllVariablesAsConstants() also consider witness as
+	// constant. It shouldn't.
+	// assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16))
+
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField(), wrapperOpt) //, test.SetAllVariablesAsConstants())
+	// assert.NoError(err)
+	// _, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[BLS12377Fp]()))
+	assert.NoError(err)
+	// TODO: create proof
+}
+
 type pairingBLS377 struct {
 	P          sw_bls12377.G1Affine `gnark:",public"`
 	Q          sw_bls12377.G2Affine
@@ -220,7 +358,6 @@ func (circuit *pairingBLS377) Define(api frontend.API) error {
 }
 
 func TestPairingBLS377(t *testing.T) {
-	t.Skip()
 	assert := test.NewAssert(t)
 
 	_, _, P, Q := bls12377.Generators()
