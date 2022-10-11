@@ -130,59 +130,126 @@ func (circuit *SumTest) Define(api frontend.API) error {
 
 func TestSum(t *testing.T) {
 
-	// generate the witness
-	// Sis with:
-	// * key of size 8
-	// * on \mathbb{Z}_r[X]/X^{8}+1
-	// * with coefficients of M < 2^4 = 16
-	// Note: this allows to hash 256bits to 256 bytes, so it's completely pointless
-	// whith those parameters, it's for testing only
-	rsis, err := gsis.NewRSis(5, 3, 4, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// // test 1: without padding
+	// {
 
-	var toSum fr.Element
-	toSum.SetString("5237501451071880303487629517413837912210424399515269294611144167440988308494")
-	toSumBytes := toSum.Marshal()
-	rsis.Write(toSumBytes)
-	sum := rsis.Sum(nil)
+	// 	// generate the witness
+	// 	// Sis with:
+	// 	// * key of size 8
+	// 	// * on \mathbb{Z}_r[X]/X^{8}+1
+	// 	// * with coefficients of M < 2^4 = 16
+	// 	// Note: this allows to hash 256bits to 256 bytes, so it's completely pointless
+	// 	// whith those parameters, it's for testing only
+	// 	rsis, err := gsis.NewRSis(5, 3, 4, 8)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
 
-	var res [8]fr.Element
-	for i := 0; i < 8; i++ {
-		res[i].SetBytes(sum[i*32 : (i+1)*32])
-	}
+	// 	var toSum fr.Element
+	// 	toSum.SetString("5237501451071880303487629517413837912210424399515269294611144167440988308494")
+	// 	toSumBytes := toSum.Marshal()
+	// 	rsis.Write(toSumBytes)
+	// 	sum := rsis.Sum(nil)
 
-	// witness
-	var witness SumTest
-	witness.M = make([]frontend.Variable, 1)
-	witness.M[0] = toSum
-	witness.R = make([]frontend.Variable, 8)
-	for i := 0; i < 8; i++ {
-		witness.R[i] = res[i]
-	}
-	witness.Sis = *(rsis.(*gsis.RSis))
+	// 	var res [8]fr.Element
+	// 	for i := 0; i < 8; i++ {
+	// 		res[i].SetBytes(sum[i*32 : (i+1)*32])
+	// 	}
 
-	// circuit
-	var circuit SumTest
-	circuit.M = make([]frontend.Variable, 1)
-	circuit.R = make([]frontend.Variable, 8)
-	circuit.Sis = *(rsis.(*gsis.RSis))
+	// 	// witness
+	// 	var witness SumTest
+	// 	witness.M = make([]frontend.Variable, 1)
+	// 	witness.M[0] = toSum
+	// 	witness.R = make([]frontend.Variable, 8)
+	// 	for i := 0; i < 8; i++ {
+	// 		witness.R[i] = res[i]
+	// 	}
+	// 	witness.Sis = *(rsis.(*gsis.RSis))
 
-	// compile...
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// 	// circuit
+	// 	var circuit SumTest
+	// 	circuit.M = make([]frontend.Variable, 1)
+	// 	circuit.R = make([]frontend.Variable, 8)
+	// 	circuit.Sis = *(rsis.(*gsis.RSis))
 
-	// solve the circuit
-	twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = ccs.IsSolved(twitness)
-	if err != nil {
-		t.Fatal(err)
+	// 	// compile...
+	// 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+
+	// 	// solve the circuit
+	// 	twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+	// 	err = ccs.IsSolved(twitness)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+	// }
+
+	// test 2: with padding
+	{
+
+		// generate the witness
+		logTwoDegree := 3
+		logTwoBound := 4
+		keySize := 32
+		rsis, err := gsis.NewRSis(5, logTwoDegree, logTwoBound, keySize)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// data to hash, the buffer in the hasher will be padded, because
+		// the correct size if [4]fr.Element.
+		var toSum [3]fr.Element
+		toSum[0].SetRandom()
+		toSum[1].SetRandom()
+		toSum[2].SetRandom()
+		rsis.Write(toSum[0].Marshal())
+		rsis.Write(toSum[1].Marshal())
+		rsis.Write(toSum[2].Marshal())
+		sum := rsis.Sum(nil)
+
+		var res [8]fr.Element
+		for i := 0; i < 8; i++ {
+			res[i].SetBytes(sum[i*32 : (i+1)*32])
+		}
+
+		// witness
+		var witness SumTest
+		witness.M = make([]frontend.Variable, 3)
+		witness.M[0] = toSum[0]
+		witness.M[1] = toSum[1]
+		witness.M[2] = toSum[2]
+		witness.R = make([]frontend.Variable, 8)
+		for i := 0; i < 8; i++ {
+			witness.R[i] = res[i]
+		}
+		witness.Sis = *(rsis.(*gsis.RSis))
+
+		// circuit
+		var circuit SumTest
+		circuit.M = make([]frontend.Variable, 3)
+		circuit.R = make([]frontend.Variable, 8)
+		circuit.Sis = *(rsis.(*gsis.RSis))
+
+		// compile...
+		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// solve the circuit
+		twitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = ccs.IsSolved(twitness)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 }

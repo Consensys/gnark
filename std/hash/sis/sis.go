@@ -51,6 +51,7 @@ func NewRSisSnark(s gsis.RSis) RSisSnark {
 // v is supposed to be the raw data to be hashed, i.e. it is not preprocessed.
 // v will be interpreted in binary like this: mbin := [bin(m[len(m)-1]) || bin(m[len(m)-2]) || ... ]
 // where bin is big endian decomposition (corresponding to what Marshal() from gnark-crypto gives).
+// If len(v) is smaller than needed, we padd with zeroes [bin(m[len(m)-1]) || bin(m[len(m)-2]) || ... || 0 || ...]
 // Then mbin is processed per chunk of LogTwoBound bits, where each chunk corresponds
 // to the coefficient of a polynomial.
 func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Variable, error) {
@@ -74,12 +75,19 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 		vBits[i] = 0
 	}
 
+	// the padding (if needed) is done by appending zeroes in gnark-crypto.
+	// Since here the endianness is reversed (little endian), the resulting
+	// slice vBits must be prepended with zeroes. So since vBits is already
+	// initialised with zeroes, we copy v in vBits from an offset equal to
+	// len(vBits)-len(v)*nbBitsPerFrElements
+	offset := nbBitsToSum - len(v)*nbBitsPerFrElement
+
 	// because of the endianness, we store the bit decomposition of
 	// by reversing v, and storing each components of v sequentially in that
 	// order, in little endian: [ToBinary(v[len(v)-1]),..,ToBinary(v[0])]
 	for i := 0; i < len(v); i++ {
 		tmp := api.ToBinary(v[len(v)-i-1])
-		copy(vBits[i*nbBitsPerFrElement:], tmp)
+		copy(vBits[offset+i*nbBitsPerFrElement:], tmp)
 	}
 
 	nbCoefficientsM := r.Degree * len(r.A) // nbCoefficientsM
