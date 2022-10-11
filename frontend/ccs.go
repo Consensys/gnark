@@ -17,10 +17,10 @@ package frontend
 import (
 	"io"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // CompiledConstraintSystem interface that a compiled (=typed, and correctly routed)

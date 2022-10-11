@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	"math"
 
 	fr "github.com/consensys/gnark/internal/tinyfield"

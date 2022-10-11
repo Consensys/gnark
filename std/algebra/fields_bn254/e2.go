@@ -19,10 +19,10 @@ package fields_bn254
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	bn254 "github.com/nume-crypto/gnark-crypto/ecc/bn254"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 )
 
 // Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp6->Fp12 (Fp2 = Fp(u), Fp6 = Fp2(v), Fp12 = Fp6(w))

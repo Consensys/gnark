@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 
 	"github.com/consensys/gnark/frontend"
 )

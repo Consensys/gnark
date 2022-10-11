@@ -19,9 +19,9 @@ package fields_bls24315
 import (
 	"math/big"
 
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	bls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315"
 )
 
 // Extension stores the non residue elmt for an extension of type Fp->Fp2->Fp4->Fp12->Fp24 (Fp2 = Fp(u), Fp4 = Fp2(v), Fp12 = Fp4(w), Fp24 = Fp6(i))

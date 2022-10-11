@@ -17,9 +17,9 @@
 package groth16_test
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 

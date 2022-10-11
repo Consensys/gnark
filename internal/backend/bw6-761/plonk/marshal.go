@@ -17,10 +17,10 @@
 package plonk
 
 import (
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-761"
 
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 	"io"
 )
 

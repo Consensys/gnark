@@ -3,7 +3,7 @@ package emulated
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // FieldParams describe the emulated field characteristics

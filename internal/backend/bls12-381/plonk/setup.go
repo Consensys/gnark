@@ -18,12 +18,12 @@ package plonk
 
 import (
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-381/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-381/fr/kzg"
 	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
 
-	kzgg "github.com/consensys/gnark-crypto/kzg"
+	kzgg "github.com/nume-crypto/gnark-crypto/kzg"
 )
 
 // ProvingKey stores the data needed to generate a proof:

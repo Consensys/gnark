@@ -3,8 +3,8 @@ package circuits
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 type selectCircuit struct {

@@ -214,7 +214,7 @@ contract Verifier {
     }
 
 
-    // accumulate scalarMul(mul_input) into q
+    // accumulate ScalarMultiplication(mul_input) into q
     // that is computes sets q = (mul_input[0:2] * mul_input[3]) + q
     function accumulate(
         uint256[3] memory mul_input,

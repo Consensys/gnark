@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
@@ -44,6 +43,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // NewBuilder returns a new R1CS compiler

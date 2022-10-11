@@ -49,10 +49,10 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 var (

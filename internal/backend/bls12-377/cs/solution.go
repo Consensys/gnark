@@ -28,7 +28,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/rs/zerolog"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr"
 )
 
 // solution represents elements needed to compute

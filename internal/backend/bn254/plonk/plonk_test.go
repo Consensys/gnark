@@ -17,9 +17,9 @@
 package plonk_test
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bn254"
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
@@ -28,12 +28,12 @@ import (
 	bn254plonk "github.com/consensys/gnark/internal/backend/bn254/plonk"
 
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/kzg"
 	"math/big"
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"

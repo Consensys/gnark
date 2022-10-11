@@ -20,13 +20,13 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-315/fr/kzg"
 )
 
 type verifierCircuit struct {

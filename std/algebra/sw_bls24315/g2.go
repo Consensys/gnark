@@ -19,11 +19,11 @@ package sw_bls24315
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	bls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315"
 )
 
 // G2Jac point in Jacobian coords
@@ -208,16 +208,16 @@ func (p *G2Affine) Double(api frontend.API, p1 G2Affine) *G2Affine {
 
 }
 
-// ScalarMul sets P = [s] Q and returns P.
+// ScalarMultiplication sets P = [s] Q and returns P.
 //
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *G2Affine) ScalarMul(api frontend.API, Q G2Affine, s interface{}) *G2Affine {
+func (P *G2Affine) ScalarMultiplication(api frontend.API, Q G2Affine, s interface{}) *G2Affine {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return P.constScalarMul(api, Q, n)
+		return P.constScalarMultiplication(api, Q, n)
 	} else {
-		return P.varScalarMul(api, Q, s)
+		return P.varScalarMultiplication(api, Q, s)
 	}
 }
 
@@ -246,8 +246,8 @@ func init() {
 	hint.Register(DecomposeScalarG2)
 }
 
-// varScalarMul sets P = [s] Q and returns P.
-func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variable) *G2Affine {
+// varScalarMultiplication sets P = [s] Q and returns P.
+func (P *G2Affine) varScalarMultiplication(api frontend.API, Q G2Affine, s frontend.Variable) *G2Affine {
 	// This method computes [s] Q. We use several methods to reduce the number
 	// of added constraints - first, instead of classical double-and-add, we use
 	// the optimized version from https://github.com/zcash/zcash/issues/3924
@@ -352,9 +352,9 @@ func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variabl
 	return P
 }
 
-// constScalarMul sets P = [s] Q and returns P.
-func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2Affine {
-	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
+// constScalarMultiplication sets P = [s] Q and returns P.
+func (P *G2Affine) constScalarMultiplication(api frontend.API, Q G2Affine, s *big.Int) *G2Affine {
+	// see the comments in varScalarMultiplication. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
 	var Acc, negQ, negPhiQ, phiQ G2Affine

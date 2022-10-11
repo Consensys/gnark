@@ -17,9 +17,9 @@
 package plonk_test
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-761"
 
 	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
 
@@ -28,12 +28,12 @@ import (
 	bw6_761plonk "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
 
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr/kzg"
 	"math/big"
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"

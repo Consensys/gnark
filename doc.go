@@ -19,7 +19,7 @@ package gnark
 
 import (
 	"github.com/blang/semver/v4"
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 var Version = semver.MustParse("0.8.0-alpha")

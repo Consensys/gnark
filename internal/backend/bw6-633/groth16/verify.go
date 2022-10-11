@@ -17,9 +17,9 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-633"
 
 	"errors"
 	"fmt"

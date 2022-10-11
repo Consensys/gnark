@@ -23,15 +23,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/consensys/gnark-crypto/accumulator/merkletree"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/accumulator/merkletree"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/hash"
 )
 
 // MerkleProofTest used for testing onlys

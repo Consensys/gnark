@@ -21,9 +21,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
@@ -58,7 +58,7 @@ func (h *MiMC) Reset() {
 // Hash hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition.
-// See github.com/consensys/gnark-crypto for reference implementation.
+// See github.com/nume-crypto/gnark-crypto for reference implementation.
 func (h *MiMC) Sum() frontend.Variable {
 
 	//h.Write(data...)s

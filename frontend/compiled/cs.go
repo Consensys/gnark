@@ -7,13 +7,13 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // ConstraintSystem contains common element between R1CS and ConstraintSystem

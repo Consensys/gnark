@@ -23,16 +23,16 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-317/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-317/fr/kzg"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bls24-317"
 
 	bls24_317witness "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/logger"
 )
 

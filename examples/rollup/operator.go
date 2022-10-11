@@ -21,8 +21,8 @@ import (
 	"hash"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/accumulator/merkletree"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/nume-crypto/gnark-crypto/accumulator/merkletree"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/mimc"
 )
 
 var hFunc = mimc.NewMiMC()

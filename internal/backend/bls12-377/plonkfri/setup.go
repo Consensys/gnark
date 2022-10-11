@@ -18,9 +18,9 @@ package plonkfri
 
 import (
 	"crypto/sha256"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fri"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr/fri"
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 )
 

@@ -95,15 +95,15 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 	return p
 }
 
-// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// ScalarMultiplication computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+func (p *Point) ScalarMultiplication(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
 	if len(endo) == 1 && endo[0] != nil {
 		// use glv
-		return p.scalarMulGLV(api, p1, scalar, curve, endo[0])
+		return p.ScalarMultiplicationGLV(api, p1, scalar, curve, endo[0])
 	}
 
 	// first unpack the scalar
@@ -142,10 +142,10 @@ func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	return p
 }
 
-// doubleBaseScalarMul computes s1*P1+s2*P2
+// doubleBaseScalarMultiplication computes s1*P1+s2*P2
 // where P1 and P2 are points on a twisted Edwards curve
 // and s1, s2 scalars.
-func (p *Point) doubleBaseScalarMul(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams) *Point {
+func (p *Point) doubleBaseScalarMultiplication(api frontend.API, p1, p2 *Point, s1, s2 frontend.Variable, curve *CurveParams) *Point {
 
 	// first unpack the scalars
 	b1 := api.ToBinary(s1)

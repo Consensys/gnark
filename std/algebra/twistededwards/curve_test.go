@@ -21,15 +21,15 @@ import (
 	"math/big"
 	"testing"
 
-	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
-	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	tbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	tbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
-	tbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	tbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
-	tbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	"github.com/consensys/gnark-crypto/ecc/twistededwards"
+	tbls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377/twistededwards"
+	tbls12381_bandersnatch "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/bandersnatch"
+	tbls12381 "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/twistededwards"
+	tbls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315/twistededwards"
+	tbls24317 "github.com/nume-crypto/gnark-crypto/ecc/bls24-317/twistededwards"
+	tbn254 "github.com/nume-crypto/gnark-crypto/ecc/bn254/twistededwards"
+	tbw6633 "github.com/nume-crypto/gnark-crypto/ecc/bw6-633/twistededwards"
+	tbw6761 "github.com/nume-crypto/gnark-crypto/ecc/bw6-761/twistededwards"
+	"github.com/nume-crypto/gnark-crypto/ecc/twistededwards"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
@@ -87,15 +87,15 @@ func TestIsOnCurve(t *testing.T) {
 }
 
 type addCircuit struct {
-	curveID               twistededwards.ID
-	P1, P2                Point
-	AddResult             Point
-	DoubleResult          Point
-	ScalarMulResult       Point
-	DoubleScalarMulResult Point
-	NegResult             Point
-	S1, S2                frontend.Variable
-	fixedPoint            Point
+	curveID                          twistededwards.ID
+	P1, P2                           Point
+	AddResult                        Point
+	DoubleResult                     Point
+	ScalarMultiplicationResult       Point
+	DoubleScalarMultiplicationResult Point
+	NegResult                        Point
+	S1, S2                           frontend.Variable
+	fixedPoint                       Point
 }
 
 func (circuit *addCircuit) Define(api frontend.API) error {
@@ -136,23 +136,23 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 
 	{
 		// scalar mul
-		res := curve.ScalarMul(circuit.P2, circuit.S2)
-		api.AssertIsEqual(res.X, circuit.ScalarMulResult.X)
-		api.AssertIsEqual(res.Y, circuit.ScalarMulResult.Y)
+		res := curve.ScalarMultiplication(circuit.P2, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.ScalarMultiplicationResult.X)
+		api.AssertIsEqual(res.Y, circuit.ScalarMultiplicationResult.Y)
 	}
 
 	{
 		// scalar mul fixed
-		res := curve.ScalarMul(circuit.fixedPoint, circuit.S2)
-		api.AssertIsEqual(res.X, circuit.ScalarMulResult.X)
-		api.AssertIsEqual(res.Y, circuit.ScalarMulResult.Y)
+		res := curve.ScalarMultiplication(circuit.fixedPoint, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.ScalarMultiplicationResult.X)
+		api.AssertIsEqual(res.Y, circuit.ScalarMultiplicationResult.Y)
 	}
 
 	{
 		// double scalar mul
-		res := curve.DoubleBaseScalarMul(circuit.P1, circuit.P2, circuit.S1, circuit.S2)
-		api.AssertIsEqual(res.X, circuit.DoubleScalarMulResult.X)
-		api.AssertIsEqual(res.Y, circuit.DoubleScalarMulResult.Y)
+		res := curve.DoubleBaseScalarMultiplication(circuit.P1, circuit.P2, circuit.S1, circuit.S2)
+		api.AssertIsEqual(res.X, circuit.DoubleScalarMultiplicationResult.X)
+		api.AssertIsEqual(res.Y, circuit.DoubleScalarMultiplicationResult.Y)
 	}
 
 	return nil
@@ -177,8 +177,8 @@ func TestCurve(t *testing.T) {
 			witness.P2,
 			witness.AddResult,
 			witness.DoubleResult,
-			witness.ScalarMulResult,
-			witness.DoubleScalarMulResult,
+			witness.ScalarMultiplicationResult,
+			witness.DoubleScalarMultiplicationResult,
 			witness.NegResult,
 			witness.S1, witness.S2 = testData(params, curve)
 
@@ -214,12 +214,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -238,12 +238,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -262,12 +262,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -286,12 +286,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -310,12 +310,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -334,12 +334,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -358,12 +358,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -382,12 +382,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 

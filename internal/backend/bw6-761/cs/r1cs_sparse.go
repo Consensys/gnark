@@ -19,7 +19,7 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math"
@@ -36,7 +36,7 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 )

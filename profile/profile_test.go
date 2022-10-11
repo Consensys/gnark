@@ -3,10 +3,10 @@ package profile_test
 import (
 	"fmt"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/profile"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 type Circuit struct {

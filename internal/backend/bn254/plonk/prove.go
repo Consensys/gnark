@@ -24,19 +24,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bn254"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/kzg"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/fft"
 
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"

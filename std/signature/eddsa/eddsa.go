@@ -26,15 +26,15 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 
-	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
+	tedwards "github.com/nume-crypto/gnark-crypto/ecc/twistededwards"
 
-	edwardsbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	edwardsbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edwardsbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edwardsbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
-	edwardsbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edwardsbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
-	edwardsbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
+	edwardsbls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377/twistededwards"
+	edwardsbls12381 "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/twistededwards"
+	edwardsbls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315/twistededwards"
+	edwardsbls24317 "github.com/nume-crypto/gnark-crypto/ecc/bls24-317/twistededwards"
+	edwardsbn254 "github.com/nume-crypto/gnark-crypto/ecc/bn254/twistededwards"
+	edwardsbw6633 "github.com/nume-crypto/gnark-crypto/ecc/bw6-633/twistededwards"
+	edwardsbw6761 "github.com/nume-crypto/gnark-crypto/ecc/bw6-761/twistededwards"
 )
 
 // PublicKey stores an eddsa public key (to be used in gnark circuit)
@@ -72,7 +72,7 @@ func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pu
 
 	//[S]G-[H(R,A,M)]*A
 	_A := curve.Neg(pubKey.A)
-	Q := curve.DoubleBaseScalarMul(base, _A, sig.S, hRAM)
+	Q := curve.DoubleBaseScalarMultiplication(base, _A, sig.S, hRAM)
 	curve.AssertIsOnCurve(Q)
 
 	//[S]G-[H(R,A,M)]*A-R

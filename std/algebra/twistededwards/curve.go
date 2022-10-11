@@ -1,8 +1,8 @@
 package twistededwards
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc/twistededwards"
 )
 
 // curve curve is the default twisted edwards companion curve (defined on api.Curve().Fr)
@@ -44,20 +44,20 @@ func (c *curve) Neg(p1 Point) Point {
 func (c *curve) AssertIsOnCurve(p1 Point) {
 	p1.assertIsOnCurve(c.api, c.params)
 }
-func (c *curve) ScalarMul(p1 Point, scalar frontend.Variable) Point {
+func (c *curve) ScalarMultiplication(p1 Point, scalar frontend.Variable) Point {
 	var p Point
 	if c.endo != nil {
 		// TODO restore
 		// this is disabled until this issue is solved https://github.com/ConsenSys/gnark/issues/268
-		// p.scalarMulGLV(c.api, &p1, scalar, c.params, c.endo)
-		p.scalarMul(c.api, &p1, scalar, c.params)
+		// p.ScalarMultiplicationGLV(c.api, &p1, scalar, c.params, c.endo)
+		p.ScalarMultiplication(c.api, &p1, scalar, c.params)
 	} else {
-		p.scalarMul(c.api, &p1, scalar, c.params)
+		p.ScalarMultiplication(c.api, &p1, scalar, c.params)
 	}
 	return p
 }
-func (c *curve) DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point {
+func (c *curve) DoubleBaseScalarMultiplication(p1, p2 Point, s1, s2 frontend.Variable) Point {
 	var p Point
-	p.doubleBaseScalarMul(c.api, &p1, &p2, s1, s2, c.params)
+	p.doubleBaseScalarMultiplication(c.api, &p1, &p2, s1, s2, c.params)
 	return p
 }

@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark/frontend/schema"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-317/fr"
 )
 
 type Witness []fr.Element

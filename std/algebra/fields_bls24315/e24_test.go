@@ -19,11 +19,11 @@ package fields_bls24315
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	bls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315"
 )
 
 //--------------------------------------------------------------------
@@ -225,7 +225,8 @@ func TestFp24CyclotomicSquareCompressed(t *testing.T) {
 	a.FrobeniusQuad(&tmp).Mul(&a, &tmp)
 
 	b.CyclotomicSquare(&a)
-	b.Decompress(&b)
+	// Check decompress algorithm #vikram
+	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 

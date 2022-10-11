@@ -18,9 +18,9 @@ package plonkfri
 
 import (
 	"crypto/sha256"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fri"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr/fri"
 	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
 )
 

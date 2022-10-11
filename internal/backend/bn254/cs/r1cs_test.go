@@ -29,7 +29,7 @@ import (
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 )
 
 func TestSerialization(t *testing.T) {

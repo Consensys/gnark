@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend/schema"
 	witness_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	witness_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/witness"
@@ -17,6 +16,7 @@ import (
 	"github.com/consensys/gnark/internal/tinyfield"
 	witness_tinyfield "github.com/consensys/gnark/internal/tinyfield/witness"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 type Vector interface {

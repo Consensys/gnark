@@ -20,9 +20,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // GT target group of the pairing

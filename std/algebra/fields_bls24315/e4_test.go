@@ -19,12 +19,12 @@ package fields_bls24315
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fp"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	bls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-315/fp"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr"
 )
 
 type e4Add struct {

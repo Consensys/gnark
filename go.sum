@@ -2,8 +2,8 @@ github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/consensys/bavard v0.1.13 h1:oLhMLOFGTLdlda/kma4VOJazblc7IM5y5QPd2A/YjhQ=
 github.com/consensys/bavard v0.1.13/go.mod h1:9ItSMtA/dXMAiL7BG6bqW2m3NdSEObYWoH223nGHukI=
-github.com/consensys/gnark-crypto v0.8.0 h1:HHmhTEzHq6k/fJroPGzq8Biafn2X2IFKlKDhaL5gMHU=
-github.com/consensys/gnark-crypto v0.8.0/go.mod h1:ZTnSzNlt98CpwYIJyk6q/KVcshYWr3fOXXFrrY8a0QQ=
+github.com/nume-crypto/gnark-crypto v0.8.0 h1:HHmhTEzHq6k/fJroPGzq8Biafn2X2IFKlKDhaL5gMHU=
+github.com/nume-crypto/gnark-crypto v0.8.0/go.mod h1:ZTnSzNlt98CpwYIJyk6q/KVcshYWr3fOXXFrrY8a0QQ=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -30,10 +30,8 @@ github.com/leanovate/gopter v0.2.9/go.mod h1:U2L/78B+KVFIx2VmW6onHJQzXtFb+p5y3y2
 github.com/mmcloughlin/addchain v0.4.0 h1:SobOdjm2xLj1KkXN5/n0xTIWyZA2+s99UCY1iPfkHRY=
 github.com/mmcloughlin/addchain v0.4.0/go.mod h1:A86O+tHqZLMNO4w6ZZ4FlVQEadcoqkyU72HC5wJ4RlU=
 github.com/mmcloughlin/profile v0.1.1/go.mod h1:IhHD7q1ooxgwTgjxQYkACGA77oFTDdFVejUS1/tS/qU=
-github.com/nume-crypto/gnark-crypto v0.7.1-0.20221010211238-fff53e6456dc h1:5nrcuPlV88ps49nKbe26jgB/IkhZv0PgiVcDeFSSyH8=
-github.com/nume-crypto/gnark-crypto v0.7.1-0.20221010211238-fff53e6456dc/go.mod h1:KQw5V5DwKOwpuxiBv54q5WV3ejyxidKMSi0rabkXLck=
-github.com/nume-crypto/gnark-crypto v0.8.1 h1:bI9IMy2nopDUQNOybAmKSfZTPqsULIEZtix3/3HED/E=
-github.com/nume-crypto/gnark-crypto v0.8.1/go.mod h1:jQ7+npq5zAJL7pXlsq5U9z2gE36YPxawqKRji2fLWu0=
+github.com/nume-crypto/gnark-crypto v0.8.2 h1:NEjGTA+AvyS9rG5D0olawXSRZgvsc1Dw0aihMKiSnmQ=
+github.com/nume-crypto/gnark-crypto v0.8.2/go.mod h1:coSRhdrZrTfg9wT22GDtt9HD6MRQB1fnnYaTjVL1lZs=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

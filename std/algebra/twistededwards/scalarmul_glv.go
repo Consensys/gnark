@@ -21,9 +21,9 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // phi endomorphism √-2 ∈ 𝒪₋₈
@@ -64,7 +64,7 @@ var DecomposeScalar = func(scalarField *big.Int, inputs []*big.Int, res []*big.I
 
 	// sp[0] is always negative because, in SplitScalar(), we always round above
 	// the determinant/2 computed in PrecomputeLattice() which is negative for Bandersnatch.
-	// Thus taking -sp[0] here and negating the point in ScalarMul().
+	// Thus taking -sp[0] here and negating the point in ScalarMultiplication().
 	// If we keep -sp[0] it will be reduced mod r (the BLS12-381 prime order)
 	// and not the Bandersnatch prime order (Order) and the result will be incorrect.
 	// Also, if we reduce it mod Order here, we can't use api.ToBinary(sp[0], 129)
@@ -85,12 +85,12 @@ func init() {
 	hint.Register(DecomposeScalar)
 }
 
-// ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// ScalarMultiplication computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) scalarMulGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
+func (p *Point) ScalarMultiplicationGLV(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo *EndoParams) *Point {
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	// s1 + λ * s2 == s mod Order,
 	// with λ s.t. λ² = -2 mod Order.

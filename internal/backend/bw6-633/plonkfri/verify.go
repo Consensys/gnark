@@ -19,13 +19,13 @@ package plonkfri
 import (
 	"crypto/sha256"
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr/fri"
 	"math/big"
 
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	fiatshamir "github.com/nume-crypto/gnark-crypto/fiat-shamir"
 )
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")

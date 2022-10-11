@@ -53,7 +53,7 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 
 	// [f(a)]G₁
 	var claimedValueG1Aff sw_bls12377.G1Affine
-	claimedValueG1Aff.ScalarMul(api, srs.G1, proof.ClaimedValue)
+	claimedValueG1Aff.ScalarMultiplication(api, srs.G1, proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
 	var fminusfaG1 sw_bls12377.G1Affine
@@ -66,7 +66,7 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 
 	// [α-a]G₂
 	var alphaMinusaG2 sw_bls12377.G2Affine
-	alphaMinusaG2.ScalarMul(api, srs.G2[0], point).
+	alphaMinusaG2.ScalarMultiplication(api, srs.G2[0], point).
 		Neg(api, alphaMinusaG2).
 		AddAssign(api, srs.G2[1])
 

@@ -22,10 +22,10 @@ package plonk
 import (
 	"io"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/kzg"
 
 	"github.com/consensys/gnark/backend/witness"
 	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
@@ -52,13 +52,13 @@ import (
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
-	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
-	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
-	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
-	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
-	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
-	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
-	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	kzg_bls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr/kzg"
+	kzg_bls12381 "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/fr/kzg"
+	kzg_bls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315/fr/kzg"
+	kzg_bls24317 "github.com/nume-crypto/gnark-crypto/ecc/bls24-317/fr/kzg"
+	kzg_bn254 "github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/kzg"
+	kzg_bw6633 "github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr/kzg"
+	kzg_bw6761 "github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr/kzg"
 
 	gnarkio "github.com/consensys/gnark/io"
 )

@@ -23,16 +23,16 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr/kzg"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-761"
 
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/logger"
 )
 

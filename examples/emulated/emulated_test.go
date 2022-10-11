@@ -3,10 +3,10 @@ package emulated
 import (
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/std"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 func TestEmulatedArithmetic(t *testing.T) {

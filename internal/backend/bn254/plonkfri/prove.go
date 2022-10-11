@@ -22,17 +22,17 @@ import (
 	"math/bits"
 	"runtime"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/fft"
 
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fri"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/fri"
 
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	fiatshamir "github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 )

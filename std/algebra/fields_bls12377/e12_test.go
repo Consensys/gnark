@@ -20,10 +20,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	bls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
 )
 
 //--------------------------------------------------------------------
@@ -225,7 +225,9 @@ func TestFp12CyclotomicSquareCompressed(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 
 	b.CyclotomicSquareCompressed(&a)
-	b.Decompress(&b)
+	// Check decompress algorithm #vikram
+
+	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 
@@ -394,10 +396,10 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	a.Inverse(&a)
 	b.Mul(&b, &a)
 	a.FrobeniusSquare(&b).Mul(&a, &b)
+	// this change needs to be checked #vikram
+	at := c.Exp(a, new(big.Int).SetUint64(expo))
 
-	c.Exp(&a, *new(big.Int).SetUint64(expo))
-
-	witness.A.Assign(&a)
+	witness.A.Assign(at)
 	witness.C.Assign(&c)
 
 	// cs values

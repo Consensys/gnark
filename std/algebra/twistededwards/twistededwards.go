@@ -20,17 +20,17 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	edbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
-	edbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
-	edbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
-	edbls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/twistededwards"
-	edbls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/twistededwards"
-	edbn254 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards"
-	edbw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/twistededwards"
-	edbw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/twistededwards"
-	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	edbls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377/twistededwards"
+	edbls12381_bandersnatch "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/bandersnatch"
+	edbls12381 "github.com/nume-crypto/gnark-crypto/ecc/bls12-381/twistededwards"
+	edbls24315 "github.com/nume-crypto/gnark-crypto/ecc/bls24-315/twistededwards"
+	edbls24317 "github.com/nume-crypto/gnark-crypto/ecc/bls24-317/twistededwards"
+	edbn254 "github.com/nume-crypto/gnark-crypto/ecc/bn254/twistededwards"
+	edbw6633 "github.com/nume-crypto/gnark-crypto/ecc/bw6-633/twistededwards"
+	edbw6761 "github.com/nume-crypto/gnark-crypto/ecc/bw6-761/twistededwards"
+	"github.com/nume-crypto/gnark-crypto/ecc/twistededwards"
 )
 
 // Curve methods implemented by a twisted edwards curve inside a circuit
@@ -41,8 +41,8 @@ type Curve interface {
 	Double(p1 Point) Point
 	Neg(p1 Point) Point
 	AssertIsOnCurve(p1 Point)
-	ScalarMul(p1 Point, scalar frontend.Variable) Point
-	DoubleBaseScalarMul(p1, p2 Point, s1, s2 frontend.Variable) Point
+	ScalarMultiplication(p1 Point, scalar frontend.Variable) Point
+	DoubleBaseScalarMultiplication(p1, p2 Point, s1, s2 frontend.Variable) Point
 	API() frontend.API
 }
 

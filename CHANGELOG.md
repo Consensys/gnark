@@ -20,7 +20,7 @@
 ### Perf
 - restored frontend.WithCapacity option...
 - **plonk:** IsConstant -> ConstantValue
-- **sw:** no need for Lookup2 in constScalarMul
+- **sw:** no need for Lookup2 in constScalarMultiplication
 - remove offset shifts in plonk compile
 - remove post-compile offset id in R1CS builder
 
@@ -50,7 +50,7 @@
 - Merge pull request [#275](https://github.com/consensys/gnark/issues/275) from ConsenSys/refactor-compiler-builder
 - Merge pull request [#271](https://github.com/consensys/gnark/issues/271) from ConsenSys/refactor-compiled
 - Merge pull request [#267](https://github.com/consensys/gnark/issues/267) from ConsenSys/perf/tEd-add
-- Merge pull request [#265](https://github.com/consensys/gnark/issues/265) from ConsenSys/perf/SW-constScalarMul
+- Merge pull request [#265](https://github.com/consensys/gnark/issues/265) from ConsenSys/perf/SW-constScalarMultiplication
 
 
 

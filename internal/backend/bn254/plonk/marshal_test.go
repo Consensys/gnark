@@ -17,12 +17,12 @@
 package plonk
 
 import (
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bn254"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 
 	"bytes"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr/fft"
 	gnarkio "github.com/consensys/gnark/io"
 	"io"
 	"math/big"

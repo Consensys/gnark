@@ -2,19 +2,19 @@
 	{{- if eq .Curve "tinyfield"}}
 	fr "github.com/consensys/gnark/internal/tinyfield"	
 	{{- else}}
-	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/{{toLower .Curve}}/fr"
 	{{- end}}
 {{- end }}
 
 {{- define "import_fri" }}
-	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fri"
+	"github.com/nume-crypto/gnark-crypto/ecc/{{toLower .Curve}}/fr/fri"
 {{- end}}
 
 {{- define "import_curve" }}
 	{{- if ne .Curve "tinyfield"}}
-	curve "github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/{{toLower .Curve}}"
 	{{- else }}
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	{{- end}}
 {{- end }}
 
@@ -27,7 +27,7 @@
 {{- end }}
 
 {{- define "import_fft" }}
-	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/{{toLower .Curve}}/fr/fft"
 {{- end }}
 
 {{- define "import_witness" }}
@@ -47,9 +47,9 @@
 {{- end }}
 
 {{- define "import_polynomial" }}
-	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial"
+	"github.com/nume-crypto/gnark-crypto/ecc/{{ toLower .Curve }}/fr/polynomial"
 {{- end }}
 
 {{- define "import_kzg" }}
-	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/{{ toLower .Curve }}/fr/kzg"
 {{- end }}

@@ -34,10 +34,10 @@ import (
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 	"math"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls24-315/fr"
 
 	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 )

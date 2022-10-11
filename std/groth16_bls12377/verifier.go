@@ -20,12 +20,12 @@ package groth16_bls12377
 import (
 	"reflect"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/std/algebra/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
+	bls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
 )
 
 // Proof represents a Groth16 proof
@@ -69,7 +69,7 @@ func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []front
 
 	for k, v := range publicInputs {
 		var ki sw_bls12377.G1Affine
-		ki.ScalarMul(api, vk.G1.K[k+1], v)
+		ki.ScalarMultiplication(api, vk.G1.K[k+1], v)
 		kSum.AddAssign(api, ki)
 	}
 

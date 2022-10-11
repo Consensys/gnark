@@ -6,9 +6,9 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc/bn254/fr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

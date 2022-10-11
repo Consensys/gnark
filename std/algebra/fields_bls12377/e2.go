@@ -19,10 +19,10 @@ package fields_bls12377
 import (
 	"math/big"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	bls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 )
 
 // E2 element in a quadratic extension

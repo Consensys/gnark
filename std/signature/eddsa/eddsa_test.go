@@ -22,14 +22,14 @@ import (
 	"testing"
 	"time"
 
-	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
-	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
+	tedwards "github.com/nume-crypto/gnark-crypto/ecc/twistededwards"
+	"github.com/nume-crypto/gnark-crypto/hash"
+	"github.com/nume-crypto/gnark-crypto/signature/eddsa"
 )
 
 type eddsaCircuit struct {

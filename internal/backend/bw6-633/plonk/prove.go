@@ -24,19 +24,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-633"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr/kzg"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-633/fr/fft"
 
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
 	"github.com/consensys/gnark/internal/backend/bw6-633/cs"
 
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"

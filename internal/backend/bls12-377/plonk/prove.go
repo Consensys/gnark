@@ -24,19 +24,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr/kzg"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr/fft"
 
 	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 
 	"github.com/consensys/gnark/internal/backend/bls12-377/cs"
 
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/nume-crypto/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"

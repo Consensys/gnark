@@ -17,9 +17,9 @@
 package groth16_test
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/nume-crypto/gnark-crypto/ecc/bw6-761/fr"
 
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	curve "github.com/nume-crypto/gnark-crypto/ecc/bw6-761"
 
 	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
 

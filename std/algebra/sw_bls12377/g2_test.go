@@ -20,14 +20,14 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/nume-crypto/gnark-crypto/ecc"
+	"github.com/nume-crypto/gnark-crypto/ecc/bls12-377/fr"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12377 "github.com/nume-crypto/gnark-crypto/ecc/bls12-377"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -260,27 +260,27 @@ func TestNegG2(t *testing.T) {
 // -------------------------------------------------------------------------------------------------
 // Scalar multiplication
 
-type g2constantScalarMul struct {
+type g2constantScalarMultiplication struct {
 	A G2Affine
 	C G2Affine `gnark:",public"`
 	R *big.Int
 }
 
-func (circuit *g2constantScalarMul) Define(api frontend.API) error {
+func (circuit *g2constantScalarMultiplication) Define(api frontend.API) error {
 	expected := G2Affine{}
-	expected.constScalarMul(api, circuit.A, circuit.R)
+	expected.constScalarMultiplication(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
-func TestConstantScalarMulG2(t *testing.T) {
+func TestConstantScalarMultiplicationG2(t *testing.T) {
 	// sample random point
 	_a := randomPointG2()
 	var a, c bls12377.G2Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
-	var circuit, witness g2constantScalarMul
+	var circuit, witness g2constantScalarMultiplication
 	var r fr.Element
 	_, _ = r.SetRandom()
 	// assign the inputs
@@ -299,27 +299,27 @@ func TestConstantScalarMulG2(t *testing.T) {
 
 }
 
-type g2varScalarMul struct {
+type g2varScalarMultiplication struct {
 	A G2Affine
 	C G2Affine `gnark:",public"`
 	R frontend.Variable
 }
 
-func (circuit *g2varScalarMul) Define(api frontend.API) error {
+func (circuit *g2varScalarMultiplication) Define(api frontend.API) error {
 	expected := G2Affine{}
-	expected.varScalarMul(api, circuit.A, circuit.R)
+	expected.varScalarMultiplication(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
-func TestVarScalarMulG2(t *testing.T) {
+func TestVarScalarMultiplicationG2(t *testing.T) {
 	// sample random point
 	_a := randomPointG2()
 	var a, c bls12377.G2Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
-	var circuit, witness g2varScalarMul
+	var circuit, witness g2varScalarMultiplication
 	var r fr.Element
 	_, _ = r.SetRandom()
 	witness.R = r.String()
@@ -335,30 +335,30 @@ func TestVarScalarMulG2(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
 }
 
-type g2ScalarMul struct {
+type g2ScalarMultiplication struct {
 	A    G2Affine
 	C    G2Affine `gnark:",public"`
 	Rvar frontend.Variable
 	Rcon fr.Element
 }
 
-func (circuit *g2ScalarMul) Define(api frontend.API) error {
+func (circuit *g2ScalarMultiplication) Define(api frontend.API) error {
 	var expected, expected2 G2Affine
-	expected.ScalarMul(api, circuit.A, circuit.Rvar)
+	expected.ScalarMultiplication(api, circuit.A, circuit.Rvar)
 	expected.AssertIsEqual(api, circuit.C)
-	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
+	expected2.ScalarMultiplication(api, circuit.A, circuit.Rcon)
 	expected2.AssertIsEqual(api, circuit.C)
 	return nil
 }
 
-func TestScalarMulG2(t *testing.T) {
+func TestScalarMultiplicationG2(t *testing.T) {
 	// sample random point
 	_a := randomPointG2()
 	var a, c bls12377.G2Affine
 	a.FromJacobian(&_a)
 
 	// create the cs
-	var circuit, witness g2ScalarMul
+	var circuit, witness g2ScalarMultiplication
 	var r fr.Element
 	_, _ = r.SetRandom()
 	witness.Rvar = r.String()
@@ -418,8 +418,8 @@ func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
-func BenchmarkConstScalarMulG2(b *testing.B) {
-	var c g2constantScalarMul
+func BenchmarkConstScalarMultiplicationG2(b *testing.B) {
+	var c g2constantScalarMultiplication
 	// this is q - 1
 	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
 	if !ok {
@@ -447,8 +447,8 @@ func BenchmarkConstScalarMulG2(b *testing.B) {
 
 }
 
-func BenchmarkVarScalarMulG2(b *testing.B) {
-	var c g2varScalarMul
+func BenchmarkVarScalarMultiplicationG2(b *testing.B) {
+	var c g2varScalarMultiplication
 	// this is q - 1
 	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
 	if !ok {

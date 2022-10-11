@@ -17,9 +17,9 @@ limitations under the License.
 package test
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/nume-crypto/gnark-crypto/ecc"
 )
 
 // TestingOption defines option for altering the behaviour of Assert methods.
