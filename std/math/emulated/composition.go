@@ -110,7 +110,7 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 // limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
 // combination in a single new limb.
 // compact returns a and b minimal (in number of limbs) representation that fits in the snark field
-func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
+func (f *Field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
 	maxOverflow := max(a.overflow, b.overflow)
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
@@ -129,7 +129,7 @@ func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPer
 }
 
 // compactLimbs perform the regrouping of limbs between old and new parameters.
-func (f *field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
+func (f *Field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
 	if f.fParams.BitsPerLimb() == bitsPerLimb {
 		return e.Limbs
 	}

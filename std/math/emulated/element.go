@@ -116,7 +116,7 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, reduce Element first and take less significant
 // bits corresponding to the bitwidth of the emulated modulus.
-func (f *field[T]) toBits(a Element[T]) []frontend.Variable {
+func (f *Field[T]) toBits(a Element[T]) []frontend.Variable {
 	ba, aConst := f.ConstantValue(a)
 	if aConst {
 		return f.api.ToBinary(ba, int(f.fParams.BitsPerLimb()*f.fParams.NbLimbs()))
@@ -138,7 +138,7 @@ func (f *field[T]) toBits(a Element[T]) []frontend.Variable {
 // maxOverflow returns the maximal possible overflow for the element. If the
 // overflow of the next operation exceeds the value returned by this method,
 // then the limbs may overflow the native field.
-func (f *field[T]) maxOverflow() uint {
+func (f *Field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
 		f.maxOf = uint(f.api.Compiler().FieldBitLen()-1) - f.fParams.BitsPerLimb()
 	})
@@ -219,7 +219,7 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 // AssertLimbsEquality asserts that the limbs represent a same integer value (up
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
-func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
+func (f *Field[T]) AssertLimbsEquality(a, b Element[T]) {
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
 	if aConst && bConst {
@@ -254,7 +254,7 @@ func (f *field[T]) AssertLimbsEquality(a, b Element[T]) {
 // EnforceWidth enforces that the bitlength of the value is exactly the
 // bitlength of the modulus. Any newly initialized variable should be
 // constrained to ensure correct operations.
-func (f *field[T]) EnforceWidth(a Element[T]) {
+func (f *Field[T]) EnforceWidth(a Element[T]) {
 	_, aConst := f.ConstantValue(a)
 	if aConst {
 		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
@@ -277,7 +277,7 @@ func (f *field[T]) EnforceWidth(a Element[T]) {
 	}
 }
 
-func (f *field[T]) addPreCond(a, b Element[T]) (nextOverflow uint, err error) {
+func (f *Field[T]) addPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 
 	nextOverflow = max(a.overflow, b.overflow) + 1
@@ -288,7 +288,7 @@ func (f *field[T]) addPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	return
 }
 
-func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
+func (f *Field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
 	if aConst && bConst {
@@ -320,7 +320,7 @@ func (f *field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 	return e
 }
 
-func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
+func (f *Field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
 	nextOverflow = f.fParams.BitsPerLimb() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
@@ -330,7 +330,7 @@ func (f *field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	return
 }
 
-func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
+func (f *Field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 	// TODO: when one element is constant.
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
@@ -378,7 +378,7 @@ func (f *field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 }
 
 // reduce reduces a modulo modulus and assigns e to the reduced value.
-func (f *field[T]) reduce(a Element[T]) Element[T] {
+func (f *Field[T]) reduce(a Element[T]) Element[T] {
 	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
 		return a
@@ -425,7 +425,7 @@ func (e *Element[T]) Set(a Element[T]) {
 }
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
-func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
+func (f *Field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
 	if aConst && bConst {
@@ -461,7 +461,7 @@ func (f *field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 }
 
 // AssertIsEqualLessThan ensures that e is less or equal than e.
-func (f *field[T]) AssertIsLessEqualThan(e, a Element[T]) {
+func (f *Field[T]) AssertIsLessEqualThan(e, a Element[T]) {
 	if e.overflow+a.overflow > 0 {
 		panic("inputs must have 0 overflow")
 	}
@@ -492,7 +492,7 @@ func (f *field[T]) AssertIsLessEqualThan(e, a Element[T]) {
 	}
 }
 
-func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
+func (f *Field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 
 	reduceRight := a.overflow < b.overflow+2
 	nextOverflow = max(b.overflow+2, a.overflow)
@@ -502,7 +502,7 @@ func (f *field[T]) subPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 	return
 }
 
-func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
+func (f *Field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
 	if aConst && bConst {
@@ -533,7 +533,7 @@ func (f *field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 
 // Select sets e to a if selector == 0 and to b otherwise.
 // assumes a overflow == b overflow
-func (f *field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[T] {
+func (f *Field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[T] {
 	e := NewElement[T](nil)
 	e.overflow = a.overflow
 	for i := range a.Limbs {
@@ -544,7 +544,7 @@ func (f *field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[
 
 // Lookup2 performs two-bit lookup between a, b, c, d based on lookup bits b1
 // and b2. Sets e to a if b0=b1=0, b if b0=1 and b1=0, c if b0=0 and b1=1, d if b0=b1=1.
-func (f *field[T]) lookup2(b0, b1 frontend.Variable, a, b, c, d Element[T]) Element[T] {
+func (f *Field[T]) lookup2(b0, b1 frontend.Variable, a, b, c, d Element[T]) Element[T] {
 	if len(a.Limbs) != len(b.Limbs) || len(a.Limbs) != len(c.Limbs) || len(a.Limbs) != len(d.Limbs) {
 		panic("unequal limb counts for lookup")
 	}
@@ -563,7 +563,7 @@ func (f *field[T]) lookup2(b0, b1 frontend.Variable, a, b, c, d Element[T]) Elem
 // reduceAndOp applies op on the inputs. If the pre-condition check preCond
 // errs, then first reduces the input arguments. The reduction is done
 // one-by-one with the element with highest overflow reduced first.
-func (f *field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T], preCond func(Element[T], Element[T]) (uint, error), a, b Element[T]) Element[T] {
+func (f *Field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T], preCond func(Element[T], Element[T]) (uint, error), a, b Element[T]) Element[T] {
 	var nextOverflow uint
 	var err error
 	var target errOverflow

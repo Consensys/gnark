@@ -17,10 +17,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// field defines the parameters of the emulated ring of integers modulo n. If
-// n is prime, then the ring is also a finite field where inverse and division
+// Field defines the parameters of the emulated ring of integers modulo n. If
+// n is prime, then the ring is also a finite Field where inverse and division
 // are allowed.
-type field[T FieldParams] struct {
+type Field[T FieldParams] struct {
 	// api is the native API
 	api     frontend.API
 	builder frontend.Builder
@@ -49,8 +49,8 @@ type field[T FieldParams] struct {
 //
 // This is an experimental feature and performing emulated arithmetic in-circuit is extremly costly.
 // See package doc for more info.
-func NewField[T FieldParams](native frontend.API) (frontend.API, error) {
-	f := &field[T]{
+func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
+	f := &Field[T]{
 		api: native,
 		log: logger.Logger(),
 	}
@@ -92,11 +92,11 @@ func NewBuilder[T FieldParams](b frontend.Builder) (frontend.Builder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init field: %w", err)
 	}
-	a.(*field[T]).builder = b
-	return a.(*field[T]), nil
+	a.builder = b
+	return a, nil
 }
 
-func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
+func (f *Field[T]) varToElement(in frontend.Variable) Element[T] {
 	switch vv := in.(type) {
 	case Element[T]:
 		return vv
@@ -107,7 +107,7 @@ func (f *field[T]) varToElement(in frontend.Variable) Element[T] {
 	}
 }
 
-func (f *field[T]) varsToElements(in ...frontend.Variable) []Element[T] {
+func (f *Field[T]) varsToElements(in ...frontend.Variable) []Element[T] {
 	var els []Element[T]
 	for i := range in {
 		switch v := in[i].(type) {
@@ -124,7 +124,7 @@ func (f *field[T]) varsToElements(in ...frontend.Variable) []Element[T] {
 	return els
 }
 
-func (f *field[T]) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *Field[T]) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.reduceAndOp(f.add, f.addPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
@@ -135,13 +135,13 @@ func (f *field[T]) Add(i1 frontend.Variable, i2 frontend.Variable, in ...fronten
 
 // Negate sets e to -a and returns e. The returned element may be larger than
 // the modulus.
-func (f *field[T]) Neg(i1 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Neg(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
 
 	return f.Sub(f.Zero(), el)
 }
 
-func (f *field[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *Field[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	sub := NewElement[T](nil)
 	sub.Set(els[1])
@@ -152,7 +152,7 @@ func (f *field[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...fronten
 	return res
 }
 
-func (f *field[T]) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (f *Field[T]) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.reduceAndOp(f.mul, f.mulPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
@@ -161,14 +161,14 @@ func (f *field[T]) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...fronten
 	return res
 }
 
-func (f *field[T]) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *Field[T]) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	return f.Div(i1, i2)
 }
 
 // Div sets e to a/b and returns e. If modulus is not a prime, it panics. The
 // result is less than the modulus. This method is more efficient than inverting
 // b and multiplying it by a.
-func (f *field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
 		// that would enable things like uint32 div ?
@@ -193,7 +193,7 @@ func (f *field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 
 // Inverse sets e to 1/a and returns e. If modulus is not a prime, it panics.
 // The result is less than the modulus.
-func (f *field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
 	a := f.varToElement(i1)
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
@@ -212,7 +212,7 @@ func (f *field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
 	return e
 }
 
-func (f *field[T]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (f *Field[T]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	el := f.varToElement(i1)
 	res := f.reduce(el)
 	out := f.toBits(res)
@@ -228,7 +228,7 @@ func (f *field[T]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 	return out
 }
 
-func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (f *Field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(b)
 	in := make([]frontend.Variable, len(els))
 	for i := range els {
@@ -247,7 +247,7 @@ func (f *field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 	return e
 }
 
-func (f *field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *Field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
@@ -256,7 +256,7 @@ func (f *field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variab
 	return r
 }
 
-func (f *field[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *Field[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
@@ -265,7 +265,7 @@ func (f *field[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variabl
 	return r
 }
 
-func (f *field[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (f *Field[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	els := f.varsToElements(a, b)
 	f.AssertIsBoolean(els[0])
 	f.AssertIsBoolean(els[1])
@@ -274,7 +274,7 @@ func (f *field[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variab
 	return r
 }
 
-func (f *field[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
 	switch vv := b.(type) {
 	case Element[T]:
@@ -298,7 +298,7 @@ func (f *field[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend
 	return f._select(b, s0, s1)
 }
 
-func (f *field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i0, i1, i2, i3)
 	switch vv := b0.(type) {
 	case Element[T]:
@@ -338,7 +338,7 @@ func (f *field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 fronte
 	return f.lookup2(b0, b1, s0, s1, s2, s3)
 }
 
-func (f *field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
+func (f *Field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
 	reduced := f.reduce(el)
 	res := f.api.IsZero(reduced.Limbs[0])
@@ -349,7 +349,7 @@ func (f *field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 	return r
 }
 
-func (f *field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
+func (f *Field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
 	rls := make([]Element[T], 2)
 	rls[0] = f.reduce(els[0])
@@ -362,7 +362,7 @@ func (f *field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 	return res
 }
 
-func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
+func (f *Field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	tmp := NewElement[T](els[0])
 	// tmp.Set(els[0]) // TODO @gbotrel do we need to duplicate here?
@@ -381,7 +381,7 @@ func (f *field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 		}, tmp, els[1])
 }
 
-func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
+func (f *Field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	rls := []Element[T]{NewElement[T](nil), NewElement[T](nil)}
 	rls[0] = f.reduce(els[0])
@@ -395,7 +395,7 @@ func (f *field[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable)
 	f.api.AssertIsDifferent(res, 0)
 }
 
-func (f *field[T]) AssertIsBoolean(i1 frontend.Variable) {
+func (f *Field[T]) AssertIsBoolean(i1 frontend.Variable) {
 	switch vv := i1.(type) {
 	case Element[T]:
 		v := f.reduce(vv)
@@ -414,21 +414,21 @@ func (f *field[T]) AssertIsBoolean(i1 frontend.Variable) {
 	}
 }
 
-func (f *field[T]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (f *Field[T]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	els := f.varsToElements(v, bound)
 	l := f.reduce(els[0])
 	r := f.reduce(els[1])
 	f.AssertIsLessEqualThan(l, r)
 }
 
-func (f *field[T]) Println(a ...frontend.Variable) {
+func (f *Field[T]) Println(a ...frontend.Variable) {
 	els := f.varsToElements(a)
 	for i := range els {
 		f.api.Println(els[i].Limbs...)
 	}
 }
 
-func (f *field[T]) Compiler() frontend.Compiler {
+func (f *Field[T]) Compiler() frontend.Compiler {
 	return f
 }
 
@@ -438,7 +438,7 @@ type typedInput struct {
 	isElement bool
 }
 
-func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (f *Field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	// this is a trick to allow calling hint functions using non-native
 	// elements. We use the fact that the hints take as inputs *big.Int values.
 	// Instead of supplying hf to the solver for calling, we wrap it with
@@ -515,7 +515,7 @@ func (f *field[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.V
 	return ret, nil
 }
 
-func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
+func (f *Field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	var limbs []frontend.Variable // emulated limbs
 	switch vv := v.(type) {
 	case Element[T]:
@@ -545,15 +545,15 @@ func (f *field[T]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	return res, true
 }
 
-func (f *field[T]) Field() *big.Int {
+func (f *Field[T]) Field() *big.Int {
 	return f.fParams.Modulus()
 }
 
-func (f *field[T]) FieldBitLen() int {
+func (f *Field[T]) FieldBitLen() int {
 	return f.fParams.Modulus().BitLen()
 }
 
-func (f *field[T]) IsBoolean(v frontend.Variable) bool {
+func (f *Field[T]) IsBoolean(v frontend.Variable) bool {
 	switch vv := v.(type) {
 	case Element[T]:
 		return f.api.Compiler().IsBoolean(vv.Limbs[0])
@@ -564,7 +564,7 @@ func (f *field[T]) IsBoolean(v frontend.Variable) bool {
 	}
 }
 
-func (f *field[T]) MarkBoolean(v frontend.Variable) {
+func (f *Field[T]) MarkBoolean(v frontend.Variable) {
 	switch vv := v.(type) {
 	case Element[T]:
 		f.api.Compiler().MarkBoolean(vv.Limbs[0])
@@ -577,7 +577,7 @@ func (f *field[T]) MarkBoolean(v frontend.Variable) {
 
 // Modulus returns the modulus of the emulated ring as a constant. The returned
 // element is not safe to use as an operation receiver.
-func (f *field[T]) Modulus() Element[T] {
+func (f *Field[T]) Modulus() Element[T] {
 	f.nConstOnce.Do(func() {
 		f.nConst = NewElement[T](f.fParams.Modulus())
 	})
@@ -586,7 +586,7 @@ func (f *field[T]) Modulus() Element[T] {
 
 // Zero returns zero as a constant. The returned element is not safe to use as
 // an operation receiver.
-func (f *field[T]) Zero() Element[T] {
+func (f *Field[T]) Zero() Element[T] {
 	f.zeroConstOnce.Do(func() {
 		f.zeroConst = NewElement[T](nil)
 	})
@@ -595,7 +595,7 @@ func (f *field[T]) Zero() Element[T] {
 
 // One returns one as a constant. The returned element is not safe to use as an
 // operation receiver.
-func (f *field[T]) One() Element[T] {
+func (f *Field[T]) One() Element[T] {
 	f.oneConstOnce.Do(func() {
 		f.oneConst = NewElement[T](1)
 	})
@@ -605,7 +605,7 @@ func (f *field[T]) One() Element[T] {
 // PackLimbs returns a constant element from the given limbs. The returned
 // element is not safe to use as an operation receiver. The method constrains
 // the limb widths.
-func (f *field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
+func (f *Field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
 	limbNbBits := int(f.fParams.BitsPerLimb())
 	for i := range limbs {
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
@@ -633,15 +633,15 @@ func builderWrapper[T FieldParams]() frontend.BuilderWrapper {
 	}
 }
 
-func (f *field[T]) Compile() (constraint.ConstraintSystem, error) {
+func (f *Field[T]) Compile() (constraint.ConstraintSystem, error) {
 	return f.builder.Compile()
 }
 
-func (f *field[T]) VariableCount(t reflect.Type) int {
+func (f *Field[T]) VariableCount(t reflect.Type) int {
 	return int(f.fParams.NbLimbs())
 }
 
-func (f *field[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field) frontend.Variable) frontend.Variable {
+func (f *Field[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field) frontend.Variable) frontend.Variable {
 	limbs := make([]frontend.Variable, f.fParams.NbLimbs())
 	var subfs []schema.Field
 	for i := range limbs {
@@ -662,11 +662,11 @@ func (f *field[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field) f
 	return el
 }
 
-func (f *field[T]) PublicVariable(sf *schema.Field) frontend.Variable {
+func (f *Field[T]) PublicVariable(sf *schema.Field) frontend.Variable {
 	return f.addVariable(sf, f.builder.PublicVariable)
 }
 
-func (f *field[T]) SecretVariable(sf *schema.Field) frontend.Variable {
+func (f *Field[T]) SecretVariable(sf *schema.Field) frontend.Variable {
 	return f.addVariable(sf, f.builder.SecretVariable)
 
 }

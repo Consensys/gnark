@@ -171,9 +171,7 @@ func TestIntegrationApi(t *testing.T) {
 
 func TestVarToElements(t *testing.T) {
 	assert := require.New(t)
-	_f, _ := NewField[BN254Fp](nil)
-
-	f := _f.(*field[BN254Fp])
+	f, _ := NewField[BN254Fp](nil)
 
 	{
 		in := []frontend.Variable{8000, 42}
@@ -295,7 +293,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 		}
 	}
 	{
-		m := f.(*field[Secp256k1]).Modulus()
+		m := f.Modulus()
 		b1, ok := f.ConstantValue(m)
 		if !ok {
 			return errors.New("modulus should be constant")

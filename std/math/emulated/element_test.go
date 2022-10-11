@@ -22,11 +22,10 @@ type AssertLimbEqualityCircuit[T FieldParams] struct {
 }
 
 func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
-	_f, err := NewField[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	f := _f.(*field[T])
 	f.AssertLimbsEquality(c.A, c.B)
 	return nil
 }
@@ -211,7 +210,7 @@ func (c *ReduceAfterAddCircuit[T]) Define(api frontend.API) error {
 		return err
 	}
 	res := f.Add(c.A, c.B)
-	res = f.(*field[T]).reduce(res.(Element[T]))
+	res = f.reduce(res.(Element[T]))
 	f.AssertIsEqual(res, c.C)
 	return nil
 }

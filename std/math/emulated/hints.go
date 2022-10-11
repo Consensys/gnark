@@ -28,7 +28,7 @@ func GetHints() []hint.Function {
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint[T FieldParams](api frontend.API, params *field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func computeMultiplicationHint[T FieldParams](api frontend.API, params *Field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
 		params.fParams.BitsPerLimb(),
 		len(leftLimbs),
@@ -85,7 +85,7 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 
 // computeRemHint packs inputs for the RemHint hint function.
 // sets z to the remainder x%y for y != 0 and returns z.
-func (f *field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
@@ -118,7 +118,7 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // computeQuoHint packs the inputs for QuoHint function and returns z = x / y
 // (discards remainder)
-func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
 	var fp T
 	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
 		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
@@ -160,7 +160,7 @@ func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint[T FieldParams](api frontend.API, params *field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func computeInverseHint[T FieldParams](api frontend.API, params *Field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
@@ -203,7 +203,7 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func computeDivisionHint[T FieldParams](api frontend.API, params *Field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
