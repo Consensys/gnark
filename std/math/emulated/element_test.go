@@ -210,7 +210,7 @@ func (c *ReduceAfterAddCircuit[T]) Define(api frontend.API) error {
 		return err
 	}
 	res := f.Add(c.A, c.B)
-	res = f.reduce(res.(Element[T]))
+	res = f.Reduce(res)
 	f.AssertIsEqual(res, c.C)
 	return nil
 }
@@ -634,15 +634,15 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
 	x13 := f.Mul(c.X1, c.X1)
 	if !c.noReduce {
-		x13 = f.(*field[T]).reduce(x13.(Element[T]))
+		x13 = f.Reduce(x13)
 	}
 	x13 = f.Mul(x13, c.X1)
 	if !c.noReduce {
-		x13 = f.(*field[T]).reduce(x13.(Element[T]))
+		x13 = f.Reduce(x13)
 	}
 
 	fx2 := f.Mul(5, c.X2)
-	fx2 = f.(*field[T]).reduce(fx2.(Element[T]))
+	fx2 = f.Reduce(fx2)
 
 	nom := f.Sub(c.X3, c.X4)
 

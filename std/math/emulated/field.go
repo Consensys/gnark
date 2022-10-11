@@ -671,7 +671,13 @@ func (f *Field[T]) SecretVariable(sf *schema.Field) frontend.Variable {
 
 }
 
-func (f *field[T]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+func (f *Field[T]) Reduce(i frontend.Variable) frontend.Variable {
+	el := f.varToElement(i)
+	res := f.reduce(el)
+	return res
+}
+
+func (f *Field[T]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
 	panic("not implemented")
 }
