@@ -5,12 +5,11 @@ go 1.18
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.8.1-0.20221004071630-37f9fd35e222
+	github.com/consensys/gnark-crypto v0.8.1-0.20221011092545-31e18a5eb0e1
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/google/go-cmp v0.5.8
 	github.com/google/pprof v0.0.0-20220729232143-a41b82acbcb1
 	github.com/leanovate/gopter v0.2.9
-	github.com/pkg/profile v1.6.0
 	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75
@@ -28,3 +27,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+// TODO : change it when gnark-crypto is merged to point to the new version of gnark-crypto
+replace github.com/consensys/gnark-crypto v0.8.1-0.20221004071630-37f9fd35e222 => github.com/AlexandreBelling/gnark-crypto v0.0.0-20221010153857-218f738f21b2

@@ -354,10 +354,11 @@ func TestTensorCommitment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tc, err := tensorcommitment.NewTensorCommitment(rho, nbColumns, nbRows, h)
+	tcParams, err := tensorcommitment.NewTCParams(rho, nbColumns, nbRows, h)
 	if err != nil {
 		t.Fatal(err)
 	}
+	tc := tensorcommitment.NewTensorCommitment(tcParams)
 
 	// random polynomial
 	p := make([]fr.Element, size)
@@ -390,7 +391,7 @@ func TestTensorCommitment(t *testing.T) {
 		}
 
 		// build the proof...
-		proof, err := tc.BuildProof(l, entryList)
+		proof, err := tc.BuildProofAtOnceForTest(l, entryList)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -438,10 +439,10 @@ func TestTensorCommitment(t *testing.T) {
 		for i := 0; i < nbRows; i++ {
 			witness.L[i] = l[i].String()
 		}
-		witness.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
-		tc.Domains[1].Generator.ToBigIntRegular(&witness.GenBigDomainTensorCommitment)
-		witness.GenInvSmallDomainTensorCommitment.Inverse(&tc.Domains[0].Generator)
-		witness.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
+		witness.SizeBigDomainTensorCommitment = tcParams.Domains[1].Cardinality
+		tcParams.Domains[1].Generator.ToBigIntRegular(&witness.GenBigDomainTensorCommitment)
+		witness.GenInvSmallDomainTensorCommitment.Inverse(&tcParams.Domains[0].Generator)
+		witness.SizeSmallDomainTensorCommitment = tcParams.Domains[0].Cardinality
 		witness.Sis = _h
 
 		// create the circuit
@@ -457,10 +458,10 @@ func TestTensorCommitment(t *testing.T) {
 		}
 		circuit.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
 		circuit.L = make([]frontend.Variable, nbRows)
-		circuit.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
-		circuit.GenInvSmallDomainTensorCommitment.Set(&tc.Domains[0].GeneratorInv)
-		circuit.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
-		tc.Domains[1].Generator.ToBigIntRegular(&circuit.GenBigDomainTensorCommitment)
+		circuit.SizeSmallDomainTensorCommitment = tcParams.Domains[0].Cardinality
+		circuit.GenInvSmallDomainTensorCommitment.Set(&tcParams.Domains[0].GeneratorInv)
+		circuit.SizeBigDomainTensorCommitment = tcParams.Domains[1].Cardinality
+		tcParams.Domains[1].Generator.ToBigIntRegular(&circuit.GenBigDomainTensorCommitment)
 		circuit.Sis = _h
 
 		// compile...
@@ -489,7 +490,7 @@ func TestTensorCommitment(t *testing.T) {
 		entryList[1] = 5
 
 		// build the proof
-		proof, err := tc.BuildProof(l, entryList)
+		proof, err := tc.BuildProofAtOnceForTest(l, entryList)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -537,10 +538,10 @@ func TestTensorCommitment(t *testing.T) {
 		for i := 0; i < nbRows; i++ {
 			witness.L[i] = l[i].String()
 		}
-		witness.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
-		witness.GenInvSmallDomainTensorCommitment.Set(&tc.Domains[0].GeneratorInv)
-		witness.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
-		tc.Domains[1].Generator.ToBigIntRegular(&witness.GenBigDomainTensorCommitment)
+		witness.SizeSmallDomainTensorCommitment = tcParams.Domains[0].Cardinality
+		witness.GenInvSmallDomainTensorCommitment.Set(&tcParams.Domains[0].GeneratorInv)
+		witness.SizeBigDomainTensorCommitment = tcParams.Domains[1].Cardinality
+		tcParams.Domains[1].Generator.ToBigIntRegular(&witness.GenBigDomainTensorCommitment)
 		witness.Sis = _h
 
 		// create the circuit
@@ -556,10 +557,10 @@ func TestTensorCommitment(t *testing.T) {
 		}
 		circuit.LinearCombination = make([]frontend.Variable, len(proof.LinearCombination))
 		circuit.L = make([]frontend.Variable, nbRows)
-		circuit.SizeSmallDomainTensorCommitment = tc.Domains[0].Cardinality
-		circuit.GenInvSmallDomainTensorCommitment.Set(&tc.Domains[0].GeneratorInv)
-		circuit.SizeBigDomainTensorCommitment = tc.Domains[1].Cardinality
-		tc.Domains[1].Generator.ToBigIntRegular(&circuit.GenBigDomainTensorCommitment)
+		circuit.SizeSmallDomainTensorCommitment = tcParams.Domains[0].Cardinality
+		circuit.GenInvSmallDomainTensorCommitment.Set(&tcParams.Domains[0].GeneratorInv)
+		circuit.SizeBigDomainTensorCommitment = tcParams.Domains[1].Cardinality
+		tcParams.Domains[1].Generator.ToBigIntRegular(&circuit.GenBigDomainTensorCommitment)
 		circuit.Sis = _h
 
 		// compile...

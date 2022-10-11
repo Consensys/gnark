@@ -39,6 +39,9 @@ func FromInterface(input interface{}) big.Int {
 	var r big.Int
 
 	switch v := input.(type) {
+	case nil:
+		// This edge-case is better handled there than in the default` case.
+		panic("can't convert `nil` to big.Int")
 	case big.Int:
 		r.Set(&v)
 	case *big.Int:
@@ -82,6 +85,8 @@ func FromInterface(input interface{}) big.Int {
 				}
 			}
 		}
+		// Note that  `.String()` will panic if `input` is nil. Thus, triggering
+		// a non-helpful panic message.
 		panic(reflect.TypeOf(input).String() + " to big.Int not supported")
 	}
 

@@ -143,9 +143,6 @@ func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, card
 	if err != nil {
 		return nil, err
 	}
-	for i := 0; i < len(res); i++ {
-		api.Println(res[i])
-	}
 
 	// generate the roots of unity <1,ω,ω²,..,ωⁿ⁻¹>
 	rous := make([]fr.Element, cardinality)
@@ -172,7 +169,9 @@ func FftInverse(api frontend.API, p []frontend.Variable, genInv fr.Element, card
 // digest: hash of the polynomial, where the hash is SIS
 // l: random coefficients for the linear combination, chosen by the verifier
 // TODO make this function private and add a Verify function that derives
-// the randomness using Fiat Shamir
+// the randomness using Fiat Shamir.
+// (Note Alex) : I am interested if you can keep exposing this function like that
+// (possibly under a different name)
 //
 // The hash function by default here is SIS
 func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []frontend.Variable, h sis.RSisSnark) error {
@@ -191,7 +190,6 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 	for i := 0; i < len(proof.EntryList); i++ {
 
 		// check that the hash of the columns correspond to what's in the digest
-		//s, err := h.Sum(api, proof.Columns[i])
 		s, err := h.Sum(api, proof.Columns[i])
 		if err != nil {
 			return err
@@ -215,8 +213,7 @@ func Verify(api frontend.API, proof Proof, digest [][]frontend.Variable, l []fro
 			linCombEncoded = api.Add(linCombEncoded, tmp)
 		}
 
-		var encodedLinComb frontend.Variable
-		encodedLinComb = evalAtPower(
+		encodedLinComb := evalAtPower(
 			api,
 			linCombCanonical,
 			proof.GenBigDomainTensorCommitment,
