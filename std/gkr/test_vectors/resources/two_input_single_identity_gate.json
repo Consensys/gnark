@@ -1,0 +1,18 @@
+[
+  [
+    {
+      "gate": "identity",
+      "inputs": [[1,0]]
+    },
+    {
+      "gate": "identity",
+      "inputs": [[1,0]]
+    }
+  ],
+  [
+    {
+      "gate": null,
+      "inputs": []
+    }
+  ]
+]

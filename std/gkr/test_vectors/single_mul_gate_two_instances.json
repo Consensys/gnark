@@ -1,0 +1,47 @@
+{
+	"hash": "resources/hash.json",
+	"circuit": "resources/single_mul_gate.json",
+	"input": [
+		[
+			4,
+			3
+		],
+		[
+			2,
+			3
+		]
+	],
+	"output": [
+		[
+			8,
+			9
+		]
+	],
+	"proof": [
+		[
+			{
+				"finalEvalProof": [
+					7,
+					-1
+				],
+				"partialSumPolys": [
+					[
+						9,
+						16,
+						15
+					]
+				]
+			}
+		],
+		[
+			{
+				"finalEvalProof": null,
+				"partialSumPolys": []
+			},
+			{
+				"finalEvalProof": null,
+				"partialSumPolys": []
+			}
+		]
+	]
+}

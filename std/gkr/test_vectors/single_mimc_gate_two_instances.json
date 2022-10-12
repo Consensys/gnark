@@ -1,0 +1,52 @@
+{
+	"hash": "resources/hash.json",
+	"circuit": "resources/single_mimc_gate.json",
+	"input": [
+		[
+			1,
+			1
+		],
+		[
+			1,
+			2
+		]
+	],
+	"output": [
+		[
+			128,
+			2187
+		]
+	],
+	"proof": [
+		[
+			{
+				"finalEvalProof": [
+					1,
+					5
+				],
+				"partialSumPolys": [
+					[
+						2187,
+						32768,
+						234375,
+						1119744,
+						4117715,
+						12582912,
+						33480783,
+						80000000
+					]
+				]
+			}
+		],
+		[
+			{
+				"finalEvalProof": null,
+				"partialSumPolys": []
+			},
+			{
+				"finalEvalProof": null,
+				"partialSumPolys": []
+			}
+		]
+	]
+}

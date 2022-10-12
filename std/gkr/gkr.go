@@ -3,6 +3,7 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
 )
 
@@ -37,7 +38,7 @@ func (c Circuit) Size() int { //TODO: Worth caching?
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment map[*Wire]sumcheck.MultiLin
+type WireAssignment map[*Wire]polynomial.MultiLin
 
 type Proof [][]sumcheck.Proof // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
@@ -62,7 +63,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VarsNum() int {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) CombinedSum(api frontend.API, a frontend.Variable) frontend.Variable {
-	evalsAsPoly := sumcheck.Polynomial(e.claimedEvaluations)
+	evalsAsPoly := polynomial.Polynomial(e.claimedEvaluations)
 	return evalsAsPoly.Eval(api, a)
 }
 
@@ -87,7 +88,7 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 			claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaims{
 				wire:               wire,
 				evaluationPoints:   make([][]frontend.Variable, 0, wire.NumOutputs),
-				claimedEvaluations: make(sumcheck.Polynomial, wire.NumOutputs),
+				claimedEvaluations: make(polynomial.Polynomial, wire.NumOutputs),
 				manager:            &claims,
 			}
 		}
@@ -166,14 +167,15 @@ func (v Verifier) Define(api frontend.API) error {
 				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 
 			} else {
-				err := sumcheck.Verifier{
+				fmt.Println(layerI)
+				/*err := sumcheck.Verifier{
 					Claims:     claim,
 					Proof:      v.Proof[layerI][wireI],
 					Transcript: v.Transcript,
 				}.Define(api)
 				if err != nil {
 					return err
-				}
+				}*/
 			}
 			claims.deleteClaim(wire)
 		}
