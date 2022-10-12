@@ -212,10 +212,7 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	if bConstant {
 		l := a.(compiled.Term)
 		r := l
-		one := big.NewInt(1)
-		_b.Lsh(_b, 1).Sub(_b, one)
-		idl := system.st.CoeffID(_b)
-		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
+		system.addPlonkConstraint(l, r, res, l.CoeffID(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne)
 		return res
 	}
 	l := a.(compiled.Term)
