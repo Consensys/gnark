@@ -137,8 +137,14 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 	mod := system.Field()
 	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
+		fmt.Printf("%d\n", i)
 		pcID, pvID, pVis := l[i-1].Unpack()
 		ccID, cvID, cVis := l[i].Unpack()
+		// if the coefficient is zero, we remove it
+		if ccID == compiled.CoeffIdZero {
+			l = append(l[:i], l[i+1:]...)
+			continue
+		}
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
