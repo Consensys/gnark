@@ -42,7 +42,7 @@ import (
 	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 )
 
-// R1CS decsribes a set of R1CS constraint
+// R1CS describes a set of R1CS constraint
 type R1CS struct {
 	compiled.R1CS
 	Coefficients []fr.Element // R1C coefficients indexes point here
