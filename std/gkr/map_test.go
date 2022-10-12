@@ -137,6 +137,14 @@ func getKeys[K comparable, V any](m map[K]V) []K {
 	return kS
 }
 
+func getValuesOrdered[K comparable, V any](m map[K]V, keys []K) []V {
+	vS := make([]V, len(keys))
+	for i, k := range keys {
+		vS[i] = m[k]
+	}
+	return vS
+}
+
 func toVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
 	variableSlice = make([]frontend.Variable, len(slice))
 	for i, v := range slice {
@@ -145,25 +153,39 @@ func toVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
 	return
 }
 
-type SimpleCircuit struct {
-	X frontend.Variable
+type TestSingleMapCircuit struct {
+	M      Map `gnark:"-"`
+	Values []frontend.Variable
 }
 
-func (c *SimpleCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.X, 1)
+func (c *TestSingleMapCircuit) Define(api frontend.API) error {
+
+	for i, k := range c.M.keys {
+		v := c.M.Get(api, k)
+		api.AssertIsEqual(v, c.Values[i])
+	}
+
 	return nil
 }
 
-func TestSimple(t *testing.T) {
+func TestSingleMap(t *testing.T) {
+	m := map[string]interface{}{
+		"1": -2,
+		"4": 1,
+		"6": 7,
+	}
+	single, _ := ReadMap(m)
+
+	assignment := TestSingleMapCircuit{
+		M:      single,
+		Values: single.values,
+	}
+
+	circuit := TestSingleMapCircuit{
+		M:      single,
+		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
+	}
 
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(
-		&SimpleCircuit{},
-		&SimpleCircuit{X: 1}, test.WithBackends(backend.PLONK),
-	)
+	assert.ProverSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16))
 }
-
-type TestSingleMapCircuit struct {
-}
-
-//func (c *TestSingleMapCircuit) Define(api frontend.API)
