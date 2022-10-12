@@ -193,6 +193,7 @@ func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
 	_a, aConstant := system.ConstantValue(a)
@@ -211,8 +212,12 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	}
 	if bConstant {
 		l := a.(compiled.Term)
-		bNeg := new(big.Int).Neg(_b)
-		system.addPlonkConstraint(l, l, res, compiled.CoeffIdMinusOne, compiled.CoeffIdZero, compiled.CoeffIdTwo, system.st.CoeffID(_b), compiled.CoeffIdOne, system.st.CoeffID(bNeg))
+		r := l
+		oneMinusTwoB := big.NewInt(2)
+		oneMinusTwoB.Mul(oneMinusTwoB, _b)
+		one := big.NewInt(1)
+		oneMinusTwoB.Sub(one, oneMinusTwoB)
+		system.addPlonkConstraint(l, r, res, system.st.CoeffID(oneMinusTwoB), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, system.st.CoeffID(_b))
 		return res
 	}
 	l := a.(compiled.Term)

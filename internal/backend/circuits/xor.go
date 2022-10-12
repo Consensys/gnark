@@ -33,10 +33,17 @@ func init() {
 			XorOne:  0,
 			XorZero: 1,
 		},
+<<<<<<< Updated upstream
 		&xorCircuitVarCst{
 			Op:      0,
 			XorOne:  1,
 			XorZero: 0,
+=======
+		&XorCircuitVarCst{
+			Op:      (0),
+			XorOne:  (1),
+			XorZero: (0),
+>>>>>>> Stashed changes
 		},
 	}
 
@@ -46,6 +53,7 @@ func init() {
 			XorOne:  0,
 			XorZero: 1,
 		},
+<<<<<<< Updated upstream
 		&xorCircuitVarCst{
 			Op:      1,
 			XorOne:  1,
@@ -54,6 +62,16 @@ func init() {
 	}
 
 	addNewEntry("xorCstVar", &xorCircuitVarCst{}, good, bad, []ecc.ID{ecc.BN254})
+=======
+		&XorCircuitVarCst{
+			Op:      (1),
+			XorOne:  (1),
+			XorZero: (0),
+		},
+	}
+
+	addNewEntry("xorCstVar", &XorCircuitVarCst{}, good, bad, []ecc.ID{ecc.BN254})
+>>>>>>> Stashed changes
 
 }
 
