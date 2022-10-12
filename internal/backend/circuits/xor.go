@@ -9,8 +9,8 @@ import (
 // one input is constant
 type XorCircuitVarCst struct {
 	Op      frontend.Variable
-	XorOne  frontend.Variable `gnark:“,public”`
-	XorZero frontend.Variable `gnark:“,public”`
+	XorOne  frontend.Variable `gnark:",public"`
+	XorZero frontend.Variable `gnark:",public"`
 }
 
 func (circuit *XorCircuitVarCst) Define(api frontend.API) error {
