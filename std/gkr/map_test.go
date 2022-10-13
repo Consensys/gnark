@@ -73,7 +73,7 @@ func (m DoubleMap) Get(api frontend.API, key1, key2 frontend.Variable) frontend.
 	for i := range deltas1 {
 		for j := range deltas2 {
 			if m.values[i][j] != nil {
-				api.Println(m.keys1[i], m.keys2[j])
+				//api.Println(m.keys1[i], m.keys2[j])
 				deltaIJ := api.Mul(deltas1[i], deltas2[j], m.values[i][j])
 				res = api.Add(res, deltaIJ)
 			}
@@ -102,6 +102,15 @@ type HashMap struct {
 	double DoubleMap
 }
 
+func toVariable(v interface{}) frontend.Variable {
+	switch vT := v.(type) {
+	case float64:
+		return int(vT)
+	default:
+		return v
+	}
+}
+
 func ReadMap(in map[string]interface{}) HashMap {
 	single := Map{
 		keys:   make([]frontend.Variable, 0),
@@ -113,19 +122,11 @@ func ReadMap(in map[string]interface{}) HashMap {
 
 	for k, v := range in {
 
-		var V frontend.Variable
-		switch vT := v.(type) {
-		case float64:
-			V = int(vT)
-		default:
-			V = vT
-		}
-
 		kSep := strings.Split(k, ",")
 		switch len(kSep) {
 		case 1:
 			single.keys = append(single.keys, k)
-			single.values = append(single.values, V)
+			single.values = append(single.values, toVariable(v))
 		case 2:
 
 			register(keys1, kSep[0])
@@ -146,7 +147,7 @@ func ReadMap(in map[string]interface{}) HashMap {
 		if len(kSep) == 2 {
 			i1 := keys1[kSep[0]]
 			i2 := keys2[kSep[1]]
-			vals[i1][i2] = v
+			vals[i1][i2] = toVariable(v)
 		}
 	}
 
