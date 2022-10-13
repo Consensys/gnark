@@ -72,7 +72,6 @@ func TestIntegrationAPI(t *testing.T) {
 				}, fmt.Sprintf("invalid-%d", i))
 			}
 		}, name)
-
 	}
 
 }

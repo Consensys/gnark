@@ -193,6 +193,7 @@ func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
 	_a, aConstant := system.ConstantValue(a)
@@ -204,6 +205,7 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	}
 
 	res := system.newInternalVariable()
+	system.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		bConstant = aConstant
@@ -212,10 +214,9 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	if bConstant {
 		l := a.(compiled.Term)
 		r := l
-		one := big.NewInt(1)
-		_b.Lsh(_b, 1).Sub(_b, one)
-		idl := system.st.CoeffID(_b)
-		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
+		oneMinusTwoB := big.NewInt(1)
+		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
+		system.addPlonkConstraint(l, r, res, system.st.CoeffID(oneMinusTwoB), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, system.st.CoeffID(_b))
 		return res
 	}
 	l := a.(compiled.Term)
@@ -239,6 +240,7 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 		return _a
 	}
 	res := system.newInternalVariable()
+	system.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		_b = _a
@@ -265,7 +267,9 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 func (system *scs) And(a, b frontend.Variable) frontend.Variable {
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
-	return system.Mul(a, b)
+	res := system.Mul(a, b)
+	system.MarkBoolean(res)
+	return res
 }
 
 // ---------------------------------------------------------------------------------------------
