@@ -205,6 +205,7 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	}
 
 	res := system.newInternalVariable()
+	system.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		bConstant = aConstant
@@ -239,6 +240,7 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 		return _a
 	}
 	res := system.newInternalVariable()
+	system.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		_b = _a
@@ -265,7 +267,9 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 func (system *scs) And(a, b frontend.Variable) frontend.Variable {
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
-	return system.Mul(a, b)
+	res := system.Mul(a, b)
+	system.MarkBoolean(res)
+	return res
 }
 
 // ---------------------------------------------------------------------------------------------
