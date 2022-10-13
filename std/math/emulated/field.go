@@ -335,13 +335,12 @@ func (f *Field[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 func (f *Field[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	tmp := NewElement[T](els[0])
-	// tmp.Set(els[0]) // TODO @gbotrel do we need to duplicate here?
 	f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] {
 		f.assertIsEqual(a, b)
 		return NewElement[T](nil)
 	},
 		func(e1, e2 Element[T]) (uint, error) {
-			nextOverflow, err := f.subPreCond(e2, e1) // TODO @gbotrel previously "tmp.sub..."
+			nextOverflow, err := f.subPreCond(e2, e1)
 			var target errOverflow
 			if err != nil && errors.As(err, &target) {
 				target.reduceRight = !target.reduceRight

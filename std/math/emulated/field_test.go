@@ -362,13 +362,6 @@ func (c *SubConstantCircuit) Define(api frontend.API) error {
 	if r.(Element[Secp256k1]).overflow != 0 {
 		return fmt.Errorf("overflow %d != 0", r.(Element[Secp256k1]).overflow)
 	}
-	// rc, ok := f.ConstantValue(r)
-	// if !ok {
-	// 	return errors.New("0 - 0 is not constant")
-	// }
-	// if !rc.IsUint64() && rc.Uint64() == 0 {
-	// 	return fmt.Errorf("0 - 0 = %s", rc.String())
-	// }
 	f.AssertIsEqual(r, c2)
 
 	return nil

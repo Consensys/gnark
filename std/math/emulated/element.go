@@ -1,17 +1,5 @@
 package emulated
 
-// TODO: add checks which ensure that constants are not used as receivers
-// TODO: add sanity checks before the operations (e.g. that overflow is
-// sufficient and do not need to reduce)
-// TODO: think about different "operation modes". Probably hand-optimized code
-// is better than reducing eagerly, but the user should be at least aware during
-// compile-time that values need to be reduced. But there should be an easy-mode
-// where the user does not need to manually reduce and the library does it as
-// necessary.
-// TODO: check that the parameters coincide for elements.
-// TODO: less equal than
-// TODO: simple exponentiation before we implement Wesolowsky
-
 import (
 	"errors"
 	"fmt"
@@ -236,11 +224,6 @@ func (f *Field[T]) AssertLimbsEquality(a, b Element[T]) {
 	// and limbs equality in-circuit (way) cheaper
 	ca, cb, bitsPerLimb := f.compact(a, b)
 
-	// f.log.Trace().Int("len(a.limbs)", len(a.Limbs)).
-	// 	Int("len(b.limbs)", len(b.Limbs)).
-	// 	Int("len(cb.limbs)", len(cb)).
-	// 	Int("len(ca.limbs)", len(ca)).
-	// 	Msg("AssertLimbsEquality")
 	// slow path -- the overflows are different. Need to compare with carries.
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
@@ -296,11 +279,6 @@ func (f *Field[T]) add(a, b Element[T], nextOverflow uint) Element[T] {
 		return NewElement[T](ba)
 	}
 
-	// TODO: figure out case when one element is a constant. If one addend is a
-	// constant, then we do not reduce it (but this is always case as the
-	// constant's overflow never increases?)
-	// TODO: check that the target is a variable (has an API)
-	// TODO: if both are constants, then add big ints
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := range limbs {
@@ -331,7 +309,6 @@ func (f *Field[T]) mulPreCond(a, b Element[T]) (nextOverflow uint, err error) {
 }
 
 func (f *Field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
-	// TODO: when one element is constant.
 	ba, aConst := f.ConstantValue(a)
 	bb, bConst := f.ConstantValue(b)
 	if aConst && bConst {
@@ -443,9 +420,6 @@ func (f *Field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 	// so essentially, we say "I know an element k such that k*p == diff"
 	// hence, diff == 0 mod p
 	p := f.Modulus()
-	// we compute k such that diff / p == k
-	// so essentially, we say "I know an element k such that k*p == diff"
-	// hence, diff == 0 mod p
 	k, err := f.computeQuoHint(diff)
 	if err != nil {
 		panic(fmt.Sprintf("hint error: %v", err))
