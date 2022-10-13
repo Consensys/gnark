@@ -1,11 +1,15 @@
 package gkr_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -93,7 +97,12 @@ func orderKeys[K comparable](order map[K]int) (ordered []K) {
 	return
 }
 
-func ReadMap(in map[string]interface{}) (Map, DoubleMap) {
+type HashMap struct {
+	single Map
+	double DoubleMap
+}
+
+func ReadMap(in map[string]interface{}) HashMap {
 	single := Map{
 		keys:   make([]frontend.Variable, 0),
 		values: make([]frontend.Variable, 0),
@@ -103,11 +112,20 @@ func ReadMap(in map[string]interface{}) (Map, DoubleMap) {
 	keys2 := make(map[string]int)
 
 	for k, v := range in {
+
+		var V frontend.Variable
+		switch vT := v.(type) {
+		case float64:
+			V = int(vT)
+		default:
+			V = vT
+		}
+
 		kSep := strings.Split(k, ",")
 		switch len(kSep) {
 		case 1:
 			single.keys = append(single.keys, k)
-			single.values = append(single.values, v)
+			single.values = append(single.values, V)
 		case 2:
 
 			register(keys1, kSep[0])
@@ -138,7 +156,10 @@ func ReadMap(in map[string]interface{}) (Map, DoubleMap) {
 		values: vals,
 	}
 
-	return single, double
+	return HashMap{
+		single: single,
+		double: double,
+	}
 }
 
 func getKeys[K comparable, V any](m map[K]V) []K {
@@ -188,7 +209,7 @@ func TestSingleMap(t *testing.T) {
 		"4": 1,
 		"6": 7,
 	}
-	single, _ := ReadMap(m)
+	single := ReadMap(m).single
 
 	assignment := TestSingleMapCircuit{
 		M:      single,
@@ -200,8 +221,7 @@ func TestSingleMap(t *testing.T) {
 		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
 	}
 
-	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16))
+	test.NewAssert(t).ProverSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16))
 }
 
 type TestDoubleMapCircuit struct {
@@ -237,7 +257,7 @@ func TestReadDoubleMap(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		m := toMap(keys1, keys2, values)
-		_, double := ReadMap(m)
+		double := ReadMap(m).double
 		valuesOrdered := [][]frontend.Variable{{3, nil}, {nil, 1}}
 
 		assert.True(t, double.keys1[0] == "1" && double.keys1[1] == "2" || double.keys1[0] == "2" && double.keys1[1] == "1")
@@ -288,7 +308,7 @@ func TestDoubleMap(t *testing.T) {
 	values := []frontend.Variable{0, 2, 3, 0}
 
 	m := toMap(keys1, keys2, values)
-	_, double := ReadMap(m)
+	double := ReadMap(m).double
 
 	fmt.Println(double)
 
@@ -313,4 +333,121 @@ func TestDoubleMapManyTimes(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		TestDoubleMap(t)
 	}
+}
+
+var hashCache = make(map[string]HashMap)
+
+func getHash(path string) (HashMap, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return HashMap{}, err
+	}
+	if h, ok := hashCache[path]; ok {
+		return h, nil
+	}
+	var bytes []byte
+	if bytes, err = os.ReadFile(path); err == nil {
+		var asMap map[string]interface{}
+		if err = json.Unmarshal(bytes, &asMap); err != nil {
+			return HashMap{}, err
+		}
+
+		res := ReadMap(asMap)
+		hashCache[path] = res
+		return res, nil
+
+	} else {
+		return HashMap{}, err
+	}
+}
+
+type MapHashTranscript struct {
+	hashMap         HashMap
+	stateValid      bool
+	resultAvailable bool
+	state           frontend.Variable
+}
+
+func (m HashMap) hash(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	switch len(x) {
+	case 1:
+		return m.single.Get(api, x[0])
+	case 2:
+		return m.double.Get(api, x[0], x[1])
+	default:
+		panic("only one or two input allowed")
+	}
+}
+
+func (m *MapHashTranscript) Update(api frontend.API, x ...frontend.Variable) {
+	if len(x) > 0 {
+		for _, xI := range x {
+
+			if m.stateValid {
+				m.state = m.hashMap.hash(api, xI, m.state)
+			} else {
+				m.state = m.hashMap.hash(api, xI)
+			}
+
+			m.stateValid = true
+		}
+	} else { //just hash the state itself
+		if !m.stateValid {
+			panic("nothing to hash")
+		}
+		m.state = m.hashMap.hash(api, m.state)
+	}
+	m.resultAvailable = true
+}
+
+func (m *MapHashTranscript) Next(api frontend.API, x ...frontend.Variable) frontend.Variable {
+
+	if len(x) > 0 || !m.resultAvailable {
+		m.Update(api, x...)
+	}
+	m.resultAvailable = false
+	return m.state
+}
+
+func (m *MapHashTranscript) NextN(api frontend.API, N int, x ...frontend.Variable) []frontend.Variable {
+
+	if len(x) > 0 {
+		m.Update(api, x...)
+	}
+
+	res := make([]frontend.Variable, N)
+
+	for n := range res {
+		res[n] = m.Next(api)
+	}
+
+	return res
+}
+
+type TestTranscriptCircuit struct {
+	Expected []frontend.Variable
+}
+
+func (c *TestTranscriptCircuit) Define(api frontend.API) error {
+	hash, err := getHash("test_vectors/resources/hash.json")
+	if err != nil {
+		return err
+	}
+	transcript := MapHashTranscript{hashMap: hash}
+
+	got0 := transcript.Next(api, 0)
+	got1 := transcript.NextN(api, 2, 1)
+	api.AssertIsEqual(got0, c.Expected[0])
+	api.AssertIsEqual(got1[0], c.Expected[1])
+	api.AssertIsEqual(got1[1], c.Expected[2])
+	return nil
+}
+
+func TestTranscript(t *testing.T) {
+
+	test.NewAssert(t).ProverSucceeded(
+		&TestTranscriptCircuit{Expected: make([]frontend.Variable, 3)},
+		&TestTranscriptCircuit{[]frontend.Variable{1, 1, 2}},
+		test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254),
+	)
 }
