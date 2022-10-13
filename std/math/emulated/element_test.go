@@ -722,10 +722,10 @@ func TestOptimisation(t *testing.T) {
 	}
 	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs.GetNbConstraints(), 3291)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3386)
 	ccs2, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs2.GetNbConstraints(), 10722)
+	assert.LessOrEqual(ccs2.GetNbConstraints(), 10483)
 }
 
 type FourMulsCircuit[T FieldParams] struct {
