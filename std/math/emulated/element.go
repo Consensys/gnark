@@ -425,7 +425,7 @@ func (f *Field[T]) assertIsEqual(a, b Element[T]) Element[T] {
 		panic(fmt.Sprintf("hint error: %v", err))
 	}
 
-	kp := (f.Mul(k, p)).(Element[T])
+	kp := f.reduceAndOp(f.mul, f.mulPreCond, k, p)
 
 	f.AssertLimbsEquality(diff, kp)
 

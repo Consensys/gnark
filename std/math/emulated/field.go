@@ -158,6 +158,7 @@ func (f *Field[T]) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...fronten
 	for i := 2; i < len(els); i++ {
 		res = f.reduceAndOp(f.mul, f.mulPreCond, res, els[i])
 	}
+	res = f.reduce(res)
 	return res
 }
 
