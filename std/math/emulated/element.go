@@ -534,10 +534,23 @@ func (f *Field[T]) sub(a, b Element[T], nextOverflow uint) Element[T] {
 // Select sets e to a if selector == 0 and to b otherwise.
 // assumes a overflow == b overflow
 func (f *Field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[T] {
-	e := NewElement[T](nil)
-	e.overflow = a.overflow
-	for i := range a.Limbs {
-		e.Limbs[i] = f.api.Select(selector, a.Limbs[i], b.Limbs[i])
+	overflow := max(a.overflow, b.overflow)
+	nbLimbs := max(len(a.Limbs), len(b.Limbs))
+	e := Element[T]{Limbs: make([]frontend.Variable, nbLimbs), overflow: overflow}
+	normalize := func(limbs []frontend.Variable) []frontend.Variable {
+		if len(limbs) < nbLimbs {
+			tail := make([]frontend.Variable, nbLimbs-len(limbs))
+			for i := range tail {
+				tail[i] = 0
+			}
+			return append(limbs, tail...)
+		}
+		return limbs
+	}
+	aNormLimbs := normalize(a.Limbs)
+	bNormLimbs := normalize(b.Limbs)
+	for i := range e.Limbs {
+		e.Limbs[i] = f.api.Select(selector, aNormLimbs[i], bNormLimbs[i])
 	}
 	return e
 }
@@ -545,17 +558,25 @@ func (f *Field[T]) _select(selector frontend.Variable, a, b Element[T]) Element[
 // Lookup2 performs two-bit lookup between a, b, c, d based on lookup bits b1
 // and b2. Sets e to a if b0=b1=0, b if b0=1 and b1=0, c if b0=0 and b1=1, d if b0=b1=1.
 func (f *Field[T]) lookup2(b0, b1 frontend.Variable, a, b, c, d Element[T]) Element[T] {
-	if len(a.Limbs) != len(b.Limbs) || len(a.Limbs) != len(c.Limbs) || len(a.Limbs) != len(d.Limbs) {
-		panic("unequal limb counts for lookup")
+	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
+	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))
+	e := Element[T]{Limbs: make([]frontend.Variable, nbLimbs), overflow: overflow}
+	normalize := func(limbs []frontend.Variable) []frontend.Variable {
+		if len(limbs) < nbLimbs {
+			tail := make([]frontend.Variable, nbLimbs-len(limbs))
+			for i := range tail {
+				tail[i] = 0
+			}
+			return append(limbs, tail...)
+		}
+		return limbs
 	}
-	if a.overflow != b.overflow || a.overflow != c.overflow || a.overflow != d.overflow {
-		panic("unequal overflows for lookup")
-	}
-	e := NewElement[T](nil)
-	e.Limbs = make([]frontend.Variable, len(a.Limbs))
-	e.overflow = a.overflow
+	aNormLimbs := normalize(a.Limbs)
+	bNormLimbs := normalize(b.Limbs)
+	cNormLimbs := normalize(c.Limbs)
+	dNormLimbs := normalize(d.Limbs)
 	for i := range a.Limbs {
-		e.Limbs[i] = f.api.Lookup2(b0, b1, a.Limbs[i], b.Limbs[i], c.Limbs[i], d.Limbs[i])
+		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
 	}
 	return e
 }
@@ -578,9 +599,16 @@ func (f *Field[T]) reduceAndOp(op func(Element[T], Element[T], uint) Element[T],
 	return op(a, b, nextOverflow)
 }
 
-func max[T constraints.Ordered](a, b T) T {
-	if a > b {
-		return a
+func max[T constraints.Ordered](a ...T) T {
+	if len(a) == 0 {
+		var f T
+		return f
 	}
-	return b
+	m := a[0]
+	for _, v := range a {
+		if v > m {
+			m = v
+		}
+	}
+	return m
 }

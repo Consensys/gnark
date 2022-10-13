@@ -532,6 +532,7 @@ type SelectCircuit[T FieldParams] struct {
 	A        Element[T]
 	B        Element[T]
 	C        Element[T]
+	D        Element[T]
 }
 
 func (c *SelectCircuit[T]) Define(api frontend.API) error {
@@ -539,8 +540,9 @@ func (c *SelectCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Select(c.Selector, c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	l := f.Mul(c.A, c.B)
+	res := f.Select(c.Selector, l, c.C)
+	f.AssertIsEqual(res, c.D)
 	return nil
 }
 
@@ -557,12 +559,16 @@ func testSelect[T FieldParams](t *testing.T) {
 		var circuit, witness SelectCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		val2, _ := rand.Int(rand.Reader, fp.Modulus())
+		val3, _ := rand.Int(rand.Reader, fp.Modulus())
+		l := new(big.Int).Mul(val1, val2)
+		l.Mod(l, fp.Modulus())
 		randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
 		b := randbit.Uint64()
 
 		witness.A.Assign(val1)
 		witness.B.Assign(val2)
-		witness.C.Assign([]*big.Int{val1, val2}[1-b])
+		witness.C.Assign(val3)
+		witness.D.Assign([]*big.Int{l, val3}[1-b])
 		witness.Selector = b
 
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))

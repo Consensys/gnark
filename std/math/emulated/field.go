@@ -284,18 +284,7 @@ func (f *Field[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend
 		f.AssertIsBoolean(vv)
 		b = vv.Limbs[0]
 	}
-	if els[0].overflow == els[1].overflow && len(els[0].Limbs) == len(els[1].Limbs) {
-		return f._select(b, els[0], els[1])
-	}
-	s0 := els[0]
-	s1 := els[1]
-	if s0.overflow != 0 || len(s0.Limbs) != int(f.fParams.NbLimbs()) {
-		s0 = f.reduce(s0)
-	}
-	if s1.overflow != 0 || len(s1.Limbs) != int(f.fParams.NbLimbs()) {
-		s1 = f.reduce(s1)
-	}
-	return f._select(b, s0, s1)
+	return f._select(b, els[0], els[1])
 }
 
 func (f *Field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
@@ -316,26 +305,7 @@ func (f *Field[T]) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 fronte
 		f.AssertIsBoolean(vv)
 		b1 = vv.Limbs[0]
 	}
-	if els[0].overflow == els[1].overflow && els[0].overflow == els[2].overflow && els[0].overflow == els[3].overflow && len(els[0].Limbs) == len(els[1].Limbs) && len(els[0].Limbs) == len(els[2].Limbs) && len(els[0].Limbs) == len(els[3].Limbs) {
-		return f.lookup2(b0, b1, els[0], els[1], els[2], els[3])
-	}
-	s0 := els[0]
-	s1 := els[1]
-	s2 := els[2]
-	s3 := els[3]
-	if s0.overflow != 0 || len(s0.Limbs) != int(f.fParams.NbLimbs()) {
-		s0 = f.reduce(s0)
-	}
-	if s1.overflow != 0 || len(s1.Limbs) != int(f.fParams.NbLimbs()) {
-		s1 = f.reduce(s1)
-	}
-	if s2.overflow != 0 || len(s2.Limbs) != int(f.fParams.NbLimbs()) {
-		s2 = f.reduce(s2)
-	}
-	if s3.overflow != 0 || len(s3.Limbs) != int(f.fParams.NbLimbs()) {
-		s3 = f.reduce(s3)
-	}
-	return f.lookup2(b0, b1, s0, s1, s2, s3)
+	return f.lookup2(b0, b1, els[0], els[1], els[2], els[3])
 }
 
 func (f *Field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
