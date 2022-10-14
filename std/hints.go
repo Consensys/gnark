@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/lookup"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -31,4 +32,5 @@ func registerHints() {
 	hint.Register(bits.IthBit)
 	hint.Register(bits.NBits)
 	hint.Register(emulated.GetHints()...)
+	hint.Register(lookup.LookupHint, lookup.SortingHint)
 }
