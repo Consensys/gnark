@@ -68,8 +68,25 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error {
-	//TODO implement me
-	panic("implement me")
+	inputEvaluations := proof.([]frontend.Variable)
+
+	// defer verification, store the new claims
+	e.manager.addForInput(e.wire, r, inputEvaluations)
+
+	numClaims := len(e.evaluationPoints)
+
+	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
+	for i := numClaims - 2; i >= 0; i-- {
+		evaluation = api.Mul(evaluation, combinationCoeff)
+		eq := polynomial.EvalEq(api, e.evaluationPoints[i], r)
+		evaluation = api.Add(evaluation, eq)
+	}
+
+	gateEvaluation := e.wire.Gate.Evaluate(api, inputEvaluations...)
+	evaluation = api.Mul(evaluation, gateEvaluation)
+
+	api.AssertIsEqual(evaluation, purportedValue)
+	return nil
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) ClaimsNum() int {
@@ -158,15 +175,45 @@ func (m *claimsManager) deleteClaim(wire *Wire) {
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete
 func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof, transcript sumcheck.ArithmeticTranscript) error {
+	claims := newClaimsManager(c, assignment)
+
+	outLayer := c[0]
+
+	firstChallenge := transcript.NextN(api, assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
+
+	for i := range outLayer {
+		wire := &outLayer[i]
+		claims.add(wire, firstChallenge, assignment[wire].Eval(api, firstChallenge))
+	}
+
+	for layerI, layer := range c {
+
+		for wireI := range layer {
+			wire := &layer[wireI]
+			claim := claims.getLazyClaim(wire)
+			if claim.ClaimsNum() == 1 && wire.IsInput() {
+				// simply evaluate and see if it matches
+				evaluation := assignment[wire].Eval(api, claim.evaluationPoints[0])
+				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
+
+			} else {
+				fmt.Println(layerI)
+				if err := sumcheck.Verify(api, claim, proof[layerI][wireI], transcript); err != nil {
+					return err
+				}
+			}
+			claims.deleteClaim(wire)
+		}
+	}
 	return nil
 }
 
-type Verifier struct {
+/*type Verifier struct {
 	Assignment WireAssignment
 	Proof      Proof `gnark:"proof"`
 	Transcript sumcheck.ArithmeticTranscript
 	Circuit    Circuit
-}
+}*/
 
 /*func (v Verifier) Define(api frontend.API) error {
 claims := newClaimsManager(v.Circuit, v.Assignment)

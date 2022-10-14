@@ -14,6 +14,10 @@ import (
 	"testing"
 )
 
+func TestSingleIdentityGateTwoInstances(t *testing.T) {
+	generateTestVerifier("./test_vectors/single_identity_gate_two_instances.json")(t)
+}
+
 func int64SliceToVariableSlice(int64Slice []int64) (variableSlice []frontend.Variable) {
 	variableSlice = make([]frontend.Variable, 0, len(int64Slice))
 
@@ -364,16 +368,19 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 	for i := range printable {
 		proof[i] = make([]sumcheck.Proof, len(printable[i]))
 		for j, printableSumcheck := range printable[i] {
-			finalEvalProof := []frontend.Variable(nil)
 
 			if printableSumcheck.FinalEvalProof != nil {
 				finalEvalSlice := reflect.ValueOf(printableSumcheck.FinalEvalProof)
-				finalEvalProof = make([]frontend.Variable, finalEvalSlice.Len())
+				finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
 				for k := range finalEvalProof {
 					finalEvalProof[k] = toVariable(finalEvalSlice.Index(k).Interface())
 				}
+				proof[i][j].FinalEvalProof = finalEvalProof
+			} else {
+				proof[i][j].FinalEvalProof = nil
 			}
 
+			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(printableSumcheck.PartialSumPolys))
 			for k := range printableSumcheck.PartialSumPolys {
 				proof[i][j].PartialSumPolys[k] = toVariableSlice(printableSumcheck.PartialSumPolys[k])
 			}

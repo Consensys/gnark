@@ -184,7 +184,7 @@ func getValuesOrdered[K comparable, V any](m map[K]V, keys []K) []V {
 func toVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
 	variableSlice = make([]frontend.Variable, len(slice))
 	for i, v := range slice {
-		variableSlice[i] = v
+		variableSlice[i] = toVariable(v)
 	}
 	return
 }
