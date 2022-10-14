@@ -166,9 +166,6 @@ const claimsPerLog = 2
 
 func (m *claimsManager) deleteClaim(wire *Wire) {
 	m.numClaims--
-	if m.numClaims%claimsPerLog == 0 {
-		fmt.Println("GKR:", m.numClaims, "total claims")
-	}
 	delete(m.claimsMap, wire)
 }
 
@@ -180,6 +177,8 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	outLayer := c[0]
 
 	firstChallenge := transcript.NextN(api, assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
+	//fmt.Print("first challenge:")
+	//api.Println(firstChallenge)
 
 	for i := range outLayer {
 		wire := &outLayer[i]

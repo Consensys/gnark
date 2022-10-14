@@ -57,15 +57,11 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript Arithme
 		copy(gJ[1:], partialSumPoly)
 		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
 		// gJ is ready
-		fmt.Println("\nj =", j)
-		api.Println("gJ(0) =", gJ[0])
 
 		//Prepare for the next iteration
 		r[j] = transcript.Next(api, partialSumPoly...)
-		api.Println("r =", r[j])
 
 		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.Degree(j)+1)])
-		api.Println("gJ(r)=", gJR)
 	}
 
 	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof)

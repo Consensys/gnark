@@ -3,6 +3,8 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
@@ -62,40 +64,49 @@ func generateTestVerifier(path string) func(t *testing.T) {
 		input := testCase.InOutAssignment.At(testCase.Circuit.InputLayer()...)
 		output := testCase.InOutAssignment.At(testCase.Circuit.OutputLayer()...)
 
+		partialSumPolys, finalEvalProofs := separateProof(testCase.Proof)
+
 		circuit := &GkrVerifierCircuit{
-			Input:        make([][]frontend.Variable, len(input)),
-			Output:       make([][]frontend.Variable, len(output)),
-			Statement:    0,
-			TestCaseName: path,
+			Input:                make([][]frontend.Variable, len(input)),
+			Output:               make([][]frontend.Variable, len(output)),
+			ProofPartialSumPolys: hollow(partialSumPolys),
+			ProofFinalEvalProofs: hollow(finalEvalProofs),
+			Statement:            0,
+			TestCaseName:         path,
 		}
 
 		fillWithBlanks(circuit.Input, len(input[0]))
 		fillWithBlanks(circuit.Output, len(input[0]))
 
 		assignment := &GkrVerifierCircuit{
-			Input:        input,
-			Output:       output,
-			Statement:    0,
-			TestCaseName: path,
+			Input:                input,
+			Output:               output,
+			ProofPartialSumPolys: partialSumPolys,
+			ProofFinalEvalProofs: finalEvalProofs,
+			Statement:            0,
+			TestCaseName:         path,
 		}
 
-		test.NewAssert(t).ProverSucceeded(circuit, assignment)
+		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 
 		circuit.Statement = 1
 		assignment.Statement = 1
 
-		test.NewAssert(t).ProverFailed(circuit, assignment)
+		//test.NewAssert(t).ProverFailed(circuit, assignment)
 	}
 }
 
 type GkrVerifierCircuit struct {
-	Input        [][]frontend.Variable
-	Output       [][]frontend.Variable `gnark:",public"`
-	Statement    int
-	TestCaseName string
+	Input                [][]frontend.Variable
+	Output               [][]frontend.Variable `gnark:",public"`
+	ProofPartialSumPolys [][][][]frontend.Variable
+	ProofFinalEvalProofs [][][]frontend.Variable
+	Statement            int
+	TestCaseName         string
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
+	api.Println("heloooooo")
 	var circuit Circuit
 	var transcript sumcheck.ArithmeticTranscript
 	var proof Proof
@@ -111,6 +122,78 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	transcript.Update(api, c.Statement)
 
 	return Verify(api, circuit, assignment, proof, transcript)
+}
+
+func buildProof(partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) Proof {
+	proof := make(Proof, len(partialSumPolys))
+	if len(partialSumPolys) != len(finalEvalProofs) {
+		panic("malformed proof")
+	}
+
+	for i := range proof {
+		proof[i] = make([]sumcheck.Proof, len(partialSumPolys[i]))
+		if len(partialSumPolys[i]) != len(finalEvalProofs[i]) {
+			panic("malformed prof")
+		}
+		for j := range proof[i] {
+			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(partialSumPolys[i][j]))
+			for k, polyK := range partialSumPolys[i][j] {
+				proof[i][j].PartialSumPolys[k] = polyK
+			}
+
+			proof[i][j].FinalEvalProof = finalEvalProofs[i][j]
+		}
+	}
+	return proof
+}
+
+func separateProof(proof Proof) (partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) {
+	partialSumPolys = make([][][][]frontend.Variable, len(proof))
+	finalEvalProofs = make([][][]frontend.Variable, len(proof))
+
+	for i, pI := range proof {
+		partialSumPolys[i] = make([][][]frontend.Variable, len(pI))
+		finalEvalProofs[i] = make([][]frontend.Variable, len(pI))
+		for j, pIJ := range pI {
+			if pIJ.FinalEvalProof == nil {
+				finalEvalProofs[i][j] = nil
+			} else {
+				finalEvalProofs[i][j] = pIJ.FinalEvalProof.([]frontend.Variable)
+			}
+			partialSumPolys[i][j] = make([][]frontend.Variable, len(pIJ.PartialSumPolys))
+			for k := range pIJ.PartialSumPolys {
+				partialSumPolys[i][j][k] = pIJ.PartialSumPolys[k]
+			}
+		}
+	}
+	return
+}
+
+func hollow[K any](x K) K {
+	return subHollow(x).(K)
+}
+
+func subHollow(x interface{}) interface{} {
+	if x == nil {
+		return nil
+	}
+	vX := reflect.ValueOf(x)
+
+	if vX.Type().Kind() != reflect.Slice {
+		return nil
+	}
+
+	if vX.Len() == 0 {
+		return x
+	}
+
+	res := reflect.MakeSlice(vX.Type(), vX.Len(), vX.Len())
+
+	for i := 0; i < vX.Len(); i++ {
+		xIHollow := reflect.ValueOf(subHollow(vX.Index(i).Interface()))
+		res.Index(i).Set(xIHollow)
+	}
+	return res.Interface()
 }
 
 func (a WireAssignment) addLayerValuations(layer CircuitLayer, values [][]frontend.Variable) {
@@ -387,4 +470,14 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 		}
 	}
 	return
+}
+
+func TestHollow(t *testing.T) {
+	toHollow := []frontend.Variable{1, 2, 3}
+	hollow := hollow(toHollow)
+	assert.Equal(t, 0, len(hollow))
+}
+
+func TestSet(t *testing.T) {
+
 }

@@ -1,7 +1,6 @@
 package polynomial
 
 import (
-	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"math/bits"
 )
@@ -67,12 +66,9 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 	atMinus := make([]frontend.Variable, valuesLen) //TODO: No need for this array and the following loop
 	for i := range atMinus {
 		atMinus[i] = api.Sub(at, i)
-		fmt.Println("atMinus", i)
-		api.Println(atMinus[i])
 	}
 	factInv := api.Inverse(negFactorial(valuesLen - 1))
-	fmt.Println("factInv(0)")
-	api.Println(factInv)
+
 	for i := range deltaAt {
 		deltaAt[i] = factInv
 		for j := range atMinus {
