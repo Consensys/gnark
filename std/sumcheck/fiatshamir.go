@@ -8,7 +8,7 @@ import "github.com/consensys/gnark/frontend"
 //Generally, the challenge (no pun intended) stems from the non-triviality of the number of rounds in sumcheck and hence in GKR
 
 type ArithmeticTranscript interface {
-	Update(...interface{})
-	Next(...interface{}) frontend.Variable
-	NextN(int, ...interface{}) []frontend.Variable
+	Update(frontend.API, ...frontend.Variable)
+	Next(frontend.API, ...frontend.Variable) frontend.Variable
+	NextN(frontend.API, int, ...frontend.Variable) []frontend.Variable
 }

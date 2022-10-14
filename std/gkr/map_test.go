@@ -1,4 +1,4 @@
-package gkr_test
+package gkr
 
 import (
 	"encoding/json"

@@ -22,6 +22,16 @@ type Wire struct {
 
 type CircuitLayer []Wire
 
+func (l CircuitLayer) References() []*Wire {
+	res := make([]*Wire, len(l))
+
+	for i := range l {
+		res[i] = &l[i]
+	}
+
+	return res
+}
+
 // TODO: Constructor so that user doesn't have to give layers explicitly.
 type Circuit []CircuitLayer
 
@@ -35,6 +45,14 @@ func (c Circuit) Size() int { //TODO: Worth caching?
 		res += len(c[i])
 	}
 	return res
+}
+
+func (c Circuit) InputLayer() []*Wire {
+	return c[len(c)-1].References()
+}
+
+func (c Circuit) OutputLayer() []*Wire {
+	return c[0].References()
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
@@ -137,6 +155,12 @@ func (m *claimsManager) deleteClaim(wire *Wire) {
 	delete(m.claimsMap, wire)
 }
 
+// Verify the consistency of the claimed output with the claimed input
+// Unlike in Prove, the assignment argument need not be complete
+func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof, transcript sumcheck.ArithmeticTranscript) error {
+	return nil
+}
+
 type Verifier struct {
 	Assignment WireAssignment
 	Proof      Proof `gnark:"proof"`
@@ -144,44 +168,44 @@ type Verifier struct {
 	Circuit    Circuit
 }
 
-func (v Verifier) Define(api frontend.API) error {
-	claims := newClaimsManager(v.Circuit, v.Assignment)
+/*func (v Verifier) Define(api frontend.API) error {
+claims := newClaimsManager(v.Circuit, v.Assignment)
 
-	outLayer := v.Circuit[0]
+outLayer := v.Circuit[0]
 
-	firstChallenge := v.Transcript.NextN(v.Assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
+firstChallenge := v.Transcript.NextN(api, v.Assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
 
-	for i := range outLayer {
-		wire := &outLayer[i]
-		claims.add(wire, firstChallenge, v.Assignment[wire].Eval(api, firstChallenge))
-	}
+for i := range outLayer {
+	wire := &outLayer[i]
+	claims.add(wire, firstChallenge, v.Assignment[wire].Eval(api, firstChallenge))
+}
 
-	for layerI, layer := range v.Circuit {
+for layerI, layer := range v.Circuit {
 
-		for wireI := range layer {
-			wire := &layer[wireI]
-			claim := claims.getLazyClaim(wire)
-			if claim.ClaimsNum() == 1 && wire.IsInput() {
-				// simply evaluate and see if it matches
-				evaluation := v.Assignment[wire].Eval(api, claim.evaluationPoints[0])
-				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
+	for wireI := range layer {
+		wire := &layer[wireI]
+		claim := claims.getLazyClaim(wire)
+		if claim.ClaimsNum() == 1 && wire.IsInput() {
+			// simply evaluate and see if it matches
+			evaluation := v.Assignment[wire].Eval(api, claim.evaluationPoints[0])
+			api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 
-			} else {
-				fmt.Println(layerI)
-				/*err := sumcheck.Verifier{
-					Claims:     claim,
-					Proof:      v.Proof[layerI][wireI],
-					Transcript: v.Transcript,
-				}.Define(api)
-				if err != nil {
-					return err
-				}*/
-			}
+		} else {
+			fmt.Println(layerI)
+			/*err := sumcheck.Verifier{
+				Claims:     claim,
+				Proof:      v.Proof[layerI][wireI],
+				Transcript: v.Transcript,
+			}.Define(api)
+			if err != nil {
+				return err
+			}*/
+/*			}
 			claims.deleteClaim(wire)
 		}
 	}
 	return nil
-}
+}*/
 
 type identityGate struct{}
 

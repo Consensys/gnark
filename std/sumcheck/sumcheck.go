@@ -16,16 +16,21 @@ type LazyClaims interface {
 }
 
 // Proof of a multi-sumcheck statement.
-type Proof interface {
+/*type Proof interface {
 	PartialSumPoly(index int) polynomial.Polynomial
 	FinalEvalProof() Proof //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
+}*/
+
+type Proof struct {
+	PartialSumPolys []polynomial.Polynomial
+	FinalEvalProof  interface{}
 }
 
 func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript ArithmeticTranscript) error {
 	var combinationCoeff frontend.Variable
 
 	if claims.ClaimsNum() >= 2 {
-		combinationCoeff = transcript.Next()
+		combinationCoeff = transcript.Next(api)
 		fmt.Println("got combination coeff")
 	}
 
@@ -45,7 +50,7 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript Arithme
 	gJR := claims.CombinedSum(combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < claims.VarsNum(); j++ {
-		partialSumPoly := proof.PartialSumPoly(j)
+		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
 		if len(partialSumPoly) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
@@ -56,13 +61,13 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript Arithme
 		api.Println("gJ(0) =", gJ[0])
 
 		//Prepare for the next iteration
-		r[j] = transcript.Next(partialSumPoly)
+		r[j] = transcript.Next(api, partialSumPoly)
 		api.Println("r =", r[j])
 
 		gJR = polynomial.InterpolateLDE(api, r[j], gJ[:(claims.Degree(j)+1)])
 		api.Println("gJ(r)=", gJR)
 	}
 
-	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof())
+	return claims.VerifyFinalEval(api, r, combinationCoeff, gJR, proof.FinalEvalProof)
 
 }
