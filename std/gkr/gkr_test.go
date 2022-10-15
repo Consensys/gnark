@@ -170,30 +170,25 @@ func separateProof(proof Proof) (partialSumPolys [][][][]frontend.Variable, fina
 }
 
 func hollow[K any](x K) K {
-	return subHollow(x).(K)
-}
-
-func subHollow(x interface{}) interface{} {
-	if x == nil {
-		return nil
+	switch X := interface{}(x).(type) {
+	case []frontend.Variable:
+		res := interface{}(make([]frontend.Variable, len(X)))
+		return res.(K)
+	case [][]frontend.Variable:
+		res := make([][]frontend.Variable, len(X))
+		for i, xI := range X {
+			res[i] = hollow(xI)
+		}
+		return interface{}(res).(K)
+	case [][][]frontend.Variable:
+		res := make([][][]frontend.Variable, len(X))
+		for i, xI := range X {
+			res[i] = hollow(xI)
+		}
+		return interface{}(res).(K)
+	default:
+		panic("cannot hollow out type " + reflect.TypeOf(x).Name())
 	}
-	vX := reflect.ValueOf(x)
-
-	if vX.Type().Kind() != reflect.Slice {
-		return nil
-	}
-
-	if vX.Len() == 0 {
-		return x
-	}
-
-	res := reflect.MakeSlice(vX.Type(), vX.Len(), vX.Len())
-
-	for i := 0; i < vX.Len(); i++ {
-		xIHollow := reflect.ValueOf(subHollow(vX.Index(i).Interface()))
-		res.Index(i).Set(xIHollow)
-	}
-	return res.Interface()
 }
 
 func (a WireAssignment) addLayerValuations(layer CircuitLayer, values [][]frontend.Variable) {
@@ -474,8 +469,8 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 
 func TestHollow(t *testing.T) {
 	toHollow := []frontend.Variable{1, 2, 3}
-	hollow := hollow(toHollow)
-	assert.Equal(t, 0, len(hollow))
+	hollowed := hollow(toHollow)
+	assert.Equal(t, 3, len(hollowed))
 }
 
 func TestSet(t *testing.T) {
