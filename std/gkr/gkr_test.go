@@ -98,10 +98,10 @@ func generateTestVerifier(path string) func(t *testing.T) {
 
 type GkrVerifierCircuit struct {
 	Input                [][]frontend.Variable
-	Output               [][]frontend.Variable `gnark:",public"`
-	ProofPartialSumPolys [][][][]frontend.Variable
+	Output               [][]frontend.Variable     `gnark:",public"`
+	ProofPartialSumPolys [][][][]frontend.Variable // TODO: Feed a proof in here directly, without all this separating and interleaving business
 	ProofFinalEvalProofs [][][]frontend.Variable
-	Statement            int
+	Statement            frontend.Variable
 	TestCaseName         string
 }
 
@@ -109,22 +109,22 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	api.Println("heloooooo")
 	var circuit Circuit
 	var transcript sumcheck.ArithmeticTranscript
-	var proof Proof
+	//var proofRef Proof
 	if testCase, err := newTestCase(c.TestCaseName); err == nil {
 		circuit = testCase.Circuit
 		transcript = testCase.Transcript
-		proof = testCase.Proof
 	} else {
 		return err
 	}
 
+	proof := interleaveProof(c.ProofPartialSumPolys, c.ProofFinalEvalProofs)
 	assignment := makeInOutAssignment(circuit, c.Input, c.Output)
 	transcript.Update(api, c.Statement)
 
 	return Verify(api, circuit, assignment, proof, transcript)
 }
 
-func buildProof(partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) Proof {
+func interleaveProof(partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) Proof {
 	proof := make(Proof, len(partialSumPolys))
 	if len(partialSumPolys) != len(finalEvalProofs) {
 		panic("malformed proof")
@@ -169,7 +169,7 @@ func separateProof(proof Proof) (partialSumPolys [][][][]frontend.Variable, fina
 	return
 }
 
-func hollow[K any](x K) K {
+func hollow[K any](x K) K { //TODO: This but with generics or reflection
 	switch X := interface{}(x).(type) {
 	case []frontend.Variable:
 		res := interface{}(make([]frontend.Variable, len(X)))
@@ -186,8 +186,15 @@ func hollow[K any](x K) K {
 			res[i] = hollow(xI)
 		}
 		return interface{}(res).(K)
+
+	case [][][][]frontend.Variable:
+		res := make([][][][]frontend.Variable, len(X))
+		for i, xI := range X {
+			res[i] = hollow(xI)
+		}
+		return interface{}(res).(K)
 	default:
-		panic("cannot hollow out type " + reflect.TypeOf(x).Name())
+		panic("cannot hollow out type " + reflect.TypeOf(x).String())
 	}
 }
 
@@ -424,22 +431,6 @@ type PrintableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
 }
-
-/*
-// TODO: Think why sumcheck.Proof was made to be an interface. Convert back into struct if possible
-type StdSumcheckProof struct {
-	partialSumPolys []polynomial.Polynomial
-	finalEvalProof  interface{}
-}
-
-func (s StdSumcheckProof) PartialSumPoly(index int) polynomial.Polynomial {
-	return s.partialSumPolys[index]
-}
-
-func (s StdSumcheckProof) FinalEvalProof() sumcheck.Proof {
-	//TODO implement me
-	panic("implement me")
-}*/
 
 func unmarshalProof(printable PrintableProof) (proof Proof) {
 	proof = make(Proof, len(printable))
