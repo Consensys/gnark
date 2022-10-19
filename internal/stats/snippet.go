@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/lookup"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -138,6 +139,17 @@ func initSnippets() {
 		// performs the final expo
 		_ = sw_bls24315.FinalExponentiation(api, resMillerLoop)
 	}, ecc.BW6_633)
+
+	registerSnippet("lookup_10_10", func(api frontend.API, newVariable func() frontend.Variable) {
+		table := lookup.New()
+		for i := 0; i < 10; i++ {
+			table.Insert(newVariable())
+		}
+		for j := 0; j < 10; j++ {
+			table.Lookup(api, newVariable())
+		}
+		table.Commit(api)
+	})
 
 }
 
