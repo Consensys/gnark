@@ -163,7 +163,48 @@ func TestSchemaInherit(t *testing.T) {
 		assert.Equal(3, s.NbPublic)
 		assert.Equal(1, s.NbSecret)
 	}
+}
 
+type InheritingType struct {
+	C1 variable
+	C2 variable `gnark:"C2"`
+	C3 variable `gnark:",inherit"`
+}
+
+type DoubleInheritingType struct {
+	D1 InheritingType
+	D2 InheritingType `gnark:"D2"`
+	D3 InheritingType `gnark:",inherit"`
+}
+
+type InheritCircuit struct {
+	A1 InheritingType
+	A2 InheritingType `gnark:"A2"`
+	A3 InheritingType `gnark:",public"`
+	A4 InheritingType `gnark:",secret"`
+	A5 DoubleInheritingType
+	A6 DoubleInheritingType `gnark:"DD"`
+	A7 DoubleInheritingType `gnark:",public"`
+	A8 DoubleInheritingType `gnark:",secret"`
+}
+
+type InvalidInheritingCircuit struct {
+	B1 InheritingType       `gnark:",inherit"`
+	B2 DoubleInheritingType `gnark:",inherit"`
+}
+
+func TestSchemaInherit2(t *testing.T) {
+	assert := require.New(t)
+	{
+		c := InheritCircuit{}
+		_, err := Parse(&c, tVariable, nil)
+		assert.NoError(err)
+	}
+	{
+		c := InvalidInheritingCircuit{}
+		_, err := Parse(&c, tVariable, nil)
+		assert.Error(err)
+	}
 }
 
 var tVariable reflect.Type
