@@ -8,7 +8,7 @@ standard Go arrays which provide the best performance. This package does not
 provide a fast path for the cases where the elements in the lookup tables are
 constants.
 
-In R1CS, the approximate cost for the lookup table is 4*(k+n)*log_2(k+n)
+In R1CS, the approximate cost for the lookup table is 3*(k+n)*log_2(k+n)
 constraints where k is the number of entries in the lookup table and n is the
 number of total lookups.
 */
@@ -30,9 +30,8 @@ func init() {
 }
 
 type entry struct {
-	pointer  frontend.Variable
-	current  frontend.Variable
-	previous frontend.Variable
+	pointer frontend.Variable
+	current frontend.Variable
 }
 
 // Table is an append-only lookup table. It does not allow removing or modifying
@@ -101,15 +100,15 @@ func (t *Table) callLookupHint(api frontend.API, inds []frontend.Variable) []fro
 	for i := range inds {
 		inputs[len(t.entries)+i] = inds[i]
 	}
-	hintResp, err := api.NewHint(LookupHint, 2*len(inds), inputs...)
+	hintResp, err := api.NewHint(LookupHint, len(inds), inputs...)
 	if err != nil {
 		panic(fmt.Sprintf("lookup hint: %v", err))
 	}
 	res := make([]frontend.Variable, len(inds))
 	results := make([]entry, len(inds))
 	for i := range inds {
-		res[i] = hintResp[2*i]
-		results[i] = entry{pointer: inds[i], current: hintResp[2*i], previous: hintResp[2*i+1]}
+		res[i] = hintResp[i]
+		results[i] = entry{pointer: inds[i], current: hintResp[i]}
 	}
 	t.results = append(t.results, results...)
 	return res
@@ -119,10 +118,7 @@ func (t *Table) callLookupHint(api frontend.API, inds []frontend.Variable) []fro
 // the lookup table. It must be provided to the solver at solving time when
 // using lookup tables.
 func LookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
-	if len(out)%2 != 0 {
-		return fmt.Errorf("hint output not even")
-	}
-	nbTable := len(in) - len(out)/2
+	nbTable := len(in) - len(out)
 	for i := 0; i < len(in)-nbTable; i++ {
 		if !in[nbTable+i].IsInt64() {
 			return fmt.Errorf("lookup query not integer")
@@ -131,12 +127,7 @@ func LookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
 		if ptr >= nbTable {
 			return fmt.Errorf("lookup query %d outside table size %d", ptr, nbTable)
 		}
-		out[2*i] = in[ptr]
-		if ptr == 0 {
-			out[2*i+1].SetInt64(0)
-		} else {
-			out[2*i+1].Set(in[ptr-1])
-		}
+		out[i] = in[ptr]
 	}
 	return nil
 }
@@ -154,7 +145,7 @@ func (t *Table) Commit(api frontend.API) {
 	//
 	// 3. after the permutation, constrain the sorted elements -- start from the
 	// second and if the indices are the same, check that current_i =
-	// current_(i-1). If differ, then check that prev_i = current_(i-1)
+	// current_(i-1)
 
 	// input to permutation network
 	if len(t.entries) == 0 || len(t.results) == 0 {
@@ -163,9 +154,8 @@ func (t *Table) Commit(api frontend.API) {
 		return
 	}
 	inputs := make([]entry, len(t.entries)+len(t.results))
-	inputs[0] = entry{pointer: 0, current: t.entries[0], previous: 0}
-	for i := 1; i < len(t.entries); i++ {
-		inputs[i] = entry{pointer: i, current: t.entries[i], previous: t.entries[i-1]}
+	for i := 0; i < len(t.entries); i++ {
+		inputs[i] = entry{pointer: i, current: t.entries[i]}
 	}
 	for i := range t.results {
 		inputs[len(t.entries)+i] = t.results[i]
@@ -174,9 +164,8 @@ func (t *Table) Commit(api frontend.API) {
 	for i := 1; i < len(sorted); i++ {
 		ptrDiff := api.Sub(sorted[i].pointer, sorted[i-1].pointer)
 		api.AssertIsBoolean(ptrDiff)
-		l := api.Sub(sorted[i].previous, sorted[i].current)
-		o := api.Sub(sorted[i-1].current, sorted[i].current)
-		api.AssertIsEqual(api.Mul(ptrDiff, l), o)
+		l := api.Mul(api.Sub(1, ptrDiff), api.Sub(sorted[i].current, sorted[i-1].current))
+		api.AssertIsEqual(l, 0)
 	}
 }
 
@@ -224,10 +213,8 @@ func (t *Table) routingLoadCallback(api frontend.API, switches []frontend.Variab
 		api.AssertIsBoolean(s)
 		outUp.pointer = api.Select(s, inDown.pointer, inUp.pointer)
 		outUp.current = api.Select(s, inDown.current, inUp.current)
-		outUp.previous = api.Select(s, inDown.previous, inUp.previous)
 		outDown.pointer = api.Sub(api.Add(inUp.pointer, inDown.pointer), outUp.pointer)
 		outDown.current = api.Sub(api.Add(inUp.current, inDown.current), outUp.current)
-		outDown.previous = api.Sub(api.Add(inUp.previous, inDown.previous), outUp.previous)
 		return outUp, outDown
 	}
 }
