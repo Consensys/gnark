@@ -16,11 +16,6 @@ type LazyClaims interface {
 }
 
 // Proof of a multi-sumcheck statement.
-/*type Proof interface {
-	PartialSumPoly(index int) polynomial.Polynomial
-	FinalEvalProof() Proof //in case it is difficult for the verifier to compute g(r₁, ..., rₙ) on its own, the prover can provide the value and a proof
-}*/
-
 type Proof struct {
 	PartialSumPolys []polynomial.Polynomial
 	FinalEvalProof  interface{}
@@ -31,7 +26,7 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcript Arithme
 
 	if claims.ClaimsNum() >= 2 {
 		combinationCoeff = transcript.Next(api)
-		fmt.Println("got combination coeff")
+		//fmt.Println("got combination coeff")
 	}
 
 	r := make([]frontend.Variable, claims.VarsNum())

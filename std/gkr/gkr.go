@@ -82,6 +82,9 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 		evaluation = api.Add(evaluation, eq)
 	}
 
+	if expected, given := len(e.wire.Inputs), len(inputEvaluations); expected != given {
+		return fmt.Errorf("malformed proof: wire has %d inputs, but %d input evaluations given", expected, given)
+	}
 	gateEvaluation := e.wire.Gate.Evaluate(api, inputEvaluations...)
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -134,7 +137,7 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
 	m.numClaims++
 	if m.numClaims%claimsPerLog == 0 {
-		fmt.Println("GKR:", m.numClaims, "total claims")
+		//fmt.Println("GKR:", m.numClaims, "total claims")
 	}
 	if wire.IsInput() {
 		wire.Gate = identityGate{}
@@ -190,14 +193,18 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		for wireI := range layer {
 			wire := &layer[wireI]
 			claim := claims.getLazyClaim(wire)
+			wProof := proof[layerI][wireI] // proof corresponding to this wire
 			if claim.ClaimsNum() == 1 && wire.IsInput() {
 				// simply evaluate and see if it matches
+				if wProof.FinalEvalProof != nil {
+					return fmt.Errorf("malformed proof: input node should have no final evaluation proof")
+				}
 				evaluation := assignment[wire].Eval(api, claim.evaluationPoints[0])
 				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 
 			} else {
-				fmt.Println(layerI)
-				if err := sumcheck.Verify(api, claim, proof[layerI][wireI], transcript); err != nil {
+				//fmt.Println(layerI)
+				if err := sumcheck.Verify(api, claim, wProof, transcript); err != nil {
 					return err
 				}
 			}
@@ -206,52 +213,6 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	}
 	return nil
 }
-
-/*type Verifier struct {
-	Assignment WireAssignment
-	Proof      Proof `gnark:"proof"`
-	Transcript sumcheck.ArithmeticTranscript
-	Circuit    Circuit
-}*/
-
-/*func (v Verifier) Define(api frontend.API) error {
-claims := newClaimsManager(v.Circuit, v.Assignment)
-
-outLayer := v.Circuit[0]
-
-firstChallenge := v.Transcript.NextN(api, v.Assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
-
-for i := range outLayer {
-	wire := &outLayer[i]
-	claims.add(wire, firstChallenge, v.Assignment[wire].Eval(api, firstChallenge))
-}
-
-for layerI, layer := range v.Circuit {
-
-	for wireI := range layer {
-		wire := &layer[wireI]
-		claim := claims.getLazyClaim(wire)
-		if claim.ClaimsNum() == 1 && wire.IsInput() {
-			// simply evaluate and see if it matches
-			evaluation := v.Assignment[wire].Eval(api, claim.evaluationPoints[0])
-			api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
-
-		} else {
-			fmt.Println(layerI)
-			/*err := sumcheck.Verifier{
-				Claims:     claim,
-				Proof:      v.Proof[layerI][wireI],
-				Transcript: v.Transcript,
-			}.Define(api)
-			if err != nil {
-				return err
-			}*/
-/*			}
-			claims.deleteClaim(wire)
-		}
-	}
-	return nil
-}*/
 
 type identityGate struct{}
 

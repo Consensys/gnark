@@ -381,7 +381,7 @@ func (m HashMap) hash(api frontend.API, x ...frontend.Variable) frontend.Variabl
 }
 
 func (m *MapHashTranscript) Update(api frontend.API, x ...frontend.Variable) {
-	api.Println("input to update of size ", len(x), ". first input =", x[0])
+	//api.Println("input to update of size ", len(x), ". first input =", x[0])
 	if len(x) > 0 {
 		for _, xI := range x {
 
@@ -400,7 +400,7 @@ func (m *MapHashTranscript) Update(api frontend.API, x ...frontend.Variable) {
 		m.state = m.hashMap.hash(api, m.state)
 	}
 	m.resultAvailable = true
-	api.Println("Hash state is now ", m.state)
+	//api.Println("Hash state is now ", m.state)
 }
 
 func (m *MapHashTranscript) Next(api frontend.API, x ...frontend.Variable) frontend.Variable {

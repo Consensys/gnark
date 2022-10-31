@@ -20,18 +20,12 @@ func TestSingleIdentityGateTwoInstances(t *testing.T) {
 	generateTestVerifier("./test_vectors/single_identity_gate_two_instances.json")(t)
 }
 
-func int64SliceToVariableSlice(int64Slice []int64) (variableSlice []frontend.Variable) {
-	variableSlice = make([]frontend.Variable, 0, len(int64Slice))
-
-	for _, v := range int64Slice {
-		variableSlice = append(variableSlice, v)
-	}
-
-	return
+func TestTwoIdentityGatesComposedSingleInputTwoInstances(t *testing.T) {
+	generateTestVerifier("./test_vectors/two_identity_gates_composed_single_input_two_instances.json")(t)
 }
 
-func int64SliceToMultiLin(int64Slice []int64) polynomial.MultiLin { //Only semantics
-	return int64SliceToVariableSlice(int64Slice)
+func TestTwoInputSingleIdentityGateTwoInstances(t *testing.T) {
+	generateTestVerifier("./test_vectors/two_input_single_identity_gate_two_instances.json")(t)
 }
 
 func TestGkrVectors(t *testing.T) {
@@ -42,15 +36,17 @@ func TestGkrVectors(t *testing.T) {
 		t.Error(err)
 	}
 	for _, dirEntry := range dirEntries {
-		if !dirEntry.IsDir() {
+		if !dirEntry.IsDir() && filepath.Ext(dirEntry.Name()) == ".json" {
 
-			if filepath.Ext(dirEntry.Name()) == ".json" {
-				path := filepath.Join(testDirPath, dirEntry.Name())
-				noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
-
-				t.Run(noExt+"_verifier", generateTestVerifier(path))
-
+			if dirEntry.Name() == "two_input_single_identity_gate_two_instances.json" {
+				continue
 			}
+
+			path := filepath.Join(testDirPath, dirEntry.Name())
+			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
+
+			t.Run(noExt, generateTestVerifier(path))
+
 		}
 	}
 }
@@ -64,109 +60,124 @@ func generateTestVerifier(path string) func(t *testing.T) {
 		input := testCase.InOutAssignment.At(testCase.Circuit.InputLayer()...)
 		output := testCase.InOutAssignment.At(testCase.Circuit.OutputLayer()...)
 
-		partialSumPolys, finalEvalProofs := separateProof(testCase.Proof)
+		assignment := &GkrVerifierCircuit{
+			Input:           input,
+			Output:          output,
+			SerializedProof: serializeProof(testCase.Proof),
+			Statement:       0,
+			TestCaseName:    path,
+		}
 
 		circuit := &GkrVerifierCircuit{
-			Input:                make([][]frontend.Variable, len(input)),
-			Output:               make([][]frontend.Variable, len(output)),
-			ProofPartialSumPolys: hollow(partialSumPolys),
-			ProofFinalEvalProofs: hollow(finalEvalProofs),
-			Statement:            0,
-			TestCaseName:         path,
+			Input:           make([][]frontend.Variable, len(input)),
+			Output:          make([][]frontend.Variable, len(output)),
+			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
+			Statement:       0,
+			TestCaseName:    path,
 		}
 
 		fillWithBlanks(circuit.Input, len(input[0]))
 		fillWithBlanks(circuit.Output, len(input[0]))
-
-		assignment := &GkrVerifierCircuit{
-			Input:                input,
-			Output:               output,
-			ProofPartialSumPolys: partialSumPolys,
-			ProofFinalEvalProofs: finalEvalProofs,
-			Statement:            0,
-			TestCaseName:         path,
-		}
 
 		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 
 		circuit.Statement = 1
 		assignment.Statement = 1
 
-		//test.NewAssert(t).ProverFailed(circuit, assignment)
 	}
 }
 
 type GkrVerifierCircuit struct {
-	Input                [][]frontend.Variable
-	Output               [][]frontend.Variable     `gnark:",public"`
-	ProofPartialSumPolys [][][][]frontend.Variable // TODO: Feed a proof in here directly, without all this separating and interleaving business
-	ProofFinalEvalProofs [][][]frontend.Variable
-	Statement            frontend.Variable
-	TestCaseName         string
+	Input           [][]frontend.Variable
+	Output          [][]frontend.Variable `gnark:",public"`
+	SerializedProof []frontend.Variable
+	Statement       frontend.Variable
+	TestCaseName    string
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
-	api.Println("heloooooo")
 	var circuit Circuit
 	var transcript sumcheck.ArithmeticTranscript
+	var proofTemplate Proof
 	//var proofRef Proof
 	if testCase, err := newTestCase(c.TestCaseName); err == nil {
 		circuit = testCase.Circuit
 		transcript = testCase.Transcript
+		proofTemplate = testCase.Proof
 	} else {
 		return err
 	}
 
-	proof := interleaveProof(c.ProofPartialSumPolys, c.ProofFinalEvalProofs)
+	proof := deserializeProof(c.SerializedProof, proofTemplate)
 	assignment := makeInOutAssignment(circuit, c.Input, c.Output)
 	transcript.Update(api, c.Statement)
 
 	return Verify(api, circuit, assignment, proof, transcript)
 }
 
-func interleaveProof(partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) Proof {
-	proof := make(Proof, len(partialSumPolys))
-	if len(partialSumPolys) != len(finalEvalProofs) {
-		panic("malformed proof")
-	}
+type varQueue []frontend.Variable
 
-	for i := range proof {
-		proof[i] = make([]sumcheck.Proof, len(partialSumPolys[i]))
-		if len(partialSumPolys[i]) != len(finalEvalProofs[i]) {
-			panic("malformed prof")
-		}
-		for j := range proof[i] {
-			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(partialSumPolys[i][j]))
-			for k, polyK := range partialSumPolys[i][j] {
-				proof[i][j].PartialSumPolys[k] = polyK
+func (q *varQueue) popN(n int) []frontend.Variable {
+	v := (*q)[:n]
+	*q = (*q)[n:]
+	return v
+}
+
+func (q *varQueue) pop() frontend.Variable {
+	v := (*q)[0]
+	*q = (*q)[1:]
+	return v
+}
+
+func (q *varQueue) add(v ...frontend.Variable) {
+	*q = append(*q, v...)
+}
+
+func (q *varQueue) empty() bool {
+	return len(*q) == 0
+}
+
+func deserializeProof(serializedProof []frontend.Variable, template Proof) Proof {
+	in := varQueue(serializedProof)
+	proof := make(Proof, len(template))
+
+	for i, tI := range template {
+		proof[i] = make([]sumcheck.Proof, len(tI))
+
+		for j, tIJ := range tI {
+			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(tIJ.PartialSumPolys))
+			for k, tIJPk := range tIJ.PartialSumPolys {
+				proof[i][j].PartialSumPolys[k] = in.popN(len(tIJPk))
 			}
 
-			proof[i][j].FinalEvalProof = finalEvalProofs[i][j]
+			if tIJ.FinalEvalProof == nil {
+				proof[i][j].FinalEvalProof = nil
+			} else {
+				proof[i][j].FinalEvalProof = in.popN(len(tIJ.FinalEvalProof.([]frontend.Variable)))
+			}
 		}
 	}
 	return proof
 }
 
-func separateProof(proof Proof) (partialSumPolys [][][][]frontend.Variable, finalEvalProofs [][][]frontend.Variable) {
-	partialSumPolys = make([][][][]frontend.Variable, len(proof))
-	finalEvalProofs = make([][][]frontend.Variable, len(proof))
+func serializeProof(proof Proof) []frontend.Variable {
+	in := make(varQueue, 0)
 
-	for i, pI := range proof {
-		partialSumPolys[i] = make([][][]frontend.Variable, len(pI))
-		finalEvalProofs[i] = make([][]frontend.Variable, len(pI))
-		for j, pIJ := range pI {
-			if pIJ.FinalEvalProof == nil {
-				finalEvalProofs[i][j] = nil
-			} else {
-				finalEvalProofs[i][j] = pIJ.FinalEvalProof.([]frontend.Variable)
-			}
-			partialSumPolys[i][j] = make([][]frontend.Variable, len(pIJ.PartialSumPolys))
+	for i := range proof {
+
+		for _, pIJ := range proof[i] {
+
 			for k := range pIJ.PartialSumPolys {
-				partialSumPolys[i][j][k] = pIJ.PartialSumPolys[k]
+				in.add(pIJ.PartialSumPolys[k]...)
+			}
+
+			if pIJ.FinalEvalProof != nil {
+				in.add(pIJ.FinalEvalProof.([]frontend.Variable)...)
 			}
 		}
 	}
-	return
+
+	return in
 }
 
 func hollow[K any](x K) K { //TODO: This but with generics or reflection
@@ -383,7 +394,7 @@ func init() {
 	gates = make(map[string]Gate)
 	gates["identity"] = identityGate{}
 	gates["mul"] = mulGate{}
-	gates["mimc"] = mimcCipherGate{} //TODO: Add ark
+	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
 }
 
 type mulGate struct{}
@@ -407,7 +418,7 @@ func (m mimcCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) f
 	if len(input) != 2 {
 		panic("mimc has fan-in 2")
 	}
-	sum := api.Add(&input[0], &input[1], &m.ark)
+	sum := api.Add(input[0], input[1], m.ark)
 
 	sumCubed := api.Mul(sum, sum, sum) // sum^3
 	return api.Mul(sumCubed, sumCubed, sum)
