@@ -179,7 +179,7 @@ func (f *Field[T]) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Vari
 	els := f.varsToElements(i1, i2)
 	a := els[0]
 	b := els[1]
-	div, err := computeDivisionHint(f.api, f, a.Limbs, b.Limbs)
+	div, err := f.computeDivisionHint(a.Limbs, b.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("compute division: %v", err))
 	}
@@ -199,7 +199,7 @@ func (f *Field[T]) Inverse(i1 frontend.Variable) frontend.Variable {
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
 	}
-	k, err := computeInverseHint(f.api, f, a.Limbs)
+	k, err := f.computeInverseHint(a.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}

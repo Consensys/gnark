@@ -28,15 +28,15 @@ func GetHints() []hint.Function {
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint[T FieldParams](api frontend.API, params *Field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeMultiplicationHint(leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.fParams.BitsPerLimb(),
+		f.fParams.BitsPerLimb(),
 		len(leftLimbs),
 		len(rightLimbs),
 	}
 	hintInputs = append(hintInputs, leftLimbs...)
 	hintInputs = append(hintInputs, rightLimbs...)
-	return api.NewHint(MultiplicationHint, nbMultiplicationResLimbs(len(leftLimbs), len(rightLimbs)), hintInputs...)
+	return f.api.NewHint(MultiplicationHint, nbMultiplicationResLimbs(len(leftLimbs), len(rightLimbs)), hintInputs...)
 }
 
 // nbMultiplicationResLimbs returns the number of limbs which fit the
@@ -160,16 +160,16 @@ func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint[T FieldParams](api frontend.API, params *Field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 	}
-	p := params.Modulus()
+	p := f.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
@@ -203,7 +203,7 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint[T FieldParams](api frontend.API, params *Field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
@@ -211,11 +211,11 @@ func computeDivisionHint[T FieldParams](api frontend.API, params *Field[T], nomL
 		len(denomLimbs),
 		len(nomLimbs),
 	}
-	p := params.Modulus()
+	p := f.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
-	return api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in

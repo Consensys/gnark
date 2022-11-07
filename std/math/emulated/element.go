@@ -318,7 +318,7 @@ func (f *Field[T]) mul(a, b Element[T], nextOverflow uint) Element[T] {
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
 	// len(mulResult) == len(a) + len(b) - 1
-	mulResult, err := computeMultiplicationHint(f.api, f, a.Limbs, b.Limbs)
+	mulResult, err := f.computeMultiplicationHint(a.Limbs, b.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("multiplication hint: %s", err))
 	}
