@@ -115,13 +115,13 @@ func (f *Field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPer
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
 	maxNbBits := uint(f.api.Compiler().FieldBitLen()) - 2 - maxOverflow
-	groupSize := maxNbBits / a.fParams.BitsPerLimb()
+	groupSize := maxNbBits / f.fParams.BitsPerLimb()
 	if groupSize == 0 {
 		// no space for compact
-		return a.Limbs, b.Limbs, a.fParams.BitsPerLimb()
+		return a.Limbs, b.Limbs, f.fParams.BitsPerLimb()
 	}
 
-	bitsPerLimb = a.fParams.BitsPerLimb() * groupSize
+	bitsPerLimb = f.fParams.BitsPerLimb() * groupSize
 
 	ac = f.compactLimbs(a, groupSize, bitsPerLimb)
 	bc = f.compactLimbs(b, groupSize, bitsPerLimb)
@@ -139,7 +139,7 @@ func (f *Field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []fro
 	one := big.NewInt(1)
 	for i := range coeffs {
 		coeffs[i] = new(big.Int)
-		coeffs[i].Lsh(one, e.fParams.BitsPerLimb()*uint(i))
+		coeffs[i].Lsh(one, f.fParams.BitsPerLimb()*uint(i))
 	}
 	for i := uint(0); i < nbLimbs; i++ {
 		r[i] = uint(0)

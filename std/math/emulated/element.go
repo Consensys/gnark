@@ -33,9 +33,6 @@ type Element[T FieldParams] struct {
 	// ensure that none of the limbs overflow the scalar field of the snark
 	// curve, we must check that nbBits+overflow < floor(log2(fr modulus))
 	overflow uint `gnark:"-"`
-
-	// f carries the ring parameters
-	fParams T
 }
 
 // NewElement builds a new emulated element from input
@@ -43,9 +40,10 @@ type Element[T FieldParams] struct {
 // else, it attemps to convert to big.Int , mod reduce if necessary and return a cannonical Element[T]
 func NewElement[T FieldParams](v interface{}) Element[T] {
 	r := Element[T]{}
+	var fp T
 
 	if v == nil {
-		r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
+		r.Limbs = make([]frontend.Variable, fp.NbLimbs())
 		for i := 0; i < len(r.Limbs); i++ {
 			r.Limbs[i] = 0
 		}
@@ -76,22 +74,22 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 	bValue := utils.FromInterface(v)
 
 	// mod reduce
-	if r.fParams.Modulus().Cmp(&bValue) != 0 {
-		bValue.Mod(&bValue, r.fParams.Modulus())
+	if fp.Modulus().Cmp(&bValue) != 0 {
+		bValue.Mod(&bValue, fp.Modulus())
 	}
 
 	// decompose into limbs
 	// TODO @gbotrel use big.Int pool here
-	limbs := make([]*big.Int, r.fParams.NbLimbs())
+	limbs := make([]*big.Int, fp.NbLimbs())
 	for i := range limbs {
 		limbs[i] = new(big.Int)
 	}
-	if err := decompose(&bValue, r.fParams.BitsPerLimb(), limbs); err != nil {
+	if err := decompose(&bValue, fp.BitsPerLimb(), limbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
 	// assign limb values
-	r.Limbs = make([]frontend.Variable, r.fParams.NbLimbs())
+	r.Limbs = make([]frontend.Variable, fp.NbLimbs())
 	for i := range limbs {
 		r.Limbs[i] = frontend.Variable(limbs[i])
 	}
@@ -113,13 +111,13 @@ func (f *Field[T]) toBits(a Element[T]) []frontend.Variable {
 	var fullBits []frontend.Variable
 	var limbBits []frontend.Variable
 	for i := 0; i < len(a.Limbs); i++ {
-		limbBits = bits.ToBinary(f.api, f.api.Add(a.Limbs[i], carry), bits.WithNbDigits(int(a.fParams.BitsPerLimb()+a.overflow)))
-		fullBits = append(fullBits, limbBits[:a.fParams.BitsPerLimb()]...)
+		limbBits = bits.ToBinary(f.api, f.api.Add(a.Limbs[i], carry), bits.WithNbDigits(int(f.fParams.BitsPerLimb()+a.overflow)))
+		fullBits = append(fullBits, limbBits[:f.fParams.BitsPerLimb()]...)
 		if a.overflow > 0 {
-			carry = bits.FromBinary(f.api, limbBits[a.fParams.BitsPerLimb():])
+			carry = bits.FromBinary(f.api, limbBits[f.fParams.BitsPerLimb():])
 		}
 	}
-	fullBits = append(fullBits, limbBits[a.fParams.BitsPerLimb():a.fParams.BitsPerLimb()+a.overflow]...)
+	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
 	return fullBits
 }
 
@@ -248,10 +246,10 @@ func (f *Field[T]) EnforceWidth(a Element[T]) {
 	for i := range a.Limbs {
 		// TODO @gbotrel why check all the limbs here? if len(e.Limbs) <= modulus
 		// && last limb <= bits[lastLimbs] modulus, we're good ?
-		limbNbBits := int(a.fParams.BitsPerLimb())
+		limbNbBits := int(f.fParams.BitsPerLimb())
 		if i == len(a.Limbs)-1 {
 			// take only required bits from the most significant limb
-			limbNbBits = ((a.fParams.Modulus().BitLen() - 1) % int(a.fParams.BitsPerLimb())) + 1
+			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
 		}
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
 		// the limb value. This is sufficient to restrict for the bitlength and

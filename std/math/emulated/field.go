@@ -237,12 +237,12 @@ func (f *Field[T]) FromBinary(b ...frontend.Variable) frontend.Variable {
 		in[i] = els[i].Limbs[0]
 	}
 	e := NewElement[T](nil)
-	nbLimbs := (uint(len(in)) + e.fParams.BitsPerLimb() - 1) / e.fParams.BitsPerLimb()
+	nbLimbs := (uint(len(in)) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := uint(0); i < nbLimbs-1; i++ {
-		limbs[i] = bits.FromBinary(f.api, in[i*e.fParams.BitsPerLimb():(i+1)*e.fParams.BitsPerLimb()])
+		limbs[i] = bits.FromBinary(f.api, in[i*f.fParams.BitsPerLimb():(i+1)*f.fParams.BitsPerLimb()])
 	}
-	limbs[nbLimbs-1] = bits.FromBinary(f.api, in[(nbLimbs-1)*e.fParams.BitsPerLimb():])
+	limbs[nbLimbs-1] = bits.FromBinary(f.api, in[(nbLimbs-1)*f.fParams.BitsPerLimb():])
 	e.overflow = 0
 	e.Limbs = limbs
 	return e
