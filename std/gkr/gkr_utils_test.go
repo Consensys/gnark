@@ -163,24 +163,6 @@ func ReadMap(in map[string]interface{}) HashMap {
 	}
 }
 
-func getKeys[K comparable, V any](m map[K]V) []K {
-	kS := make([]K, len(m))
-	i := 0
-	for k := range m {
-		kS[i] = k
-		i++
-	}
-	return kS
-}
-
-func getValuesOrdered[K comparable, V any](m map[K]V, keys []K) []V {
-	vS := make([]V, len(keys))
-	for i, k := range keys {
-		vS[i] = m[k]
-	}
-	return vS
-}
-
 func toVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
 	variableSlice = make([]frontend.Variable, len(slice))
 	for i, v := range slice {

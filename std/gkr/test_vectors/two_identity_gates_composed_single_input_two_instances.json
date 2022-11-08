@@ -30,7 +30,7 @@
 		[
 			{
 				"finalEvalProof": [
-					-1
+					0
 				],
 				"partialSumPolys": [
 					[
@@ -42,7 +42,7 @@
 		],
 		[
 			{
-				"finalEvalProof": null,
+				"finalEvalProof": [],
 				"partialSumPolys": []
 			}
 		]

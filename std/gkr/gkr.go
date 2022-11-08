@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/std/sumcheck"
 )
 
-// TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
+// @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
 
 type Gate interface {
 	Evaluate(frontend.API, ...frontend.Variable) frontend.Variable
@@ -82,7 +82,8 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 		evaluation = api.Add(evaluation, eq)
 	}
 
-	if expected, given := len(e.wire.Inputs), len(inputEvaluations); expected != given {
+	if expected, given := len(e.wire.Inputs), len(inputEvaluations); expected != given && (expected != 0 || given != 1) {
+		// TODO: This business with artificially giving input wires themselves as input is dirty. Do away with it.
 		return fmt.Errorf("malformed proof: wire has %d inputs, but %d input evaluations given", expected, given)
 	}
 	gateEvaluation := e.wire.Gate.Evaluate(api, inputEvaluations...)
@@ -112,7 +113,6 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) Degree(int) int {
 type claimsManager struct {
 	claimsMap  map[*Wire]*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
-	numClaims  int
 }
 
 func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManager) {
@@ -135,10 +135,6 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 }
 
 func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
-	m.numClaims++
-	if m.numClaims%claimsPerLog == 0 {
-		//fmt.Println("GKR:", m.numClaims, "total claims")
-	}
 	if wire.IsInput() {
 		wire.Gate = identityGate{}
 	}
@@ -165,10 +161,7 @@ func (m *claimsManager) getLazyClaim(wire *Wire) *eqTimesGateEvalSumcheckLazyCla
 	return m.claimsMap[wire]
 }
 
-const claimsPerLog = 2
-
 func (m *claimsManager) deleteClaim(wire *Wire) {
-	m.numClaims--
 	delete(m.claimsMap, wire)
 }
 
@@ -192,21 +185,30 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 
 		for wireI := range layer {
 			wire := &layer[wireI]
+			proofW := proof[layerI][wireI] // proof corresponding to this wire
+			finalEvalProof := proofW.FinalEvalProof.([]frontend.Variable)
 			claim := claims.getLazyClaim(wire)
-			wProof := proof[layerI][wireI] // proof corresponding to this wire
-			if claim.ClaimsNum() == 1 && wire.IsInput() {
-				// simply evaluate and see if it matches
-				if wProof.FinalEvalProof != nil {
-					return fmt.Errorf("malformed proof: input node should have no final evaluation proof")
-				}
-				evaluation := assignment[wire].Eval(api, claim.evaluationPoints[0])
-				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 
+			if claimsNum := claim.ClaimsNum(); wire.IsInput() && claimsNum == 1 || claimsNum == 0 {
+				// make sure the proof is empty
+				if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+					if claimsNum == 0 {
+						return fmt.Errorf("malformed proof: wire with no claim needs no proof")
+					}
+					return fmt.Errorf("malformed proof: input wire with only one claim needs no proof")
+				}
+
+				if claimsNum == 1 {
+					evaluation := assignment[wire].Eval(api, claim.evaluationPoints[0])
+					api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
+				}
 			} else {
-				//fmt.Println(layerI)
-				if err := sumcheck.Verify(api, claim, wProof, transcript); err != nil {
+				if err := sumcheck.Verify(api, claim, proofW, transcript); err != nil {
 					return err
 				}
+			}
+			if len(finalEvalProof) != 0 {
+				transcript.Update(api, finalEvalProof...)
 			}
 			claims.deleteClaim(wire)
 		}

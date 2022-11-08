@@ -16,16 +16,8 @@ import (
 	"testing"
 )
 
-func TestSingleIdentityGateTwoInstances(t *testing.T) {
-	generateTestVerifier("./test_vectors/single_identity_gate_two_instances.json")(t)
-}
-
-func TestTwoIdentityGatesComposedSingleInputTwoInstances(t *testing.T) {
-	generateTestVerifier("./test_vectors/two_identity_gates_composed_single_input_two_instances.json")(t)
-}
-
-func TestTwoInputSingleIdentityGateTwoInstances(t *testing.T) {
-	generateTestVerifier("./test_vectors/two_input_single_identity_gate_two_instances.json")(t)
+func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) {
+	generateTestVerifier("./test_vectors/single_input_two_identity_gates_two_instances.json")(t)
 }
 
 func TestGkrVectors(t *testing.T) {
@@ -178,35 +170,6 @@ func serializeProof(proof Proof) []frontend.Variable {
 	}
 
 	return in
-}
-
-func hollow[K any](x K) K { //TODO: This but with generics or reflection
-	switch X := interface{}(x).(type) {
-	case []frontend.Variable:
-		res := interface{}(make([]frontend.Variable, len(X)))
-		return res.(K)
-	case [][]frontend.Variable:
-		res := make([][]frontend.Variable, len(X))
-		for i, xI := range X {
-			res[i] = hollow(xI)
-		}
-		return interface{}(res).(K)
-	case [][][]frontend.Variable:
-		res := make([][][]frontend.Variable, len(X))
-		for i, xI := range X {
-			res[i] = hollow(xI)
-		}
-		return interface{}(res).(K)
-
-	case [][][][]frontend.Variable:
-		res := make([][][][]frontend.Variable, len(X))
-		for i, xI := range X {
-			res[i] = hollow(xI)
-		}
-		return interface{}(res).(K)
-	default:
-		panic("cannot hollow out type " + reflect.TypeOf(x).String())
-	}
 }
 
 func (a WireAssignment) addLayerValuations(layer CircuitLayer, values [][]frontend.Variable) {
@@ -467,14 +430,4 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 		}
 	}
 	return
-}
-
-func TestHollow(t *testing.T) {
-	toHollow := []frontend.Variable{1, 2, 3}
-	hollowed := hollow(toHollow)
-	assert.Equal(t, 3, len(hollowed))
-}
-
-func TestSet(t *testing.T) {
-
 }

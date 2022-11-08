@@ -35,11 +35,11 @@
 		],
 		[
 			{
-				"finalEvalProof": null,
+				"finalEvalProof": [],
 				"partialSumPolys": []
 			},
 			{
-				"finalEvalProof": null,
+				"finalEvalProof": [],
 				"partialSumPolys": []
 			}
 		]
