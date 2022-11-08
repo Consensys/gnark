@@ -91,7 +91,7 @@ func TestTestEngineWrapper(t *testing.T) {
 		Res: NewElement[Secp256k1](res),
 	}
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[Secp256k1](api)
+		napi, err := NewAPI[Secp256k1](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -131,7 +131,7 @@ func TestCompilerWrapper(t *testing.T) {
 func TestIntegrationApi(t *testing.T) {
 	assert := test.NewAssert(t)
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[Secp256k1](api)
+		napi, err := NewAPI[Secp256k1](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -171,12 +171,12 @@ func TestIntegrationApi(t *testing.T) {
 
 func TestVarToElements(t *testing.T) {
 	assert := require.New(t)
-	f, _ := NewField[BN254Fp](nil)
+	w, _ := NewAPI[BN254Fp](nil)
 
 	{
 		in := []frontend.Variable{8000, 42}
-		out1 := f.varsToElements(in...)
-		out2 := f.varsToElements(in)
+		out1 := w.varsToElements(in...)
+		out2 := w.varsToElements(in)
 
 		assert.Equal(len(out1), len(out2))
 		assert.Equal(len(out1), 2)
@@ -188,7 +188,7 @@ func TestVarToElements(t *testing.T) {
 		}
 	}()
 	in := []frontend.Variable{8000, nil, 3000}
-	_ = f.varsToElements(in)
+	_ = w.varsToElements(in)
 }
 
 type pairingBLS377 struct {
@@ -261,7 +261,7 @@ func TestPairingBLS377(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[BLS12377Fp](api)
+		napi, err := NewAPI[BLS12377Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -284,7 +284,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 	}
 	{
 		c1 := NewElement[Secp256k1](42)
-		b1, ok := f.ConstantValue(c1)
+		b1, ok := f.constantValue(c1)
 		if !ok {
 			return errors.New("42 should be constant")
 		}
@@ -294,7 +294,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 	}
 	{
 		m := f.Modulus()
-		b1, ok := f.ConstantValue(m)
+		b1, ok := f.constantValue(m)
 		if !ok {
 			return errors.New("modulus should be constant")
 		}
@@ -359,8 +359,8 @@ func (c *SubConstantCircuit) Define(api frontend.API) error {
 	c1 := NewElement[Secp256k1](0)
 	c2 := NewElement[Secp256k1](0)
 	r := f.Sub(c0, c1)
-	if r.(Element[Secp256k1]).overflow != 0 {
-		return fmt.Errorf("overflow %d != 0", r.(Element[Secp256k1]).overflow)
+	if r.overflow != 0 {
+		return fmt.Errorf("overflow %d != 0", r.overflow)
 	}
 	f.AssertIsEqual(r, c2)
 
