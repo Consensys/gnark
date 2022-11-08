@@ -82,6 +82,15 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 	return r
 }
 
+// newElementPtr is shorthand for initialising new element using NewElement and
+// taking pointer to it. We only want to have a public method for initialising
+// an element which return a value because the user uses this only for witness
+// creation and it mess up schema parsing.
+func newElementPtr[T FieldParams](v interface{}) *Element[T] {
+	el := NewElement[T](v)
+	return &el
+}
+
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
 		*e = NewElement[T](nil)

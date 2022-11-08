@@ -17,7 +17,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return err
 	}
 
-	tmp := secp256k1.Mul(circuit.X, circuit.Y)
-	secp256k1.AssertIsEqual(tmp, circuit.Res)
+	tmp := secp256k1.Mul(&circuit.X, &circuit.Y)
+	secp256k1.AssertIsEqual(tmp, &circuit.Res)
 	return nil
 }

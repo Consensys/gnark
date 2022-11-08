@@ -26,7 +26,7 @@ func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	f.AssertLimbsEquality(c.A, c.B)
+	f.AssertLimbsEquality(&c.A, &c.B)
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (c *AssertIsLessEqualThanCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	f.AssertIsLessEqualThan(c.L, c.R)
+	f.AssertIsLessEqualThan(&c.L, &c.R)
 	return nil
 }
 
@@ -96,8 +96,8 @@ func (c *AddCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Add(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Add(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -209,9 +209,9 @@ func (c *ReduceAfterAddCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Add(c.A, c.B)
+	res := f.Add(&c.A, &c.B)
 	res = f.Reduce(res)
-	f.AssertIsEqual(res, c.C)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -740,11 +740,10 @@ func (c *FourMulsCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	// res := f.Mul(c.A, c.A, c.A, c.A)
-	res := f.Mul(c.A, c.A)
-	res = f.Mul(res, c.A)
-	res = f.Mul(res, c.A)
-	f.AssertIsEqual(res, c.Res)
+	res := f.Mul(&c.A, &c.A)
+	res = f.Mul(res, &c.A)
+	res = f.Mul(res, &c.A)
+	f.AssertIsEqual(res, &c.Res)
 	return nil
 }
 

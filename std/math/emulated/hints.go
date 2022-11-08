@@ -85,7 +85,7 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 
 // computeRemHint packs inputs for the RemHint hint function.
 // sets z to the remainder x%y for y != 0 and returns z.
-func (f *Field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeRemHint(x, y *Element[T]) (z *Element[T], err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
@@ -95,7 +95,7 @@ func (f *Field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
 	hintInputs = append(hintInputs, y.Limbs...)
 	limbs, err := f.api.NewHint(RemHint, int(len(y.Limbs)), hintInputs...)
 	if err != nil {
-		return Element[T]{}, err
+		return nil, err
 	}
 	return f.PackLimbs(limbs), nil
 }
@@ -118,7 +118,7 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // computeQuoHint packs the inputs for QuoHint function and returns z = x / y
 // (discards remainder)
-func (f *Field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeQuoHint(x *Element[T]) (z *Element[T], err error) {
 	var fp T
 	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
 		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
@@ -135,7 +135,7 @@ func (f *Field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
 
 	limbs, err := f.api.NewHint(QuoHint, int(resLen), hintInputs...)
 	if err != nil {
-		return Element[T]{}, err
+		return nil, err
 	}
 
 	return f.PackLimbs(limbs), nil

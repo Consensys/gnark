@@ -83,35 +83,35 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 
 // Zero returns zero as a constant. The returned element is not safe to use as
 // an operation receiver.
-func (f *Field[T]) Zero() Element[T] {
+func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
 		f.zeroConst = NewElement[T](nil)
 	})
-	return f.zeroConst
+	return &f.zeroConst
 }
 
 // One returns one as a constant. The returned element is not safe to use as an
 // operation receiver.
-func (f *Field[T]) One() Element[T] {
+func (f *Field[T]) One() *Element[T] {
 	f.oneConstOnce.Do(func() {
 		f.oneConst = NewElement[T](1)
 	})
-	return f.oneConst
+	return &f.oneConst
 }
 
 // Modulus returns the modulus of the emulated ring as a constant. The returned
 // element is not safe to use as an operation receiver.
-func (f *Field[T]) Modulus() Element[T] {
+func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
 		f.nConst = NewElement[T](f.fParams.Modulus())
 	})
-	return f.nConst
+	return &f.nConst
 }
 
 // PackLimbs returns a constant element from the given limbs. The returned
 // element is not safe to use as an operation receiver. The method constrains
 // the limb widths.
-func (f *Field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
+func (f *Field[T]) PackLimbs(limbs []frontend.Variable) *Element[T] {
 	limbNbBits := int(f.fParams.BitsPerLimb())
 	for i := range limbs {
 		// bits.ToBinary restricts the least significant NbDigits to be equal to
@@ -120,13 +120,13 @@ func (f *Field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
 		bits.ToBinary(f.api, limbs[i], bits.WithNbDigits(limbNbBits))
 	}
 
-	return Element[T]{
+	return &Element[T]{
 		Limbs:    limbs,
 		overflow: 0,
 	}
 }
 
-func (f *Field[T]) constantValue(v Element[T]) (*big.Int, bool) {
+func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	// var limbs []frontend.Variable // emulated limbs
 	// switch vv := v.(type) {
 	// case Element[T]:
@@ -160,7 +160,7 @@ func (f *Field[T]) constantValue(v Element[T]) (*big.Int, bool) {
 // limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
 // combination in a single new limb.
 // compact returns a and b minimal (in number of limbs) representation that fits in the snark field
-func (f *Field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
+func (f *Field[T]) compact(a, b *Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
 	maxOverflow := max(a.overflow, b.overflow)
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow
@@ -179,7 +179,7 @@ func (f *Field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPer
 }
 
 // compactLimbs perform the regrouping of limbs between old and new parameters.
-func (f *Field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
+func (f *Field[T]) compactLimbs(e *Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
 	if f.fParams.BitsPerLimb() == bitsPerLimb {
 		return e.Limbs
 	}

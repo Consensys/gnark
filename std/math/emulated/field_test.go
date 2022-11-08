@@ -284,7 +284,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 	}
 	{
 		c1 := NewElement[Secp256k1](42)
-		b1, ok := f.constantValue(c1)
+		b1, ok := f.constantValue(&c1)
 		if !ok {
 			return errors.New("42 should be constant")
 		}
@@ -329,8 +329,8 @@ func (c *MulConstantCircuit) Define(api frontend.API) error {
 	c0 := NewElement[Secp256k1](0)
 	c1 := NewElement[Secp256k1](0)
 	c2 := NewElement[Secp256k1](0)
-	r := f.Mul(c0, c1)
-	f.AssertIsEqual(r, c2)
+	r := f.Mul(&c0, &c1)
+	f.AssertIsEqual(r, &c2)
 
 	return nil
 }
@@ -358,11 +358,11 @@ func (c *SubConstantCircuit) Define(api frontend.API) error {
 	c0 := NewElement[Secp256k1](0)
 	c1 := NewElement[Secp256k1](0)
 	c2 := NewElement[Secp256k1](0)
-	r := f.Sub(c0, c1)
+	r := f.Sub(&c0, &c1)
 	if r.overflow != 0 {
 		return fmt.Errorf("overflow %d != 0", r.overflow)
 	}
-	f.AssertIsEqual(r, c2)
+	f.AssertIsEqual(r, &c2)
 
 	return nil
 }

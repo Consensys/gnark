@@ -10,7 +10,7 @@ import (
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, reduce Element first and take less significant
 // bits corresponding to the bitwidth of the emulated modulus.
-func (f *Field[T]) ToBits(a Element[T]) []frontend.Variable {
+func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	ba, aConst := f.constantValue(a)
 	if aConst {
 		return f.api.ToBinary(ba, int(f.fParams.BitsPerLimb()*f.fParams.NbLimbs()))
@@ -29,7 +29,7 @@ func (f *Field[T]) ToBits(a Element[T]) []frontend.Variable {
 	return fullBits
 }
 
-func (f *Field[T]) FromBits(bs ...frontend.Variable) Element[T] {
+func (f *Field[T]) FromBits(bs ...frontend.Variable) *Element[T] {
 	e := NewElement[T](nil)
 	nbLimbs := (uint(len(bs)) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)
@@ -39,5 +39,5 @@ func (f *Field[T]) FromBits(bs ...frontend.Variable) Element[T] {
 	limbs[nbLimbs-1] = bits.FromBinary(f.api, bs[(nbLimbs-1)*f.fParams.BitsPerLimb():])
 	e.overflow = 0
 	e.Limbs = limbs
-	return e
+	return &e
 }

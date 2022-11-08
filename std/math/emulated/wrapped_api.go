@@ -22,19 +22,20 @@ func NewAPI[T FieldParams](native frontend.API) (*FieldAPI[T], error) {
 	return &FieldAPI[T]{f: f}, nil
 }
 
-func (w *FieldAPI[T]) varToElement(in frontend.Variable) Element[T] {
+func (w *FieldAPI[T]) varToElement(in frontend.Variable) *Element[T] {
 	switch vv := in.(type) {
 	case Element[T]:
-		return vv
+		return &vv
 	case *Element[T]:
-		return *vv
+		return vv
 	default:
-		return NewElement[T](in)
+		el := NewElement[T](in)
+		return &el
 	}
 }
 
-func (w *FieldAPI[T]) varsToElements(in ...frontend.Variable) []Element[T] {
-	var els []Element[T]
+func (w *FieldAPI[T]) varsToElements(in ...frontend.Variable) []*Element[T] {
+	var els []*Element[T]
 	for i := range in {
 		switch v := in[i].(type) {
 		case []frontend.Variable:
@@ -66,7 +67,7 @@ func (w *FieldAPI[T]) Neg(i1 frontend.Variable) frontend.Variable {
 
 func (w *FieldAPI[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := w.varsToElements(i1, i2, in)
-	sub := NewElement[T](els[1])
+	sub := newElementPtr[T](els[1])
 	for i := 2; i < len(els); i++ {
 		sub = w.f.reduceAndOp(w.f.add, w.f.addPreCond, sub, els[i])
 	}
@@ -198,7 +199,7 @@ func (w *FieldAPI[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 
 func (w *FieldAPI[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := w.varsToElements(i1, i2)
-	rls := make([]Element[T], 2)
+	rls := make([]*Element[T], 2)
 	rls[0] = w.f.Reduce(els[0])
 	rls[1] = w.f.Reduce(els[1])
 	var res frontend.Variable = 0
@@ -211,12 +212,12 @@ func (w *FieldAPI[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.V
 
 func (w *FieldAPI[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := w.varsToElements(i1, i2)
-	tmp := NewElement[T](els[0])
-	w.f.reduceAndOp(func(a, b Element[T], nextOverflow uint) Element[T] {
+	tmp := newElementPtr[T](els[0])
+	w.f.reduceAndOp(func(a, b *Element[T], nextOverflow uint) *Element[T] {
 		w.f.AssertIsEqual(a, b)
-		return NewElement[T](nil)
+		return nil
 	},
-		func(e1, e2 Element[T]) (uint, error) {
+		func(e1, e2 *Element[T]) (uint, error) {
 			nextOverflow, err := w.f.subPreCond(e2, e1)
 			var target errOverflow
 			if err != nil && errors.As(err, &target) {
@@ -229,7 +230,7 @@ func (w *FieldAPI[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) 
 
 func (w *FieldAPI[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := w.varsToElements(i1, i2)
-	rls := []Element[T]{NewElement[T](nil), NewElement[T](nil)}
+	rls := [2]*Element[T]{}
 	rls[0] = w.f.Reduce(els[0])
 	rls[1] = w.f.Reduce(els[1])
 	var res frontend.Variable = 0
@@ -244,13 +245,13 @@ func (w *FieldAPI[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variab
 func (w *FieldAPI[T]) AssertIsBoolean(i1 frontend.Variable) {
 	switch vv := i1.(type) {
 	case Element[T]:
-		v := w.f.Reduce(vv)
+		v := w.f.Reduce(&vv)
 		w.f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			w.f.api.AssertIsEqual(v.Limbs[i], 0)
 		}
 	case *Element[T]:
-		v := w.f.Reduce(*vv)
+		v := w.f.Reduce(vv)
 		w.f.api.AssertIsBoolean(v.Limbs[0])
 		for i := 1; i < len(v.Limbs); i++ {
 			w.f.api.AssertIsEqual(v.Limbs[i], 0)

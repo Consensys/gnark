@@ -82,7 +82,7 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 // AssertLimbsEquality asserts that the limbs represent a same integer value (up
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
-func (f *Field[T]) AssertLimbsEquality(a, b Element[T]) {
+func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -112,7 +112,7 @@ func (f *Field[T]) AssertLimbsEquality(a, b Element[T]) {
 // EnforceWidth enforces that the bitlength of the value is exactly the
 // bitlength of the modulus. Any newly initialized variable should be
 // constrained to ensure correct operations.
-func (f *Field[T]) EnforceWidth(a Element[T]) {
+func (f *Field[T]) EnforceWidth(a *Element[T]) {
 	_, aConst := f.constantValue(a)
 	if aConst {
 		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
@@ -136,7 +136,7 @@ func (f *Field[T]) EnforceWidth(a Element[T]) {
 }
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
-func (f *Field[T]) AssertIsEqual(a, b Element[T]) {
+func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -165,7 +165,7 @@ func (f *Field[T]) AssertIsEqual(a, b Element[T]) {
 }
 
 // AssertIsEqualLessThan ensures that e is less or equal than e.
-func (f *Field[T]) AssertIsLessEqualThan(e, a Element[T]) {
+func (f *Field[T]) AssertIsLessEqualThan(e, a *Element[T]) {
 	if e.overflow+a.overflow > 0 {
 		panic("inputs must have 0 overflow")
 	}
