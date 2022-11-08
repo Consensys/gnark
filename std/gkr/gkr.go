@@ -70,9 +70,6 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error {
 	inputEvaluations := proof.([]frontend.Variable)
 
-	// defer verification, store the new claims
-	e.manager.addForInput(e.wire, r, inputEvaluations)
-
 	numClaims := len(e.evaluationPoints)
 
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
@@ -86,7 +83,15 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 		// TODO: This business with artificially giving input wires themselves as input is dirty. Do away with it.
 		return fmt.Errorf("malformed proof: wire has %d inputs, but %d input evaluations given", expected, given)
 	}
-	gateEvaluation := e.wire.Gate.Evaluate(api, inputEvaluations...)
+
+	var gateEvaluation frontend.Variable
+	if e.wire.IsInput() {
+		gateEvaluation = e.manager.assignment[e.wire].Eval(api, r)
+	} else {
+		gateEvaluation = e.wire.Gate.Evaluate(api, inputEvaluations...)
+		// defer verification, store the new claims
+		e.manager.addForInput(e.wire, r, inputEvaluations)
+	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
 	api.AssertIsEqual(evaluation, purportedValue)
@@ -135,9 +140,6 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 }
 
 func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
-	if wire.IsInput() {
-		wire.Gate = identityGate{}
-	}
 	claim := m.claimsMap[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
@@ -157,7 +159,9 @@ func (m *claimsManager) addForInput(wire *Wire, evaluationPoint []frontend.Varia
 }
 
 func (m *claimsManager) getLazyClaim(wire *Wire) *eqTimesGateEvalSumcheckLazyClaims {
-
+	if wire.IsInput() {
+		wire.Gate = identityGate{}
+	}
 	return m.claimsMap[wire]
 }
 
@@ -172,9 +176,8 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 
 	outLayer := c[0]
 
-	firstChallenge := transcript.NextN(api, assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars
-	//fmt.Print("first challenge:")
-	//api.Println(firstChallenge)
+	// TODO: Make sure it's okay to use the same initial challenge for all output wires
+	firstChallenge := transcript.NextN(api, assignment[&outLayer[0]].NumVars()) //TODO: Clean way to extract numVars.
 
 	for i := range outLayer {
 		wire := &outLayer[i]
