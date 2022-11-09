@@ -94,6 +94,36 @@ func (f *Field[T]) MulModMutable(a, b *Element[T]) *Element[T] {
 	return f.Reduce(r)
 }
 
+func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
+	switch c.Cmp(big.NewInt(0)) {
+	case -1:
+		f.MulConst(f.Neg(a), new(big.Int).Neg(c))
+	case 0:
+		return f.Zero()
+	}
+	cbl := uint(c.BitLen())
+	if cbl > f.maxOverflow() {
+		panic(fmt.Sprintf("constant bit length %d exceeds max %d", cbl, f.maxOverflow()))
+	}
+	return f.reduceAndOp(
+		func(a, _ *Element[T], u uint) *Element[T] {
+			limbs := make([]frontend.Variable, len(a.Limbs))
+			for i := range a.Limbs {
+				limbs[i] = f.api.Mul(a.Limbs[i], c)
+			}
+			return newElementLimbs[T](limbs, a.overflow+cbl)
+		},
+		func(a, _ *Element[T]) (nextOverflow uint, err error) {
+			nextOverflow = a.overflow + uint(cbl)
+			if nextOverflow > f.maxOverflow() {
+				err = errOverflow{op: "mulConst", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow()}
+			}
+			return
+		},
+		a, nil,
+	)
+}
+
 func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
