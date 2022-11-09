@@ -129,8 +129,7 @@ func (w *FieldAPI[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Var
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
-	r := w.f.PackLimbs([]frontend.Variable{rv})
-	return r
+	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
@@ -138,8 +137,7 @@ func (w *FieldAPI[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Vari
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
-	r := w.f.PackLimbs([]frontend.Variable{rv})
-	return r
+	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
@@ -147,8 +145,7 @@ func (w *FieldAPI[T]) And(a frontend.Variable, b frontend.Variable) frontend.Var
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.And(els[0].Limbs[0], els[1].Limbs[0])
-	r := w.f.PackLimbs([]frontend.Variable{rv})
-	return r
+	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
