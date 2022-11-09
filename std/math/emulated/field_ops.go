@@ -44,6 +44,11 @@ func (f *Field[T]) Add(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.add, f.addPreCond, a, b)
 }
 
+func (f *Field[T]) AddMutable(a, b *Element[T]) *Element[T] {
+	r := f.reduceAndOpMutable(f.add, f.addPreCond, a, b)
+	return r
+}
+
 func (f *Field[T]) addPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nextOverflow = max(a.overflow, b.overflow) + 1
@@ -81,6 +86,11 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	r := f.Mul(a, b)
+	return f.Reduce(r)
+}
+
+func (f *Field[T]) MulModMutable(a, b *Element[T]) *Element[T] {
+	r := f.reduceAndOpMutable(f.mul, f.mulPreCond, a, b)
 	return f.Reduce(r)
 }
 
@@ -160,6 +170,11 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 
 func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
+}
+
+func (f *Field[T]) SubMutable(a, b *Element[T]) *Element[T] {
+	r := f.reduceAndOpMutable(f.sub, f.subPreCond, a, b)
+	return r
 }
 
 func (f *Field[T]) subPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
@@ -263,6 +278,21 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 			a = f.Reduce(a)
 		} else {
 			b = f.Reduce(b)
+		}
+	}
+	return op(a, b, nextOverflow)
+}
+
+func (f *Field[T]) reduceAndOpMutable(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
+	var nextOverflow uint
+	var err error
+	var target errOverflow
+
+	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
+		if !target.reduceRight {
+			*a = *f.Reduce(a)
+		} else {
+			*b = *f.Reduce(b)
 		}
 	}
 	return op(a, b, nextOverflow)
