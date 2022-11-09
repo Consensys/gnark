@@ -189,18 +189,16 @@ func (w *FieldAPI[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 	for i := 1; i < len(reduced.Limbs); i++ {
 		w.f.api.Mul(res, w.f.api.IsZero(reduced.Limbs[i]))
 	}
-	r := w.f.PackLimbs([]frontend.Variable{res})
-	return r
+	return newElementLimbs[T]([]frontend.Variable{res}, 0)
 }
 
 func (w *FieldAPI[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := w.varsToElements(i1, i2)
-	rls := make([]*Element[T], 2)
-	rls[0] = w.f.Reduce(els[0])
-	rls[1] = w.f.Reduce(els[1])
+	rls0 := w.f.Reduce(els[0])
+	rls1 := w.f.Reduce(els[1])
 	var res frontend.Variable = 0
 	for i := int(w.f.fParams.NbLimbs() - 1); i >= 0; i-- {
-		lmbCmp := w.f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
+		lmbCmp := w.f.api.Cmp(rls0.Limbs[i], rls1.Limbs[i])
 		res = w.f.api.Select(w.f.api.IsZero(res), lmbCmp, res)
 	}
 	return res
@@ -226,12 +224,11 @@ func (w *FieldAPI[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) 
 
 func (w *FieldAPI[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
 	els := w.varsToElements(i1, i2)
-	rls := [2]*Element[T]{}
-	rls[0] = w.f.Reduce(els[0])
-	rls[1] = w.f.Reduce(els[1])
+	rls0 := w.f.Reduce(els[0])
+	rls1 := w.f.Reduce(els[1])
 	var res frontend.Variable = 0
 	for i := 0; i < int(w.f.fParams.NbLimbs()); i++ {
-		cmp := w.f.api.Cmp(rls[0].Limbs[i], rls[1].Limbs[i])
+		cmp := w.f.api.Cmp(rls0.Limbs[i], rls1.Limbs[i])
 		cmpsq := w.f.api.Mul(cmp, cmp)
 		res = w.f.api.Add(res, cmpsq)
 	}
