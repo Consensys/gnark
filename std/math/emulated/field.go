@@ -243,8 +243,6 @@ func (f *field[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Variab
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-
-	f.EnforceWidth(r)
 	return r
 }
 
@@ -254,8 +252,6 @@ func (f *field[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variabl
 	f.AssertIsBoolean(els[1])
 	rv := f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-
-	f.EnforceWidth(r)
 	return r
 }
 
@@ -265,8 +261,6 @@ func (f *field[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variab
 	f.AssertIsBoolean(els[1])
 	rv := f.api.And(els[0].Limbs[0], els[1].Limbs[0])
 	r := f.PackLimbs([]frontend.Variable{rv})
-
-	f.EnforceWidth(r)
 	return r
 }
 
@@ -342,8 +336,6 @@ func (f *field[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 		f.api.Mul(res, f.api.IsZero(reduced.Limbs[i]))
 	}
 	r := f.PackLimbs([]frontend.Variable{res})
-
-	f.EnforceWidth(r)
 	return r
 }
 
@@ -600,10 +592,17 @@ func (f *field[T]) One() Element[T] {
 	return f.oneConst
 }
 
-// PackLimbs returns a constant element from the given limbs. The
-// returned element is not safe to use as an operation receiver.
+// PackLimbs returns a constant element from the given limbs. The returned
+// element is not safe to use as an operation receiver. The method constrains
+// the limb widths.
 func (f *field[T]) PackLimbs(limbs []frontend.Variable) Element[T] {
-	// TODO: check that every limb does not overflow the expected width
+	limbNbBits := int(f.fParams.BitsPerLimb())
+	for i := range limbs {
+		// bits.ToBinary restricts the least significant NbDigits to be equal to
+		// the limb value. This is sufficient to restrict for the bitlength and
+		// we can discard the bits themselves.
+		bits.ToBinary(f.api, limbs[i], bits.WithNbDigits(limbNbBits))
+	}
 
 	return Element[T]{
 		Limbs:    limbs,

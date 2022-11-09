@@ -5,7 +5,7 @@ import (
 	"math/bits"
 )
 
-type Polynomial []frontend.Variable //TODO: Is there already such a data structure?
+type Polynomial []frontend.Variable
 type MultiLin []frontend.Variable
 
 // Eval assumes len(m) = 1 << len(at)
@@ -22,7 +22,7 @@ func (m MultiLin) Eval(api frontend.API, at []frontend.Variable) frontend.Variab
 		}
 	}
 
-	evaluation := frontend.Variable(0) //TODO: Does the API ignore publicly adding 0 to something?
+	evaluation := frontend.Variable(0)
 	for j := range m {
 		evaluation = api.Add(
 			evaluation,
@@ -37,7 +37,7 @@ func (m MultiLin) NumVars() int {
 }
 
 func (p Polynomial) Eval(api frontend.API, at frontend.Variable) (pAt frontend.Variable) {
-	pAt = 0 //TODO: Dummy add
+	pAt = 0
 
 	for i := len(p) - 1; i >= 0; i-- {
 		pAt = api.Add(pAt, p[i])
@@ -89,8 +89,7 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 func InterpolateLDE(api frontend.API, at frontend.Variable, values []frontend.Variable) frontend.Variable {
 	deltaAt := computeDeltaAtNaive(api, at, len(values))
 
-	var res frontend.Variable
-	res = 0
+	res := frontend.Variable(0)
 
 	for i, c := range values {
 		res = api.Add(res,
@@ -104,7 +103,7 @@ func InterpolateLDE(api frontend.API, at frontend.Variable, values []frontend.Va
 // EvalEq returns Πⁿ₁ Eq(xᵢ, yᵢ) = Πⁿ₁ xᵢyᵢ + (1-xᵢ)(1-yᵢ) = Πⁿ₁ (1 + 2xᵢyᵢ - xᵢ - yᵢ). Is assumes len(x) = len(y) =: n
 func EvalEq(api frontend.API, x, y []frontend.Variable) (eq frontend.Variable) {
 
-	eq = 1 //@TODO: Does the compiler know a-priori that 1 * a = a?
+	eq = 1
 	for i := range x {
 		next := api.Mul(x[i], y[i])
 		next = api.Add(next, next)

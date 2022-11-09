@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"io"
 	"math/big"
 	"time"
 
@@ -29,6 +30,8 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+
+	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -305,4 +308,17 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+// ExportSolidity exports the verifying key to a solidity smart contract.
+//
+// See https://github.com/ConsenSys/gnark-tests for example usage.
+//
+// Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	tmpl, err := template.New("").Parse(solidityTemplate)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, vk)
 }
