@@ -79,6 +79,11 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.mul, f.mulPreCond, a, b)
 }
 
+func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
+	r := f.Mul(a, b)
+	return f.Reduce(r)
+}
+
 func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
