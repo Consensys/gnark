@@ -7,7 +7,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/logger"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 )
@@ -112,18 +111,17 @@ func (f *Field[T]) Modulus() *Element[T] {
 // element is not safe to use as an operation receiver. The method constrains
 // the limb widths.
 func (f *Field[T]) PackLimbs(limbs []frontend.Variable) *Element[T] {
-	limbNbBits := int(f.fParams.BitsPerLimb())
-	for i := range limbs {
-		// bits.ToBinary restricts the least significant NbDigits to be equal to
-		// the limb value. This is sufficient to restrict for the bitlength and
-		// we can discard the bits themselves.
-		bits.ToBinary(f.api, limbs[i], bits.WithNbDigits(limbNbBits))
-	}
-
-	return &Element[T]{
-		Limbs:    limbs,
-		overflow: 0,
-	}
+	e := newElementLimbs[T](limbs, 0)
+	f.EnforceWidth(e)
+	return e
+	// limbNbBits := int(f.fParams.BitsPerLimb())
+	// for i := range limbs {
+	// 	// bits.ToBinary restricts the least significant NbDigits to be equal to
+	// 	// the limb value. This is sufficient to restrict for the bitlength and
+	// 	// we can discard the bits themselves.
+	// 	bits.ToBinary(f.api, limbs[i], bits.WithNbDigits(limbNbBits))
+	// }
+	// return newElementLimbs[T](limbs, 0)
 }
 
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {

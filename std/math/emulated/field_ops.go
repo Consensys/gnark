@@ -19,8 +19,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute division: %v", err))
 	}
-	e := &Element[T]{Limbs: div}
-	f.EnforceWidth(e)
+	e := f.PackLimbs(div)
 	res := f.Mul(e, b)
 	f.AssertIsEqual(res, a)
 	return e
@@ -34,8 +33,7 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}
-	e := &Element[T]{Limbs: k}
-	f.EnforceWidth(e)
+	e := f.PackLimbs(k)
 	res := f.Mul(e, a)
 	one := f.One()
 	f.AssertIsEqual(res, one)
