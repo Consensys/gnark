@@ -3,7 +3,6 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
@@ -407,32 +406,4 @@ func (m *MapHashTranscript) NextN(api frontend.API, N int, x ...frontend.Variabl
 	}
 
 	return res
-}
-
-type TestTranscriptCircuit struct {
-	Expected []frontend.Variable
-}
-
-func (c *TestTranscriptCircuit) Define(api frontend.API) error {
-	hash, err := getHash("test_vectors/resources/hash.json")
-	if err != nil {
-		return err
-	}
-	transcript := MapHashTranscript{hashMap: hash}
-
-	got0 := transcript.Next(api, 0)
-	got1 := transcript.NextN(api, 2, 1)
-	api.AssertIsEqual(got0, c.Expected[0])
-	api.AssertIsEqual(got1[0], c.Expected[1])
-	api.AssertIsEqual(got1[1], c.Expected[2])
-	return nil
-}
-
-func TestTranscript(t *testing.T) {
-
-	test.NewAssert(t).ProverSucceeded(
-		&TestTranscriptCircuit{Expected: make([]frontend.Variable, 3)},
-		&TestTranscriptCircuit{[]frontend.Variable{1, 1, 2}},
-		test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254),
-	)
 }
