@@ -29,8 +29,7 @@ func (w *FieldAPI[T]) varToElement(in frontend.Variable) *Element[T] {
 	case *Element[T]:
 		return vv
 	default:
-		el := NewElement[T](in)
-		return &el
+		return newElementPtr[T](in)
 	}
 }
 
@@ -355,9 +354,8 @@ func (w *FieldAPI[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...fronten
 	}
 	ret := make([]frontend.Variable, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
-		el := NewElement[T](nil)
-		el.Limbs = hintRet[i*int(w.f.fParams.NbLimbs()) : (i+1)*int(w.f.fParams.NbLimbs())]
-		ret[i] = el
+		limbs := hintRet[i*int(w.f.fParams.NbLimbs()) : (i+1)*int(w.f.fParams.NbLimbs())]
+		ret[i] = newElementLimbs[T](limbs, 0)
 	}
 	return ret, nil
 }

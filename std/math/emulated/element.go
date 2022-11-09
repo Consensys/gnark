@@ -91,6 +91,10 @@ func newElementPtr[T FieldParams](v interface{}) *Element[T] {
 	return &el
 }
 
+func newElementLimbs[T FieldParams](limbs []frontend.Variable, overflow uint) *Element[T] {
+	return &Element[T]{Limbs: limbs, overflow: overflow}
+}
+
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
 		*e = NewElement[T](nil)

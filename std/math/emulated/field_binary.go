@@ -30,14 +30,11 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 }
 
 func (f *Field[T]) FromBits(bs ...frontend.Variable) *Element[T] {
-	e := NewElement[T](nil)
 	nbLimbs := (uint(len(bs)) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)
 	for i := uint(0); i < nbLimbs-1; i++ {
 		limbs[i] = bits.FromBinary(f.api, bs[i*f.fParams.BitsPerLimb():(i+1)*f.fParams.BitsPerLimb()])
 	}
 	limbs[nbLimbs-1] = bits.FromBinary(f.api, bs[(nbLimbs-1)*f.fParams.BitsPerLimb():])
-	e.overflow = 0
-	e.Limbs = limbs
-	return &e
+	return newElementLimbs[T](limbs, 0)
 }

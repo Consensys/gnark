@@ -145,7 +145,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 		if ba.Cmp(bb) != 0 {
 			panic(fmt.Sprintf("%s != %s", ba, bb))
 		}
-		return //NewElement[T](nil) // TODO @gbotrel un-used result
+		return
 	}
 
 	diff := f.Sub(b, a)

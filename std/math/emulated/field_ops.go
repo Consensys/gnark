@@ -58,8 +58,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
-		el := NewElement[T](ba)
-		return &el
+		return newElementPtr[T](ba)
 	}
 
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -73,12 +72,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
-
-	e := &Element[T]{
-		Limbs:    limbs,
-		overflow: nextOverflow,
-	}
-	return e
+	return newElementLimbs[T](limbs, nextOverflow)
 }
 
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
@@ -100,8 +94,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
-		el := NewElement[T](ba)
-		return &el
+		return newElementPtr[T](ba)
 	}
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
@@ -135,11 +128,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
-
-	return &Element[T]{
-		Limbs:    mulResult,
-		overflow: nextOverflow,
-	}
+	return newElementLimbs[T](mulResult, nextOverflow)
 }
 
 // Reduce reduces a modulo modulus and assigns e to the reduced value.
@@ -182,8 +171,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
-		el := NewElement[T](ba)
-		return &el
+		return newElementPtr[T](ba)
 	}
 
 	// first we have to compute padding to ensure that the subtraction does not
@@ -200,11 +188,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
-	e := &Element[T]{
-		Limbs:    limbs,
-		overflow: nextOverflow,
-	}
-	return e
+	return newElementLimbs[T](limbs, nextOverflow)
 }
 
 func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
@@ -216,7 +200,7 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
-	e := &Element[T]{Limbs: make([]frontend.Variable, nbLimbs), overflow: overflow}
+	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))
@@ -240,7 +224,7 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))
-	e := &Element[T]{Limbs: make([]frontend.Variable, nbLimbs), overflow: overflow}
+	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))
