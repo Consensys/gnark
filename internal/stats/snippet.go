@@ -80,10 +80,10 @@ func initSnippets() {
 		_ = mimc.Sum()
 	})
 	registerSnippet("math/emulated/secp256k1_64", func(api frontend.API, newVariable func() frontend.Variable) {
-		secp256k1, _ := emulated.NewAPI[emulated.Secp256k1](api)
+		secp256k1, _ := emulated.NewAPI[emulated.Secp256k1Fp](api)
 
-		newElement := func() emulated.Element[emulated.Secp256k1] {
-			r := emulated.NewElement[emulated.Secp256k1](nil)
+		newElement := func() emulated.Element[emulated.Secp256k1Fp] {
+			r := emulated.NewElement[emulated.Secp256k1Fp](nil)
 			for i := 0; i < len(r.Limbs); i++ {
 				r.Limbs[i] = newVariable()
 			}

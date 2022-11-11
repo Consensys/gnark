@@ -37,7 +37,7 @@ func testName[T FieldParams]() string {
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	testAssertLimbEqualityNoOverflow[Secp256k1](t)
+	testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
 	testAssertLimbEqualityNoOverflow[BN254Fp](t)
 }
 
@@ -70,7 +70,7 @@ func (c *AssertIsLessEqualThanCircuit[T]) Define(api frontend.API) error {
 
 func TestAssertIsLessEqualThan(t *testing.T) {
 	testAssertIsLessEqualThan[Goldilocks](t)
-	testAssertIsLessEqualThan[Secp256k1](t)
+	testAssertIsLessEqualThan[Secp256k1Fp](t)
 	testAssertIsLessEqualThan[BN254Fp](t)
 }
 
@@ -103,7 +103,7 @@ func (c *AddCircuit[T]) Define(api frontend.API) error {
 
 func TestAddCircuitNoOverflow(t *testing.T) {
 	testAddCircuitNoOverflow[Goldilocks](t)
-	testAddCircuitNoOverflow[Secp256k1](t)
+	testAddCircuitNoOverflow[Secp256k1Fp](t)
 	testAddCircuitNoOverflow[BN254Fp](t)
 }
 
@@ -141,7 +141,7 @@ func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
 
 func TestMulCircuitNoOverflow(t *testing.T) {
 	// testMulCircuitNoOverflow[Goldilocks](t)
-	testMulCircuitNoOverflow[Secp256k1](t)
+	testMulCircuitNoOverflow[Secp256k1Fp](t)
 	// testMulCircuitNoOverflow[BN254Fp](t)
 }
 
@@ -178,7 +178,7 @@ func (c *MulCircuitOverflow[T]) Define(api frontend.API) error {
 
 func TestMulCircuitOverflow(t *testing.T) {
 	testMulCircuitOverflow[Goldilocks](t)
-	testMulCircuitOverflow[Secp256k1](t)
+	testMulCircuitOverflow[Secp256k1Fp](t)
 	testMulCircuitOverflow[BN254Fp](t)
 }
 
@@ -217,7 +217,7 @@ func (c *ReduceAfterAddCircuit[T]) Define(api frontend.API) error {
 
 func TestReduceAfterAdd(t *testing.T) {
 	testReduceAfterAdd[Goldilocks](t)
-	testReduceAfterAdd[Secp256k1](t)
+	testReduceAfterAdd[Secp256k1Fp](t)
 	testReduceAfterAdd[BN254Fp](t)
 }
 
@@ -255,11 +255,11 @@ func (c *SubtractCircuit[T]) Define(api frontend.API) error {
 
 func TestSubtractNoOverflow(t *testing.T) {
 	testSubtractNoOverflow[Goldilocks](t)
-	testSubtractNoOverflow[Secp256k1](t)
+	testSubtractNoOverflow[Secp256k1Fp](t)
 	testSubtractNoOverflow[BN254Fp](t)
 
 	testSubtractOverflow[Goldilocks](t)
-	testSubtractOverflow[Secp256k1](t)
+	testSubtractOverflow[Secp256k1Fp](t)
 	testSubtractOverflow[BN254Fp](t)
 }
 
@@ -312,7 +312,7 @@ func (c *NegationCircuit[T]) Define(api frontend.API) error {
 
 func TestNegation(t *testing.T) {
 	testNegation[Goldilocks](t)
-	testNegation[Secp256k1](t)
+	testNegation[Secp256k1Fp](t)
 	testNegation[BN254Fp](t)
 }
 
@@ -346,7 +346,7 @@ func (c *InverseCircuit[T]) Define(api frontend.API) error {
 
 func TestInverse(t *testing.T) {
 	testInverse[Goldilocks](t)
-	testInverse[Secp256k1](t)
+	testInverse[Secp256k1Fp](t)
 	testInverse[BN254Fp](t)
 }
 
@@ -384,7 +384,7 @@ func (c *DivisionCircuit[T]) Define(api frontend.API) error {
 
 func TestDivision(t *testing.T) {
 	testDivision[Goldilocks](t)
-	testDivision[Secp256k1](t)
+	testDivision[Secp256k1Fp](t)
 	testDivision[BN254Fp](t)
 }
 
@@ -431,7 +431,7 @@ func (c *ToBinaryCircuit[T]) Define(api frontend.API) error {
 
 func TestToBinary(t *testing.T) {
 	testToBinary[Goldilocks](t)
-	testToBinary[Secp256k1](t)
+	testToBinary[Secp256k1Fp](t)
 	testToBinary[BN254Fp](t)
 }
 
@@ -470,7 +470,7 @@ func (c *FromBinaryCircuit[T]) Define(api frontend.API) error {
 
 func TestFromBinary(t *testing.T) {
 	testFromBinary[Goldilocks](t)
-	testFromBinary[Secp256k1](t)
+	testFromBinary[Secp256k1Fp](t)
 	testFromBinary[BN254Fp](t)
 }
 
@@ -512,7 +512,7 @@ func (c *EqualityCheckCircuit[T]) Define(api frontend.API) error {
 func TestConstantEqual(t *testing.T) {
 	testConstantEqual[Goldilocks](t)
 	testConstantEqual[BN254Fp](t)
-	testConstantEqual[Secp256k1](t)
+	testConstantEqual[Secp256k1Fp](t)
 }
 
 func testConstantEqual[T FieldParams](t *testing.T) {
@@ -548,7 +548,7 @@ func (c *SelectCircuit[T]) Define(api frontend.API) error {
 
 func TestSelect(t *testing.T) {
 	testSelect[Goldilocks](t)
-	testSelect[Secp256k1](t)
+	testSelect[Secp256k1Fp](t)
 	testSelect[BN254Fp](t)
 }
 
@@ -597,7 +597,7 @@ func (c *Lookup2Circuit[T]) Define(api frontend.API) error {
 
 func TestLookup2(t *testing.T) {
 	testLookup2[Goldilocks](t)
-	testLookup2[Secp256k1](t)
+	testLookup2[Secp256k1Fp](t)
 	testLookup2[BN254Fp](t)
 }
 
@@ -666,7 +666,7 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 
 func TestComputation(t *testing.T) {
 	testComputation[Goldilocks](t)
-	testComputation[Secp256k1](t)
+	testComputation[Secp256k1Fp](t)
 	testComputation[BN254Fp](t)
 }
 
@@ -749,7 +749,7 @@ func (c *FourMulsCircuit[T]) Define(api frontend.API) error {
 
 func TestFourMuls(t *testing.T) {
 	testFourMuls[Goldilocks](t)
-	testFourMuls[Secp256k1](t)
+	testFourMuls[Secp256k1Fp](t)
 	testFourMuls[BN254Fp](t)
 }
 
