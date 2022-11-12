@@ -10,7 +10,8 @@ import (
 
 // Element defines an element in the ring of integers modulo n. The integer
 // value of the element is split into limbs of nbBits lengths and represented as
-// a slice of limbs.
+// a slice of limbs. The type parameter defines the field this element belongs
+// to.
 type Element[T FieldParams] struct {
 	Limbs []frontend.Variable `gnark:"limbs,inherit"` // in little-endian (least significant limb first) encoding
 
@@ -20,9 +21,10 @@ type Element[T FieldParams] struct {
 	overflow uint `gnark:"-"`
 }
 
-// NewElement builds a new emulated element from input
-// if input is a Element[T], this functions clones and return a new Element[T]
-// else, it attemps to convert to big.Int , mod reduce if necessary and return a cannonical Element[T]
+// NewElement builds a new emulated element from input. The inputs can be:
+//   - of type Element[T] (or a pointer to it). Then, the limbs are cloned and packed into new Element[T],
+//   - integer-like. Then it is cast to [*big.Int], decomposed into limbs and packed into new Element[T],
+//   - a variable in circuit. Then, it is packed into new Element[T]
 func NewElement[T FieldParams](v interface{}) Element[T] {
 	r := Element[T]{}
 	var fp T
@@ -46,9 +48,7 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 		copy(r.Limbs, tv.Limbs)
 		r.overflow = tv.overflow
 		return r
-
 	}
-
 	if frontend.IsCanonical(v) {
 		// TODO @gbotrel @ivokub check this -- seems oddd.
 		r.Limbs = []frontend.Variable{v}
@@ -91,10 +91,13 @@ func newElementPtr[T FieldParams](v interface{}) *Element[T] {
 	return &el
 }
 
+// newElementLimbs sets the limbs and overflow. Given as a function for later
+// possible refactor.
 func newElementLimbs[T FieldParams](limbs []frontend.Variable, overflow uint) *Element[T] {
 	return &Element[T]{Limbs: limbs, overflow: overflow}
 }
 
+// GnarkInitHook describes how to initialise the element.
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
 		*e = NewElement[T](nil)

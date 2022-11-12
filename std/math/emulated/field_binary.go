@@ -29,6 +29,7 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	return fullBits
 }
 
+// FromBits returns a new Element given the bits is little-endian order.
 func (f *Field[T]) FromBits(bs ...frontend.Variable) *Element[T] {
 	nbLimbs := (uint(len(bs)) + f.fParams.BitsPerLimb() - 1) / f.fParams.BitsPerLimb()
 	limbs := make([]frontend.Variable, nbLimbs)

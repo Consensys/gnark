@@ -9,11 +9,28 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// FieldAPI provides the wrapped [frontend.API] / [frontend.Builder]
+// implementations over non-native field. The methods defined by
+// [frontend.Builder] are available only if the variable is created using
+// [NewBuilder].
 type FieldAPI[T FieldParams] struct {
 	f *Field[T]
 	b frontend.Builder
 }
 
+// NewAPI wraps the native [frontend.API] to perform operations over non-native
+// field defined by [FieldParams]. The [frontend.Variable] variables which are
+// taken as inputs and returned as outputs in the methods are usually [*Element]
+// type instances.
+//
+// This method can be used for taking an existing circuit, wrapping the API and
+// compiling the result. It doesn't work well with parsing the schema (i.e. how
+// to encode) as the parser doesn't know how to represent non-native elements.
+// For that, use [NewBuilder] which also wraps the [frontend.Builder].
+//
+// For optimising the circuit description, it is better to use [Field] type
+// (instantiated using [NewField]), as it provides more methods, performs lazy
+// reduction etc.
 func NewAPI[T FieldParams](native frontend.API) (*FieldAPI[T], error) {
 	f, err := NewField[T](native)
 	if err != nil {

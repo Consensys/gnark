@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
@@ -25,6 +26,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	return e
 }
 
+// Inverse compute 1/a and returns it. It uses [InverseHint].
 func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
@@ -40,10 +42,15 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	return e
 }
 
+// Add computes a+b and returns it. If the result wouldn't fit into Element, then
+// first reduces the inputs (larger first) and tries again. Doesn't mutate
+// inputs.
 func (f *Field[T]) Add(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.add, f.addPreCond, a, b)
 }
 
+// AddMutable is the mutating version of the [Field[T].Add] method. It reduces
+// the given inputs a, b if the result wouldn't fit into Element.
 func (f *Field[T]) AddMutable(a, b *Element[T]) *Element[T] {
 	r := f.reduceAndOpMutable(f.add, f.addPreCond, a, b)
 	return r
@@ -80,20 +87,42 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	return newElementLimbs[T](limbs, nextOverflow)
 }
 
+// Mul computes a*b and returns it. It doesn't reduce the output and it may be
+// larger than the modulus. The returned Element has as many limbs as the inputs
+// together. If the result wouldn't fit into Element, then locally reduces the
+// inputs first. Doesn't mutate inputs.
+//
+// Even though this method skips reduction and allows for multiplication chains,
+// then in most cases it is more efficient to use [Field[T].MulMod] as reducing
+// Element with 2 times the limbs is 2 times more expensive.
+//
+// For multiplying by a constant, use [Field[T].MulConst] method which is more
+// efficient.
+//
+// Uses [MultiplicationHint].
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.mul, f.mulPreCond, a, b)
 }
 
+// Mul computes a*b and reduces it modulo the field order. The returned Element
+// has default number of limbs and zero overflow.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	r := f.Mul(a, b)
 	return f.Reduce(r)
 }
 
+// MulModMutable is the mutable version of the [Field[T].MulMod] method,
+// reducing the inputs if the result wouldn't fit into Element.
 func (f *Field[T]) MulModMutable(a, b *Element[T]) *Element[T] {
 	r := f.reduceAndOpMutable(f.mul, f.mulPreCond, a, b)
 	return f.Reduce(r)
 }
 
+// MulConst multiplies a by a constant c and returns it. We assume that the
+// input constant is "small", so that we can compute the product by multiplying
+// all individual limbs with the constant. If it is not small, then use the
+// general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
+// the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 	switch c.Cmp(big.NewInt(0)) {
 	case -1:
@@ -176,7 +205,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	return newElementLimbs[T](mulResult, nextOverflow)
 }
 
-// Reduce reduces a modulo modulus and assigns e to the reduced value.
+// Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
 func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
@@ -198,10 +227,14 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	return e
 }
 
+// Sub subtracts b from a and returns it. Reduces locally if wouldn't fit into
+// Element. Doesn't mutate inputs.
 func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
 }
 
+// SubMutable is the mutating version of [Field[T].Sub] which modifies the
+// inputs when needed.
 func (f *Field[T]) SubMutable(a, b *Element[T]) *Element[T] {
 	r := f.reduceAndOpMutable(f.sub, f.subPreCond, a, b)
 	return r
@@ -245,8 +278,10 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 	return f.Sub(f.Zero(), a)
 }
 
-// Select sets e to a if selector == 0 and to b otherwise.
-// assumes a overflow == b overflow
+// Select sets e to a if selector == 0 and to b otherwise. Sets the number of
+// limbs and overflow of the result to be the maximum of the limb lengths and
+// overflows. If the inputs are strongly unbalanced, then it would better to
+// reduce the result after the operation.
 func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -270,7 +305,14 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 }
 
 // Lookup2 performs two-bit lookup between a, b, c, d based on lookup bits b1
-// and b2. Sets e to a if b0=b1=0, b if b0=1 and b1=0, c if b0=0 and b1=1, d if b0=b1=1.
+// and b2 such that:
+//   - if b0=0 and b1=0, sets to a,
+//   - if b0=1 and b1=0, sets to b,
+//   - if b0=0 and b1=1, sets to c,
+//   - if b0=1 and b1=1, sets to d.
+//
+// The number of the limbs and overflow in the result is the maximum of the
+// inputs'. If the inputs are very unbalanced, then reduce the result.
 func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))

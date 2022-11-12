@@ -10,6 +10,16 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 )
 
+// NewBuilder wraps the existing builder to be compatible with frontend builder
+// option [frontend.WithBuilderWrapper]. The wrapper builder also wraps the API
+// methods (embedded in the [frontend.Builder] definition).
+//
+// Using wrapped builder allows to take an existing circuit defined over a
+// native field (and where all the public/private witness are defined as type
+// [frontend.Variable]) and run it over non-native field.
+//
+// For most of the cases, this leads to sub-optimal performance as dedicated
+// operations on the [Field] allow for writing more optimal circuits.
 func NewBuilder[T FieldParams](native frontend.Builder) (*FieldAPI[T], error) {
 	f, err := NewField[T](native)
 	if err != nil {
@@ -72,9 +82,3 @@ func (w *FieldAPI[T]) Commit(v ...frontend.Variable) (frontend.Variable, error) 
 	//TODO implement me
 	panic("not implemented")
 }
-
-// func (f *Field[T]) Reduce(i frontend.Variable) frontend.Variable {
-// 	el := f.varToElement(i)
-// 	res := f.reduce(el)
-// 	return res
-// }

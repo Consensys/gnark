@@ -11,9 +11,10 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-// Field defines the parameters of the emulated ring of integers modulo n. If
-// n is prime, then the ring is also a finite Field where inverse and division
-// are allowed.
+// Field holds the configuration for non-native field operations. The field
+// parameters (modulus, number of limbs) is given by [FieldParams] type
+// parameter. If [FieldParams.IsPrime] is true, then allows inverse and division
+// operations.
 type Field[T FieldParams] struct {
 	// api is the native API
 	api frontend.API
@@ -36,12 +37,14 @@ type Field[T FieldParams] struct {
 	log zerolog.Logger
 }
 
-// NewField returns an object to be used in-circuit to perform emulated arithmetic.
+// NewField returns an object to be used in-circuit to perform emulated
+// arithmetic over the field defined by type parameter [FieldParams]. The
+// operations on this type are defined on [Element]. There is also another type
+// [FieldAPI] implementing [frontend.API] which can be used in place of native
+// API for existing circuits.
 //
-// The returned object implements frontend.API and as such, is used transparently in a circuit.
-//
-// This is an experimental feature and performing emulated arithmetic in-circuit is extremly costly.
-// See package doc for more info.
+// This is an experimental feature and performing emulated arithmetic in-circuit
+// is extremly costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	f := &Field[T]{
 		api: native,

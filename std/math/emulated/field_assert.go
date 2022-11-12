@@ -38,6 +38,7 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 	api.AssertIsEqual(carry, maxValueShift)
 }
 
+// rsh right shifts a variable endDigit-startDigit bits and returns it.
 func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) frontend.Variable {
 	// if v is a constant, work with the big int value.
 	if c, ok := api.Compiler().ConstantValue(v); ok {
