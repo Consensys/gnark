@@ -724,7 +724,7 @@ func TestOptimisation(t *testing.T) {
 	}
 	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs.GetNbConstraints(), 3386)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3747)
 	ccs2, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
 	assert.NoError(err)
 	assert.LessOrEqual(ccs2.GetNbConstraints(), 10483)
