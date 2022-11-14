@@ -242,7 +242,9 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			parsedCase.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit))
+			if parsedCase.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
+				return nil, err
+			}
 
 			if parsedCase.Hash, err = getHash(filepath.Join(dir, info.Hash)); err != nil {
 				return nil, err
