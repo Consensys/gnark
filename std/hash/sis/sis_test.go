@@ -19,7 +19,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/sis"
 	gsis "github.com/consensys/gnark-crypto/ecc/bn254/fr/sis"
 	"github.com/consensys/gnark/frontend"
@@ -46,28 +45,15 @@ func (circuit *MulModTest) Define(api frontend.API) error {
 func TestMulMod(t *testing.T) {
 
 	// get correct data
-	_rsis, err := gsis.NewRSis(5, 3, 4, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rsis := _rsis.(*gsis.RSis)
-
 	p := make([]fr.Element, 8)
 	q := make([]fr.Element, 8)
-	_p := make([]fr.Element, 8)
-	_q := make([]fr.Element, 8)
 
 	for i := 0; i < 8; i++ {
 		p[i].SetRandom()
 		q[i].SetRandom()
 	}
-	copy(_p, p)
-	copy(_q, q)
 
-	rsis.Domain.FFT(_p, fft.DIF, true)
-	rsis.Domain.FFT(_q, fft.DIF, true)
-
-	r := rsis.MulMod(_p, _q)
+	r := gsis.NaiveMulMod(p, q)
 
 	var witness MulModTest
 	for i := 0; i < len(p); i++ {
