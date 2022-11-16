@@ -102,14 +102,43 @@ func (r RSisSnark) Sum(api frontend.API, v []frontend.Variable) ([]frontend.Vari
 	for i := 0; i < r.Degree; i++ {
 		res[i] = 0
 	}
-	for i := 0; i < len(r.A); i++ {
-		tmp := mulMod(api, r.A[i], m[i*r.Degree:(i+1)*r.Degree])
-		for j := 0; j < r.Degree; j++ {
-			res[j] = api.Add(tmp[j], res[j])
+	if r.Degree == 2 {
+		for i := 0; i < len(r.A); i++ {
+			tmp := mulModDegree2(api, r.A[i], m[i*r.Degree:(i+1)*r.Degree])
+			res[0] = api.Add(tmp[0], res[0])
+			res[1] = api.Add(tmp[1], res[1])
+		}
+	} else {
+		for i := 0; i < len(r.A); i++ {
+			tmp := mulMod(api, r.A[i], m[i*r.Degree:(i+1)*r.Degree])
+			for j := 0; j < r.Degree; j++ {
+				res[j] = api.Add(tmp[j], res[j])
+			}
 		}
 	}
 
 	return res, nil
+}
+
+func mulModDegree2(api frontend.API, p []fr.Element, q []frontend.Variable) []frontend.Variable {
+
+	// (p0+p1*X)*(q0+q1*X) Mod X^2+1 = p0q0-p1q1+(p0q1+p1q0)*X
+	// We do that in 3 muls instead of 4:
+	// a = p0q0
+	// b = p1q1
+	// c = (p0+p1)*(q0+q1)
+	// r = a - b + (c-a-b)*X
+	var res [2]frontend.Variable
+	var a, b, c frontend.Variable
+	a = api.Mul(p[0], q[0])
+	b = api.Mul(p[1], q[1])
+	res[0] = api.Sub(a, b)
+	c = api.Add(p[0], p[1])
+	res[1] = api.Add(q[0], q[1])
+	res[1] = api.Mul(res[1], c)
+	res[1] = api.Sub(res[1], a)
+	res[1] = api.Sub(res[1], b)
+	return res[:]
 }
 
 // mulMod computes p * q Mod X^d+1 where d = len(p) = len(q).
