@@ -58,7 +58,7 @@ type r1cs struct {
 	st     cs.CoeffTable
 	config frontend.CompileConfig
 
-	commitmentInfo cs.CommitmentInfo
+	commitmentInfo compiled.CommitmentInfo
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]compiled.LinearExpression

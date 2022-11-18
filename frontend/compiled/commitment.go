@@ -1,4 +1,4 @@
-package cs
+package compiled
 
 type CommitmentInfo struct {
 	Committed       []int // sorted list of id's of committed variables
@@ -25,10 +25,6 @@ func binarySearch(slice []int, v int) int { //different from the standard librar
 // nbPublic can also be considered as the index of the commitment itself
 func (i *CommitmentInfo) NbPublicCommitted(nbPublic int) int {
 	m := binarySearch(i.Committed, nbPublic)
-
-	if i.Committed[m] == nbPublic {
-		panic("committing to the commitment?!") // TODO: Remove this check
-	}
 
 	return m
 }

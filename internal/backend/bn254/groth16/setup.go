@@ -139,7 +139,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	var t0, t1 fr.Element
 
-	vI, pI, cI := 0, 0, 0
+	vI, cI := 0, 0
 
 	for i := range A {
 		isCommitted := false
@@ -150,7 +150,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			}
 		}
 
-		if i >= r1cs.NbPublicVariables || isCommitted {
+		if i < r1cs.NbPublicVariables || isCommitted {
 			t1.Mul(&A[i], &toxicWaste.beta)
 			t0.Mul(&B[i], &toxicWaste.alpha)
 			t1.Add(&t1, &t0).
@@ -160,30 +160,15 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 			vI++
 		} else {
+
 			t1.Mul(&A[i], &toxicWaste.beta)
 			t0.Mul(&B[i], &toxicWaste.alpha)
 			t1.Add(&t1, &t0).
 				Add(&t1, &C[i]).
 				Mul(&t1, &toxicWaste.deltaInv)
-			pkK[pI] = t1.ToRegular()
-
-			pI++
+			pkK[i-vI] = t1.ToRegular()
 		}
 	}
-
-	/*
-		for i := range vkK {
-
-		}
-
-		for i := 0; i < nbPrivateWires; i++ {
-			t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
-			t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
-			t1.Add(&t1, &t0).
-				Add(&t1, &C[i+nbPublicWires]).
-				Mul(&t1, &toxicWaste.deltaInv)
-			pkK[i] = t1.ToRegular()
-		}*/
 
 	// convert A and B to regular form
 	for i := 0; i < nbWires; i++ {
@@ -265,11 +250,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// Commitment setup
 
-	if nbPrivateCommitted == 0 { //fast path
-		vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
-		offset += nbPublicWires
-		pk.G1.K = g1PointsAff[offset:]
-	} else {
+	vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
+	offset += nbPublicWires
+	pk.G1.K = g1PointsAff[offset:]
+
+	if nbPrivateCommitted != 0 {
+
 		commitmentBasis := make([]*curve.G1Affine, nbPrivateCommitted)
 
 		cI = nbPublicCommitted

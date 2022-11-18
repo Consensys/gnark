@@ -88,7 +88,6 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	}
 	s.NbPublic = countedPublic
 	s.NbSecret = countedPrivate
-
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
