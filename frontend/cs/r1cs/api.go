@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -575,4 +576,34 @@ func (system *r1cs) negateLinExp(l compiled.LinearExpression) compiled.LinearExp
 
 func (system *r1cs) Compiler() frontend.Compiler {
 	return system
+}
+
+func removeRedundancy(sorted *[]int) {
+	if len(*sorted) == 0 {
+		return
+	}
+
+	j := 1
+	for i := 1; i < len(*sorted); i++ {
+		if (*sorted)[i] != (*sorted)[i-1] {
+			(*sorted)[j] = (*sorted)[i]
+			j++
+		}
+	}
+
+	*sorted = (*sorted)[:j]
+}
+
+func (system *r1cs) Commit(v ...frontend.Variable) frontend.Variable {
+
+	for _, vI := range v {
+		for _, term := range vI.(compiled.LinearExpression) {
+			system.CommitmentInfo.Committed = append(system.CommitmentInfo.Committed, term.WireID())
+		}
+	}
+
+	sort.Ints(system.CommitmentInfo.Committed)
+	removeRedundancy(&system.CommitmentInfo.Committed)
+
+	return compiled.LinearExpression{compiled.Pack(system.CommitmentInfo.CommitmentIndex, compiled.CoeffIdOne, schema.Public)}
 }

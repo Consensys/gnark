@@ -665,3 +665,8 @@ func (f *field[T]) AddSecretVariable(sf *schema.Field) frontend.Variable {
 	return f.addVariable(sf, f.builder.AddSecretVariable)
 
 }
+
+func (f *field[T]) Commit(v ...frontend.Variable) frontend.Variable {
+	//TODO implement me
+	panic("implement me")
+}

@@ -63,6 +63,11 @@ type scs struct {
 	q *big.Int
 }
 
+func (system *scs) AddCommitmentVariable(index int, committedVarsCountEstimate int) {
+	//TODO implement me
+	panic("implement me")
+}
+
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
@@ -590,4 +595,9 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 	o := system.newInternalVariable()
 	system.addPlonkConstraint(acc, r[0], o, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
 	return system.splitProd(o, r[1:])
+}
+
+func (system *scs) Commit(v ...frontend.Variable) frontend.Variable {
+	//TODO implement me
+	panic("implement me")
 }

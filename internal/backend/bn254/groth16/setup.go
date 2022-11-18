@@ -18,6 +18,7 @@ package groth16
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
@@ -53,6 +54,8 @@ type ProvingKey struct {
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
+
+	CommitmentKey pedersen.Key
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -73,7 +76,8 @@ type VerifyingKey struct {
 	}
 
 	// e(α, β)
-	e curve.GT // not serialized
+	e             curve.GT // not serialized
+	CommitmentKey pedersen.Key
 }
 
 // Setup constructs the SRS
@@ -90,8 +94,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-	nbPublicWires := int(r1cs.NbPublicVariables)
-	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
+
+	committed := r1cs.CommitmentInfo.Committed
+	nbPublicCommitted := r1cs.CommitmentInfo.NbPublicCommitted(r1cs.NbPublicVariables)
+	nbPrivateCommitted := len(committed) - nbPublicCommitted
+	nbPublicWires := r1cs.NbPublicVariables + nbPrivateCommitted
+	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommitted
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
@@ -117,7 +125,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// G1 scalars
 
-	// the G1 scalars are ordered (arbitrary) as follow:
+	// the G1 scalars are ordered (arbitrary) as follows:
 	//
 	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
 	// len(A) == len(B) == nbWires
@@ -131,29 +139,57 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	var t0, t1 fr.Element
 
-	for i := 0; i < nbPublicWires; i++ {
-		t1.Mul(&A[i], &toxicWaste.beta)
-		t0.Mul(&B[i], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i]).
-			Mul(&t1, &toxicWaste.gammaInv)
-		vkK[i] = t1.ToRegular()
+	vI, pI, cI := 0, 0, 0
+
+	for i := range A {
+		isCommitted := false
+		if cI < len(committed) {
+			if i == committed[cI] {
+				isCommitted = true
+				cI++
+			}
+		}
+
+		if i >= r1cs.NbPublicVariables || isCommitted {
+			t1.Mul(&A[i], &toxicWaste.beta)
+			t0.Mul(&B[i], &toxicWaste.alpha)
+			t1.Add(&t1, &t0).
+				Add(&t1, &C[i]).
+				Mul(&t1, &toxicWaste.gammaInv)
+			vkK[vI] = t1.ToRegular()
+
+			vI++
+		} else {
+			t1.Mul(&A[i], &toxicWaste.beta)
+			t0.Mul(&B[i], &toxicWaste.alpha)
+			t1.Add(&t1, &t0).
+				Add(&t1, &C[i]).
+				Mul(&t1, &toxicWaste.deltaInv)
+			pkK[pI] = t1.ToRegular()
+
+			pI++
+		}
 	}
 
-	for i := 0; i < nbPrivateWires; i++ {
-		t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
-		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i+nbPublicWires]).
-			Mul(&t1, &toxicWaste.deltaInv)
-		pkK[i] = t1.ToRegular()
-	}
+	/*
+		for i := range vkK {
+
+		}
+
+		for i := 0; i < nbPrivateWires; i++ {
+			t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
+			t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
+			t1.Add(&t1, &t0).
+				Add(&t1, &C[i+nbPublicWires]).
+				Mul(&t1, &toxicWaste.deltaInv)
+			pkK[i] = t1.ToRegular()
+		}*/
 
 	// convert A and B to regular form
-	for i := 0; i < int(nbWires); i++ {
+	for i := 0; i < nbWires; i++ {
 		A[i].FromMont()
 	}
-	for i := 0; i < int(nbWires); i++ {
+	for i := 0; i < nbWires; i++ {
 		B[i].FromMont()
 	}
 
@@ -203,9 +239,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
-	g1Scalars = append(g1Scalars, pkK...)
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
+	g1Scalars = append(g1Scalars, pkK...)
 
 	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 
@@ -221,15 +257,37 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.B = g1PointsAff[offset : offset+len(B)]
 	offset += len(B)
 
-	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
-	offset += nbPrivateWires
-
 	pk.G1.Z = g1PointsAff[offset : offset+int(domain.Cardinality)]
 	bitReverse(pk.G1.Z)
 
 	offset += int(domain.Cardinality)
 
-	vk.G1.K = g1PointsAff[offset:]
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
+
+	if nbPrivateCommitted == 0 { //fast path
+		vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
+		offset += nbPublicWires
+		pk.G1.K = g1PointsAff[offset:]
+	} else {
+		commitmentBasis := make([]*curve.G1Affine, nbPrivateCommitted)
+
+		cI = nbPublicCommitted
+		for i := r1cs.NbPublicVariables; cI < len(committed); i++ {
+
+			if i == committed[cI] { // is committed
+				commitmentBasis[cI-nbPublicCommitted] = &vk.G1.K[i]
+				cI++
+			}
+		}
+
+		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+		if err != nil {
+			return err
+		}
+		pk.CommitmentKey = vk.CommitmentKey
+
+	}
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars

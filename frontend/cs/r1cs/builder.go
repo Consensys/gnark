@@ -58,10 +58,24 @@ type r1cs struct {
 	st     cs.CoeffTable
 	config frontend.CompileConfig
 
+	commitmentInfo cs.CommitmentInfo
+
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]compiled.LinearExpression
 
 	q *big.Int
+}
+
+func (system *r1cs) AddCommitmentVariable(index int, committedVarsCountEstimate int) {
+
+	if len(system.Public) != index { // inconsistency or redundancy?
+		panic("inconsistency")
+	}
+
+	system.commitmentInfo.CommitmentIndex = index
+	system.Public = append(system.Public, "BSB22_Commitment")
+
+	system.commitmentInfo.Committed = make([]int, 0, committedVarsCountEstimate)
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -379,10 +393,10 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// sanity check
 	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
-		panic("number of public variables is inconsitent") // it grew after the schema parsing?
+		panic("number of public variables is inconsistent") // it grew after the schema parsing?
 	}
 	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
-		panic("number of secret variables is inconsitent") // it grew after the schema parsing?
+		panic("number of secret variables is inconsistent") // it grew after the schema parsing?
 	}
 
 	// build levels

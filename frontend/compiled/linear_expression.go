@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// A linear expression is a linear combination of Term
+// A LinearExpression is a linear combination of Term
 type LinearExpression []Term
 
 // Clone returns a copy of the underlying slice

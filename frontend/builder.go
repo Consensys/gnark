@@ -48,6 +48,11 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Commit returns a commitment to the given variables, to be used as initial randomness in
+	// Fiat-Shamir when the statement to prove is particularly large. TODO: Cite paper
+	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
+	Commit(...Variable) Variable
 }
 
 // Builder represents a constraint system builder
@@ -72,4 +77,6 @@ type Builder interface {
 	// AddSecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
 	AddSecretVariable(field *schema.Field) Variable
+
+	AddCommitmentVariable(index int, committedVarsCountEstimate int)
 }

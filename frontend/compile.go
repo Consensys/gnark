@@ -3,6 +3,7 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/frontend/cs"
 	"math/big"
 	"reflect"
 
@@ -88,6 +89,16 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	}
 	s.NbPublic = countedPublic
 	s.NbSecret = countedPrivate
+
+	commitmentCounter := cs.CommitmentCounter{}
+	if err := circuit.Define(&commitmentCounter); err != nil {
+		return err
+	}
+	if commitmentCounter.CommitCalls == 1 {
+		s.NbPublic++
+		builder.AddCommitmentVariable(s.NbPublic, commitmentCounter.CommittedVariables) //TODO: Should this be s.NbPublic+1 to account for 1?
+	}
+
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
