@@ -66,18 +66,6 @@ type r1cs struct {
 	q *big.Int
 }
 
-func (system *r1cs) AddCommitmentVariable(index int, committedVarsCountEstimate int) {
-
-	if len(system.Public) != index { // inconsistency or redundancy?
-		panic("inconsistency")
-	}
-
-	system.commitmentInfo.CommitmentIndex = index
-	system.Public = append(system.Public, "BSB22_Commitment")
-
-	system.commitmentInfo.Committed = make([]int, 0, committedVarsCountEstimate)
-}
-
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *r1cs {

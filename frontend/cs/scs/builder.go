@@ -63,11 +63,6 @@ type scs struct {
 	q *big.Int
 }
 
-func (system *scs) AddCommitmentVariable(index int, committedVarsCountEstimate int) {
-	//TODO implement me
-	panic("implement me")
-}
-
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {

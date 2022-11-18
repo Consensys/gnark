@@ -54,10 +54,10 @@ func (proof *Proof) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
+// Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
-	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
+	if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
+		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()

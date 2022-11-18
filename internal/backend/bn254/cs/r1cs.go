@@ -69,6 +69,7 @@ func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
 func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
+	nbPublicCommitted := cs.CommitmentInfo.NbPublicCommitted(cs.NbPublicVariables)
 	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
 	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
 	if err != nil {
@@ -76,7 +77,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	}
 	start := time.Now()
 
-	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
+	if len(witness) != cs.NbPublicVariables-1+cs.NbSecretVariables { // - 1 for ONE_WIRE
 		err = fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
 		log.Err(err).Send()
 		return solution.values, err
@@ -91,9 +92,19 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	solution.solved[0] = true // ONE_WIRE
 	solution.values[0].SetOne()
-	copy(solution.values[1:], witness)
-	for i := 0; i < len(witness); i++ {
+
+	for i := range witness {
 		solution.solved[i+1] = true
+	}
+
+	if len(cs.CommitmentInfo.Committed) == 0 { //fast path
+		copy(solution.values[1:], witness)
+
+	} else { // Leave room for the commitment value?
+		copy(solution.values[1:cs.NbPublicVariables+1], witness[:cs.NbPublicVariables])
+		copy(solution.values[cs.NbPublicVariables+2:], witness[cs.NbPublicVariables:])
+		solution.solved[cs.NbPublicVariables] = false
+		solution.solved[len(witness)+1] = true
 	}
 
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
@@ -152,7 +163,7 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 					// for each constraint in the task, solve it.
 					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
 						var debugInfo *string
-						if dID, ok := cs.MDebug[int(i)]; ok {
+						if dID, ok := cs.MDebug[i]; ok {
 							debugInfo = new(string)
 							*debugInfo = solution.logValue(cs.DebugInfo[dID])
 						}

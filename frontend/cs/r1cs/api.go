@@ -596,6 +596,8 @@ func removeRedundancy(sorted *[]int) {
 
 func (system *r1cs) Commit(v ...frontend.Variable) frontend.Variable {
 
+	system.CommitmentInfo.Committed = make([]int, 0, len(v)) // Perf-TODO: Experiment with capacity
+
 	for _, vI := range v {
 		for _, term := range vI.(compiled.LinearExpression) {
 			system.CommitmentInfo.Committed = append(system.CommitmentInfo.Committed, term.WireID())
@@ -605,5 +607,9 @@ func (system *r1cs) Commit(v ...frontend.Variable) frontend.Variable {
 	sort.Ints(system.CommitmentInfo.Committed)
 	removeRedundancy(&system.CommitmentInfo.Committed)
 
-	return compiled.LinearExpression{compiled.Pack(system.CommitmentInfo.CommitmentIndex, compiled.CoeffIdOne, schema.Public)}
+	res := system.newInternalVariable()
+
+	system.CommitmentInfo.CommitmentIndex = res[0].WireID()
+
+	return res
 }
