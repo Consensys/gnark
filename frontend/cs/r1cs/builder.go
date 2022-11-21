@@ -149,7 +149,7 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 		if pVis == cVis && pvID == cvID {
 			jj++
 			// we have redundancy
-			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
+			c.Add(system.st.Coeffs[pcID], system.st.Coeffs[ccID])
 			c.Mod(c, mod)
 			l[i].SetCoeffID(system.st.CoeffID(c))
 			omittable = append(omittable, i-1)
@@ -541,7 +541,7 @@ func (system *r1cs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 		if !(vID == 0 && visibility == schema.Public) {
 			return nil, false
 		}
-		return new(big.Int).Set(&system.st.Coeffs[cID]), true
+		return new(big.Int).Set(system.st.Coeffs[cID]), true
 	}
 	r := utils.FromInterface(v)
 	return &r, true

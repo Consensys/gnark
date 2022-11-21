@@ -30,13 +30,13 @@ type SparseR1CS struct {
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS {
+func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []*big.Int) *SparseR1CS {
 	cs := SparseR1CS{
 		SparseR1CS: ccs,
 		Coefficients: make([]fr.Element, len(coefficients)),
 	}
 	for i := 0; i < len(coefficients); i++ {
-		cs.Coefficients[i].SetBigInt(&coefficients[i])
+		cs.Coefficients[i].SetBigInt(coefficients[i])
 	}
 
 	return &cs 

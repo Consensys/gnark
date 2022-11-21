@@ -31,13 +31,13 @@ type R1CS struct {
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
-func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
+func NewR1CS(cs compiled.R1CS, coefficients []*big.Int) *R1CS {
 	r := R1CS{
 		R1CS:         cs,
 		Coefficients: make([]fr.Element, len(coefficients)),
 	}
 	for i := 0; i < len(coefficients); i++ {
-		r.Coefficients[i].SetBigInt(&coefficients[i])
+		r.Coefficients[i].SetBigInt(coefficients[i])
 	}
 
 	return &r

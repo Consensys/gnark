@@ -9,22 +9,22 @@ import (
 // CoeffTable helps build a constraint system but need not be serialized after compilation
 type CoeffTable struct {
 	// Coefficients in the constraints
-	Coeffs         []big.Int      // list of unique coefficients.
+	Coeffs         []*big.Int               // list of unique coefficients.
 	CoeffsIDsLarge map[string]int // map to check existence of a coefficient (key = coeff.Bytes())
 	CoeffsIDsInt64 map[int64]int  // map to check existence of a coefficient (key = int64 value)
 }
 
 func NewCoeffTable() CoeffTable {
 	st := CoeffTable{
-		Coeffs:         make([]big.Int, 4),
+		Coeffs:         make([]*big.Int, 4),
 		CoeffsIDsLarge: make(map[string]int),
 		CoeffsIDsInt64: make(map[int64]int, 4),
 	}
 
-	st.Coeffs[compiled.CoeffIdZero].SetInt64(0)
-	st.Coeffs[compiled.CoeffIdOne].SetInt64(1)
-	st.Coeffs[compiled.CoeffIdTwo].SetInt64(2)
-	st.Coeffs[compiled.CoeffIdMinusOne].SetInt64(-1)
+	st.Coeffs[compiled.CoeffIdZero] = big.NewInt(0)
+	st.Coeffs[compiled.CoeffIdOne] = big.NewInt(1)
+	st.Coeffs[compiled.CoeffIdTwo] = big.NewInt(2)
+	st.Coeffs[compiled.CoeffIdMinusOne] = big.NewInt(-1)
 	st.CoeffsIDsInt64[0] = compiled.CoeffIdZero
 	st.CoeffsIDsInt64[1] = compiled.CoeffIdOne
 	st.CoeffsIDsInt64[2] = compiled.CoeffIdTwo
@@ -53,8 +53,7 @@ func (t *CoeffTable) CoeffID(v *big.Int) int {
 	}
 
 	// else add it in the cs.Coeffs map and update the cs.CoeffsIDs map
-	var bCopy big.Int
-	bCopy.Set(v)
+	bCopy := new(big.Int).Set(v)
 	resID := len(t.Coeffs)
 	t.Coeffs = append(t.Coeffs, bCopy)
 	t.CoeffsIDsLarge[key] = resID
@@ -65,8 +64,7 @@ func (t *CoeffTable) coeffID64(v int64) int {
 	if resID, ok := t.CoeffsIDsInt64[v]; ok {
 		return resID
 	} else {
-		var bCopy big.Int
-		bCopy.SetInt64(v)
+		bCopy := new(big.Int).SetInt64(v)
 		resID := len(t.Coeffs)
 		t.Coeffs = append(t.Coeffs, bCopy)
 		t.CoeffsIDsInt64[v] = resID

@@ -146,7 +146,7 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
+			c.Add(system.st.Coeffs[pcID], system.st.Coeffs[ccID])
 			c.Mod(c, system.q)
 			l[i-1].SetCoeffID(system.st.CoeffID(c))
 			l = append(l[:i], l[i+1:]...)

@@ -146,7 +146,7 @@ func (system *r1cs) mulConstant(v1, constant compiled.LinearExpression) compiled
 			newCoeff.Add(lambda, lambda)
 		default:
 			coeff := system.st.Coeffs[cID]
-			newCoeff.Mul(&coeff, lambda)
+			newCoeff.Mul(coeff, lambda)
 		}
 		res[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
 	}
@@ -566,7 +566,7 @@ func (system *r1cs) negateLinExp(l compiled.LinearExpression) compiled.LinearExp
 	var lambda big.Int
 	for i, t := range l {
 		cID, vID, visibility := t.Unpack()
-		lambda.Neg(&system.st.Coeffs[cID])
+		lambda.Neg(system.st.Coeffs[cID])
 		cID = system.st.CoeffID(&lambda)
 		res[i] = compiled.Pack(vID, cID, visibility)
 	}

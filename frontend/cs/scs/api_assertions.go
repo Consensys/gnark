@@ -84,7 +84,7 @@ func (system *scs) AssertIsBoolean(i1 frontend.Variable) {
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
 	var mCoef big.Int
-	mCoef.Neg(&system.st.Coeffs[cID])
+	mCoef.Neg(system.st.Coeffs[cID])
 	mcID := system.st.CoeffID(&mCoef)
 	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
 }

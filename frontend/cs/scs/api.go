@@ -77,7 +77,7 @@ func (system *scs) Neg(i1 frontend.Variable) frontend.Variable {
 		v := i1.(compiled.Term)
 		c, _, _ := v.Unpack()
 		var coef big.Int
-		coef.Set(&system.st.Coeffs[c])
+		coef.Set(system.st.Coeffs[c])
 		coef.Neg(&coef)
 		c = system.st.CoeffID(&coef)
 		v.SetCoeffID(c)
@@ -101,7 +101,7 @@ func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) fronte
 func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
 	var coef big.Int
 	cid, _, _ := t.Unpack()
-	coef.Set(&system.st.Coeffs[cid])
+	coef.Set(system.st.Coeffs[cid])
 	coef.Mul(m, &coef).Mod(&coef, system.q)
 	cid = system.st.CoeffID(&coef)
 	t.SetCoeffID(cid)
