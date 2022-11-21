@@ -133,27 +133,38 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 	if !sort.IsSorted(l) { // may not help
 		sort.Sort(l)
 	}
+	omittable := make([]int, 0, len(l))
 
 	mod := system.Field()
 	c := new(big.Int)
+	jj := 0
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
 		ccID, cvID, cVis := l[i].Unpack()
 		// if the coefficient is zero, we remove it
 		if ccID == compiled.CoeffIdZero {
-			l = append(l[:i], l[i+1:]...)
+			omittable = append(omittable, i)
 			continue
 		}
 		if pVis == cVis && pvID == cvID {
+			jj++
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
 			c.Mod(c, mod)
-			l[i-1].SetCoeffID(system.st.CoeffID(c))
-			l = append(l[:i], l[i+1:]...)
-			i--
+			l[i].SetCoeffID(system.st.CoeffID(c))
+			omittable = append(omittable, i-1)
 		}
 	}
-	return l
+	ll := make(compiled.LinearExpression, 0, len(l)-len(omittable))
+	start := 0
+	for k := 0; k < len(omittable); k++ {
+		if omittable[k] != start-1 {
+			ll = append(ll, l[start:omittable[k]]...)
+			start = omittable[k] + 1
+		}
+	}
+	ll = append(ll, l[start:]...)
+	return ll
 }
 
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
