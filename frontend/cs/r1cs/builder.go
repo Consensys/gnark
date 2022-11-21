@@ -480,11 +480,11 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 	for _, t := range l {
 		wID := t.WireID()
 		if wID < b.nbInputs {
-			// it's a input, we ignore it
+			// it's an input, we ignore it
 			continue
 		}
 
-		// if we know a which constraint solves this wire, then it's a dependency
+		// if we know which constraint solves this wire, then it's a dependency
 		n, ok := b.mWireToNode[wID]
 		if ok {
 			if n != cID { // can happen with hints...
@@ -512,6 +512,13 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 				b.mWireToNode[hwid] = cID
 			}
 			continue
+		}
+
+		// check if it's the commitment
+		if len(b.ccs.CommitmentInfo.Committed) != 0 && wID == b.ccs.CommitmentInfo.CommitmentIndex {
+			for _, in := range b.ccs.CommitmentInfo.Committed {
+				b.processLE(compiled.LinearExpression{compiled.Pack(in, 0, 0)}, cID) // is the fake coefficient and visibility okay?
+			}
 		}
 
 		// mark this wire solved by current node

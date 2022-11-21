@@ -19,6 +19,8 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
@@ -45,7 +47,20 @@ import (
 // R1CS describes a set of R1CS constraint
 type R1CS struct {
 	compiled.R1CS
-	Coefficients []fr.Element // R1C coefficients indexes point here
+	Coefficients               []fr.Element // R1C coefficients indexes point here
+	CommitmentCurveRelatedInfo CommitmentCurveRelatedInfo
+}
+
+type CommitmentCurveRelatedInfo struct {
+	Proof      bn254.G1Affine
+	Commitment bn254.G1Affine
+	Key        *pedersen.Key
+}
+
+func (i *CommitmentCurveRelatedInfo) commit(values []*fr.Element) error {
+	var err error
+	i.Commitment, i.Proof, err = i.Key.Commit(values)
+	return err
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
@@ -279,7 +294,7 @@ func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 // the constraint is satisfied later.
 func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.Element) error {
 
-	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
+	// the index of the non-zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 
@@ -301,6 +316,33 @@ func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.
 					return err
 				}
 				// now that the wire is saved, accumulate it into a, b or c
+				solution.accumulateInto(t, val)
+				continue
+			}
+
+			// if it is the commitment
+			if vID == cs.CommitmentInfo.CommitmentIndex && len(cs.CommitmentInfo.Committed) != 0 {
+				nbPublicCommitted := cs.CommitmentInfo.NbPublicCommitted(cs.NbPublicVariables)
+				nbPrivateCommitted := len(cs.CommitmentInfo.Committed) - nbPublicCommitted
+				committed := make([]*fr.Element, nbPrivateCommitted)
+				for i := range committed {
+					if !solution.solved[i] {
+						panic("committing to unsolved value")
+					}
+					committed[i] = &solution.values[i]
+				}
+
+				if err := cs.CommitmentCurveRelatedInfo.commit(committed); err != nil {
+					return err
+				}
+
+				solution.solved[vID] = true
+				if hashed, err := fr.Hash(cs.CommitmentCurveRelatedInfo.Commitment.Marshal(), []byte("BSB22-Commitment"), 1); err == nil {
+					solution.values[vID] = hashed[0]
+				} else {
+					return err
+				}
+
 				solution.accumulateInto(t, val)
 				continue
 			}

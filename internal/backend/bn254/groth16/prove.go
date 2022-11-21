@@ -17,9 +17,8 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
@@ -66,6 +65,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	if len(r1cs.CommitmentInfo.Committed) != 0 {
+		r1cs.CommitmentCurveRelatedInfo.Key = &pk.CommitmentKey
+	}
 	var wireValues []fr.Element
 	var err error
 	if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
