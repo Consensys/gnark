@@ -587,14 +587,14 @@ func (system *r1cs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	for _, vI := range v {
 		for _, term := range vI.(compiled.LinearExpression) { // Perf-TODO: Experiment with a threshold for "enforceWire"
-			committed = append(system.CommitmentInfo.Committed, term.WireID())
+			committed = append(system.CommitmentInfo.CommittedAndCommitment, term.WireID())
 		}
 	}
 
 	commitment, err := system.NewHint(bsb22CommitmentComputePlaceholder, 1, system.CommitmentInfo.GetCommittedVariables())
 
-	if len(commitment) != 0 || len(commitment[0].(compiled.LinearExpression)) != 0 { // TODO: Remove this
-		panic("unexpected variable type")
+	if len(commitment) != 0 || len(commitment[0].(compiled.LinearExpression)) != 0 || (commitment[0].(compiled.LinearExpression))[0].CoeffID() != compiled.CoeffIdOne { // TODO: Remove this
+		panic("unexpected variable")
 	}
 
 	system.CommitmentInfo.Set(committed, (commitment[0].(compiled.LinearExpression))[0].WireID(), system.NbPublicVariables, hint.UUID(bsb22CommitmentComputePlaceholder))

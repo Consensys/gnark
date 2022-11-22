@@ -17,13 +17,13 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc"
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"io"
+	"math/big"
 	"time"
 
 	"text/template"
@@ -61,6 +61,24 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		close(chDone)
 	}()
 
+	if vk.CommitmentInfo.Is() {
+
+		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
+			return err
+		}
+
+		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
+		for i := range publicCommitted {
+			var b big.Int
+			publicWitness[vk.CommitmentInfo.Committed[i]].ToBigInt(&b)
+			publicCommitted[i] = &b
+		}
+
+		if res, err := solveCommitmentWire(&vk.CommitmentInfo, &proof.Commitment, publicCommitted); err == nil {
+			publicWitness = append(publicWitness, res)
+		}
+	}
+
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
 
@@ -69,14 +87,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	}
 	kSum.AddMixed(&vk.G1.K[0])
 
-	if len(vk.CommitmentInfo.Committed) != 0 {
+	if vk.CommitmentInfo.Is() {
 		kSum.AddMixed(&proof.Commitment)
-
-		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
-			return err
-		}
-
-		// TODO: Inject commitment value
 	}
 
 	var kSumAff curve.G1Affine

@@ -19,6 +19,7 @@ package groth16
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
+	"github.com/consensys/gnark/internal/commitment"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
@@ -78,7 +79,7 @@ type VerifyingKey struct {
 	// e(α, β)
 	e              curve.GT // not serialized
 	CommitmentKey  pedersen.Key
-	CommitmentInfo compiled.CommitmentInfo // since the verifier doesn't input a constraint system, this needs to be provided here
+	CommitmentInfo commitment.Info // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
 // Setup constructs the SRS
@@ -96,11 +97,14 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
-	committed := r1cs.CommitmentInfo.Committed
-	nbPrivateCommitted := r1cs.CommitmentInfo.NbPrivateCommitted
-	nbPublicCommitted := len(committed) - nbPrivateCommitted
-	nbPublicWires := r1cs.NbPublicVariables + nbPrivateCommitted
+	nbPrivateCommitted := r1cs.CommitmentInfo.NbPrivateCommitted()
+	nbPublicWires := r1cs.NbPublicVariables
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommitted
+
+	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
+		nbPublicWires++  // but the verifier will need to inject the value themselves so on the groth16
+		nbPrivateWires-- // level it must be considered public
+	}
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
@@ -134,40 +138,40 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// len(vk.K) == nbPublicWires
 	// len(Z) == domain.Cardinality
 
-	// compute scalars for pkK and vkK
+	// compute scalars for pkK, vkK and ckK
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
+	ckK := make([]fr.Element, nbPrivateCommitted)
 
 	var t0, t1 fr.Element
 
 	vI, cI := 0, 0
 
 	for i := range A {
-		isCommitted := false
-		if cI < len(committed) {
-			if i == committed[cI] {
-				isCommitted = true
-				cI++
-			}
-		}
+		isCommitted := cI < len(r1cs.CommitmentInfo.Committed) && i == r1cs.CommitmentInfo.Committed[cI]
+		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
 
-		if i < r1cs.NbPublicVariables || isCommitted {
+		if i < r1cs.NbPublicVariables || isCommitted || isCommitment {
 			t1.Mul(&A[i], &toxicWaste.beta)
 			t0.Mul(&B[i], &toxicWaste.alpha)
 			t1.Add(&t1, &t0).
 				Add(&t1, &C[i]).
 				Mul(&t1, &toxicWaste.gammaInv)
-			vkK[vI] = t1.ToRegular()
 
-			vI++
+			if isCommitted {
+				ckK[cI] = t1.ToRegular()
+				cI++
+			} else {
+				vkK[vI] = t1.ToRegular()
+				vI++
+			}
 		} else {
-
 			t1.Mul(&A[i], &toxicWaste.beta)
 			t0.Mul(&B[i], &toxicWaste.alpha)
 			t1.Add(&t1, &t0).
 				Add(&t1, &C[i]).
 				Mul(&t1, &toxicWaste.deltaInv)
-			pkK[i-vI] = t1.ToRegular()
+			pkK[i-vI-cI] = t1.ToRegular()
 		}
 	}
 
@@ -228,6 +232,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
 	g1Scalars = append(g1Scalars, pkK...)
+	g1Scalars = append(g1Scalars, ckK...)
 
 	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 
@@ -253,20 +258,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
 	offset += nbPublicWires
-	pk.G1.K = g1PointsAff[offset:]
+	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
+	offset += nbPrivateWires
 
 	if nbPrivateCommitted != 0 {
 
-		commitmentBasis := make([]*curve.G1Affine, nbPrivateCommitted)
-
-		cI = nbPublicCommitted
-		for i := r1cs.NbPublicVariables; cI < len(committed); i++ {
-
-			if i == committed[cI] { // is committed
-				commitmentBasis[cI-nbPublicCommitted] = &vk.G1.K[i]
-				cI++
-			}
-		}
+		commitmentBasis := g1PointsAff[offset:]
 
 		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
 		if err != nil {

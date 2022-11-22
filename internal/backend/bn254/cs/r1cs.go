@@ -19,8 +19,6 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"math/big"
@@ -48,18 +46,6 @@ import (
 type R1CS struct {
 	compiled.R1CS
 	Coefficients []fr.Element // R1C coefficients indexes point here
-}
-
-type CommitmentCurveRelatedInfo struct {
-	Proof      bn254.G1Affine
-	Commitment bn254.G1Affine
-	Key        *pedersen.Key
-}
-
-func (i *CommitmentCurveRelatedInfo) commit(values []*fr.Element) error {
-	var err error
-	i.Commitment, i.Proof, err = i.Key.Commit(values)
-	return err
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values

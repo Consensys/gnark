@@ -19,8 +19,6 @@ package groth16
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/frontend/compiled"
-
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
@@ -69,20 +67,18 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 
 	proof := &Proof{}
-	if len(r1cs.CommitmentInfo.Committed) != 0 {
+	if r1cs.CommitmentInfo.Is() {
 		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
-			if len(in) != len(r1cs.CommitmentInfo.Committed) {
+			if len(in) != r1cs.CommitmentInfo.NbCommitted() {
 				return fmt.Errorf("unexpected number of committed variables")
 			}
-			values := make([]*fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted)
+			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted())
 			nbPublicCommitted := len(in) - len(values)
 			inPrivate := in[nbPublicCommitted:]
 			for i, inI := range inPrivate {
-				var value fr.Element
-				value.SetBigInt(inI)
-				values[i] = &value
+				values[i].SetBigInt(inI)
 			}
 
 			var err error
@@ -91,13 +87,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 				return err
 			}
 
-			var res []fr.Element
-			res, err = fr.Hash(r1cs.CommitmentInfo.SerializeCommitment(proof.Commitment.Marshal(), in, (fr.Bits-1)/8+1), []byte(compiled.CommitmentDst), 1)
-			if err != nil {
-				return err
-			}
-			res[0].ToBigInt(out[0])
-
+			var res fr.Element
+			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
+			res.ToBigInt(out[0])
 			return err
 		}
 	}
@@ -228,7 +220,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 			chKrs2Done <- err
 		}()
 
-		removeIndexes(&wireValues, r1cs.CommitmentInfo.GetPrivateCommitted()) // WARNING: From this point on, the underlying array of wireValues has been edited
+		removeIndexes(&wireValues, r1cs.CommitmentInfo.GetPrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
 
 		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
@@ -312,10 +304,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 
 // removeIndexes removes from slice values slice[ remove[i]]
 func removeIndexes(slice *[]fr.Element, remove []int) {
-	for displacement := 1; displacement < len(remove); displacement++ {
-		toRemove := remove[displacement-1]
-		nextToRemove := remove[displacement]
-		copy((*slice)[toRemove:nextToRemove-1], (*slice)[toRemove+displacement:nextToRemove-1+displacement])
+
+	toRemove := remove[0]
+	for existingDisplacement := range remove {
+		nextToRemove := len(remove)
+		if existingDisplacement+1 < len(remove) {
+			nextToRemove = remove[existingDisplacement+1]
+		}
+		copy((*slice)[toRemove-existingDisplacement:nextToRemove-existingDisplacement-1], (*slice)[toRemove+1:nextToRemove])
+		toRemove = nextToRemove
 	}
 	*slice = (*slice)[:len(*slice)-len(remove)]
 }
