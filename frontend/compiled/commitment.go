@@ -2,8 +2,10 @@ package compiled
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 	"math/big"
 	"sort"
 )
@@ -35,27 +37,52 @@ func (i *Info) Is() bool {
 }
 
 // Too Java?
-func (i *Info) Set(committed []int, commitmentIndex, nbPublicVariables int, hintID hint.ID) {
+func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler frontend.Compiler) (frontend.Variable, error) {
+
 	sort.Ints(committed)
 	i.nbPrivateCommitted = removeRedundancy(&committed, nbPublicVariables)
+	i.Committed = committed
 
-	commitmentIndexInCommittedList := binarySearch(committed, commitmentIndex)
+	commitment, err := compiler.NewHint(bsb22CommitmentComputePlaceholder, 1, i.GetCommittedVariables()...)
+	if err != nil {
+		return nil, err
+	}
+
+	bad := true // TODO: Remove
+	if len(commitment) == 1 {
+		exp := commitment[0].(LinearExpression)
+		if len(exp) == 1 {
+			coeffId, _, vis := exp[0].Unpack()
+			if coeffId == CoeffIdOne && vis == schema.Internal {
+				bad = false
+			}
+		}
+	}
+	if bad {
+		panic("unexpected variable")
+	}
+
+	i.CommitmentIndex = (commitment[0].(LinearExpression))[0].WireID()
+
+	commitmentIndexInCommittedList := binarySearch(committed, i.CommitmentIndex)
 	i.CommittedAndCommitment = make([]int, len(committed)+1)
 	copy(i.CommittedAndCommitment[:commitmentIndexInCommittedList], committed[:commitmentIndexInCommittedList])
-	i.CommittedAndCommitment[commitmentIndexInCommittedList] = commitmentIndex
+	i.CommittedAndCommitment[commitmentIndexInCommittedList] = i.CommitmentIndex
 	copy(i.CommittedAndCommitment[commitmentIndexInCommittedList+1:], committed[commitmentIndexInCommittedList:])
 
-	i.Committed = committed
-	i.HintID = hintID
-	i.CommitmentIndex = commitmentIndex
+	i.HintID = hint.UUID(bsb22CommitmentComputePlaceholder)
+
+	return commitment, nil
+}
+
+func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }
 
 func (i *Info) GetCommittedVariables() []frontend.Variable {
 	res := make([]frontend.Variable, len(i.Committed))
-	for j, J := range i.Committed {
-		if J != i.CommitmentIndex {
-			res[j] = LinearExpression{Pack(J, CoeffIdOne, 0)} //TODO: Make sure fake visibility is okay
-		}
+	for j, wireIndex := range i.Committed {
+		res[j] = LinearExpression{Pack(wireIndex, CoeffIdOne, 0)} //TODO: Make sure fake visibility is okay
 	}
 	return res
 }
