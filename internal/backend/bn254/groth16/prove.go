@@ -71,7 +71,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
-			if len(in) != r1cs.CommitmentInfo.NbCommitted() {
+			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
 			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted())
@@ -305,14 +305,20 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 // removeIndexes removes from slice values slice[ remove[i]]
 func removeIndexes(slice *[]fr.Element, remove []int) {
 
-	toRemove := remove[0]
+	if len(remove) == 0 {
+		return
+	}
+
+	lastRemoved := remove[0] //removing the first one takes no work
 	for existingDisplacement := range remove {
-		nextToRemove := len(remove)
+		toRemove := len(*slice)
 		if existingDisplacement+1 < len(remove) {
-			nextToRemove = remove[existingDisplacement+1]
+			toRemove = remove[existingDisplacement+1]
 		}
-		copy((*slice)[toRemove-existingDisplacement:nextToRemove-existingDisplacement-1], (*slice)[toRemove+1:nextToRemove])
-		toRemove = nextToRemove
+		dst := (*slice)[lastRemoved-existingDisplacement : toRemove-existingDisplacement-1]
+		src := (*slice)[lastRemoved+1 : toRemove]
+		copy(dst, src)
+		lastRemoved = toRemove
 	}
 	*slice = (*slice)[:len(*slice)-len(remove)]
 }

@@ -270,6 +270,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	}
 
+	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
+
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars
 

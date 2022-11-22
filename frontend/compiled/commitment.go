@@ -43,14 +43,16 @@ func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler front
 	i.nbPrivateCommitted = removeRedundancy(&committed, nbPublicVariables)
 	i.Committed = committed
 
-	commitment, err := compiler.NewHint(bsb22CommitmentComputePlaceholder, 1, i.GetCommittedVariables()...)
-	if err != nil {
+	var commitment frontend.Variable
+	if hintOut, err := compiler.NewHint(bsb22CommitmentComputePlaceholder, 1, i.GetCommittedVariables()...); err != nil {
 		return nil, err
+	} else {
+		commitment = hintOut[0]
 	}
 
 	bad := true // TODO: Remove
-	if len(commitment) == 1 {
-		exp := commitment[0].(LinearExpression)
+	{
+		exp := commitment.(LinearExpression)
 		if len(exp) == 1 {
 			coeffId, _, vis := exp[0].Unpack()
 			if coeffId == CoeffIdOne && vis == schema.Internal {
@@ -62,9 +64,11 @@ func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler front
 		panic("unexpected variable")
 	}
 
-	i.CommitmentIndex = (commitment[0].(LinearExpression))[0].WireID()
+	i.CommitmentIndex = (commitment.(LinearExpression))[0].WireID()
 
 	commitmentIndexInCommittedList := binarySearch(committed, i.CommitmentIndex)
+	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
+	i.nbPrivateCommitted = len(committed) - nbPublicCommitted
 	i.CommittedAndCommitment = make([]int, len(committed)+1)
 	copy(i.CommittedAndCommitment[:commitmentIndexInCommittedList], committed[:commitmentIndexInCommittedList])
 	i.CommittedAndCommitment[commitmentIndexInCommittedList] = i.CommitmentIndex
