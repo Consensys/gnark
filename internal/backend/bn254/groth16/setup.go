@@ -76,8 +76,9 @@ type VerifyingKey struct {
 	}
 
 	// e(α, β)
-	e             curve.GT // not serialized
-	CommitmentKey pedersen.Key
+	e              curve.GT // not serialized
+	CommitmentKey  pedersen.Key
+	CommitmentInfo compiled.CommitmentInfo // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
 // Setup constructs the SRS
@@ -96,8 +97,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
 	committed := r1cs.CommitmentInfo.Committed
-	nbPublicCommitted := r1cs.CommitmentInfo.NbPublicCommitted(r1cs.NbPublicVariables)
-	nbPrivateCommitted := len(committed) - nbPublicCommitted
+	nbPrivateCommitted := r1cs.CommitmentInfo.NbPrivateCommitted
+	nbPublicCommitted := len(committed) - nbPrivateCommitted
 	nbPublicWires := r1cs.NbPublicVariables + nbPrivateCommitted
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommitted
 

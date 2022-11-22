@@ -18,7 +18,6 @@ package groth16
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"errors"
@@ -64,10 +63,22 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
+
 	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
 		return err
 	}
 	kSum.AddMixed(&vk.G1.K[0])
+
+	if len(vk.CommitmentInfo.Committed) != 0 {
+		kSum.AddMixed(&proof.Commitment)
+
+		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
+			return err
+		}
+
+		// TODO: Inject commitment value
+	}
+
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 

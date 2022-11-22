@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"sort"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -578,38 +577,27 @@ func (system *r1cs) Compiler() frontend.Compiler {
 	return system
 }
 
-func removeRedundancy(sorted *[]int) {
-	if len(*sorted) == 0 {
-		return
-	}
-
-	j := 1
-	for i := 1; i < len(*sorted); i++ {
-		if (*sorted)[i] != (*sorted)[i-1] {
-			(*sorted)[j] = (*sorted)[i]
-			j++
-		}
-	}
-
-	*sorted = (*sorted)[:j]
+func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }
 
-func (system *r1cs) Commit(v ...frontend.Variable) frontend.Variable {
+func (system *r1cs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	system.CommitmentInfo.Committed = make([]int, 0, len(v)) // Perf-TODO: Experiment with capacity
+	committed := make([]int, 0, len(v)) // Perf-TODO: Experiment with capacity
 
 	for _, vI := range v {
-		for _, term := range vI.(compiled.LinearExpression) {
-			system.CommitmentInfo.Committed = append(system.CommitmentInfo.Committed, term.WireID())
+		for _, term := range vI.(compiled.LinearExpression) { // Perf-TODO: Experiment with a threshold for "enforceWire"
+			committed = append(system.CommitmentInfo.Committed, term.WireID())
 		}
 	}
 
-	sort.Ints(system.CommitmentInfo.Committed)
-	removeRedundancy(&system.CommitmentInfo.Committed)
+	commitment, err := system.NewHint(bsb22CommitmentComputePlaceholder, 1, system.CommitmentInfo.GetCommittedVariables())
 
-	res := system.newInternalVariable()
+	if len(commitment) != 0 || len(commitment[0].(compiled.LinearExpression)) != 0 { // TODO: Remove this
+		panic("unexpected variable type")
+	}
 
-	system.CommitmentInfo.CommitmentIndex = res[0].WireID()
+	system.CommitmentInfo.Set(committed, (commitment[0].(compiled.LinearExpression))[0].WireID(), system.NbPublicVariables, hint.UUID(bsb22CommitmentComputePlaceholder))
 
-	return res
+	return commitment, err
 }

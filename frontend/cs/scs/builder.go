@@ -592,7 +592,7 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 	return system.splitProd(o, r[1:])
 }
 
-func (system *scs) Commit(v ...frontend.Variable) frontend.Variable {
+func (system *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
 	panic("implement me")
 }
