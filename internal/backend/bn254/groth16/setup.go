@@ -17,12 +17,9 @@
 package groth16
 
 import (
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
-	"github.com/consensys/gnark/internal/commitment"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-
 	"github.com/consensys/gnark/internal/backend/bn254/cs"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -79,7 +76,7 @@ type VerifyingKey struct {
 	// e(α, β)
 	e              curve.GT // not serialized
 	CommitmentKey  pedersen.Key
-	CommitmentInfo commitment.Info // since the verifier doesn't input a constraint system, this needs to be provided here
+	CommitmentInfo compiled.Info // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
 // Setup constructs the SRS

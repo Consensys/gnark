@@ -1,10 +1,9 @@
-package commitment
+package compiled
 
 import (
 	"bytes"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
 	"math/big"
 	"sort"
 )
@@ -55,7 +54,7 @@ func (i *Info) GetCommittedVariables() []frontend.Variable {
 	res := make([]frontend.Variable, len(i.Committed))
 	for j, J := range i.Committed {
 		if J != i.CommitmentIndex {
-			res[j] = compiled.LinearExpression{compiled.Pack(J, compiled.CoeffIdOne, 0)} //TODO: Make sure fake visibility is okay
+			res[j] = LinearExpression{Pack(J, CoeffIdOne, 0)} //TODO: Make sure fake visibility is okay
 		}
 	}
 	return res

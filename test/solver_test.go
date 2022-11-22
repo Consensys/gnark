@@ -34,7 +34,10 @@ type myCircuit struct {
 
 func (c *myCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.One, 1)
-	commit := api.Compiler().Commit(c.One)
+	commit, err := api.Compiler().Commit(c.One)
+	if err != nil {
+		return err
+	}
 	api.AssertIsDifferent(commit, 0)
 	return nil
 }

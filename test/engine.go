@@ -553,7 +553,7 @@ func (e *engine) Compiler() frontend.Compiler {
 	return e
 }
 
-func (e *engine) Commit(v ...frontend.Variable) frontend.Variable {
+func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
 	panic("implement me")
 }

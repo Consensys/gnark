@@ -2,7 +2,6 @@ package compiled
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/internal/commitment"
 	"math/big"
 	"strings"
 
@@ -57,7 +56,7 @@ type ConstraintSystem struct {
 	q      *big.Int `cbor:"-"`
 	bitLen int      `cbor:"-"`
 
-	CommitmentInfo commitment.Info
+	CommitmentInfo Info
 }
 
 // NewConstraintSystem initialize the common structure among constraint system
