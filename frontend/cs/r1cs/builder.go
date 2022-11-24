@@ -186,6 +186,7 @@ func (system *r1cs[E, ptE]) reduce(l compiled.LinearExpression[E, ptE]) compiled
 		}
 	}
 	ll = append(ll, l[start:]...)
+	ll = system.compress(ll)
 	return ll
 }
 
@@ -660,6 +661,17 @@ func (system *r1cs[E, ptE]) NewHint(f hint.Function, nbOutputs int, inputs ...fr
 	}
 
 	return res, nil
+}
+
+func (system *r1cs[E, ptE]) compress(v compiled.LinearExpression[E, ptE]) compiled.LinearExpression[E, ptE] {
+	if system.config.CompressThreshold <= 0 || len(v) < system.config.CompressThreshold {
+		return v
+	}
+
+	one := system.one()
+	res := system.newInternalVariable()
+	system.addConstraint(newR1C[E, ptE](v, one, res))
+	return res
 }
 
 // assertIsSet panics if the variable is unset

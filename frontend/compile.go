@@ -143,6 +143,7 @@ type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
 	wrapper                   BuilderWrapper
+	CompressThreshold         int
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -178,6 +179,13 @@ type BuilderWrapper func(Builder) Builder
 func WithBuilderWrapper(wrapper BuilderWrapper) CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.wrapper = wrapper
+		return nil
+	}
+}
+
+func WithCompressThreshold(threshold int) CompileOption {
+	return func(opt *CompileConfig) error {
+		opt.CompressThreshold = threshold
 		return nil
 	}
 }
