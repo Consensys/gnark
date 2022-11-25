@@ -286,24 +286,21 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
-	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
-		cID := t.CoeffID()
-		switch cID {
-		case compiled.CoeffIdZero:
+	accumulate := func(res *fr.Element, t compiled.Term[fr.Element, *fr.Element], value *fr.Element) {
+		if t.IsZero() {
 			return
-		case compiled.CoeffIdOne:
-			res.Add(res, value)
-		case compiled.CoeffIdMinusOne:
-			res.Sub(res, value)
-		case compiled.CoeffIdTwo:
-			var buffer fr.Element
-			buffer.Double(value)
-			res.Add(res, &buffer)
-		default:
-			var buffer fr.Element
-			buffer.Mul(&r1cs.Coefficients[cID], value)
-			res.Add(res, &buffer)
 		}
+		if t.IsOne() {
+			res.Add(res, value)
+			return
+		}
+		if t.IsNegOne() {
+			res.Sub(res, value)
+			return
+		}
+		var buffer fr.Element
+		buffer.Mul(&t.Coeff, value)
+		res.Add(res, &buffer)
 	}
 
 	// each constraint is in the form

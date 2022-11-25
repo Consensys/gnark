@@ -19,10 +19,10 @@ type solution struct {
 	solved               []bool
 	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function 	// maps hintID to hint function
-	mHints 				 map[int]*compiled.Hint 	// maps wireID to hint
+	mHints 				 map[int]*compiled.Hint[fr.Element, *fr.Element] 	// maps wireID to hint
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*compiled.Hint,  coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*compiled.Hint[fr.Element, *fr.Element],  coefficients []fr.Element) (solution, error) {
 
 	s := solution{
 			values: make([]fr.Element, nbWires),
@@ -62,55 +62,27 @@ func (s *solution) isValid() bool {
 }
 
 // computeTerm computes coef*variable
-func (s *solution) computeTerm(t compiled.Term) fr.Element {
+func (s *solution) computeTerm(t compiled.Term[fr.Element, *fr.Element]) fr.Element {
 	cID, vID, _ := t.Unpack()
-	if cID != 0 && !s.solved[vID] {
+	if !cID.IsZero() && !s.solved[vID] {
 		panic("computing a term with an unsolved wire")
 	}
-	switch cID {
-	case compiled.CoeffIdZero:
-		return fr.Element{}
-	case compiled.CoeffIdOne:
-		return s.values[vID]
-	case compiled.CoeffIdTwo:
-		var res fr.Element
-		res.Double(&s.values[vID])
-		return res
-	case compiled.CoeffIdMinusOne:
-		var res fr.Element
-		res.Neg(&s.values[vID])
-		return res
-	default:
-		var res fr.Element
-		res.Mul(&s.coefficients[cID], &s.values[vID])
-		return res
-	}
+	var res fr.Element
+	res.Mul(&cID, &s.values[vID])
+	return res
 }
 
 // r += (t.coeff*t.value)
-func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
-	cID := t.CoeffID()
+func (s *solution) accumulateInto(t compiled.Term[fr.Element, *fr.Element], r *fr.Element) {
+	cID := t.Coeff
 	vID := t.WireID()
-	switch cID {
-	case compiled.CoeffIdZero:
-		return 
-	case compiled.CoeffIdOne:
-		r.Add(r, &s.values[vID])
-	case compiled.CoeffIdTwo:
-		var res fr.Element
-		res.Double(&s.values[vID])
-		r.Add(r, &res)
-	case compiled.CoeffIdMinusOne:
-		r.Sub(r, &s.values[vID])
-	default:
-		var res fr.Element
-		res.Mul(&s.coefficients[cID], &s.values[vID])
-		r.Add(r, &res)
-	}
+	var res fr.Element
+	res.Mul(&cID, &s.values[vID])
+	r.Add(r, &res)
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
+func (s *solution) solveWithHint(vID int, h *compiled.Hint[fr.Element, *fr.Element]) error {
 	// skip if the wire is already solved by a call to the same hint
 	// function on the same inputs
 	if s.solved[vID] {
@@ -138,7 +110,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	// is the output of another hint. 
 	// it is safe to recursively solve this with the parallel solver, since all hints-output wires 
 	// that we can solve this way are marked to be solved with the current constraint we are processing.
-	recursiveSolve := func(t compiled.Term) error {
+	recursiveSolve := func(t compiled.Term[fr.Element, *fr.Element]) error {
 		wID := t.WireID()
 		if s.solved[wID] {
 			return nil
@@ -157,7 +129,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 		inputs[i] = big.NewInt(0)
 
 		switch t := h.Inputs[i].(type) {
-		case compiled.LinearExpression:
+		case compiled.LinearExpression[fr.Element, *fr.Element]:
 			var v fr.Element
 			for _, term := range t {
 				if err := recursiveSolve(term); err != nil {
@@ -166,7 +138,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 				s.accumulateInto(term, &v)
 			}
 			v.ToBigIntRegular(inputs[i])
-		case compiled.Term:
+		case compiled.Term[fr.Element, *fr.Element]:
 			if err := recursiveSolve(t); err != nil {
 				return err
 			}
@@ -193,7 +165,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err 
 }
 
-func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry[fr.Element, *fr.Element]) {
 	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
@@ -206,7 +178,7 @@ func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
 
 const unsolvedVariable = "<unsolved>"
 
-func (s *solution) logValue(log compiled.LogEntry) string {
+func (s *solution) logValue(log compiled.LogEntry[fr.Element, *fr.Element]) string {
 	var toResolve []interface{}
 	var (
 		isEval       bool
@@ -214,7 +186,7 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 		missingValue bool
 	)
 	for j := 0; j < len(log.ToResolve); j++ {
-		if log.ToResolve[j] == compiled.TermDelimitor {
+		if log.ToResolve[j].IsDelimitor() {
 			// this is a special case where we want to evaluate the following terms until the next delimitor.
 			if !isEval {
 				isEval = true
@@ -232,12 +204,14 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 			continue
 		}
 		cID, vID, visibility := log.ToResolve[j].Unpack()
+		var nCID fr.Element
+		nCID.Neg(&cID)
 
 		if isEval {
 			// we are evaluating
 			if visibility == schema.Virtual {
 				// just add the constant
-				eval.Add(&eval, &s.coefficients[cID])
+				eval.Add(&eval, &cID)
 				continue
 			}
 			if !s.solved[vID] {
@@ -251,15 +225,15 @@ func (s *solution) logValue(log compiled.LogEntry) string {
 
 		if visibility == schema.Virtual {
 			// it's just a constant
-			if cID == compiled.CoeffIdMinusOne {
+			if nCID.IsOne() {
 				toResolve = append(toResolve, "-1")
 			} else {
-				toResolve = append(toResolve, s.coefficients[cID].String())
+				toResolve = append(toResolve, cID.String())
 			}
 			continue
 		}
-		if !(cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne) {
-			toResolve = append(toResolve, s.coefficients[cID].String())
+		if !(cID.IsOne() || nCID.IsOne()) {
+			toResolve = append(toResolve, cID.String())
 		}
 		if !s.solved[vID] {
 			toResolve = append(toResolve, unsolvedVariable)

@@ -24,13 +24,13 @@ import (
 
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
-	compiled.SparseR1CS
+	compiled.SparseR1CS[fr.Element, *fr.Element]
 
 	Coefficients []fr.Element // coefficients in the constraints
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []*big.Int) *SparseR1CS {
+func NewSparseR1CS(ccs compiled.SparseR1CS[fr.Element, *fr.Element], coefficients []*big.Int) *SparseR1CS {
 	cs := SparseR1CS{
 		SparseR1CS: ccs,
 		Coefficients: make([]fr.Element, len(coefficients)),
@@ -235,11 +235,11 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.
 // computeHints computes wires associated with a hint function, if any
 // if there is no remaining wire to solve, returns -1
 // else returns the wire position (L -> 0, R -> 1, O -> 2)
-func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( int, error) {
+func (cs *SparseR1CS) computeHints(c compiled.SparseR1C[fr.Element, *fr.Element], solution *solution) ( int, error) {
 	r := -1
 	lID, rID, oID := c.L.WireID(), c.R.WireID(), c.O.WireID()
 
-	if (c.L.CoeffID() != 0 || c.M[0].CoeffID() != 0) && !solution.solved[lID] {
+	if (!c.L.IsZero() || !c.M[0].IsZero()) && !solution.solved[lID] {
 		// check if it's a hint
 		if hint, ok := cs.MHints[lID]; ok {
 			if err := solution.solveWithHint(lID, hint); err != nil {
@@ -251,7 +251,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 		
 	}
 
-	if (c.R.CoeffID() != 0 || c.M[1].CoeffID() != 0) && !solution.solved[rID] {
+	if (!c.R.IsZero() || !c.M[1].IsZero()) && !solution.solved[rID] {
 		// check if it's a hint
 		if hint, ok := cs.MHints[rID]; ok {
 			if err := solution.solveWithHint(rID, hint); err != nil {
@@ -262,7 +262,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 		}
 	}
 
-	if (c.O.CoeffID() != 0) && !solution.solved[oID] {
+	if (!c.O.IsZero()) && !solution.solved[oID] {
 		// check if it's a hint
 		if hint, ok := cs.MHints[oID]; ok {
 			if err := solution.solveWithHint(oID, hint); err != nil {
@@ -279,7 +279,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 // solveConstraint solve any unsolved wire in given constraint and update the solution
 // a SparseR1C may have up to one unsolved wire (excluding hints)
 // if it doesn't, then this function returns and does nothing
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C[fr.Element, *fr.Element], solution *solution, coefficientsNegInv []fr.Element) error {
 
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
@@ -295,14 +295,14 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 			panic("L wire should be instantiated when we solve R")
 		}
 		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
-		u1.Set(&cs.Coefficients[c.L.CoeffID()])
-		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		u3.Mul(&c.M[0].Coeff, &c.M[1].Coeff)
+		u1.Set(&c.L.Coeff)
+		u2.Set(&c.R.Coeff)
 		den.Mul(&u3, &solution.values[c.L.WireID()]).Add(&den, &u2)
 
 		v1 = solution.computeTerm(c.L)
 		v2 = solution.computeTerm(c.O)
-		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
+		num.Add(&v1, &v2).Add(&num, &c.K)
 
 		// TODO find a way to do lazy div (/ batch inversion)
 		num.Div(&num, &den).Neg(&num)
@@ -315,14 +315,14 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 			panic("R wire should be instantiated when we solve L")
 		}
 		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Mul(&cs.Coefficients[c.M[0].CoeffID()], &cs.Coefficients[c.M[1].CoeffID()])
-		u1.Set(&cs.Coefficients[c.L.CoeffID()])
-		u2.Set(&cs.Coefficients[c.R.CoeffID()])
+		u3.Mul(&c.M[0].Coeff, &c.M[1].Coeff)
+		u1.Set(&c.L.Coeff)
+		u2.Set(&c.R.Coeff)
 		den.Mul(&u3, &solution.values[c.R.WireID()]).Add(&den, &u1)
 
 		v1 = solution.computeTerm(c.R)
 		v2 = solution.computeTerm(c.O)
-		num.Add(&v1, &v2).Add(&num, &cs.Coefficients[c.K])
+		num.Add(&v1, &v2).Add(&num, &c.K)
 
 		// TODO find a way to do lazy div (/ batch inversion)
 		num.Div(&num, &den).Neg(&num)
@@ -340,8 +340,9 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 	m1 := solution.computeTerm(c.M[1])
 
 	// o = - ((m0 * m1) + l + r + c.K) / c.O
-	o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &cs.Coefficients[c.K])
-	o.Mul(&o, &coefficientsNegInv[cID])
+	o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &c.K)
+	o.Div(&o, &cID)
+	o.Neg(&o)
 
 	solution.set(vID, o)
 
@@ -384,8 +385,8 @@ func (cs *SparseR1CS) GetConstraints() [][]string {
 // r[2] = qO⋅xc
 // r[3] = qM⋅(xaxb)
 // r[4] = qC
-func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
-	isZeroM :=  (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
+func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C[fr.Element, *fr.Element]) (r [5]string) {
+	isZeroM := (c.M[0].IsZero()) && (c.M[1].IsZero())
 
 	var sbb strings.Builder
 	cs.termToString(c.L, &sbb, false)
@@ -403,7 +404,7 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
 		r[3] = "0"
 	} else {
 		sbb.Reset()
-		sbb.WriteString(cs.Coefficients[c.M[0].CoeffID()].String())
+		sbb.WriteString(c.M[0].Coeff.String())
 		sbb.WriteString("⋅")
 		sbb.WriteByte('(')
 		cs.termToString(c.M[0], &sbb, true)
@@ -413,26 +414,25 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
 		r[3] = sbb.String()
 	}
 
-	r[4] = cs.Coefficients[c.K].String()
+	r[4] = c.K.String()
 
 	return 
 }
 
 
-func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly bool)   {
+func (cs *SparseR1CS) termToString(t compiled.Term[fr.Element, *fr.Element], sbb *strings.Builder, vOnly bool)   {
 	if !vOnly {
-		tID := t.CoeffID()
-		if tID == compiled.CoeffIdOne {
+		if t.IsOne() {
 			// do nothing, just print the variable
 			sbb.WriteString("1")
-		} else if tID == compiled.CoeffIdMinusOne {
+		} else if t.IsNegOne() {
 			// print neg sign
 			sbb.WriteString("-1")
-		} else if tID == compiled.CoeffIdZero {
+		} else if t.IsZero() {
 			sbb.WriteByte('0')
 			return
 		} else {
-			sbb.WriteString(cs.Coefficients[tID].String())
+			sbb.WriteString(t.Coeff.String())
 		}
 		sbb.WriteString("⋅")
 	}
@@ -459,7 +459,7 @@ func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly 
 
 
 // checkConstraint verifies that the constraint holds
-func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) error {
+func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C[fr.Element, *fr.Element], solution *solution) error {
 	l := solution.computeTerm(c.L)
 	r := solution.computeTerm(c.R)
 	m0 := solution.computeTerm(c.M[0])
@@ -468,7 +468,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 
 	// l + r + (m0 * m1) + o + c.K == 0
 	var t fr.Element 
-	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &cs.Coefficients[c.K])
+	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &c.K)
 	if !t.IsZero() {
 		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + (%s × %s) + %s != 0",
 			l.String(),
@@ -476,7 +476,7 @@ func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) 
 			o.String(),
 			m0.String(),
 			m1.String(),
-			cs.Coefficients[c.K].String(),
+			c.K.String(),
 		)
 	}
 	return nil 
