@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/schema"
@@ -28,7 +29,7 @@ import (
 
 func TestQuickSort(t *testing.T) {
 
-	toSort := make(compiled.LinearExpression, 12)
+	toSort := make(compiled.LinearExpression[fr.Element, *fr.Element], 12)
 	rand := 3
 	for i := 0; i < 12; i++ {
 		toSort[i].SetVariableVisibility(schema.Secret)
@@ -51,7 +52,7 @@ func TestQuickSort(t *testing.T) {
 
 func TestReduce(t *testing.T) {
 
-	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
+	cs := newBuilder[fr.Element](ecc.BN254.ScalarField(), frontend.CompileConfig{})
 	x := cs.newInternalVariable()
 	y := cs.newInternalVariable()
 	z := cs.newInternalVariable()
@@ -63,7 +64,7 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression)
+	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression[fr.Element, *fr.Element])
 
 	// check sizes
 	if len(toTest) != 3 {

@@ -27,23 +27,23 @@ import (
 )
 
 // AssertIsEqual adds an assertion in the constraint system (i1 == i2)
-func (system *r1cs) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *r1cs[E, ptE]) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
-	r := system.toVariable(i1).(compiled.LinearExpression)
-	o := system.toVariable(i2).(compiled.LinearExpression)
+	r := system.toVariable(i1).(compiled.LinearExpression[E, ptE])
+	o := system.toVariable(i2).(compiled.LinearExpression[E, ptE])
 
 	debug := system.AddDebugInfo("assertIsEqual", r, " == ", o)
 
-	system.addConstraint(newR1C(system.one(), r, o), debug)
+	system.addConstraint(newR1C[E, ptE](system.one(), r, o), debug)
 }
 
 // AssertIsDifferent constrain i1 and i2 to be different
-func (system *r1cs) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *r1cs[E, ptE]) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean adds an assertion in the constraint system (v == 0 ∥ v == 1)
-func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
+func (system *r1cs[E, ptE]) AssertIsBoolean(i1 frontend.Variable) {
 
 	vars, _ := system.toVariables(i1)
 	v := vars[0]
@@ -56,7 +56,7 @@ func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
 	}
 
 	if system.IsBoolean(v) {
-		return // compiled.LinearExpression is already constrained
+		return // compiled.LinearExpression[E, ptE] is already constrained
 	}
 	system.MarkBoolean(v)
 
@@ -66,7 +66,7 @@ func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
 
 	// ensure v * (1 - v) == 0
 	_v := system.Sub(1, v)
-	system.addConstraint(newR1C(v, _v, o), debug)
+	system.addConstraint(newR1C[E, ptE](v, _v, o), debug)
 }
 
 // AssertIsLessOrEqual adds assertion in constraint system  (v ⩽ bound)
@@ -75,11 +75,11 @@ func (system *r1cs) AssertIsBoolean(i1 frontend.Variable) {
 //
 // derived from:
 // https://github.com/zcash/zips/blob/main/protocol/protocol.pdf
-func (system *r1cs) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
+func (system *r1cs[E, ptE]) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v, _ := system.toVariables(_v)
 
 	switch b := bound.(type) {
-	case compiled.LinearExpression:
+	case compiled.LinearExpression[E, ptE]:
 		assertIsSet(b)
 		system.mustBeLessOrEqVar(v[0], b)
 	default:
@@ -88,7 +88,7 @@ func (system *r1cs) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Var
 
 }
 
-func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
+func (system *r1cs[E, ptE]) mustBeLessOrEqVar(a, bound compiled.LinearExpression[E, ptE]) {
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := system.FieldBitLen()
@@ -122,14 +122,14 @@ func (system *r1cs) mustBeLessOrEqVar(a, bound compiled.LinearExpression) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.MarkBoolean(aBits[i].(compiled.LinearExpression)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.LinearExpression[E, ptE])) // this does not create a constraint
 
-		system.addConstraint(newR1C(l, aBits[i], zero), debug)
+		system.addConstraint(newR1C[E, ptE](l, aBits[i], zero), debug)
 	}
 
 }
 
-func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int) {
+func (system *r1cs[E, ptE]) mustBeLessOrEqCst(a compiled.LinearExpression[E, ptE], bound big.Int) {
 
 	nbBits := system.FieldBitLen()
 
@@ -175,8 +175,8 @@ func (system *r1cs) mustBeLessOrEqCst(a compiled.LinearExpression, bound big.Int
 			l := system.Sub(1, p[i+1])
 			l = system.Sub(l, aBits[i])
 
-			system.addConstraint(newR1C(l, aBits[i], system.toVariable(0)), debug)
-			system.MarkBoolean(aBits[i].(compiled.LinearExpression))
+			system.addConstraint(newR1C[E, ptE](l, aBits[i], system.toVariable(0)), debug)
+			system.MarkBoolean(aBits[i].(compiled.LinearExpression[E, ptE]))
 		} else {
 			system.AssertIsBoolean(aBits[i])
 		}
