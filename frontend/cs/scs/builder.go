@@ -26,11 +26,18 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
-	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/frontend/schema"
 	bls12377r1cs "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	bls12381r1cs "github.com/consensys/gnark/internal/backend/bls12-381/cs"
@@ -46,15 +53,36 @@ import (
 	"github.com/consensys/gnark/profile"
 )
 
+// NewBuilder returns a new R1CS compiler
 func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
-	return newBuilder(field, config), nil
+	curve := utils.FieldToCurve(field)
+	switch curve {
+	case ecc.BN254:
+		return newBuilder[fr_bn254.Element](field, config), nil
+	case ecc.BLS12_377:
+		return newBuilder[fr_bls12377.Element](field, config), nil
+	case ecc.BLS12_381:
+		return newBuilder[fr_bls12381.Element](field, config), nil
+	case ecc.BLS24_315:
+		return newBuilder[fr_bls24315.Element](field, config), nil
+	case ecc.BLS24_317:
+		return newBuilder[fr_bls24317.Element](field, config), nil
+	case ecc.BW6_761:
+		return newBuilder[fr_bw6761.Element](field, config), nil
+	case ecc.BW6_633:
+		return newBuilder[fr_bw6633.Element](field, config), nil
+	default:
+		if field.Cmp(tinyfield.Modulus()) == 0 {
+			return newBuilder[tinyfield.Element](field, config), nil
+		}
+		panic("not implemented yet")
+	}
 }
 
-type scs struct {
-	compiled.ConstraintSystem
-	Constraints []compiled.SparseR1C
+type scs[E field.El, ptE field.PtEl[E]] struct {
+	compiled.ConstraintSystem[E, ptE]
+	Constraints []compiled.SparseR1C[E, ptE]
 
-	st     cs.CoeffTable
 	config frontend.CompileConfig
 
 	// map for recording boolean constrained variables (to not constrain them twice)
@@ -65,12 +93,11 @@ type scs struct {
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
-func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
-	system := scs{
-		ConstraintSystem: compiled.NewConstraintSystem(field),
+func newBuilder[E field.El, ptE field.PtEl[E]](field *big.Int, config frontend.CompileConfig) *scs[E, ptE] {
+	system := scs[E, ptE]{
+		ConstraintSystem: compiled.NewConstraintSystem[E, ptE](field),
 		mtBooleans:       make(map[int]struct{}),
-		Constraints:      make([]compiled.SparseR1C, 0, config.Capacity),
-		st:               cs.NewCoeffTable(),
+		Constraints:      make([]compiled.SparseR1C[E, ptE], 0, config.Capacity),
 		config:           config,
 	}
 
@@ -83,8 +110,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-// func (system *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
+func (system *scs[E, ptE]) addPlonkConstraint(l, r, o compiled.Term[E, ptE], cidl, cidr, cidm1, cidm2, cido, k E, debugID ...int) {
 	profile.RecordConstraint()
 	if len(debugID) > 0 {
 		system.MDebug[len(system.Constraints)] = debugID[0]
@@ -92,63 +118,61 @@ func (system *scs) addPlonkConstraint(l, r, o compiled.Term, cidl, cidr, cidm1, 
 		system.MDebug[len(system.Constraints)] = system.AddDebugInfo("")
 	}
 
-	l.SetCoeffID(cidl)
-	r.SetCoeffID(cidr)
-	o.SetCoeffID(cido)
+	l.SetCoeff(cidl)
+	r.SetCoeff(cidr)
+	o.SetCoeff(cido)
 
 	u := l
 	v := r
-	u.SetCoeffID(cidm1)
-	v.SetCoeffID(cidm2)
+	u.SetCoeff(cidm1)
+	v.SetCoeff(cidm2)
 
-	//system.Constraints = append(system.Constraints, compiled.SparseR1C{L: _l, R: _r, O: _o, M: [2]compiled.Term{u, v}, K: k})
-	system.Constraints = append(system.Constraints, compiled.SparseR1C{L: l, R: r, O: o, M: [2]compiled.Term{u, v}, K: k})
+	system.Constraints = append(system.Constraints, compiled.SparseR1C[E, ptE]{L: l, R: r, O: o, M: [2]compiled.Term[E, ptE]{u, v}, K: k})
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (system *scs) newInternalVariable() compiled.Term {
+func (system *scs[E, ptE]) newInternalVariable() compiled.Term[E, ptE] {
 	idx := system.NbInternalVariables + system.NbPublicVariables + system.NbSecretVariables
 	system.NbInternalVariables++
-	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Internal)
+	return compiled.PackInt64[E, ptE](idx, 1, schema.Internal)
 }
 
-func (system *scs) VariableCount(t reflect.Type) int {
+func (system *scs[E, ptE]) VariableCount(t reflect.Type) int {
 	return 1
 }
 
 // AddPublicVariable creates a new Public Variable
-func (system *scs) AddPublicVariable(f *schema.Field) frontend.Variable {
+func (system *scs[E, ptE]) AddPublicVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Public)
 	system.Public = append(system.Public, f.FullName)
-	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Public)
+	return compiled.PackInt64[E, ptE](idx, 1, schema.Public)
 }
 
 // AddSecretVariable creates a new Secret Variable
-func (system *scs) AddSecretVariable(f *schema.Field) frontend.Variable {
+func (system *scs[E, ptE]) AddSecretVariable(f *schema.Field) frontend.Variable {
 	idx := len(system.Secret) + system.NbPublicVariables
 	system.Secret = append(system.Secret, f.FullName)
-	return compiled.Pack(idx, compiled.CoeffIdOne, schema.Secret)
+	return compiled.PackInt64[E, ptE](idx, 1, schema.Secret)
 }
 
 // reduces redundancy in linear expression
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression {
+func (system *scs[E, ptE]) reduce(l compiled.LinearExpression[E, ptE]) compiled.LinearExpression[E, ptE] {
 
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
 
-	c := new(big.Int)
 	for i := 1; i < len(l); i++ {
 		pcID, pvID, pVis := l[i-1].Unpack()
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
-			c.Add(system.st.Coeffs[pcID], system.st.Coeffs[ccID])
-			c.Mod(c, system.q)
-			l[i-1].SetCoeffID(system.st.CoeffID(c))
+			var newCoeff E
+			ptE(&newCoeff).Add(&pcID, &ccID)
+			l[i-1].SetCoeff(newCoeff)
 			l = append(l[:i], l[i+1:]...)
 			i--
 		}
@@ -157,39 +181,41 @@ func (system *scs) reduce(l compiled.LinearExpression) compiled.LinearExpression
 }
 
 // to handle wires that don't exist (=coef 0) in a sparse constraint
-func (system *scs) zero() compiled.Term {
-	var a compiled.Term
+func (system *scs[E, ptE]) zero() compiled.Term[E, ptE] {
+	var a compiled.Term[E, ptE]
 	return a
 }
 
 // IsBoolean returns true if given variable was marked as boolean in the compiler (see MarkBoolean)
 // Use with care; variable may not have been **constrained** to be boolean
 // This returns true if the v is a constant and v == 0 || v == 1.
-func (system *scs) IsBoolean(v frontend.Variable) bool {
+func (system *scs[E, ptE]) IsBoolean(v frontend.Variable) bool {
 	if b, ok := system.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
-	_, ok := system.mtBooleans[int(v.(compiled.Term))]
+	key := v.(compiled.Term[E, ptE]).HashCode()
+	_, ok := system.mtBooleans[int(key)]
 	return ok
 }
 
 // MarkBoolean sets (but do not constraint!) v to be boolean
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
-func (system *scs) MarkBoolean(v frontend.Variable) {
+func (system *scs[E, ptE]) MarkBoolean(v frontend.Variable) {
 	if b, ok := system.ConstantValue(v); ok {
 		if !(b.IsUint64() && b.Uint64() <= 1) {
 			panic("MarkBoolean called a non-boolean constant")
 		}
 	}
-	system.mtBooleans[int(v.(compiled.Term))] = struct{}{}
+	key := v.(compiled.Term[E, ptE]).HashCode()
+	system.mtBooleans[int(key)] = struct{}{}
 }
 
 // checkVariables perform post compilation checks on the Variables
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (system *scs) checkVariables() error {
+func (system *scs[E, ptE]) checkVariables() error {
 
 	// TODO @gbotrel add unit test for that.
 
@@ -210,12 +236,12 @@ func (system *scs) checkVariables() error {
 	mHintsConstrained := make(map[int]bool)
 
 	// for each constraint, we check the terms and mark our inputs / hints as constrained
-	processTerm := func(t compiled.Term) {
+	processTerm := func(t compiled.Term[E, ptE]) {
 
 		// L and M[0] handles the same wire but with a different coeff
 		visibility := t.VariableVisibility()
 		vID := t.WireID()
-		if t.CoeffID() != compiled.CoeffIdZero {
+		if t.IsZero() {
 			switch visibility {
 			case schema.Public:
 				if !publicConstrained[vID] {
@@ -299,7 +325,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
 
-func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
+func (cs *scs[E, ptE]) Compile() (frontend.CompiledConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().
 		Int("nbConstraints", len(cs.Constraints)).
@@ -314,7 +340,7 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 		}
 	}
 
-	res := compiled.SparseR1CS{
+	res := compiled.SparseR1CS[E, ptE]{
 		ConstraintSystem: cs.ConstraintSystem,
 		Constraints:      cs.Constraints,
 	}
@@ -329,34 +355,29 @@ func (cs *scs) Compile() (frontend.CompiledConstraintSystem, error) {
 	// build levels
 	res.Levels = buildLevels(res)
 
-	curve := utils.FieldToCurve(cs.q)
-
-	switch curve {
-	case ecc.BLS12_377:
-		return bls12377r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BLS12_381:
-		return bls12381r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BN254:
-		return bn254r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BW6_761:
-		return bw6761r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BLS24_317:
-		return bls24317r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BLS24_315:
-		return bls24315r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	case ecc.BW6_633:
-		return bw6633r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
+	switch tres := any(res).(type) {
+	case compiled.SparseR1CS[fr_bn254.Element, *fr_bn254.Element]:
+		return bn254r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bls12377.Element, *fr_bls12377.Element]:
+		return bls12377r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bls12381.Element, *fr_bls12381.Element]:
+		return bls12381r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bls24315.Element, *fr_bls24315.Element]:
+		return bls24315r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bls24317.Element, *fr_bls24317.Element]:
+		return bls24317r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bw6633.Element, *fr_bw6633.Element]:
+		return bw6633r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[fr_bw6761.Element, *fr_bw6761.Element]:
+		return bw6761r1cs.NewSparseR1CS(tres, nil), nil
+	case compiled.SparseR1CS[tinyfield.Element, *tinyfield.Element]:
+		return tinyfieldr1cs.NewSparseR1CS(tres, nil), nil
 	default:
-		q := cs.Field()
-		if q.Cmp(tinyfield.Modulus()) == 0 {
-			return tinyfieldr1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-		}
-		panic("unknown curveID")
+		panic("not implemented")
 	}
-
 }
 
-func (cs *scs) SetSchema(s *schema.Schema) {
+func (cs *scs[E, ptE]) SetSchema(s *schema.Schema) {
 	if cs.Schema != nil {
 		panic("SetSchema called multiple times")
 	}
@@ -365,9 +386,9 @@ func (cs *scs) SetSchema(s *schema.Schema) {
 	cs.NbSecretVariables = s.NbSecret
 }
 
-func buildLevels(ccs compiled.SparseR1CS) [][]int {
+func buildLevels[E field.El, ptE field.PtEl[E]](ccs compiled.SparseR1CS[E, ptE]) [][]int {
 
-	b := levelBuilder{
+	b := levelBuilder[E, ptE]{
 		mWireToNode: make(map[int]int, ccs.NbInternalVariables), // at which node we resolved which wire
 		nodeLevels:  make([]int, len(ccs.Constraints)),          // level of a node
 		mLevels:     make(map[int]int),                          // level counts
@@ -405,8 +426,8 @@ func buildLevels(ccs compiled.SparseR1CS) [][]int {
 	return levels
 }
 
-type levelBuilder struct {
-	ccs      compiled.SparseR1CS
+type levelBuilder[E field.El, ptE field.PtEl[E]] struct {
+	ccs      compiled.SparseR1CS[E, ptE]
 	nbInputs int
 
 	mWireToNode map[int]int // at which node we resolved which wire
@@ -416,7 +437,7 @@ type levelBuilder struct {
 	nodeLevel int // current level
 }
 
-func (b *levelBuilder) processTerm(t compiled.Term, cID int) {
+func (b *levelBuilder[E, ptE]) processTerm(t compiled.Term[E, ptE], cID int) {
 	wID := t.WireID()
 	if wID < b.nbInputs {
 		// it's a input, we ignore it
@@ -440,11 +461,11 @@ func (b *levelBuilder) processTerm(t compiled.Term, cID int) {
 
 		for _, in := range h.Inputs {
 			switch t := in.(type) {
-			case compiled.LinearExpression:
+			case compiled.LinearExpression[E, ptE]:
 				for _, tt := range t {
 					b.processTerm(tt, cID)
 				}
-			case compiled.Term:
+			case compiled.Term[E, ptE]:
 				b.processTerm(t, cID)
 			}
 		}
@@ -463,9 +484,9 @@ func (b *levelBuilder) processTerm(t compiled.Term, cID int) {
 
 // ConstantValue returns the big.Int value of v. It
 // panics if v.IsConstant() == false
-func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
+func (system *scs[E, ptE]) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	switch t := v.(type) {
-	case compiled.Term:
+	case compiled.Term[E, ptE]:
 		return nil, false
 	default:
 		res := utils.FromInterface(t)
@@ -485,7 +506,7 @@ func (system *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (system *scs[E, ptE]) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
@@ -506,7 +527,7 @@ func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Va
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		switch t := in.(type) {
-		case compiled.Term:
+		case compiled.Term[E, ptE]:
 			hintInputs[i] = t
 		default:
 			hintInputs[i] = utils.FromInterface(in)
@@ -523,7 +544,7 @@ func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Va
 		res[i] = r
 	}
 
-	ch := &compiled.Hint{ID: hintUUID, Inputs: hintInputs, Wires: varIDs}
+	ch := &compiled.Hint[E, ptE]{ID: hintUUID, Inputs: hintInputs, Wires: varIDs}
 	for _, vID := range varIDs {
 		system.MHints[vID] = ch
 	}
@@ -532,12 +553,12 @@ func (system *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Va
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (system *scs) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
-	res := make(compiled.LinearExpression, 0, len(in))
+func (system *scs[E, ptE]) filterConstantSum(in []frontend.Variable) (compiled.LinearExpression[E, ptE], big.Int) {
+	res := make(compiled.LinearExpression[E, ptE], 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case compiled.Term:
+		case compiled.Term[E, ptE]:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -548,13 +569,13 @@ func (system *scs) filterConstantSum(in []frontend.Variable) (compiled.LinearExp
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression, big.Int) {
-	res := make(compiled.LinearExpression, 0, len(in))
+func (system *scs[E, ptE]) filterConstantProd(in []frontend.Variable) (compiled.LinearExpression[E, ptE], big.Int) {
+	res := make(compiled.LinearExpression[E, ptE], 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case compiled.Term:
+		case compiled.Term[E, ptE]:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -564,7 +585,7 @@ func (system *scs) filterConstantProd(in []frontend.Variable) (compiled.LinearEx
 	return res, b
 }
 
-func (system *scs) splitSum(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs[E, ptE]) splitSum(acc compiled.Term[E, ptE], r compiled.LinearExpression[E, ptE]) compiled.Term[E, ptE] {
 
 	// floor case
 	if len(r) == 0 {
@@ -574,11 +595,11 @@ func (system *scs) splitSum(acc compiled.Term, r compiled.LinearExpression) comp
 	cl, _, _ := acc.Unpack()
 	cr, _, _ := r[0].Unpack()
 	o := system.newInternalVariable()
-	system.addPlonkConstraint(acc, r[0], o, cl, cr, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
+	system.addPlonkConstraint(acc, r[0], o, cl, cr, field.Zero[E, ptE](), field.Zero[E, ptE](), field.NegOne[E, ptE](), field.Zero[E, ptE]())
 	return system.splitSum(o, r[1:])
 }
 
-func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) compiled.Term {
+func (system *scs[E, ptE]) splitProd(acc compiled.Term[E, ptE], r compiled.LinearExpression[E, ptE]) compiled.Term[E, ptE] {
 
 	// floor case
 	if len(r) == 0 {
@@ -588,6 +609,6 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 	cl, _, _ := acc.Unpack()
 	cr, _, _ := r[0].Unpack()
 	o := system.newInternalVariable()
-	system.addPlonkConstraint(acc, r[0], o, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
+	system.addPlonkConstraint(acc, r[0], o, field.Zero[E, ptE](), field.Zero[E, ptE](), cl, cr, field.NegOne[E, ptE](), field.Zero[E, ptE]())
 	return system.splitProd(o, r[1:])
 }

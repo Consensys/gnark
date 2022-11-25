@@ -22,12 +22,13 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
+func (system *scs[E, ptE]) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := system.ConstantValue(i1)
 	c2, i2Constant := system.ConstantValue(i2)
@@ -44,62 +45,61 @@ func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		l := i1.(compiled.Term)
+		l := i1.(compiled.Term[E, ptE])
 		lc, _, _ := l.Unpack()
-		k := c2
+		var negK E
+		ptE(&negK).SetBigInt(c2)
+		ptE(&negK).Neg(&negK)
 		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
-		k.Neg(k)
-		_k := system.st.CoeffID(k)
-		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
+		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), negK, debug)
 		return
 	}
-	l := i1.(compiled.Term)
-	r := system.Neg(i2).(compiled.Term)
+	l := i1.(compiled.Term[E, ptE])
+	r := system.Neg(i2).(compiled.Term[E, ptE])
 	lc, _, _ := l.Unpack()
 	rc, _, _ := r.Unpack()
 
 	debug := system.AddDebugInfo("assertIsEqual", l, " + ", r, " == 0")
-	system.addPlonkConstraint(l, r, system.zero(), lc, rc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	system.addPlonkConstraint(l, r, system.zero(), lc, rc, field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (system *scs[E, ptE]) AssertIsDifferent(i1, i2 frontend.Variable) {
 	system.Inverse(system.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (system *scs) AssertIsBoolean(i1 frontend.Variable) {
+func (system *scs[E, ptE]) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := system.ConstantValue(i1); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 		return
 	}
-	t := i1.(compiled.Term)
+	t := i1.(compiled.Term[E, ptE])
 	if system.IsBoolean(t) {
 		return
 	}
 	system.MarkBoolean(t)
-	system.mtBooleans[int(t)] = struct{}{}
+	system.mtBooleans[int(t.HashCode())] = struct{}{}
 	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _, _ := t.Unpack()
-	var mCoef big.Int
-	mCoef.Neg(system.st.Coeffs[cID])
-	mcID := system.st.CoeffID(&mCoef)
-	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	var negCoef E
+	ptE(&negCoef).Neg(&cID)
+	system.addPlonkConstraint(t, t, system.zero(), cID, field.Zero[E, ptE](), negCoef, cID, field.Zero[E, ptE](), field.Zero[E, ptE](), debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (system *scs[E, ptE]) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
-	case compiled.Term:
-		system.mustBeLessOrEqVar(v.(compiled.Term), b)
+	case compiled.Term[E, ptE]:
+		system.mustBeLessOrEqVar(v.(compiled.Term[E, ptE]), b)
 	default:
-		system.mustBeLessOrEqCst(v.(compiled.Term), utils.FromInterface(b))
+		system.mustBeLessOrEqCst(v.(compiled.Term[E, ptE]), utils.FromInterface(b))
 	}
 }
 
-func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+func (system *scs[E, ptE]) mustBeLessOrEqVar(a compiled.Term[E, ptE], bound compiled.Term[E, ptE]) {
 
 	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -130,23 +130,26 @@ func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.MarkBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
+		system.MarkBoolean(aBits[i].(compiled.Term[E, ptE])) // this does not create a constraint
 
+		var zero, one E
+		ptE(&zero).SetZero()
+		ptE(&one).SetOne()
 		system.addPlonkConstraint(
-			l.(compiled.Term),
-			aBits[i].(compiled.Term),
+			l.(compiled.Term[E, ptE]),
+			aBits[i].(compiled.Term[E, ptE]),
 			system.zero(),
-			compiled.CoeffIdZero,
-			compiled.CoeffIdZero,
-			compiled.CoeffIdOne,
-			compiled.CoeffIdOne,
-			compiled.CoeffIdZero,
-			compiled.CoeffIdZero, debug)
+			field.Zero[E, ptE](),
+			field.Zero[E, ptE](),
+			field.One[E, ptE](),
+			field.One[E, ptE](),
+			field.Zero[E, ptE](),
+			field.Zero[E, ptE](), debug)
 	}
 
 }
 
-func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+func (system *scs[E, ptE]) mustBeLessOrEqCst(a compiled.Term[E, ptE], bound big.Int) {
 
 	nbBits := system.FieldBitLen()
 
@@ -190,21 +193,21 @@ func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := system.Sub(1, p[i+1], aBits[i]).(compiled.Term)
-			//l = system.Sub(l, ).(compiled.Term)
+			l := system.Sub(1, p[i+1], aBits[i]).(compiled.Term[E, ptE])
+			//l = system.Sub(l, ).(compiled.Term[E, ptE])
 
 			system.addPlonkConstraint(
 				l,
-				aBits[i].(compiled.Term),
+				aBits[i].(compiled.Term[E, ptE]),
 				system.zero(),
-				compiled.CoeffIdZero,
-				compiled.CoeffIdZero,
-				compiled.CoeffIdOne,
-				compiled.CoeffIdOne,
-				compiled.CoeffIdZero,
-				compiled.CoeffIdZero,
+				field.Zero[E, ptE](),
+				field.Zero[E, ptE](),
+				field.One[E, ptE](),
+				field.One[E, ptE](),
+				field.Zero[E, ptE](),
+				field.Zero[E, ptE](),
 				debug)
-			// system.markBoolean(aBits[i].(compiled.Term))
+			// system.markBoolean(aBits[i].(compiled.Term[E, ptE]))
 		} else {
 			system.AssertIsBoolean(aBits[i])
 		}

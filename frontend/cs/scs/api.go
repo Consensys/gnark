@@ -27,12 +27,13 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Add returns res = i1+i2+...in
-func (system *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	zero := big.NewInt(0)
 	vars, k := system.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
@@ -44,15 +45,16 @@ func (system *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) fronte
 		return system.splitSum(vars[0], vars[1:])
 	}
 	cl, _, _ := vars[0].Unpack()
-	kID := system.st.CoeffID(&k)
+	var kFr E
+	ptE(&kFr).SetBigInt(&k)
 	o := system.newInternalVariable()
-	system.addPlonkConstraint(vars[0], system.zero(), o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
+	system.addPlonkConstraint(vars[0], system.zero(), o, cl, field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), field.NegOne[E, ptE](), kFr)
 	return system.splitSum(o, vars[1:])
 
 }
 
 // neg returns -in
-func (system *scs) neg(in []frontend.Variable) []frontend.Variable {
+func (system *scs[E, ptE]) neg(in []frontend.Variable) []frontend.Variable {
 
 	res := make([]frontend.Variable, len(in))
 
@@ -63,30 +65,28 @@ func (system *scs) neg(in []frontend.Variable) []frontend.Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (system *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	r := system.neg(append([]frontend.Variable{i2}, in...))
 	return system.Add(i1, r[0], r[1:]...)
 }
 
 // Neg returns -i
-func (system *scs) Neg(i1 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Neg(i1 frontend.Variable) frontend.Variable {
 	if n, ok := system.ConstantValue(i1); ok {
 		n.Neg(n)
 		return *n
 	} else {
-		v := i1.(compiled.Term)
+		v := i1.(compiled.Term[E, ptE])
 		c, _, _ := v.Unpack()
-		var coef big.Int
-		coef.Set(system.st.Coeffs[c])
-		coef.Neg(&coef)
-		c = system.st.CoeffID(&coef)
-		v.SetCoeffID(c)
+		var negCoeff E
+		ptE(&negCoeff).Neg(&c)
+		v.SetCoeff(negCoeff)
 		return v
 	}
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	vars, k := system.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
@@ -98,18 +98,17 @@ func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) fronte
 }
 
 // returns t*m
-func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
-	var coef big.Int
+func (system *scs[E, ptE]) mulConstant(t compiled.Term[E, ptE], m *big.Int) compiled.Term[E, ptE] {
 	cid, _, _ := t.Unpack()
-	coef.Set(system.st.Coeffs[cid])
-	coef.Mul(m, &coef).Mod(&coef, system.q)
-	cid = system.st.CoeffID(&coef)
-	t.SetCoeffID(cid)
+	var mFr E
+	ptE(&mFr).SetBigInt(m)
+	ptE(&mFr).Mul(&cid, &mFr)
+	t.SetCoeff(mFr)
 	return t
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	c1, i1Constant := system.ConstantValue(i1)
 	c2, i2Constant := system.ConstantValue(i2)
 
@@ -125,24 +124,24 @@ func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 		c := c2
 		q := system.q
 		c.ModInverse(c, q)
-		return system.mulConstant(i1.(compiled.Term), c)
+		return system.mulConstant(i1.(compiled.Term[E, ptE]), c)
 	}
 	if i1Constant {
 		res := system.Inverse(i2)
-		return system.mulConstant(res.(compiled.Term), c1)
+		return system.mulConstant(res.(compiled.Term[E, ptE]), c1)
 	}
 
 	res := system.newInternalVariable()
-	r := i2.(compiled.Term)
-	o := system.Neg(i1).(compiled.Term)
+	r := i2.(compiled.Term[E, ptE])
+	o := system.Neg(i1).(compiled.Term[E, ptE])
 	cr, _, _ := r.Unpack()
 	co, _, _ := o.Unpack()
-	system.addPlonkConstraint(res, r, o, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, co, compiled.CoeffIdZero)
+	system.addPlonkConstraint(res, r, o, field.Zero[E, ptE](), field.Zero[E, ptE](), field.One[E, ptE](), cr, co, field.Zero[E, ptE]())
 	return res
 }
 
 // Div returns i1 / i2
-func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	system.Inverse(i2)
@@ -151,16 +150,16 @@ func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Inverse returns res = 1 / i1
-func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := system.ConstantValue(i1); ok {
 		c.ModInverse(c, system.q)
 		return c
 	}
-	t := i1.(compiled.Term)
+	t := i1.(compiled.Term[E, ptE])
 	cr, _, _ := t.Unpack()
 	debug := system.AddDebugInfo("inverse", "1/", i1, " < ∞")
 	res := system.newInternalVariable()
-	system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, debug)
+	system.addPlonkConstraint(res, t, system.zero(), field.Zero[E, ptE](), field.Zero[E, ptE](), field.One[E, ptE](), cr, field.Zero[E, ptE](), field.NegOne[E, ptE](), debug)
 	return res
 }
 
@@ -172,7 +171,7 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (system *scs[E, ptE]) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := system.FieldBitLen()
 	if len(n) == 1 {
@@ -186,13 +185,13 @@ func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) FromBinary(b ...frontend.Variable) frontend.Variable {
 	return bits.FromBinary(system, b)
 }
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Xor(a, b frontend.Variable) frontend.Variable {
 
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
@@ -212,22 +211,27 @@ func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		_b = _a
 	}
 	if bConstant {
-		l := a.(compiled.Term)
+		l := a.(compiled.Term[E, ptE])
 		r := l
-		oneMinusTwoB := big.NewInt(1)
-		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
-		system.addPlonkConstraint(l, r, res, system.st.CoeffID(oneMinusTwoB), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, system.st.CoeffID(_b))
+		var oneMinusTwoB, bFr E
+		ptE(&bFr).SetBigInt(_b)
+		ptE(&oneMinusTwoB).SetInt64(1)
+		ptE(&oneMinusTwoB).Sub(&oneMinusTwoB, &bFr)
+		ptE(&oneMinusTwoB).Sub(&oneMinusTwoB, &bFr)
+		system.addPlonkConstraint(l, r, res, oneMinusTwoB, field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), field.NegOne[E, ptE](), bFr)
 		return res
 	}
-	l := a.(compiled.Term)
-	r := b.(compiled.Term)
-	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdTwo, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
+	l := a.(compiled.Term[E, ptE])
+	r := b.(compiled.Term[E, ptE])
+	var two E
+	ptE(&two).SetInt64(2)
+	system.addPlonkConstraint(l, r, res, field.NegOne[E, ptE](), field.NegOne[E, ptE](), two, field.One[E, ptE](), field.One[E, ptE](), field.Zero[E, ptE]())
 	return res
 }
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Or(a, b frontend.Variable) frontend.Variable {
 
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
@@ -247,24 +251,25 @@ func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
 		bConstant = aConstant
 	}
 	if bConstant {
-		l := a.(compiled.Term)
+		l := a.(compiled.Term[E, ptE])
 		r := l
 
-		one := big.NewInt(1)
-		_b.Sub(_b, one)
-		idl := system.st.CoeffID(_b)
-		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
+		one := field.One[E, ptE]()
+		var idlFr E
+		ptE(&idlFr).SetBigInt(_b)
+		ptE(&idlFr).Sub(&idlFr, &one)
+		system.addPlonkConstraint(l, r, res, idlFr, field.Zero[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE](), field.One[E, ptE](), field.Zero[E, ptE]())
 		return res
 	}
-	l := a.(compiled.Term)
-	r := b.(compiled.Term)
-	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
+	l := a.(compiled.Term[E, ptE])
+	r := b.(compiled.Term[E, ptE])
+	system.addPlonkConstraint(l, r, res, field.NegOne[E, ptE](), field.NegOne[E, ptE](), field.One[E, ptE](), field.One[E, ptE](), field.One[E, ptE](), field.Zero[E, ptE]())
 	return res
 }
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (system *scs) And(a, b frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) And(a, b frontend.Variable) frontend.Variable {
 	system.AssertIsBoolean(a)
 	system.AssertIsBoolean(b)
 	res := system.Mul(a, b)
@@ -276,7 +281,7 @@ func (system *scs) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (system *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
 	_b, bConstant := system.ConstantValue(b)
 
 	if bConstant {
@@ -298,7 +303,7 @@ func (system *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) fronten
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 
 	// vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
 	// s0, s1 := vars[0], vars[1]
@@ -353,7 +358,7 @@ func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Var
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) IsZero(i1 frontend.Variable) frontend.Variable {
 	if a, ok := system.ConstantValue(i1); ok {
 		if !(a.IsUint64() && a.Uint64() == 0) {
 			return 0
@@ -364,7 +369,7 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	a := i1.(compiled.Term)
+	a := i1.(compiled.Term[E, ptE])
 	m := system.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
@@ -377,23 +382,23 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a*x + m - 1 == 0
 	system.addPlonkConstraint(a,
-		x[0].(compiled.Term),
+		x[0].(compiled.Term[E, ptE]),
 		m,
-		compiled.CoeffIdZero,
-		compiled.CoeffIdZero,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdMinusOne)
+		field.Zero[E, ptE](),
+		field.Zero[E, ptE](),
+		field.One[E, ptE](),
+		field.One[E, ptE](),
+		field.One[E, ptE](),
+		field.NegOne[E, ptE]())
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	system.addPlonkConstraint(a, m, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+	system.addPlonkConstraint(a, m, system.zero(), field.Zero[E, ptE](), field.Zero[E, ptE](), field.One[E, ptE](), field.One[E, ptE](), field.Zero[E, ptE](), field.Zero[E, ptE]())
 
 	return m
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (system *scs[E, ptE]) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	bi1 := system.ToBinary(i1, system.FieldBitLen())
 	bi2 := system.ToBinary(i2, system.FieldBitLen())
@@ -425,8 +430,8 @@ func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *scs) Println(a ...frontend.Variable) {
-	var log compiled.LogEntry
+func (system *scs[E, ptE]) Println(a ...frontend.Variable) {
+	var log compiled.LogEntry[E, ptE]
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
@@ -439,14 +444,14 @@ func (system *scs) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(compiled.Term); ok {
+		if v, ok := arg.(compiled.Term[E, ptE]); ok {
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor[E, ptE]())
 			log.ToResolve = append(log.ToResolve, v)
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor[E, ptE]())
 		} else {
 			printArg(&log, &sbb, arg)
 		}
@@ -458,7 +463,7 @@ func (system *scs) Println(a ...frontend.Variable) {
 	system.Logs = append(system.Logs, log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
+func printArg[E field.El, ptE field.PtEl[E]](log *compiled.LogEntry[E, ptE], sbb *strings.Builder, a frontend.Variable) {
 
 	count := 0
 	counter := func(f *schema.Field, tValue reflect.Value) error {
@@ -484,12 +489,12 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(compiled.Term)
+		v := tValue.Interface().(compiled.Term[E, ptE])
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor[E, ptE]())
 		log.ToResolve = append(log.ToResolve, v)
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor[E, ptE]())
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
@@ -497,6 +502,6 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	sbb.WriteByte('}')
 }
 
-func (system *scs) Compiler() frontend.Compiler {
+func (system *scs[E, ptE]) Compiler() frontend.Compiler {
 	return system
 }
