@@ -15,34 +15,35 @@
 package compiled
 
 import (
-	"math/big"
 	"strings"
+
+	"github.com/consensys/gnark/frontend/field"
 )
 
 // R1CS decsribes a set of R1C constraint
-type R1CS struct {
-	ConstraintSystem
-	Constraints []R1C
+type R1CS[E field.El, ptE field.PtEl[E]] struct {
+	ConstraintSystem[E, ptE]
+	Constraints []R1C[E, ptE]
 }
 
 // GetNbConstraints returns the number of constraints
-func (r1cs *R1CS) GetNbConstraints() int {
+func (r1cs *R1CS[E, ptE]) GetNbConstraints() int {
 	return len(r1cs.Constraints)
 }
 
 // R1C used to compute the wires
-type R1C struct {
-	L, R, O LinearExpression
+type R1C[E field.El, ptE field.PtEl[E]] struct {
+	L, R, O LinearExpression[E, ptE]
 }
 
-func (r1c *R1C) String(coeffs []big.Int) string {
+func (r1c *R1C[E, ptE]) String() string {
 	var sbb strings.Builder
 	sbb.WriteString("L[")
-	r1c.L.string(&sbb, coeffs)
+	r1c.L.string(&sbb)
 	sbb.WriteString("] * R[")
-	r1c.R.string(&sbb, coeffs)
+	r1c.R.string(&sbb)
 	sbb.WriteString("] = O[")
-	r1c.O.string(&sbb, coeffs)
+	r1c.O.string(&sbb)
 	sbb.WriteString("]")
 
 	return sbb.String()

@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -17,7 +18,7 @@ import (
 )
 
 // ConstraintSystem contains common element between R1CS and ConstraintSystem
-type ConstraintSystem struct {
+type ConstraintSystem[E field.El, ptE field.PtEl[E]] struct {
 	// serialization header
 	GnarkVersion string
 	ScalarField  string
@@ -34,18 +35,18 @@ type ConstraintSystem struct {
 	Public, Secret []string
 
 	// logs (added with cs.Println, resolved when solver sets a value to a wire)
-	Logs []LogEntry
+	Logs []LogEntry[E, ptE]
 
 	// debug info contains stack trace (including line number) of a call to a cs.API that
 	// results in an unsolved constraint
-	DebugInfo []LogEntry
+	DebugInfo []LogEntry[E, ptE]
 
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	MHints             map[int]*Hint      // maps wireID to hint
-	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
+	MHints             map[int]*Hint[E, ptE] // maps wireID to hint
+	MHintsDependencies map[hint.ID]string    // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
 	// it is guaranteed that all dependncies for constraints in a level l are solved
@@ -58,12 +59,12 @@ type ConstraintSystem struct {
 }
 
 // NewConstraintSystem initialize the common structure among constraint system
-func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
-	return ConstraintSystem{
+func NewConstraintSystem[E field.El, ptE field.PtEl[E]](scalarField *big.Int) ConstraintSystem[E, ptE] {
+	return ConstraintSystem[E, ptE]{
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
 		MDebug:             make(map[int]int),
-		MHints:             make(map[int]*Hint),
+		MHints:             make(map[int]*Hint[E, ptE]),
 		MHintsDependencies: make(map[hint.ID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
@@ -73,7 +74,7 @@ func NewConstraintSystem(scalarField *big.Int) ConstraintSystem {
 // CheckSerializationHeader parses the scalar field and gnark version headers
 //
 // This is meant to be use at the deserialization step, and will error for illegal values
-func (cs *ConstraintSystem) CheckSerializationHeader() error {
+func (cs *ConstraintSystem[E, ptE]) CheckSerializationHeader() error {
 	// check gnark version
 	binaryVersion := gnark.Version
 	objectVersion, err := semver.Parse(cs.GnarkVersion)
@@ -104,19 +105,19 @@ func (cs *ConstraintSystem) CheckSerializationHeader() error {
 }
 
 // GetNbVariables return number of internal, secret and public variables
-func (cs *ConstraintSystem) GetNbVariables() (internal, secret, public int) {
+func (cs *ConstraintSystem[E, ptE]) GetNbVariables() (internal, secret, public int) {
 	return cs.NbInternalVariables, cs.NbSecretVariables, cs.NbPublicVariables
 }
 
-func (cs *ConstraintSystem) Field() *big.Int {
+func (cs *ConstraintSystem[E, ptE]) Field() *big.Int {
 	return new(big.Int).Set(cs.q)
 }
 
-func (cs *ConstraintSystem) GetSchema() *schema.Schema { return cs.Schema }
+func (cs *ConstraintSystem[E, ptE]) GetSchema() *schema.Schema { return cs.Schema }
 
-func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
+func (cs *ConstraintSystem[E, ptE]) AddDebugInfo(errName string, i ...interface{}) int {
 
-	var l LogEntry
+	var l LogEntry[E, ptE]
 
 	const minLogSize = 500
 	var sbb strings.Builder
@@ -127,7 +128,7 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 
 	for _, _i := range i {
 		switch v := _i.(type) {
-		case LinearExpression:
+		case LinearExpression[E, ptE]:
 			if len(v) > 1 {
 				sbb.WriteString("(")
 			}
@@ -137,7 +138,7 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 			}
 		case string:
 			sbb.WriteString(v)
-		case Term:
+		case Term[E, ptE]:
 			l.WriteTerm(v, &sbb)
 		default:
 			_v := utils.FromInterface(v)
@@ -156,6 +157,6 @@ func (cs *ConstraintSystem) AddDebugInfo(errName string, i ...interface{}) int {
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
-func (cs *ConstraintSystem) FieldBitLen() int {
+func (cs *ConstraintSystem[E, ptE]) FieldBitLen() int {
 	return cs.bitLen
 }

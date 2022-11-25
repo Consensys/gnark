@@ -17,19 +17,20 @@ package compiled
 import (
 	"strings"
 
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
 // LogEntry is used as a shared data structure between the frontend and the backend
 // to represent string values (in logs or debug info) where a value is not known at compile time
 // (which is the case for variables that need to be resolved in the R1CS)
-type LogEntry struct {
+type LogEntry[E field.El, ptE field.PtEl[E]] struct {
 	Caller    string
 	Format    string
-	ToResolve []Term
+	ToResolve []Term[E, ptE]
 }
 
-func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {
+func (l *LogEntry[E, ptE]) WriteVariable(le LinearExpression[E, ptE], sbb *strings.Builder) {
 	sbb.Grow(len(le) * len(" + (xx + xxxxxxxxxxxx"))
 
 	for i := 0; i < len(le); i++ {
@@ -40,7 +41,7 @@ func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {
 	}
 }
 
-func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
+func (l *LogEntry[E, ptE]) WriteTerm(t Term[E, ptE], sbb *strings.Builder) {
 	// virtual == only a coeff, we discard the wire
 	if t.VariableVisibility() == schema.Public && t.WireID() == 0 {
 		sbb.WriteString("%s")
@@ -48,15 +49,12 @@ func (l *LogEntry) WriteTerm(t Term, sbb *strings.Builder) {
 		l.ToResolve = append(l.ToResolve, t)
 		return
 	}
-
-	cID := t.CoeffID()
-	if cID == CoeffIdMinusOne {
+	if t.IsNegOne() {
 		sbb.WriteString("-%s")
-	} else if cID == CoeffIdOne {
+	} else if t.IsOne() {
 		sbb.WriteString("%s")
 	} else {
 		sbb.WriteString("%s*%s")
 	}
-
 	l.ToResolve = append(l.ToResolve, t)
 }

@@ -15,23 +15,24 @@
 package compiled
 
 import (
-	"math/big"
 	"strings"
+
+	"github.com/consensys/gnark/frontend/field"
 )
 
 // A linear expression is a linear combination of Term
-type LinearExpression []Term
+type LinearExpression[E field.El, ptE field.PtEl[E]] []Term[E, ptE]
 
 // Clone returns a copy of the underlying slice
-func (l LinearExpression) Clone() LinearExpression {
-	res := make(LinearExpression, len(l))
+func (l LinearExpression[E, ptE]) Clone() LinearExpression[E, ptE] {
+	res := make(LinearExpression[E, ptE], len(l))
 	copy(res, l)
 	return res
 }
 
-func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
+func (l LinearExpression[E, ptE]) string(sbb *strings.Builder) {
 	for i := 0; i < len(l); i++ {
-		l[i].string(sbb, coeffs)
+		l[i].string(sbb)
 		if i+1 < len(l) {
 			sbb.WriteString(" + ")
 		}
@@ -39,14 +40,14 @@ func (l LinearExpression) string(sbb *strings.Builder, coeffs []big.Int) {
 }
 
 // Len return the lenght of the Variable (implements Sort interface)
-func (l LinearExpression) Len() int {
+func (l LinearExpression[E, ptE]) Len() int {
 	return len(l)
 }
 
 // Equals returns true if both SORTED expressions are the same
 //
 // pre conditions: l and o are sorted
-func (l LinearExpression) Equal(o LinearExpression) bool {
+func (l LinearExpression[E, ptE]) Equal(o LinearExpression[E, ptE]) bool {
 	if len(l) != len(o) {
 		return false
 	}
@@ -54,7 +55,7 @@ func (l LinearExpression) Equal(o LinearExpression) bool {
 		return false
 	}
 	for i := 0; i < len(l); i++ {
-		if l[i] != o[i] {
+		if !(l[i].Var == o[i].Var && ptE(&l[i].Coeff).Equal(&o[i].Coeff)) {
 			return false
 		}
 	}
@@ -62,12 +63,12 @@ func (l LinearExpression) Equal(o LinearExpression) bool {
 }
 
 // Swap swaps terms in the Variable (implements Sort interface)
-func (l LinearExpression) Swap(i, j int) {
+func (l LinearExpression[E, ptE]) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
 // Less returns true if variableID for term at i is less than variableID for term at j (implements Sort interface)
-func (l LinearExpression) Less(i, j int) bool {
+func (l LinearExpression[E, ptE]) Less(i, j int) bool {
 	_, iID, iVis := l[i].Unpack()
 	_, jID, jVis := l[j].Unpack()
 	if iVis == jVis {
@@ -78,10 +79,10 @@ func (l LinearExpression) Less(i, j int) bool {
 
 // HashCode returns a fast-to-compute but NOT collision resistant hash code identifier for the linear
 // expression
-func (l LinearExpression) HashCode() uint64 {
+func (l LinearExpression[E, ptE]) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + uint64(val)
+		h = h*23 + val.HashCode()
 	}
 	return h
 }

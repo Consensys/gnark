@@ -15,25 +15,25 @@
 package compiled
 
 import (
-	"math/big"
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/frontend/field"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
-// Term lightweight version of a term, no pointers. A term packs wireID, coeffID, visibility and
-// some metadata associated with the term, in a uint64.
-// note: if we support more than 1 billion constraints, this breaks (not so soon.)
-type Term uint64
-
-// ids of the coefficients with simple values in any cs.coeffs slice.
-const (
-	CoeffIdZero     = 0
-	CoeffIdOne      = 1
-	CoeffIdTwo      = 2
-	CoeffIdMinusOne = 3
-)
+// Term represents a single term in a linear expression. It consists of
+// coefficient and a variable, which will be solved and filled by the prover.
+// Variable packs wire ID, coefficient and additional metadata.
+type Term[E field.El, ptE field.PtEl[E]] struct {
+	// Coeff is the actual coefficient of the term.
+	Coeff E
+	// Var is the variable data. First 5 bits are reserved to encode visibility
+	// of the constraint. Next 30 bits are empty (were used for encoding the
+	// coefficient). Next 29 bits represent the constraint used to compute the
+	// wire (supports up to 2^29 ~~ 500M constraints).
+	Var uint64
+}
 
 const (
 	_                uint64 = 0b000
@@ -51,9 +51,12 @@ const (
 	nbBitsVariableVisibility = 3
 )
 
-// TermDelimitor is reserved for internal use
-// the constraint solver will evaluate the sum of all terms appearing between two TermDelimitor
-const TermDelimitor Term = Term(maskDelimitor)
+// TermDelimitor returns a term which acts as a delimitor in a linear expression
+// for partitioning. The solver will evaluate the sum of all terms appearing
+// between two delimiting Terms.
+func TermDelimitor[E field.El, ptE field.PtEl[E]]() Term[E, ptE] {
+	return Term[E, ptE]{Var: maskDelimitor}
+}
 
 const (
 	shiftCoeffID            = nbBitsWireID
@@ -70,30 +73,33 @@ const (
 	maskVariableVisibility = uint64((1<<nbBitsVariableVisibility)-1) << shiftVariableVisibility
 )
 
-// Pack packs variableID, coeffID and coeffValue into Term
-// first 5 bits are reserved to encode visibility of the constraint and coeffValue of the coefficient
-// next 30 bits represented the coefficient idx (in r1cs.Coefficients) by which the wire is multiplied
-// next 29 bits represent the constraint used to compute the wire
-// if we support more than 500 millions constraints, this breaks (not so soon.)
-func Pack(variableID, coeffID int, variableVisiblity schema.Visibility) Term {
-	var t Term
+// Pack packs variableID, coeff and variableVisibility into Term.
+func Pack[E field.El, ptE field.PtEl[E]](variableID int, coeff E, variableVisiblity schema.Visibility) Term[E, ptE] {
+	t := Term[E, ptE]{
+		Coeff: coeff,
+	}
 	t.SetWireID(variableID)
-	t.SetCoeffID(coeffID)
 	t.SetVariableVisibility(variableVisiblity)
 	return t
 }
 
+func PackInt64[E field.El, ptE field.PtEl[E]](variableID int, coeff int64, variableVisibility schema.Visibility) Term[E, ptE] {
+	var e E
+	ptE(&e).SetInt64(coeff)
+	return Pack[E, ptE](variableID, e, variableVisibility)
+}
+
 // Unpack returns coeffID, variableID and visibility
-func (t Term) Unpack() (coeffID, variableID int, variableVisiblity schema.Visibility) {
-	coeffID = t.CoeffID()
+func (t Term[E, ptE]) Unpack() (coeff E, variableID int, variableVisiblity schema.Visibility) {
+	coeff = t.Coeff
 	variableID = t.WireID()
 	variableVisiblity = t.VariableVisibility()
 	return
 }
 
 // VariableVisibility returns encoded schema.Visibility attribute
-func (t Term) VariableVisibility() schema.Visibility {
-	variableVisiblity := (uint64(t) & maskVariableVisibility) >> shiftVariableVisibility
+func (t Term[E, ptE]) VariableVisibility() schema.Visibility {
+	variableVisiblity := (uint64(t.Var) & maskVariableVisibility) >> shiftVariableVisibility
 	switch variableVisiblity {
 	case variableInternal:
 		return schema.Internal
@@ -109,7 +115,7 @@ func (t Term) VariableVisibility() schema.Visibility {
 }
 
 // SetVariableVisibility update the bits correponding to the variableVisiblity with its encoding
-func (t *Term) SetVariableVisibility(v schema.Visibility) {
+func (t *Term[E, ptE]) SetVariableVisibility(v schema.Visibility) {
 	variableVisiblity := uint64(0)
 	switch v {
 	case schema.Internal:
@@ -124,40 +130,30 @@ func (t *Term) SetVariableVisibility(v schema.Visibility) {
 		return
 	}
 	variableVisiblity <<= shiftVariableVisibility
-	*t = Term((uint64(*t) & (^maskVariableVisibility)) | variableVisiblity)
-}
-
-// SetCoeffID update the bits correponding to the coeffID with cID
-func (t *Term) SetCoeffID(cID int) {
-	_coeffID := uint64(cID)
-	if (_coeffID & (maskCoeffID >> shiftCoeffID)) != uint64(cID) {
-		panic("coeffID is too large, unsupported")
-	}
-	_coeffID <<= shiftCoeffID
-	*t = Term((uint64(*t) & (^maskCoeffID)) | _coeffID)
+	t.Var = (uint64(t.Var) & (^maskVariableVisibility)) | variableVisiblity
 }
 
 // SetWireID update the bits correponding to the variableID with cID
-func (t *Term) SetWireID(cID int) {
+func (t *Term[E, ptE]) SetWireID(cID int) {
 	_variableID := uint64(cID)
 	if (_variableID & maskWireID) != uint64(cID) {
 		panic("variableID is too large, unsupported")
 	}
-	*t = Term((uint64(*t) & (^maskWireID)) | _variableID)
+	t.Var = (uint64(t.Var) & (^maskWireID)) | _variableID
 }
 
 // WireID returns the variableID (see R1CS data structure)
-func (t Term) WireID() int {
-	return int((uint64(t) & maskWireID))
+func (t Term[E, ptE]) WireID() int {
+	return int((uint64(t.Var) & maskWireID))
 }
 
-// CoeffID returns the coefficient id (see R1CS data structure)
-func (t Term) CoeffID() int {
-	return int((uint64(t) & maskCoeffID) >> shiftCoeffID)
+// IsDelimitor returns if
+func (t Term[E, ptE]) IsDelimitor() bool {
+	return (t.Var & maskDelimitor) != 0
 }
 
-func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
-	sbb.WriteString(coeffs[t.CoeffID()].String())
+func (t Term[E, ptE]) string(sbb *strings.Builder) {
+	sbb.WriteString(ptE(&t.Coeff).String())
 	sbb.WriteString("*")
 	switch t.VariableVisibility() {
 	case schema.Internal:
@@ -174,4 +170,27 @@ func (t Term) string(sbb *strings.Builder, coeffs []big.Int) {
 		panic("not implemented")
 	}
 	sbb.WriteString(strconv.Itoa(t.WireID()))
+}
+
+func (t Term[E, ptE]) HashCode() uint64 {
+	return t.Var
+}
+
+func (t Term[E, ptE]) IsZero() bool {
+	return ptE(&t.Coeff).IsZero()
+}
+
+func (t Term[E, ptE]) IsOne() bool {
+	return ptE(&t.Coeff).IsOne()
+}
+
+func (t Term[E, ptE]) IsNegOne() bool {
+	var nOne E
+	ptE(&nOne).SetOne()
+	ptE(&nOne).Neg(&nOne)
+	return ptE(&t.Coeff).Equal(&nOne)
+}
+
+func (t *Term[E, ptE]) SetCoeff(coeff E) {
+	t.Coeff = coeff
 }
