@@ -44,12 +44,12 @@ import (
 
 // R1CS describes a set of R1CS constraint
 type R1CS struct {
-	compiled.R1CS
+	compiled.R1CS[fr.Element, *fr.Element]
 	Coefficients []fr.Element // R1C coefficients indexes point here
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
-func NewR1CS(cs compiled.R1CS, coefficients []*big.Int) *R1CS {
+func NewR1CS(cs compiled.R1CS[fr.Element, *fr.Element], coefficients []*big.Int) *R1CS {
 	r := R1CS{
 		R1CS:         cs,
 		Coefficients: make([]fr.Element, len(coefficients)),
@@ -254,21 +254,18 @@ func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption)
 }
 
 // divByCoeff sets res = res / t.Coeff
-func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
-	cID := t.CoeffID()
-	switch cID {
-	case compiled.CoeffIdOne:
+func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term[fr.Element, *fr.Element]) {
+	if t.IsOne() {
 		return
-	case compiled.CoeffIdMinusOne:
-		res.Neg(res)
-	case compiled.CoeffIdZero:
-		panic("division by 0")
-	default:
-		// this is slow, but shouldn't happen as divByCoeff is called to
-		// remove the coeff of an unsolved wire
-		// but unsolved wires are (in gnark frontend) systematically set with a coeff == 1 or -1
-		res.Div(res, &cs.Coefficients[cID])
 	}
+	if t.IsNegOne() {
+		res.Neg(res)
+		return
+	}
+	if t.IsZero() {
+		panic("division by 0")
+	}
+	res.Div(res, &t.Coeff)
 }
 
 // solveConstraint compute unsolved wires in the constraint, if any and set the solution accordingly
@@ -277,15 +274,15 @@ func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 // returns false, nil if there was no wire to solve
 // returns true, nil if exactly one wire was solved. In that case, it is redundant to check that
 // the constraint is satisfied later.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.Element) error {
+func (cs *R1CS) solveConstraint(r compiled.R1C[fr.Element, *fr.Element], solution *solution, a, b, c *fr.Element) error {
 
 	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 
-	var termToCompute compiled.Term
+	var termToCompute compiled.Term[fr.Element, *fr.Element]
 
-	processLExp := func(l compiled.LinearExpression, val *fr.Element, locValue uint8) error {
+	processLExp := func(l compiled.LinearExpression[fr.Element, *fr.Element], val *fr.Element, locValue uint8) error {
 		for _, t := range l {
 			vID := t.WireID()
 
@@ -399,7 +396,7 @@ func (cs *R1CS) GetConstraints() [][]string {
 	return r
 }
 
-func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
+func (cs *R1CS) vtoString(l compiled.LinearExpression[fr.Element, *fr.Element]) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
 		cs.termToString(l[i], &sbb)
@@ -410,18 +407,17 @@ func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
 	return sbb.String()
 }
 
-func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
-	tID := t.CoeffID()
-	if tID == compiled.CoeffIdOne {
+func (cs *R1CS) termToString(t compiled.Term[fr.Element, *fr.Element], sbb *strings.Builder) {
+	if t.IsOne() {
 		// do nothing, just print the variable
-	} else if tID == compiled.CoeffIdMinusOne {
+	} else if t.IsNegOne() {
 		// print neg sign
 		sbb.WriteByte('-')
-	} else if tID == compiled.CoeffIdZero {
+	} else if t.IsZero() {
 		sbb.WriteByte('0')
 		return
 	} else {
-		sbb.WriteString(cs.Coefficients[tID].String())
+		sbb.WriteString(t.Coeff.String())
 		sbb.WriteString("⋅")
 	}
 	vID := t.WireID()

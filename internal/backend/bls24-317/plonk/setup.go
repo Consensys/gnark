@@ -137,13 +137,13 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	offset := spr.NbPublicVariables
 	for i := 0; i < nbConstraints; i++ { // constraints
 
-		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		pk.Qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		pk.Qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&pk.Qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
-		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+		pk.Ql[offset+i].Set(&spr.Constraints[i].L.Coeff)
+		pk.Qr[offset+i].Set(&spr.Constraints[i].R.Coeff)
+		pk.Qm[offset+i].Set(&spr.Constraints[i].M[0].Coeff).
+			Mul(&pk.Qm[offset+i], &spr.Constraints[i].M[1].Coeff)
+		pk.Qo[offset+i].Set(&spr.Constraints[i].O.Coeff)
+		pk.CQk[offset+i].Set(&spr.Constraints[i].K)
+		pk.LQk[offset+i].Set(&spr.Constraints[i].K)
 	}
 
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)

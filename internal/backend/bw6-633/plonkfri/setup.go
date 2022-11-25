@@ -158,12 +158,12 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	offset := spr.NbPublicVariables
 	for i := 0; i < nbConstraints; i++ { // constraints
 
-		pk.EvaluationQlDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		pk.EvaluationQrDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		pk.EvaluationQmDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&pk.EvaluationQmDomainBigBitReversed[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		pk.EvaluationQoDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		pk.LQkIncompleteDomainSmall[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+		pk.EvaluationQlDomainBigBitReversed[offset+i].Set(&spr.Constraints[i].L.Coeff)
+		pk.EvaluationQrDomainBigBitReversed[offset+i].Set(&spr.Constraints[i].R.Coeff)
+		pk.EvaluationQmDomainBigBitReversed[offset+i].Set(&spr.Constraints[i].M[0].Coeff).
+			Mul(&pk.EvaluationQmDomainBigBitReversed[offset+i], &spr.Constraints[i].M[1].Coeff)
+		pk.EvaluationQoDomainBigBitReversed[offset+i].Set(&spr.Constraints[i].O.Coeff)
+		pk.LQkIncompleteDomainSmall[offset+i].Set(&spr.Constraints[i].K)
 		pk.CQkIncomplete[offset+i].Set(&pk.LQkIncompleteDomainSmall[offset+i])
 	}
 
