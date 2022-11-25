@@ -19,7 +19,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 	"golang.org/x/exp/constraints"
@@ -76,16 +75,19 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 		copy(r.Limbs, tv.Limbs)
 		r.overflow = tv.overflow
 		return r
-	case compiled.LinearExpression:
-		// TODO @gbotrel don't like that
-		// return f.PackLimbs([]frontend.Variable{in})
+	default:
+		// TODO: would be better if there is a method which says that we have linear-expression or term (e.g. a variable)
 		r.Limbs = []frontend.Variable{v}
-		return r
-	case compiled.Term:
-		// TODO @gbotrel don't like that
-		// return f.PackLimbs([]frontend.Variable{in})
-		r.Limbs = []frontend.Variable{v}
-		return r
+		// case compiled.LinearExpression:
+		// 	// TODO @gbotrel don't like that
+		// 	// return f.PackLimbs([]frontend.Variable{in})
+		// 	r.Limbs = []frontend.Variable{v}
+		// 	return r
+		// case compiled.Term:
+		// 	// TODO @gbotrel don't like that
+		// 	// return f.PackLimbs([]frontend.Variable{in})
+		// 	r.Limbs = []frontend.Variable{v}
+		// 	return r
 	}
 
 	// convert to big.Int
