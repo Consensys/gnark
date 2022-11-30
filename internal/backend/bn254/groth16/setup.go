@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
@@ -99,7 +100,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommitted
 
 	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
-		nbPublicWires++  // but the verifier will need to inject the value themselves so on the groth16
+		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
 		nbPrivateWires-- // level it must be considered public
 	}
 
@@ -348,6 +349,8 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
+	fmt.Println("L0 = ", L.Text(10))
+
 	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
 		cID := t.CoeffID()
 		switch cID {
@@ -373,7 +376,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// L, R and O being linear expressions
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
-	// A, B or C at the indice of the variable
+	// A, B or C at the index of the variable
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {

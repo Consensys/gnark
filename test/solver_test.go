@@ -3,9 +3,6 @@ package test
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/stretchr/testify/assert"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -27,61 +24,6 @@ import (
 
 // ignore witness size larger than this bound
 const permutterBound = 3
-
-type singlePrivateCommittedCircuit struct {
-	One frontend.Variable
-}
-
-func (c *singlePrivateCommittedCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.One, 1)
-	commit, err := api.Compiler().Commit(c.One)
-	if err != nil {
-		return err
-	}
-	api.AssertIsDifferent(commit, 0)
-	return nil
-}
-
-func test(t *testing.T, circuit frontend.Circuit, assignment frontend.Circuit) {
-	_r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
-	assert.NoError(t, err)
-
-	witness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	assert.NoError(t, err)
-
-	pk, vk, err := groth16.Setup(_r1cs)
-	assert.NoError(t, err)
-
-	proof, err := groth16.Prove(_r1cs, pk, witness)
-	assert.NoError(t, err)
-
-	public, err := witness.Public()
-	assert.NoError(t, err)
-	assert.NoError(t, groth16.Verify(proof, vk, public))
-}
-
-func TestSinglePrivateCommitted(t *testing.T) {
-	circuit := singlePrivateCommittedCircuit{}
-	assignment := singlePrivateCommittedCircuit{One: 1}
-
-	test(t, &circuit, &assignment)
-}
-
-type noCommitmentCircuit struct { // to see if unadulterated groth16 is still correct
-	One frontend.Variable
-}
-
-func (c *noCommitmentCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.One, 1)
-	return nil
-}
-
-func TestNoCommitmentCircuit(t *testing.T) {
-	circuit := noCommitmentCircuit{}
-	assignment := noCommitmentCircuit{One: 1}
-
-	test(t, &circuit, &assignment)
-}
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
