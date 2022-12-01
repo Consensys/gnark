@@ -585,7 +585,7 @@ func (system *r1cs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 		for _, term := range vI.(compiled.LinearExpression) { // Perf-TODO: Experiment with a threshold for "enforceWire"
 			wireID := term.WireID()
 			if wireID != 0 { // Don't commit to 1
-				committed = append(system.CommitmentInfo.CommittedAndCommitment, term.WireID())
+				committed = append(committed, wireID)
 			}
 		}
 	}

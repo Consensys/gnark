@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/schema"
 	"math/big"
 	"sort"
 )
@@ -40,7 +39,10 @@ func (i *Info) Is() bool {
 func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler frontend.Compiler) (frontend.Variable, error) {
 
 	sort.Ints(committed)
-	i.nbPrivateCommitted = removeRedundancy(&committed, nbPublicVariables)
+	removeRedundancy(&committed, nbPublicVariables)
+	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
+	i.nbPrivateCommitted = len(committed) - nbPublicCommitted
+
 	i.Committed = committed
 
 	var commitment frontend.Variable
@@ -50,29 +52,20 @@ func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler front
 		commitment = hintOut[0]
 	}
 
-	bad := true // TODO: Remove
-	{
-		exp := commitment.(LinearExpression)
-		if len(exp) == 1 {
-			coeffId, _, vis := exp[0].Unpack()
-			if coeffId == CoeffIdOne && vis == schema.Internal {
-				bad = false
-			}
-		}
-	}
-	if bad {
-		panic("unexpected variable")
-	}
-
 	i.CommitmentIndex = (commitment.(LinearExpression))[0].WireID()
+	// Perf-TODO: Currently commitment always goes at the end of CommittedAndCommitment. If this is to be permanent, simplify the following
 
-	commitmentIndexInCommittedList := binarySearch(committed, i.CommitmentIndex)
-	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
-	i.nbPrivateCommitted = len(committed) - nbPublicCommitted
-	i.CommittedAndCommitment = make([]int, len(committed)+1)
-	copy(i.CommittedAndCommitment[:commitmentIndexInCommittedList], committed[:commitmentIndexInCommittedList])
-	i.CommittedAndCommitment[commitmentIndexInCommittedList] = i.CommitmentIndex
-	copy(i.CommittedAndCommitment[commitmentIndexInCommittedList+1:], committed[commitmentIndexInCommittedList:])
+	i.CommittedAndCommitment = append(committed, i.CommitmentIndex) // TODO: Get rid of this field
+	if i.CommitmentIndex <= committed[len(committed)-1] {
+		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
+	}
+
+	/*
+		commitmentIndexInCommittedList := len(committed) //binarySearch(committed, i.CommitmentIndex)
+		i.CommittedAndCommitment = make([]int, len(committed)+1)
+		copy(i.CommittedAndCommitment[:commitmentIndexInCommittedList], committed[:commitmentIndexInCommittedList])
+		i.CommittedAndCommitment[commitmentIndexInCommittedList] = i.CommitmentIndex
+		copy(i.CommittedAndCommitment[commitmentIndexInCommittedList+1:], committed[commitmentIndexInCommittedList:])*/
 
 	i.HintID = hint.UUID(bsb22CommitmentComputePlaceholder)
 
@@ -107,8 +100,12 @@ func (i *Info) GetPrivateToPublic() []int {
 	return i.CommittedAndCommitment[i.NbPublicCommitted():]
 }
 
+func (i *Info) GetPrivateCommitted() []int {
+	return i.Committed[i.NbPublicCommitted():]
+}
+
 // removeRedundancy does what its name indicates, and also counts how many unique elements are greater than or equal to the threshold
-func removeRedundancy(sorted *[]int, threshold int) (nbGeThreshold int) {
+func removeRedundancy(sorted *[]int, threshold int) {
 	if len(*sorted) == 0 {
 		return
 	}
@@ -120,7 +117,6 @@ func removeRedundancy(sorted *[]int, threshold int) (nbGeThreshold int) {
 			j++
 
 			if currentVal >= threshold {
-				nbGeThreshold++
 			}
 		}
 	}

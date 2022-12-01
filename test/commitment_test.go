@@ -85,32 +85,6 @@ func TestNoCommitmentCircuit(t *testing.T) {
 	test(t, &circuit, &assignment)
 }
 
-/*func TestSingleSecretCommitmentLong(t *testing.T) {
-	circuit := singleSecretCommittedCircuit{}
-	assignment := singleSecretCommittedCircuit{One: 1}
-
-	_r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-	assert.NoError(t, err)
-
-	printConstraints(_r1cs)
-
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	assert.NoError(t, err)
-
-	pk, vk, err := groth16.Setup(_r1cs)
-	assert.NoError(t, err)
-
-	// make sure proving and verifying keys are correct
-	//Pk := pk.(*groth16_bn254.ProvingKey)
-
-	proof, err := groth16.Prove(_r1cs, pk, witness)
-	assert.NoError(t, err)
-
-	public, err := witness.Public()
-	assert.NoError(t, err)
-	assert.NoError(t, groth16.Verify(proof, vk, public))
-}*/
-
 // Just to see if the A,B,C values are computed correctly
 type singleSecretFauxCommitmentCircuit struct {
 	One        frontend.Variable `gnark:",public"`
@@ -127,6 +101,33 @@ func TestSingleSecretFauxCommitmentCircuit(t *testing.T) {
 	test(t, &singleSecretFauxCommitmentCircuit{}, &singleSecretFauxCommitmentCircuit{
 		One:        1,
 		Commitment: 2,
+	})
+}
+
+type oneSecretOnePublicCommittedCircuit struct {
+	One frontend.Variable
+	Two frontend.Variable `gnark:",public"`
+}
+
+func (c *oneSecretOnePublicCommittedCircuit) Define(api frontend.API) error {
+
+	commit, err := api.Compiler().Commit(c.One, c.Two)
+	if err != nil {
+		return err
+	}
+
+	// constrain vars
+	api.AssertIsDifferent(commit, 0)
+	api.AssertIsEqual(c.One, 1)
+	api.AssertIsEqual(c.Two, 2)
+	
+	return nil
+}
+
+func TestOneSecretOnePublicCommitted(t *testing.T) {
+	test(t, &oneSecretOnePublicCommittedCircuit{}, &oneSecretOnePublicCommittedCircuit{
+		One: 1,
+		Two: 2,
 	})
 }
 

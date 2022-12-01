@@ -95,9 +95,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
 
-	nbPrivateCommitted := r1cs.CommitmentInfo.NbPrivateCommitted()
+	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted()
 	nbPublicWires := r1cs.NbPublicVariables
-	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommitted
+	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommittedWires
 
 	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
 		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
@@ -139,24 +139,31 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// compute scalars for pkK, vkK and ckK
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
-	ckK := make([]fr.Element, nbPrivateCommitted)
+	ckK := make([]fr.Element, nbPrivateCommittedWires)
 
 	var t0, t1 fr.Element
 
 	vI, cI := 0, 0
 
+	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
+		t1.Mul(&A[i], &toxicWaste.beta)
+		t0.Mul(&B[i], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i]).
+			Mul(&t1, coeff)
+	}
+
+	privateCommitted := r1cs.CommitmentInfo.GetPrivateCommitted()
+
 	for i := range A {
-		isCommitted := cI < len(r1cs.CommitmentInfo.Committed) && i == r1cs.CommitmentInfo.Committed[cI]
+		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
 		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
+		isPublic := i < r1cs.NbPublicVariables
 
-		if i < r1cs.NbPublicVariables || isCommitted || isCommitment {
-			t1.Mul(&A[i], &toxicWaste.beta)
-			t0.Mul(&B[i], &toxicWaste.alpha)
-			t1.Add(&t1, &t0).
-				Add(&t1, &C[i]).
-				Mul(&t1, &toxicWaste.gammaInv)
+		if isPublic || isCommittedPrivate || isCommitment {
+			computeK(i, &toxicWaste.gammaInv)
 
-			if isCommitted {
+			if isCommittedPrivate {
 				ckK[cI] = t1.ToRegular()
 				cI++
 			} else {
@@ -164,11 +171,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				vI++
 			}
 		} else {
-			t1.Mul(&A[i], &toxicWaste.beta)
-			t0.Mul(&B[i], &toxicWaste.alpha)
-			t1.Add(&t1, &t0).
-				Add(&t1, &C[i]).
-				Mul(&t1, &toxicWaste.deltaInv)
+			computeK(i, &toxicWaste.deltaInv)
 			pkK[i-vI-cI] = t1.ToRegular()
 		}
 	}
@@ -259,7 +262,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
 
-	if nbPrivateCommitted != 0 {
+	if nbPrivateCommittedWires != 0 {
 
 		commitmentBasis := g1PointsAff[offset:]
 
