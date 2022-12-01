@@ -22,13 +22,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	"github.com/consensys/gnark/logger"
 	"io"
 	"math/big"
-	"time"
-
 	"text/template"
-
-	"github.com/consensys/gnark/logger"
+	"time"
 )
 
 var (

@@ -39,7 +39,7 @@ func (i *Info) Is() bool {
 func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler frontend.Compiler) (frontend.Variable, error) {
 
 	sort.Ints(committed)
-	removeRedundancy(&committed, nbPublicVariables)
+	removeRedundancy(&committed)
 	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
 	i.nbPrivateCommitted = len(committed) - nbPublicCommitted
 
@@ -53,19 +53,11 @@ func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler front
 	}
 
 	i.CommitmentIndex = (commitment.(LinearExpression))[0].WireID()
-	// Perf-TODO: Currently commitment always goes at the end of CommittedAndCommitment. If this is to be permanent, simplify the following
 
 	i.CommittedAndCommitment = append(committed, i.CommitmentIndex) // TODO: Get rid of this field
 	if i.CommitmentIndex <= committed[len(committed)-1] {
 		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
 	}
-
-	/*
-		commitmentIndexInCommittedList := len(committed) //binarySearch(committed, i.CommitmentIndex)
-		i.CommittedAndCommitment = make([]int, len(committed)+1)
-		copy(i.CommittedAndCommitment[:commitmentIndexInCommittedList], committed[:commitmentIndexInCommittedList])
-		i.CommittedAndCommitment[commitmentIndexInCommittedList] = i.CommitmentIndex
-		copy(i.CommittedAndCommitment[commitmentIndexInCommittedList+1:], committed[commitmentIndexInCommittedList:])*/
 
 	i.HintID = hint.UUID(bsb22CommitmentComputePlaceholder)
 
@@ -104,8 +96,7 @@ func (i *Info) GetPrivateCommitted() []int {
 	return i.Committed[i.NbPublicCommitted():]
 }
 
-// removeRedundancy does what its name indicates, and also counts how many unique elements are greater than or equal to the threshold
-func removeRedundancy(sorted *[]int, threshold int) {
+func removeRedundancy(sorted *[]int) {
 	if len(*sorted) == 0 {
 		return
 	}
@@ -115,9 +106,6 @@ func removeRedundancy(sorted *[]int, threshold int) {
 		if currentVal := (*sorted)[i]; currentVal != (*sorted)[i-1] {
 			(*sorted)[j] = currentVal
 			j++
-
-			if currentVal >= threshold {
-			}
 		}
 	}
 

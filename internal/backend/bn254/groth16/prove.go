@@ -17,15 +17,13 @@
 package groth16
 
 import (
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
-
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"

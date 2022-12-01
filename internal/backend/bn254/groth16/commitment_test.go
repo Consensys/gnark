@@ -1,19 +1,12 @@
-package test
+package groth16_test
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
-	c "github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
-	groth16bn254 "github.com/consensys/gnark/internal/backend/bn254/groth16"
 	"github.com/stretchr/testify/assert"
-	"math/big"
 	"testing"
 )
 
@@ -120,7 +113,7 @@ func (c *oneSecretOnePublicCommittedCircuit) Define(api frontend.API) error {
 	api.AssertIsDifferent(commit, 0)
 	api.AssertIsEqual(c.One, 1)
 	api.AssertIsEqual(c.Two, 2)
-	
+
 	return nil
 }
 
@@ -129,55 +122,4 @@ func TestOneSecretOnePublicCommitted(t *testing.T) {
 		One: 1,
 		Two: 2,
 	})
-}
-
-func assertEqual(t *testing.T, expected, seen []bn254.G1Affine) {
-	assert.Equal(t, len(expected), len(seen))
-	for i := range expected {
-		assert.True(t, expected[i].Equal(&seen[i]), "at index %d", i)
-	}
-}
-
-func TestSingleSecretSetup(t *testing.T) {
-	fr.ResetSetRandom()
-	_, rpk, rvk := setup(t, &singleSecretCommittedCircuit{})
-	fr.ResetSetRandom()
-	_, fpk, fvk := setup(t, &singleSecretFauxCommitmentCircuit{})
-
-	rPk, fPk, rVk, fVk := rpk.(*groth16bn254.ProvingKey), fpk.(*groth16bn254.ProvingKey),
-		rvk.(*groth16bn254.VerifyingKey), fvk.(*groth16bn254.VerifyingKey)
-
-	assertEqual(t, rPk.G1.K, fPk.G1.K)
-
-	assert.Equal(t, len(fVk.G1.K), len(rVk.G1.K)+rVk.CommitmentKey.Size())
-	assertEqual(t, fVk.G1.K, []bn254.G1Affine{rVk.G1.K[0], rVk.CommitmentKey.Basis()[0], rVk.G1.K[1]})
-}
-
-func TestSingleSecretProof(t *testing.T) {
-	fr.ResetSetRandom()
-	rcs, rpk, _ := setup(t, &singleSecretCommittedCircuit{})
-	_, rproof := prove(t, &singleSecretCommittedCircuit{
-		One: 1,
-	}, rcs, rpk)
-
-	rProof := rproof.(*groth16bn254.Proof)
-	rCs := rcs.(*cs.R1CS)
-	commWireFr, err := solveCommitmentWire(&rCs.CommitmentInfo, &rProof.Commitment, []*big.Int{})
-	assert.NoError(t, err)
-	fmt.Println("test routine computed commitment variable = ", commWireFr.Text(16))
-
-	fr.ResetSetRandom()
-	fcs, fpk, _ := setup(t, &singleSecretFauxCommitmentCircuit{})
-	_, fproof := prove(t, &singleSecretFauxCommitmentCircuit{
-		One:        1,
-		Commitment: commWireFr,
-	}, fcs, fpk)
-
-	fProof := fproof.(*groth16bn254.Proof)
-	assertEqual(t, []bn254.G1Affine{fProof.Ar, fProof.Krs}, []bn254.G1Affine{rProof.Ar, rProof.Krs})
-}
-
-func solveCommitmentWire(commitmentInfo *c.Info, commitment *bn254.G1Affine, publicCommitted []*big.Int) (fr.Element, error) {
-	res, err := fr.Hash(commitmentInfo.SerializeCommitment(commitment.Marshal(), publicCommitted, (fr.Bits-1)/8+1), []byte(c.Dst), 1)
-	return res[0], err
 }
