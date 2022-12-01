@@ -74,11 +74,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
 		for i := range publicCommitted {
 			var b big.Int
-			publicWitness[vk.CommitmentInfo.Committed[i]].ToBigInt(&b)
+			publicWitness[vk.CommitmentInfo.Committed[i]-1].ToBigIntRegular(&b)
 			publicCommitted[i] = &b
 		}
 
 		if res, err := solveCommitmentWire(&vk.CommitmentInfo, &proof.Commitment, publicCommitted); err == nil {
+			fmt.Println("Verifier computed commitment variable:", res.Text(16))
 			publicWitness = append(publicWitness, res)
 		}
 	}
