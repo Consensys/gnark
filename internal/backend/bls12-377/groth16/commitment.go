@@ -17,8 +17,8 @@
 package groth16
 
 import (
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	c "github.com/consensys/gnark/frontend/compiled"
 	"math/big"
 )

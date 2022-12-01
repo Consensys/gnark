@@ -17,7 +17,6 @@
 package groth16
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -74,7 +73,8 @@ type VerifyingKey struct {
 	}
 
 	// e(α, β)
-	e              curve.GT // not serialized
+	e curve.GT // not serialized
+
 	CommitmentKey  pedersen.Key
 	CommitmentInfo compiled.Info // since the verifier doesn't input a constraint system, this needs to be provided here
 }
@@ -93,7 +93,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-
 	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted()
 	nbPublicWires := r1cs.NbPublicVariables
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommittedWires
@@ -142,8 +141,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	var t0, t1 fr.Element
 
-	vI, cI := 0, 0
-
 	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
 		t1.Mul(&A[i], &toxicWaste.beta)
 		t0.Mul(&B[i], &toxicWaste.alpha)
@@ -152,6 +149,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			Mul(&t1, coeff)
 	}
 
+	vI, cI := 0, 0
 	privateCommitted := r1cs.CommitmentInfo.GetPrivateCommitted()
 
 	for i := range A {
@@ -253,16 +251,16 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	offset += int(domain.Cardinality)
 
-	// ---------------------------------------------------------------------------------------------
-	// Commitment setup
-
 	vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
 	offset += nbPublicWires
+
 	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
 	offset += nbPrivateWires
 
-	if nbPrivateCommittedWires != 0 {
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
 
+	if nbPrivateCommittedWires != 0 {
 		commitmentBasis := g1PointsAff[offset:]
 
 		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
@@ -270,7 +268,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			return err
 		}
 		pk.CommitmentKey = vk.CommitmentKey
-
 	}
 
 	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
@@ -350,8 +347,6 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 		Sub(&L, &one)
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
-
-	fmt.Println("L0 = ", L.Text(10))
 
 	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
 		cID := t.CoeffID()
