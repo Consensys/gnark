@@ -579,6 +579,10 @@ func (system *r1cs) Compiler() frontend.Compiler {
 
 func (system *r1cs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
+	if system.CommitmentInfo.Is() {
+		return nil, fmt.Errorf("currently only one commitment per circuit is supported")
+	}
+
 	committed := make([]int, 0, len(v)) // Perf-TODO: Experiment with capacity
 
 	for _, vI := range v {
