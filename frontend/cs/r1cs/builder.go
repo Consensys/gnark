@@ -58,8 +58,6 @@ type r1cs struct {
 	st     cs.CoeffTable
 	config frontend.CompileConfig
 
-	//commitmentInfo compiled.CommitmentInfo
-
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]compiled.LinearExpression
 
@@ -381,10 +379,10 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// sanity check
 	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
-		panic("number of public variables is inconsistent") // it grew after the schema parsing?
+		panic("number of public variables is inconsistent")
 	}
 	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
-		panic("number of secret variables is inconsistent") // it grew after the schema parsing?
+		panic("number of secret variables is inconsistent")
 	}
 
 	// build levels

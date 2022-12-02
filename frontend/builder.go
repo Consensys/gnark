@@ -50,7 +50,9 @@ type Compiler interface {
 	FieldBitLen() int
 
 	// Commit returns a commitment to the given variables, to be used as initial randomness in
-	// Fiat-Shamir when the statement to prove is particularly large. TODO: Cite paper
+	// Fiat-Shamir when the statement to prove is particularly large.
+	// TODO cite paper
+	// This API is experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
 }

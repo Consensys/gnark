@@ -594,5 +594,5 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 
 func (system *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
