@@ -1,7 +1,6 @@
 package compiled
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -77,14 +76,17 @@ func (i *Info) GetCommittedVariables() []frontend.Variable {
 }
 
 func (i *Info) SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
-	buf := bytes.NewBuffer(privateCommitment)
-	for _, inI := range publicCommitted {
-		inIBytes := inI.Bytes()
+
+	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
+	copy(res, privateCommitment)
+
+	for j, inJ := range publicCommitted {
+		inIBytes := inJ.Bytes()
 		slack := fieldByteLen - len(inIBytes)
-		buf.Write(make([]byte, slack))
-		buf.Write(inIBytes)
+		copy(res[len(privateCommitment)+slack+j*fieldByteLen:], inIBytes)
 	}
-	return buf.Bytes()
+
+	return res
 }
 
 // GetPrivateToPublic returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
