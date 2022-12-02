@@ -666,7 +666,7 @@ func (f *field[T]) AddSecretVariable(sf *schema.Field) frontend.Variable {
 
 }
 
-func (f *field[T]) Commit(v ...frontend.Variable) frontend.Variable {
+func (f *field[T]) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
