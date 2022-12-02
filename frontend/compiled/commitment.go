@@ -109,7 +109,6 @@ func removeRedundancy(sorted *[]int) {
 	}
 
 	*sorted = (*sorted)[:j]
-	return
 }
 
 func binarySearch(slice []int, v int) int { //different from the standard library binary search in that if v is not found, binarySearch returns where it would have been were it to be inserted
