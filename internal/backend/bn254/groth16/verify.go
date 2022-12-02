@@ -121,6 +121,11 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+
+	if vk.CommitmentInfo.Is() {
+		return fmt.Errorf("commitments in solidity not currently supported")
+	}
+	
 	helpers := template.FuncMap{
 		"sub": func(a, b int) int {
 			return a - b
