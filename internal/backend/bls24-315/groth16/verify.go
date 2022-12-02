@@ -76,7 +76,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		}
 
 		if res, err := solveCommitmentWire(&vk.CommitmentInfo, &proof.Commitment, publicCommitted); err == nil {
-			fmt.Println("Verifier computed commitment variable:", res.Text(16))
 			publicWitness = append(publicWitness, res)
 		}
 	}
