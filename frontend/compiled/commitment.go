@@ -2,28 +2,25 @@ package compiled
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/frontend"
 	"math/big"
 	"sort"
+
+	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/frontend"
 )
 
 const Dst = "bsb22-commitment"
 
 type Info struct {
 	Committed              []int // sorted list of id's of committed variables
-	nbPrivateCommitted     int
+	NbPrivateCommitted     int   // TODO @gbotrel make private and serialize in R1CS
 	HintID                 hint.ID
 	CommitmentIndex        int
 	CommittedAndCommitment []int // sorted list of id's of committed variables AND the commitment itself
 }
 
-func (i *Info) NbPrivateCommitted() int {
-	return i.nbPrivateCommitted
-}
-
 func (i *Info) NbPublicCommitted() int {
-	return i.NbCommitted() - i.NbPrivateCommitted() // hopefully inlined?
+	return i.NbCommitted() - i.NbPrivateCommitted
 }
 
 func (i *Info) NbCommitted() int {
@@ -40,7 +37,7 @@ func (i *Info) Initialize(committed []int, nbPublicVariables int, compiler front
 	sort.Ints(committed)
 	removeRedundancy(&committed)
 	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
-	i.nbPrivateCommitted = len(committed) - nbPublicCommitted
+	i.NbPrivateCommitted = len(committed) - nbPublicCommitted
 
 	i.Committed = committed
 

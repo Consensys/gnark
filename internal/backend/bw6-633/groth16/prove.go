@@ -72,7 +72,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_633witness.Witness, opt ba
 			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
-			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted())
+			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted)
 			nbPublicCommitted := len(in) - len(values)
 			inPrivate := in[nbPublicCommitted:]
 			for i, inI := range inPrivate {

@@ -75,7 +75,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted()
+	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted
 	nbPublicWires := r1cs.NbPublicVariables
 	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommittedWires
 
