@@ -225,7 +225,7 @@ func TestFp12CyclotomicSquareCompressed(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 
 	b.CyclotomicSquareCompressed(&a)
-	b.Decompress(&b)
+	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 
@@ -395,7 +395,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 	b.Mul(&b, &a)
 	a.FrobeniusSquare(&b).Mul(&a, &b)
 
-	c.Exp(&a, *new(big.Int).SetUint64(expo))
+	c.Exp(a, new(big.Int).SetUint64(expo))
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)
