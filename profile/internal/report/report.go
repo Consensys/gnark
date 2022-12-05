@@ -1015,10 +1015,16 @@ func abs64(i int64) int64 {
 }
 
 func trimPath(path, trimPath, searchPath string) string {
+	const gnarkCIRoot = "/gnark/gnark/"
 	const gnarkRoot = "/gnark/"
 
 	// Keep path variable intact as it's used below to form the return value.
 	path, searchPath = filepath.ToSlash(path), filepath.ToSlash(searchPath)
+
+	if idx := strings.Index(path, gnarkCIRoot); idx != -1 {
+		path = path[idx+len(gnarkCIRoot):]
+		return path
+	}
 
 	if idx := strings.Index(path, gnarkRoot); idx != -1 {
 		path = path[idx+len(gnarkRoot):]
