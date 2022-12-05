@@ -40,7 +40,7 @@ func (e errOverflow) Error() string {
 // value of the element is split into limbs of nbBits lengths and represented as
 // a slice of limbs.
 type Element[T FieldParams] struct {
-	Limbs []frontend.Variable `gnark:"limbs"` // in little-endian (least significant limb first) encoding
+	Limbs []frontend.Variable `gnark:"limbs,inherit"` // in little-endian (least significant limb first) encoding
 
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
