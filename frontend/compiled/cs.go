@@ -55,6 +55,8 @@ type ConstraintSystem struct {
 	// scalar field
 	q      *big.Int `cbor:"-"`
 	bitLen int      `cbor:"-"`
+
+	CommitmentInfo Info
 }
 
 // NewConstraintSystem initialize the common structure among constraint system

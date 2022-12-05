@@ -48,6 +48,13 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Commit returns a commitment to the given variables, to be used as initial randomness in
+	// Fiat-Shamir when the statement to prove is particularly large.
+	// TODO cite paper
+	// This API is experimental
+	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
+	Commit(...Variable) (Variable, error)
 }
 
 // Builder represents a constraint system builder

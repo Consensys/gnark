@@ -53,3 +53,7 @@
 {{- define "import_kzg" }}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/kzg"
 {{- end }}
+
+{{- define "import_pedersen"}}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/pedersen"
+{{- end}}
