@@ -1015,20 +1015,20 @@ func abs64(i int64) int64 {
 }
 
 func trimPath(path, trimPath, searchPath string) string {
-	const gnarkRoot = "github.com/consensys/gnark/"
-	const gnarkRootCI = "home/runner/work/gnark/gnark/"
+	const gnarkCIRoot = "/gnark/gnark/"
+	const gnarkRoot = "/gnark/"
 
 	// Keep path variable intact as it's used below to form the return value.
-	sPath, searchPath := filepath.ToSlash(path), filepath.ToSlash(searchPath)
+	path, searchPath = filepath.ToSlash(path), filepath.ToSlash(searchPath)
 
-	if idx := strings.Index(sPath, gnarkRoot); idx != -1 {
-		sPath = sPath[idx+len(gnarkRoot):]
-		return sPath
+	if idx := strings.Index(path, gnarkCIRoot); idx != -1 {
+		path = path[idx+len(gnarkCIRoot):]
+		return path
 	}
 
-	if idx := strings.Index(sPath, gnarkRootCI); idx != -1 {
-		sPath = sPath[idx+len(gnarkRootCI):]
-		return sPath
+	if idx := strings.Index(path, gnarkRoot); idx != -1 {
+		path = path[idx+len(gnarkRoot):]
+		return path
 	}
 
 	if trimPath == "" {
@@ -1040,7 +1040,7 @@ func trimPath(path, trimPath, searchPath string) string {
 		// "/my/local/path/my-project/foo/bar.c".
 		for _, dir := range filepath.SplitList(searchPath) {
 			want := "/" + filepath.Base(dir) + "/"
-			if found := strings.Index(sPath, want); found != -1 {
+			if found := strings.Index(path, want); found != -1 {
 				return path[found+len(want):]
 			}
 		}
@@ -1051,7 +1051,7 @@ func trimPath(path, trimPath, searchPath string) string {
 		if !strings.HasSuffix(trimPath, "/") {
 			trimPath += "/"
 		}
-		if strings.HasPrefix(sPath, trimPath) {
+		if strings.HasPrefix(path, trimPath) {
 			return path[len(trimPath):]
 		}
 	}
