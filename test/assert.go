@@ -164,7 +164,6 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 					checkError(err)
 
 				case backend.PLONKFRI:
-
 					pk, vk, err := plonkfri.Setup(ccs)
 					checkError(err)
 

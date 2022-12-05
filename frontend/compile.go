@@ -13,7 +13,7 @@ import (
 
 // Compile will generate a ConstraintSystem from the given circuit
 //
-// 1. it will first allocate the user inputs (see type Tag for more info)
+// 1. it will first allocate the user inputs (see [schema.TagOpt] and [Circuit] for more info)
 // example:
 //
 //	type MyCircuit struct {

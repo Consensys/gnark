@@ -231,9 +231,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_761witness.Witnes
 	bOpeningPosition.SetBytes(frOpeningPosition.Marshal()).Mod(&bOpeningPosition, &bFriSize)
 	openingPosition := bOpeningPosition.Uint64()
 
-	// derive a query position, which is 0<=i<domain[1].Size
-	// openingPosition := uint64(2)
-
 	// ql, qr, qm, qo, qkIncomplete
 	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
 	if err != nil {
