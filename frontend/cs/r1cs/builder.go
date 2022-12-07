@@ -379,10 +379,10 @@ func (cs *r1cs) Compile() (frontend.CompiledConstraintSystem, error) {
 
 	// sanity check
 	if res.NbPublicVariables != len(cs.Public) || res.NbPublicVariables != cs.Schema.NbPublic+1 {
-		panic("number of public variables is inconsitent") // it grew after the schema parsing?
+		panic("number of public variables is inconsistent")
 	}
 	if res.NbSecretVariables != len(cs.Secret) || res.NbSecretVariables != cs.Schema.NbSecret {
-		panic("number of secret variables is inconsitent") // it grew after the schema parsing?
+		panic("number of secret variables is inconsistent")
 	}
 
 	// build levels
@@ -478,11 +478,11 @@ func (b *levelBuilder) processLE(l compiled.LinearExpression, cID int) {
 	for _, t := range l {
 		wID := t.WireID()
 		if wID < b.nbInputs {
-			// it's a input, we ignore it
+			// it's an input, we ignore it
 			continue
 		}
 
-		// if we know a which constraint solves this wire, then it's a dependency
+		// if we know which constraint solves this wire, then it's a dependency
 		n, ok := b.mWireToNode[wID]
 		if ok {
 			if n != cID { // can happen with hints...

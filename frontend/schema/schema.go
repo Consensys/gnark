@@ -242,7 +242,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		for _, f := range fields {
 			// check if the gnark tag is set
 			tag, ok := f.Tag.Lookup(string(tagKey))
-			if ok && tag == string(optOmit) {
+			if ok && tag == string(TagOptOmit) {
 				continue // skipping "-"
 			}
 
@@ -261,18 +261,34 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 					nameTag = ""
 				}
 				opts = tagOptions(strings.TrimSpace(string(opts)))
-				if opts == "" || opts.contains(string(optSecret)) {
+				switch {
+				case opts.contains(TagOptSecret):
 					visibility = Secret
-				} else if opts.contains(string(optPublic)) {
+				case opts.contains(TagOptPublic):
 					visibility = Public
-				} else {
+				case opts == "" && parentFullName == "":
+					// our promise is to set visibility to secret for empty-tagged elements.
+					visibility = Secret
+				case opts == "":
+					// even though we have the promise, then in tests we have
+					// assumed that sub-elements without any tags assume parents
+					// visibility (see below). For compatibility, make the same
+					// assumption.
+					visibility = parentVisibility
+				case opts.contains(TagOptInherit) && parentFullName != "":
+					// we have been asked explicitly to inherit the visibility
+					visibility = parentVisibility
+				case opts.contains(TagOptInherit):
+					// but we can not inherit the visibility for top-level
+					// elements. Return an error.
+					return r, fmt.Errorf("can not inherit visibility for top-level element %s", getFullName(parentGoName, name, nameTag))
+				default:
 					return r, fmt.Errorf("invalid gnark struct tag option on %s. must be \"public\", \"secret\" or \"-\"", getFullName(parentGoName, name, nameTag))
 				}
 			}
 
 			if ((parentVisibility == Public) && (visibility == Secret)) ||
 				((parentVisibility == Secret) && (visibility == Public)) {
-				// TODO @gbotrel maybe we should just force it to take the parent value.
 				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", getFullName(parentGoName, name, nameTag), visibility.String())
 			}
 

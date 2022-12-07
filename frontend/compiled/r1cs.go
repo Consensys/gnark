@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// R1CS decsribes a set of R1C constraint
+// R1CS describes a set of R1C constraint
 type R1CS struct {
 	ConstraintSystem
 	Constraints []R1C

@@ -225,7 +225,7 @@ func TestFp24CyclotomicSquareCompressed(t *testing.T) {
 	a.FrobeniusQuad(&tmp).Mul(&a, &tmp)
 
 	b.CyclotomicSquare(&a)
-	b.Decompress(&b)
+	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)
 

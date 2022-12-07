@@ -762,3 +762,16 @@ func testFourMuls[T FieldParams](t *testing.T) {
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
+
+type PublicElement struct {
+	Y Element[BN254Fp] `gnark:",public"`
+}
+
+func (c *PublicElement) Define(api frontend.API) error {
+	return nil
+}
+
+func TestPublicElement(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.ProverSucceeded(&PublicElement{}, &PublicElement{}, test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
+}

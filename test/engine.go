@@ -66,7 +66,7 @@ func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
 	}
 }
 
-// SetAlLVariablesAsConstants is a test engine option which makes the calls to
+// SetAllVariablesAsConstants is a test engine option which makes the calls to
 // IsConstant() and ConstantValue() always return true. If this test engine
 // option is not set, then all variables are considered as non-constant,
 // regardless if it is constructed by a call to ConstantValue().
@@ -535,7 +535,7 @@ func copyWitness(to, from frontend.Circuit) {
 	i := 0
 	setHandler := func(f *schema.Field, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf((wValues[i])))
+			tInput.Set(reflect.ValueOf(wValues[i]))
 			i++
 		}
 		return nil
@@ -551,4 +551,9 @@ func (e *engine) Field() *big.Int {
 
 func (e *engine) Compiler() frontend.Compiler {
 	return e
+}
+
+func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	//TODO implement me
+	panic("implement me")
 }

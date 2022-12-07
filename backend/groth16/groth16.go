@@ -163,7 +163,7 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness *witness.Witness) error 
 //
 // if the force flag is set:
 //
-//		will executes all the prover computations, even if the witness is invalid
+//		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
 func Prove(r1cs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...backend.ProverOption) (Proof, error) {
