@@ -132,18 +132,34 @@ func (system *r1cs) reduce(l compiled.LinearExpression) compiled.LinearExpressio
 
 	mod := system.CurveID.Info().Fr.Modulus()
 	c := new(big.Int)
+	markDelete := make([]bool, len(l))
+	for i := 0; i < len(l); i++ {
+		markDelete[i] = false
+	}
+	prevPtr := 0
 	for i := 1; i < len(l); i++ {
-		pcID, pvID, pVis := l[i-1].Unpack()
+		pcID, pvID, pVis := l[prevPtr].Unpack()
 		ccID, cvID, cVis := l[i].Unpack()
 		if pVis == cVis && pvID == cvID {
 			// we have redundancy
 			c.Add(&system.st.Coeffs[pcID], &system.st.Coeffs[ccID])
 			c.Mod(c, mod)
-			l[i-1].SetCoeffID(system.st.CoeffID(c))
-			l = append(l[:i], l[i+1:]...)
-			i--
+			l[prevPtr].SetCoeffID(system.st.CoeffID(c))
+			//l = append(l[:i], l[i+1:]...)
+			//i--
+			markDelete[i] = true
+		} else {
+			prevPtr = i
 		}
 	}
+	currentPtr := 0
+	for i := 0; i < len(l); i++ {
+		if !markDelete[i] {
+			l[currentPtr] = l[i]
+			currentPtr++
+		}
+	}
+	l = l[:currentPtr]
 	return l
 }
 
