@@ -2,7 +2,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"runtime"
 	"time"
 	"strings"
@@ -10,10 +9,10 @@ import (
 	"github.com/fxamacker/cbor/v2"
 
 	"github.com/consensys/gnark/internal/backend/ioutils"
-	"github.com/consensys/gnark/frontend/compiled"
-	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/backend/witness"
 
 	"math"
@@ -23,25 +22,32 @@ import (
 	{{ template "import_witness" . }}
 )
 
+var _ constraint.R1CS = &R1CS{}
 
 // R1CS describes a set of R1CS constraint
 type R1CS struct {
-	compiled.R1CS
-	Coefficients []fr.Element // R1C coefficients indexes point here
+	constraint.R1CSCore
+	CoeffTable
+	arithEngine
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
-func NewR1CS(cs compiled.R1CS, coefficients []big.Int) *R1CS {
+func NewR1CS() *R1CS {
 	r := R1CS{
-		R1CS:         cs,
-		Coefficients: make([]fr.Element, len(coefficients)),
+		R1CSCore:         constraint.R1CSCore{System: constraint.NewSystem(fr.Modulus())},
+		CoeffTable: newCoeffTable(),
 	}
-	for i := 0; i < len(coefficients); i++ {
-		r.Coefficients[i].SetBigInt(&coefficients[i])
-	}
-
 	return &r
 }
+
+
+func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugInfo) error {
+	profile.RecordConstraint()
+	cs.Constraints = append(cs.Constraints, r1c)
+	// TODO debug info
+	return nil
+}
+
 
 
 // Solve sets all the wires and returns the a, b, c vectors.
@@ -53,15 +59,15 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 
-	nbWires := cs.NbPublicVariables + cs.NbSecretVariables + cs.NbInternalVariables
+	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
 	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}
 	start := time.Now()
 
-	if len(witness) != cs.NbPublicVariables-1+cs.NbSecretVariables { // - 1 for ONE_WIRE
-		err = fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
+	if len(witness) != len(cs.Public)-1+len(cs.Secret) { // - 1 for ONE_WIRE
+		err = fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(len(cs.Public)-1+len(cs.Secret)), len(cs.Public)-1, len(cs.Secret))
 		log.Err(err).Send()
 		return solution.values, err 
 	}
@@ -243,14 +249,14 @@ func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption)
 }
 
 // divByCoeff sets res = res / t.Coeff
-func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
+func (cs *R1CS) divByCoeff(res *fr.Element, t constraint.Term) {
 	cID := t.CoeffID()
 	switch cID {
-	case compiled.CoeffIdOne:
+	case constraint.CoeffIdOne:
 		return
-	case compiled.CoeffIdMinusOne:
+	case constraint.CoeffIdMinusOne:
 		res.Neg(res)
-	case compiled.CoeffIdZero:
+	case constraint.CoeffIdZero:
 		panic("division by 0")
 	default:
 		// this is slow, but shouldn't happen as divByCoeff is called to 
@@ -268,15 +274,15 @@ func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 // returns false, nil if there was no wire to solve 
 // returns true, nil if exactly one wire was solved. In that case, it is redundant to check that 
 // the constraint is satisfied later.
-func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a,b,c *fr.Element) error {
+func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a,b,c *fr.Element) error {
 
 	// the index of the non-zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 
-	var termToCompute compiled.Term
+	var termToCompute constraint.Term
 
-	processLExp := func(l compiled.LinearExpression, val *fr.Element, locValue uint8) error {
+	processLExp := func(l constraint.LinearExpression, val *fr.Element, locValue uint8) error {
 		for _, t := range l {
 			vID := t.WireID()
 
@@ -392,7 +398,7 @@ func (cs *R1CS) GetConstraints() [][]string {
 	return r
 }
 
-func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
+func (cs *R1CS) vtoString(l constraint.LinearExpression) string {
 	var sbb strings.Builder
 	for i := 0; i < len(l); i++ {
 		cs.termToString(l[i], &sbb)
@@ -403,14 +409,14 @@ func (cs *R1CS) vtoString(l compiled.LinearExpression) string {
 	return sbb.String()
 }
 
-func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
+func (cs *R1CS) termToString(t constraint.Term, sbb *strings.Builder) {
 	tID := t.CoeffID()
-	if tID == compiled.CoeffIdOne {
+	if tID == constraint.CoeffIdOne {
 		// do nothing, just print the variable
-	} else if tID == compiled.CoeffIdMinusOne {
+	} else if tID == constraint.CoeffIdMinusOne {
 		// print neg sign
 		sbb.WriteByte('-')
-	} else if tID == compiled.CoeffIdZero {
+	} else if tID == constraint.CoeffIdZero {
 		sbb.WriteByte('0')
 		return
 	} else {
@@ -418,25 +424,24 @@ func (cs *R1CS) termToString(t compiled.Term, sbb *strings.Builder) {
 		sbb.WriteString("⋅")
 	}
 	vID := t.WireID()
-	visibility := t.VariableVisibility()
 
-	switch visibility {
-	case schema.Internal:
-		if _, isHint := cs.MHints[vID]; isHint {
-			sbb.WriteString(fmt.Sprintf("hv%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
-		} else {
-			sbb.WriteString(fmt.Sprintf("v%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
-		}
-	case schema.Public:
+	if vID < len(cs.Public) {
+		// public 
 		if vID == 0 {
 			sbb.WriteByte('1') // one wire 
 		} else {
 			sbb.WriteString(fmt.Sprintf("p%d", vID - 1))
 		}
-	case schema.Secret:
-		sbb.WriteString(fmt.Sprintf("s%d", vID - cs.NbPublicVariables))
-	default:
-		sbb.WriteString("<?>")
+		return 
+	}
+	if vID < (len(cs.Public) + len(cs.Secret)) {
+		sbb.WriteString(fmt.Sprintf("s%d", vID - len(cs.Public)))
+		return
+	}
+	if _, isHint := cs.MHints[vID]; isHint {
+		sbb.WriteString(fmt.Sprintf("hv%d", vID- len(cs.Public)-len(cs.Secret)))
+	} else {
+		sbb.WriteString(fmt.Sprintf("v%d", vID- len(cs.Public)-len(cs.Secret)))
 	}
 }
 
@@ -489,3 +494,4 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 
 	return int64(decoder.NumBytesRead()), nil
 }
+

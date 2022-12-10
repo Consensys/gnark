@@ -22,9 +22,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
+	backend_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
 	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
@@ -152,10 +153,14 @@ func BenchmarkCompile(b *testing.B) {
 	var circuit verifierCircuit
 	circuit.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
+	var err error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit)
+		ccs, err = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 	b.Log(ccs.GetNbConstraints())
 }

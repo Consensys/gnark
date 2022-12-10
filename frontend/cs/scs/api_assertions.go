@@ -20,17 +20,17 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
 // AssertIsEqual fails if i1 != i2
-func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 
-	c1, i1Constant := system.ConstantValue(i1)
-	c2, i2Constant := system.ConstantValue(i2)
+	c1, i1Constant := builder.ConstantValue(i1)
+	c2, i2Constant := builder.ConstantValue(i2)
 
 	if i1Constant && i2Constant {
 		if c1.Cmp(c2) != 0 {
@@ -44,69 +44,69 @@ func (system *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		l := i1.(compiled.Term)
-		lc, _, _ := l.Unpack()
+		l := i1.(REPrivateTermSCS)
+		lc, _ := l.Unpack()
 		k := c2
-		debug := system.AddDebugInfo("assertIsEqual", l, "+", i2, " == 0")
+		debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, "+", i2, " == 0")
 		k.Neg(k)
-		_k := system.st.CoeffID(k)
-		system.addPlonkConstraint(l, system.zero(), system.zero(), lc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, _k, debug)
+		_k := builder.st.CoeffID(k)
+		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
 		return
 	}
-	l := i1.(compiled.Term)
-	r := system.Neg(i2).(compiled.Term)
-	lc, _, _ := l.Unpack()
-	rc, _, _ := r.Unpack()
+	l := i1.(REPrivateTermSCS)
+	r := builder.Neg(i2).(REPrivateTermSCS)
+	lc, _ := l.Unpack()
+	rc, _ := r.Unpack()
 
-	debug := system.AddDebugInfo("assertIsEqual", l, " + ", r, " == 0")
-	system.addPlonkConstraint(l, r, system.zero(), lc, rc, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, " + ", r, " == 0")
+	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (system *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
-	system.Inverse(system.Sub(i1, i2))
+func (builder *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
+	builder.Inverse(builder.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (system *scs) AssertIsBoolean(i1 frontend.Variable) {
-	if c, ok := system.ConstantValue(i1); ok {
+func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
+	if c, ok := builder.ConstantValue(i1); ok {
 		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
 		}
 		return
 	}
-	t := i1.(compiled.Term)
-	if system.IsBoolean(t) {
+	t := i1.(REPrivateTermSCS)
+	if builder.IsBoolean(t) {
 		return
 	}
-	system.MarkBoolean(t)
-	system.mtBooleans[int(t)] = struct{}{}
-	debug := system.AddDebugInfo("assertIsBoolean", t, " == (0|1)")
-	cID, _, _ := t.Unpack()
+	builder.MarkBoolean(t)
+	builder.mtBooleans[int(t.cID)|t.vID<<32] = struct{}{} // TODO @gbotrel smelly fix me
+	debug := constraint.NewDebugInfo("assertIsBoolean")   // TODO restore", t, " == (0|1)")
+	cID, _ := t.Unpack()
 	var mCoef big.Int
-	mCoef.Neg(&system.st.Coeffs[cID])
-	mcID := system.st.CoeffID(&mCoef)
-	system.addPlonkConstraint(t, t, system.zero(), cID, compiled.CoeffIdZero, mcID, cID, compiled.CoeffIdZero, compiled.CoeffIdZero, debug)
+	mCoef.Neg(&builder.st.Coeffs[cID])
+	mcID := builder.st.CoeffID(&mCoef)
+	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (system *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
-	case compiled.Term:
-		system.mustBeLessOrEqVar(v.(compiled.Term), b)
+	case REPrivateTermSCS:
+		builder.mustBeLessOrEqVar(v.(REPrivateTermSCS), b)
 	default:
-		system.mustBeLessOrEqCst(v.(compiled.Term), utils.FromInterface(b))
+		builder.mustBeLessOrEqCst(v.(REPrivateTermSCS), utils.FromInterface(b))
 	}
 }
 
-func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
+func (builder *scs) mustBeLessOrEqVar(a REPrivateTermSCS, bound REPrivateTermSCS) {
 
-	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
 
-	nbBits := system.FieldBitLen()
+	nbBits := builder.cs.FieldBitLen()
 
-	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-	boundBits := system.ToBinary(bound, nbBits)
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+	boundBits := builder.ToBinary(bound, nbBits)
 
 	p := make([]frontend.Variable, nbBits+1)
 	p[nbBits] = 1
@@ -119,36 +119,36 @@ func (system *scs) mustBeLessOrEqVar(a compiled.Term, bound compiled.Term) {
 		// else
 		// 		p[i] = p[i+1] * a[i]
 		//		t = 0
-		v := system.Mul(p[i+1], aBits[i])
-		p[i] = system.Select(boundBits[i], v, p[i+1])
+		v := builder.Mul(p[i+1], aBits[i])
+		p[i] = builder.Select(boundBits[i], v, p[i+1])
 
-		t := system.Select(boundBits[i], 0, p[i+1])
+		t := builder.Select(boundBits[i], 0, p[i+1])
 
 		// (1 - t - ai) * ai == 0
-		l := system.Sub(1, t, aBits[i])
+		l := builder.Sub(1, t, aBits[i])
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		system.MarkBoolean(aBits[i].(compiled.Term)) // this does not create a constraint
+		builder.MarkBoolean(aBits[i].(REPrivateTermSCS)) // this does not create a constraint
 
-		system.addPlonkConstraint(
-			l.(compiled.Term),
-			aBits[i].(compiled.Term),
-			system.zero(),
-			compiled.CoeffIdZero,
-			compiled.CoeffIdZero,
-			compiled.CoeffIdOne,
-			compiled.CoeffIdOne,
-			compiled.CoeffIdZero,
-			compiled.CoeffIdZero, debug)
+		builder.addPlonkConstraint(
+			l.(REPrivateTermSCS),
+			aBits[i].(REPrivateTermSCS),
+			builder.zero(),
+			constraint.CoeffIdZero,
+			constraint.CoeffIdZero,
+			constraint.CoeffIdOne,
+			constraint.CoeffIdOne,
+			constraint.CoeffIdZero,
+			constraint.CoeffIdZero, debug)
 	}
 
 }
 
-func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
+func (builder *scs) mustBeLessOrEqCst(a REPrivateTermSCS, bound big.Int) {
 
-	nbBits := system.FieldBitLen()
+	nbBits := builder.cs.FieldBitLen()
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {
@@ -159,11 +159,11 @@ func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 	}
 
 	// debug info
-	debug := system.AddDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)
-	aBits := bits.ToBinary(system, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 
 	// t trailing bits in the bound
 	t := 0
@@ -182,7 +182,7 @@ func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 		if bound.Bit(i) == 0 {
 			p[i] = p[i+1]
 		} else {
-			p[i] = system.Mul(p[i+1], aBits[i])
+			p[i] = builder.Mul(p[i+1], aBits[i])
 		}
 	}
 
@@ -190,23 +190,23 @@ func (system *scs) mustBeLessOrEqCst(a compiled.Term, bound big.Int) {
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := system.Sub(1, p[i+1], aBits[i]).(compiled.Term)
-			//l = system.Sub(l, ).(compiled.Term)
+			l := builder.Sub(1, p[i+1], aBits[i]).(REPrivateTermSCS)
+			//l = builder.Sub(l, ).(term)
 
-			system.addPlonkConstraint(
+			builder.addPlonkConstraint(
 				l,
-				aBits[i].(compiled.Term),
-				system.zero(),
-				compiled.CoeffIdZero,
-				compiled.CoeffIdZero,
-				compiled.CoeffIdOne,
-				compiled.CoeffIdOne,
-				compiled.CoeffIdZero,
-				compiled.CoeffIdZero,
+				aBits[i].(REPrivateTermSCS),
+				builder.zero(),
+				constraint.CoeffIdZero,
+				constraint.CoeffIdZero,
+				constraint.CoeffIdOne,
+				constraint.CoeffIdOne,
+				constraint.CoeffIdZero,
+				constraint.CoeffIdZero,
 				debug)
-			// system.markBoolean(aBits[i].(compiled.Term))
+			// builder.markBoolean(aBits[i].(term))
 		} else {
-			system.AssertIsBoolean(aBits[i])
+			builder.AssertIsBoolean(aBits[i])
 		}
 	}
 

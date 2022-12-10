@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
-	"github.com/consensys/gnark/internal/backend/bls24-317/cs"
+	"github.com/consensys/gnark/constraint/bls24-317"
 
 	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
@@ -96,7 +96,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	nbConstraints := len(spr.Constraints)
 
 	// fft domains
-	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
+	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
@@ -112,7 +112,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
-	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
+	vk.NbPublicVariables = uint64(len(spr.Public))
 
 	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
@@ -126,7 +126,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
 		pk.Qr[i].SetZero()
 		pk.Qm[i].SetZero()
@@ -134,7 +134,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.CQk[i].SetZero()
 		pk.LQk[i].SetZero() // → to be completed by the prover
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < nbConstraints; i++ { // constraints
 
 		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
@@ -208,7 +208,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 // like this: for i in tab: tab[i] = tab[permutation[i]]
 func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
-	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
 	sizeSolution := int(pk.Domain[0].Cardinality)
 
 	// init permutation
@@ -219,11 +219,11 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	// init LRO position -> variable_ID
 	lro := make([]int, 3*sizeSolution) // position -> variable_ID
-	for i := 0; i < spr.NbPublicVariables; i++ {
+	for i := 0; i < len(spr.Public); i++ {
 		lro[i] = i // IDs of LRO associated to placeholders (only L needs to be taken care of)
 	}
 
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
 		lro[offset+i] = spr.Constraints[i].L.WireID()
 		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()

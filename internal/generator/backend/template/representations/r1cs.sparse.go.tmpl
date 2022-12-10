@@ -1,7 +1,6 @@
 import (
 	"fmt"
 	"io"
-	"math/big"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/consensys/gnark-crypto/ecc"
 	"strings"
@@ -12,36 +11,42 @@ import (
 	"time"
 	
 	"github.com/consensys/gnark/internal/backend/ioutils"
-	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/logger"
-	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/backend/witness"
 
     {{ template "import_fr" . }}
 	{{ template "import_witness" . }}
 )
 
+var _ constraint.SparseR1CS = &SparseR1CS{}
+
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
-	compiled.SparseR1CS
-
-	Coefficients []fr.Element // coefficients in the constraints
+	constraint.SparseR1CSCore
+	CoeffTable
+	arithEngine
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS(ccs compiled.SparseR1CS, coefficients []big.Int) *SparseR1CS {
+func NewSparseR1CS() *SparseR1CS {
 	cs := SparseR1CS{
-		SparseR1CS: ccs,
-		Coefficients: make([]fr.Element, len(coefficients)),
-	}
-	for i := 0; i < len(coefficients); i++ {
-		cs.Coefficients[i].SetBigInt(&coefficients[i])
+		SparseR1CSCore: constraint.SparseR1CSCore{System: constraint.NewSystem(fr.Modulus())},
+		CoeffTable: newCoeffTable(),
 	}
 
 	return &cs 
 }
 
+
+func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constraint.DebugInfo) error {
+	profile.RecordConstraint()
+	cs.Constraints = append(cs.Constraints, c)
+	// TODO debug info
+	return nil
+}
 
 // Solve sets all the wires.
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
@@ -51,18 +56,18 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
-	nbVariables := cs.NbInternalVariables + cs.NbSecretVariables + cs.NbPublicVariables
+	nbVariables := cs.NbInternalVariables + len(cs.Secret) + len(cs.Public)
 
 	start := time.Now()
 	
-	expectedWitnessSize := int(cs.NbPublicVariables + cs.NbSecretVariables)
+	expectedWitnessSize := int(len(cs.Public) + len(cs.Secret))
 	if len(witness) != expectedWitnessSize {
 		return make([]fr.Element, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
 			len(witness),
 			expectedWitnessSize,
-			cs.NbPublicVariables,
-			cs.NbSecretVariables,
+			len(cs.Public),
+			len(cs.Secret),
 		)
 	}
 
@@ -235,7 +240,7 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.
 // computeHints computes wires associated with a hint function, if any
 // if there is no remaining wire to solve, returns -1
 // else returns the wire position (L -> 0, R -> 1, O -> 2)
-func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( int, error) {
+func (cs *SparseR1CS) computeHints(c constraint.SparseR1C, solution *solution) ( int, error) {
 	r := -1
 	lID, rID, oID := c.L.WireID(), c.R.WireID(), c.O.WireID()
 
@@ -279,7 +284,7 @@ func (cs *SparseR1CS) computeHints(c compiled.SparseR1C, solution *solution) ( i
 // solveConstraint solve any unsolved wire in given constraint and update the solution
 // a SparseR1C may have up to one unsolved wire (excluding hints)
 // if it doesn't, then this function returns and does nothing
-func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
 
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
@@ -332,7 +337,7 @@ func (cs *SparseR1CS) solveConstraint(c compiled.SparseR1C, solution *solution, 
 	} 
 	// O we solve for O
 	var o fr.Element 
-	cID, vID, _ := c.O.Unpack()
+	cID, vID := c.O.CoeffID(), c.O.WireID()
 
 	l := solution.computeTerm(c.L)
 	r := solution.computeTerm(c.R)
@@ -384,8 +389,8 @@ func (cs *SparseR1CS) GetConstraints() [][]string {
 // r[2] = qO⋅xc
 // r[3] = qM⋅(xaxb)
 // r[4] = qC
-func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
-	isZeroM :=  (c.M[0].CoeffID() == compiled.CoeffIdZero) && (c.M[1].CoeffID() == compiled.CoeffIdZero)
+func (cs *SparseR1CS) formatConstraint(c constraint.SparseR1C) (r [5]string) {
+	isZeroM :=  (c.M[0].CoeffID() == constraint.CoeffIdZero) && (c.M[1].CoeffID() == constraint.CoeffIdZero)
 
 	var sbb strings.Builder
 	cs.termToString(c.L, &sbb, false)
@@ -419,16 +424,16 @@ func (cs *SparseR1CS) formatConstraint(c compiled.SparseR1C) (r [5]string) {
 }
 
 
-func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly bool)   {
+func (cs *SparseR1CS) termToString(t constraint.Term, sbb *strings.Builder, vOnly bool)   {
 	if !vOnly {
 		tID := t.CoeffID()
-		if tID == compiled.CoeffIdOne {
+		if tID == constraint.CoeffIdOne {
 			// do nothing, just print the variable
 			sbb.WriteString("1")
-		} else if tID == compiled.CoeffIdMinusOne {
+		} else if tID == constraint.CoeffIdMinusOne {
 			// print neg sign
 			sbb.WriteString("-1")
-		} else if tID == compiled.CoeffIdZero {
+		} else if tID == constraint.CoeffIdZero {
 			sbb.WriteByte('0')
 			return
 		} else {
@@ -438,28 +443,27 @@ func (cs *SparseR1CS) termToString(t compiled.Term, sbb *strings.Builder, vOnly 
 	}
 
 	vID := t.WireID()
-	visibility := t.VariableVisibility()
 
-	switch visibility {
-	case schema.Internal:
-		if _, isHint := cs.MHints[vID]; isHint {
-			sbb.WriteString(fmt.Sprintf("hv%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
-		} else {
-			sbb.WriteString(fmt.Sprintf("v%d", vID- cs.NbPublicVariables-cs.NbSecretVariables))
-		}
-	case schema.Public:
+	// TODO @gbotrel factorize with R1CS
+	if vID < len(cs.Public) {
 		sbb.WriteString(fmt.Sprintf("p%d", vID))
-	case schema.Secret:
-		sbb.WriteString(fmt.Sprintf("s%d", vID - cs.NbPublicVariables))
-	default:
-		sbb.WriteString("<?>")
+		return
+	}
+	if vID < (len(cs.Public) + len(cs.Secret)) {
+		sbb.WriteString(fmt.Sprintf("s%d", vID - len(cs.Public)))
+		return
+	}
+	if _, isHint := cs.MHints[vID]; isHint {
+		sbb.WriteString(fmt.Sprintf("hv%d", vID- len(cs.Public)-len(cs.Secret)))
+	} else {
+		sbb.WriteString(fmt.Sprintf("v%d", vID- len(cs.Public)-len(cs.Secret)))
 	}
 }
 
 
 
 // checkConstraint verifies that the constraint holds
-func (cs *SparseR1CS) checkConstraint(c compiled.SparseR1C, solution *solution) error {
+func (cs *SparseR1CS) checkConstraint(c constraint.SparseR1C, solution *solution) error {
 	l := solution.computeTerm(c.L)
 	r := solution.computeTerm(c.R)
 	m0 := solution.computeTerm(c.M[0])
@@ -506,6 +510,8 @@ func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 	err = encoder.Encode(cs)
 	return _w.N, err
 }
+
+// TODO @gbotrel initialize coeff table when reading 
 
 // ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
 func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {

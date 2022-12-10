@@ -17,15 +17,17 @@
 package groth16
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
+
+	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-	"github.com/consensys/gnark/logger"
 	"io"
-	"math/big"
 	"time"
+
+	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -36,11 +38,7 @@ var (
 // Verify verifies a proof with given VerifyingKey and publicWitness
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness) error {
 
-	nbPublicVars := len(vk.G1.K)
-	if vk.CommitmentInfo.Is() {
-		nbPublicVars--
-	}
-	if len(publicWitness) != nbPublicVars-1 {
+	if len(publicWitness) != (len(vk.G1.K) - 1) {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
 	log := logger.Logger().With().Str("curve", vk.CurveID().String()).Str("backend", "groth16").Logger()
@@ -62,35 +60,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 		close(chDone)
 	}()
 
-	if vk.CommitmentInfo.Is() {
-
-		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
-			return err
-		}
-
-		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
-		for i := range publicCommitted {
-			var b big.Int
-			publicWitness[vk.CommitmentInfo.Committed[i]-1].ToBigIntRegular(&b)
-			publicCommitted[i] = &b
-		}
-
-		if res, err := solveCommitmentWire(&vk.CommitmentInfo, &proof.Commitment, publicCommitted); err == nil {
-			publicWitness = append(publicWitness, res)
-		}
-	}
-
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
 	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
 		return err
 	}
 	kSum.AddMixed(&vk.G1.K[0])
-
-	if vk.CommitmentInfo.Is() {
-		kSum.AddMixed(&proof.Commitment)
-	}
-
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 

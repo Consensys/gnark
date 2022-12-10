@@ -20,6 +20,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func setup(t *testing.T, circuit frontend.Circuit) (frontend.CompiledConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey) {
+func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey) {
 	_r1cs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(t, err)
 
@@ -50,7 +51,7 @@ func setup(t *testing.T, circuit frontend.Circuit) (frontend.CompiledConstraintS
 	return _r1cs, pk, vk
 }
 
-func prove(t *testing.T, assignment frontend.Circuit, cs frontend.CompiledConstraintSystem, pk groth16.ProvingKey) (*witness.Witness, groth16.Proof) {
+func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (*witness.Witness, groth16.Proof) {
 	_witness, err := frontend.NewWitness(assignment, ecc.BLS12_381.ScalarField())
 	assert.NoError(t, err)
 

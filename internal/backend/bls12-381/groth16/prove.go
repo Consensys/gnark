@@ -23,7 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	"github.com/consensys/gnark/constraint/bls12-381"
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -53,9 +53,10 @@ func (proof *Proof) CurveID() ecc.ID {
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt backend.ProverConfig) (*Proof, error) {
-	if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
-	}
+	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
+	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
+	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
+	// }
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
@@ -101,7 +102,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 			// we need to fill wireValues with random values else multi exps don't do much
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := r1cs.NbPublicVariables + r1cs.NbSecretVariables; i < len(wireValues); i++ {
+			for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
 				wireValues[i] = r
 				r.Double(&r)
 			}
@@ -220,7 +221,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 
 		removeIndexes(&wireValues, r1cs.CommitmentInfo.GetPrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
 
-		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := krs.MultiExp(pk.G1.K, wireValues[len(r1cs.Public):], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}

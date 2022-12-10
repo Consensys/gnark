@@ -22,7 +22,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/utils"
 
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
@@ -39,18 +40,17 @@ const srsCachedSize = (1 << 14) + 3
 // for sizes < 2¹⁵, returns a pre-computed cached SRS
 //
 // /!\ warning /!\: this method is here for convenience only: in production, a SRS generated through MPC should be used.
-func NewKZGSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
+func NewKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 
 	nbConstraints := ccs.GetNbConstraints()
-	_, _, public := ccs.GetNbVariables()
-	sizeSystem := nbConstraints + public
+	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
 	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem)) + 3
 
 	if kzgSize <= srsCachedSize {
 		return getCachedSRS(ccs)
 	}
 
-	return newKZGSRS(ccs.CurveID(), kzgSize)
+	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize)
 
 }
 
@@ -60,19 +60,19 @@ var lock sync.Mutex
 func init() {
 	srsCache = make(map[ecc.ID]kzg.SRS)
 }
-func getCachedSRS(ccs frontend.CompiledConstraintSystem) (kzg.SRS, error) {
+func getCachedSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	if srs, ok := srsCache[ccs.CurveID()]; ok {
+	if srs, ok := srsCache[utils.FieldToCurve(ccs.Field())]; ok {
 		return srs, nil
 	}
 
-	srs, err := newKZGSRS(ccs.CurveID(), srsCachedSize)
+	srs, err := newKZGSRS(utils.FieldToCurve(ccs.Field()), srsCachedSize)
 	if err != nil {
 		return nil, err
 	}
-	srsCache[ccs.CurveID()] = srs
+	srsCache[utils.FieldToCurve(ccs.Field())] = srs
 	return srs, nil
 }
 
