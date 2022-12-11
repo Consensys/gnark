@@ -127,12 +127,12 @@ func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, q
 	v := xb
 	u.SetCoeffID(qM1)
 	v.SetCoeffID(qM2)
-	L := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xa.CID], xa.VID)
-	R := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xb.CID], xb.VID)
-	O := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xc.CID], xc.VID)
-	U := builder.TOREFACTORAddTerm(&builder.st.Coeffs[u.CID], u.VID)
-	V := builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)
-	K := builder.TOREFACTORAddTerm(&builder.st.Coeffs[qC], 0)
+	L := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[xa.CID], xa.VID)
+	R := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[xb.CID], xb.VID)
+	O := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[xc.CID], xc.VID)
+	U := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[u.CID], u.VID)
+	V := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)
+	K := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[qC], 0)
 	K.MarkConstant()
 	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...) // TODO @gbotrel coeff ID?
 }
@@ -285,9 +285,9 @@ func (builder *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	}
 }
 
-func (builder *scs) TOREFACTORAddTerm(c *big.Int, vID int) constraint.Term {
+func (builder *scs) TOREFACTORMakeTerm(c *big.Int, vID int) constraint.Term {
 	cc := builder.cs.FromInterface(c)
-	return builder.cs.AddTerm(&cc, vID)
+	return builder.cs.MakeTerm(&cc, vID)
 }
 
 // NewHint initializes internal variables whose value will be evaluated using
@@ -310,10 +310,10 @@ func (builder *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case expr.TermToRefactor:
-			hintInputs[i] = constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[t.CID], t.VID)}
+			hintInputs[i] = constraint.LinearExpression{builder.TOREFACTORMakeTerm(&builder.st.Coeffs[t.CID], t.VID)}
 		default:
 			c := utils.FromInterface(in)
-			term := builder.TOREFACTORAddTerm(&c, 0)
+			term := builder.TOREFACTORMakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
 		}

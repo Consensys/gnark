@@ -60,7 +60,7 @@ type ConstraintSystem interface {
 
 	AddLog(l LogEntry)
 
-	AddTerm(coeff *Coeff, variableID int) Term
+	MakeTerm(coeff *Coeff, variableID int) Term
 
 	// TODO @gbotrel we might need a "AttachDebugInfo(debugInfo, constraintID)"
 

@@ -184,7 +184,7 @@ func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
 func (builder *builder) getLinearExpression(l expr.LinearExpression) constraint.LinearExpression {
 	L := make(constraint.LinearExpression, 0, len(l))
 	for _, t := range l {
-		L = append(L, builder.cs.AddTerm(&t.Coeff, t.VID))
+		L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
 	}
 	return L
 }
@@ -399,7 +399,7 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 			// make a term
 			// c := utils.FromInterface(t)
 			c := builder.cs.FromInterface(t)
-			term := builder.cs.AddTerm(&c, 0)
+			term := builder.cs.MakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
 		}

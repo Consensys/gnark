@@ -28,7 +28,7 @@ func newCoeffTable() CoeffTable {
 }
 
 
-func (ct *CoeffTable) AddTerm(coeff *constraint.Coeff, variableID int) constraint.Term {
+func (ct *CoeffTable) MakeTerm(coeff *constraint.Coeff, variableID int) constraint.Term {
 	c := (*fr.Element)(coeff[:])
 	var cID uint32
 	if c.IsZero() {

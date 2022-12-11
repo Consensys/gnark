@@ -445,7 +445,7 @@ func (builder *scs) Println(a ...frontend.Variable) {
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)})
+			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		} else {
 			builder.printArg(&log, &sbb, arg)
 		}
@@ -486,7 +486,7 @@ func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a f
 		v := tValue.Interface().(expr.TermToRefactor)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)})
+		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
