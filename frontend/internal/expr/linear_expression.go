@@ -73,7 +73,7 @@ func (l LinearExpression) Less(i, j int) bool {
 func (l LinearExpression) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + val.Coeff[0] + val.Coeff[1] + val.Coeff[2] + uint64(val.VID) // TODO @gbotrel revisit
+		h = h*23 + val.Coeff[0]*29 + uint64(val.VID<<12) // TODO @gbotrel revisit
 	}
 	return h
 }
