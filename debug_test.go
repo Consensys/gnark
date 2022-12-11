@@ -167,7 +167,6 @@ func TestTraceNotBoolean(t *testing.T) {
 		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
-
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)

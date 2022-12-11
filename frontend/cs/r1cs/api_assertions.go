@@ -19,7 +19,6 @@ package r1cs
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
@@ -32,7 +31,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	r := builder.toVariable(i1)
 	o := builder.toVariable(i2)
 
-	debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", r, " == ", o)
+	debug := builder.newDebugInfo("assertIsEqual", r, " == ", o)
 
 	builder.cs.AddConstraint(builder.newR1C(builder.cstOne(), r, o), debug)
 }
@@ -59,7 +58,7 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	}
 	builder.MarkBoolean(v)
 
-	debug := constraint.NewDebugInfo("assertIsBoolean") // TODO restore", v, " == (0|1)")
+	debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	o := builder.cstZero()
 
@@ -88,7 +87,7 @@ func (builder *builder) AssertIsLessOrEqual(_v frontend.Variable, bound frontend
 }
 
 func (builder *builder) mustBeLessOrEqVar(a, bound expr.LinearExpression) {
-	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
+	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -141,7 +140,7 @@ func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound big.Int
 	}
 
 	// debug info
-	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", builder.toVariable(bound))
+	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", builder.toVariable(bound))
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)

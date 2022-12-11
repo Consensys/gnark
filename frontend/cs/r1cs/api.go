@@ -206,7 +206,7 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 
 	if !v2Constant {
 		res := builder.newInternalVariable()
-		debug := constraint.NewDebugInfo("div") // TODO restore , v1, "/", v2, " == ", res)
+		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		// note that here we don't ensure that divisor is != 0
 		builder.cs.AddConstraint(builder.newR1C(v2, res, v1), debug)
 		return res
@@ -241,7 +241,7 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	if !v2Constant {
 		res := builder.newInternalVariable()
-		debug := constraint.NewDebugInfo("div") // TODO restore", v1, "/", v2, " == ", res)
+		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 		builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()), debug)
@@ -280,7 +280,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 	// allocate resulting frontend.Variable
 	res := builder.newInternalVariable()
 
-	debug := constraint.NewDebugInfo("inverse") // TODO restore", vars[0], "*", res, " == 1")
+	debug := builder.newDebugInfo("inverse", vars[0], "*", res, " == 1")
 	builder.cs.AddConstraint(builder.newR1C(res, vars[0], builder.cstOne()), debug)
 
 	return res
@@ -484,7 +484,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		return builder.cstZero()
 	}
 
-	debug := constraint.NewDebugInfo("isZero") // TODO restore", a)
+	debug := builder.newDebugInfo("isZero", a)
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0

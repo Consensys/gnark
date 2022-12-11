@@ -438,3 +438,32 @@ func assertIsSet(l expr.LinearExpression) {
 		}
 	}
 }
+
+// newDebugInfo this is temporary to restore debug logs
+// something more like builder.sprintf("my message %le %lv", l0, l1)
+// to build logs for both debug and println
+// and append some program location.. (see other todo in debug_info.go)
+func (builder *builder) newDebugInfo(errName string, in ...interface{}) constraint.DebugInfo {
+	for i := 0; i < len(in); i++ {
+		// for inputs that are LinearExpressions or Term, we need to "Make" them in the backend.
+		// TODO @gbotrel this is a duplicate effort with adding a constraint and should be taken care off
+
+		switch t := in[i].(type) {
+		case *expr.LinearExpression:
+			in[i] = builder.getLinearExpression(*t)
+		case expr.LinearExpression:
+			in[i] = builder.getLinearExpression(t)
+		case expr.Term:
+			in[i] = builder.getLinearExpression(expr.LinearExpression{t})
+		case *expr.Term:
+			in[i] = builder.getLinearExpression(expr.LinearExpression{*t})
+		case constraint.Coeff:
+			in[i] = builder.cs.String(&t)
+		case *constraint.Coeff:
+			in[i] = builder.cs.String(t)
+		}
+	}
+
+	return constraint.NewDebugInfo(errName, in...)
+
+}

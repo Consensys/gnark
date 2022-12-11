@@ -60,6 +60,8 @@ type ConstraintSystem interface {
 
 	AddLog(l LogEntry)
 
+	// MakeTerm returns a new Term. The constraint system may store coefficients in a map, so
+	// calls to this function will grow the memory usage of the constraint system.
 	MakeTerm(coeff *Coeff, variableID int) Term
 
 	// TODO @gbotrel we might need a "AttachDebugInfo(debugInfo, constraintID)"
@@ -78,6 +80,7 @@ type CoeffEngine interface {
 	Inverse(a *Coeff)
 	One() Coeff
 	IsOne(*Coeff) bool
+	String(*Coeff) string
 }
 
 // System contains core elements for a constraint System

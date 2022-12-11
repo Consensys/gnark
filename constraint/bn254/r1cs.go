@@ -62,7 +62,12 @@ func NewR1CS() *R1CS {
 func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugInfo) error {
 	profile.RecordConstraint()
 	cs.Constraints = append(cs.Constraints, r1c)
-	// TODO debug info
+	if len(debugInfo) == 1 {
+		// TODO we duplicate a lot of debug info here.
+		cs.DebugInfo = append(cs.DebugInfo, constraint.LogEntry(debugInfo[0]))
+		cs.MDebug[len(cs.Constraints)-1] = len(cs.DebugInfo) - 1
+	}
+
 	return nil
 }
 

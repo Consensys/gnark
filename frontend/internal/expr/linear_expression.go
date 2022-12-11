@@ -4,6 +4,10 @@ import (
 	"github.com/consensys/gnark/constraint"
 )
 
+// TODO @gbotrel --> storing a UUID in the linear expressions would enable better perf
+// in the frontends -> check a linear expression is boolean, or has been converted to a
+// "backend" constraint.LinearExpresion ... and avoid duplicating work would be interesting.
+
 type LinearExpression []Term
 
 func (l LinearExpression) Clone() LinearExpression {

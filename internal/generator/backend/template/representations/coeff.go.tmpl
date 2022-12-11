@@ -133,3 +133,8 @@ func (engine *arithEngine) One() constraint.Coeff {
 	copy(r[:], e[:])
 	return r
 }
+
+func (engine *arithEngine) String(a *constraint.Coeff) string {
+	e := (*fr.Element)(a[:])
+	return e.String()
+}
